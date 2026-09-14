@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.122.0</div>
+          <div id="app-subtitle" class="subtitle">v0.123.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -340,6 +340,21 @@
                 <div id="encounter-record" class="encounter-record" aria-live="polite"></div>
               </details>
             </section>
+            <!-- v0.123.0: Book 2 starship combat. A separate rail section from
+                 personal combat because the turn is nothing like a Book 1
+                 round: two player turns of five phases each, and phase C
+                 belongs to the side that is NOT acting. -->
+            <section id="ship-combat-rail-section" class="context-panel combat-rail" hidden aria-labelledby="ship-combat-rail-heading">
+              <div class="section-heading">
+                <h2 id="ship-combat-rail-heading" class="section-title">SHIP COMBAT</h2>
+              </div>
+              <div id="ship-combat-tracker" class="encounter-tracker" aria-label="Ship combat tracker" aria-live="polite"></div>
+              <div id="ship-combat-actions" class="encounter-resolve"></div>
+              <details id="ship-combat-details" class="encounter-details">
+                <summary>COMBAT LOG</summary>
+                <div id="ship-combat-record" class="encounter-record" aria-live="polite"></div>
+              </details>
+            </section>
         </section>
         <section class="sidebar-panel" data-sidebar-panel="scenes" hidden>
           <div id="directory-scenes" class="campaign-directory" aria-label="Scenes" aria-live="polite"></div>
@@ -367,7 +382,7 @@
                    assignment at all. -->
               <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
               <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
-              <!-- v0.122.0: Book 2 p.16 delivers every standard design with
+              <!-- v0.123.0: Book 2 p.16 delivers every standard design with
                    empty turrets, so a ship is unarmed until weapons are bought
                    and fitted here. -->
               <div class="live-ship-crew-heading"><strong>ARMAMENT</strong><button id="fit-armament" class="text-button" type="button">[ FIT ]</button></div>

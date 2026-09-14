@@ -90,7 +90,36 @@ import {
   getTurretWeapon,
   TURRET_WEAPONS,
   MISSILE_PRICE_CR,
-  SAND_CANISTER_PRICE_CR
+  SAND_CANISTER_PRICE_CR,
+  createShipDocument,
+  importShipDocument,
+  shipCrewRole,
+  turretOperational,
+  COMPUTER_MODELS,
+  createShipCombatEncounter,
+  currentPhase as currentShipCombatPhase,
+  actingSide as shipCombatActingSide,
+  advanceShipCombatPhase,
+  getParticipant as getShipCombatParticipant,
+  allocateLaserFire,
+  resolveLaserFire,
+  returnFireEligibility,
+  launchOrdnance,
+  moveOrdnance,
+  ordnanceInFlight,
+  resolveAntiMissileFire,
+  detonateContactedOrdnance,
+  reprogramComputer,
+  declareFlight,
+  creditShotAgainstEscape,
+  surrender as surrenderShip,
+  participantStatus,
+  shipCombatOutcome,
+  shipDataCard,
+  computerState,
+  sideAwaitingDeclaration,
+  elapsedMinutes as shipCombatElapsedMinutes,
+  COMPUTER_PROGRAMS
 } from '../vendor/classic-traveller-rules/index.js';
 
 import {
@@ -513,6 +542,10 @@ const el = {
   encounterDetails: document.querySelector('#encounter-details'),
   encounterRecord: document.querySelector('#encounter-record'),
   encounterRailSection: document.querySelector('#combat-rail-section'),
+  shipCombatRailSection: document.querySelector('#ship-combat-rail-section'),
+  shipCombatTracker: document.querySelector('#ship-combat-tracker'),
+  shipCombatActions: document.querySelector('#ship-combat-actions'),
+  shipCombatRecord: document.querySelector('#ship-combat-record'),
   encounterSelectionStatus: document.querySelector('#encounter-selection-status'),
   encounterRangePair: document.querySelector('#encounter-range-pair'),
   encounterRangeButtons: [...document.querySelectorAll('[data-encounter-range]')],
@@ -667,6 +700,11 @@ let character = createCharacter();
 let gameplayDocument = null;
 let partyCharacterDocuments = [];
 let shipDocument = null;
+// v0.123.0: Book 2 starship combat. The arrival encounter is held here so it
+// can be engaged; the encounter itself is referee-side state on this client.
+let pendingShipEncounter = null;
+let shipCombatEncounter = null;
+let shipCombatAllocation = {};
 let campaignDocument = null;
 let contractDocuments = [];
 let situationDocuments = [];
@@ -4056,6 +4094,10 @@ function rollArrivalShipEncounter(system, profile) {
     const hull = encounter.hull ? ` / ${encounter.hull.label}` : '';
     logActivity('NAV', `${encounter.label} encountered at ${system.name}${hull} / reaction ${reaction.reaction.toUpperCase()}`);
     setStatus(`SHIP ENCOUNTER: ${encounter.label.toUpperCase()}${encounter.hostileByDefault ? ' / HOSTILE' : ''}`, encounter.hostileByDefault ? 'error' : 'ok');
+    // Held so the encounter can be engaged rather than only logged. Not
+    // persisted: a reload forgets it, which is the same as the referee letting
+    // the ship pass.
+    pendingShipEncounter = { encounter, reaction, systemName: system.name };
     return { encounter, reaction };
   } catch (error) {
     console.error(error);
@@ -8293,6 +8335,14 @@ function renderPortServices() {
   // v0.105.0: Book 3 animal encounters. Leaving the starport is a world
   // action, so the check sits with the world's other services.
   el.portActions.append(makePortButton('CHECK FOR ANIMALS', openAnimalDialog));
+  // Book 2 p.36 throws a ship encounter on arrival. Until v0.123.0 it was
+  // logged and nothing could come of it.
+  if (pendingShipEncounter && !shipCombatEncounter) {
+    el.portActions.append(makePortButton(
+      `ENGAGE / ${pendingShipEncounter.encounter.label.toUpperCase()}`,
+      engagePendingShipEncounter
+    ));
+  }
 
   const portCall = currentBerthingDue();
   if (portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0) {
@@ -8559,6 +8609,7 @@ function renderLiveShipStatus({ currentSystem = null, selectedSystem = null, dis
   appendLiveShipRow('ACCOUNT', formatCr(shipDocument.state.finances.balanceCr));
   renderShipCrew();
   renderShipArmament();
+  renderShipCombatRail();
   renderShipLedger();
   renderShipStrip();
   // After the strip, whose height is what moves the map down.
@@ -8917,6 +8968,493 @@ function removeTurretWeapon(turretId, weapon) {
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// --- Book 2 pp.22-37: starship combat ------------------------------------
+//
+// A game turn is two player turns of five phases. Four phases belong to the
+// phasing side; phase C is the OTHER side returning fire and shooting at
+// missiles that have just contacted it. The rail states whose phase it is and
+// offers only that phase's actions, so a card that cannot be acted on never
+// renders as ready.
+//
+// Abbreviated mode (p.37): shots are traded without regard to range, and a
+// fleeing ship escapes after however many shots the referee allows.
+
+// Book 2 p.36 names the hull; these are the standard designs it resolves to.
+const SHIP_ENCOUNTER_DESIGN_KEYS = {
+  'free-trader': 'type-a-free-trader',
+  'subsidized-merchant': 'type-r-subsidized-merchant',
+  yacht: 'type-y-yacht',
+  'type-s-scout-courier': 'type-s-scout-courier',
+  'type-c-cruiser': 'type-c-cruiser',
+  'type-y-yacht-armed': 'type-y-yacht',
+  patrol: 'type-c-cruiser',
+  pirate: 'type-s-scout-courier'
+};
+
+function opposingShipDesignKey(encounter) {
+  return SHIP_ENCOUNTER_DESIGN_KEYS[encounter?.hull?.key]
+    ?? SHIP_ENCOUNTER_DESIGN_KEYS[encounter?.key]
+    ?? 'type-s-scout-courier';
+}
+
+// A Model/1 holds six points. Book 2 p.24's sample Type S carries more than it
+// can hold at once, which is the point of the reprogramming phase.
+const DEFAULT_COMBAT_LOADOUT = ['target', 'return-fire', 'predict-1', 'gunner-interact', 'auto-evade', 'launch'];
+
+function shipCombatLoadout(ship) {
+  const capacity = COMPUTER_MODELS?.[ship.specifications.computer.model];
+  const room = (capacity?.cpu ?? 2) + (capacity?.storage ?? 0);
+  const loaded = [];
+  let used = 0;
+  for (const key of DEFAULT_COMBAT_LOADOUT) {
+    const space = COMPUTER_PROGRAMS[key].space;
+    if (used + space > room) continue;
+    loaded.push(key);
+    used += space;
+  }
+  return { carried: [...DEFAULT_COMBAT_LOADOUT], loaded };
+}
+
+function playerShipStations() {
+  const gunners = {};
+  for (const turret of shipDocument.specifications.armament.turrets) {
+    const gunner = shipCrewRole(shipDocument, 'gunner')[0];
+    if (gunner) gunners[turret.id] = gunner.characterId;
+  }
+  const pilot = shipCrewRole(shipDocument, 'pilot')[0] ?? null;
+  return {
+    pilot: pilot?.characterId ?? null,
+    computerOperator: pilot?.characterId ?? null,
+    engineer: shipCrewRole(shipDocument, 'engineer')[0]?.characterId ?? null,
+    gunners
+  };
+}
+
+function engagePendingShipEncounter() {
+  try {
+    if (!shipDocument) throw new Error('no active ship');
+    if (!pendingShipEncounter) throw new Error('no ship encounter to engage');
+    const { encounter } = pendingShipEncounter;
+    const designKey = opposingShipDesignKey(encounter);
+    // The ship document's authority block is built around Book 1's scout
+    // reserve assignment: it requires an assigned character who appears in the
+    // crew assignments. An encountered ship has no assignee, so it gets a
+    // synthetic captain — which is true enough, since somebody is flying it.
+    // A proper privately-owned authority type belongs in the rules package.
+    const captainId = `npc-captain-${Date.now()}`;
+    const captainName = `${encounter.label} captain`;
+    let opponent = createShipDocument({
+      designKey,
+      id: `npc-${encounter.key ?? 'ship'}-${Date.now()}`,
+      name: encounter.label,
+      authority: {
+        assignmentType: 'private-owner',
+        controllingAuthority: encounter.label,
+        legalTitleHolder: captainName,
+        legalTitleSourceStatus: 'referee-generated-encounter',
+        characterOwnsShip: true,
+        assignedCharacterId: captainId,
+        assignedCharacterName: captainName,
+        recallable: false,
+        saleAllowed: true,
+        useAsDesired: true,
+        possessionAtServicePleasure: false,
+        servicePrivileges: {
+          freeFuelAtScoutBases: false,
+          freeMaintenanceAtScoutBasesAtClassBStarports: false
+        },
+        operatorResponsibilities: { upkeep: true, crewCosts: true }
+      },
+      crewAssignments: [{ role: 'pilot', characterId: captainId, characterName: captainName }]
+    });
+    // Book 2 p.16 delivers standard designs unarmed, so anything meant to be a
+    // threat has to have been armed by its owner.
+    for (const turret of opponent.specifications.armament.turrets.slice(0, 2)) {
+      opponent = armShipTurret(opponent, { turretId: turret.id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+    }
+
+    const mine = shipCombatLoadout(shipDocument);
+    const theirs = shipCombatLoadout(opponent);
+    shipCombatEncounter = createShipCombatEncounter({
+      id: `ship-combat-${Date.now()}`,
+      campaignId: campaignDocument?.identity?.id ?? null,
+      // Book 2 p.22 never says which side is which. The initiator is the
+      // intruder, so a hostile ship is proposed as the intruder and the
+      // referee can say otherwise.
+      intruderSide: encounter.hostileByDefault ? 'intruder' : 'native',
+      intruderAssignmentNote: encounter.hostileByDefault
+        ? `${encounter.label} initiated the encounter`
+        : 'No clear initiator; referee assigned',
+      participants: [
+        {
+          shipId: 'player',
+          name: shipDocument.identity.name || 'SHIP',
+          side: encounter.hostileByDefault ? 'native' : 'intruder',
+          ship: shipDocument,
+          carriedPrograms: mine.carried,
+          loadedPrograms: mine.loaded,
+          stations: playerShipStations(),
+          skills: {},
+          // Book 2 p.35: ships depressurise before combat whenever possible.
+          pressurisedSections: []
+        },
+        {
+          shipId: 'opponent',
+          name: encounter.label,
+          side: encounter.hostileByDefault ? 'intruder' : 'native',
+          ship: opponent,
+          carriedPrograms: theirs.carried,
+          loadedPrograms: theirs.loaded,
+          pressurisedSections: []
+        }
+      ]
+    });
+    shipCombatAllocation = {};
+    pendingShipEncounter = null;
+    setOperationsDeskTab('encounter');
+    logActivity('COMBAT', `Ship combat engaged: ${shipCombatEncounter.participants.map((entry) => entry.name).join(' vs ')}`);
+    setStatus('SHIP COMBAT ENGAGED / GAME TURN 1 / INTRUDER MOVEMENT', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function shipCombatStep(action, label) {
+  try {
+    action();
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(`${label}: ${error?.message ?? String(error)}`, 'error');
+  }
+}
+
+function advanceShipCombat() {
+  shipCombatStep(() => {
+    // Book 2 p.23 phase A moves ordnance launched in previous game turns.
+    if (currentShipCombatPhase(shipCombatEncounter).key === 'movement') {
+      shipCombatEncounter = moveOrdnance(shipCombatEncounter);
+    }
+    shipCombatEncounter = advanceShipCombatPhase(shipCombatEncounter);
+    shipCombatAllocation = {};
+    const phase = currentShipCombatPhase(shipCombatEncounter);
+    setStatus(`${shipCombatEncounter.phasingSide.toUpperCase()} / ${phase.label.toUpperCase()} / TURN ${shipCombatEncounter.gameTurn}`, 'ok');
+  }, 'ADVANCE');
+}
+
+function resolveShipCombatFire() {
+  shipCombatStep(() => {
+    const side = shipCombatActingSide(shipCombatEncounter);
+    const allocations = Object.entries(shipCombatAllocation)
+      .map(([shipId, byTurret]) => Object.entries(byTurret).map(([turretId, targetId]) => ({ shipId, turretId, targetId })))
+      .flat()
+      .filter((entry) => getShipCombatParticipant(shipCombatEncounter, entry.shipId).side === side);
+    if (!allocations.length) throw new Error('allocate fire before resolving');
+    // Book 2 p.29: allocation is locked before any ship fires.
+    shipCombatEncounter = allocateLaserFire(shipCombatEncounter, allocations);
+    const resolved = resolveLaserFire(shipCombatEncounter, createDice());
+    shipCombatEncounter = resolved.encounter;
+    shipCombatAllocation = {};
+    const hits = resolved.shots.filter((shot) => shot.hit);
+    for (const shot of resolved.shots) {
+      if (!shot.fired) {
+        logActivity('COMBAT', `${shot.shipId} ${shot.turretId} could not fire: ${shot.reason}`);
+        continue;
+      }
+      logActivity('COMBAT', `${shot.shipId} ${shot.turretId} -> ${shot.targetId}: ${shot.roll}${shot.dm >= 0 ? '+' : ''}${shot.dm} = ${shot.total} vs ${shot.target} / ${shot.hit ? `HIT ${shot.location.toUpperCase()}` : 'MISS'}`);
+      for (const occupant of shot.decompression?.occupants ?? []) {
+        logActivity('COMBAT', `Decompression: ${occupant.name} ${occupant.survived ? 'suited up' : 'lost'}`);
+      }
+    }
+    setStatus(`${hits.length}/${resolved.shots.length} HIT`, hits.length ? 'error' : 'ok');
+  }, 'FIRE');
+}
+
+function resolveShipCombatAntiMissile(shipId) {
+  shipCombatStep(() => {
+    const result = resolveAntiMissileFire(shipCombatEncounter, createDice(), { shipId });
+    shipCombatEncounter = result.encounter;
+    if (result.ecm) {
+      logActivity('COMBAT', `ECM ${result.ecm.total} vs ${result.ecm.target} / ${result.ecm.cleared ? 'MISSILES DESTROYED' : 'NO EFFECT'}`);
+    }
+    for (const shot of result.shots) {
+      logActivity('COMBAT', `Anti-missile ${shot.turretId} vs ${shot.roundId}: ${shot.total} vs ${shot.target} / ${shot.hit ? 'DESTROYED' : 'MISS'}`);
+    }
+    setStatus(`${result.destroyed.length} MISSILE(S) DESTROYED`, 'ok');
+  }, 'ANTI-MISSILE');
+}
+
+function detonateShipCombatOrdnance() {
+  shipCombatStep(() => {
+    const result = detonateContactedOrdnance(shipCombatEncounter, createDice());
+    shipCombatEncounter = result.encounter;
+    for (const detonation of result.detonations) {
+      logActivity('COMBAT', `Missile ${detonation.roundId} detonates on ${detonation.targetShipId}: ${detonation.hitCount} hit(s) / ${detonation.hits.map((hit) => hit.location).join(', ')}`);
+    }
+    setStatus(result.detonations.length ? `${result.detonations.length} MISSILE(S) DETONATE` : 'NOTHING IN CONTACT', 'ok');
+  }, 'DETONATE');
+}
+
+function launchShipCombatOrdnance(shipId, targetId) {
+  shipCombatStep(() => {
+    const participant = getShipCombatParticipant(shipCombatEncounter, shipId);
+    const missiles = participant.ship.state.armament.missiles > 0 ? 1 : 0;
+    const sand = missiles ? 0 : (participant.ship.state.armament.sandCanisters > 0 ? 1 : 0);
+    if (!missiles && !sand) throw new Error('nothing aboard to launch');
+    shipCombatEncounter = launchOrdnance(shipCombatEncounter, {
+      shipId, missiles, sandCanisters: sand, targetId: missiles ? targetId : null
+    });
+    logActivity('COMBAT', missiles ? `${participant.name} launches a missile at ${targetId}` : `${participant.name} casts sand`);
+    setStatus(missiles ? 'MISSILE AWAY' : 'SAND CAST', 'ok');
+  }, 'LAUNCH');
+}
+
+function fleeShipCombat(shipId) {
+  shipCombatStep(() => {
+    // Book 2 p.37 leaves the count to the referee; no formula is supplied.
+    const raw = window.prompt('Book 2 p.37: how many shots may be made before the ship is out of range?', '2');
+    if (raw === null) return;
+    const shots = Number.parseInt(raw, 10);
+    if (!Number.isInteger(shots) || shots < 0) throw new Error('the referee must state a number of shots');
+    shipCombatEncounter = declareFlight(shipCombatEncounter, { shipId, shotsBeforeEscape: shots, note: 'Referee ruling' });
+    logActivity('COMBAT', `${shipId} breaks off / referee allows ${shots} more shot(s)`);
+    setStatus(`FLEEING / ${shots} SHOT(S) ALLOWED`, 'ok');
+  }, 'FLEE');
+}
+
+function closeShipCombat() {
+  shipCombatStep(() => {
+    const outcome = shipCombatOutcome(shipCombatEncounter);
+    const mine = outcome.ships.find((entry) => entry.shipId === 'player');
+    if (mine) {
+      // The ship as the fight left it: damage, fuel, magazines.
+      shipDocument = importShipDocument(mine.ship);
+      persistGameplayDocuments();
+    }
+    logActivity('COMBAT', `Ship combat closed / ${outcome.outcome.toUpperCase()} / ${outcome.gameTurns} game turn(s), ${outcome.elapsedMinutes} minutes`);
+    shipCombatEncounter = null;
+    shipCombatAllocation = {};
+    setStatus(`COMBAT CLOSED / ${outcome.outcome.toUpperCase()}`, 'ok');
+  }, 'CLOSE');
+}
+
+function shipCombatCardRow(target, label, value, { stateClass = '', title = '' } = {}) {
+  const row = document.createElement('div');
+  row.className = `live-ship-row${stateClass ? ` ${stateClass}` : ''}`;
+  if (title) row.title = title;
+  const name = document.createElement('span');
+  name.className = 'live-ship-label';
+  name.textContent = label;
+  const text = document.createElement('span');
+  text.className = 'live-ship-value';
+  text.textContent = value;
+  row.append(name, text);
+  target.append(row);
+  return row;
+}
+
+function renderShipCombatRail() {
+  const section = el.shipCombatRailSection;
+  if (!section) return;
+  section.hidden = !shipCombatEncounter;
+  if (!el.shipCombatTracker || !shipCombatEncounter) return;
+  el.shipCombatTracker.replaceChildren();
+  el.shipCombatActions.replaceChildren();
+
+  const encounter = shipCombatEncounter;
+  const phase = currentShipCombatPhase(encounter);
+  const acting = shipCombatActingSide(encounter);
+
+  const heading = document.createElement('div');
+  heading.className = 'encounter-tracker-header';
+  const state = document.createElement('strong');
+  state.className = 'encounter-tracker-state';
+  state.textContent = `TURN ${encounter.gameTurn} \u00b7 ${encounter.phasingSide.toUpperCase()} \u00b7 ${phase.label.toUpperCase()}`;
+  state.title = `Book 2 p.23. ${shipCombatElapsedMinutes(encounter)} minutes elapsed. `
+    + (phase.actor === 'opposing'
+      ? 'Phase C belongs to the side that is not acting: return fire and anti-missile fire.'
+      : 'This phase belongs to the phasing side.');
+  const who = document.createElement('span');
+  who.className = 'encounter-tracker-ready';
+  who.textContent = `ACTING: ${acting.toUpperCase()}`;
+  heading.append(state, who);
+  el.shipCombatTracker.append(heading);
+
+  for (const participant of encounter.participants) {
+    const card = shipDataCard(participant);
+    const status = card.status;
+    const row = document.createElement('details');
+    row.className = `encounter-tracker-row${status.disabled ? ' inactive' : ''}`;
+    row.open = true;
+    const summary = document.createElement('summary');
+    summary.className = 'encounter-tracker-summary';
+    const label = document.createElement('span');
+    label.className = 'encounter-tracker-name';
+    const marks = [participant.side.toUpperCase()];
+    if (status.disabled) marks.push('DISABLED');
+    else {
+      if (status.adrift) marks.push('ADRIFT');
+      if (status.toothless) marks.push('NO GUNS');
+    }
+    if (status.escaped) marks.push('ESCAPED');
+    if (status.surrendered) marks.push('SURRENDERED');
+    if (participant.fled && !status.escaped) marks.push(`FLEEING (${participant.shotsRemainingBeforeEscape})`);
+    label.textContent = `${card.name.toUpperCase()} / ${card.typeCode} / ${marks.join(' / ')}`;
+    summary.append(label);
+    row.append(summary);
+
+    // Book 2 p.24's data card: the six sections, turrets, magazine, computer.
+    for (const drive of card.sections) {
+      shipCombatCardRow(row, drive.label.toUpperCase(), drive.reading, {
+        stateClass: drive.potential === null ? 'live-state-critical' : (drive.hits ? 'live-state-attention' : ''),
+        title: 'Book 2 p.33: each hit reduces the letter by one and the potential is reread from p.11.'
+      });
+    }
+    shipCombatCardRow(row, 'FUEL', `${card.fuel.aboardTons}t / ${card.fuel.capacityTons}t${card.fuel.lostTons ? ` / ${card.fuel.lostTons}t LOST` : ''}`, {
+      stateClass: card.fuel.jumpDisabled ? 'live-state-critical' : (card.fuel.lostTons ? 'live-state-attention' : '')
+    });
+    for (const turret of card.turrets) {
+      shipCombatCardRow(row, turret.id, `${turret.mount.toUpperCase()} / ${turret.code || 'EMPTY'}${turret.operational ? '' : ' / OUT'}${turret.gunnerSkill ? ` / GUNNER-${turret.gunnerSkill}` : ''}`, {
+        stateClass: turret.operational ? '' : 'live-state-critical'
+      });
+    }
+    if (card.magazine.missiles || card.magazine.sandCanisters) {
+      shipCombatCardRow(row, 'MAGAZINE', `${card.magazine.missiles} MISSILES / ${card.magazine.sandCanisters} SAND`);
+    }
+    const computer = card.computer;
+    shipCombatCardRow(row, 'COMPUTER', `MODEL/${computer.model} / CPU ${computer.cpu} / STORE ${computer.storage ?? 0}${computer.hits ? ` / ${computer.hits} HIT` : ''}`, {
+      stateClass: computer.permanentlyFailed ? 'live-state-critical' : (computer.hits ? 'live-state-attention' : ''),
+      title: 'Book 2 p.34: the throw to operate is 1+, with a -1 DM per hit.'
+    });
+    shipCombatCardRow(row, '  IN COMPUTER', `${computer.loaded.map((key) => COMPUTER_PROGRAMS[key].label).join(', ') || 'NOTHING'} (${computer.loadedSpace}/${computer.inComputerCapacity})`, {
+      title: 'Book 2 p.31: CPU plus storage. Programs cycle into the CPU automatically as a phase needs them; this changes only in the reprogramming phase.'
+    });
+    const incoming = ordnanceInFlight(encounter, { targetShipId: participant.id }).filter((round) => round.status === 'contact');
+    if (incoming.length) {
+      shipCombatCardRow(row, 'INCOMING', `${incoming.length} MISSILE(S) IN CONTACT`, { stateClass: 'live-state-critical' });
+    }
+    el.shipCombatTracker.append(row);
+  }
+
+  renderShipCombatActions(encounter, phase, acting);
+  renderShipCombatLog(encounter);
+}
+
+function renderShipCombatActions(encounter, phase, acting) {
+  const actions = el.shipCombatActions;
+  const live = encounter.participants.filter((entry) => !entry.escaped && !entry.surrendered);
+  const actingShips = live.filter((entry) => entry.side === acting);
+  const enemies = live.filter((entry) => entry.side !== acting);
+
+  if (phase.key === 'laser-fire' || phase.key === 'return-fire') {
+    for (const participant of actingShips) {
+      const eligibility = phase.key === 'return-fire' ? returnFireEligibility(participant) : null;
+      if (eligibility && !eligibility.eligible) {
+        const note = document.createElement('div');
+        note.className = 'live-ship-row live-state-attention';
+        note.textContent = `${participant.name.toUpperCase()} CANNOT RETURN FIRE`;
+        note.title = eligibility.missingPrograms.length
+          ? `Book 2 p.30 needs ${eligibility.missingPrograms.join(' and ')} in the computer.`
+          : eligibility.liveTurrets.length === 0
+            ? 'Book 2 p.29: only ships still capable of firing after the fire phase may return fire.'
+            : 'No ship fired at this one in the preceding phase.';
+        actions.append(note);
+        continue;
+      }
+      for (const turretId of participantFireableTurrets(participant)) {
+        const row = document.createElement('div');
+        row.className = 'live-ship-row';
+        const label = document.createElement('span');
+        label.className = 'live-ship-label';
+        label.textContent = `${participant.name.toUpperCase()} ${turretId}`;
+        const select = document.createElement('select');
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = 'HOLD';
+        select.append(none);
+        for (const enemy of enemies) {
+          if (phase.key === 'return-fire' && !participant.wasFiredAtBy.includes(enemy.id)) continue;
+          const option = document.createElement('option');
+          option.value = enemy.id;
+          option.textContent = enemy.name.toUpperCase();
+          select.append(option);
+        }
+        select.value = shipCombatAllocation[participant.id]?.[turretId] ?? '';
+        select.addEventListener('change', () => {
+          shipCombatAllocation[participant.id] = shipCombatAllocation[participant.id] ?? {};
+          if (select.value) shipCombatAllocation[participant.id][turretId] = select.value;
+          else delete shipCombatAllocation[participant.id][turretId];
+        });
+        row.append(label, select);
+        actions.append(row);
+      }
+    }
+    actions.append(makePortButton('RESOLVE FIRE', resolveShipCombatFire));
+  }
+
+  if (phase.key === 'return-fire') {
+    for (const participant of actingShips) {
+      const incoming = ordnanceInFlight(encounter, { targetShipId: participant.id }).filter((round) => round.status === 'contact');
+      if (!incoming.length) continue;
+      actions.append(makePortButton(`ANTI-MISSILE / ${participant.name.toUpperCase()}`, () => resolveShipCombatAntiMissile(participant.id)));
+    }
+  }
+
+  if (phase.key === 'ordnance-launch') {
+    for (const participant of actingShips) {
+      const target = enemies[0];
+      if (participant.ship.state.armament.missiles || participant.ship.state.armament.sandCanisters) {
+        actions.append(makePortButton(`LAUNCH / ${participant.name.toUpperCase()}`, () => launchShipCombatOrdnance(participant.id, target?.id ?? null), { disabled: !target }));
+      }
+    }
+    const contacted = encounter.ordnance.filter((round) => round.status === 'contact' && round.launcherSide === encounter.phasingSide);
+    if (contacted.length) actions.append(makePortButton(`DETONATE ${contacted.length} MISSILE(S)`, detonateShipCombatOrdnance));
+  }
+
+  if (phase.key === 'reprogramming') {
+    const note = document.createElement('div');
+    note.className = 'live-ship-row';
+    note.textContent = 'REPROGRAMMING: THE COMPUTER CHANGES ONLY IN THIS PHASE';
+    note.title = 'Book 2 p.23 phase E. Programs cycle into the CPU automatically; this is what is available to cycle.';
+    actions.append(note);
+  }
+
+  const player = live.find((entry) => entry.id === 'player');
+  if (player && !player.fled) {
+    actions.append(makePortButton('BREAK OFF', () => fleeShipCombat('player')));
+  }
+  actions.append(makePortButton(`ADVANCE / ${phase.label.toUpperCase()}`, advanceShipCombat));
+  actions.append(makePortButton('CLOSE COMBAT', closeShipCombat));
+}
+
+function participantFireableTurrets(participant) {
+  return participant.ship.specifications.armament.turrets
+    .filter((turret) => turretOperational(participant.ship, turret.id))
+    .filter((turret) => turretWeapons(participant.ship, turret.id).some((key) => getTurretWeapon(key).fires === 'laser'))
+    .map((turret) => turret.id);
+}
+
+function renderShipCombatLog(encounter) {
+  if (!el.shipCombatRecord) return;
+  el.shipCombatRecord.replaceChildren();
+  for (const entry of encounter.log.slice(-20)) {
+    const row = document.createElement('div');
+    row.className = 'live-ship-row';
+    const parts = [`T${entry.gameTurn}`, entry.phase?.toUpperCase() ?? ''];
+    if (entry.kind === 'laser-fire') {
+      parts.push(`${entry.shipId} ${entry.turretId} -> ${entry.targetId}: ${entry.total} vs ${entry.target} ${entry.hit ? `HIT ${entry.location?.toUpperCase()}` : 'MISS'}`);
+    } else if (entry.kind === 'flight') {
+      parts.push(`${entry.shipId} breaks off / ${entry.shotsBeforeEscape} shot(s) allowed / REFEREE RULING`);
+    } else {
+      parts.push(entry.kind?.toUpperCase() ?? '');
+    }
+    row.textContent = parts.filter(Boolean).join(' \u00b7 ');
+    el.shipCombatRecord.append(row);
   }
 }
 
