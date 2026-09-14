@@ -1707,7 +1707,12 @@ function applyCampaignLayout() {
   const board = viewedSceneIsBoard();
   el.subsectorSection.hidden = board;
   el.encounterSection.hidden = !board;
-  el.sceneStatusStrip.hidden = board;
+  // v0.129.0: the jump action and DETAILS left this band, so on the subsector
+  // view it holds nothing but the hidden compatibility spans. Leaving it shown
+  // would render an empty row and give back neither of the two rows the move
+  // was meant to reclaim.
+  const stripHasVisibleContent = [...el.sceneStatusStrip.children].some((child) => !child.hidden);
+  el.sceneStatusStrip.hidden = board || !stripHasVisibleContent;
   renderSceneNav();
   for (const button of el.sceneTabs) {
     const characterButton = button.dataset.sceneTab === 'character';

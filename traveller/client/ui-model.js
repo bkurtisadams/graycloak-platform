@@ -1096,25 +1096,25 @@ export function buildPortServicesPanel({ system, ship = null, character = null }
   const manifest = ship?.state?.cargoManifest?.length ?? 0;
   const ledger = (ship?.state?.finances?.ledger ?? []).slice(-4).reverse();
 
-  const world = [
-    panelRow('UWP', system.mainWorld.uwp),
-    panelRow('STARPORT', `${profile.starport} / ${describeStarport(profile.starport).toUpperCase()}`),
-    panelRow('TRADE', trade),
-    panelRow('BASES', formatBases(system.bases)),
-    panelRow('GAS GIANT', system.gasGiant ? 'YES / SKIMMING' : 'NO')
-  ];
-
-  const groups = [{ label: `${system.name.toUpperCase()} / ${system.hex}`, items: world }];
+  // v0.129.0: the world rows are gone from this panel. The navigation strip
+  // carries them permanently, above the map, where they can be read against
+  // the ship — and two renderers of the same UWP had already drifted apart:
+  // this panel called a class B starport "GOOD QUALITY INSTALLATION" while the
+  // strip said "REFINED FUEL / OVERHAUL / NON-STARSHIP YARD". Same port, two
+  // answers. This panel is where port ACTIONS live; the strip is where the
+  // world is stated.
+  const groups = [];
 
   if (ship) {
     groups.push({
       label: `${(ship.identity?.name || 'SHIP').toUpperCase()}`,
+      // Fuel, hold and account are in the strip. What stays here is what the
+      // actions in this panel act ON: what fuel costs at this port, what
+      // berthing is owed, and the character's purse as the other side of a
+      // transfer.
       items: [
-        panelRow('FUEL', fuelUnrecorded ? 'UNRECORDED' : `${ship.state.currentFuelTons}/${fuelCapacity}t / ${ship.state.fuelQuality?.toUpperCase?.() ?? 'UNKNOWN'}`, { attention: fuelUnrecorded }),
-        panelRow('SERVICE', serviceText),
+        panelRow('SERVICE', serviceText, { attention: fuelUnrecorded }),
         panelRow('BERTHING', !portCall ? 'NO CURRENT FEE RECORDED' : `${formatCredits(portCall.berthingDueCr)} / ${portCall.berthingPaid ? 'PAID' : 'DUE'}`, { attention: berthingDue, ok: Boolean(portCall?.berthingPaid) }),
-        panelRow('HOLD', `${cargoUsed}/${cargoCapacity}t / ${manifest} LOT${manifest === 1 ? '' : 'S'}`),
-        panelRow('ACCOUNT', formatCredits(ship.state.finances.balanceCr)),
         ...(character ? [panelRow('CHARACTER', formatCredits(character.finances.credits))] : [])
       ]
     });

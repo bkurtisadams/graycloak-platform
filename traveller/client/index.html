@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.128.0</div>
+          <div id="app-subtitle" class="subtitle">v0.129.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -56,9 +56,11 @@
            is the pair of controls that had no other home: depart, and the
            system record toggle. The name elements stay as hidden nodes so the
            renderers that write to them keep working. -->
+      <!-- v0.129.0: the jump action moved to sit under its own readout in the
+           world column, and DETAILS to the map toolbar, which empties this
+           band of two rows above the map. The hidden spans stay: renderers
+           still write to them. -->
       <div id="scene-status-strip" class="scene-status-strip" hidden>
-        <div id="jump-actions" class="actions jump-actions"></div>
-        <button id="toggle-system-details" class="text-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
         <span id="footer-current-name" hidden></span>
         <span id="footer-current-meta" hidden></span>
         <span id="selected-system-summary-text" hidden></span>
@@ -155,7 +157,7 @@
           <!-- v0.106.1: the strip belongs INSIDE the map section, which is a
                flex column at height 100%. As a sibling it had no flow space
                of its own and the section drew straight over it. -->
-          <!-- v0.128.0: ship and world side by side above the map. A jump
+          <!-- v0.129.0: ship and world side by side above the map. A jump
                decision is a comparison — fuel against distance, hold against
                what ships from there, streamlining against whether you can
                land — and those two halves used to sit at opposite ends of the
@@ -180,6 +182,13 @@
                 </div>
                 <div id="world-strip-cells" class="ship-strip-cells"></div>
                 <div id="world-strip-route" class="world-strip-route" aria-live="polite"></div>
+                <!-- The jump action, beneath the line that states the whole
+                     decision: distance, fuel needed against fuel aboard, and
+                     the verdict. The container is moved rather than rebuilt so
+                     every blocked reason it already renders — berthing due,
+                     cargo bound elsewhere, a charter in progress, life support
+                     the account cannot cover — comes with it. -->
+                <div id="jump-actions" class="actions jump-actions"></div>
               </div>
             </div>
           </div>
@@ -190,6 +199,7 @@
             <span id="map-zoom-label" class="map-zoom-label" aria-live="polite">100%</span>
             <button id="map-zoom-in" class="text-button map-zoom-button" type="button" aria-label="Zoom in">[ + ]</button>
             <button id="map-zoom-fit" class="text-button map-zoom-button" type="button">[ FIT ]</button>
+            <button id="toggle-system-details" class="text-button map-zoom-button" type="button" aria-expanded="false" aria-controls="system-record-section">[ DETAILS ]</button>
           </div>
           <div id="subsector-map" class="subsector-map" role="region" aria-label="Far Meridian subsector map"></div>
           <div id="subsector-legend" class="subsector-legend">CURRENT &#9670; &nbsp; RANGE &#9679; &nbsp; SCOUT &#9651; &nbsp; NAVAL &#10022;</div>
@@ -361,7 +371,7 @@
                 <div id="encounter-record" class="encounter-record" aria-live="polite"></div>
               </details>
             </section>
-            <!-- v0.128.0: Book 2 starship combat. A separate rail section from
+            <!-- v0.129.0: Book 2 starship combat. A separate rail section from
                  personal combat because the turn is nothing like a Book 1
                  round: two player turns of five phases each, and phase C
                  belongs to the side that is NOT acting. -->
@@ -403,7 +413,7 @@
                    assignment at all. -->
               <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
               <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
-              <!-- v0.128.0: Book 2 p.16 delivers every standard design with
+              <!-- v0.129.0: Book 2 p.16 delivers every standard design with
                    empty turrets, so a ship is unarmed until weapons are bought
                    and fitted here. -->
               <div class="live-ship-crew-heading"><strong>ARMAMENT</strong><button id="fit-armament" class="text-button" type="button">[ FIT ]</button></div>
@@ -756,7 +766,7 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
       </div>
     </form>
   </dialog>
-  <!-- v0.128.0: two purchases in one dialog, so each fieldset owns its own
+  <!-- v0.129.0: two purchases in one dialog, so each fieldset owns its own
        button and says what that button buys. The first version put [ FIT ]
        above the ORDNANCE rule and [ BUY ] at the foot, which read as the
        dialog's confirm pair — pressing it to buy a laser was the sensible

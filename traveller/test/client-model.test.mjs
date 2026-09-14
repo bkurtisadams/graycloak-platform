@@ -264,14 +264,22 @@ test('port services record exposes fuel, berthing, cargo, and operating funds at
   const aster = FAR_MERIDIAN_SUBSECTOR.systems.find((system) => system.id === 'aster');
   const panel = buildPortServicesPanel({ system: aster, ship, character: migrated });
   const rows = panelRows(panel);
-  assert.equal(panel.groups[0].label, 'ASTER / 0505');
-  assert.match(rows.TRADE, /RICH/);
-  assert.equal(rows.FUEL, 'UNRECORDED');
-  assert.ok(panel.groups[1].items.find((item) => item.label === 'FUEL').attention);
+  // v0.129.0: this panel is where port ACTIONS live. The world profile and the
+  // ship's fuel, hold and account are in the navigation strip above the map,
+  // stated once — two renderers of the same UWP had already drifted, this one
+  // calling a class B port "GOOD QUALITY INSTALLATION" while the strip listed
+  // what it actually provides.
+  assert.equal(panel.groups[0].label, 'SHIP');
+  assert.equal(rows.TRADE, undefined);
+  assert.equal(rows.UWP, undefined);
+  assert.equal(rows.STARPORT, undefined);
+  assert.equal(rows.FUEL, undefined);
+  assert.equal(rows.HOLD, undefined);
+  assert.equal(rows.ACCOUNT, undefined);
+  // What the actions in this panel act on stays: the price of fuel here, what
+  // berthing is owed, and the purse on the other side of a transfer.
   assert.equal(rows.SERVICE, 'REFINED / FREE AT SCOUT BASE');
   assert.equal(rows.BERTHING, 'NO CURRENT FEE RECORDED');
-  assert.match(rows.HOLD, /^0\/3t/);
-  assert.equal(rows.ACCOUNT, 'Cr0');
   assert.equal(rows.CHARACTER, 'Cr80,000');
 });
 
