@@ -37,6 +37,7 @@ import {
   computerOperation
 } from './damage.js';
 import { applyShipHit, applyMissileDetonation, assertValidShipDocument } from './ship-document.js';
+import { createPersonalCombatant, PERSONAL_COMBAT_RANGES } from '../combat/personal-combat.js';
 
 export const SHIP_COMBAT_SIDES = Object.freeze(['intruder', 'native']);
 
@@ -1540,5 +1541,142 @@ export function shipDataCard(participant) {
     pressurisedSections: Object.freeze([...participant.pressurisedSections]),
     decompressed: hullDecompressed(ship),
     status: participantStatus(participant)
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Boarding (Graycloak extension)
+//
+// Book 2 p.37 names boarding in a single clause — "the encounter should be
+// resolved, whether by communicator, boarding, warning shots, or simple
+// combat" — and supplies no procedure at all. Nothing in the 1977 books says
+// how ships close, grapple or cross.
+//
+// Ruling (Graycloak, Sep 2026): a boarding is a Book 1 personal combat on the
+// range-band board. This module does not fight it; it hands off. What it owns
+// is the handoff: who may board whom and when, where the fight starts, and what
+// the ship encounter contributes to it.
+// ---------------------------------------------------------------------------
+
+export const BOARDING_IS_RAW = false;
+
+// A corridor fight. Book 1's short band is 1 to 5 metres, which is a ship's
+// passageway; close is touching. Boarders arrive at short and close from there.
+export const BOARDING_STARTING_RANGE = 'short';
+
+// Book 2 p.36, the ship's locker: "Weapons other than knives are not generally
+// stocked on non-military vessels, but characters owning their own ships may
+// elect to provide shotguns, rifles, or other guns if they desire." So a crew
+// defending its own ship has a blade unless the owner armed the locker.
+export const SHIPS_LOCKER_DEFAULT_WEAPON = 'blade';
+
+/**
+ * Whether a boarding may be attempted, and what it would be walking into.
+ *
+ * Follows the combat ruling: a ship is boardable once it cannot fire, because
+ * until then it is still a fight. Adrift as well and the boarding is
+ * uncontested in the approach — the target cannot manoeuvre away.
+ */
+export function boardingAssessment(encounter, { boarderShipId, defenderShipId } = {}) {
+  const boarder = getParticipant(encounter, boarderShipId);
+  const defender = getParticipant(encounter, defenderShipId);
+  if (boarder.side === defender.side) throw new Error('a ship cannot board its own side');
+  const defenderStatus = participantStatus(defender);
+  const boarderStatus = participantStatus(boarder);
+
+  const blockers = [];
+  if (defender.escaped) blockers.push('the target has escaped');
+  if (!defenderStatus.toothless && !defender.surrendered) {
+    blockers.push('the target can still fire; boarding is offered once it cannot');
+  }
+  if (boarderStatus.adrift) blockers.push('the boarding ship cannot manoeuvre alongside');
+
+  return Object.freeze({
+    boarderShipId,
+    defenderShipId,
+    allowed: blockers.length === 0,
+    blockers: Object.freeze(blockers),
+    // Book 2 p.35: a ship that depressurised before combat, or one whose hull
+    // was breached, has no air in it. Book 1 has no vacc suit armour type and
+    // no rule for fighting in one, so the consequences are the referee's.
+    defenderDecompressed: hullDecompressed(defender.ship) || defender.pressurisedSections.length === 0,
+    defenderAdrift: defenderStatus.adrift,
+    defenderSurrendered: Boolean(defender.surrendered),
+    uncontestedApproach: defenderStatus.adrift || Boolean(defender.surrendered),
+    raw: BOARDING_IS_RAW
+  });
+}
+
+/**
+ * The handoff. Returns everything a Book 1 personal encounter needs, plus the
+ * provenance that ties it back to the ship fight it came out of.
+ *
+ * Rosters are passed in rather than derived: the ship encounter knows who is
+ * aboard and where, but only the campaign has their characteristics and
+ * skills. `armed` names the weapon a side's locker provided, defaulting to
+ * Book 2 p.36's blade.
+ */
+export function prepareBoardingAction(encounter, {
+  boarderShipId,
+  defenderShipId,
+  boarders = [],
+  defenders = [],
+  startingRange = BOARDING_STARTING_RANGE,
+  refereeOverride = false
+} = {}) {
+  const assessment = boardingAssessment(encounter, { boarderShipId, defenderShipId });
+  if (!assessment.allowed && !refereeOverride) {
+    throw new Error(`boarding is not available: ${assessment.blockers.join('; ')}`);
+  }
+  if (!PERSONAL_COMBAT_RANGES.includes(startingRange)) throw new RangeError(`unknown range: ${startingRange}`);
+  if (!boarders.length) throw new RangeError('a boarding needs a boarding party');
+
+  const boarder = getParticipant(encounter, boarderShipId);
+  const defender = getParticipant(encounter, defenderShipId);
+  const toCombatant = (person, side) => createPersonalCombatant({
+    id: person.id,
+    name: person.name,
+    side,
+    characteristics: person.characteristics,
+    skills: person.skills ?? {},
+    armor: person.armor ?? 'none',
+    weaponKey: person.weaponKey ?? SHIPS_LOCKER_DEFAULT_WEAPON,
+    playerCharacter: Boolean(person.playerCharacter)
+  });
+
+  const notes = [
+    'Graycloak extension: Book 2 p.37 names boarding and gives no procedure, so this is a Book 1 personal combat.',
+    `Boarders arrive at ${startingRange} range — Book 1's short band is 1 to 5 metres, which is a ship's passageway.`
+  ];
+  if (assessment.defenderDecompressed) {
+    notes.push('The target has no air in it. Book 1 has no vacc suit armour type and no rule for fighting in one, so the consequences are the referee\u2019s.');
+  }
+  if (assessment.defenderSurrendered) notes.push('The target has surrendered; whether anyone resists is the referee\u2019s call.');
+  if (!assessment.allowed && refereeOverride) {
+    notes.push(`Referee overrode: ${assessment.blockers.join('; ')}.`);
+  }
+
+  return Object.freeze({
+    kind: 'boarding',
+    range: startingRange,
+    assessment,
+    sides: Object.freeze({ boarder: boarder.name, defender: defender.name }),
+    combatants: Object.freeze([
+      ...boarders.map((person) => toCombatant(person, 'boarder')),
+      ...defenders.map((person) => toCombatant(person, 'defender'))
+    ]),
+    // What the ship fight contributes, so the personal encounter can be read
+    // back to it and the outcome applied to the right ships.
+    provenance: Object.freeze({
+      shipEncounterId: encounter.id,
+      campaignId: encounter.campaignId,
+      gameTurn: encounter.gameTurn,
+      elapsedMinutes: elapsedMinutes(encounter),
+      shipCombatOutcome: encounter.outcome,
+      boarderShipId,
+      defenderShipId
+    }),
+    notes: Object.freeze(notes),
+    raw: BOARDING_IS_RAW
   });
 }

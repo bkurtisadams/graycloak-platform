@@ -127,6 +127,9 @@ import {
   computerState,
   sideAwaitingDeclaration,
   computerOperatorOf,
+  boardingAssessment,
+  prepareBoardingAction,
+  SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
 } from '../vendor/classic-traveller-rules/index.js';
@@ -9594,6 +9597,96 @@ function resolveShipCombatAntiMissile(shipId) {
   }, 'ANTI-MISSILE');
 }
 
+// Book 2 p.37 names boarding and gives no procedure, so it is a Book 1
+// personal combat. v0.96.0's range-line mode is exactly the board for it: a
+// fight with no scene, on Book 1 p.29's own line grid.
+function boardingRoster(participant, { isPlayerShip }) {
+  const people = [];
+  const seen = new Set();
+  for (const entry of participant.ship.crew.assignments) {
+    if (seen.has(entry.characterId)) continue;
+    seen.add(entry.characterId);
+    const character = (campaignDocument?.characters ?? []).find((c) => c.identity.id === entry.characterId);
+    const npc = npcActorDocuments.find((c) => c.identity.id === entry.characterId);
+    const source = character ?? npc;
+    if (!source) continue;
+    people.push({
+      id: entry.characterId,
+      name: entry.characterName || source.identity.name,
+      characteristics: source.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
+      skills: source.skills ?? {},
+      // Book 2 p.36's ship's locker stocks no guns on a non-military vessel, so
+      // the fallback is a blade rather than whatever the character last carried.
+      weaponKey: source.loadout?.weaponKey ?? SHIPS_LOCKER_DEFAULT_WEAPON,
+      armor: source.loadout?.armor ?? 'none',
+      playerCharacter: Boolean(character) && isPlayerShip
+    });
+  }
+  return people;
+}
+
+function beginBoarding(boarderShipId, defenderShipId) {
+  shipCombatStep(() => {
+    if (!campaignDocument || !gameplayDocument) throw new Error('an active campaign character is required');
+    const boarder = getShipCombatParticipant(shipCombatEncounter, boarderShipId);
+    const defender = getShipCombatParticipant(shipCombatEncounter, defenderShipId);
+    const action = prepareBoardingAction(shipCombatEncounter, {
+      boarderShipId,
+      defenderShipId,
+      boarders: boardingRoster(boarder, { isPlayerShip: boarderShipId === 'player' }),
+      defenders: boardingRoster(defender, { isPlayerShip: defenderShipId === 'player' })
+    });
+
+    // The party side of the handoff has to be real campaign characters, which
+    // is what createEncounterDocument builds a fight from.
+    const partyIds = new Set(action.combatants
+      .filter((entry) => entry.playerCharacter)
+      .map((entry) => entry.id));
+    const characters = currentPartyCharacters().filter((entry) => partyIds.has(entry.identity.id));
+    if (!characters.length) throw new Error('no player character is aboard to fight this boarding');
+    const opponents = action.combatants
+      .filter((entry) => !entry.playerCharacter)
+      .map((entry) => ({
+        name: entry.name,
+        characteristics: entry.characteristics,
+        skills: entry.skills,
+        weaponKey: entry.weaponKey,
+        armor: entry.armor
+      }));
+    if (!opponents.length) throw new Error('nobody aboard is resisting');
+
+    const partyLoadouts = Object.fromEntries(characters.map((entry) => {
+      const spec = action.combatants.find((c) => c.id === entry.identity.id);
+      return [entry.identity.id, { weaponKey: spec?.weaponKey ?? SHIPS_LOCKER_DEFAULT_WEAPON, armor: spec?.armor ?? 'none' }];
+    }));
+
+    const date = campaignDateSnapshot();
+    const encounterKey = `${campaignDocument.identity.id}|boarding-${shipCombatEncounter.id}|${date.year}-${date.dayOfYear}`;
+    let encounter = createEncounterDocument({
+      campaign: campaignDocument,
+      characters,
+      partyLoadouts,
+      opponents,
+      title: `Boarding: ${boarder.name} \u2192 ${defender.name}`,
+      encounterKey,
+      date,
+      // v0.96.0's range-line board, which is Book 1 p.29's own line grid — the
+      // right board for a corridor fight with no scene.
+      spatialMode: 'range-line',
+      range: action.range,
+      dice: seededDice(`${encounterKey}|surprise`)
+    });
+    encounterDocuments.push(encounter);
+    campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    persistCampaignState();
+
+    for (const note of action.notes) logActivity('COMBAT', note);
+    logActivity('COMBAT', `${boarder.name} boards ${defender.name} / ${action.range} range / ${characters.length} v ${opponents.length}`);
+    setStatus(`BOARDING ${defender.name.toUpperCase()}`, 'ok');
+    operationsDeskTab = 'encounter';
+  }, 'BOARD');
+}
+
 function reprogramShipCombat(shipId, programKey, loaded) {
   shipCombatStep(() => {
     const participant = getShipCombatParticipant(shipCombatEncounter, shipId);
@@ -9902,6 +9995,18 @@ function renderShipCombatActions(encounter, phase, acting) {
         row.append(label, button);
         actions.append(row);
       }
+    }
+  }
+
+  // Book 2 p.37's boarding, offered once the target cannot fire — which is
+  // also when the fight itself ends.
+  for (const attacker of live) {
+    for (const target of live) {
+      if (attacker.side === target.side) continue;
+      const assessment = boardingAssessment(encounter, { boarderShipId: attacker.id, defenderShipId: target.id });
+      if (!assessment.allowed) continue;
+      if (attacker.id !== 'player') continue;
+      actions.append(makePortButton(`BOARD ${target.name.toUpperCase()}`, () => beginBoarding(attacker.id, target.id)));
     }
   }
 

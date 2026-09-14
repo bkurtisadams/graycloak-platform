@@ -41,6 +41,9 @@ import {
   surrender,
   participantStatus,
   shipCombatIntent,
+  boardingAssessment,
+  prepareBoardingAction,
+  SHIPS_LOCKER_DEFAULT_WEAPON,
   shipDisposition,
   SHIP_DISPOSITIONS,
   SHIP_DISPOSITIONS_ARE_RAW,
@@ -1122,4 +1125,95 @@ test('the dispositions are labelled as house rules', () => {
   assert.ok(SHIP_DISPOSITIONS.pirate.breakOff > SHIP_DISPOSITIONS.pirate.pressAttack);
   assert.ok(SHIP_DISPOSITIONS.merchant.breakOff < SHIP_DISPOSITIONS.merchant.pressAttack);
   assert.equal(shipDisposition('nonsense').label, 'Merchant');
+});
+
+// ---------------------------------------------------------------------------
+// Boarding (Graycloak extension: Book 2 p.37 names it and gives no procedure)
+// ---------------------------------------------------------------------------
+
+const PARTY = [
+  { id: 'pc-hawkeye', name: 'Hawkeye', characteristics: { STR: 8, DEX: 9, END: 7, INT: 8 }, skills: { Blade: 1 }, weaponKey: 'blade', playerCharacter: true }
+];
+const CREW = [
+  { id: 'npc-tam', name: 'Tam', characteristics: { STR: 7, DEX: 7, END: 7, INT: 6 }, skills: {} }
+];
+
+test('Book 2 p.37: a ship is boardable once it cannot fire', async () => {
+  let encounter = await twoScoutEncounter();
+  // While she can still shoot, it is a fight and not a boarding.
+  const early = boardingAssessment(encounter, { boarderShipId: 'pirate', defenderShipId: 'trader' });
+  assert.equal(early.allowed, false);
+  assert.match(early.blockers[0], /can still fire/);
+  assert.equal(early.raw, false);
+  assert.throws(() => prepareBoardingAction(encounter, {
+    boarderShipId: 'pirate', defenderShipId: 'trader', boarders: PARTY
+  }), /boarding is not available/);
+
+  // Disarm her — the combat ruling's ending — and it becomes available.
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  encounter = resolveLaserFire(encounter, createSequenceDice([6, 6, 5, 5, 6, 6, 5, 5])).encounter;
+  const now = boardingAssessment(encounter, { boarderShipId: 'pirate', defenderShipId: 'trader' });
+  assert.equal(now.allowed, true);
+  // Still under power, so the approach is contested.
+  assert.equal(now.defenderAdrift, false);
+  assert.equal(now.uncontestedApproach, false);
+
+  // Adrift as well and she cannot manoeuvre away.
+  getParticipant(encounter, 'trader').ship.state.damage.maneuverDrive = 1;
+  assert.equal(boardingAssessment(encounter, { boarderShipId: 'pirate', defenderShipId: 'trader' }).uncontestedApproach, true);
+});
+
+test('a boarding hands off to a Book 1 personal combat at short range', async () => {
+  let encounter = await twoScoutEncounter();
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  encounter = resolveLaserFire(encounter, createSequenceDice([6, 6, 5, 5, 6, 6, 5, 5])).encounter;
+
+  const action = prepareBoardingAction(encounter, {
+    boarderShipId: 'pirate', defenderShipId: 'trader', boarders: PARTY, defenders: CREW
+  });
+  // Book 1's short band is 1 to 5 metres, which is a ship's passageway.
+  assert.equal(action.range, 'short');
+  assert.equal(action.combatants.length, 2);
+  assert.deepEqual(action.combatants.map((entry) => entry.side), ['boarder', 'defender']);
+
+  // Book 2 p.36's ship's locker: knives unless the owner armed it, so a
+  // defender with no weapon named gets a blade rather than bare hands.
+  assert.equal(action.combatants[1].weaponKey, SHIPS_LOCKER_DEFAULT_WEAPON);
+  assert.equal(action.combatants[0].weaponKey, 'blade');
+  // Book 1 p.36: the blow allowance is endurance as it stands at the start.
+  assert.equal(action.combatants[1].blowAllowance, 7);
+
+  // The ship fight is tied to the personal one, so the outcome can be read
+  // back to the right ships.
+  assert.equal(action.provenance.shipEncounterId, encounter.id);
+  assert.equal(action.provenance.defenderShipId, 'trader');
+  assert.equal(action.provenance.shipCombatOutcome, 'disarmed');
+  assert.ok(action.notes.some((note) => /gives no procedure/.test(note)));
+});
+
+test('a depressurised target is flagged, since Book 1 has no vacc suit armour', async () => {
+  let encounter = await twoScoutEncounter();
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  encounter = resolveLaserFire(encounter, createSequenceDice([6, 6, 5, 5, 6, 6, 5, 5])).encounter;
+
+  const action = prepareBoardingAction(encounter, {
+    boarderShipId: 'pirate', defenderShipId: 'trader', boarders: PARTY, defenders: CREW
+  });
+  assert.equal(action.assessment.defenderDecompressed, true);
+  assert.ok(action.notes.some((note) => /no vacc suit armour type/.test(note)));
+});
+
+test('the referee can force a boarding the rules would refuse', async () => {
+  const encounter = await twoScoutEncounter();
+  const forced = prepareBoardingAction(encounter, {
+    boarderShipId: 'pirate', defenderShipId: 'trader', boarders: PARTY, defenders: CREW, refereeOverride: true
+  });
+  assert.equal(forced.assessment.allowed, false);
+  assert.ok(forced.notes.some((note) => /Referee overrode/.test(note)));
+  assert.throws(() => prepareBoardingAction(encounter, {
+    boarderShipId: 'pirate', defenderShipId: 'pirate', boarders: PARTY, refereeOverride: true
+  }), /cannot board its own side/);
 });
