@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.161.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.161.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.161.1';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.161.1';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -529,7 +529,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
 // phases here, no thrust and no commit; a ship is dragged to where it starts
 // and its opening vector is dragged from its nose. Sharing one function would
 // have meant a phase model that is sometimes absent.
-export function renderVectorSceneStage(stage, scene, { moveShip, setVector } = {}) {
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, shipChoices = [] } = {}) {
   if (!stage) return;
   stage.replaceChildren();
   const panel = document.createElement('section');
@@ -543,6 +543,30 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector } = {
   title.textContent = `${scene.identity.name.toUpperCase()} \u00b7 ${world ? world.toUpperCase() : 'CLEAR SPACE'} \u00b7 STAGING`;
   heading.append(title);
   panel.append(heading);
+
+  // Putting a ship on the board. Without this the plane could be looked at and
+  // never used, which is what every space scene did until v0.161.1.
+  if (stageShip && shipChoices.length) {
+    const tools = document.createElement('div');
+    tools.className = 'vector-controls';
+    const picker = document.createElement('select');
+    picker.setAttribute('aria-label', 'Ship to stage');
+    for (const choice of shipChoices) picker.add(new Option(`${choice.label} · ${choice.note}`, choice.actorId));
+    const sidePicker = document.createElement('select');
+    sidePicker.setAttribute('aria-label', 'Side');
+    sidePicker.add(new Option('PARTY', 'party'));
+    sidePicker.add(new Option('OPPOSITION', 'opposition'));
+    sidePicker.add(new Option('NEUTRAL', 'neutral'));
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.textContent = 'STAGE SHIP';
+    add.onclick = () => {
+      const choice = shipChoices.find((entry) => entry.actorId === picker.value);
+      if (choice) stageShip(choice, sidePicker.value);
+    };
+    tools.append(picker, sidePicker, add);
+    panel.append(tools);
+  }
 
   const svg = node('svg', {
     role: 'img', 'aria-label': `${scene.identity.name} staging board`,
@@ -559,8 +583,8 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector } = {
 
   const note = document.createElement('p');
   note.textContent = scene.tokens.length
-    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on. Coordinates in thousands of miles (Book 2 p.22).'
-    : 'No ships staged. Nothing is placed on this board yet.';
+    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on; double-click its name to take it off. Coordinates in thousands of miles (Book 2 p.22).'
+    : 'No ships staged. Pick a ship above and STAGE SHIP to put one on the board.';
   panel.append(note);
 
   const planet = scene.space?.planet ?? null;
@@ -621,10 +645,16 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector } = {
       dot.style.cursor = 'move';
       dot.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveShip?.(token.id, point)));
       svg.append(dot);
-      svg.append(node('text', {
+      const label = node('text', {
         x: x(token.position.x) + 10, y: y(token.position.y) - 9,
         fill: 'currentColor', 'font-size': '11'
-      }, `${token.label || token.actorId}${speed ? ` \u00b7 ${speed.toFixed(1)}"` : ' \u00b7 STATIONARY'}`));
+      }, `${token.label || token.actorId}${speed ? ` \u00b7 ${speed.toFixed(1)}"` : ' \u00b7 STATIONARY'}`);
+      if (removeShip) {
+        label.style.cursor = 'pointer';
+        label.addEventListener('dblclick', () => removeShip(token.id));
+        label.append(node('title', {}, 'Double-click to take this ship off the board'));
+      }
+      svg.append(label);
     }
     status.textContent = scene.tokens.length
       ? `${scene.tokens.length} STAGED \u00b7 SPAN ${scene.board.spanThousandMiles}" \u00b7 1" = 1,000 MILES`
