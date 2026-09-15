@@ -357,6 +357,23 @@ export function adoptSceneDocument(document, { campaignId, createdAt = Date.now(
 // at the scene's own scale and each staged token as a dot by side. No DOM,
 // so it renders anywhere and is testable.
 export function sceneThumbnailSvg(scene, { size = 96 } = {}) {
+  // A vector board has no grid to draw. What identifies it at a glance is the
+  // planetary template (pp.26-27) and where the ships sit on the span.
+  if (sceneIsVectorBoard(scene)) {
+    const half = scene.board.spanThousandMiles / 2;
+    const unit = (size / 2) / half;
+    const at = (value) => (size / 2 + value * unit).toFixed(2);
+    const planet = scene.space?.planet ?? null;
+    const rings = planet
+      ? [...(planet.bands ?? [])].map((band) => `<circle cx="${at(planet.center?.x ?? 0)}" cy="${at(planet.center?.y ?? 0)}" r="${Math.max(1, (band.outerRadius ?? 0) * unit).toFixed(2)}" fill="none" stroke="#b8bab4" stroke-width="0.5" stroke-dasharray="1.5 2"/>`).join('')
+        + `<circle cx="${at(planet.center?.x ?? 0)}" cy="${at(planet.center?.y ?? 0)}" r="${Math.max(1.5, ((planet.diameter ?? 0) / 2) * unit).toFixed(2)}" fill="#c3c5bf" stroke="#9b9d97" stroke-width="0.5"/>`
+      : '';
+    const ships = scene.tokens.map((token) => {
+      const fill = token.side === 'party' ? '#29465c' : token.side === 'opposition' ? '#6a1f1f' : '#777a75';
+      return `<circle cx="${at(token.position.x)}" cy="${at(token.position.y)}" r="2" fill="${fill}"/>`;
+    }).join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${scene.identity.name.replace(/"/g, '&quot;')}"><rect width="${size}" height="${size}" fill="#e7e7e2"/>${rings}${ships}</svg>`;
+  }
   const squares = scene.board.squares;
   const cell = size / squares;
   const step = squares > 40 ? Math.ceil(squares / 20) : squares > 20 ? 2 : 1;

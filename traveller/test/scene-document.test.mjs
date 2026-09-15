@@ -195,3 +195,26 @@ test('scenes written before v0.158.0 migrate to grid boards rather than failing'
   assert.equal(migrated.space, null);
   assert.equal(migrated.tokens.length, 1, 'staged tokens survive the migration');
 });
+
+// v0.159.0: a vector board has no grid to draw, so the directory thumbnail has
+// to be the thing that identifies it — the pp.26-27 template and the ships.
+test('a vector scene thumbnail draws the template and its ships, not a grid', () => {
+  const world = { name: 'San Telmo', diameter: 8, center: { x: 0, y: 0 }, bands: [{ g: 0.25, outerRadius: 8 }, { g: 0.5, outerRadius: 5.66 }] };
+  let scene = createSceneDocument({
+    campaignId: 'sea', name: 'San Telmo Approach', boardKind: 'vector',
+    spanThousandMiles: 100, planet: world, createdAt: 1
+  });
+  scene = importSceneDocument({ ...scene, tokens: [
+    { id: 't1', actorId: 'marisol', side: 'party', label: 'M', position: { x: -20, y: 0 } }
+  ] });
+  const svg = sceneThumbnailSvg(scene);
+  // No grid lines at all, and the disc plus two bands plus one ship.
+  assert.doesNotMatch(svg, /<line /);
+  assert.equal((svg.match(/<circle /g) ?? []).length, 4);
+  assert.match(svg, /stroke-dasharray/, 'the gravity bands read as bands');
+
+  // A grid scene still draws a grid and no template.
+  const grid = sceneThumbnailSvg(createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 }));
+  assert.match(grid, /<line /);
+  assert.doesNotMatch(grid, /stroke-dasharray/);
+});
