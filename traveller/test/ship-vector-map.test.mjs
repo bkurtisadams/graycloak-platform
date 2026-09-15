@@ -41,7 +41,10 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   renderShipVectorMap(stage, withWorld, { commit() {}, setup() {} });
   let svg = stage.querySelector('svg');
   const labels = [...svg.querySelectorAll('text')].map((node) => node.textContent);
-  assert.deepEqual(labels.slice(0, 4), ['0.25 G', '0.5 G', '0.75 G', 'San Telmo']);
+  // v0.153.0: each band label carries its radius as well as its strength, so
+  // the rings read as a ruler — Book 2 p.27 puts a size-8 world's bands at
+  // 8.00, 5.66 and 4.62 inches.
+  assert.deepEqual(labels.slice(0, 4), ['0.25 G \u00b7 8.0"', '0.5 G \u00b7 5.7"', '0.75 G \u00b7 4.6"', 'San Telmo']);
   // Three bands, the surface, two ships and the preview endpoint.
   assert.equal(svg.querySelectorAll('circle').length, 7);
   // Book 2 p.29 samples the band at the course midpoint, so the status says
@@ -118,6 +121,52 @@ test('the plot zooms and pans on its own viewBox, leaving plotted coordinates al
   const zoomed = [...svg().querySelectorAll('circle')].map((node) => node.getAttribute('cx'));
   control('[ FIT ]').click();
   assert.deepEqual([...svg().querySelectorAll('circle')].map((node) => node.getAttribute('cx')), zoomed);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
+
+// v0.153.0: the plot auto-fits, so the scale changes between turns and nothing
+// on a blank field is dimensioned. A world's disc calibrates everything at
+// 1" = 1,000 miles; clear space has no reference object at all.
+test('the plot states its scale and draws Book 2 p.30 range thresholds in view', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const participants = ['intruder', 'native'].map((side) => ({
+    shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver']
+  }));
+  const stage = document.querySelector('main');
+  const texts = () => [...stage.querySelectorAll('svg text')].map((node) => node.textContent);
+
+  // Close fight: the scale bar states a small interval and the 150" threshold
+  // is several screens away, so it is not drawn.
+  const close = enableVectorMovement(createShipCombatEncounter({ id: 'close', participants }), {
+    intruder: { position: { x: -10, y: 0 }, velocity: { x: 1, y: 0 } },
+    native: { position: { x: 10, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  renderShipVectorMap(stage, close, { commit() {}, setup() {} });
+  const scaleLabel = texts().find((text) => /MILES$/.test(text));
+  assert.match(scaleLabel, /^(1|2|5|10|20)" \u00b7 [\d,]+ MILES$/);
+  assert.equal(texts().some((text) => /DM -2/.test(text)), false);
+
+  // Spread far enough apart and the thresholds come into view with their DMs,
+  // which is the whole of what range does in Book 2 — -2 past 150", -5 past
+  // 300", nothing in between.
+  const far = enableVectorMovement(createShipCombatEncounter({ id: 'far', participants }), {
+    intruder: { position: { x: -400, y: 0 }, velocity: { x: 1, y: 0 } },
+    native: { position: { x: 400, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const second = document.createElement('div');
+  document.body.append(second);
+  renderShipVectorMap(second, far, { commit() {}, setup() {} });
+  const farTexts = [...second.querySelectorAll('svg text')].map((node) => node.textContent);
+  assert.ok(farTexts.includes('150" \u00b7 DM -2'), 'the -2 threshold is drawn');
+  assert.ok(farTexts.includes('300" \u00b7 DM -5'), 'the -5 threshold is drawn');
+  // Velocity is stated in Book 2 p.25's own notation rather than left to the eye.
+  assert.match(second.querySelector('#vector-status').textContent, /VEL 1\.0" @ 000\u00b0/);
 
   dom.window.close();
   delete globalThis.document;

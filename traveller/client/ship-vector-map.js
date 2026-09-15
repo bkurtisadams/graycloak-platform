@@ -1,4 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.152.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.153.0';
+import { LASER_RANGE_DMS } from '../vendor/classic-traveller-rules/index.js?v=v0.153.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -110,13 +111,22 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   let transform;
   function draw() {
     svg.replaceChildren();
+    // Book 2 p.25 states a vector as inches and a bearing ("6 inches at 90"),
+    // which is the single most important number in vector movement and was
+    // readable only by eyeballing the solid line.
+    const own = encounter.spatial.ships[selected];
+    const speed = own ? Math.hypot(own.velocity.x, own.velocity.y) : 0;
+    const bearing = speed ? ((Math.atan2(own.velocity.y, own.velocity.x) * 180 / Math.PI) + 360) % 360 : 0;
+    const vector = speed
+      ? `VEL ${speed.toFixed(1)}" @ ${String(Math.round(bearing)).padStart(3, '0')}\u00b0`
+      : 'VEL 0" (STATIONARY)';
     let preview;
     try {
       preview = previewShipVector(encounter, selected, { x:Number(ax.value)*2, y:Number(ay.value)*2 });
       if (preview.unresolved) {
         // Book 2's bands are external; nothing in it describes motion inside a
         // world, so the course goes to the referee rather than being guessed.
-        status.textContent = `${preview.g.toFixed(2)} G / max ${preview.maximumG} G · REFEREE: ${preview.reason}`;
+        status.textContent = `${vector} · ${preview.g.toFixed(2)} G / max ${preview.maximumG} G · REFEREE: ${preview.reason}`;
         preview = null;
       } else {
         const gravity = preview.bandG
@@ -124,7 +134,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
           : '';
         const braked = preview.braked ? ' · BRAKED by atmosphere (p.35)' : '';
         const contact = preview.surfaceContact ? ' · SURFACE CONTACT' : '';
-        status.textContent = `${preview.g.toFixed(2)} G / max ${preview.maximumG} G · Endpoint ${preview.endpoint.x.toFixed(2)}, ${preview.endpoint.y.toFixed(2)}${gravity}${braked}${contact}`;
+        status.textContent = `${vector} · ${preview.g.toFixed(2)} G / max ${preview.maximumG} G · Endpoint ${preview.endpoint.x.toFixed(2)}, ${preview.endpoint.y.toFixed(2)}${gravity}${braked}${contact}`;
       }
     }
     catch(e) { status.textContent=e.message; }
@@ -163,7 +173,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
           x: x(planet.center.x + Math.cos(bearing) * band.outerRadius),
           y: y(planet.center.y + Math.sin(bearing) * band.outerRadius) + 4,
           fill: 'currentColor', 'fill-opacity': 0.6, 'text-anchor': 'middle', 'font-size': '10'
-        }, `${band.g} G`));
+        }, `${band.g} G \u00b7 ${band.outerRadius.toFixed(1)}"`));
       }
       svg.append(node('circle', {
         cx: x(planet.center.x), cy: y(planet.center.y), r: planet.radius * scale,
@@ -174,6 +184,54 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
         fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
       }, planet.name));
     }
+    // v0.153.0: Book 2 p.30's range DMs are the whole of what distance does in
+    // this game — -2 beyond 150", -5 beyond 300", and nothing in between. On a
+    // table the ruler makes that legible; an auto-fitting plot re-scales every
+    // turn, so the thresholds were invisible until a shot was resolved. Drawn
+    // around the selected ship, dashed to read as a measurement rather than as
+    // a feature of space the way the gravity bands are.
+    const selectedShip = encounter.spatial.ships[selected];
+    if (selectedShip) {
+      const visibleSpan = Math.max(VIEW_W, VIEW_H) / view.zoom;
+      for (const band of LASER_RANGE_DMS) {
+        const r = band.overInches * scale;
+        // Only when part of the ring is actually in view; at a close fit the
+        // 150" threshold is several screens away and drawing it is noise.
+        if (r > visibleSpan) continue;
+        svg.append(node('circle', {
+          cx: x(selectedShip.position.x), cy: y(selectedShip.position.y), r,
+          fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.25,
+          'stroke-dasharray': `${2 / view.zoom} ${6 / view.zoom}`, 'stroke-width': 1 / view.zoom
+        }));
+        svg.append(node('text', {
+          x: x(selectedShip.position.x), y: y(selectedShip.position.y) - r - 3 / view.zoom,
+          fill: 'currentColor', 'fill-opacity': 0.5, 'text-anchor': 'middle',
+          'font-size': 9 / view.zoom
+        }, `${band.overInches}" \u00b7 DM ${band.dm}`));
+      }
+    }
+
+    // A stated scale, because the fit changes between turns. With a world on
+    // the plot its disc already calibrates everything (1" = 1,000 miles, so a
+    // size-8 world is 8" across); in clear space there is no reference object
+    // at all and this is the only distance cue.
+    const halfWidth = VIEW_W / view.zoom / 2, halfHeight = VIEW_H / view.zoom / 2;
+    const targetUnits = 140 / view.zoom;
+    const NICE = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+    const inches = NICE.filter((step) => step * scale <= targetUnits).pop() ?? NICE[0];
+    const barLength = inches * scale;
+    const barX = view.cx - halfWidth + 12 / view.zoom;
+    const barY = view.cy + halfHeight - 14 / view.zoom;
+    const tick = 4 / view.zoom;
+    svg.append(node('path', {
+      d: `M${barX} ${barY - tick} L${barX} ${barY} L${barX + barLength} ${barY} L${barX + barLength} ${barY - tick}`,
+      fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.55, 'stroke-width': 1 / view.zoom
+    }));
+    svg.append(node('text', {
+      x: barX, y: barY - tick - 3 / view.zoom,
+      fill: 'currentColor', 'fill-opacity': 0.6, 'font-size': 9 / view.zoom
+    }, `${inches}" \u00b7 ${(inches * 1000).toLocaleString('en-US')} MILES`));
+
     for(const ship of encounter.participants){const s=encounter.spatial.ships[ship.id];
       svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':2}));
       const dot=node('circle',{cx:x(s.position.x),cy:y(s.position.y),r:ship.id===selected?5:3.5,fill:'currentColor'}); dot.style.cursor='pointer';dot.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(dot);
