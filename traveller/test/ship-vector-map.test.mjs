@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {importShipDocument,createShipCombatEncounter,createSequenceDice,createPlanet,advanceShipCombatPhase} from '../vendor/classic-traveller-rules/index.js';
 import {enableVectorMovement,commitShipVector} from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
-import {renderShipVectorMap} from '../client/ship-vector-map.js';
+import {renderShipVectorMap, renderVectorSceneStage} from '../client/ship-vector-map.js';
 let JSDOM;try{({JSDOM}=await import('jsdom'));}catch{}
 test('vector controls preview a maneuver and disable repeated commits', {skip: !JSDOM},()=>{
  const dom=new JSDOM('<main></main>');globalThis.document=dom.window.document;globalThis.Option=dom.window.Option;
@@ -455,6 +455,57 @@ test('an unavailable commit says which rule or state blocks it', { skip: !JSDOM 
   draw();
   assert.equal(commit().disabled, true);
   assert.match(blocked().textContent, /this is LASER FIRE/);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
+
+// v0.164.0: the staging board shows a fixed number of inches at 100% and the
+// minimap carries the whole span. Fitting the span made an 8-inch world a speck
+// on a 400-inch plane, and type drawn in user units tripled in size at 300%.
+test('the staging board holds a fixed scale, with the whole span on a minimap', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const scene = {
+    documentType: 'graycloak-traveller-scene', schemaVersion: 3,
+    identity: { id: 'scene-space', name: 'San Telmo Approach' },
+    campaignId: 'sea', folder: 'Space',
+    board: { kind: 'vector', spanThousandMiles: 400 },
+    space: { bodies: [], gravityBodyId: null, atmosphere: null },
+    background: { assetId: null },
+    tokens: [{ id: 't1', actorId: 'marisol', side: 'party', label: 'MARISOL', position: { x: 10, y: 0 }, velocity: { x: -6, y: 0 } }],
+    notes: '', createdAt: 1
+  };
+  const bodies = [{
+    id: 'b1', kind: 'world', name: 'San Telmo', center: { x: 0, y: 0 },
+    template: { name: 'San Telmo', center: { x: 0, y: 0 }, radius: 4, densityEarth: 1, surfaceG: 1, massEarth: 1, bands: [{ g: 0.25, outerRadius: 8 }] }
+  }];
+  const stage = document.querySelector('main');
+  renderVectorSceneStage(stage, scene, { bodies, moveShip() {}, setVector() {} });
+
+  // Two SVGs: the board and the minimap.
+  assert.equal(stage.querySelectorAll('svg').length, 2);
+  const boardSvg = stage.querySelector('.ship-vector-svg');
+  const minimap = stage.querySelector('.vector-minimap');
+  assert.ok(boardSvg && minimap);
+
+  // 100% shows 100 inches of a 400-inch plane, and says so.
+  assert.match(stage.querySelector('#vector-stage-status').textContent, /VIEW 100" OF 400"/);
+  const label = () => [...stage.querySelectorAll('.ship-vector-svg text')].find((node) => node.textContent === 'San Telmo');
+  assert.equal(Number(label().getAttribute('font-size')), 11);
+
+  // The world is drawn at its real size against that scale: a radius of 4
+  // inches at 8 user units an inch is 32 units, not a speck.
+  const disc = [...boardSvg.querySelectorAll('circle')].find((node) => node.getAttribute('fill-opacity') === '0.18');
+  assert.equal(Number(disc.getAttribute('r')), 32);
+
+  // Zooming redraws, so type counter-scales and holds its size on screen —
+  // without the redraw the sizes were left at the previous zoom.
+  [...stage.querySelectorAll('button')].find((node) => node.textContent === '[ + ]').click();
+  assert.equal(Number(label().getAttribute('font-size')).toFixed(3), (11 / 1.25).toFixed(3));
+  assert.match(stage.querySelector('#vector-stage-status').textContent, /VIEW 80" OF 400"/);
 
   dom.window.close();
   delete globalThis.document;

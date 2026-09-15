@@ -4590,3 +4590,17 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .scene-kind-row { display: flex; gap: 8px; margin: 4px 0; }
 .scene-kind { border: 1px solid var(--rule); padding: 5px 10px; }
 .scene-kind.is-active { font-weight: 700; border-color: var(--link); }
+
+/* v0.164.0: the staging board and its minimap. The minimap floats over the
+   board's top-right corner: the board shows a fixed 100" of the plane, the
+   minimap shows the whole span with the viewport on it. */
+.vector-stage-board { position: relative; flex: 1 1 0; min-height: 0; display: flex; }
+.vector-stage-board .ship-vector-svg { flex: 1 1 auto; width: 100%; height: auto; }
+.vector-minimap {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}

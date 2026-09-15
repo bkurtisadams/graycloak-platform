@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.163.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.163.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.164.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.164.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -22,11 +22,6 @@ const resetView = () => { view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; };
 // two inches each, added to the vector the ship already has. Off, the drag
 // passes the raw figure through and the engine's own refusal is shown instead.
 let enforceThrustLimit = true;
-// v0.162.0: the staging board had no camera at all — it fitted the span once
-// and the zoom controls belonged to the fight plot's closure, so nothing on it
-// zoomed. Its own view state, reset when the scene changes.
-let stageView = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
-let stageViewSceneId = null;
 // v0.156.1: thrust a player has dialled in but not yet committed, per ship.
 // The panel is rebuilt on every render and the fields are local to it, so
 // selecting another ship — or any unrelated redraw, like a phase advance on the
@@ -523,19 +518,38 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
 }
 
 // ---------------------------------------------------------------------------
-// v0.161.0: the same plane, before there is a fight on it.
+// v0.164.0: the same plane, before there is a fight on it — with a minimap.
 //
 // A vector scene is a board in its own right (v0.158.0), so it has to be
-// lookable-at without an encounter — which is what closing a fight and finding
-// no way back to the map was really about. This draws the scene's own data: the
-// pp.26-27 template, the staged ships, and the vector each arrives with.
+// lookable-at without an encounter, which is what closing a fight and finding
+// no way back to the map was about.
 //
-// Deliberately NOT the fight renderer with a null encounter. There are no
-// phases here, no thrust and no commit; a ship is dragged to where it starts
-// and its opening vector is dragged from its nose. Sharing one function would
-// have meant a phase model that is sometimes absent.
+// The scale question, which the earlier version got wrong: this board does NOT
+// fit its span. Book 2's span is the whole plane — 400 inches by default, which
+// is 400,000 miles — and a fight happens inside a few dozen inches of it, so
+// fitting the span made San Telmo's 8-inch disc a speck. The main view instead
+// shows a fixed number of inches across at 100% zoom, the way a table shows a
+// fixed number of inches of surface, and the minimap carries the whole span
+// with the viewport drawn on it.
+//
+// Deliberately NOT the fight renderer with a null encounter: there are no
+// phases here, no thrust and no commit.
+const STAGE_INCHES_ACROSS = 100;
+const MINIMAP_SIZE = 132;
+let stageView = { zoom: 1, cx: 0, cy: 0 };
+let stageViewSceneId = null;
+
 export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [] } = {}) {
   if (!stage) return;
+  if (stageViewSceneId !== scene.identity.id) {
+    stageViewSceneId = scene.identity.id;
+    // Open centred on whatever is staged, or on the origin when nothing is.
+    const staged = [...bodies.map((body) => body.center), ...scene.tokens.map((token) => token.position)];
+    const centre = staged.length
+      ? { x: staged.reduce((sum, p) => sum + p.x, 0) / staged.length, y: staged.reduce((sum, p) => sum + p.y, 0) / staged.length }
+      : { x: 0, y: 0 };
+    stageView = { zoom: 1, cx: centre.x, cy: centre.y };
+  }
   stage.replaceChildren();
   const panel = document.createElement('section');
   panel.id = 'ship-vector-workspace';
@@ -546,12 +560,29 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   const title = document.createElement('strong');
   const worlds = bodies.filter((body) => body.kind === 'world').map((body) => body.name.toUpperCase());
   title.textContent = `${scene.identity.name.toUpperCase()} \u00b7 ${worlds.join(' + ') || 'CLEAR SPACE'} \u00b7 STAGING`;
-  heading.append(title);
+  const zoomLabel = document.createElement('span');
+  zoomLabel.className = 'map-zoom-label';
+  zoomLabel.setAttribute('aria-live', 'polite');
+  const zoomTools = document.createElement('span');
+  zoomTools.className = 'vector-zoom-tools';
+  const zoomButton = (text, label, handler) => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'text-button map-zoom-button';
+    button.textContent = text; button.setAttribute('aria-label', label); button.onclick = handler;
+    return button;
+  };
+  zoomTools.append(
+    zoomButton('[ \u2212 ]', 'Zoom out', () => zoomStage(stageView.zoom / ZOOM_STEP)),
+    zoomLabel,
+    zoomButton('[ + ]', 'Zoom in', () => zoomStage(stageView.zoom * ZOOM_STEP)),
+    zoomButton('[ FIT ]', 'Back to the default scale, centred on the origin', () => { stageView = { zoom: 1, cx: 0, cy: 0 }; draw(); })
+  );
+  heading.append(title, zoomTools);
   panel.append(heading);
 
-  // Putting a world, a belt or a battery down. Everything Book 2 mentions in
-  // space is placeable, and what matters about each is its data rather than
-  // where it starts, so each arrives at the origin and is dragged from there.
+  // Placing a world, a belt or a battery. What matters about each is its data
+  // rather than where it starts, so each arrives at the view's centre and is
+  // dragged from there.
   if (placeBody) {
     const tools = document.createElement('div');
     tools.className = 'vector-controls';
@@ -572,10 +603,9 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     add.type = 'button';
     add.textContent = 'PLACE';
     const describe = () => {
-      // A world is sized by diameter (Book 3's size digit, and p.28's figures
-      // for a gas giant), a belt by the extent it covers, a battery by turrets.
-      sizeText.textContent = kind.value === 'world' ? 'DIAMETER '
-        : kind.value === 'asteroid-field' ? 'RADIUS " ' : 'TURRETS ';
+      // A world by diameter (Book 3's size digit, and p.28's figures for a gas
+      // giant), a belt by the extent it covers, a battery by its turrets.
+      sizeText.textContent = kind.value === 'world' ? 'DIAMETER "' : kind.value === 'asteroid-field' ? 'RADIUS "' : 'TURRETS ';
       size.value = kind.value === 'world' ? '8' : kind.value === 'asteroid-field' ? '20' : '3';
     };
     kind.onchange = describe;
@@ -583,23 +613,22 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     add.onclick = () => {
       const label = name.value.trim();
       const value = Number.parseFloat(size.value);
-      if (kind.value === 'world') placeBody({ kind: 'world', name: label || 'World', diameter: value, densityEarth: 1 });
-      else if (kind.value === 'asteroid-field') placeBody({ kind: 'asteroid-field', name: label || 'Asteroid belt', radius: value });
-      else placeBody({ kind: 'emplacement', name: label || 'Defence battery', site: 'orbital', turrets: Math.max(1, Math.round(value)) });
+      const at = { x: stageView.cx, y: stageView.cy };
+      if (kind.value === 'world') placeBody({ kind: 'world', name: label || 'World', diameter: value, densityEarth: 1, center: at });
+      else if (kind.value === 'asteroid-field') placeBody({ kind: 'asteroid-field', name: label || 'Asteroid belt', radius: value, center: at });
+      else placeBody({ kind: 'emplacement', name: label || 'Defence battery', site: 'orbital', turrets: Math.max(1, Math.round(value)), center: at });
       name.value = '';
     };
     tools.append(kind, name, sizeLabel, add);
     panel.append(tools);
   }
 
-  // Putting a ship on the board. Without this the plane could be looked at and
-  // never used, which is what every space scene did until v0.161.1.
   if (stageShip && shipChoices.length) {
     const tools = document.createElement('div');
     tools.className = 'vector-controls';
     const picker = document.createElement('select');
     picker.setAttribute('aria-label', 'Ship to stage');
-    for (const choice of shipChoices) picker.add(new Option(`${choice.label} · ${choice.note}`, choice.actorId));
+    for (const choice of shipChoices) picker.add(new Option(`${choice.label} \u00b7 ${choice.note}`, choice.actorId));
     const sidePicker = document.createElement('select');
     sidePicker.setAttribute('aria-label', 'Side');
     sidePicker.add(new Option('PARTY', 'party'));
@@ -616,89 +645,26 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     panel.append(tools);
   }
 
-  if (stageViewSceneId !== scene.identity.id) {
-    stageViewSceneId = scene.identity.id;
-    stageView = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
-  }
-  const zoomLabel = document.createElement('span');
-  zoomLabel.className = 'map-zoom-label';
-  zoomLabel.setAttribute('aria-live', 'polite');
-  const zoomTools = document.createElement('span');
-  zoomTools.className = 'vector-zoom-tools';
-  const zoomButton = (text, label, handler) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'text-button map-zoom-button';
-    b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler;
-    return b;
-  };
-  zoomTools.append(
-    zoomButton('[ \u2212 ]', 'Zoom out', () => zoomStage(stageView.zoom / ZOOM_STEP)),
-    zoomLabel,
-    zoomButton('[ + ]', 'Zoom in', () => zoomStage(stageView.zoom * ZOOM_STEP)),
-    zoomButton('[ FIT ]', 'Fit the span', () => { stageView = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; applyStageView(); })
-  );
-  heading.append(zoomTools);
+  const board = document.createElement('div');
+  board.className = 'vector-stage-board';
+  panel.append(board);
 
   const svg = node('svg', {
     role: 'img', 'aria-label': `${scene.identity.name} staging board`,
     viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: 'xMidYMid meet'
   });
   svg.classList.add('ship-vector-svg');
-  panel.append(svg);
+  board.append(svg);
 
-  function applyStageView() {
-    const w = VIEW_W / stageView.zoom, h = VIEW_H / stageView.zoom;
-    stageView.cx = clamp(stageView.cx, 0, VIEW_W);
-    stageView.cy = clamp(stageView.cy, 0, VIEW_H);
-    svg.setAttribute('viewBox', `${stageView.cx - w / 2} ${stageView.cy - h / 2} ${w} ${h}`);
-    zoomLabel.textContent = `${Math.round(stageView.zoom * 100)}%`;
-  }
-  const stagePoint = (clientX, clientY) => {
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return null;
-    const point = svg.createSVGPoint();
-    point.x = clientX; point.y = clientY;
-    return point.matrixTransform(ctm.inverse());
-  };
-  function zoomStage(next, anchor = null) {
-    const zoom = clamp(next, ZOOM_MIN, ZOOM_MAX);
-    if (anchor) {
-      stageView.cx = anchor.x - (anchor.x - stageView.cx) * (stageView.zoom / zoom);
-      stageView.cy = anchor.y - (anchor.y - stageView.cy) * (stageView.zoom / zoom);
-    }
-    stageView.zoom = zoom;
-    applyStageView();
-  }
-  svg.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    zoomStage(stageView.zoom * (event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP), stagePoint(event.clientX, event.clientY));
-  }, { passive: false });
-  // Right-drag and middle-drag pan, as the fight plot and the other boards do.
-  let panFrom = null;
-  svg.addEventListener('contextmenu', (event) => event.preventDefault());
-  svg.addEventListener('pointerdown', (event) => {
-    if (event.button !== 1 && event.button !== 2) return;
-    panFrom = { x: event.clientX, y: event.clientY };
-    try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
-    event.preventDefault();
+  // The minimap: the whole span, with the viewport drawn on it. Click or drag
+  // to move the viewport, which is the answer to a plane far larger than any
+  // useful view of it (p.28 notes Luna alone is 250 inches away at this scale).
+  const minimap = node('svg', {
+    role: 'img', 'aria-label': 'Whole board, with the current view marked',
+    viewBox: `0 0 ${MINIMAP_SIZE} ${MINIMAP_SIZE}`, width: MINIMAP_SIZE, height: MINIMAP_SIZE
   });
-  svg.addEventListener('pointermove', (event) => {
-    if (!panFrom) return;
-    const from = stagePoint(panFrom.x, panFrom.y), to = stagePoint(event.clientX, event.clientY);
-    if (!from || !to) return;
-    stageView.cx -= to.x - from.x;
-    stageView.cy -= to.y - from.y;
-    panFrom = { x: event.clientX, y: event.clientY };
-    applyStageView();
-  });
-  const endStagePan = (event) => {
-    if (!panFrom) return;
-    panFrom = null;
-    try { svg.releasePointerCapture(event.pointerId); } catch { /* already released */ }
-  };
-  svg.addEventListener('pointerup', endStagePan);
-  svg.addEventListener('pointercancel', endStagePan);
-  applyStageView();
+  minimap.classList.add('vector-minimap');
+  board.append(minimap);
 
   const status = document.createElement('div');
   status.id = 'vector-stage-status';
@@ -707,63 +673,132 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   panel.append(status);
 
   const note = document.createElement('p');
-  note.textContent = scene.tokens.length
-    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on; double-click its name to take it off. Coordinates in thousands of miles (Book 2 p.22).'
+  note.textContent = (bodies.length || scene.tokens.length)
+    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on; double-click a name to take it off. Right-drag to pan, or click the minimap. Coordinates in thousands of miles (Book 2 p.22).'
     : 'Nothing staged. PLACE a world, belt or battery, and STAGE SHIP to put a ship on the board.';
   panel.append(note);
 
-  // v0.163.0: everything Book 2 puts in space, each placed and each movable.
-  // Fit the span, the template and every staged ship with its vector.
-  const points = [{ x: -scene.board.spanThousandMiles / 2, y: -scene.board.spanThousandMiles / 2 },
-    { x: scene.board.spanThousandMiles / 2, y: scene.board.spanThousandMiles / 2 }];
-  const MARGIN = 28;
-  const minX = Math.min(...points.map((p) => p.x)), maxX = Math.max(...points.map((p) => p.x));
-  const minY = Math.min(...points.map((p) => p.y)), maxY = Math.max(...points.map((p) => p.y));
-  const scale = Math.min((VIEW_W - MARGIN * 2) / (maxX - minX), (VIEW_H - MARGIN * 2) / (maxY - minY));
-  const x = (v) => VIEW_W / 2 + (v - (minX + maxX) / 2) * scale;
-  const y = (v) => VIEW_H / 2 - (v - (minY + maxY) / 2) * scale;
+  // px per inch, explicitly. VIEW_W user units span STAGE_INCHES_ACROSS inches
+  // at 100%, and zoom divides that — so 100% is always the same scale on this
+  // board regardless of how large the span is.
+  const unitsPerInch = VIEW_W / STAGE_INCHES_ACROSS;
+  const x = (value) => VIEW_W / 2 + (value - stageView.cx) * unitsPerInch;
+  const y = (value) => VIEW_H / 2 - (value - stageView.cy) * unitsPerInch;
+  const half = scene.board.spanThousandMiles / 2;
+
+  function applyStageView() {
+    const w = VIEW_W / stageView.zoom, h = VIEW_H / stageView.zoom;
+    svg.setAttribute('viewBox', `${VIEW_W / 2 - w / 2} ${VIEW_H / 2 - h / 2} ${w} ${h}`);
+    zoomLabel.textContent = `${Math.round(stageView.zoom * 100)}%`;
+  }
+  function zoomStage(next) {
+    stageView.zoom = clamp(next, ZOOM_MIN, ZOOM_MAX);
+    draw();
+  }
+  const stagePoint = (clientX, clientY) => {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const point = svg.createSVGPoint();
+    point.x = clientX; point.y = clientY;
+    return point.matrixTransform(ctm.inverse());
+  };
+  // Scene inches from a pointer position, through the live viewBox.
+  const toScene = (clientX, clientY) => {
+    const local = stagePoint(clientX, clientY);
+    if (!local) return null;
+    return { x: stageView.cx + (local.x - VIEW_W / 2) / unitsPerInch, y: stageView.cy - (local.y - VIEW_H / 2) / unitsPerInch };
+  };
+
+  function drawMinimap() {
+    minimap.replaceChildren();
+    const span = scene.board.spanThousandMiles;
+    const perInch = MINIMAP_SIZE / span;
+    const mx = (value) => MINIMAP_SIZE / 2 + value * perInch;
+    const my = (value) => MINIMAP_SIZE / 2 - value * perInch;
+    minimap.append(node('rect', { x: 0, y: 0, width: MINIMAP_SIZE, height: MINIMAP_SIZE, fill: 'var(--paper)', stroke: 'currentColor', 'stroke-opacity': 0.4 }));
+    for (const body of bodies) {
+      const radius = body.kind === 'world' ? body.template.radius : body.kind === 'asteroid-field' ? body.radius : 0;
+      minimap.append(node('circle', {
+        cx: mx(body.center.x), cy: my(body.center.y), r: Math.max(1.5, radius * perInch),
+        fill: 'currentColor', 'fill-opacity': body.kind === 'world' ? 0.35 : 0.15,
+        stroke: 'currentColor', 'stroke-opacity': 0.4, 'stroke-width': 0.5
+      }));
+    }
+    // Ships are drawn at a fixed size, never to scale: at a 400-inch span a
+    // ship is a rounding error, and an invisible dot is no use on an overview.
+    for (const token of scene.tokens) {
+      minimap.append(node('circle', {
+        cx: mx(token.position.x), cy: my(token.position.y), r: 2,
+        fill: 'currentColor', 'fill-opacity': token.side === 'party' ? 0.9 : 0.55
+      }));
+    }
+    const viewInches = STAGE_INCHES_ACROSS / stageView.zoom;
+    const viewHeight = viewInches * (VIEW_H / VIEW_W);
+    minimap.append(node('rect', {
+      x: mx(stageView.cx - viewInches / 2), y: my(stageView.cy + viewHeight / 2),
+      width: Math.max(2, viewInches * perInch), height: Math.max(2, viewHeight * perInch),
+      fill: 'none', stroke: 'currentColor', 'stroke-width': 1
+    }));
+    minimap.append(node('title', {}, `Whole board: ${span}" a side. Click to move the view.`));
+  }
+  const recentreFromMinimap = (event) => {
+    const rect = minimap.getBoundingClientRect();
+    if (!rect.width) return;
+    const span = scene.board.spanThousandMiles;
+    stageView.cx = clamp(((event.clientX - rect.left) / rect.width - 0.5) * span, -half, half);
+    stageView.cy = clamp((0.5 - (event.clientY - rect.top) / rect.height) * span, -half, half);
+    draw();
+  };
+  minimap.style.cursor = 'crosshair';
+  minimap.addEventListener('pointerdown', (event) => { event.preventDefault(); recentreFromMinimap(event); });
 
   function draw() {
+    applyStageView();
     svg.replaceChildren();
+    const z = stageView.zoom;
+    // The span, where it falls. Off the view when zoomed in, which is correct:
+    // the minimap is what shows the whole plane.
+    svg.append(node('rect', {
+      x: x(-half), y: y(half), width: half * 2 * unitsPerInch, height: half * 2 * unitsPerInch,
+      fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.2,
+      'stroke-width': 1 / z, 'stroke-dasharray': `${2 / z} ${4 / z}`
+    }));
+
     for (const body of bodies) {
       if (body.kind === 'world') {
-        const template = body.template;
-        for (const band of [...(template.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
+        for (const band of [...(body.template.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
           svg.append(node('circle', {
-            cx: x(body.center.x), cy: y(body.center.y), r: band.outerRadius * scale,
-            fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
+            cx: x(body.center.x), cy: y(body.center.y), r: band.outerRadius * unitsPerInch,
+            fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35,
+            'stroke-width': 1 / z, 'stroke-dasharray': `${3 / z} ${5 / z}`
           }));
         }
         svg.append(node('circle', {
-          cx: x(body.center.x), cy: y(body.center.y), r: template.radius * scale,
-          fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
+          cx: x(body.center.x), cy: y(body.center.y), r: body.template.radius * unitsPerInch,
+          fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor',
+          'stroke-opacity': 0.5, 'stroke-width': 1 / z
         }));
       } else if (body.kind === 'asteroid-field') {
-        // p.28: many small worldlets, no significant gravity, no atmosphere and
-        // no significant size — an extent, drawn as one rather than as a body.
         svg.append(node('circle', {
-          cx: x(body.center.x), cy: y(body.center.y), r: body.radius * scale,
-          fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor',
-          'stroke-opacity': 0.4, 'stroke-dasharray': '1 4'
+          cx: x(body.center.x), cy: y(body.center.y), r: body.radius * unitsPerInch,
+          fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor', 'stroke-opacity': 0.4,
+          'stroke-width': 1 / z, 'stroke-dasharray': `${1 / z} ${4 / z}`
         }));
       } else {
-        // p.35 planetary defence fires: a position, orbital or on a surface.
-        const mark = 6 / stageView.zoom;
+        const mark = 6 / z;
         svg.append(node('path', {
           d: `M${x(body.center.x)} ${y(body.center.y) - mark} L${x(body.center.x) + mark} ${y(body.center.y)} L${x(body.center.x)} ${y(body.center.y) + mark} L${x(body.center.x) - mark} ${y(body.center.y)} Z`,
           fill: 'currentColor', 'fill-opacity': 0.75
         }));
       }
       svg.append(node('text', {
-        x: x(body.center.x), y: y(body.center.y) + 4,
-        fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
+        x: x(body.center.x), y: y(body.center.y) + 4 / z,
+        fill: 'currentColor', 'text-anchor': 'middle', 'font-size': 11 / z
       }, body.kind === 'emplacement' ? `${body.name} (${body.site.toUpperCase()} \u00d7${body.turrets})` : body.name));
-      // Book 2 p.28: "the shifting of templates will be necessary as the battle
-      // progresses", so anything placed can be moved.
       if (moveBody) {
         const reach = body.kind === 'world' ? body.template.radius : body.kind === 'asteroid-field' ? body.radius : 0;
         const grip = node('circle', {
-          cx: x(body.center.x), cy: y(body.center.y), r: Math.max(6 / stageView.zoom, reach * scale),
+          cx: x(body.center.x), cy: y(body.center.y), r: Math.max(6 / z, reach * unitsPerInch),
           fill: 'transparent', stroke: 'none'
         });
         grip.classList.add('vector-world-grip');
@@ -774,12 +809,6 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
         svg.append(grip);
       }
     }
-    // The span, so an empty plane still reads as measured.
-    svg.append(node('rect', {
-      x: x(-scene.board.spanThousandMiles / 2), y: y(scene.board.spanThousandMiles / 2),
-      width: scene.board.spanThousandMiles * scale, height: scene.board.spanThousandMiles * scale,
-      fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.2, 'stroke-dasharray': '2 4'
-    }));
 
     for (const token of scene.tokens) {
       const velocity = token.velocity ?? { x: 0, y: 0 };
@@ -788,9 +817,9 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
       if (speed > 0) {
         svg.append(node('line', {
           x1: x(token.position.x), y1: y(token.position.y), x2: x(head.x), y2: y(head.y),
-          stroke: 'currentColor', 'stroke-width': 2
+          stroke: 'currentColor', 'stroke-width': 2 / z
         }));
-        const arrow = node('circle', { cx: x(head.x), cy: y(head.y), r: 4, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 });
+        const arrow = node('circle', { cx: x(head.x), cy: y(head.y), r: 4 / z, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 / z });
         arrow.classList.add('vector-endpoint-handle');
         arrow.style.cursor = 'move';
         arrow.addEventListener('pointerdown', (event) => startDrag(event, (point) => {
@@ -798,14 +827,14 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
         }));
         svg.append(arrow);
       }
-      const dot = node('circle', { cx: x(token.position.x), cy: y(token.position.y), r: 5, fill: 'currentColor' });
+      const dot = node('circle', { cx: x(token.position.x), cy: y(token.position.y), r: 5 / z, fill: 'currentColor' });
       dot.classList.add('vector-ship-token');
       dot.style.cursor = 'move';
       dot.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveShip?.(token.id, point)));
       svg.append(dot);
       const label = node('text', {
-        x: x(token.position.x) + 10, y: y(token.position.y) - 9,
-        fill: 'currentColor', 'font-size': '11'
+        x: x(token.position.x) + 10 / z, y: y(token.position.y) - 9 / z,
+        fill: 'currentColor', 'font-size': 11 / z
       }, `${token.label || token.actorId}${speed ? ` \u00b7 ${speed.toFixed(1)}"` : ' \u00b7 STATIONARY'}`);
       if (removeShip) {
         label.style.cursor = 'pointer';
@@ -814,22 +843,17 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
       }
       svg.append(label);
     }
-    status.textContent = scene.tokens.length
-      ? `${scene.tokens.length} STAGED \u00b7 SPAN ${scene.board.spanThousandMiles}" \u00b7 1" = 1,000 MILES`
-      : `EMPTY \u00b7 SPAN ${scene.board.spanThousandMiles}" \u00b7 1" = 1,000 MILES`;
+
+    // The scale, stated: what an inch is on this board at this zoom.
+    const shown = STAGE_INCHES_ACROSS / z;
+    status.textContent = `${scene.tokens.length} STAGED \u00b7 VIEW ${shown.toFixed(0)}" OF ${scene.board.spanThousandMiles}" \u00b7 1" = 1,000 MILES`;
+    drawMinimap();
   }
 
-  // One drag implementation for both handles: solve the drop back into scene
-  // coordinates and hand it to the caller, which owns the document.
   function startDrag(event, apply) {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
-    const toScene = (clientX, clientY) => {
-      const local = stagePoint(clientX, clientY);
-      if (!local) return null;
-      return { x: (local.x - x(0)) / scale, y: (y(0) - local.y) / scale };
-    };
     try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
     const move = (moveEvent) => {
       const point = toScene(moveEvent.clientX, moveEvent.clientY);
@@ -845,6 +869,35 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     svg.addEventListener('pointerup', end);
     svg.addEventListener('pointercancel', end);
   }
+
+  // Panning moves the centre in inches, so it works the same at every zoom.
+  let panFrom = null;
+  svg.addEventListener('contextmenu', (event) => event.preventDefault());
+  svg.addEventListener('pointerdown', (event) => {
+    if (event.button !== 1 && event.button !== 2) return;
+    panFrom = toScene(event.clientX, event.clientY);
+    try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
+    event.preventDefault();
+  });
+  svg.addEventListener('pointermove', (event) => {
+    if (!panFrom) return;
+    const to = toScene(event.clientX, event.clientY);
+    if (!to) return;
+    stageView.cx = clamp(stageView.cx - (to.x - panFrom.x), -half, half);
+    stageView.cy = clamp(stageView.cy - (to.y - panFrom.y), -half, half);
+    draw();
+  });
+  const endPan = (event) => {
+    if (!panFrom) return;
+    panFrom = null;
+    try { svg.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+  };
+  svg.addEventListener('pointerup', endPan);
+  svg.addEventListener('pointercancel', endPan);
+  svg.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    zoomStage(stageView.zoom * (event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP));
+  }, { passive: false });
 
   draw();
 }
