@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.155.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.155.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.156.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.156.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -224,9 +224,11 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
         x: x(planet.center.x), y: y(planet.center.y) + 4,
         fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
       }, planet.name));
-      const reachInches = Math.max(planet.radius, ...(planet.bands ?? []).map((b) => b.outerRadius));
+      // v0.155.1: the hover target covered the whole template, out to the
+      // weakest band — which is open space that ships fly through and where an
+      // endpoint has to be draggable. The disc is the target now.
       const hover = node('circle', {
-        cx: x(planet.center.x), cy: y(planet.center.y), r: reachInches * scale,
+        cx: x(planet.center.x), cy: y(planet.center.y), r: planet.radius * scale,
         fill: 'transparent', stroke: 'none'
       });
       hover.style.cursor = 'help';
@@ -312,9 +314,54 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
       fill: 'currentColor', 'fill-opacity': 0.6, 'font-size': 9 / view.zoom
     }, `${inches}" \u00b7 ${(inches * 1000).toLocaleString('en-US')} MILES`));
 
+    // v0.156.0: the string left on the table. Book 2 p.26: "The vector then
+    // remains on the playing surface for reference during the next applicable
+    // movement phase." Every committed move is logged with its from and its
+    // endpoint, so the whole course is reconstructible without new state.
+    //
+    // Deliberately NOT added to the fit: including old positions would zoom the
+    // plot out further every turn until the current fight was a speck. The
+    // trail can run off the edge, and the camera goes to it.
+    for (const ship of encounter.participants) {
+      const moves = encounter.log.filter((entry) => entry.kind === 'vector-move' && entry.shipId === ship.id && entry.from && entry.endpoint);
+      for (const [index, move] of moves.entries()) {
+        const age = moves.length - index;
+        svg.append(node('line', {
+          x1: x(move.from.x), y1: y(move.from.y), x2: x(move.endpoint.x), y2: y(move.endpoint.y),
+          stroke: 'currentColor', 'stroke-opacity': Math.max(0.12, 0.4 - age * 0.04),
+          'stroke-width': 1 / view.zoom
+        }));
+        svg.append(node('circle', {
+          cx: x(move.from.x), cy: y(move.from.y), r: 1.5 / view.zoom,
+          fill: 'currentColor', 'fill-opacity': 0.3
+        }));
+      }
+    }
     for(const ship of encounter.participants){const s=encounter.spatial.ships[ship.id];
       svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':2}));
-      const dot=node('circle',{cx:x(s.position.x),cy:y(s.position.y),r:ship.id===selected?5:3.5,fill:'currentColor'}); dot.style.cursor='pointer';dot.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(dot);
+      // Heading, not facing. Book 2 gives ships no orientation and no firing
+      // arcs — p.22 asks only that a miniature be marked with a point for its
+      // true location. What an arrow can honestly show is the direction of
+      // travel, so a stationary ship stays a dot: p.25 says that with a vector
+      // of 0 "the direction becomes irrelevant".
+      const speed = Math.hypot(s.velocity.x, s.velocity.y);
+      const size = (ship.id === selected ? 7 : 5) / view.zoom;
+      let token;
+      if (speed > 0) {
+        const angle = Math.atan2(-s.velocity.y, s.velocity.x);
+        const point = (distance, offset) => {
+          const a = angle + offset;
+          return `${x(s.position.x) + Math.cos(a) * distance},${y(s.position.y) + Math.sin(a) * distance}`;
+        };
+        token = node('polygon', {
+          points: [point(size * 1.4, 0), point(size, Math.PI * 0.78), point(size, -Math.PI * 0.78)].join(' '),
+          fill: 'currentColor'
+        });
+      } else {
+        token = node('circle', { cx: x(s.position.x), cy: y(s.position.y), r: size * 0.6, fill: 'currentColor' });
+      }
+      token.classList.add('vector-ship-token');
+      token.style.cursor='pointer';token.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(token);
       // v0.148.0: no font-size, so the names rendered at the document default
       // and were larger than the world they orbit.
       svg.append(node('text', {
@@ -405,12 +452,28 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     svg.addEventListener('pointerup', end);
     svg.addEventListener('pointercancel', end);
   }
-  ax.oninput=ay.oninput=draw;
+  // The drag clamps to the drive; typing into the fields did not, so a typed
+  // figure over the rating reached previewShipVector and came back as a thrown
+  // refusal with no course drawn. Same cap, same place.
+  function clampFields() {
+    if (!enforceThrustLimit || !dragBasis) return;
+    const gx = Number(ax.value) || 0, gy = Number(ay.value) || 0;
+    const magnitude = Math.hypot(gx, gy);
+    if (magnitude > dragBasis.maximumG && magnitude > 0) {
+      const clamp = dragBasis.maximumG / magnitude;
+      ax.value = (gx * clamp).toFixed(2);
+      ay.value = (gy * clamp).toFixed(2);
+    }
+  }
+  ax.oninput=ay.oninput=()=>{clampFields();draw();};
   button.onclick=()=>commit(selected,{x:Number(ax.value)*2,y:Number(ay.value)*2});
   // Click an endpoint to plot; do not teleport the ship.
   svg.addEventListener('click',e=>{
     if (suppressNextClick) { suppressNextClick = false; return; }
-    if (e.target.tagName === 'circle' || button.disabled || !transform) return;
+    // A ship token is a polygon when it is moving, so tagName is no longer the
+    // test for "this click was on something, not on empty space".
+    if (e.target.tagName === 'circle' || e.target.classList?.contains('vector-ship-token')
+      || e.target.classList?.contains('vector-endpoint-handle') || button.disabled || !transform) return;
     const q = viewPoint(e);
     if (!q) return;
     const thrust = thrustFromViewPoint(q);

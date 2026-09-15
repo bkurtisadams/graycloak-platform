@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {importShipDocument,createShipCombatEncounter,createSequenceDice,createPlanet} from '../vendor/classic-traveller-rules/index.js';
+import {importShipDocument,createShipCombatEncounter,createSequenceDice,createPlanet,advanceShipCombatPhase} from '../vendor/classic-traveller-rules/index.js';
 import {enableVectorMovement,commitShipVector} from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
 import {renderShipVectorMap} from '../client/ship-vector-map.js';
 let JSDOM;try{({JSDOM}=await import('jsdom'));}catch{}
@@ -42,10 +42,12 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   let svg = stage.querySelector('svg');
   const labels = [...svg.querySelectorAll('text')].map((node) => node.textContent);
   assert.deepEqual(labels.slice(0, 4), ['0.25 G', '0.5 G', '0.75 G', 'San Telmo']);
-  // Three bands, the surface, two ships, the preview endpoint, v0.154.0's
-  // reachable envelope, and v0.155.0's invisible hover target over the whole
-  // template (the rings are fill:none, so only their stroke is hoverable).
-  assert.equal(svg.querySelectorAll('circle').length, 9);
+  // Three bands, the surface, the stationary ship's dot, the preview endpoint,
+  // v0.154.0's reachable envelope and v0.155.1's hover target on the disc. The
+  // moving ship is an arrow from v0.156.0, so it is a polygon rather than a
+  // circle.
+  assert.equal(svg.querySelectorAll('circle').length, 8);
+  assert.equal(svg.querySelectorAll('polygon').length, 1);
   // Book 2 p.29 samples the band at the course midpoint, so the status says
   // which band applies and how hard it pulls.
   assert.match(stage.querySelector('#vector-status').textContent, /gravity 0\.25 G band, 0\.50 toward the world/);
@@ -61,7 +63,8 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   document.body.append(second);
   renderShipVectorMap(second, clear, { commit() {}, setup() {} });
   svg = second.querySelector('svg');
-  assert.equal(svg.querySelectorAll('circle').length, 4);
+  assert.equal(svg.querySelectorAll('circle').length, 3);
+  assert.equal(svg.querySelectorAll('polygon').length, 1);
   assert.match(second.querySelector('p').textContent, /No world is placed/);
 });
 
@@ -259,6 +262,88 @@ test('the planet card states p.27 template values and whether p.35 braking appli
     createShipCombatEncounter({ id: 'thin', participants }), states, { planet: world, atmosphere: 3 }
   ), { commit() {}, setup() {} });
   assert.match(thin.querySelector('.vector-planet-card').textContent, /NO \u00b7 needs a standard or dense atmosphere/);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
+
+// v0.155.1: the card's hover target covered the template out to the weakest
+// gravity band, which is open space ships fly through — it sat over the
+// endpoint handle and made a ship inside the bands undraggable.
+test('the planet card is hovered on the disc only, and typed thrust is capped', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const participants = ['intruder', 'native'].map((side) => ({
+    shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver']
+  }));
+  const world = createPlanet({ name: 'San Telmo', diameter: 8 });
+  const stage = document.querySelector('main');
+  let encounter = enableVectorMovement(createShipCombatEncounter({ id: 'hover', participants }), {
+    intruder: { position: { x: 6, y: 0 }, velocity: { x: 0, y: -1 } },
+    native: { position: { x: -30, y: 5 }, velocity: { x: 0, y: 0 } }
+  }, { planet: world, atmosphere: 6 });
+  renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+
+  const circles = [...stage.querySelectorAll('svg circle')];
+  const target = circles.find((node) => node.getAttribute('fill') === 'transparent');
+  const surface = circles.find((node) => node.getAttribute('fill') === 'currentColor' && node.getAttribute('fill-opacity') === '0.18');
+  assert.ok(target && surface, 'both the hover target and the surface disc are drawn');
+  // The target is the disc, not the template: a size-8 world's outer band is
+  // 8.00" against a 4.00" radius, so covering the bands would double it.
+  assert.equal(Number(target.getAttribute('r')).toFixed(4), Number(surface.getAttribute('r')).toFixed(4));
+
+  // Book 2 p.26: voluntary thrust may not exceed the M-Drive rating. A Type S
+  // is 2G, so 5G typed into the field is brought back to 2.
+  const thrustX = stage.querySelector('input');
+  thrustX.value = '5';
+  thrustX.dispatchEvent(new dom.window.Event('input'));
+  assert.equal(thrustX.value, '2.00');
+  assert.match(stage.querySelector('#vector-status').textContent, /2\.00 G \/ max 2 G/);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
+
+// v0.156.0: Book 2 p.26 — "The vector then remains on the playing surface for
+// reference during the next applicable movement phase." Without a grid, the
+// course a ship has flown is the only way to read where it came from.
+test('committed moves leave a course trail, and a moving ship reads as an arrow', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  let encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'trail',
+    participants: ['intruder', 'native'].map((side) => ({
+      shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver']
+    }))
+  }), {
+    intruder: { position: { x: 0, y: 0 }, velocity: { x: 4, y: 0 } },
+    native: { position: { x: 60, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const stage = document.querySelector('main');
+  const draw = () => renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+
+  // Nothing has been committed, so there is no string on the table yet.
+  draw();
+  assert.equal(stage.querySelectorAll('svg line').length, 3, 'two velocity lines and the dashed preview');
+  // Stationary native is a dot; the intruder is under way, so it is an arrow.
+  assert.equal(stage.querySelectorAll('svg polygon').length, 1);
+
+  // Two committed moves leave two segments behind, each from its own start.
+  encounter = commitShipVector(encounter, 'intruder', { x: 0, y: 0 }, createSequenceDice([6, 6]));
+  encounter = advanceShipCombatPhase(encounter);
+  draw();
+  const afterOne = stage.querySelectorAll('svg line').length;
+  assert.equal(afterOne, 4, 'one trail segment added');
+  const moves = encounter.log.filter((entry) => entry.kind === 'vector-move');
+  assert.equal(moves.length, 1);
+  assert.deepEqual(moves[0].from, { x: 0, y: 0 });
+  assert.deepEqual(moves[0].endpoint, { x: 4, y: 0 });
 
   dom.window.close();
   delete globalThis.document;
