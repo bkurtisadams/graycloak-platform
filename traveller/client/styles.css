@@ -4568,3 +4568,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .vector-planet-card[hidden] { display: none; }
 .vector-planet-row { display: flex; gap: 8px; justify-content: space-between; }
 .vector-planet-key { opacity: 0.65; white-space: nowrap; }
+
+/* v0.156.2: why COMMIT MANEUVER is unavailable, beside the button. */
+.ship-vector-stage .vector-commit-blocked { flex: 1 1 100%; opacity: 0.75; font-size: 11px; }

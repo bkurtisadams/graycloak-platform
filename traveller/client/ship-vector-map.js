@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.156.1';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.156.1';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.156.2';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.156.2';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -64,7 +64,30 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   const ax = field('Thrust X (G)', String(held.x)), ay = field('Thrust Y (G)', String(held.y));
   const button = document.createElement('button'); button.id = 'vector-commit'; button.textContent = 'COMMIT MANEUVER'; tools.append(button); panel.append(tools);
   const p = encounter.participants.find(p => p.id === selected);
-  button.disabled = encounter.outcome !== 'in-progress' || encounter.phaseIndex !== 0 || p.side !== encounter.phasingSide || encounter.spatial.ships[selected].movedTurn === encounter.gameTurn || p.escaped || p.surrendered;
+  // v0.156.2: six separate conditions greyed this button and it named none of
+  // them, so a ship that simply was not on the phasing side looked broken. Each
+  // reason cites the rule or the state it comes from, in the order the engine's
+  // own guard checks them.
+  const phaseNames = ['MOVEMENT', 'LASER FIRE', 'LASER RETURN FIRE', 'ORDNANCE LAUNCH', 'REPROGRAMMING'];
+  const commitBlockedBecause = encounter.outcome !== 'in-progress'
+    ? `This fight is over (${String(encounter.outcome).toUpperCase()}).`
+    : p.escaped ? `${p.name} has escaped the action.`
+    : p.surrendered ? `${p.name} has surrendered.`
+    : p.side !== encounter.phasingSide
+      ? `${p.name} is ${p.side}, and it is the ${encounter.phasingSide} player turn. Book 2 p.23: a side moves in its own turn, so this thrust is held until then.`
+      : encounter.phaseIndex !== 0
+        ? `Ships move in the movement phase; this is ${phaseNames[encounter.phaseIndex] ?? 'another phase'}. Book 2 p.22: activity happens only in its own phase.`
+        : encounter.spatial.ships[selected].movedTurn === encounter.gameTurn
+          ? `${p.name} has already moved this game turn.`
+          : null;
+  button.disabled = Boolean(commitBlockedBecause);
+  button.title = commitBlockedBecause ?? 'Adds this thrust to the ship\u2019s existing vector and moves it (Book 2 p.26).';
+  if (commitBlockedBecause) {
+    const why = document.createElement('span');
+    why.className = 'vector-commit-blocked';
+    why.textContent = commitBlockedBecause;
+    tools.append(why);
+  }
   if (encounter.gameTurn === 1 && encounter.phaseIndex === 0 && !encounter.log.length && setup) {
     const settings = document.createElement('details');
     const summary = document.createElement('summary'); summary.textContent = 'INITIAL POSITION / VELOCITY'; settings.append(summary);

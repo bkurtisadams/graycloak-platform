@@ -413,3 +413,50 @@ test('thrust entered for one ship survives selecting another, and a commit consu
   delete globalThis.document;
   delete globalThis.Option;
 });
+
+// v0.156.2: a greyed COMMIT MANEUVER named none of its six causes, so a ship
+// that was merely on the non-phasing side looked broken.
+test('an unavailable commit says which rule or state blocks it', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  let encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'blocked',
+    participants: [
+      { shipId: 'marisol', side: 'native', name: 'Marisol', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] },
+      { shipId: 'corsair', side: 'intruder', name: 'Corsair', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }
+    ]
+  }), {
+    marisol: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } },
+    corsair: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const stage = document.querySelector('main');
+  const draw = () => renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+  const commit = () => stage.querySelector('#vector-commit');
+  const blocked = () => stage.querySelector('.vector-commit-blocked');
+
+  // The intruder moves first (p.23), so Marisol the native cannot yet.
+  draw();
+  const picker = stage.querySelector('select');
+  picker.value = 'marisol';
+  picker.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(commit().disabled, true);
+  assert.match(blocked().textContent, /Marisol is native, and it is the intruder player turn/);
+
+  // The Corsair can, and says nothing about being blocked.
+  picker.value = 'corsair';
+  picker.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(commit().disabled, false);
+  assert.equal(blocked(), null);
+
+  // Out of the movement phase, nobody may move — and it names the phase.
+  encounter = advanceShipCombatPhase(encounter);
+  draw();
+  assert.equal(commit().disabled, true);
+  assert.match(blocked().textContent, /this is LASER FIRE/);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
