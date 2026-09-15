@@ -143,7 +143,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.161.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.162.0';
 
 import {
   ACTION_LABELS,
@@ -169,28 +169,28 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.161.1';
+} from './ui-model.js?v=v0.162.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.161.1';
+} from './document-loader.js?v=v0.162.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.161.1';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.161.1';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.161.1';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.162.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.162.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.162.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.161.1';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.161.1';
+} from '../src/campaign-document.js?v=v0.162.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.162.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.161.1';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.162.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.161.1';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.161.1';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.161.1';
+} from '../src/document-window.js?v=v0.162.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.162.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.162.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -199,13 +199,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.161.1';
+} from './chargen-view.js?v=v0.162.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.161.1';
+} from './generators.js?v=v0.162.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -216,7 +216,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.161.1';
+} from './subsector-svg.js?v=v0.162.0';
 
 import {
   seededDice,
@@ -225,7 +225,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.161.1';
+} from './commerce-market.js?v=v0.162.0';
 
 import {
   addCharacterToCampaign,
@@ -255,7 +255,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.161.1';
+} from '../src/campaign-document.js?v=v0.162.0';
 
 import {
   NPC_CONDITIONS,
@@ -264,16 +264,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.161.1';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.161.1';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.161.1';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.161.1';
-import { openSignInDialog } from './signin-ui.js?v=v0.161.1';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.161.1';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.161.1';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.161.1';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.161.1';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.161.1';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.162.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.162.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.162.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.162.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.162.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.162.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.162.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.162.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.162.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.162.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -281,14 +281,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.161.1';
+} from '../src/activity-log-document.js?v=v0.162.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.161.1';
+} from '../src/player-session.js?v=v0.162.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -296,19 +296,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.161.1';
+} from './quick-slots.js?v=v0.162.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.161.1';
+} from '../src/campaign-bundle.js?v=v0.162.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.161.1';
+} from '../src/document-registry.js?v=v0.162.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.161.1';
+} from '../src/activity-log.js?v=v0.162.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -318,14 +318,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.161.1';
+} from '../src/contract-document.js?v=v0.162.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.161.1';
+} from '../src/situation-document.js?v=v0.162.0';
 
 import {
   createEncounterDocument,
@@ -353,37 +353,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.161.1';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.162.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.161.1';
+} from '../src/contact-document.js?v=v0.162.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.161.1';
+} from '../src/adventure-thread-document.js?v=v0.162.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.161.1';
+} from '../world/situation-events.js?v=v0.162.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.161.1';
+} from '../world/contract-board.js?v=v0.162.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.161.1';
+} from '../world/thread-consequences.js?v=v0.162.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.161.1';
+} from '../world/far-meridian-subsector.js?v=v0.162.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -7081,6 +7081,46 @@ function editScene(scene) {
   if (name === null) return;
   const folder = window.prompt('Folder (a path such as Ports/Aster):', scene.folder);
   if (folder === null) return;
+  // v0.162.0: EDIT asked for squares on every scene, so on a vector board it
+  // offered the one field that board does not have and the span, the world and
+  // the atmosphere could never be changed after creation.
+  if (sceneIsVectorBoard(scene)) {
+    const span = window.prompt(`Span in inches, 1" = 1,000 miles (${SCENE_VECTOR_MIN_SPAN}-${SCENE_VECTOR_MAX_SPAN}; smaller drops ships off the edge):`, String(scene.board.spanThousandMiles));
+    if (span === null) return;
+    const world = window.prompt('World name, or blank for clear space:', scene.space?.planet?.name ?? '');
+    if (world === null) return;
+    let planet = scene.space?.planet ?? null;
+    if (!world.trim()) planet = null;
+    else {
+      const size = window.prompt('World size — its diameter in thousands of miles (Book 3\u2019s size digit, 1-10):', String((scene.space?.planet?.radius ?? 4) * 2));
+      if (size === null) return;
+      const density = window.prompt('Density, Earth = 1.0:', String(scene.space?.planet?.densityEarth ?? 1));
+      if (density === null) return;
+      const diameter = Number.parseFloat(size);
+      if (!Number.isFinite(diameter)) { setStatus('A NAMED WORLD NEEDS A SIZE', 'error'); return; }
+      planet = createPlanet({ name: world.trim(), diameter, densityEarth: Number.parseFloat(density) || 1, center: scene.space?.planet?.center ?? { x: 0, y: 0 } });
+    }
+    const atmosphere = window.prompt('Atmosphere 0-15, or blank for none (6 and 8 allow p.35 braking):', scene.space?.atmosphere === null ? '' : String(scene.space.atmosphere));
+    if (atmosphere === null) return;
+    const parsedAtmosphere = Number.parseInt(atmosphere, 10);
+    const parsedSpan = Number.parseFloat(span);
+    try {
+      const updated = updateSceneDocument(scene, {
+        name, folder,
+        spanThousandMiles: Number.isFinite(parsedSpan) ? parsedSpan : scene.board.spanThousandMiles,
+        planet,
+        atmosphere: Number.isInteger(parsedAtmosphere) ? parsedAtmosphere : null
+      });
+      sceneDocuments = sceneDocuments.map((entry) => entry.identity.id === updated.identity.id ? updated : entry);
+      if (registry) registry.put(updated);
+      persistCampaignState();
+      render();
+    } catch (error) {
+      console.error(error);
+      setStatus(error?.message ?? String(error), 'error');
+    }
+    return;
+  }
   const squares = window.prompt(`Squares a side (${SCENE_MIN_SQUARES}+; larger shrinks nothing, smaller drops tokens off the edge):`, String(scene.board.squares));
   if (squares === null) return;
   const parsedSquares = Number.parseInt(squares, 10);
@@ -10154,6 +10194,19 @@ function renderShipVectorStage() {
           console.error(error);
           setStatus(error?.message ?? String(error), 'error');
         }
+      },
+      moveWorld: (point) => {
+        try {
+          updateScene(scene.identity.id, (entry) => updateSceneDocument(entry, {
+            planet: createPlanet({
+              name: entry.space.planet.name,
+              diameter: entry.space.planet.radius * 2,
+              densityEarth: entry.space.planet.densityEarth,
+              center: { x: point.x, y: point.y }
+            })
+          }));
+          render();
+        } catch (error) { console.error(error); setStatus(error?.message ?? String(error), 'error'); }
       },
       removeShip: (tokenId) => {
         try { updateScene(scene.identity.id, (entry) => removeSceneToken(entry, tokenId)); render(); }

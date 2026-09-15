@@ -270,3 +270,32 @@ test('a staged ship opens on a 6-inch vector toward the origin', () => {
   assert.throws(() => placeSceneToken(scene, { actorId: 'x', column: 1, row: 1 }), TypeError);
   assert.throws(() => moveSceneToken(west.scene, { tokenId: west.token.id, column: 1, row: 1 }), TypeError);
 });
+
+// v0.162.0: Book 2 p.28 says outright that "the shifting of templates will be
+// necessary as the battle progresses", so a placed world has to be movable and
+// its span editable after creation.
+test('a vector scene\u2019s world and span can be changed after it is made', () => {
+  let scene = createSceneDocument({
+    campaignId: 'sea', name: 'San Telmo Approach', boardKind: 'vector',
+    spanThousandMiles: 400, createdAt: 1
+  });
+  assert.equal(scene.space.planet, null, 'clear space to begin with');
+
+  // A world arrives later, off the origin.
+  scene = updateSceneDocument(scene, {
+    planet: { name: 'San Telmo', center: { x: 40, y: -10 }, radius: 4, densityEarth: 1, surfaceG: 1, massEarth: 1, bands: [{ g: 0.25, outerRadius: 8 }] }
+  });
+  assert.equal(scene.space.planet.name, 'San Telmo');
+  assert.deepEqual(scene.space.planet.center, { x: 40, y: -10 });
+
+  // And can be shifted, or removed for clear space.
+  scene = updateSceneDocument(scene, { planet: { ...scene.space.planet, center: { x: 0, y: 60 } } });
+  assert.deepEqual(scene.space.planet.center, { x: 0, y: 60 });
+  assert.equal(updateSceneDocument(scene, { planet: null }).space.planet, null);
+
+  // The span is editable, and p.35 braking depends on the atmosphere, so that
+  // is editable too.
+  assert.equal(updateSceneDocument(scene, { spanThousandMiles: 1000 }).board.spanThousandMiles, 1000);
+  assert.equal(updateSceneDocument(scene, { atmosphere: 8 }).space.atmosphere, 8);
+  assert.throws(() => updateSceneDocument(scene, { spanThousandMiles: 5 }), SceneDocumentValidationError);
+});

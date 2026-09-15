@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.161.1';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.161.1';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.162.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.162.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -22,6 +22,11 @@ const resetView = () => { view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; };
 // two inches each, added to the vector the ship already has. Off, the drag
 // passes the raw figure through and the engine's own refusal is shown instead.
 let enforceThrustLimit = true;
+// v0.162.0: the staging board had no camera at all — it fitted the span once
+// and the zoom controls belonged to the fight plot's closure, so nothing on it
+// zoomed. Its own view state, reset when the scene changes.
+let stageView = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
+let stageViewSceneId = null;
 // v0.156.1: thrust a player has dialled in but not yet committed, per ship.
 // The panel is rebuilt on every render and the fields are local to it, so
 // selecting another ship — or any unrelated redraw, like a phase advance on the
@@ -529,7 +534,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
 // phases here, no thrust and no commit; a ship is dragged to where it starts
 // and its opening vector is dragged from its nose. Sharing one function would
 // have meant a phase model that is sometimes absent.
-export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, shipChoices = [] } = {}) {
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveWorld, shipChoices = [] } = {}) {
   if (!stage) return;
   stage.replaceChildren();
   const panel = document.createElement('section');
@@ -568,12 +573,89 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     panel.append(tools);
   }
 
+  if (stageViewSceneId !== scene.identity.id) {
+    stageViewSceneId = scene.identity.id;
+    stageView = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
+  }
+  const zoomLabel = document.createElement('span');
+  zoomLabel.className = 'map-zoom-label';
+  zoomLabel.setAttribute('aria-live', 'polite');
+  const zoomTools = document.createElement('span');
+  zoomTools.className = 'vector-zoom-tools';
+  const zoomButton = (text, label, handler) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'text-button map-zoom-button';
+    b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler;
+    return b;
+  };
+  zoomTools.append(
+    zoomButton('[ \u2212 ]', 'Zoom out', () => zoomStage(stageView.zoom / ZOOM_STEP)),
+    zoomLabel,
+    zoomButton('[ + ]', 'Zoom in', () => zoomStage(stageView.zoom * ZOOM_STEP)),
+    zoomButton('[ FIT ]', 'Fit the span', () => { stageView = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; applyStageView(); })
+  );
+  heading.append(zoomTools);
+
   const svg = node('svg', {
     role: 'img', 'aria-label': `${scene.identity.name} staging board`,
     viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: 'xMidYMid meet'
   });
   svg.classList.add('ship-vector-svg');
   panel.append(svg);
+
+  function applyStageView() {
+    const w = VIEW_W / stageView.zoom, h = VIEW_H / stageView.zoom;
+    stageView.cx = clamp(stageView.cx, 0, VIEW_W);
+    stageView.cy = clamp(stageView.cy, 0, VIEW_H);
+    svg.setAttribute('viewBox', `${stageView.cx - w / 2} ${stageView.cy - h / 2} ${w} ${h}`);
+    zoomLabel.textContent = `${Math.round(stageView.zoom * 100)}%`;
+  }
+  const stagePoint = (clientX, clientY) => {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const point = svg.createSVGPoint();
+    point.x = clientX; point.y = clientY;
+    return point.matrixTransform(ctm.inverse());
+  };
+  function zoomStage(next, anchor = null) {
+    const zoom = clamp(next, ZOOM_MIN, ZOOM_MAX);
+    if (anchor) {
+      stageView.cx = anchor.x - (anchor.x - stageView.cx) * (stageView.zoom / zoom);
+      stageView.cy = anchor.y - (anchor.y - stageView.cy) * (stageView.zoom / zoom);
+    }
+    stageView.zoom = zoom;
+    applyStageView();
+  }
+  svg.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    zoomStage(stageView.zoom * (event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP), stagePoint(event.clientX, event.clientY));
+  }, { passive: false });
+  // Right-drag and middle-drag pan, as the fight plot and the other boards do.
+  let panFrom = null;
+  svg.addEventListener('contextmenu', (event) => event.preventDefault());
+  svg.addEventListener('pointerdown', (event) => {
+    if (event.button !== 1 && event.button !== 2) return;
+    panFrom = { x: event.clientX, y: event.clientY };
+    try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
+    event.preventDefault();
+  });
+  svg.addEventListener('pointermove', (event) => {
+    if (!panFrom) return;
+    const from = stagePoint(panFrom.x, panFrom.y), to = stagePoint(event.clientX, event.clientY);
+    if (!from || !to) return;
+    stageView.cx -= to.x - from.x;
+    stageView.cy -= to.y - from.y;
+    panFrom = { x: event.clientX, y: event.clientY };
+    applyStageView();
+  });
+  const endStagePan = (event) => {
+    if (!panFrom) return;
+    panFrom = null;
+    try { svg.releasePointerCapture(event.pointerId); } catch { /* already released */ }
+  };
+  svg.addEventListener('pointerup', endStagePan);
+  svg.addEventListener('pointercancel', endStagePan);
+  applyStageView();
 
   const status = document.createElement('div');
   status.id = 'vector-stage-status';
@@ -611,10 +693,26 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
         cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: planet.radius * scale,
         fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
       }));
-      svg.append(node('text', {
+      const name = node('text', {
         x: x(planet.center?.x ?? 0), y: y(planet.center?.y ?? 0) + 4,
         fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
-      }, planet.name));
+      }, planet.name);
+      svg.append(name);
+      // v0.162.0: the world was drawn wherever its centre happened to be and
+      // could not be moved, so a template was stuck at the origin. Book 2 p.28
+      // says outright that "the shifting of templates will be necessary as the
+      // battle progresses", so a placed world has to be movable.
+      if (moveWorld) {
+        const grip = node('circle', {
+          cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: planet.radius * scale,
+          fill: 'transparent', stroke: 'none'
+        });
+        grip.classList.add('vector-world-grip');
+        grip.style.cursor = 'move';
+        grip.append(node('title', {}, `${planet.name} — drag to move the template`));
+        grip.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveWorld(point)));
+        svg.append(grip);
+      }
     }
     // The span, so an empty plane still reads as measured.
     svg.append(node('rect', {
@@ -668,11 +766,8 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     event.preventDefault();
     event.stopPropagation();
     const toScene = (clientX, clientY) => {
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return null;
-      const point = svg.createSVGPoint();
-      point.x = clientX; point.y = clientY;
-      const local = point.matrixTransform(ctm.inverse());
+      const local = stagePoint(clientX, clientY);
+      if (!local) return null;
       return { x: (local.x - x(0)) / scale, y: (y(0) - local.y) / scale };
     };
     try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
