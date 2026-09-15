@@ -121,6 +121,8 @@ import {
   shipCombatPhaseActions,
   damageControlOptions,
   shipStations,
+  stationVacated,
+  stationActedThisTurn,
   declareDamageControl,
   cancelDamageControl,
   GAME_TURN_MINUTES,
@@ -152,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.174.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.176.0';
 
 import {
   ACTION_LABELS,
@@ -178,33 +180,33 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.174.0';
+} from './ui-model.js?v=v0.176.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.174.0';
+} from './document-loader.js?v=v0.176.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.174.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.174.0';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.174.0';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.174.0';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.174.0';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.174.0';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.174.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.174.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.176.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.176.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.176.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.176.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.176.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.176.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.176.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.176.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.174.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.174.0';
+} from '../src/campaign-document.js?v=v0.176.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.176.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.174.0';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.176.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.174.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.174.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.174.0';
+} from '../src/document-window.js?v=v0.176.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.176.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.176.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -213,13 +215,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.174.0';
+} from './chargen-view.js?v=v0.176.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.174.0';
+} from './generators.js?v=v0.176.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -230,7 +232,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.174.0';
+} from './subsector-svg.js?v=v0.176.0';
 
 import {
   seededDice,
@@ -239,7 +241,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.174.0';
+} from './commerce-market.js?v=v0.176.0';
 
 import {
   addCharacterToCampaign,
@@ -269,7 +271,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.174.0';
+} from '../src/campaign-document.js?v=v0.176.0';
 
 import {
   NPC_CONDITIONS,
@@ -278,16 +280,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.174.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.174.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.174.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.174.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.174.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.174.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.174.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.174.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.174.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.174.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.176.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.176.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.176.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.176.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.176.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.176.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.176.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.176.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.176.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.176.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -296,14 +298,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.174.0';
+} from '../src/activity-log-document.js?v=v0.176.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.174.0';
+} from '../src/player-session.js?v=v0.176.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -311,19 +313,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.174.0';
+} from './quick-slots.js?v=v0.176.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.174.0';
+} from '../src/campaign-bundle.js?v=v0.176.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.174.0';
+} from '../src/document-registry.js?v=v0.176.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.174.0';
+} from '../src/activity-log.js?v=v0.176.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -333,14 +335,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.174.0';
+} from '../src/contract-document.js?v=v0.176.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.174.0';
+} from '../src/situation-document.js?v=v0.176.0';
 
 import {
   createEncounterDocument,
@@ -368,37 +370,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.174.0';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.176.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.174.0';
+} from '../src/contact-document.js?v=v0.176.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.174.0';
+} from '../src/adventure-thread-document.js?v=v0.176.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.174.0';
+} from '../world/situation-events.js?v=v0.176.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.174.0';
+} from '../world/contract-board.js?v=v0.176.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.174.0';
+} from '../world/thread-consequences.js?v=v0.176.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.174.0';
+} from '../world/far-meridian-subsector.js?v=v0.176.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -612,6 +614,7 @@ const el = {
   shipCombatRailSection: document.querySelector('#ship-combat-rail-section'),
   shipCombatTracker: document.querySelector('#ship-combat-tracker'),
   shipCombatActions: document.querySelector('#ship-combat-actions'),
+  shipCombatStrip: document.querySelector('#ship-combat-strip'),
   shipCombatRecord: document.querySelector('#ship-combat-record'),
   encounterSelectionStatus: document.querySelector('#encounter-selection-status'),
   encounterRangePair: document.querySelector('#encounter-range-pair'),
@@ -7418,12 +7421,10 @@ function renderVectorScenePlaceholder(scene) {
     el.encounterSelectionStatus.textContent = `${scene.identity.name.toUpperCase()} \u00b7 VECTOR BOARD \u00b7 ${scene.board.spanThousandMiles}" A SIDE`
       + (world ? ` \u00b7 ${world.toUpperCase()}` : ' \u00b7 CLEAR SPACE');
   }
+  // v0.176.0: this printed "A SPACE BOARD OPENS WITH A FIGHT ON IT", from before
+  // a fight could start from the scene (v0.166.0). The staging board's own
+  // START COMBAT says what is needed now.
   el.encounterTracker?.replaceChildren();
-  const note = document.createElement('div');
-  note.className = 'live-ship-row live-state-attention';
-  note.textContent = 'A SPACE BOARD OPENS WITH A FIGHT ON IT';
-  note.title = 'Book 2 pp.22-29. The vector plot is still drawn from the encounter rather than from the scene, so this board shows its template and staged ships but cannot be flown until a fight is started on it.';
-  el.encounterTracker?.append(note);
 }
 
 function renderStagedScene(scene) {
@@ -10798,6 +10799,14 @@ function renderShipCombatRail() {
   const section = el.shipCombatRailSection;
   if (!section) return;
   section.hidden = !shipCombatEncounter;
+  // v0.176.0: the turn strip sits over whichever board the fight is on: the
+  // plot, or the subsector map for an abbreviated fight with no plot.
+  if (el.shipCombatStrip) {
+    el.shipCombatStrip.hidden = !shipCombatEncounter;
+    const host = shipVectorOnStage() ? el.shipVectorSection : el.subsectorSection;
+    const anchor = host === el.shipVectorSection ? el.shipVectorStage : host?.firstElementChild;
+    if (host && el.shipCombatStrip.parentElement !== host) host.insertBefore(el.shipCombatStrip, anchor ?? null);
+  }
   if (!el.shipCombatTracker || !shipCombatEncounter) return;
   el.shipCombatTracker.replaceChildren();
   el.shipCombatActions.replaceChildren();
@@ -10882,7 +10891,7 @@ function renderShipCombatRail() {
       + `contact automatic rather than crossing the distance. The fight resumes in this browser only; `
       + `the outcome is saved to the campaign when you close it.`;
   note.append(summary, body);
-  el.shipCombatTracker.append(note);
+  const houseRules = note;
 
   for (const participant of encounter.participants) {
     const card = shipDataCard(participant);
@@ -10915,7 +10924,8 @@ function renderShipCombatRail() {
         title: 'Book 2 p.33: each hit reduces the letter by one and the potential is reread from p.11.'
       });
     }
-    shipCombatCardRow(row, 'FUEL', `${card.fuel.aboardTons}t / ${card.fuel.capacityTons}t${card.fuel.lostTons ? ` / ${card.fuel.lostTons}t LOST` : ''}`, {
+    // v0.175.0: an encountered ship's fuel is unrecorded (null), which printed "nullt".
+    shipCombatCardRow(row, 'FUEL', `${card.fuel.aboardTons === null || card.fuel.aboardTons === undefined ? 'UNRECORDED' : `${card.fuel.aboardTons}t`} / ${card.fuel.capacityTons}t${card.fuel.lostTons ? ` / ${card.fuel.lostTons}t LOST` : ''}`, {
       stateClass: card.fuel.jumpDisabled ? 'live-state-critical' : (card.fuel.lostTons ? 'live-state-attention' : '')
     });
     for (const turret of card.turrets) {
@@ -10938,6 +10948,8 @@ function renderShipCombatRail() {
     if (incoming.length) {
       shipCombatCardRow(row, 'INCOMING', `${incoming.length} MISSILE(S) IN CONTACT`, { stateClass: 'live-state-critical' });
     }
+    const repair = shipDamageControlRow(encounter, participant);
+    if (repair) row.append(repair);
     el.shipCombatTracker.append(row);
   }
 
@@ -10953,10 +10965,11 @@ function renderShipCombatRail() {
       disengaged: 'COMBAT OVER / DISENGAGED'
     }[encounter.outcome] ?? `COMBAT OVER / ${encounter.outcome.toUpperCase()}`;
     ending.title = 'Graycloak ruling: combat ends when either side can no longer fire. Book 2 has no destruction rule — what happens next is a situation, not a combat round.';
-    el.shipCombatTracker.append(ending);
+    el.shipCombatActions.append(ending);
   }
 
   renderShipCombatActions(encounter, phase, acting);
+  el.shipCombatActions.append(houseRules);
   renderShipCombatLog(encounter);
 }
 
@@ -10986,6 +10999,75 @@ function shipCombatPhaseHint(encounter, phase) {
     default:
       return `${side}: advance.`;
   }
+}
+
+// v0.176.0: Book 2 p.35 damage control, on the ship's own card. Declaring a
+// repair changes the ship (who is at which station, what is being fixed), so it
+// belongs with the combatant rather than on the turn strip. One attempt per ship
+// per game turn, thrown in the interphase; not phase-bound.
+function shipDamageControlRow(encounter, participant) {
+  if (encounter.outcome !== 'in-progress' || participant.escaped || participant.surrendered) return null;
+  const options = damageControlOptions(participant);
+  const declared = participant.damageControl?.gameTurn === encounter.gameTurn ? participant.damageControl : null;
+  if (!options.length && !declared) return null;
+  const row = document.createElement('div');
+  row.className = 'live-ship-row';
+  const label = document.createElement('span');
+  label.className = 'live-ship-label';
+  label.textContent = 'REPAIR';
+  label.title = 'Book 2 p.35 damage control';
+  row.append(label);
+  if (declared) {
+    const value = document.createElement('span');
+    value.className = 'live-ship-value';
+    const what = declared.location === 'turret' ? `TURRET ${declared.turretId}` : declared.location.toUpperCase();
+    const who = declared.crewName ? `${declared.crewName.toUpperCase()} \u00b7 ` : '';
+    const leaves = declared.vacates?.length ? ` \u00b7 ${declared.vacates.map((station) => station.replace('gunner:', 'GUNNER ').toUpperCase()).join(', ')} VACANT` : '';
+    value.textContent = `${who}${what} \u00b7 9+ ${declared.dm >= 0 ? '+' : ''}${declared.dm}${leaves} \u00b7 END OF TURN ${encounter.gameTurn}`;
+    value.title = `DM from ${declared.dmSource}. Thrown in the Game Turn Interphase (Book 2 p.35); one attempt per ship per turn. The repairer holds none of his stations until then (Graycloak ruling).`;
+    row.append(value, makePortButton('WITHDRAW', () => shipCombatStep(() => {
+      shipCombatEncounter = cancelDamageControl(shipCombatEncounter, { shipId: participant.id });
+      logActivity('COMBAT', `${participant.name} withdraws its damage control attempt`);
+    }, 'DAMAGE CONTROL')));
+  } else {
+    const select = document.createElement('select');
+    select.setAttribute('aria-label', `${participant.name} damage to repair`);
+    options.forEach((option, index) => select.append(new Option(
+      `${option.location === 'turret' ? `TURRET ${option.turretId}` : option.location.toUpperCase()} \u00b7 DM ${option.dm >= 0 ? '+' : ''}${option.dm}`, String(index))));
+    // v0.174.0 (ruling): a named crew member makes the repair and gives up
+    // his stations for the turn. Only the campaign's own ship has a crew
+    // roster; an encountered ship repairs as "its crew".
+    const roster = participant.id === 'player' ? damageControlCrewRoster(participant) : [];
+    const crew = document.createElement('select');
+    crew.setAttribute('aria-label', `${participant.name} crew member making the repair`);
+    for (const person of roster) {
+      const leaves = person.stations.length ? ` \u00b7 LEAVES ${person.stations.map((station) => station.replace('gunner:', 'GUNNER ').toUpperCase()).join(', ')}` : '';
+      crew.append(new Option(`${person.name.toUpperCase()}${leaves}`, person.id));
+    }
+    const dm = document.createElement('input');
+    dm.type = 'number';
+    dm.step = '1';
+    dm.setAttribute('aria-label', `${participant.name} damage control DM`);
+    dm.title = 'Book 2 p.35: skill in the relevant field is a positive DM. Blank uses the crew member\u2019s Engineering for drives and the power plant, Computer for the computer, Mechanical otherwise.';
+    dm.placeholder = 'DM';
+    dm.style.width = '4em';
+    row.append(select, ...(roster.length ? [crew] : []), dm, makePortButton('DECLARE', () => shipCombatStep(() => {
+      const option = options[Number(select.value)];
+      const person = roster.find((entry) => entry.id === crew.value) ?? null;
+      const field = damageControlField(option.location);
+      const skill = person ? characterSkillLevel(person.id, field) : null;
+      const stated = dm.value === '' ? null : Number(dm.value);
+      shipCombatEncounter = declareDamageControl(shipCombatEncounter, {
+        shipId: participant.id, location: option.location, turretId: option.turretId,
+        crewId: person?.id ?? null, crewName: person?.name ?? '',
+        dm: stated ?? skill,
+        dmSource: stated !== null ? 'referee' : person ? `${person.name}'s ${field}-${skill}` : null
+      });
+      const made = shipCombatEncounter.participants.find((entry) => entry.id === participant.id).damageControl;
+      logActivity('COMBAT', `${made.crewName || participant.name} declares damage control on ${participant.name}'s ${option.location === 'turret' ? `turret ${option.turretId}` : option.location}: 9+, DM ${made.dm >= 0 ? '+' : ''}${made.dm} (${made.dmSource})${made.vacates.length ? `, leaving ${made.vacates.join(' and ')} for the turn` : ''}; thrown at the end of turn ${shipCombatEncounter.gameTurn}`);
+    }, 'DAMAGE CONTROL')));
+  }
+  return row;
 }
 
 function renderShipCombatActions(encounter, phase, acting) {
@@ -11187,13 +11269,18 @@ function renderShipCombatActions(encounter, phase, acting) {
               ? 'No reserve rounds aboard. Buy ordnance at a starport.'
               : racks.launchers.some((other) => other.reloading && other.turretId === launcher.turretId)
                 ? 'That turret\u2019s gunner is already reloading another rack this turn.'
-                : null;
+                // v0.176.0 (ruling): reloading costs the gunner his turn.
+                : stationVacated(participant, `gunner:${launcher.turretId}`)
+                  ? 'That turret\u2019s gunner is making a repair this turn.'
+                  : stationActedThisTurn(encounter, participant, `gunner:${launcher.turretId}`)
+                    ? 'That turret\u2019s gunner has already fired or launched this turn; reloading takes his turn.'
+                    : null;
         if (!blocked) {
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'text-button';
           button.textContent = '[ RELOAD ]';
-          button.title = `Loads ${Math.min(READY_CAPACITY, reserve)} of ${reserve} reserve. The turret cannot fire until it completes.`;
+          button.title = `Loads ${Math.min(READY_CAPACITY, reserve)} of ${reserve} reserve. Takes the gunner\u2019s turn: the turret cannot fire until it completes, and he cannot make a repair (Book 2 p.31).`;
           button.addEventListener('click', () => reloadShipCombatLauncher(participant.id, launcher.id));
           row.append(button);
         } else {
@@ -11224,74 +11311,6 @@ function renderShipCombatActions(encounter, phase, acting) {
       if (!assessment.allowed) continue;
       if (attacker.id !== 'player') continue;
       actions.append(makePortButton(`BOARD ${target.name.toUpperCase()}`, () => beginBoarding(attacker.id, target.id)));
-    }
-  }
-
-  // v0.173.0: Book 2 p.35 damage control. One attempt per ship per game turn,
-  // declared at any point in the turn and thrown in the interphase. Not tied to
-  // a phase, so it never holds a phase open for auto-advance.
-  if (encounter.outcome === 'in-progress') {
-    for (const participant of live) {
-      const options = damageControlOptions(participant);
-      const declared = participant.damageControl?.gameTurn === encounter.gameTurn ? participant.damageControl : null;
-      if (!options.length && !declared) continue;
-      const row = document.createElement('div');
-      row.className = 'live-ship-row';
-      const label = document.createElement('span');
-      label.className = 'live-ship-label';
-      label.textContent = `${participant.name.toUpperCase()} DAMAGE CONTROL`;
-      row.append(label);
-      if (declared) {
-        const value = document.createElement('span');
-        value.className = 'live-ship-value';
-        const what = declared.location === 'turret' ? `TURRET ${declared.turretId}` : declared.location.toUpperCase();
-        const who = declared.crewName ? `${declared.crewName.toUpperCase()} \u00b7 ` : '';
-        const leaves = declared.vacates?.length ? ` \u00b7 ${declared.vacates.map((station) => station.replace('gunner:', 'GUNNER ').toUpperCase()).join(', ')} VACANT` : '';
-        value.textContent = `${who}${what} \u00b7 9+ ${declared.dm >= 0 ? '+' : ''}${declared.dm}${leaves} \u00b7 END OF TURN ${encounter.gameTurn}`;
-        value.title = `DM from ${declared.dmSource}. Thrown in the Game Turn Interphase (Book 2 p.35); one attempt per ship per turn. The repairer holds none of his stations until then (Graycloak ruling).`;
-        row.append(value, makePortButton('WITHDRAW', () => shipCombatStep(() => {
-          shipCombatEncounter = cancelDamageControl(shipCombatEncounter, { shipId: participant.id });
-          logActivity('COMBAT', `${participant.name} withdraws its damage control attempt`);
-        }, 'DAMAGE CONTROL')));
-      } else {
-        const select = document.createElement('select');
-        select.setAttribute('aria-label', `${participant.name} damage to repair`);
-        options.forEach((option, index) => select.append(new Option(
-          `${option.location === 'turret' ? `TURRET ${option.turretId}` : option.location.toUpperCase()} \u00b7 DM ${option.dm >= 0 ? '+' : ''}${option.dm}`, String(index))));
-        // v0.174.0 (ruling): a named crew member makes the repair and gives up
-        // his stations for the turn. Only the campaign's own ship has a crew
-        // roster; an encountered ship repairs as "its crew".
-        const roster = participant.id === 'player' ? damageControlCrewRoster(participant) : [];
-        const crew = document.createElement('select');
-        crew.setAttribute('aria-label', `${participant.name} crew member making the repair`);
-        for (const person of roster) {
-          const leaves = person.stations.length ? ` \u00b7 LEAVES ${person.stations.map((station) => station.replace('gunner:', 'GUNNER ').toUpperCase()).join(', ')}` : '';
-          crew.append(new Option(`${person.name.toUpperCase()}${leaves}`, person.id));
-        }
-        const dm = document.createElement('input');
-        dm.type = 'number';
-        dm.step = '1';
-        dm.setAttribute('aria-label', `${participant.name} damage control DM`);
-        dm.title = 'Book 2 p.35: skill in the relevant field is a positive DM. Blank uses the crew member\u2019s Engineering for drives and the power plant, Computer for the computer, Mechanical otherwise.';
-        dm.placeholder = 'DM';
-        dm.style.width = '4em';
-        row.append(select, ...(roster.length ? [crew] : []), dm, makePortButton('DECLARE', () => shipCombatStep(() => {
-          const option = options[Number(select.value)];
-          const person = roster.find((entry) => entry.id === crew.value) ?? null;
-          const field = damageControlField(option.location);
-          const skill = person ? characterSkillLevel(person.id, field) : null;
-          const stated = dm.value === '' ? null : Number(dm.value);
-          shipCombatEncounter = declareDamageControl(shipCombatEncounter, {
-            shipId: participant.id, location: option.location, turretId: option.turretId,
-            crewId: person?.id ?? null, crewName: person?.name ?? '',
-            dm: stated ?? skill,
-            dmSource: stated !== null ? 'referee' : person ? `${person.name}'s ${field}-${skill}` : null
-          });
-          const made = shipCombatEncounter.participants.find((entry) => entry.id === participant.id).damageControl;
-          logActivity('COMBAT', `${made.crewName || participant.name} declares damage control on ${participant.name}'s ${option.location === 'turret' ? `turret ${option.turretId}` : option.location}: 9+, DM ${made.dm >= 0 ? '+' : ''}${made.dm} (${made.dmSource})${made.vacates.length ? `, leaving ${made.vacates.join(' and ')} for the turn` : ''}; thrown at the end of turn ${shipCombatEncounter.gameTurn}`);
-        }, 'DAMAGE CONTROL')));
-      }
-      actions.append(row);
     }
   }
 

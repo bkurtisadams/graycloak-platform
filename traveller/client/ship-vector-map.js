@@ -1,8 +1,8 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.174.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.174.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.176.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.176.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
-let selected = null, encounterId = null;
+let selected = null, encounterId = null, selectedForTurn = null;
 // v0.151.0: the plot's own camera. The subsector map's zoom controls drive
 // setSubsectorZoom, which touches the subsector SVG and nothing else, and they
 // live inside #subsector-section, which is hidden whenever the plot is up — so
@@ -29,12 +29,34 @@ let enforceThrustLimit = true;
 // side move all of its ships in one movement phase, so several pending thrusts
 // have to coexist.
 let pendingThrust = {};
+// v0.175.0: user units per screen pixel. The plot's viewBox is 800 x 430, but
+// the SVG is drawn wider than 800 pixels on most screens, and zooming shrinks
+// the viewBox further — so a stroke of "2" was 2 x (CSS scale) x zoom pixels
+// wide: at 231% on a wide window, about ten. Sizes are stated in screen pixels
+// and converted through this. jsdom has no layout, so it falls back to 1.
+function svgPixelScale(svg, viewWidth, viewHeight) {
+  const rect = typeof svg.getBoundingClientRect === 'function' ? svg.getBoundingClientRect() : null;
+  if (!rect || !rect.width || !rect.height) return 1;
+  const scale = Math.min(rect.width / viewWidth, rect.height / viewHeight);
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
 export function renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu = null }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
   if (!panel) { panel = document.createElement('section'); panel.id = 'ship-vector-workspace'; stage.append(panel); }
-  if (encounterId !== encounter.id) { encounterId = encounter.id; selected = encounter.participants[0].id; resetView(); pendingThrust = {}; }
+  if (encounterId !== encounter.id) { encounterId = encounter.id; selected = encounter.participants[0].id; resetView(); pendingThrust = {}; selectedForTurn = null; }
+  // v0.175.0: when a side's movement begins, select one of its own ships that
+  // has still to move. The first participant stayed selected, so the native
+  // scout sat selected through the intruder's turn with its thrust held.
+  const turnKey = `${encounter.gameTurn}:${encounter.phasingSide}`;
+  if (selectedForTurn !== turnKey) {
+    selectedForTurn = turnKey;
+    const mover = encounter.participants.find((entry) => entry.side === encounter.phasingSide && !entry.escaped && !entry.surrendered
+      && encounter.spatial?.ships?.[entry.id]?.movedTurn !== encounter.gameTurn);
+    if (mover) selected = mover.id;
+  }
   panel.replaceChildren();
   const heading = document.createElement('div'); heading.className = 'vector-controls';
   const title = document.createElement('strong'); title.textContent = `SPACE / TURN ${encounter.gameTurn} / ${encounter.phasingSide.toUpperCase()}`;
@@ -165,6 +187,8 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
     }
     view.zoom = zoom;
     applyView();
+    // Sizes are drawn for a zoom, so a new zoom has to redraw (handoff trap).
+    if (drawnOnce) draw();
   }
   svg.addEventListener('wheel', (e) => { e.preventDefault(); zoomTo(view.zoom * (e.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP), toView(e.clientX, e.clientY)); }, { passive: false });
   // Right-drag and middle-drag pan, matching the stage's own panning. Neither
@@ -205,8 +229,11 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
     ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). ADVANCE coasts every ship not yet committed (p.26). Diamonds are missiles; circles are sand, dashed until it takes effect.'
     : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts every ship not yet committed (p.26). No world is placed, so no gravity applies. Diamonds are missiles; circles are sand, dashed until it takes effect.') + CAMERA_NOTE;
   panel.append(note);
-  let transform, dragBasis = null, suppressNextClick = false;
+  let transform, dragBasis = null, suppressNextClick = false, drawnOnce = false;
   function draw() {
+    drawnOnce = true;
+    const pixelUnits = view.zoom * svgPixelScale(svg, VIEW_W, VIEW_H);
+    const px = (n) => n / pixelUnits;
     pendingThrust[selected] = { x: Number(ax.value) || 0, y: Number(ay.value) || 0 };
     svg.replaceChildren();
     // Book 2 p.25 states a vector as inches and a bearing ("6 inches at 90"),
@@ -284,7 +311,7 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       for (const [bandIndex, band] of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius).entries()) {
         svg.append(node('circle', {
           cx: x(planet.center.x), cy: y(planet.center.y), r: band.outerRadius * scale,
-          fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
+          fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': `${px(3)} ${px(5)}`, 'stroke-width': px(1)
         }));
         // v0.148.0: every label sat at the top of its ring, so three bands
         // 8.0, 5.7 and 4.6 apart printed almost on top of one another and the
@@ -293,17 +320,17 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
         const bearing = (bandIndex / Math.max(1, planet.bands.length)) * Math.PI * 2 + Math.PI / 4;
         svg.append(node('text', {
           x: x(planet.center.x + Math.cos(bearing) * band.outerRadius),
-          y: y(planet.center.y + Math.sin(bearing) * band.outerRadius) + 4,
-          fill: 'currentColor', 'fill-opacity': 0.6, 'text-anchor': 'middle', 'font-size': '10'
+          y: y(planet.center.y + Math.sin(bearing) * band.outerRadius) + px(4),
+          fill: 'currentColor', 'fill-opacity': 0.6, 'text-anchor': 'middle', 'font-size': px(10)
         }, `${band.g} G`));
       }
       svg.append(node('circle', {
         cx: x(planet.center.x), cy: y(planet.center.y), r: planet.radius * scale,
-        fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
+        fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5, 'stroke-width': px(1)
       }));
       svg.append(node('text', {
-        x: x(planet.center.x), y: y(planet.center.y) + 4,
-        fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
+        x: x(planet.center.x), y: y(planet.center.y) + px(4),
+        fill: 'currentColor', 'text-anchor': 'middle', 'font-size': px(11)
       }, planet.name));
       // v0.155.1: the hover target covered the whole template, out to the
       // weakest band — which is open space that ships fly through and where an
@@ -364,12 +391,12 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
         svg.append(node('circle', {
           cx: x(selectedShip.position.x), cy: y(selectedShip.position.y), r,
           fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.25,
-          'stroke-dasharray': `${2 / view.zoom} ${6 / view.zoom}`, 'stroke-width': 1 / view.zoom
+          'stroke-dasharray': `${px(2)} ${px(6)}`, 'stroke-width': px(1)
         }));
         svg.append(node('text', {
-          x: x(selectedShip.position.x), y: y(selectedShip.position.y) - r - 3 / view.zoom,
+          x: x(selectedShip.position.x), y: y(selectedShip.position.y) - r - px(3),
           fill: 'currentColor', 'fill-opacity': 0.5, 'text-anchor': 'middle',
-          'font-size': 9 / view.zoom
+          'font-size': px(9)
         }, `${band.overInches}" \u00b7 DM ${band.dm}`));
       }
     }
@@ -379,20 +406,20 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
     // size-8 world is 8" across); in clear space there is no reference object
     // at all and this is the only distance cue.
     const halfWidth = VIEW_W / view.zoom / 2, halfHeight = VIEW_H / view.zoom / 2;
-    const targetUnits = 140 / view.zoom;
+    const targetUnits = px(140);
     const NICE = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
     const inches = NICE.filter((step) => step * scale <= targetUnits).pop() ?? NICE[0];
     const barLength = inches * scale;
-    const barX = view.cx - halfWidth + 12 / view.zoom;
-    const barY = view.cy + halfHeight - 14 / view.zoom;
-    const tick = 4 / view.zoom;
+    const barX = view.cx - halfWidth + px(12);
+    const barY = view.cy + halfHeight - px(14);
+    const tick = px(4);
     svg.append(node('path', {
       d: `M${barX} ${barY - tick} L${barX} ${barY} L${barX + barLength} ${barY} L${barX + barLength} ${barY - tick}`,
-      fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.55, 'stroke-width': 1 / view.zoom
+      fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.55, 'stroke-width': px(1)
     }));
     svg.append(node('text', {
-      x: barX, y: barY - tick - 3 / view.zoom,
-      fill: 'currentColor', 'fill-opacity': 0.6, 'font-size': 9 / view.zoom
+      x: barX, y: barY - tick - px(3),
+      fill: 'currentColor', 'fill-opacity': 0.6, 'font-size': px(9)
     }, `${inches}" \u00b7 ${(inches * 1000).toLocaleString('en-US')} MILES`));
 
     // v0.156.0: the string left on the table. Book 2 p.26: "The vector then
@@ -410,10 +437,10 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
         svg.append(node('line', {
           x1: x(move.from.x), y1: y(move.from.y), x2: x(move.endpoint.x), y2: y(move.endpoint.y),
           stroke: 'currentColor', 'stroke-opacity': Math.max(0.12, 0.4 - age * 0.04),
-          'stroke-width': 1 / view.zoom
+          'stroke-width': px(1)
         }));
         svg.append(node('circle', {
-          cx: x(move.from.x), cy: y(move.from.y), r: 1.5 / view.zoom,
+          cx: x(move.from.x), cy: y(move.from.y), r: px(1.5),
           fill: 'currentColor', 'fill-opacity': 0.3
         }));
       }
@@ -429,37 +456,37 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       if (round.kind === 'sand') {
         const active = round.status === 'active';
         const cloud = node('circle', {
-          cx, cy, r: Math.max(round.ruling.radius * scale, 3 / view.zoom),
+          cx, cy, r: Math.max(round.ruling.radius * scale, px(3)),
           fill: 'currentColor', 'fill-opacity': active ? 0.18 : 0.05,
-          stroke: 'currentColor', 'stroke-opacity': 0.6, 'stroke-width': 1 / view.zoom,
-          ...(active ? {} : { 'stroke-dasharray': `${3 / view.zoom} ${3 / view.zoom}` })
+          stroke: 'currentColor', 'stroke-opacity': 0.6, 'stroke-width': px(1),
+          ...(active ? {} : { 'stroke-dasharray': `${px(3)} ${px(3)}` })
         });
         cloud.classList.add('vector-sand');
         svg.append(cloud);
-        svg.append(node('text', { x: cx, y: cy - Math.max(round.ruling.radius * scale, 3 / view.zoom) - 2 / view.zoom, fill: 'currentColor', 'fill-opacity': 0.7, 'text-anchor': 'middle', 'font-size': 8 / view.zoom }, active ? 'SAND' : 'SAND (NEXT PHASE D)'));
+        svg.append(node('text', { x: cx, y: cy - Math.max(round.ruling.radius * scale, px(3)) - px(2), fill: 'currentColor', 'fill-opacity': 0.7, 'text-anchor': 'middle', 'font-size': px(8) }, active ? 'SAND' : 'SAND (NEXT PHASE D)'));
         continue;
       }
       if (round.velocity) {
-        svg.append(node('line', { x1: cx, y1: cy, x2: x(round.position.x + round.velocity.x), y2: y(round.position.y + round.velocity.y), stroke: 'currentColor', 'stroke-opacity': 0.6, 'stroke-width': 1 / view.zoom }));
+        svg.append(node('line', { x1: cx, y1: cy, x2: x(round.position.x + round.velocity.x), y2: y(round.position.y + round.velocity.y), stroke: 'currentColor', 'stroke-opacity': 0.6, 'stroke-width': px(1) }));
       }
-      const m = 3.5 / view.zoom;
+      const m = px(3.5);
       const missile = node('polygon', { points: `${cx},${cy - m} ${cx + m},${cy} ${cx},${cy + m} ${cx - m},${cy}`, fill: 'currentColor' });
       missile.classList.add('vector-missile');
       svg.append(missile);
       if (round.status === 'contact') {
-        svg.append(node('circle', { cx, cy, r: m * 2.2, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5 / view.zoom }));
+        svg.append(node('circle', { cx, cy, r: m * 2.2, fill: 'none', stroke: 'currentColor', 'stroke-width': px(1.5) }));
       }
-      svg.append(node('text', { x: cx + m * 1.6, y: cy + m, fill: 'currentColor', 'fill-opacity': 0.8, 'font-size': 8 / view.zoom }, `${round.id}${round.status === 'contact' ? ' CONTACT' : ''}`));
+      svg.append(node('text', { x: cx + m * 1.6, y: cy + m, fill: 'currentColor', 'fill-opacity': 0.8, 'font-size': px(8) }, `${round.id}${round.status === 'contact' ? ' CONTACT' : ''}`));
     }
     for(const ship of encounter.participants){const s=encounter.spatial.ships[ship.id];
-      svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':2}));
+      svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':px(1.5)}));
       // Heading, not facing. Book 2 gives ships no orientation and no firing
       // arcs — p.22 asks only that a miniature be marked with a point for its
       // true location. What an arrow can honestly show is the direction of
       // travel, so a stationary ship stays a dot: p.25 says that with a vector
       // of 0 "the direction becomes irrelevant".
       const speed = Math.hypot(s.velocity.x, s.velocity.y);
-      const size = (ship.id === selected ? 7 : 5) / view.zoom;
+      const size = px(ship.id === selected ? 7 : 5);
       let token;
       if (speed > 0) {
         const angle = Math.atan2(-s.velocity.y, s.velocity.x);
@@ -490,8 +517,8 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       // v0.148.0: no font-size, so the names rendered at the document default
       // and were larger than the world they orbit.
       svg.append(node('text', {
-        x: x(s.position.x) + 10, y: y(s.position.y) - 9,
-        fill: 'currentColor', 'font-size': '11',
+        x: x(s.position.x) + px(10), y: y(s.position.y) - px(9),
+        fill: 'currentColor', 'font-size': px(11),
         'font-weight': ship.id === selected ? '700' : '400'
       }, ship.name));
     }
@@ -501,11 +528,11 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       svg.append(node('circle', {
         cx: x(envelope.centre.x), cy: y(envelope.centre.y), r: envelope.radiusInches * scale,
         fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor',
-        'stroke-opacity': 0.3, 'stroke-width': 1 / view.zoom
+        'stroke-opacity': 0.3, 'stroke-width': px(1)
       }));
     }
-    if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':'6 4','stroke-width':2}));
-      const handle=node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:5,fill:'none',stroke:'currentColor','stroke-width':2});
+    if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':`${px(6)} ${px(4)}`,'stroke-width':px(1.5)}));
+      const handle=node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:px(5),fill:'none',stroke:'currentColor','stroke-width':px(1.5)});
       handle.classList.add('vector-endpoint-handle');
       if(!button.disabled){handle.style.cursor='move';handle.addEventListener('pointerdown',startEndpointDrag);}
       svg.append(handle);
@@ -514,13 +541,13 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       if (planet) {
         const midpoint = { x: s.position.x + s.velocity.x / 2, y: s.position.y + s.velocity.y / 2 };
         const mx = x(midpoint.x), my = y(midpoint.y);
-        svg.append(node('line', { x1: mx - 4, y1: my, x2: mx + 4, y2: my, stroke: 'currentColor', 'stroke-opacity': 0.7 }));
-        svg.append(node('line', { x1: mx, y1: my - 4, x2: mx, y2: my + 4, stroke: 'currentColor', 'stroke-opacity': 0.7 }));
+        svg.append(node('line', { x1: mx - px(4), y1: my, x2: mx + px(4), y2: my, stroke: 'currentColor', 'stroke-opacity': 0.7, 'stroke-width': px(1) }));
+        svg.append(node('line', { x1: mx, y1: my - px(4), x2: mx, y2: my + px(4), stroke: 'currentColor', 'stroke-opacity': 0.7, 'stroke-width': px(1) }));
         if (preview.bandG && preview.gravity) {
           svg.append(node('line', {
             x1: mx, y1: my,
             x2: x(midpoint.x + preview.gravity.x), y2: y(midpoint.y + preview.gravity.y),
-            stroke: 'currentColor', 'stroke-width': 3, 'stroke-opacity': 0.8
+            stroke: 'currentColor', 'stroke-width': px(2), 'stroke-opacity': 0.8
           }));
         }
       }
@@ -887,7 +914,9 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   function draw() {
     applyStageView();
     svg.replaceChildren();
-    const z = stageView.zoom;
+    // v0.175.0: z converts screen pixels to user units, so it carries the
+    // SVG's CSS scale as well as the zoom (see svgPixelScale).
+    const z = stageView.zoom * svgPixelScale(svg, VIEW_W, VIEW_H);
     // The span, where it falls. Off the view when zoomed in, which is correct:
     // the minimap is what shows the whole plane.
     svg.append(node('rect', {

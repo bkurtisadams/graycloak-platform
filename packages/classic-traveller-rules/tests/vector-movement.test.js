@@ -572,3 +572,36 @@ test('the crew member making a repair leaves his stations for the turn', async (
   // Someone else still can.
   assert.equal(declareDamageControl(encounter, { shipId: 'a', location: 'hold', crewId: 'bo', crewName: 'Bo' }).participants[0].damageControl.crewId, 'bo');
 });
+
+// v0.59.0 (ruling): reloading costs the gunner his turn.
+test('a gunner who reloads has acted, and one who fired or is repairing cannot reload', async () => {
+  const { reloadLauncher, declareDamageControl, launchOrdnance, VECTOR_ORDNANCE_DEFAULT_RULING } = await import('../index.js');
+  const programs = ['target', 'launch', 'maneuver'];
+  const ship = armedCruiserFor('a', ['missile-launcher'], 1);
+  ship.state.damage.hold = 1;
+  const make = () => enableVectorMovement(createShipCombatEncounter({
+    id: 'reload-cost', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship, carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [],
+        stations: { pilot: 'ana', gunners: { 'T-1': 'bo' } }, readyByLauncher: { 'T-1:1': 0 } },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  }), { a: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } }, b: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } } });
+
+  // Reloading is acting: the gunner cannot then repair this turn.
+  let encounter = reloadLauncher(make(), { shipId: 'a', launcherId: 'T-1:1' });
+  assert.throws(() => declareDamageControl(encounter, { shipId: 'a', location: 'hold', crewId: 'bo', crewName: 'Bo' }), /Bo has already acted as gunner:T-1/);
+
+  // Repairing: the gunner cannot reload.
+  encounter = declareDamageControl(make(), { shipId: 'a', location: 'hold', crewId: 'bo', crewName: 'Bo' });
+  assert.throws(() => reloadLauncher(encounter, { shipId: 'a', launcherId: 'T-1:1' }), /making a repair/);
+
+  // Launched earlier in the game turn: no reload until the next.
+  let fired = make();
+  fired.participants[0].ammunition.launchers[0].ready = 1;
+  fired.participants[0].ship.state.armament.missiles = 1;
+  while (currentPhase(fired).key !== 'ordnance-launch') fired = advanceShipCombatPhase(fired);
+  fired = launchOrdnance(fired, { shipId: 'a', missiles: 1, targetId: 'b', launcherIds: ['T-1:1'], vectorRuling: VECTOR_ORDNANCE_DEFAULT_RULING });
+  assert.deepEqual(fired.log.at(-1).launcherIds, ['T-1:1']);
+  assert.throws(() => reloadLauncher(fired, { shipId: 'a', launcherId: 'T-1:1' }), /already fired or launched from T-1 this turn/);
+});

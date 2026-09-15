@@ -741,3 +741,24 @@ test('a read-only staging board has no drag handles, and the plot has no initial
   assert.doesNotMatch(stage.textContent, /APPLY INITIAL STATE|INITIAL POSITION/);
   dom.window.close(); delete globalThis.document; delete globalThis.Option;
 });
+
+// v0.175.0: plot sizes are screen pixels. A zoom redraws them, and a wider SVG
+// on screen shrinks them in user units, so lines and names stay the same
+// thickness however far in you go.
+test('the fight plot redraws its line widths and type for each zoom', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'widths', participants: ['intruder', 'native'].map((side) => ({ shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }))
+  }), { intruder: { position: { x: 0, y: 0 }, velocity: { x: 3, y: 0 } }, native: { position: { x: 20, y: 0 }, velocity: { x: 0, y: 0 } } });
+  const stage = document.querySelector('main');
+  renderShipVectorMap(stage, encounter, { commit() {} });
+  const nameSize = () => Number([...stage.querySelectorAll('.ship-vector-svg text')].find((node) => node.textContent === 'native').getAttribute('font-size'));
+  const before = nameSize();
+  assert.equal(before, 11, 'no layout in jsdom: one user unit per pixel at 100%');
+  [...stage.querySelectorAll('button')].find((button) => button.textContent.includes('+')).click();
+  assert.ok(nameSize() < before, 'zooming in redraws the name smaller in user units');
+  dom.window.close(); delete globalThis.document; delete globalThis.Option;
+});

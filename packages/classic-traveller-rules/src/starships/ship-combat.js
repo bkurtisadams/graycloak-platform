@@ -1499,6 +1499,15 @@ export function reloadLauncher(encounter, { shipId, launcherId } = {}) {
   const next = freeze(encounter);
   next.log = encounter.log.map((entry) => ({ ...entry }));
   const participant = getParticipant(next, shipId);
+  // v0.59.0 (Kurt's ruling): reloading costs the gunner his turn. He cannot
+  // start while making a repair, nor after firing or launching from that turret
+  // this game turn; and once started he has acted, so he cannot then repair.
+  const launcher = participant.ammunition?.launchers.find((entry) => entry.id === launcherId);
+  if (launcher) {
+    const station = `gunner:${launcher.turretId}`;
+    if (stationVacated(participant, station)) throw new Error(`${launcherId}: its gunner is making a repair this turn`);
+    if (stationActedThisTurn(next, participant, station)) throw new Error(`${launcherId}: its gunner has already fired or launched from ${launcher.turretId} this turn; reloading takes his turn`);
+  }
   participant.ammunition = startLauncherReload(participant.ammunition, ammunitionContext(next), launcherId);
   logEvent(next, { kind: 'reload-started', shipId, launcherId });
   return next;
@@ -2058,6 +2067,8 @@ export function shipCombatPhaseActions(encounter) {
         }
       }
       for (const launcher of ship.ammunition?.launchers ?? []) {
+        const station = `gunner:${launcher.turretId}`;
+        if (stationVacated(ship, station) || stationActedThisTurn(encounter, ship, station)) continue;
         try {
           startLauncherReload(JSON.parse(JSON.stringify(ship.ammunition)), context, launcher.id);
           actions.push({ kind: 'reload', shipId: ship.id, launcherId: launcher.id });
@@ -2182,7 +2193,8 @@ export function stationActedThisTurn(encounter, participant, station) {
     const turretId = station.slice('gunner:'.length);
     const racks = (participant.ammunition?.launchers ?? []).filter((launcher) => launcher.turretId === turretId).map((launcher) => launcher.id);
     return thisTurn.some((entry) => (entry.kind === 'laser-fire' && entry.fired && entry.turretId === turretId)
-      || (entry.kind === 'ordnance-launch' && (entry.launcherIds ?? []).some((id) => racks.includes(id))));
+      || (entry.kind === 'ordnance-launch' && (entry.launcherIds ?? []).some((id) => racks.includes(id)))
+      || (entry.kind === 'reload-started' && racks.includes(entry.launcherId)));
   }
   return false;
 }

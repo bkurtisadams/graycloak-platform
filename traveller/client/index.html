@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.174.0</div>
+          <div id="app-subtitle" class="subtitle">v0.176.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -227,6 +227,13 @@
             <strong id="ship-vector-status">--</strong>
             <button id="ship-vector-to-map" class="text-button" type="button">[ SUBSECTOR MAP ]</button>
           </div>
+          <!-- v0.176.0: the turn strip. Book 2 p.23's stepper, what this phase
+               can do, and ADVANCE, over the board the fight is on. It is moved
+               into the subsector section when an abbreviated fight has no plot
+               on the stage. -->
+          <section id="ship-combat-strip" class="ship-combat-strip" hidden aria-label="Ship combat turn">
+            <div id="ship-combat-actions" class="encounter-resolve ship-combat-strip-actions"></div>
+          </section>
           <div id="ship-vector-stage" class="ship-vector-stage"></div>
         </section>
         <section id="encounter-section" hidden aria-labelledby="encounter-heading">
@@ -402,11 +409,9 @@
               <div class="section-heading">
                 <h2 id="ship-combat-rail-heading" class="section-title">SHIP COMBAT</h2>
               </div>
-              <!-- v0.164.1: the actions come FIRST. They used to render after
-                   the tracker, which holds a data card per ship, so every
-                   button for the current phase sat below two screens of
-                   specifications and could only be reached by scrolling. -->
-              <div id="ship-combat-actions" class="encounter-resolve"></div>
+              <!-- v0.176.0: the tracker is the combatants, one p.24 data card
+                   each, with only the controls that change that ship. Running
+                   the turn moved to the turn strip over the stage. -->
               <div id="ship-combat-tracker" class="encounter-tracker" aria-label="Ship combat tracker" aria-live="polite"></div>
               <details id="ship-combat-details" class="encounter-details">
                 <summary>COMBAT LOG</summary>
@@ -918,6 +923,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.174.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.176.0"></script>
 </body>
 </html>
