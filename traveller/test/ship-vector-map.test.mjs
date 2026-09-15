@@ -511,3 +511,42 @@ test('the staging board holds a fixed scale, with the whole span on a minimap', 
   delete globalThis.document;
   delete globalThis.Option;
 });
+
+// v0.164.1: a drag has to preview locally and commit once. Writing on every
+// pointermove called back into the app, which re-renders, which replaces this
+// whole panel — so the SVG the drag was captured on was destroyed after the
+// first move and nothing could be dragged.
+test('dragging a ship previews it and writes once, on release', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const scene = {
+    documentType: 'graycloak-traveller-scene', schemaVersion: 3,
+    identity: { id: 'scene-drag', name: 'Clear Space' },
+    campaignId: 'sea', folder: 'Space',
+    board: { kind: 'vector', spanThousandMiles: 400 },
+    space: { bodies: [], gravityBodyId: null, atmosphere: null },
+    background: { assetId: null },
+    tokens: [{ id: 't1', actorId: 'marisol', side: 'party', label: 'MARISOL', position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } }],
+    notes: '', createdAt: 1
+  };
+  const stage = document.querySelector('main');
+  const writes = [];
+  renderVectorSceneStage(stage, scene, { moveShip: (id, point) => writes.push([id, point]), setVector() {} });
+
+  const svg = stage.querySelector('.ship-vector-svg');
+  const dot = svg.querySelector('.vector-ship-token');
+  const pointer = (type, clientX, clientY) => new dom.window.MouseEvent(type, { clientX, clientY, button: 0, bubbles: true });
+
+  // jsdom has no layout, so getScreenCTM is null and no scene point can be
+  // solved — but the contract still holds: nothing is written until release.
+  dot.dispatchEvent(pointer('pointerdown', 10, 10));
+  svg.dispatchEvent(pointer('pointermove', 60, 40));
+  assert.deepEqual(writes, [], 'nothing is written mid-drag');
+  svg.dispatchEvent(pointer('pointerup', 60, 40));
+  assert.ok(writes.length <= 1, 'at most one write, at the end of the gesture');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});

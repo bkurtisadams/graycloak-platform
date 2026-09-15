@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.164.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.164.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.164.1';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.164.1';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -681,6 +681,14 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   // px per inch, explicitly. VIEW_W user units span STAGE_INCHES_ACROSS inches
   // at 100%, and zoom divides that — so 100% is always the same scale on this
   // board regardless of how large the span is.
+  // What is being dragged right now, and where the pointer has it. Null except
+  // during a gesture.
+  let dragPreview = null;
+  const shipAt = (token) => (dragPreview?.kind === 'ship' && dragPreview.id === token.id && dragPreview.point) || token.position;
+  const vectorOf = (token) => (dragPreview?.kind === 'vector' && dragPreview.id === token.id && dragPreview.point
+    ? { x: dragPreview.point.x - shipAt(token).x, y: dragPreview.point.y - shipAt(token).y }
+    : (token.velocity ?? { x: 0, y: 0 }));
+  const bodyAt = (body) => (dragPreview?.kind === 'body' && dragPreview.id === body.id && dragPreview.point) || body.center;
   const unitsPerInch = VIEW_W / STAGE_INCHES_ACROSS;
   const x = (value) => VIEW_W / 2 + (value - stageView.cx) * unitsPerInch;
   const y = (value) => VIEW_H / 2 - (value - stageView.cy) * unitsPerInch;
@@ -719,7 +727,7 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     for (const body of bodies) {
       const radius = body.kind === 'world' ? body.template.radius : body.kind === 'asteroid-field' ? body.radius : 0;
       minimap.append(node('circle', {
-        cx: mx(body.center.x), cy: my(body.center.y), r: Math.max(1.5, radius * perInch),
+        cx: mx(bodyAt(body).x), cy: my(bodyAt(body).y), r: Math.max(1.5, radius * perInch),
         fill: 'currentColor', 'fill-opacity': body.kind === 'world' ? 0.35 : 0.15,
         stroke: 'currentColor', 'stroke-opacity': 0.4, 'stroke-width': 0.5
       }));
@@ -728,7 +736,7 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     // ship is a rounding error, and an invisible dot is no use on an overview.
     for (const token of scene.tokens) {
       minimap.append(node('circle', {
-        cx: mx(token.position.x), cy: my(token.position.y), r: 2,
+        cx: mx(shipAt(token).x), cy: my(shipAt(token).y), r: 2,
         fill: 'currentColor', 'fill-opacity': token.side === 'party' ? 0.9 : 0.55
       }));
     }
@@ -765,75 +773,78 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     }));
 
     for (const body of bodies) {
+      const centre = bodyAt(body);
       if (body.kind === 'world') {
         for (const band of [...(body.template.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
           svg.append(node('circle', {
-            cx: x(body.center.x), cy: y(body.center.y), r: band.outerRadius * unitsPerInch,
+            cx: x(centre.x), cy: y(centre.y), r: band.outerRadius * unitsPerInch,
             fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35,
             'stroke-width': 1 / z, 'stroke-dasharray': `${3 / z} ${5 / z}`
           }));
         }
         svg.append(node('circle', {
-          cx: x(body.center.x), cy: y(body.center.y), r: body.template.radius * unitsPerInch,
+          cx: x(centre.x), cy: y(centre.y), r: body.template.radius * unitsPerInch,
           fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor',
           'stroke-opacity': 0.5, 'stroke-width': 1 / z
         }));
       } else if (body.kind === 'asteroid-field') {
         svg.append(node('circle', {
-          cx: x(body.center.x), cy: y(body.center.y), r: body.radius * unitsPerInch,
+          cx: x(centre.x), cy: y(centre.y), r: body.radius * unitsPerInch,
           fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor', 'stroke-opacity': 0.4,
           'stroke-width': 1 / z, 'stroke-dasharray': `${1 / z} ${4 / z}`
         }));
       } else {
         const mark = 6 / z;
         svg.append(node('path', {
-          d: `M${x(body.center.x)} ${y(body.center.y) - mark} L${x(body.center.x) + mark} ${y(body.center.y)} L${x(body.center.x)} ${y(body.center.y) + mark} L${x(body.center.x) - mark} ${y(body.center.y)} Z`,
+          d: `M${x(centre.x)} ${y(centre.y) - mark} L${x(centre.x) + mark} ${y(centre.y)} L${x(centre.x)} ${y(centre.y) + mark} L${x(centre.x) - mark} ${y(centre.y)} Z`,
           fill: 'currentColor', 'fill-opacity': 0.75
         }));
       }
       svg.append(node('text', {
-        x: x(body.center.x), y: y(body.center.y) + 4 / z,
+        x: x(centre.x), y: y(centre.y) + 4 / z,
         fill: 'currentColor', 'text-anchor': 'middle', 'font-size': 11 / z
       }, body.kind === 'emplacement' ? `${body.name} (${body.site.toUpperCase()} \u00d7${body.turrets})` : body.name));
       if (moveBody) {
         const reach = body.kind === 'world' ? body.template.radius : body.kind === 'asteroid-field' ? body.radius : 0;
         const grip = node('circle', {
-          cx: x(body.center.x), cy: y(body.center.y), r: Math.max(6 / z, reach * unitsPerInch),
+          cx: x(centre.x), cy: y(centre.y), r: Math.max(6 / z, reach * unitsPerInch),
           fill: 'transparent', stroke: 'none'
         });
         grip.classList.add('vector-world-grip');
         grip.style.cursor = 'move';
         grip.append(node('title', {}, `${body.name} \u2014 drag to move, double-click to remove`));
-        grip.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveBody(body.id, point)));
+        grip.addEventListener('pointerdown', (event) => { dragPreview = { kind: 'body', id: body.id, point: centre }; startDrag(event, (point) => moveBody(body.id, point)); });
         if (removeBody) grip.addEventListener('dblclick', () => removeBody(body.id));
         svg.append(grip);
       }
     }
 
     for (const token of scene.tokens) {
-      const velocity = token.velocity ?? { x: 0, y: 0 };
+      const at = shipAt(token);
+      const velocity = vectorOf(token);
       const speed = Math.hypot(velocity.x, velocity.y);
-      const head = { x: token.position.x + velocity.x, y: token.position.y + velocity.y };
+      const head = { x: at.x + velocity.x, y: at.y + velocity.y };
       if (speed > 0) {
         svg.append(node('line', {
-          x1: x(token.position.x), y1: y(token.position.y), x2: x(head.x), y2: y(head.y),
+          x1: x(at.x), y1: y(at.y), x2: x(head.x), y2: y(head.y),
           stroke: 'currentColor', 'stroke-width': 2 / z
         }));
         const arrow = node('circle', { cx: x(head.x), cy: y(head.y), r: 4 / z, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 / z });
         arrow.classList.add('vector-endpoint-handle');
         arrow.style.cursor = 'move';
-        arrow.addEventListener('pointerdown', (event) => startDrag(event, (point) => {
-          setVector?.(token.id, { x: point.x - token.position.x, y: point.y - token.position.y });
-        }));
+        arrow.addEventListener('pointerdown', (event) => {
+          dragPreview = { kind: 'vector', id: token.id, point: head };
+          startDrag(event, (point) => setVector?.(token.id, { x: point.x - at.x, y: point.y - at.y }));
+        });
         svg.append(arrow);
       }
-      const dot = node('circle', { cx: x(token.position.x), cy: y(token.position.y), r: 5 / z, fill: 'currentColor' });
+      const dot = node('circle', { cx: x(at.x), cy: y(at.y), r: 5 / z, fill: 'currentColor' });
       dot.classList.add('vector-ship-token');
       dot.style.cursor = 'move';
-      dot.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveShip?.(token.id, point)));
+      dot.addEventListener('pointerdown', (event) => { dragPreview = { kind: 'ship', id: token.id, point: at }; startDrag(event, (point) => moveShip?.(token.id, point)); });
       svg.append(dot);
       const label = node('text', {
-        x: x(token.position.x) + 10 / z, y: y(token.position.y) - 9 / z,
+        x: x(at.x) + 10 / z, y: y(at.y) - 9 / z,
         fill: 'currentColor', 'font-size': 11 / z
       }, `${token.label || token.actorId}${speed ? ` \u00b7 ${speed.toFixed(1)}"` : ' \u00b7 STATIONARY'}`);
       if (removeShip) {
@@ -850,20 +861,35 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     drawMinimap();
   }
 
-  function startDrag(event, apply) {
+  // v0.164.1: a drag PREVIEWS locally and commits once, on release.
+  //
+  // Writing on every pointermove called back into the app, which re-renders,
+  // which replaces this whole panel — so the SVG the drag was captured on was
+  // destroyed after the first move and the pointer listeners went with it.
+  // Nothing could be dragged more than an imperceptible distance. The same trap
+  // the fight plot's endpoint drag avoids by capturing on the SVG; here the SVG
+  // itself goes, so the write has to wait for the end of the gesture.
+  function startDrag(event, commit) {
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
+    let last = null;
     const move = (moveEvent) => {
       const point = toScene(moveEvent.clientX, moveEvent.clientY);
-      if (point) apply(point);
+      if (!point) return;
+      last = point;
+      dragPreview = { ...dragPreview, point };
+      draw();
     };
     const end = (endEvent) => {
       svg.removeEventListener('pointermove', move);
       svg.removeEventListener('pointerup', end);
       svg.removeEventListener('pointercancel', end);
       try { svg.releasePointerCapture(endEvent.pointerId); } catch { /* already released */ }
+      dragPreview = null;
+      if (last) commit(last);
+      else draw();
     };
     svg.addEventListener('pointermove', move);
     svg.addEventListener('pointerup', end);
