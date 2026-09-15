@@ -5,6 +5,7 @@ import {
   sceneBoardCells, sceneFolders, SceneDocumentValidationError, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens,
   duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch,
   sceneIsVectorBoard,
+  sceneActorIsDesignReference,
   sceneVectorExtent,
   sceneBoardMeters,
   placeSceneShip,
@@ -357,4 +358,55 @@ test('asteroid fields, defence emplacements and several worlds all stage', () =>
   assert.throws(() => placeSceneBody(scene, asteroidFieldBody({ center: { x: 9999, y: 0 }, radius: 4 })), RangeError);
   const shrunk = updateSceneDocument(scene, { spanThousandMiles: 100 });
   assert.equal(sceneBodies(shrunk).some((body) => body.name === 'Calder'), false, 'the gas giant at -80 falls off a 100" span');
+});
+
+// v0.164.2: a standard design is plans (Book 2 p.9), not a hull, so any number
+// of ships may be staged from one. The campaign's own ship is one hull.
+test('three scouts stage from one design; a real ship stages once', () => {
+  let scene = createSceneDocument({
+    campaignId: 'sea', name: 'Picket Line', boardKind: 'vector',
+    spanThousandMiles: 400, createdAt: 1
+  });
+  const ids = [];
+  for (const y of [-20, 0, 20]) {
+    const staged = placeSceneShip(scene, { actorId: 'design:type-s-scout-courier', side: 'opposition', x: 60, y, label: 'SCOUT' });
+    scene = staged.scene;
+    ids.push(staged.token.id);
+  }
+  assert.equal(new Set(ids).size, 3);
+  assert.deepEqual(scene.tokens.map((token) => token.label), ['SCOUT', 'SCOUT 2', 'SCOUT 3']);
+  assert.ok(scene.tokens.every((token) => token.actorId === 'design:type-s-scout-courier'));
+  assert.equal(sceneActorIsDesignReference('design:type-s-scout-courier'), true);
+  assert.equal(sceneActorIsDesignReference('ship-marisol'), false);
+
+  // The first token keeps the id earlier releases gave it.
+  const legacy = placeSceneShip(createSceneDocument({ campaignId: 'sea', name: 'Picket Line', boardKind: 'vector', spanThousandMiles: 400, createdAt: 1 }),
+    { actorId: 'design:type-s-scout-courier', x: 60, y: -20 });
+  assert.equal(ids[0], legacy.token.id);
+
+  // Each hull moves on its own.
+  const moved = moveSceneShip(scene, { tokenId: ids[1], x: 10, y: 10 });
+  assert.deepEqual(moved.tokens.find((token) => token.id === ids[1]).position, { x: 10, y: 10 });
+  assert.deepEqual(moved.tokens.find((token) => token.id === ids[2]).position, { x: 60, y: 20 });
+  assert.equal(removeSceneToken(moved, ids[0]).tokens.length, 2);
+
+  const own = placeSceneShip(scene, { actorId: 'ship-marisol', side: 'party', x: -60, y: 0 });
+  assert.throws(() => placeSceneShip(own.scene, { actorId: 'ship-marisol', side: 'party', x: -50, y: 0 }), /already on this scene/);
+});
+
+// v0.164.2: duplicating or importing a space scene built a grid board and
+// threw on the first ship.
+test('a duplicated or imported space scene stays a space scene with its ships', () => {
+  let scene = createSceneDocument({ campaignId: 'sea', name: 'Belt', boardKind: 'vector', spanThousandMiles: 400, createdAt: 1 });
+  scene = placeSceneBody(scene, asteroidFieldBody({ name: 'Rocks', center: { x: 0, y: 0 }, radius: 20 }));
+  for (const y of [-10, 10]) scene = placeSceneShip(scene, { actorId: 'design:type-s-scout-courier', x: 50, y, label: 'SCOUT' }).scene;
+  for (const copy of [duplicateSceneDocument(scene, { createdAt: 2 }), adoptSceneDocument(scene, { campaignId: 'other', createdAt: 3 })]) {
+    assert.equal(copy.board.kind, 'vector');
+    assert.equal(copy.board.spanThousandMiles, 400);
+    assert.equal(copy.space.bodies.length, 1);
+    assert.equal(copy.tokens.length, 2);
+    assert.equal(new Set(copy.tokens.map((token) => token.id)).size, 2);
+    assert.notEqual(copy.tokens[0].id, scene.tokens[0].id);
+    assert.deepEqual(copy.tokens[1].velocity, scene.tokens[1].velocity);
+  }
 });

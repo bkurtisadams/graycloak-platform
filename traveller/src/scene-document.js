@@ -455,6 +455,37 @@ export function updateSceneDocument(document, { name, folder, squares, metersPer
 
 function snap(value, gridScale) { return Math.round(value / gridScale) * gridScale; }
 
+// v0.164.2: a staged ship may be a reference to one of Book 2 pp.18-20's
+// standard designs rather than a ship that exists. A design is a set of plans
+// (p.9), so any number of ships may be built from one: three Type S scouts
+// are three tokens with the same design reference. A token's identity is its
+// id; its actorId only says what it was built from.
+export const SCENE_DESIGN_REFERENCE_PREFIX = 'design:';
+
+export function sceneActorIsDesignReference(actorId) {
+  return typeof actorId === 'string' && actorId.startsWith(SCENE_DESIGN_REFERENCE_PREFIX);
+}
+
+// The first token for an actor keeps the id every earlier release gave it, so
+// scenes already saved do not change; later ones take the next free ordinal.
+function freshTokenId(sceneId, actorId, taken) {
+  const first = stableDocumentId('token', `${sceneId}|${actorId}`);
+  if (!taken.has(first)) return first;
+  for (let ordinal = 2; ; ordinal += 1) {
+    const id = stableDocumentId('token', `${sceneId}|${actorId}|${ordinal}`);
+    if (!taken.has(id)) return id;
+  }
+}
+
+function retokenise(sceneId, tokens) {
+  const taken = new Set();
+  return tokens.map((token) => {
+    const id = freshTokenId(sceneId, token.actorId, taken);
+    taken.add(id);
+    return { ...token, id, position: { ...token.position }, ...(token.velocity ? { velocity: { ...token.velocity } } : {}), inCombat: false };
+  });
+}
+
 // Stage an actor on the board. Positions are metre cells snapped to the grid,
 // exactly as an encounter stores them.
 // A ship staged on a vector board: a point in inches and the vector it arrives
@@ -464,17 +495,20 @@ export function placeSceneShip(document, { actorId, side = 'neutral', x = 0, y =
   const next = importSceneDocument(document);
   if (!sceneIsVectorBoard(next)) throw new TypeError('placeSceneShip needs a vector board');
   if (!nonblank(actorId)) throw new TypeError('actorId is required');
-  if (next.tokens.some((token) => token.actorId === actorId)) throw new Error('that actor is already on this scene');
+  const sameActor = next.tokens.filter((token) => token.actorId === actorId).length;
+  // A real ship is one hull and can be in one place. A design reference is not.
+  if (sameActor && !sceneActorIsDesignReference(actorId)) throw new Error('that actor is already on this scene');
   const { half } = sceneVectorExtent(next);
   const position = {
     x: Math.max(-half, Math.min(half, Number(x) || 0)),
     y: Math.max(-half, Math.min(half, Number(y) || 0))
   };
   const token = {
-    id: stableDocumentId('token', `${next.identity.id}|${actorId}`),
+    id: freshTokenId(next.identity.id, actorId, new Set(next.tokens.map((entry) => entry.id))),
     actorId, side, position,
     velocity: velocity === null ? defaultShipVector(position) : { x: Number(velocity.x) || 0, y: Number(velocity.y) || 0 },
-    label: String(label ?? ''), inCombat: false
+    // The second scout reads SCOUT 2, so a log line or a target names one hull.
+    label: sameActor && nonblank(label) ? `${label} ${sameActor + 1}` : String(label ?? ''), inCombat: false
   };
   next.tokens.push(token);
   assertValidSceneDocument(next);
@@ -588,6 +622,14 @@ export function trackedSceneTokens(document) {
 
 // --- v0.82.0: the Scenes directory --------------------------------------
 
+// v0.164.2: a copy of a space scene is a space scene. Both paths below built
+// a grid board and then threw on the first staged ship, which has no cells.
+function vectorBoardOptions(source) {
+  return sceneIsVectorBoard(source)
+    ? { boardKind: 'vector', spanThousandMiles: source.board.spanThousandMiles }
+    : {};
+}
+
 // A copy with a new identity, tokens and tracker included, named "<name> (copy)".
 export function duplicateSceneDocument(document, { createdAt = Date.now(), name = null } = {}) {
   const source = importSceneDocument(document);
@@ -597,11 +639,13 @@ export function duplicateSceneDocument(document, { createdAt = Date.now(), name 
     folder: source.folder,
     squares: source.board.squares,
     metersPerSquare: source.board.metersPerSquare,
+    ...vectorBoardOptions(source),
     backgroundAssetId: source.background.assetId,
     notes: source.notes,
     createdAt
   });
-  copy.tokens = source.tokens.map((token) => ({ ...token, id: stableDocumentId('token', `${copy.identity.id}|${token.actorId}`), position: { ...token.position }, inCombat: false }));
+  if (sceneIsVectorBoard(source)) copy.space = structuredClone(source.space);
+  copy.tokens = retokenise(copy.identity.id, source.tokens);
   assertValidSceneDocument(copy);
   return copy;
 }
@@ -618,9 +662,11 @@ export function adoptSceneDocument(document, { campaignId, createdAt = Date.now(
   const adopted = createSceneDocument({
     campaignId, name: source.identity.name, folder: source.folder,
     squares: source.board.squares, metersPerSquare: source.board.metersPerSquare,
+    ...vectorBoardOptions(source),
     backgroundAssetId: source.background.assetId, notes: source.notes, createdAt
   });
-  adopted.tokens = source.tokens.map((token) => ({ ...token, id: stableDocumentId('token', `${adopted.identity.id}|${token.actorId}`), position: { ...token.position }, inCombat: false }));
+  if (sceneIsVectorBoard(source)) adopted.space = structuredClone(source.space);
+  adopted.tokens = retokenise(adopted.identity.id, source.tokens);
   assertValidSceneDocument(adopted);
   return adopted;
 }
