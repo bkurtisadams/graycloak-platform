@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.156.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.156.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.156.1';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.156.1';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -22,12 +22,19 @@ const resetView = () => { view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; };
 // two inches each, added to the vector the ship already has. Off, the drag
 // passes the raw figure through and the engine's own refusal is shown instead.
 let enforceThrustLimit = true;
+// v0.156.1: thrust a player has dialled in but not yet committed, per ship.
+// The panel is rebuilt on every render and the fields are local to it, so
+// selecting another ship — or any unrelated redraw, like a phase advance on the
+// other side — silently reset an entered figure to zero. Book 2 p.23 lets a
+// side move all of its ships in one movement phase, so several pending thrusts
+// have to coexist.
+let pendingThrust = {};
 export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
   if (!panel) { panel = document.createElement('section'); panel.id = 'ship-vector-workspace'; stage.append(panel); }
-  if (encounterId !== encounter.id) { encounterId = encounter.id; selected = encounter.participants[0].id; resetView(); }
+  if (encounterId !== encounter.id) { encounterId = encounter.id; selected = encounter.participants[0].id; resetView(); pendingThrust = {}; }
   panel.replaceChildren();
   const heading = document.createElement('div'); heading.className = 'vector-controls';
   const title = document.createElement('strong'); title.textContent = `SPACE / TURN ${encounter.gameTurn} / ${encounter.phasingSide.toUpperCase()}`;
@@ -53,7 +60,8 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   heading.append(title, select, rules, zoomTools); panel.append(heading);
   const tools = document.createElement('div'); tools.className = 'vector-controls';
   const field = (name, value) => { const label = document.createElement('label'); label.textContent = name + ' '; const input = document.createElement('input'); input.type = 'number'; input.value = value; input.step = '0.1'; label.append(input); tools.append(label); return input; };
-  const ax = field('Thrust X (G)', '0'), ay = field('Thrust Y (G)', '0');
+  const held = pendingThrust[selected] ?? { x: 0, y: 0 };
+  const ax = field('Thrust X (G)', String(held.x)), ay = field('Thrust Y (G)', String(held.y));
   const button = document.createElement('button'); button.id = 'vector-commit'; button.textContent = 'COMMIT MANEUVER'; tools.append(button); panel.append(tools);
   const p = encounter.participants.find(p => p.id === selected);
   button.disabled = encounter.outcome !== 'in-progress' || encounter.phaseIndex !== 0 || p.side !== encounter.phasingSide || encounter.spatial.ships[selected].movedTurn === encounter.gameTurn || p.escaped || p.surrendered;
@@ -131,6 +139,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   panel.append(note);
   let transform, dragBasis = null, suppressNextClick = false;
   function draw() {
+    pendingThrust[selected] = { x: Number(ax.value) || 0, y: Number(ay.value) || 0 };
     svg.replaceChildren();
     // Book 2 p.25 states a vector as inches and a bearing ("6 inches at 90"),
     // which is the single most important number in vector movement and was
@@ -466,7 +475,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     }
   }
   ax.oninput=ay.oninput=()=>{clampFields();draw();};
-  button.onclick=()=>commit(selected,{x:Number(ax.value)*2,y:Number(ay.value)*2});
+  button.onclick=()=>{const spent=selected;const thrust={x:Number(ax.value)*2,y:Number(ay.value)*2};delete pendingThrust[spent];commit(spent,thrust);};
   // Click an endpoint to plot; do not teleport the ship.
   svg.addEventListener('click',e=>{
     if (suppressNextClick) { suppressNextClick = false; return; }

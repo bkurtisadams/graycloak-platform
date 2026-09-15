@@ -349,3 +349,67 @@ test('committed moves leave a course trail, and a moving ship reads as an arrow'
   delete globalThis.document;
   delete globalThis.Option;
 });
+
+// v0.156.1: Book 2 p.23 lets a side move all of its ships in its own movement
+// phase, so a thrust dialled in for one ship has to survive selecting another.
+// The panel is rebuilt on every render, so the fields cannot hold it.
+test('thrust entered for one ship survives selecting another, and a commit consumes it', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  let encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'pending',
+    participants: [
+      { shipId: 'marisol', side: 'intruder', name: 'Marisol', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] },
+      { shipId: 'corsair', side: 'intruder', name: 'Corsair', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] },
+      { shipId: 'native', side: 'native', name: 'Native', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }
+    ]
+  }), {
+    marisol: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } },
+    corsair: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } },
+    native: { position: { x: 80, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const stage = document.querySelector('main');
+  const committed = [];
+  const draw = () => renderShipVectorMap(stage, encounter, {
+    commit: (id, acceleration) => { committed.push([id, acceleration]); },
+    setup: () => {}
+  });
+  const fields = () => [...stage.querySelectorAll('input')];
+  const picker = () => stage.querySelector('select');
+
+  draw();
+  assert.equal(picker().value, 'marisol');
+  fields()[0].value = '2';
+  fields()[0].dispatchEvent(new dom.window.Event('input'));
+
+  // Select the Corsair: its own fields start at zero, not at Marisol's figure.
+  picker().value = 'corsair';
+  picker().dispatchEvent(new dom.window.Event('change'));
+  assert.equal(fields()[0].value, '0');
+  fields()[1].value = '1';
+  fields()[1].dispatchEvent(new dom.window.Event('input'));
+
+  // Back to Marisol: the 2G is still there.
+  picker().value = 'marisol';
+  picker().dispatchEvent(new dom.window.Event('change'));
+  assert.equal(fields()[0].value, '2');
+  assert.equal(fields()[1].value, '0');
+
+  // Committing spends it — p.26: unused acceleration may not be saved, and a
+  // spent one certainly does not persist.
+  stage.querySelector('#vector-commit').click();
+  assert.deepEqual(committed, [['marisol', { x: 4, y: 0 }]]);
+  draw();
+  assert.equal(fields()[0].value, '0');
+
+  // The Corsair's pending 1G is untouched by Marisol's commit.
+  picker().value = 'corsair';
+  picker().dispatchEvent(new dom.window.Event('change'));
+  assert.equal(fields()[1].value, '1');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
