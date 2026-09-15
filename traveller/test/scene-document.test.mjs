@@ -208,13 +208,19 @@ test('a vector scene thumbnail draws the template and its ships, not a grid', ()
     { id: 't1', actorId: 'marisol', side: 'party', label: 'M', position: { x: -20, y: 0 } }
   ] });
   const svg = sceneThumbnailSvg(scene);
-  // No grid lines at all, and the disc plus two bands plus one ship.
-  assert.doesNotMatch(svg, /<line /);
-  assert.equal((svg.match(/<circle /g) ?? []).length, 4);
+  // Two bands, the disc, the span circle and one ship; the only lines are the
+  // origin cross, never a grid.
+  assert.equal((svg.match(/<circle /g) ?? []).length, 5);
+  assert.equal((svg.match(/<line /g) ?? []).length, 2, 'the origin cross, and no grid');
   assert.match(svg, /stroke-dasharray/, 'the gravity bands read as bands');
+
+  // Clear space with nothing staged still reads as a measured plane.
+  const empty = sceneThumbnailSvg(createSceneDocument({ campaignId: 'sea', name: 'Deep Space', boardKind: 'vector', spanThousandMiles: 400, createdAt: 1 }));
+  assert.equal((empty.match(/<circle /g) ?? []).length, 1, 'the span circle');
+  assert.equal((empty.match(/<line /g) ?? []).length, 2, 'the origin cross');
 
   // A grid scene still draws a grid and no template.
   const grid = sceneThumbnailSvg(createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 }));
-  assert.match(grid, /<line /);
+  assert.ok((grid.match(/<line /g) ?? []).length > 10, 'a grid scene draws its grid');
   assert.doesNotMatch(grid, /stroke-dasharray/);
 });

@@ -372,7 +372,16 @@ export function sceneThumbnailSvg(scene, { size = 96 } = {}) {
       const fill = token.side === 'party' ? '#29465c' : token.side === 'opposition' ? '#6a1f1f' : '#777a75';
       return `<circle cx="${at(token.position.x)}" cy="${at(token.position.y)}" r="2" fill="${fill}"/>`;
     }).join('');
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${scene.identity.name.replace(/"/g, '&quot;')}"><rect width="${size}" height="${size}" fill="#e7e7e2"/>${rings}${ships}</svg>`;
+    // v0.159.2: clear space with nothing staged drew a plain rectangle, which
+    // is accurate and useless. The plane itself gets marked: a frame, the
+    // origin, and a dashed circle at half the span, so an empty vector board
+    // reads as a measured plane rather than a blank card.
+    const centre = (size / 2).toFixed(2);
+    const frame = `<rect x="0.5" y="0.5" width="${size - 1}" height="${size - 1}" fill="none" stroke="#b8bab4" stroke-width="1"/>`
+      + `<circle cx="${centre}" cy="${centre}" r="${(size / 2 - 4).toFixed(2)}" fill="none" stroke="#c9cbc5" stroke-width="0.5" stroke-dasharray="2 3"/>`
+      + `<line x1="${centre}" y1="${(size / 2 - 4).toFixed(2)}" x2="${centre}" y2="${(size / 2 + 4).toFixed(2)}" stroke="#9b9d97" stroke-width="0.75"/>`
+      + `<line x1="${(size / 2 - 4).toFixed(2)}" y1="${centre}" x2="${(size / 2 + 4).toFixed(2)}" y2="${centre}" stroke="#9b9d97" stroke-width="0.75"/>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${scene.identity.name.replace(/"/g, '&quot;')}"><rect width="${size}" height="${size}" fill="#e7e7e2"/>${frame}${rings}${ships}</svg>`;
   }
   const squares = scene.board.squares;
   const cell = size / squares;
