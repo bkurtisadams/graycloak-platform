@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { importCharacterDocument, createTypeSScoutReserveShipForCharacter, createShipCombatEncounter, advanceShipCombatPhase, createSequenceDice, createShipDocument, creditShipAccount, armShipTurret, purchaseOrdnance, launchOrdnance, moveOrdnance, declareFlight, currentPhase, obscuringSand, validateOrdnanceRuling } from '../index.js';
-import {enableVectorMovement,previewShipVector,commitShipVector,vectorRangeDM,configureVectorPlanet,adjudicateVectorSurface} from '../src/starships/vector-movement.js';
+import {enableVectorMovement,previewShipVector,commitShipVector,coastVectorShips,vectorRangeDM,configureVectorPlanet,adjudicateVectorSurface} from '../src/starships/vector-movement.js';
 import {
   createPlanet,
   moveWithGravity,
@@ -168,8 +168,10 @@ test('Book 2 p.30: a round carries the launching ship\'s vector and waits a turn
   encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', vectorRuling: MISSILE_RULING });
 
   const round = encounter.ordnance[0];
-  // "All ordnance which is launched has the launching ship's vector."
-  assert.deepEqual(round.position, { x: 0, y: 0 });
+  // "All ordnance which is launched has the launching ship's vector." v0.53.0:
+  // and its position — which is x=4 now, because the launcher coasted its
+  // 4-unit vector when movement ended (p.26). Before, it silently stayed put.
+  assert.deepEqual(round.position, { x: 4, y: 0 });
   assert.deepEqual(round.velocity, { x: 4, y: 0 });
   assert.equal(round.status, 'in-flight');
   // "The launched item does not actually move until the following friendly
@@ -178,7 +180,7 @@ test('Book 2 p.30: a round carries the launching ship\'s vector and waits a turn
   assert.equal(currentPhase(encounter).key, 'movement');
   encounter = moveOrdnance(encounter);
   assert.equal(encounter.ordnance[0].status, 'in-flight');
-  assert.deepEqual(encounter.ordnance[0].position, { x: 0, y: 0 });
+  assert.deepEqual(encounter.ordnance[0].position, { x: 4, y: 0 });
 });
 
 test('a vector missile has to cross the distance, and homes without overshooting', () => {
@@ -283,4 +285,63 @@ test('a course into the surface is the referee\'s, and the ruling is recorded', 
   assert.throws(() => adjudicateVectorSurface(encounter, {
     id: 'a', position: { x: 1, y: 0 }, velocity: { x: 0, y: 0 }, note: 'inside'
   }), /outside the surface/);
+});
+
+// ---------------------------------------------------------------------------
+// v0.53.0: Book 2 p.26 coasting, and a course that meets the world
+// ---------------------------------------------------------------------------
+
+test('Book 2 p.26: a ship that does not thrust still travels its vector when movement ends', () => {
+  let e = fixture();
+  // The intruder commits nothing; ADVANCE carries it 3 units on its vector.
+  e = advanceShipCombatPhase(e);
+  assert.deepEqual(e.spatial.ships.intruder.position, { x: 3, y: 0 });
+  assert.equal(e.spatial.ships.intruder.movedTurn, 1);
+  const entry = e.log.find((item) => item.kind === 'vector-move' && item.coasted);
+  assert.equal(entry.shipId, 'intruder');
+  assert.equal(entry.g, 0);
+  // The native is not phasing, so it has not moved yet.
+  assert.equal(e.spatial.ships.native.movedTurn, 0);
+  while (!(currentPhase(e).key === 'movement' && e.phasingSide === 'native')) e = advanceShipCombatPhase(e);
+  // Stationary is a vector of 0 (p.25): it coasts in place, and is marked moved.
+  e = advanceShipCombatPhase(e);
+  assert.deepEqual(e.spatial.ships.native.position, { x: 151, y: 0 });
+  assert.equal(e.spatial.ships.native.movedTurn, 1);
+});
+
+test('a committed ship is not coasted a second time', () => {
+  let e = fixture();
+  e = commitShipVector(e, 'intruder', { x: 2, y: 0 }, createSequenceDice([6, 6]));
+  const coast = coastVectorShips(e);
+  assert.equal(coast.coasted.length, 0);
+  e = advanceShipCombatPhase(e);
+  assert.deepEqual(e.spatial.ships.intruder.position, { x: 5, y: 0 });
+  assert.equal(e.log.filter((item) => item.kind === 'vector-move').length, 1);
+});
+
+test('coasting samples gravity at the course midpoint (p.29)', () => {
+  let e = configureVectorPlanet(fixture(), { name: 'Earth', diameter: 8, center: { x: 1.5, y: 7 } });
+  const expected = previewShipVector(e, 'intruder', { x: 0, y: 0 });
+  assert.ok(expected.bandG > 0);
+  e = advanceShipCombatPhase(e);
+  assert.deepEqual(e.spatial.ships.intruder.position, expected.endpoint);
+  assert.deepEqual(e.spatial.ships.intruder.velocity, expected.velocity);
+});
+
+test('a course through the world is refused, and movement cannot end until the referee rules', () => {
+  // A world of radius 1 sitting across the intruder's 3-unit coast, clear of
+  // the course midpoint so the course resolves and only touches the surface.
+  let e = configureVectorPlanet(fixture(), { name: 'Rock', diameter: 2, center: { x: 2.6, y: 0 } });
+  assert.equal(previewShipVector(e, 'intruder', { x: 0, y: 0 }).surfaceContact, true);
+  assert.throws(() => commitShipVector(e, 'intruder', { x: 0, y: 0 }, createSequenceDice([6, 6])), /surface ruling/);
+  const coast = coastVectorShips(e);
+  assert.deepEqual(coast.awaitingRuling.map((item) => item.shipId), ['intruder']);
+  assert.deepEqual(coast.encounter.spatial.ships.intruder.position, { x: 0, y: 0 });
+  assert.throws(() => advanceShipCombatPhase(e), /surface ruling required/);
+
+  // The referee places it outside the surface with a vector, and the turn goes on.
+  e = adjudicateVectorSurface(e, { id: 'intruder', position: { x: 1.4, y: 0 }, velocity: { x: 0, y: 0 }, note: 'Retro burn, held station above the rock' });
+  e = advanceShipCombatPhase(e);
+  assert.equal(currentPhase(e).key, 'laser-fire');
+  assert.deepEqual(e.spatial.ships.intruder.position, { x: 1.4, y: 0 });
 });

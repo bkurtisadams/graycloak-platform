@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.164.2';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.164.2';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.165.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.165.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -29,7 +29,7 @@ let enforceThrustLimit = true;
 // side move all of its ships in one movement phase, so several pending thrusts
 // have to coexist.
 let pendingThrust = {};
-export function renderShipVectorMap(stage, encounter, { commit, setup }) {
+export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicate }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
@@ -40,7 +40,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   const title = document.createElement('strong'); title.textContent = `SPACE / TURN ${encounter.gameTurn} / ${encounter.phasingSide.toUpperCase()}`;
   const select = document.createElement('select'); select.setAttribute('aria-label', 'Selected ship');
   encounter.participants.forEach(p => select.add(new Option(p.name, p.id)));
-  select.value = selected; select.onchange = () => { selected = select.value; renderShipVectorMap(stage, encounter, { commit, setup }); };
+  select.value = selected; select.onchange = () => { selected = select.value; renderShipVectorMap(stage, encounter, { commit, setup, adjudicate }); };
   const zoomButton = (text, label, handler) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'text-button map-zoom-button'; b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler; return b; };
   const zoomLabel = document.createElement('span'); zoomLabel.className = 'map-zoom-label'; zoomLabel.setAttribute('aria-live', 'polite'); zoomLabel.textContent = '100%';
   const zoomTools = document.createElement('span'); zoomTools.className = 'vector-zoom-tools'; zoomTools.setAttribute('aria-label', 'Vector plot zoom controls');
@@ -56,7 +56,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   const labelRules = () => { rules.textContent = enforceThrustLimit ? '[ RULES: ON ]' : '[ RULES: OFF ]'; };
   labelRules();
   rules.title = 'Book 2 p.26 caps voluntary thrust at the M-Drive rating, two inches per G, and unused acceleration cannot be saved. With rules on, dragging the endpoint is clamped to that.';
-  rules.onclick = () => { enforceThrustLimit = !enforceThrustLimit; renderShipVectorMap(stage, encounter, { commit, setup }); };
+  rules.onclick = () => { enforceThrustLimit = !enforceThrustLimit; renderShipVectorMap(stage, encounter, { commit, setup, adjudicate }); };
   heading.append(title, select, rules, zoomTools); panel.append(heading);
   const tools = document.createElement('div'); tools.className = 'vector-controls';
   const field = (name, value) => { const label = document.createElement('label'); label.textContent = name + ' '; const input = document.createElement('input'); input.type = 'number'; input.value = value; input.step = '0.1'; label.append(input); tools.append(label); return input; };
@@ -87,6 +87,58 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     why.className = 'vector-commit-blocked';
     why.textContent = commitBlockedBecause;
     tools.append(why);
+  }
+  // v0.165.0: the engine refuses a course that meets the world, so the button
+  // says so as the thrust changes rather than failing on click. draw() sets it.
+  const surfaceWhy = document.createElement('span');
+  surfaceWhy.className = 'vector-surface-blocked';
+  surfaceWhy.hidden = true;
+  tools.append(surfaceWhy);
+  // v0.165.0: a coasting course into the world has to be ruled before movement
+  // can end (Book 2 p.26 moves every ship; nothing in pp.26-29 says what a world
+  // does to one). Offered only where the engine would accept it.
+  if (adjudicate && !commitBlockedBecause) {
+    let coastingIntoWorld = false;
+    try {
+      const coastPreview = previewShipVector(encounter, selected, { x: 0, y: 0 });
+      coastingIntoWorld = Boolean(coastPreview.unresolved || coastPreview.surfaceContact);
+    } catch { coastingIntoWorld = false; }
+    if (coastingIntoWorld) {
+      const ruling = document.createElement('fieldset');
+      ruling.className = 'vector-controls vector-surface-ruling';
+      const legend = document.createElement('legend');
+      legend.textContent = 'SURFACE RULING';
+      const explain = document.createElement('p');
+      explain.textContent = `${p.name}'s coasting course reaches the world. Book 2's gravity bands stop at the surface and no rule says what happens there, so ADVANCE waits for your ruling: thrust away from it, or place the ship outside the surface with the vector it leaves on. A landing or a loss closes the encounter instead.`;
+      ruling.append(legend, explain);
+      const own = encounter.spatial.ships[selected];
+      const input = (name, value) => {
+        const label = document.createElement('label');
+        label.textContent = `${name} `;
+        const field = document.createElement('input');
+        field.type = 'number'; field.step = '0.1'; field.value = String(Number(value.toFixed(2)));
+        label.append(field); ruling.append(label);
+        return field;
+      };
+      const rx = input('X', own.position.x), ry = input('Y', own.position.y);
+      const rvx = input('VX', 0), rvy = input('VY', 0);
+      const noteLabel = document.createElement('label');
+      noteLabel.textContent = 'RULING ';
+      const noteField = document.createElement('input');
+      noteField.type = 'text';
+      noteField.placeholder = 'What happened, in a sentence (logged)';
+      noteLabel.append(noteField);
+      const record = document.createElement('button');
+      record.type = 'button';
+      record.textContent = 'RECORD RULING';
+      record.onclick = () => adjudicate(selected, {
+        position: { x: Number(rx.value), y: Number(ry.value) },
+        velocity: { x: Number(rvx.value), y: Number(rvy.value) },
+        note: noteField.value
+      });
+      ruling.append(noteLabel, record);
+      panel.append(ruling);
+    }
   }
   if (encounter.gameTurn === 1 && encounter.phaseIndex === 0 && !encounter.log.length && setup) {
     const settings = document.createElement('details');
@@ -157,8 +209,8 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   // end a turn deep in a well and still take no gravity, or the reverse.
   const CAMERA_NOTE = ' Wheel or [ + ] / [ \u2212 ] to zoom, right-drag or middle-drag to pan, [ FIT ] for the whole plot.';
   note.textContent = (encounter.spatial.planet
-    ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). Vector ordnance is not available.'
-    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts ships not yet committed. No world is placed, so no gravity applies. Vector ordnance is not available.') + CAMERA_NOTE;
+    ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). ADVANCE coasts every ship not yet committed (p.26). Vector ordnance is not available.'
+    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts every ship not yet committed (p.26). No world is placed, so no gravity applies. Vector ordnance is not available.') + CAMERA_NOTE;
   panel.append(note);
   let transform, dragBasis = null, suppressNextClick = false;
   function draw() {
@@ -176,6 +228,10 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     let preview;
     try {
       preview = previewShipVector(encounter, selected, { x:Number(ax.value)*2, y:Number(ay.value)*2 });
+      const touchesWorld = Boolean(preview.unresolved || preview.surfaceContact);
+      surfaceWhy.hidden = Boolean(commitBlockedBecause) || !touchesWorld;
+      surfaceWhy.textContent = touchesWorld ? 'This course reaches the world\u2019s surface. Book 2 has no rule for that, so it cannot be committed: change the thrust, or record a surface ruling.' : '';
+      button.disabled = Boolean(commitBlockedBecause) || touchesWorld;
       if (preview.unresolved) {
         // Book 2's bands are external; nothing in it describes motion inside a
         // world, so the course goes to the referee rather than being guessed.

@@ -4571,6 +4571,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 /* v0.156.2: why COMMIT MANEUVER is unavailable, beside the button. */
 .ship-vector-stage .vector-commit-blocked { flex: 1 1 100%; opacity: 0.75; font-size: 11px; }
+.ship-vector-stage .vector-surface-blocked { flex: 1 1 100%; font-size: 11px; }
+/* v0.165.0: the referee's surface ruling, Book 2 having none. */
+.ship-vector-stage .vector-surface-ruling { border: 1px solid currentColor; margin: 6px 0; padding: 6px 8px; }
+.ship-vector-stage .vector-surface-ruling legend { padding: 0 4px; font-weight: bold; }
+.ship-vector-stage .vector-surface-ruling p { flex: 1 1 100%; margin: 0 0 4px; font-size: 11px; opacity: 0.85; }
+.ship-vector-stage .vector-surface-ruling input[type="text"] { min-width: 18em; }
 
 /* v0.157.0: the ship combat turn sequence as a passive stepper, after the
    Chainmail and BATTLESYSTEM boards. Nothing in it is clickable — the highlight

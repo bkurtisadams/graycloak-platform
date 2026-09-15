@@ -55,6 +55,7 @@ import {
   activateVectorSand,
   obscuringSand
 } from './vector-ordnance.js';
+import { coastVectorShips } from './vector-movement.js';
 
 export const SHIP_COMBAT_SIDES = Object.freeze(['intruder', 'native']);
 
@@ -555,6 +556,17 @@ function logEvent(encounter, entry) {
  * is the boundary at the end of the native reprogramming phase.
  */
 export function advanceShipCombatPhase(encounter) {
+  // v0.53.0: Book 2 p.26 — a vector carries a ship whether or not it thrusts,
+  // so a vector movement phase cannot end with a ship left where it started.
+  // Callers that care about ordering (ships before ordnance) coast first; this
+  // is the guarantee that nobody can forget to.
+  if (encounter.spatialMode === 'vector' && encounter.outcome === 'in-progress' && currentPhase(encounter).key === 'movement') {
+    const coast = coastVectorShips(encounter);
+    if (coast.awaitingRuling.length) {
+      throw new Error(`surface ruling required before movement ends: ${coast.awaitingRuling.map((entry) => entry.name).join(', ')}`);
+    }
+    encounter = coast.encounter;
+  }
   const next = freeze(encounter);
   next.log = encounter.log.map((entry) => ({ ...entry }));
 

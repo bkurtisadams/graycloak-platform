@@ -1,9 +1,9 @@
 {
   "version": 1,
   "campaignId": null,
-  "savedAt": 1789426061011,
+  "savedAt": 1789471917558,
   "encounter": {
-    "id": "fixture-ship-combat-1789426061007",
+    "id": "fixture-ship-combat-1789471917552",
     "campaignId": null,
     "spatialMode": "vector",
     "intruderSide": "intruder",

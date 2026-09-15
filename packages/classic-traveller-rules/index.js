@@ -266,6 +266,7 @@ export {
   enableVectorMovement,
   previewShipVector,
   commitShipVector,
+  coastVectorShips,
   vectorRangeDM,
   configureVectorPlanet,
   adjudicateVectorSurface

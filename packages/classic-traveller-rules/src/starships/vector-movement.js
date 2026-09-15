@@ -70,16 +70,71 @@ export function commitShipVector(encounter, shipId, acceleration, dice) {
   if (encounter.spatial.ships[shipId].movedTurn === encounter.gameTurn) throw new Error('ship already moved this turn');
   let preview = previewShipVector(encounter, shipId, acceleration);
   if (preview.unresolved) throw new Error(`course cannot be resolved: ${preview.reason}`);
+  // v0.53.0: Book 2's gravity bands are external, and nothing in pp.26-29 or
+  // p.35 says what a vector through a world does. The engine refuses the course
+  // rather than flying a ship through a planet; the referee records a surface
+  // ruling instead (adjudicateVectorSurface).
+  if (preview.surfaceContact) throw new Error(surfaceRefusal(p.name));
   const next = copy(encounter), participant = next.participants.find(p => p.id === shipId);
   if (preview.g > 0) {
     const maneuver = participant.computer.loaded.find(k => k === 'maneuver' || k.startsWith('maneuver-evade-'));
     if (!maneuver || !cycleIntoCpu(participant, { required: [maneuver] }).possible) throw new Error('maneuver program and CPU capacity required');
-    if (!checkShipComputer(next, participant, dice)) preview = previewShipVector(next, shipId, { x: 0, y: 0 });
+    if (!checkShipComputer(next, participant, dice)) {
+      preview = previewShipVector(next, shipId, { x: 0, y: 0 });
+      // The computer failed, so the ship coasts — and a coasting course can
+      // meet the world as well. Still the referee's call.
+      if (preview.unresolved || preview.surfaceContact) throw new Error(`computer failed; ${surfaceRefusal(p.name)}`);
+    }
   }
   next.spatial.ships[shipId] = { position: preview.endpoint, velocity: preview.velocity, movedTurn: next.gameTurn };
   next.log.push({ gameTurn: next.gameTurn, phasingSide: next.phasingSide, phase: 'movement', kind: 'vector-move', shipId, ...preview });
   return next;
 }
+function surfaceRefusal(name) {
+  return `${name}'s course reaches the world's surface. Book 2 has no rule for that: record a surface ruling`;
+}
+
+/**
+ * Book 2 p.26: a ship's vector "determines the direction and distance a ship
+ * will travel in the next turn, provided it is not changed by voluntary
+ * acceleration, or by gravitational effects". Movement is not optional; thrust
+ * is. Every phasing ship that has not moved this turn travels its vector with
+ * no thrust, gravity included (p.29) and braking included (p.35).
+ *
+ * No computer throw: coasting uses no drive, so p.34's throw to operate does
+ * not arise.
+ *
+ * A coasting course that reaches the surface, or whose midpoint is inside it,
+ * is not moved. It is returned in `awaitingRuling` for the referee, because p.23
+ * does not let the movement phase end with a ship unmoved.
+ *
+ * Escaped and surrendered ships are skipped, matching commitShipVector's
+ * eligibility.
+ */
+export function coastVectorShips(encounter) {
+  if (encounter.spatialMode !== 'vector') throw new Error('vector mode required');
+  if (encounter.outcome !== 'in-progress' || currentPhase(encounter).key !== 'movement') {
+    throw new Error('ships coast in the movement phase');
+  }
+  const next = copy(encounter);
+  const coasted = [], awaitingRuling = [];
+  for (const participant of next.participants) {
+    if (participant.side !== next.phasingSide || participant.escaped || participant.surrendered) continue;
+    const state = next.spatial.ships[participant.id];
+    if (!state || state.movedTurn === next.gameTurn) continue;
+    const preview = previewShipVector(next, participant.id, { x: 0, y: 0 });
+    if (preview.unresolved || preview.surfaceContact) {
+      awaitingRuling.push({ shipId: participant.id, name: participant.name, reason: preview.unresolved ? preview.reason : 'surface-contact' });
+      continue;
+    }
+    next.spatial.ships[participant.id] = { position: preview.endpoint, velocity: preview.velocity, movedTurn: next.gameTurn };
+    const entry = { gameTurn: next.gameTurn, phasingSide: next.phasingSide, phase: 'movement', kind: 'vector-move', coasted: true, shipId: participant.id, ...preview };
+    next.log.push(entry);
+    coasted.push(entry);
+  }
+  return { encounter: next, coasted, awaitingRuling };
+}
+
 export function vectorRangeDM(encounter, a, b) {
   const x = encounter.spatial.ships[a].position, y = encounter.spatial.ships[b].position;
   const distance = Math.hypot(x.x-y.x, x.y-y.y);

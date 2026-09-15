@@ -550,3 +550,51 @@ test('dragging a ship previews it and writes once, on release', { skip: !JSDOM }
   delete globalThis.document;
   delete globalThis.Option;
 });
+
+// v0.165.0: Book 2 has no rule for a course that meets a world. The commit is
+// refused as the thrust is typed, and a coasting course into it offers the
+// referee's surface ruling, because ADVANCE now waits for one.
+test('a course into the world blocks the commit and offers a surface ruling', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'surface',
+    participants: [
+      { shipId: 'corsair', side: 'intruder', name: 'Corsair', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] },
+      { shipId: 'marisol', side: 'native', name: 'Marisol', ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }
+    ]
+  }), {
+    corsair: { position: { x: 0, y: 0 }, velocity: { x: 3, y: 0 } },
+    marisol: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  }, { planet: createPlanet({ name: 'Rock', diameter: 2, center: { x: 2.6, y: 0 } }) });
+  const stage = document.querySelector('main');
+  const rulings = [];
+  renderShipVectorMap(stage, encounter, { commit() {}, adjudicate: (id, ruling) => rulings.push({ id, ...ruling }) });
+
+  const commit = stage.querySelector('#vector-commit');
+  assert.equal(commit.disabled, true);
+  assert.equal(stage.querySelector('.vector-surface-blocked').hidden, false);
+  const ruling = stage.querySelector('.vector-surface-ruling');
+  assert.ok(ruling, 'the ruling form is offered');
+  assert.match(ruling.textContent, /Corsair's coasting course reaches the world/);
+
+  // Thrusting clear makes the course legal again.
+  const thrustY = stage.querySelectorAll('input')[1];
+  thrustY.value = '1';
+  thrustY.dispatchEvent(new dom.window.Event('input'));
+  assert.equal(commit.disabled, false);
+  assert.equal(stage.querySelector('.vector-surface-blocked').hidden, true);
+
+  const [x, , vx] = ruling.querySelectorAll('input[type="number"]');
+  x.value = '1.4'; vx.value = '-1';
+  ruling.querySelector('input[type="text"]').value = 'Hard burn away';
+  ruling.querySelector('button').click();
+  assert.deepEqual(rulings, [{ id: 'corsair', position: { x: 1.4, y: 0 }, velocity: { x: -1, y: 0 }, note: 'Hard burn away' }]);
+
+  // In clear space there is no ruling to offer.
+  renderShipVectorMap(stage, { ...encounter, id: 'clear', spatial: { ...encounter.spatial, planet: null } }, { commit() {}, adjudicate() {} });
+  assert.equal(stage.querySelector('.vector-surface-ruling'), null);
+  dom.window.close(); delete globalThis.document; delete globalThis.Option;
+});
