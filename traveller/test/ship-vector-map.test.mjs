@@ -42,9 +42,10 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   let svg = stage.querySelector('svg');
   const labels = [...svg.querySelectorAll('text')].map((node) => node.textContent);
   assert.deepEqual(labels.slice(0, 4), ['0.25 G', '0.5 G', '0.75 G', 'San Telmo']);
-  // Three bands, the surface, two ships, the preview endpoint, and v0.154.0's
-  // reachable envelope around the coasting endpoint.
-  assert.equal(svg.querySelectorAll('circle').length, 8);
+  // Three bands, the surface, two ships, the preview endpoint, v0.154.0's
+  // reachable envelope, and v0.155.0's invisible hover target over the whole
+  // template (the rings are fill:none, so only their stroke is hoverable).
+  assert.equal(svg.querySelectorAll('circle').length, 9);
   // Book 2 p.29 samples the band at the course midpoint, so the status says
   // which band applies and how hard it pulls.
   assert.match(stage.querySelector('#vector-status').textContent, /gravity 0\.25 G band, 0\.50 toward the world/);
@@ -210,6 +211,54 @@ test('the reachable envelope follows the coasting endpoint, and clamps to the dr
   toggle.click();
   assert.equal([...second.querySelectorAll('button')].find((node) => /RULES:/.test(node.textContent)).textContent, '[ RULES: OFF ]');
   toggle.click();
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
+
+// v0.155.0: Book 2 p.27 — the template "should be marked with its values for
+// R, G, M, D, and K, as well as the planet's name, and any other interesting
+// data". Written from the page rather than from what the engine happens to hold.
+test('the planet card states p.27 template values and whether p.35 braking applies', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const participants = ['intruder', 'native'].map((side) => ({
+    shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver']
+  }));
+  const states = {
+    intruder: { position: { x: 20, y: 0 }, velocity: { x: 0, y: -1 } },
+    native: { position: { x: -30, y: 5 }, velocity: { x: 0, y: 0 } }
+  };
+  const world = createPlanet({ name: 'San Telmo', diameter: 8 });
+  const stage = document.querySelector('main');
+
+  // Atmosphere 6 is standard, so p.35 braking is available.
+  renderShipVectorMap(stage, enableVectorMovement(
+    createShipCombatEncounter({ id: 'card', participants }), states, { planet: world, atmosphere: 6 }
+  ), { commit() {}, setup() {} });
+  const card = stage.querySelector('.vector-planet-card');
+  assert.ok(card.hidden, 'the card is hidden until the template is hovered');
+  const text = card.textContent;
+  assert.match(text, /SAN TELMO/);
+  assert.match(text, /8\.00" \u00b7 8,000 MILES/);
+  assert.match(text, /1\.00 G/);
+  // p.27: a size-8 Earth-density world has M = 1 and bands at 8.00, 5.66, 4.62.
+  assert.match(text, /1\.000 EARTH/);
+  assert.match(text, /0\.25 G at 8\.00"/);
+  assert.match(text, /0\.75 G at 4\.62"/);
+  assert.match(text, /BRAKING/);
+  assert.match(text, /YES/);
+
+  // Atmosphere 3 is thin: no braking, and the card says which rule decides.
+  const thin = document.createElement('div');
+  document.body.append(thin);
+  renderShipVectorMap(thin, enableVectorMovement(
+    createShipCombatEncounter({ id: 'thin', participants }), states, { planet: world, atmosphere: 3 }
+  ), { commit() {}, setup() {} });
+  assert.match(thin.querySelector('.vector-planet-card').textContent, /NO \u00b7 needs a standard or dense atmosphere/);
 
   dom.window.close();
   delete globalThis.document;

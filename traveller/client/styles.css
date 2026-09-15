@@ -4541,3 +4541,30 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    choice, where it is now is not. Book 2 p.26. */
 .ship-vector-stage .vector-endpoint-handle { cursor: move; }
 .ship-vector-stage .vector-endpoint-handle:hover { stroke-opacity: 1; }
+
+/* v0.155.0: a drag over the plot was selecting the SVG's text labels, so the
+   gravity and ship names highlighted blue mid-drag. Nothing on the plot is
+   text a user selects. */
+.ship-vector-stage, .ship-vector-stage svg, .ship-vector-stage text {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* v0.155.0: the planet card. Book 2 p.27's template values, pinned to the
+   plot's top right so it never lands under a drag. */
+.ship-vector-stage { position: relative; }
+.vector-planet-card {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 3;
+  max-width: 320px;
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.vector-planet-card[hidden] { display: none; }
+.vector-planet-row { display: flex; gap: 8px; justify-content: space-between; }
+.vector-planet-key { opacity: 0.65; white-space: nowrap; }

@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.154.0';
-import { LASER_RANGE_DMS } from '../vendor/classic-traveller-rules/index.js?v=v0.154.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.155.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.155.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -110,6 +110,15 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   svg.addEventListener('pointerup', endPan);
   svg.addEventListener('pointercancel', endPan);
   applyView();
+  // v0.155.0: Book 2 p.27 says the template "should be marked with its values
+  // for R, G, M, D, and K, as well as the planet's name, and any other
+  // interesting data" — a hover card specified fifty years early. Anchored to
+  // the plot's corner rather than following the cursor, so it never sits where
+  // the endpoint is being dragged.
+  const planetCard = document.createElement('div');
+  planetCard.className = 'vector-planet-card';
+  planetCard.hidden = true;
+  panel.append(planetCard);
   const status = document.createElement('div'); status.id='vector-status'; status.className='vector-controls'; status.setAttribute('aria-live','polite'); panel.append(status);
   const note = document.createElement('p');
   // v0.139.0: gravity is drawn now. Book 2 p.29 samples the band at the
@@ -215,6 +224,45 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
         x: x(planet.center.x), y: y(planet.center.y) + 4,
         fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
       }, planet.name));
+      const reachInches = Math.max(planet.radius, ...(planet.bands ?? []).map((b) => b.outerRadius));
+      const hover = node('circle', {
+        cx: x(planet.center.x), cy: y(planet.center.y), r: reachInches * scale,
+        fill: 'transparent', stroke: 'none'
+      });
+      hover.style.cursor = 'help';
+      hover.addEventListener('pointerenter', () => { planetCard.hidden = false; });
+      hover.addEventListener('pointerleave', () => { planetCard.hidden = true; });
+      svg.append(hover);
+      const atmosphere = encounter.spatial.atmosphere;
+      const brakes = Number.isInteger(atmosphere) ? atmosphereBrakes(atmosphere) : false;
+      planetCard.replaceChildren();
+      const rows = [
+        ['D / DIAMETER', `${(planet.radius * 2).toFixed(2)}" \u00b7 ${(planet.radius * 2000).toLocaleString('en-US')} MILES`],
+        ['R / RADIUS', `${planet.radius.toFixed(2)}"`],
+        ['G / SURFACE', `${planet.surfaceG.toFixed(2)} G`],
+        ['M / MASS', `${planet.massEarth.toFixed(3)} EARTH`],
+        ['K / DENSITY', `${Number(planet.densityEarth).toFixed(2)} EARTH`],
+        ['BANDS', (planet.bands ?? []).map((b) => `${b.g} G at ${b.outerRadius.toFixed(2)}"`).join(' \u00b7 ') || 'NONE'],
+        ['ATMOSPHERE', Number.isInteger(atmosphere) ? String(atmosphere) : 'NOT SET'],
+        ['BRAKING', brakes
+          ? `YES \u00b7 a vector within ${ATMOSPHERIC_BRAKING_BAND}" of the surface loses ${ATMOSPHERIC_BRAKING_BAND}" (p.35)`
+          : 'NO \u00b7 needs a standard or dense atmosphere (p.35)'],
+        ['SURFACE', 'A course crossing the disc is referred to the referee']
+      ];
+      const name = document.createElement('strong');
+      name.textContent = planet.name.toUpperCase();
+      planetCard.append(name);
+      for (const [label, value] of rows) {
+        const row = document.createElement('div');
+        row.className = 'vector-planet-row';
+        const key = document.createElement('span');
+        key.className = 'vector-planet-key';
+        key.textContent = label;
+        const text = document.createElement('span');
+        text.textContent = value;
+        row.append(key, text);
+        planetCard.append(row);
+      }
     }
     // v0.153.0: Book 2 p.30's range DMs are the whole of what distance does in
     // this game — -2 beyond 150", -5 beyond 300", and nothing in between. On a
