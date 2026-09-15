@@ -4536,3 +4536,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ship-vector-stage .vector-zoom-tools { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
 .ship-vector-stage .vector-zoom-tools .map-zoom-button { font-size: 12px; }
 .ship-vector-stage .vector-zoom-tools .map-zoom-label { font-weight: 700; }
+
+/* v0.154.0: the endpoint is the drag handle — where the ship ends up is a
+   choice, where it is now is not. Book 2 p.26. */
+.ship-vector-stage .vector-endpoint-handle { cursor: move; }
+.ship-vector-stage .vector-endpoint-handle:hover { stroke-opacity: 1; }

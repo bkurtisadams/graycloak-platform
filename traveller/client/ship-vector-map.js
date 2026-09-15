@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.153.0';
-import { LASER_RANGE_DMS } from '../vendor/classic-traveller-rules/index.js?v=v0.153.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.154.0';
+import { LASER_RANGE_DMS } from '../vendor/classic-traveller-rules/index.js?v=v0.154.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -17,6 +17,11 @@ const VIEW_W = 800, VIEW_H = 430, ZOOM_MIN = 0.5, ZOOM_MAX = 8, ZOOM_STEP = 1.25
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 let view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 };
 const resetView = () => { view = { zoom: 1, cx: VIEW_W / 2, cy: VIEW_H / 2 }; };
+// v0.154.0: rules enforcement, as the Chainmail board has it. On, a dragged
+// endpoint is clamped to what Book 2 p.26 allows — the M-Drive's rating in Gs,
+// two inches each, added to the vector the ship already has. Off, the drag
+// passes the raw figure through and the engine's own refusal is shown instead.
+let enforceThrustLimit = true;
 export function renderShipVectorMap(stage, encounter, { commit, setup }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
@@ -38,7 +43,14 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     zoomButton('[ + ]', 'Zoom in', () => zoomTo(view.zoom * ZOOM_STEP)),
     zoomButton('[ FIT ]', 'Fit the whole plot', () => { resetView(); applyView(); })
   );
-  heading.append(title, select, zoomTools); panel.append(heading);
+  const rules = document.createElement('button');
+  rules.type = 'button';
+  rules.className = 'text-button';
+  const labelRules = () => { rules.textContent = enforceThrustLimit ? '[ RULES: ON ]' : '[ RULES: OFF ]'; };
+  labelRules();
+  rules.title = 'Book 2 p.26 caps voluntary thrust at the M-Drive rating, two inches per G, and unused acceleration cannot be saved. With rules on, dragging the endpoint is clamped to that.';
+  rules.onclick = () => { enforceThrustLimit = !enforceThrustLimit; renderShipVectorMap(stage, encounter, { commit, setup }); };
+  heading.append(title, select, rules, zoomTools); panel.append(heading);
   const tools = document.createElement('div'); tools.className = 'vector-controls';
   const field = (name, value) => { const label = document.createElement('label'); label.textContent = name + ' '; const input = document.createElement('input'); input.type = 'number'; input.value = value; input.step = '0.1'; label.append(input); tools.append(label); return input; };
   const ax = field('Thrust X (G)', '0'), ay = field('Thrust Y (G)', '0');
@@ -108,7 +120,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). Vector ordnance is not available.'
     : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts ships not yet committed. No world is placed, so no gravity applies. Vector ordnance is not available.') + CAMERA_NOTE;
   panel.append(note);
-  let transform;
+  let transform, dragBasis = null, suppressNextClick = false;
   function draw() {
     svg.replaceChildren();
     // Book 2 p.25 states a vector as inches and a bearing ("6 inches at 90"),
@@ -138,6 +150,26 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
       }
     }
     catch(e) { status.textContent=e.message; }
+    // Book 2 p.26 adds thrust to the vector the ship ALREADY has, so the set of
+    // endpoints a drive can reach is a circle centred on where velocity alone
+    // would carry the ship — not on the ship. A stationary 1G ship may go two
+    // inches anywhere; the same ship doing 20 inches may only nudge its arrival
+    // point by two, which is the whole feel of vector movement and is invisible
+    // in a pair of typed thrust fields.
+    //
+    // Gravity is sampled at the course midpoint and is independent of thrust
+    // (planetary-gravity.js), so the coasting endpoint carries it and the
+    // envelope stays a true circle around that point. Atmospheric braking can
+    // shorten the result, so inside a braking band the envelope is approximate.
+    let coast = null, envelope = null;
+    try {
+      const at = previewShipVector(encounter, selected, { x: 0, y: 0 });
+      if (at.resolved !== false && !at.unresolved) {
+        const factor = encounter.spatial.accelerationMode === 'constant' ? 0.5 : 1;
+        coast = at.endpoint;
+        envelope = { centre: at.endpoint, maximumG: at.maximumG, radiusInches: at.maximumG * 2 * factor, factor };
+      }
+    } catch { coast = null; envelope = null; }
     const points = Object.values(encounter.spatial.ships).flatMap(s => [s.position, {x:s.position.x+s.velocity.x,y:s.position.y+s.velocity.y}]);
     if (preview) points.push(preview.endpoint);
     // The world has to fit too, out to its weakest band, or the disc is drawn
@@ -156,7 +188,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     const height = 430 - MARGIN * 2;
     const scale = Math.min(width / (maxX - minX), height / (maxY - minY));
     const x=v=>400+(v-(minX+maxX)/2)*scale,y=v=>215-(v-(minY+maxY)/2)*scale;
-    transform={x,y,scale};
+    transform={x,y,scale};dragBasis=envelope;
     if (planet) {
       // Outermost band first, so the stronger inner bands read as denser.
       for (const [bandIndex, band] of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius).entries()) {
@@ -173,7 +205,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
           x: x(planet.center.x + Math.cos(bearing) * band.outerRadius),
           y: y(planet.center.y + Math.sin(bearing) * band.outerRadius) + 4,
           fill: 'currentColor', 'fill-opacity': 0.6, 'text-anchor': 'middle', 'font-size': '10'
-        }, `${band.g} G \u00b7 ${band.outerRadius.toFixed(1)}"`));
+        }, `${band.g} G`));
       }
       svg.append(node('circle', {
         cx: x(planet.center.x), cy: y(planet.center.y), r: planet.radius * scale,
@@ -243,7 +275,20 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
         'font-weight': ship.id === selected ? '700' : '400'
       }, ship.name));
     }
-    if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':'6 4','stroke-width':2}));svg.append(node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:5,fill:'none',stroke:'currentColor'}));
+    // The reachable envelope: the ruler and protractor, drawn. Only while the
+    // ship may actually move, so it does not imply a choice that is not there.
+    if (envelope && envelope.radiusInches > 0 && !button.disabled) {
+      svg.append(node('circle', {
+        cx: x(envelope.centre.x), cy: y(envelope.centre.y), r: envelope.radiusInches * scale,
+        fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor',
+        'stroke-opacity': 0.3, 'stroke-width': 1 / view.zoom
+      }));
+    }
+    if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':'6 4','stroke-width':2}));
+      const handle=node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:5,fill:'none',stroke:'currentColor','stroke-width':2});
+      handle.classList.add('vector-endpoint-handle');
+      if(!button.disabled){handle.style.cursor='move';handle.addEventListener('pointerdown',startEndpointDrag);}
+      svg.append(handle);
       // Book 2 p.29 reads the band at the midpoint of the course vector, before
       // thrust. Drawing it stops the band a ship is "in" looking arbitrary.
       if (planet) {
@@ -261,9 +306,70 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
       }
     }
   }
+  // Dragging the ENDPOINT, not the ship: where the ship ends up is a choice,
+  // where it is now is not. The drop position is solved back into thrust the
+  // same way a click is, and clamped to the envelope when rules are enforced.
+  function viewPoint(event) {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const point = svg.createSVGPoint();
+    point.x = event.clientX; point.y = event.clientY;
+    return point.matrixTransform(ctm.inverse());
+  }
+  function thrustFromViewPoint(q) {
+    if (!transform || !dragBasis) return null;
+    const dataX = (q.x - transform.x(0)) / transform.scale;
+    const dataY = (transform.y(0) - q.y) / transform.scale;
+    let gx = (dataX - dragBasis.centre.x) / dragBasis.factor / 2;
+    let gy = (dataY - dragBasis.centre.y) / dragBasis.factor / 2;
+    const magnitude = Math.hypot(gx, gy);
+    if (enforceThrustLimit && magnitude > dragBasis.maximumG && magnitude > 0) {
+      const clamp = dragBasis.maximumG / magnitude;
+      gx *= clamp; gy *= clamp;
+    }
+    return { gx, gy };
+  }
+  function applyThrustFrom(event) {
+    const q = viewPoint(event);
+    if (!q) return;
+    const thrust = thrustFromViewPoint(q);
+    if (!thrust) return;
+    ax.value = thrust.gx.toFixed(2);
+    ay.value = thrust.gy.toFixed(2);
+    draw();
+  }
+  function startEndpointDrag(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    // draw() replaces the SVG's children on every update, so the handle itself
+    // is destroyed mid-drag. Capture and listen on the SVG, which survives.
+    event.stopPropagation();
+    try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom, and pens */ }
+    const move = (moveEvent) => applyThrustFrom(moveEvent);
+    const end = (endEvent) => {
+      svg.removeEventListener('pointermove', move);
+      svg.removeEventListener('pointerup', end);
+      svg.removeEventListener('pointercancel', end);
+      try { svg.releasePointerCapture(endEvent.pointerId); } catch { /* already released */ }
+      suppressNextClick = true;
+    };
+    svg.addEventListener('pointermove', move);
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
+  }
   ax.oninput=ay.oninput=draw;
   button.onclick=()=>commit(selected,{x:Number(ax.value)*2,y:Number(ay.value)*2});
   // Click an endpoint to plot; do not teleport the ship.
-  svg.addEventListener('click',e=>{if(e.target.tagName==='circle'||button.disabled||!transform)return;const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;const q=pt.matrixTransform(svg.getScreenCTM().inverse());const s=encounter.spatial.ships[selected];const originX=transform.x(0),originY=transform.y(0);ax.value=(((q.x-originX)/transform.scale-s.position.x-s.velocity.x)/2).toFixed(2);ay.value=(((originY-q.y)/transform.scale-s.position.y-s.velocity.y)/2).toFixed(2);draw();});
+  svg.addEventListener('click',e=>{
+    if (suppressNextClick) { suppressNextClick = false; return; }
+    if (e.target.tagName === 'circle' || button.disabled || !transform) return;
+    const q = viewPoint(e);
+    if (!q) return;
+    const thrust = thrustFromViewPoint(q);
+    if (!thrust) return;
+    ax.value = thrust.gx.toFixed(2);
+    ay.value = thrust.gy.toFixed(2);
+    draw();
+  });
   draw();
 }

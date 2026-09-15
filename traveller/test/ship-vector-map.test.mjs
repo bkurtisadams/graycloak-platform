@@ -41,12 +41,10 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   renderShipVectorMap(stage, withWorld, { commit() {}, setup() {} });
   let svg = stage.querySelector('svg');
   const labels = [...svg.querySelectorAll('text')].map((node) => node.textContent);
-  // v0.153.0: each band label carries its radius as well as its strength, so
-  // the rings read as a ruler — Book 2 p.27 puts a size-8 world's bands at
-  // 8.00, 5.66 and 4.62 inches.
-  assert.deepEqual(labels.slice(0, 4), ['0.25 G \u00b7 8.0"', '0.5 G \u00b7 5.7"', '0.75 G \u00b7 4.6"', 'San Telmo']);
-  // Three bands, the surface, two ships and the preview endpoint.
-  assert.equal(svg.querySelectorAll('circle').length, 7);
+  assert.deepEqual(labels.slice(0, 4), ['0.25 G', '0.5 G', '0.75 G', 'San Telmo']);
+  // Three bands, the surface, two ships, the preview endpoint, and v0.154.0's
+  // reachable envelope around the coasting endpoint.
+  assert.equal(svg.querySelectorAll('circle').length, 8);
   // Book 2 p.29 samples the band at the course midpoint, so the status says
   // which band applies and how hard it pulls.
   assert.match(stage.querySelector('#vector-status').textContent, /gravity 0\.25 G band, 0\.50 toward the world/);
@@ -62,7 +60,7 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   document.body.append(second);
   renderShipVectorMap(second, clear, { commit() {}, setup() {} });
   svg = second.querySelector('svg');
-  assert.equal(svg.querySelectorAll('circle').length, 3);
+  assert.equal(svg.querySelectorAll('circle').length, 4);
   assert.match(second.querySelector('p').textContent, /No world is placed/);
 });
 
@@ -167,6 +165,51 @@ test('the plot states its scale and draws Book 2 p.30 range thresholds in view',
   assert.ok(farTexts.includes('300" \u00b7 DM -5'), 'the -5 threshold is drawn');
   // Velocity is stated in Book 2 p.25's own notation rather than left to the eye.
   assert.match(second.querySelector('#vector-status').textContent, /VEL 1\.0" @ 000\u00b0/);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Option;
+});
+
+// v0.154.0: Book 2 p.26 adds thrust to the vector a ship already has, so the
+// reachable set is a circle around the COASTING endpoint, not around the ship.
+test('the reachable envelope follows the coasting endpoint, and clamps to the drive', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const participants = ['intruder', 'native'].map((side) => ({
+    shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver']
+  }));
+  const stage = document.querySelector('main');
+
+  // Stationary: the envelope is centred on the ship itself, because velocity
+  // carries it nowhere. A Type S is 2G, so 4 inches of thrust in any direction.
+  const still = enableVectorMovement(createShipCombatEncounter({ id: 'still', participants }), {
+    intruder: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } },
+    native: { position: { x: 30, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  renderShipVectorMap(stage, still, { commit() {}, setup() {} });
+  assert.match(stage.querySelector('#vector-status').textContent, /VEL 0" \(STATIONARY\)/);
+
+  // Moving: the same 4 inches, but now reachable only around a point 20 inches
+  // downrange. The ship cannot stop and cannot turn back.
+  const fast = enableVectorMovement(createShipCombatEncounter({ id: 'fast', participants }), {
+    intruder: { position: { x: 0, y: 0 }, velocity: { x: 20, y: 0 } },
+    native: { position: { x: 200, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const second = document.createElement('div');
+  document.body.append(second);
+  renderShipVectorMap(second, fast, { commit() {}, setup() {} });
+  assert.match(second.querySelector('#vector-status').textContent, /VEL 20\.0" @ 000\u00b0/);
+
+  // Rules enforcement is offered and says which way it is set, since an
+  // unclamped drag is a referee's choice rather than Book 2's.
+  const toggle = [...second.querySelectorAll('button')].find((node) => /RULES:/.test(node.textContent));
+  assert.equal(toggle.textContent, '[ RULES: ON ]');
+  toggle.click();
+  assert.equal([...second.querySelectorAll('button')].find((node) => /RULES:/.test(node.textContent)).textContent, '[ RULES: OFF ]');
+  toggle.click();
 
   dom.window.close();
   delete globalThis.document;

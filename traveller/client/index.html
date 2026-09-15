@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.153.0</div>
+          <div id="app-subtitle" class="subtitle">v0.154.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -38,7 +38,7 @@
         <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true" title="Subsector scene" hidden><span aria-hidden="true">&#9673;</span><span class="tool-label">SYSTEM</span></button>
         <button id="scene-tab-combat" class="scene-tab scene-tab-combat-proxy" type="button" role="tab" data-scene-tab="combat" aria-selected="false" hidden>COMBAT</button>
       </div>
-      <!-- v0.153.0: scene navigation moved into the rail, beneath the scene
+      <!-- v0.154.0: scene navigation moved into the rail, beneath the scene
            tabs. The subsector map IS a scene — viewedSceneIsBoard() chooses
            between it and a combat board — so the control that picks between
            them belongs with the other scene controls rather than in a band
@@ -73,7 +73,7 @@
            is the pair of controls that had no other home: depart, and the
            system record toggle. The name elements stay as hidden nodes so the
            renderers that write to them keep working. -->
-      <!-- v0.153.0: the jump action moved to sit under its own readout in the
+      <!-- v0.154.0: the jump action moved to sit under its own readout in the
            world column, and DETAILS to the map toolbar, which empties this
            band of two rows above the map. The hidden spans stay: renderers
            still write to them. -->
@@ -164,7 +164,7 @@
           <!-- v0.106.1: the strip belongs INSIDE the map section, which is a
                flex column at height 100%. As a sibling it had no flow space
                of its own and the section drew straight over it. -->
-          <!-- v0.153.0: ship and world side by side above the map. A jump
+          <!-- v0.154.0: ship and world side by side above the map. A jump
                decision is a comparison — fuel against distance, hold against
                what ships from there, streamlining against whether you can
                land — and those two halves used to sit at opposite ends of the
@@ -215,7 +215,7 @@
           <span id="subsector-heading" hidden>SUBSECTOR NAVIGATION</span>
           <pre id="jump-plan" class="record jump-plan" hidden aria-live="polite"></pre>
         </section>
-        <!-- v0.153.0: the vector plot, Book 2 pp.22-29. A third stage board
+        <!-- v0.154.0: the vector plot, Book 2 pp.22-29. A third stage board
              beside the subsector map and the combat board. It is a stage mode
              rather than a scene document for now; when ship stations reach the
              declaration system this becomes a scene so players can be shown it,
@@ -394,7 +394,7 @@
                 <div id="encounter-record" class="encounter-record" aria-live="polite"></div>
               </details>
             </section>
-            <!-- v0.153.0: Book 2 starship combat. A separate rail section from
+            <!-- v0.154.0: Book 2 starship combat. A separate rail section from
                  personal combat because the turn is nothing like a Book 1
                  round: two player turns of five phases each, and phase C
                  belongs to the side that is NOT acting. -->
@@ -402,7 +402,7 @@
               <div class="section-heading">
                 <h2 id="ship-combat-rail-heading" class="section-title">SHIP COMBAT</h2>
               </div>
-              <!-- v0.153.0: the actions come FIRST. They used to render after
+              <!-- v0.154.0: the actions come FIRST. They used to render after
                    the tracker, which holds a data card per ship, so every
                    button for the current phase sat below two screens of
                    specifications and could only be reached by scrolling. -->
@@ -441,7 +441,7 @@
                    assignment at all. -->
               <div class="live-ship-crew-heading"><strong>CREW</strong><button id="assign-crew" class="text-button" type="button">[ ASSIGN ]</button></div>
               <div id="live-ship-crew" class="live-ship-crew" aria-live="polite"></div>
-              <!-- v0.153.0: Book 2 p.16 delivers every standard design with
+              <!-- v0.154.0: Book 2 p.16 delivers every standard design with
                    empty turrets, so a ship is unarmed until weapons are bought
                    and fitted here. -->
               <div class="live-ship-crew-heading"><strong>ARMAMENT</strong><button id="fit-armament" class="text-button" type="button">[ FIT ]</button></div>
@@ -794,12 +794,12 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
       </div>
     </form>
   </dialog>
-  <!-- v0.153.0: two purchases in one dialog, so each fieldset owns its own
+  <!-- v0.154.0: two purchases in one dialog, so each fieldset owns its own
        button and says what that button buys. The first version put [ FIT ]
        above the ORDNANCE rule and [ BUY ] at the foot, which read as the
        dialog's confirm pair — pressing it to buy a laser was the sensible
        reading and produced "nothing to purchase". -->
-  <!-- v0.153.0: Book 2 has no surprise rule, so an ambush is starting
+  <!-- v0.154.0: Book 2 has no surprise rule, so an ambush is starting
        conditions rather than a free round: who initiated, whether the ship was
        depressurised in time, and who is at a station. Those were assumed
        before — always depressurised, nobody aboard — which made p.35
@@ -875,7 +875,7 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
         <button id="crew-assign-confirm" class="text-button" type="button">[ ASSIGN ]</button>
         <button id="crew-cancel" class="text-button" type="button">[ CANCEL ]</button>
       </div>
-      <!-- v0.153.0: Book 1, NON-PLAYER CHARACTERS. "A starship captain may be
+      <!-- v0.154.0: Book 1, NON-PLAYER CHARACTERS. "A starship captain may be
            looking for a crew for his ship, in which case, the referee would
            generate characters until one occurs with the required skill." Both
            of the book's methods are offered; the delay between applicants is
@@ -902,6 +902,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.153.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.154.0"></script>
 </body>
 </html>
