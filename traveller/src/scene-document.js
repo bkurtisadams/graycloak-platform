@@ -580,6 +580,26 @@ export function moveSceneToken(document, { tokenId, column, row } = {}) {
   return next;
 }
 
+// v0.170.0: a staged token's side and label change from its menu.
+export function setSceneTokenSide(document, { tokenId, side } = {}) {
+  const next = importSceneDocument(document);
+  const token = next.tokens.find((entry) => entry.id === tokenId);
+  if (!token) throw new Error('token is not on this scene');
+  if (!SCENE_TOKEN_SIDES.includes(side)) throw new RangeError(`side must be one of ${SCENE_TOKEN_SIDES.join(', ')}`);
+  token.side = side;
+  assertValidSceneDocument(next);
+  return next;
+}
+
+export function setSceneTokenLabel(document, { tokenId, label } = {}) {
+  const next = importSceneDocument(document);
+  const token = next.tokens.find((entry) => entry.id === tokenId);
+  if (!token) throw new Error('token is not on this scene');
+  token.label = String(label ?? '').trim();
+  assertValidSceneDocument(next);
+  return next;
+}
+
 export function removeSceneToken(document, tokenId) {
   const next = importSceneDocument(document);
   next.tokens = next.tokens.filter((entry) => entry.id !== tokenId);

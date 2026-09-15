@@ -345,3 +345,230 @@ test('a course through the world is refused, and movement cannot end until the r
   assert.equal(currentPhase(e).key, 'laser-fire');
   assert.deepEqual(e.spatial.ships.intruder.position, { x: 1.4, y: 0 });
 });
+
+// v0.54.0: the Graycloak standing ruling, and vector sand that actually takes
+// effect. activateVectorSand had no caller, so a cloud never obscured a shot.
+test('the standing ordnance ruling launches both kinds, and cast sand obscures from phase D', async () => {
+  const { VECTOR_ORDNANCE_DEFAULT_RULING } = await import('../index.js');
+  assert.equal(VECTOR_ORDNANCE_DEFAULT_RULING.raw, false);
+  const programs = ['target', 'launch', 'maneuver'];
+  let ship = armedCruiserFor('a', ['missile-launcher', 'sandcaster', 'beam-laser'], 4);
+  ship = purchaseOrdnance(ship, { sandCanisters: 3 }).ship;
+  let encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'sand', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship, carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  }), {
+    a: { position: { x: 0, y: 0 }, velocity: { x: 4, y: 0 } },
+    b: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  while (currentPhase(encounter).key !== 'ordnance-launch') encounter = advanceShipCombatPhase(encounter);
+  encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', launcherIds: ['T-1:1'], vectorRuling: VECTOR_ORDNANCE_DEFAULT_RULING });
+  encounter = launchOrdnance(encounter, { shipId: 'a', sandCanisters: 1, launcherIds: ['T-2:1'], vectorRuling: VECTOR_ORDNANCE_DEFAULT_RULING });
+  const sand = () => encounter.ordnance.find((round) => round.kind === 'sand');
+  assert.equal(encounter.ordnance.find((round) => round.kind === 'missile').ruling.contactRadius, 0.5);
+  assert.equal(sand().ruling.radius, 0.5);
+  assert.deepEqual(sand().position, { x: 4, y: 0 });
+  const line = () => obscuringSand(encounter, encounter.spatial.ships.b.position, encounter.spatial.ships.a.position);
+
+  // Round to the intruder's next movement: the cloud travels with the launcher's vector.
+  while (!(currentPhase(encounter).key === 'movement' && encounter.phasingSide === 'intruder' && encounter.gameTurn === 2)) encounter = advanceShipCombatPhase(encounter);
+  encounter = moveOrdnance(encounter);
+  assert.equal(sand().status, 'pending-effect');
+  encounter = advanceShipCombatPhase(encounter); // coasts a to x=8, into laser fire
+  assert.deepEqual(sand().position, { x: 8, y: 0 });
+  assert.equal(line().dm, 0, 'not yet in effect');
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = advanceShipCombatPhase(encounter); // into phase D
+  assert.equal(currentPhase(encounter).key, 'ordnance-launch');
+  assert.equal(sand().status, 'active');
+  // Half an inch of cloud between b and a: Book 2 p.30's -3.
+  assert.equal(line().dm, -3);
+});
+
+// v0.55.0: a round that reaches the world is removed rather than jamming the
+// movement phase (referee ruling; Book 2 is silent).
+test('a missile that reaches a world is spent and logged, and movement goes on', async () => {
+  const { VECTOR_ORDNANCE_DEFAULT_RULING } = await import('../index.js');
+  const programs = ['target', 'launch', 'maneuver'];
+  let encounter = createShipCombatEncounter({
+    id: 'impact', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship: armedCruiserFor('a', ['missile-launcher'], 3), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  });
+  encounter = enableVectorMovement(encounter, {
+    a: { position: { x: 0, y: 0 }, velocity: { x: 4, y: 0 } },
+    b: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  // A small world squarely between them.
+  encounter = configureVectorPlanet(encounter, { name: 'Rock', diameter: 4, center: { x: 20, y: 0 } });
+  while (currentPhase(encounter).key !== 'ordnance-launch') encounter = advanceShipCombatPhase(encounter);
+  encounter = launchOrdnance(encounter, { shipId: 'a', missiles: 1, targetId: 'b', vectorRuling: VECTOR_ORDNANCE_DEFAULT_RULING });
+  while (!(currentPhase(encounter).key === 'movement' && encounter.phasingSide === 'intruder' && encounter.gameTurn === 2)) encounter = advanceShipCombatPhase(encounter);
+  encounter = moveOrdnance(encounter);
+  const round = encounter.ordnance[0];
+  assert.equal(round.status, 'spent');
+  assert.equal(round.position.x, 18);
+  const impact = encounter.log.find((entry) => entry.kind === 'ordnance-surface-impact');
+  assert.equal(impact.id, round.id);
+  assert.equal(impact.raw, false);
+  // Nothing is left to jam the phase, and a spent round is not moved again.
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'laser-fire');
+});
+
+// v0.56.0: a phase with no legal action is recognised, per phase.
+test('shipCombatPhaseActions finds what the acting side can legally do', async () => {
+  const { shipCombatPhaseActions, allocateLaserFire, resolveLaserFire } = await import('../index.js');
+  const programs = ['target', 'return-fire', 'maneuver'];
+  let encounter = createShipCombatEncounter({
+    id: 'legal', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship: armedCruiserFor('a', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0), carriedPrograms: [...programs, 'launch'], loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  });
+  // Abbreviated movement: nothing to thrust, nothing to reload.
+  let actions = shipCombatPhaseActions(encounter);
+  assert.equal(actions.phase, 'movement');
+  assert.equal(actions.legal, false);
+  assert.match(actions.reason, /thrust/);
+
+  // On a plot the phasing ship can thrust, until it has moved.
+  let plotted = enableVectorMovement(encounter, {
+    a: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } },
+    b: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  assert.deepEqual(shipCombatPhaseActions(plotted).actions, [{ kind: 'thrust', shipId: 'a' }]);
+  plotted = commitShipVector(plotted, 'a', { x: 0, y: 0 }, createSequenceDice([6, 6]));
+  assert.equal(shipCombatPhaseActions(plotted).legal, false);
+
+  // Laser fire: the intruder's beam laser, until it has fired.
+  encounter = advanceShipCombatPhase(encounter);
+  actions = shipCombatPhaseActions(encounter);
+  assert.deepEqual(actions.actions, [{ kind: 'fire', shipId: 'a', turretId: 'T-1' }]);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'a', turretId: 'T-1', targetId: 'b' }]);
+  encounter = resolveLaserFire(encounter, createSequenceDice([1, 1, 1, 1, 1, 1, 1, 1])).encounter;
+  assert.equal(shipCombatPhaseActions(encounter).legal, false, 'the only laser has fired');
+
+  // Return fire: the native was fired on and runs Return Fire.
+  encounter = advanceShipCombatPhase(encounter);
+  actions = shipCombatPhaseActions(encounter);
+  assert.equal(actions.side, 'native');
+  assert.deepEqual(actions.actions, [{ kind: 'return-fire', shipId: 'b', turretId: 'T-1' }]);
+
+  // Ordnance: no racks and nothing in contact.
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(shipCombatPhaseActions(encounter).legal, false);
+
+  // Reprogramming: the intruder carries nothing it has not loaded.
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(shipCombatPhaseActions(encounter).phase, 'reprogramming');
+  assert.equal(shipCombatPhaseActions(encounter).legal, false);
+  // The native carries Launch in storage, so its reprogramming phase is live.
+  while (!(currentPhase(encounter).key === 'reprogramming' && encounter.phasingSide === 'native')) encounter = advanceShipCombatPhase(encounter);
+  assert.deepEqual(shipCombatPhaseActions(encounter).actions, [{ kind: 'reprogram', shipId: 'b' }]);
+});
+
+// v0.57.0: Book 2 p.35 damage control, one attempt per ship, thrown in the
+// Game Turn Interphase.
+test('damage control is declared during the turn and thrown at 9+ in the interphase', async () => {
+  const { declareDamageControl, cancelDamageControl, damageControlOptions, DAMAGE_CONTROL_THROW } = await import('../index.js');
+  assert.equal(DAMAGE_CONTROL_THROW, 9);
+  const programs = ['target', 'maneuver'];
+  const damaged = armedCruiserFor('a', ['beam-laser'], 0);
+  damaged.state.damage.maneuverDrive = 1;
+  damaged.state.damage.computer = 2;
+  damaged.state.damage.turrets = ['T-1'];
+  let encounter = createShipCombatEncounter({
+    id: 'repair', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship: damaged, carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [], skills: { engineering: 2, computer: 1 } },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  });
+  const options = damageControlOptions(encounter.participants[0]);
+  assert.deepEqual(options.map((entry) => [entry.location, entry.turretId, entry.dm]), [['maneuver-drive', null, 2], ['computer', null, 1], ['turret', 'T-1', 0]]);
+  assert.throws(() => declareDamageControl(encounter, { shipId: 'a', location: 'jump-drive' }), /no repairable jump-drive/);
+  assert.throws(() => declareDamageControl(encounter, { shipId: 'b', location: 'hull' }), /no repairable/);
+
+  // One slot per ship: a second declaration replaces the first.
+  encounter = declareDamageControl(encounter, { shipId: 'a', location: 'computer' });
+  encounter = declareDamageControl(encounter, { shipId: 'a', location: 'maneuver-drive' });
+  assert.deepEqual(encounter.participants[0].damageControl, { gameTurn: 1, location: 'maneuver-drive', turretId: null, crewId: null, crewName: '', vacates: [], dm: 2, dmSource: 'engineering', note: '' });
+
+  // Nothing happens until the turn ends, and the interphase needs dice.
+  while (!(currentPhase(encounter).key === 'reprogramming' && encounter.phasingSide === 'native')) encounter = advanceShipCombatPhase(encounter);
+  assert.equal(encounter.participants[0].ship.state.damage.maneuverDrive, 1);
+  assert.throws(() => advanceShipCombatPhase(encounter), /dice/i);
+  // 4 + 3 + engineering 2 = 9: repaired.
+  let ended = advanceShipCombatPhase(encounter, { dice: createSequenceDice([4, 3]) });
+  assert.equal(ended.gameTurn, 2);
+  assert.equal(ended.participants[0].ship.state.damage.maneuverDrive, 0);
+  assert.equal(ended.participants[0].damageControl, null);
+  const entry = ended.log.find((item) => item.kind === 'damage-control');
+  assert.deepEqual([entry.total, entry.target, entry.repaired, entry.location], [9, 9, true, 'maneuver-drive']);
+
+  // A referee's DM, and a failure that leaves the damage in place.
+  ended = declareDamageControl(ended, { shipId: 'a', location: 'turret', turretId: 'T-1', dm: 1, note: 'Gunner with mechanical-1' });
+  assert.equal(ended.participants[0].damageControl.dmSource, 'referee');
+  while (!(currentPhase(ended).key === 'reprogramming' && ended.phasingSide === 'native')) ended = advanceShipCombatPhase(ended);
+  ended = advanceShipCombatPhase(ended, { dice: createSequenceDice([3, 4]) });
+  assert.deepEqual(ended.participants[0].ship.state.damage.turrets, ['T-1']);
+  assert.equal(ended.log.filter((item) => item.kind === 'damage-control').at(-1).repaired, false);
+
+  // Withdrawn before the turn ends: no throw, no dice needed.
+  ended = cancelDamageControl(declareDamageControl(ended, { shipId: 'a', location: 'computer' }), { shipId: 'a' });
+  while (!(currentPhase(ended).key === 'reprogramming' && ended.phasingSide === 'native')) ended = advanceShipCombatPhase(ended);
+  assert.equal(advanceShipCombatPhase(ended).gameTurn, 4);
+});
+
+
+// v0.58.0 (ruling): a repair is made by a named crew member, who gives up his
+// stations for the rest of the game turn, and cannot start one after acting.
+test('the crew member making a repair leaves his stations for the turn', async () => {
+  const { declareDamageControl, cancelDamageControl, stationVacated, shipCombatPhaseActions, allocateLaserFire, resolveLaserFire } = await import('../index.js');
+  const programs = ['target', 'maneuver'];
+  const ship = armedCruiserFor('a', ['beam-laser'], 0);
+  ship.state.damage.hold = 1;
+  const make = () => enableVectorMovement(createShipCombatEncounter({
+    id: 'crew', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'a', side: 'intruder', ship, carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [],
+        stations: { pilot: 'ana', gunners: { 'T-1': 'bo' } }, skills: { pilot: 2, computer: 1, gunnery: { 'T-1': 1 } } },
+      { shipId: 'b', side: 'native', ship: armedCruiserFor('b', ['beam-laser'], 0), carriedPrograms: programs, loadedPrograms: programs, pressurisedSections: [] }
+    ]
+  }), { a: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } }, b: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } } });
+
+  let encounter = make();
+  assert.throws(() => declareDamageControl(encounter, { shipId: 'a', location: 'hold' }), /name the crew member/);
+
+  // The gunner repairs: his turret does not fire this turn.
+  encounter = declareDamageControl(encounter, { shipId: 'a', location: 'hold', crewId: 'bo', crewName: 'Bo', dm: 1 });
+  assert.deepEqual(encounter.participants[0].damageControl.vacates, ['gunner:T-1']);
+  assert.equal(stationVacated(encounter.participants[0], 'gunner:T-1'), true);
+  encounter = commitShipVector(encounter, 'a', { x: 1, y: 0 }, createSequenceDice([6, 6]));
+  encounter = advanceShipCombatPhase(encounter);
+  assert.equal(shipCombatPhaseActions(encounter).legal, false, 'the only turret has no gunner this turn');
+  encounter = allocateLaserFire(encounter, [{ shipId: 'a', turretId: 'T-1', targetId: 'b' }]);
+  const fired = resolveLaserFire(encounter, createSequenceDice([6, 6, 6, 6])).encounter;
+  assert.match(fired.log.find((entry) => entry.kind === 'laser-fire').reason, /making a repair/);
+
+  // The pilot repairs: no thrust, and the computer (his by default) loses his skill.
+  encounter = declareDamageControl(make(), { shipId: 'a', location: 'hold', crewId: 'ana', crewName: 'Ana' });
+  assert.deepEqual(encounter.participants[0].damageControl.vacates, ['pilot', 'computer']);
+  assert.throws(() => commitShipVector(encounter, 'a', { x: 1, y: 0 }, createSequenceDice([6, 6])), /pilot is making a repair/);
+  encounter = commitShipVector(encounter, 'a', { x: 0, y: 0 }, createSequenceDice([6, 6]));
+  // Withdrawing gives the station back.
+  assert.equal(stationVacated(cancelDamageControl(encounter, { shipId: 'a' }).participants[0], 'pilot'), false);
+
+  // Having flown this turn, the pilot cannot start a repair until the next.
+  encounter = commitShipVector(make(), 'a', { x: 1, y: 0 }, createSequenceDice([6, 6]));
+  assert.throws(() => declareDamageControl(encounter, { shipId: 'a', location: 'hold', crewId: 'ana', crewName: 'Ana' }), /Ana has already acted as pilot this turn/);
+  // Someone else still can.
+  assert.equal(declareDamageControl(encounter, { shipId: 'a', location: 'hold', crewId: 'bo', crewName: 'Bo' }).participants[0].damageControl.crewId, 'bo');
+});

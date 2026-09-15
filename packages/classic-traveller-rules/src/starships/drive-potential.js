@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// Classic Traveller Book 2 p.11 (1977): MAXIMUM DRIVE POTENTIAL.
+// Classic Traveller Book 2 p.10 (1977): MAXIMUM DRIVE POTENTIAL. (The table is printed on p.10;
+// the text explaining it runs onto p.11, which is where earlier notes cited it.)
 //
 // One table serves all three fittings. Correlating a drive or power plant
 // letter with a hull size gives the maximum potential: the jump number (Jn) for
@@ -25,6 +26,11 @@ export const DRIVE_POTENTIAL_HULL_SIZES = Object.freeze([
 ]);
 
 // null is the table's dash. Rows are in DRIVE_LETTERS order.
+// v0.57.0: the 2000- and 3000-ton rows were one letter late against the 1977
+// printing (Book 2 p.10), probably carried over from a later edition. Checked
+// cell by cell against a 300 dpi render of Kurt's 1977 PDF; the transcription
+// is in traveller/docs/rules-1977/book2-starships.txt. 2000 tons: K-V give 1,
+// then W 2, X 3, Y 4, Z 5. 3000 tons: Q-W give 1, then X 2, Y 3, Z 4.
 const ROWS = Object.freeze({
   100: [2, 4, 6, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
   200: [1, 2, 3, 4, 5, 6, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
@@ -32,8 +38,8 @@ const ROWS = Object.freeze({
   600: [null, null, null, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6, null, null, null, null],
   800: [null, null, null, null, null, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6],
   1000: [null, null, null, null, null, null, null, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 4, 5, 6],
-  2000: [null, null, null, null, null, null, null, null, null, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4],
-  3000: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3],
+  2000: [null, null, null, null, null, null, null, null, null, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4, 5],
+  3000: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, 1, 1, 1, 1, 1, 1, 1, 2, 3, 4],
   4000: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 1, 1, 1, 2, 3],
   5000: [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 1, 2]
 });

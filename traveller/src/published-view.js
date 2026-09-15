@@ -259,14 +259,55 @@ export function buildPublishedLog(log, { campaignId, uid, ownedCharacterIds = []
 // business until the fight begins.
 export function buildPublishedScene(scene, { names = new Map() } = {}) {
   if (!scene) return null;
+  // v0.171.0: a space scene has no squares and no metres. This read
+  // board.squares regardless, so activating one published a map of NaN columns
+  // with every save, and the player canvas drew it from tokens with no
+  // column or row. A vector scene publishes as the plot it is: its span, its
+  // bodies, and each ship's point and vector. Players watch it; Book 2 moves a
+  // ship by thrust, so nobody drags one here.
+  if (scene.board?.kind === 'vector') {
+    return {
+      sceneId: scene.identity.id,
+      name: scene.identity.name,
+      kind: 'vector',
+      spanThousandMiles: scene.board.spanThousandMiles,
+      bodies: JSON.parse(JSON.stringify(scene.space?.bodies ?? [])),
+      gravityBodyId: scene.space?.gravityBodyId ?? null,
+      tokens: scene.tokens.map((token) => {
+        const named = names.get(token.actorId) ?? {};
+        return {
+          id: token.id, actorId: token.actorId, name: token.label || named.name || token.actorId,
+          label: token.label || named.name || '', side: token.side,
+          position: { x: token.position.x, y: token.position.y },
+          velocity: { x: Number(token.velocity?.x) || 0, y: Number(token.velocity?.y) || 0 }
+        };
+      })
+    };
+  }
   const meters = scene.board.squares * scene.board.metersPerSquare;
   return {
     sceneId: scene.identity.id,
     name: scene.identity.name,
+    kind: 'grid',
     map: { columns: meters + 1, rows: meters + 1, metersPerSquare: scene.board.metersPerSquare },
     tokens: scene.tokens.map((token) => {
       const named = names.get(token.actorId) ?? {};
       return { id: token.id, actorId: token.actorId, name: named.name ?? token.label ?? '?', label: token.label || (named.name ?? '?').charAt(0), side: token.side, actorType: named.actorType ?? 'npc', position: { ...token.position } };
     })
+  };
+}
+
+/**
+ * v0.171.0: a published vector scene, shaped back into what the staging
+ * renderer draws. Read-only: the result is for display, not for saving.
+ */
+export function publishedVectorSceneDocument(published) {
+  if (published?.kind !== 'vector') throw new TypeError('not a published vector scene');
+  return {
+    identity: { id: published.sceneId, name: published.name },
+    board: { kind: 'vector', spanThousandMiles: published.spanThousandMiles },
+    space: { bodies: published.bodies ?? [], gravityBodyId: published.gravityBodyId ?? null, atmosphere: null },
+    background: { assetId: null },
+    tokens: published.tokens.map((token) => ({ id: token.id, actorId: token.actorId, side: token.side, label: token.name, position: { ...token.position }, velocity: { ...token.velocity } }))
   };
 }

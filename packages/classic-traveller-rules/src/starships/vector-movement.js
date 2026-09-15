@@ -68,6 +68,10 @@ export function commitShipVector(encounter, shipId, acceleration, dice) {
   const p = encounter.participants.find(p => p.id === shipId);
   if (encounter.outcome !== 'in-progress' || currentPhase(encounter).key !== 'movement' || p?.side !== encounter.phasingSide || p.escaped || p.surrendered) throw new Error('ship cannot move in this phase');
   if (encounter.spatial.ships[shipId].movedTurn === encounter.gameTurn) throw new Error('ship already moved this turn');
+  // v0.58.0: a pilot making a repair has given up the controls for the turn.
+  if (p.damageControl?.vacates?.includes('pilot') && (Number(acceleration?.x) || Number(acceleration?.y))) {
+    throw new Error(`${p.name}'s pilot is making a repair this turn; the ship coasts`);
+  }
   let preview = previewShipVector(encounter, shipId, acceleration);
   if (preview.unresolved) throw new Error(`course cannot be resolved: ${preview.reason}`);
   // v0.53.0: Book 2's gravity bands are external, and nothing in pp.26-29 or

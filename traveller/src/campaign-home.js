@@ -12,10 +12,15 @@
 // the home has moved on since.
 
 import { importCampaignBundle, exportCampaignBundle } from './campaign-bundle.js';
+import { trimActivityLogDocument } from './activity-log-document.js';
 
 export const CAMPAIGN_HOME_SCHEMA_VERSION = 1;
 // Firestore documents cap at 1 MiB; leave room for the envelope fields.
 export const CAMPAIGN_HOME_SOFT_LIMIT_BYTES = 900 * 1024;
+// v0.167.0: the home carries only the newest log entries; the browser keeps the
+// whole log and a campaign export carries it too. A stopgap until the log
+// moves out of the home into its own documents.
+export const CAMPAIGN_HOME_LOG_ENTRIES = 300;
 
 function nonblank(value) { return typeof value === 'string' && value.trim().length > 0; }
 
@@ -30,8 +35,15 @@ export class StaleCampaignHomeError extends Error {
   }
 }
 
-export function createCampaignHome(bundle, { ownerUid, revision = 1, savedAt = Date.now() } = {}) {
-  const validated = importCampaignBundle(bundle);
+export function createCampaignHome(bundle, { ownerUid, revision = 1, savedAt = Date.now(), logEntries = CAMPAIGN_HOME_LOG_ENTRIES } = {}) {
+  const imported = importCampaignBundle(bundle);
+  const validated = importCampaignBundle({
+    ...imported,
+    documents: {
+      ...imported.documents,
+      activityLogs: imported.documents.activityLogs.map((log) => trimActivityLogDocument(log, logEntries))
+    }
+  });
   if (!nonblank(ownerUid)) throw new TypeError('ownerUid is required');
   if (!Number.isInteger(revision) || revision < 1) throw new TypeError('revision must be a positive integer');
   return {

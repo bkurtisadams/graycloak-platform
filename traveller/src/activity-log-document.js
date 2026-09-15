@@ -148,3 +148,35 @@ export function clearActivityLogDocument(document) {
   assertValidActivityLogDocument(next);
   return next;
 }
+
+// v0.167.0: the campaign's log had no cap at all (ACTIVITY_LOG_MAX_ENTRIES only
+// ever bounded the pre-v0.75 browser log), and it was 443 KB of a 903 KB
+// Firestore home. These two carry a stopgap: the home keeps the newest entries
+// and the browser keeps the whole log, until the log moves out of the home.
+
+/** The newest `maxEntries`, ids kept, sequence renumbered from 1. */
+export function trimActivityLogDocument(document, maxEntries) {
+  if (!Number.isInteger(maxEntries) || maxEntries < 1) throw new TypeError('maxEntries must be a positive integer');
+  const next = importActivityLogDocument(document);
+  if (next.entries.length <= maxEntries) return next;
+  next.entries = next.entries.slice(-maxEntries).map((entry, index) => ({ ...entry, sequence: index + 1 }));
+  assertValidActivityLogDocument(next);
+  return next;
+}
+
+/**
+ * A log loaded from the home, with the older history this browser still has
+ * put back in front of it. The home is the authority from its first entry on;
+ * local entries before that entry are kept. If the two share no entry, the
+ * home's log is taken as it is.
+ */
+export function mergeActivityLogHistory(local, remote) {
+  const incoming = importActivityLogDocument(remote);
+  if (!local || local.identity?.id !== incoming.identity.id || !incoming.entries.length) return incoming;
+  const held = importActivityLogDocument(local);
+  const firstRemote = held.entries.findIndex((entry) => entry.id === incoming.entries[0].id);
+  if (firstRemote <= 0) return incoming;
+  const merged = { ...incoming, entries: [...held.entries.slice(0, firstRemote), ...incoming.entries].map((entry, index) => ({ ...entry, sequence: index + 1 })) };
+  assertValidActivityLogDocument(merged);
+  return merged;
+}

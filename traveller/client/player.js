@@ -13,19 +13,21 @@
 //
 // The only write is a create-only combat declaration for an assigned character.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.166.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.166.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.174.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.174.0';
 import {
   ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
-  writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat } from './publish.js?v=v0.166.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.166.0';
-import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.166.0';
-import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.166.0';
-import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.166.0';
-import { renderSubsectorMap } from './subsector-svg.js?v=v0.166.0';
-import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.166.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.166.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.166.0';
+  writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat } from './publish.js?v=v0.174.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.174.0';
+import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.174.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.174.0';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.174.0';
+import { renderSubsectorMap } from './subsector-svg.js?v=v0.174.0';
+import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.174.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.174.0';
+import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.174.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.174.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.174.0';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -56,6 +58,8 @@ const el = {
   mapTools: document.querySelector('.player-map-tools'),
   mapViewport: document.querySelector('#player-map-viewport'),
   map: document.querySelector('#player-map'),
+  vectorStage: document.querySelector('#player-vector-stage'),
+  mapTools: document.querySelector('.player-map-tools'),
   mapMenu: document.querySelector('#player-token-menu'),
   zoomOut: document.querySelector('#player-zoom-out'),
   zoomIn: document.querySelector('#player-zoom-in'),
@@ -248,6 +252,7 @@ function renderWorld() {
 
 function renderScene() {
   renderWorld();
+  if (!(!view && stagedSceneShowing() && campaign.activeScene?.kind === 'vector')) showVectorStage(false);
   if (!view && stagedSceneShowing()) { renderStagedScene(campaign.activeScene); return; }
   if (!view) {
     el.scene.textContent = campaign ? 'NO FIGHT IN PROGRESS' : '';
@@ -266,7 +271,33 @@ function renderScene() {
 
 // The staged scene: everyone's token where the referee put it, the player's
 // own walkable. A drag is a move intent keyed by the scene, no allowance.
+// v0.171.0: the space plot and the grid canvas share the scene area; only one
+// shows.
+function showVectorStage(show) {
+  if (el.vectorStage) el.vectorStage.hidden = !show;
+  if (el.mapViewport) el.mapViewport.hidden = show;
+  if (el.mapTools) el.mapTools.hidden = show;
+  if (!show) el.vectorStage?.replaceChildren();
+}
+
 function renderStagedScene(scene) {
+  if (scene.kind === 'vector') {
+    showVectorStage(true);
+    el.scene.textContent = `${scene.name.toUpperCase()} / SPACE / ${scene.spanThousandMiles}" = ${(scene.spanThousandMiles * 1000).toLocaleString('en-US')} MILES / NO FIGHT IN PROGRESS`;
+    el.roster.replaceChildren(...scene.tokens.map((token) => {
+      const row = document.createElement('div');
+      row.className = `player-roster-row ${token.side === 'party' ? 'party' : 'enemy'}`;
+      const speed = Math.hypot(token.velocity.x, token.velocity.y);
+      row.textContent = `${token.name.toUpperCase()} / ${token.side.toUpperCase()} / ${speed ? `${speed.toFixed(1)}"` : 'STATIONARY'}`;
+      return row;
+    }));
+    el.narration.replaceChildren();
+    const plot = publishedVectorSceneDocument(scene);
+    // No callbacks: nothing to stage, place, drag or start.
+    renderVectorSceneStage(el.vectorStage, plot, { bodies: plot.space.bodies });
+    return;
+  }
+  showVectorStage(false);
   const owned = ownedCombatantIds();
   el.scene.textContent = `${scene.name.toUpperCase()} / ${scene.map.metersPerSquare}m PER SQUARE / NO FIGHT IN PROGRESS`;
   el.roster.replaceChildren(...scene.tokens.map((token) => {

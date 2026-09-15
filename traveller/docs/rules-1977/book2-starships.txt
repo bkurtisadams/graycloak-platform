@@ -1,0 +1,2328 @@
+TRAVELLER (1977) BOOK 2: STARSHIPS
+Game Designers' Workshop, 1977. Text extracted from Kurt's purchased PDF
+(CT__B02_Book_02_Starships_1977.pdf) for rules reference inside a private repository.
+NOT FOR PUBLICATION OR DISTRIBUTION.
+
+Each page begins with a line of the form
+  ===== BOOK 2 / PRINTED PAGE n / PDF PAGE m =====
+Cite rules by printed page (the number at the foot of the page in the book).
+Extracted with pdftotext -layout: tables keep their columns, but two-column
+passages beside a table can interleave. Check the PDF when a table matters.
+
+
+===== BOOK 2 / FRONT OR BACK MATTER / PDF PAGE 1 =====
+
+Book 2
+Starships
+          TRAVELLER
+           Science-Fiction Adventure in
+           the Far Future
+
+
+
+
+Game Designers’ Workshop
+
+===== BOOK 2 / FRONT OR BACK MATTER / PDF PAGE 2 =====
+[This page also carries a figure or illustration that is not reproduced as text.]
+
+This page is intentionally blank.
+
+===== BOOK 2 / FRONT OR BACK MATTER / PDF PAGE 3 =====
+
+Book 2
+Starships
+          TRAVELLER
+           Science-Fiction Adventure in
+           the Far Future
+
+
+
+
+Game Designers’ Workshop
+
+===== BOOK 2 / FRONT OR BACK MATTER / PDF PAGE 4 =====
+
+TRAVELLER, Volume 2
+
+Copyright © 1977, by Game Designers’ Workshop
+All Rights Reserved. Printed in the United States of America.
+No part of this book may be reproduced in any form, or
+by any means without permission in writing from the publisher.
+
+                        9
+
+Although this game (as presented in Volumes 1, 2, and 3) envisions
+a referee or umpire to supervise play or to resolve questions,
+the publisher is prepared to answer questions or inquiries on
+Traveller provided a stamped, self addressed envelope accompanies
+the request.
+
+Game Designers’ Workshop
+203 North Street,
+Normal, Illinois 61761
+
+===== BOOK 2 / FRONT OR BACK MATTER / PDF PAGE 5 =====
+
+                                                                                     Table of Contents
+
+TRAVELLING ....................................................................................................................... 1
+   Travelling Between Worlds ........................................................................................ 1
+STARSHIP ECONOMICS .................................................................................................... 5
+   Starship Purchase ....................................................................................................... 5
+   Operating Expenses .................................................................................................... 5
+   Revenue ....................................................................................................................... 7
+   Incidentals .................................................................................................................... 8
+STARSHIP CONSTRUCTION.............................................................................................. 9
+   Starship Design ........................................................................................................... 9
+   Required Starship Components ............................................................................... 10
+   Optional Starship Components ................................................................................ 14
+   Starship Crews .......................................................................................................... 16
+   Non-Starships ............................................................................................................ 17
+   Expendables .............................................................................................................. 18
+   Standard Starship Designs ....................................................................................... 18
+   Custom Designed Ships ........................................................................................... 20
+   Starship Design Checklist ......................................................................................... 21
+STARSHIP COMBAT ......................................................................................................... 22
+   Basic Parameters ....................................................................................................... 22
+   Turn Sequence .......................................................................................................... 22
+   Preparation for Play .................................................................................................. 24
+   Movement .................................................................................................................. 25
+   Planetary Templates ................................................................................................. 26
+   Gravity ........................................................................................................................ 29
+   Laser Fire ................................................................................................................... 29
+   Laser Return Fire ....................................................................................................... 29
+   Ordnance Launch ...................................................................................................... 30
+   Computer Programming ........................................................................................... 30
+   Detection .................................................................................................................... 33
+   Damage Definitions................................................................................................... 33
+   Special Situations...................................................................................................... 34
+   Starship Encounters .................................................................................................. 36
+   Comments.................................................................................................................. 36
+DRUGS .............................................................................................................................. 38
+EXPERIENCE ..................................................................................................................... 40
+   Self-Improvement ..................................................................................................... 40
+   Alternatives ................................................................................................................ 41
+TRADE AND COMMERCE ................................................................................................ 42
+   Procedure ................................................................................................................... 42
+
+===== BOOK 2 / PRINTED PAGE 1 / PDF PAGE 6 =====
+
+                                                                            Travelling
+     This volume of Traveller deals with the basic facts of interplanetary and inters-
+tellar travel, with the details of starships, their design, construction and operation,
+and with combat between spaceships.
+
+TRAVELLING BETWEEN WORLDS
+     Travellers travel. They move between worlds as well as on their surfaces. The
+distances such travel covers may be interplanetary or interstellar in scale.
+     Interplanetary Travel: Worlds orbiting the same star are accessible by interplane-
+                                                tary travel, including by scheduled liners
+         TYPICAL TRAVEL TIMES                   and by ship's boats, pinnaces, cutters and
+                                                even by lifeboats. Generally, however, in-
+   10,000 miles ................ 45 minutes     terplanetary travel takes long periods of
+   100,000 miles ................. 2.3 hours    time. Since most stellar systems have only
+   1 million miles ................ 7.5 hours   one major world, interplanetary travel is
+   10 million miles ............... 23 hours    infrequently used.
+   100 million miles .............. 3.4 days         The typical travel times list indicates the
+   1 billion miles ................... 9.6 days time required to travel a specified distance
+                                                (assuming 1 G constant acceleration, turn-
+around at midpoint, and 1 G constant deceleration). Specific distance travel times
+can be calculated by the referee or by characters, using
+the travel formula shown, where T equals travel time, d                TRAVEL FORMULA
+equals the total distance travelled, and a equals the ac-
+celeration used. Constant acceleration, turn-around, and
+                                                                      𝐓 = 𝟐 𝐝/𝐚
+constant deceleration are assumed. It is suggested that
+the units used be 1000 miles, 10 minute periods, and 1 G (2000 miles per [10 mi-
+        2
+nutes] ). These units are those used in the space combat section later in this booklet.
+     Interstellar Travel: Worlds orbiting different stars are reached by interstellar tra-
+vel, which uses the jump drive. Once a starship moves to more than 100 planetary
+diameters from all worlds, it may activate its jump drive and move to another star
+system. Jump drives transfer ships from one star system to another in about one
+week per jump.
+     Interstellar distance is calculated on the basis of jumps, which range in size from
+one to six. Some worlds are inaccessible with the use of lesser size jumps, while, in
+other areas of the universe, large clusters of worlds are all situated within one jump
+of each other. Different ships are also equipped with jump drives of different capabil-
+ities, which determine the jump distance each ship is capable of. Actually making a
+jump takes about one week of elapsed time, which includes navigational and pilot
+support, and normal preparation as necessary. Transit time to a point at least 100
+planetary diameters out adds a total of approximately 20 hours to the whole trip.
+     Commercial starships usually make two trips per month, spending one week in
+travel time and one week for transit to the jump point, landing and take-off and time
+in port. In port, five to six days are allowed for the acquisition of cargo and passen-
+gers, and for crew recreation.
+
+     Individuals who decide to travel to other worlds are confronted with the choice
+of the method and manner in which they wish to travel. Interplanetary travel is infre-
+                                              –1–
+
+===== BOOK 2 / PRINTED PAGE 2 / PDF PAGE 7 =====
+
+quent, but is possible using ship's boats, cutters, pinnaces, or other vessels. Because
+of the widely varying distances, a vessel must be chartered, at a price set by the refe-
+ree or by the player-character who owns the vessel. Commercial travel by scheduled
+liner, when available, is provided at approximately 10% of the cost for similar inters-
+tellar travel.
+     Interstellar travel is more rigidly defined, being divided into levels of passage
+with specific features and costs.
+
+     High Passage— The best method of travel is called High Passage, and involves
+first class accommodations and cuisine. High passengers have the services of the
+ship's steward, entertainment and complete attention to their comfort. A baggage
+allowance of up to one ton is included in the price of passage. High passage costs
+CR 10,000.
+
+     Middle Passage— In order for starships to fill their staterooms with passengers,
+middle passage is offered on a standby basis, in the event that not enough high pas-
+sages are sold. While middle passengers occupy staterooms normally similar to
+those occupied by high passengers, they do not receive the service or entertainment
+accorded the higher paying passengers. In addition, the quality of the cuisine is ra-
+ther low. A baggage allowance of 100 kilograms is allowed. A middle passenger may
+be ‘bumped’ and his stateroom taken by a late arriving high passenger: the middle's
+ticket is returned, but no other compensation is made. (The middle could then buy a
+high passage and ‘bump’ another middle passenger, if it was felt that immediate
+transportation were necessary.) Middle passage costs CR 8,000.
+
+     Working Passage— A starship captain with a crew shortage may hire an individ-
+ual to fill the vacant position, paying not money but passage in return. Working pas-
+sage may not continue for more than three jumps, or the individual is considered to
+have been hired for standard salary. In order to be hired for working passage, the
+individual must have some expertise in the position for which he is hired. A baggage
+allowance of up to one ton is allowed.
+
+      Low Passage—Transportation while in cold sleep (suspended animation) is
+possible at relatively low cost to the starship, and thus to the passenger. The pas-
+senger is placed in a low passage berth before the ship takes off, and travels the en-
+tire journey in a state of suspended animation. He does not age, and requires very
+little life support. Unfortunately, the low passage system involves some intrinsic
+dangers to the passenger, and he runs some risk of not surviving the voyage. Throw
+5+ for each passenger, when he is revived after the ship has landed. DMs: Attending
+medic of expertise of 2 or better, +1; low passenger with an endurance of 6 or less, –
+1. Failure to achieve the throw to revive results in death for the passenger.
+      Low passage costs CR 1000 and includes a baggage allowance of 10 kilograms.
+Refunds and civil or criminal liability lf a low passenger fails to survive the trip are
+not allowed.
+      It is customary for the captain to contribute CR 10 out of each low passage to-
+wards a lottery in which each low passenger randomly guesses the number of low
+passengers who will survive the trip. If the winner does not himself survive, the cap-
+tain receives the money. The lottery is administered by the ship’s steward.
+
+                                          –2–
+
+===== BOOK 2 / PRINTED PAGE 3 / PDF PAGE 8 =====
+
+     The Travellers' Aid Society: Individuals who have decided that they wish to pur-
+sue a life of travel and adventure may elect to join the Travellers' Aid Society, in or-
+der to take advantage of its facilities and passage dividends. The Society is fully de-
+scribed in Book 1.
+
+     Travel between the stars is also fraught with dangers, including those of hijack-
+ing, piracy, accident and misjump. These considerations are constantly on the minds
+of those travelling between the stars.
+     Hijacking: Starships can be easy prey for hijackers, especially because a starship
+can easily be used in distant parts of the universe without too many questions being
+asked. For this reason, most starship crews maintain a constant, but unobtrusive,
+guard at all times, and the ship’s computer can run an anti-hijacking program which
+will scan personality profiles and deny access to control areas to potential hijackers.
+Passengers are required to check all weapons (except blades and daggers) into a
+locked compartment with access controlled by the ship’s master and pilot. Such
+weapons are returned at the end of the voyage.
+     Nevertheless, there is a chance that a passenger will attempt a hijacking, to hold
+the ship for ransom, or to simply murder the crew and passengers in order to gain
+possession of the multi-million credit vessel. The referee should roll three dice, with
+a result of 18 exactly indicating that one or more passengers is making the attempt.
+This throw does not apply if all passengers are player characters.
+     When an attempt occurs, randomly determine the number of hijackers, their
+identities and their characteristics, and implement their attempt at some point during
+the voyage. He (or they) will gain complete control of the ship only after defeating all
+other individuals on the ship. If the anti-hijacking program is functioning, the hijack-
+ers will be able to enter the bridge (gaining access to the controls) only on a throw of
+5 or less.
+     Skipping: Most starships are purchased against a mortgage or loan, and the
+monthly payments required against the multi-million credit debt are staggering. The
+owner or captain may decide to steal the ship himself instead of remaining under
+that load. Passengers have no way themselves of determining if a specific ship is in
+such a status. The referee should throw 12 exactly to determine that a commercial
+ship is of this type.
+     Ships which have skipped are subject to repossession attempts if they are de-
+tected by the authorities or by collection agencies. Such attempts may range from
+the formal service of papers through legal injunctions to armed boarding parties. A
+repossession attempt will occur under the following conditions: On each world land-
+ing, throw 12+ to avoid such an attempt, apply a DM of +1 per 5 hexes distance from
+the ship’s home planet, to a maximum of +9. If the ship has called on the same world
+twice within the last two months, apply a DM of –2. This procedure also applies to
+ships owned by player characters who have skipped.
+
+    Piracy: A starship may be accosted by pirates while entering or leaving a sys-
+tem. Similar encounters may involve customs agents or military vessels, including
+blockades. The ship encounter table later in this book indicates the procedure.
+
+    Certain procedures, situations or mistakes may result in mishap or accident to a
+starship; these may well involve the passengers on such a ship.
+
+                                          –3–
+
+===== BOOK 2 / PRINTED PAGE 4 / PDF PAGE 9 =====
+
+     Contaminated Fuel: The use of unrefined fuel, often forced by circumstance, and
+about as often the result of false economy by a captain, can cause drive failure. If
+unrefined fuel is used, there is a chance that the drive will fail while in flight (throw
+11+ for failure to occur, throwing once per jump in which unrefined fuel is used. DM
++1 for each jump made, until the drives are flushed, which takes about a week at any
+starport).
+     Unrefined fuel is often forced on a ship which must refuel without benefit of a
+starport. Unrefined fuel is available free to a ship by skimming a gas giant.
+     Lack of Maintenance: Ignoring annual maintenance requirements can result in
+drive failure. Throw once per jump made after annual maintenance has been
+skipped: a result of 12 indicates drive failure.
+     Drive Failure: When a drive fails, due to any reason, all three sections (maneuv-
+er, jump and power plant) are affected. They may be temporarily repaired by engi-
+neer crew members (throw 10+ to repair, once per day; allow DM of + level of engi-
+neering expertise on the throw). More comprehensive repairs are then made at the
+next starport by trained personnel.
+     Misjump: The most interesting event which can occur is the misjump, in which
+the jump drive malfunctions. At the instant of jump, a jump drive which is: a) within
+100 diameters of a world or star, b) operating on unrefined fuel, or c) operating
+without annual maintenance may malfunction, resulting in a jump of random length
+and direction.
+     For all jumps (in any situations) throw 12+ for a misjump to occur. DM: +5 if
+within 100 planetary diameters of a world or star; +3 if using unrefined fuel (except
+military and scout ships); –1 if using refined fuel; +2 if operating beyond the required
+date for annual maintenance.
+     A misjump involves a considerable random jump. Throw one die to determine
+number of dice thrown (1 to 6). Throw that number of dice to determine the number
+of hexes long the jump is. Throw one die to determine in which of the six directions
+on the hex grid the jump is made (Book 3 covers star maps and the procedures go-
+verning their use).
+
+    The above circumstances also apply to the use of starships by owners and play-
+er characters as well as to starships which are carrying characters as passengers.
+
+
+
+
+                                          –4–
+
+===== BOOK 2 / PRINTED PAGE 5 / PDF PAGE 10 =====
+
+                                                    Starship Economics
+    The operation of starships in interstellar commerce requires an understanding of
+the economics which govern trade between the stars. Prices and returns on effort
+and investment are controlled by the supply and demand which exists in the com-
+mercial system.
+
+STARSHIP PURCHASE
+     Bank financing is available to qualified individuals for the purchase of commer-
+cial starships. After a down payment of 20% of the cash price of the starship is made,
+the shipyard will begin construction of a specific vessel. Upon completion, the vessel
+is delivered to the buyer, with the bank paying off the purchase price to the shipyard.
+Because the bank now holds title to the ship, the price must be paid off in a series of
+monthly payments to it. Standard terms involve the payment of 1/240th of the cash
+price each month for 480 months. In effect, interest and bank financing cost a simple
+120% of the final cost of the ship, and the total financed price equals 220% of the
+cash purchase price. The loan is paid off over a period of 40 years.
+In addition, the bank will insist that the purchaser submit an economic plan detailing
+the projected activity which will guarantee that monthly payments are made. Unless
+a character has some form of guaranteed income (perhaps large royalties from some
+property he owns), these conditions will generally rule out purchases (at least fi-
+nanced purchases) of yachts, military vessels, or exploratory vessels.
+     Subsidies: The government may subsidize larger commercial vessels (built on
+type 600 hulls or larger), primarily to assure consistent service to specific worlds.
+These subsidized merchants are generally assigned a specific route connecting from
+2 to 12 worlds of varying characteristics. The route will generally be determined be-
+fore a subsidized merchant is purchased, to allow tailored design features as may be
+necessary. When a subsidized merchant is ordered, the character himself must make
+the 20% down payment, with the government assuming responsibility for the pay-
+ments upon delivery, and taking 50% of the gross receipts of the ship while in ser-
+vice. The character is responsible for all expenses and costs of operation.
+     Subsidized merchants are also subject to mobilization (and use as auxiliaries) in
+the event of emergency or hostilities. At the end of 40 years, the vessel is completely
+paid off, and full title passes to the character himself, but the vessel remains subject
+to mobilization in case of government need.
+
+OPERATING EXPENSES
+    There are five basic expenses (in addition to the bank payment, if necessary)
+associated with starship operation:
+    1. Fuel. Starship fuel costs CR 500 per ton (refined) or CB 100 per ton (unrefined),
+at most starports. Fuel consumption is based on formulae related to the size of the
+starship power plant and the jump drive.
+    A power plant, to provide power for one trip (internal power, maneuver drive
+power, and other necessities) requires fuel in accordance with the formula: 10Pn.
+Pn is the power plant size rating, determined from the maximum drive potential ta-
+ble by cross-referencing power plant letter and hull size. The formula indicates
+amount of fuel in tons, and all such fuel is consumed in the process of a normal trip.
+A fully fuelled power plant will enable a starship an effectively unlimited number of
+                                          –5–
+
+===== BOOK 2 / PRINTED PAGE 6 / PDF PAGE 11 =====
+
+accelerations (at least 288) if necessary to use the maneuver drive during the trip (as
+when miniatures combat is used to resolve a ship to ship encounter).
+     A jump drive requires fuel to make one jump (regardless of jump number) based
+on the formula: 0.1MJn, where M equals the mass displacement of the starship and
+Jn equals the jump number of the drive. Drive jump number is determined from the
+maximum drive potential table by correlating drive letter and hull size. Thus a vessel
+with a type A jump drive and a type 200 hull has a jump number of 1. It requires 20
+tons of fuel (0.1 x 200 x 1 = 20) for its jump drive. Jump fuel requirements are based
+on jump number rather than the size of the jump actually taken.
+     Fuel is also used by the maneuver drives of non-starships. When used in such
+vessels displacing under 100 tons (ship's boats, shuttles, pinnaces, etc) 10 kilograms
+(1/100th of a ton) of fuel is sufficient for 1G of acceleration for 10 minutes.
+     2. Life Support. Each stateroom on a starship, occupied or not, involves a con-
+stant overhead cost of CR 2000 per trip made. Each crew member occupies one sta-
+teroom; the remainder are available for high or middle passengers. Each low pas-
+sage berth (cold sleep capsule) involves an overhead cost of CR 100 per trip.
+     There is a normal limit of one person per stateroom, travelling couples or
+groups usually taking adjoining staterooms. Military vessels or chartered ships may
+be used with a double occupancy system (two persons per stateroom) in some cas-
+es.
+     3. Routine Maintenance. Annually, a starship should be given a complete over-
+haul in order to insure that it is kept in good working order. Such maintenance costs
+0.1% (1/1000th) of the cash price of the ship, and requires two weeks at a class A or B
+starport. The owner must make provision for payment of the maintenance fee when
+it comes due. Crew members generally take their vacation at this time, but must still
+be paid. Provision should also be made for the expected loss of revenue while the
+ship is out of service.
+     4. Crew Salaries. Crew members must be paid monthly. Non-player characters
+                                               must be paid using the standard crew salary
+             CREW SALARIES                     schedule (with suitable modifications for ex-
+                                               pertise or seniority, generally +10% for each
+   Pilot ............................. CR 6000 level of expertise above level-1. Player charac-
+   Navigator .................... CR 5000      ters may bargain for better pay rates, or they
+   Engineer ..................... CR 4000      may elect to accept worse. In addition, player
+   Steward ...................... CR 3000      characters may participate with the owner-
+   Medic .......................... CR 2000    captain and accept shares in the proceeds of
+   Gunner ........................ CR 1000     the ship's activities.
+                                                    Characters who take working passage are
+not paid, receiving passage, room and board in lieu of salary (but, continuous work-
+ing passage for more than 3 trips results in automatic hiring and receipt of salary).
+     The starship captain is usually the pilot or navigator. In some rare circums-
+tances, the captain will hire a pilot or navigator, and himself serve as owner-aboard,
+drawing his pay from the profits.
+     Not all crew positions are required on all ships, and some ships will have more
+than one person performing the same function. For example, a large liner would
+have more than one steward.
+     5. Berthing Costs. Landing fees and handling costs at starports are a common
+practice, and such costs must be paid as they occur. The average cost is CR 100 to
+
+                                             –6–
+
+===== BOOK 2 / PRINTED PAGE 7 / PDF PAGE 12 =====
+
+land and remain for up to six days; thereafter, a CR 100 per day fee is imposed for
+each additional day spent in port. In some locations this fee will be higher, while at
+others local government subsidies will lower or eliminate it.
+
+REVENUE
+     Commercial starships generate revenue by carrying passengers, cargo and mail
+or private messages.
+     Cargo. Starship masters may inquire at a starport to determine the size and
+number of shipments awaiting transportation, and their destination. The referee
+should determine all worlds accessible to the starship (depending on jump number),
+and roll (for each such world) a number of dice equal to the population number of
+the destination. Each die represents one shipment, expressed in multiples of 5 tons.
+Thus, roll ten dice for the potential shipments to a population 10 world; should all
+dice show 6 (admittedly an unlikely event), there are 10 thirty ton (die roll 6 x 5 tons
+= 30) shipments awaiting transportation. A starship can carry as many shipments as
+will fit in the hold, but may not break-down the size of any specific shipment. Thus, a
+starship with a cargo hold capacity of 85 tons could accept two of the above ship-
+ments, but not a third as it would not fit.
+     Cargo is normally shipped at a rate of CR 1000 per ton. Starship owners may
+purchase goods locally and ship them at their own expense, speculating that they
+may later sell the items at sufficient increase to make a profit.
+     Passengers. After a starship has accepted cargo for a specific destination, pas-
+sengers will present themselves desiring transport to that destination; the number
+and type of such individuals is dependent on the populations of the originating
+world and the announced destination. Consult the passenger table: roll the number
+of dice specified in the originating world column (3D–D, for example, indicates that
+three dice are rolled, and from that total, the result of another one die roll is sub-
+tracted. From the result of this roll, add or subtract the stated number given in the
+
+
+                                 PASSENGER TABLE
+                             Originating World                 Destination
+       Population    High        Middle      Low        High     Middle      Low
+           0         —           —           —          —          —           —
+           1         —           —           —          —          —           —
+           2         D–D         D–D         3D–D       –1         –2          –4
+           3         3D–2D       2D–2D       3D–D       –1         –1          –3
+           4         3D–3D       3D–3D       4D–D       –1         –1          –2
+           5         3D–2D       3D–2D       4D–D       0          –1          –1
+           6         3D–2D       3D–2D       3D         0          0           –1
+           7         3D–2D       3D–2D       3D         0          0            0
+           8         2D–D        3D–2D       4D         +1         0            0
+           9         2D–D        2D–D        4D         +1        +1            0
+          10         2D–D        2D–D        4D         +1        +1          +2
+          11         2D          2D–D        5D         0         +1          +4
+          12         2D          2D          6D         0          0            0
+
+
+                                          –7–
+
+===== BOOK 2 / PRINTED PAGE 8 / PDF PAGE 13 =====
+
+destination column. Separate columns are presented for high passage, middle pas-
+sage, and low passage. Treat worlds of population level greater than 12 as level 12.
+     Passengers will pay the standard fare for the class of transportation they choose:
+CR 10,000 for high passage, CR 8000 for middle passage, and CR 1000 for low pas-
+sage. Passage is always sold on the basis of transport to the announced destination,
+rather than on the basis of jump distance.
+     Differences in starship jump drive capacity have no specific effect on passage
+prices. That is to say, a starship with a jump drive of 3 charges the same passage
+price as a starship with a jump drive of 1. The difference is that a jump-3 ship can
+reach a destination in one jump that would take the jump-1 ship three separate
+jumps (through two intermediate destinations) to reach. Higher jump numbers also
+may make otherwise inaccessible destinations within reach. But, for two ships of
+differing jump numbers going to the same destination in one jump, each would
+charge the same cargo or passage price.
+     Mail. Subsidized merchants may receive mail delivery contracts, usually as an
+adjunct to the established route to which it is assigned. Five tons of ship cargo ca-
+pacity must be committed to postal duty on a full time basis, the ship must be
+armed, and a gunner must be a part of the crew. The starship is paid CR 25,000 (CR
+5000 per ton of postal cargo area) for each trip made, regardless of the actual mail
+tonnage carried. Such tonnage may not exceed 5 tons per trip.
+     Other ships may be approached to deliver private messages, at times through
+the ship's owner or captain, and at times clandestinely through a crew member. This
+private mail is usually intended for delivery to a specific point (such as the Travel-
+lers' Aid Society building, or a tavern keeper), and is generally accompanied by a CR
+20 to 120 honorarium. Throw 9+ for a private message to be awaiting transmittal,
+and then determine randomly which crew member is approached to carry it. Serving
+as a carrier for private messages also serves as an introduction to the recipient as a
+dependable, trustworthy person.
+
+INCIDENTALS
+    Goods taken on in orbit are delivered when delivered in orbit around the desti-
+nation. Goods taken on a planetary surface are delivered when off-loaded on the
+planetary surface of the destination. Similar conditions apply to mail and passen-
+gers.
+    Shuttles: Where necessary, shuttles operate from planetary surface to orbit and
+return. The typical cost of shuttle service is 1/100 of the normal interstellar freight or
+passage cost. Thus, cargo is shipped to orbit by shuttle, or dropped to planetary sur-
+face from orbit by shuttle at a cost of CR 10 per ton.
+
+
+
+
+                                           –8–
+
+===== BOOK 2 / PRINTED PAGE 9 / PDF PAGE 14 =====
+
+                                                Starship Construction
+     Starships are constructed and sold by shipyards which share the field with ma-
+jor starports throughout the galaxy. Commercial vessels are available for purchase
+by private citizens, as are yachts, exploratory vessels, and even military ships. A va-
+riety of capabilities and armaments are also available to the purchaser, depending
+on needs, desires, and bank balance.
+
+STARSHIP DESIGN
+     Most starships are constructed from standard plans and specifications which
+use time-tested designs and combinations of features. Shipyards are unable to pro-
+duce a starship unless they have a set of detailed plans and specifications; such
+plans and specifications are available for the construction of a limited number of
+standard design starships.
+     Naval Architecture: Should a person desire a starship which is not of standard
+design, he may approach a naval architect, there generally being a firm providing
+such a service wherever a shipyard exists. For a fee, the naval architect will produce
+the detailed plans and specifications necessary to construct a starship on a custom
+basis. This preparation usually takes about four weeks (two weeks for an additional
+overtime charge of 50%) at a cost of 1% of the final cash price of the ship.
+     In game terms, a player may purchase a standard design ship, or he may wish to
+design his own to more fully fit his needs, using these rules to determine what is
+possible and how much it will cost. When a character has settled on his own desires
+(generally using the starship design checklist), he must present that checklist to a
+naval architect who will then produce correct plans and specifications and deliver
+them upon payment of his fee. Such plans may then be turned over to a shipyard so
+that construction may begin.
+     Shipyards: Any class A starport has a shipyard capable of starship construction
+located adjacent to it. Any class A or B starport has a shipyard capable of construct-
+ing non-starships. In most circumstances, shipyards are quite willing to construct
+and sell ships at standard prices. In some locations (throw 11+ to occur) a local gov-
+ernment will prohibit the construction of military or armed vessels.
+     Construction Times: Ship construction requires a relatively long period of time,
+based primarily on the hull size used. The rule section on hulls indicates the basic
+time required to construct a ship based on a certain size of hull (ranging from 10 to
+36 months). Standard design ships take about one month less than the stated time.
+     Costs and Payments: When a ship is ordered, 20% of the base price is required
+as a down payment, and proper arrangements for bank financing or other payment
+of the remainder of the price must be made prior to delivery. Most shipyards will
+insist on full details of such plans before even beginning construction, and may in-
+sist on some form of guarantee of full payment if it is to be made in cash.
+     The actual cash price of a ship is computed from the sum of the costs of its
+components. Standard design ships are granted a 10% reduction in price because of
+their ease of construction and the familiarity of the yard with such work, and this
+reduction is contained in the price stated for each in the standard ship rules section.
+
+
+
+
+                                         –9–
+
+===== BOOK 2 / PRINTED PAGE 10 / PDF PAGE 15 =====
+
+REQUIRED STARSHIP COMPONENTS
+     Most starships are constructed using one of the six basic standard hulls, and
+into this hull is then fitted the other required components, including drives and pow-
+er plants, life support equipment, hardpoints for armaments, computers and other
+items. The total tonnage of the installed items in a ship cannot exceed the rated ton-
+nage capacity of the hull used.
+     The Hull: Hulls are identified by their mass displacement, expressed in tons.
+                                               Hulls of different mass displacements
+                HULL TYPES                     come in standard configurations which
+                                               divide the tonnage into a (shielded) engi-
+  Hull Main Engine Price Time                  neering section and a (pressurized) main
+   100       85         15       2      10     compartment. All drives and power
+   200      185         15       8      12     plants must be located in the engineering
+   400      350         50      16      16     section, and only drives and power plants
+   600      520         80      48      24     may be placed in that section. All other
+   800      635       165       80      28     ship components, including fuel, cargo
+  1000      835       165      100      30     hold, living space, and computer must be
+                                               located in the main compartment.
+     The hull types chart indicates the configurations of the six standard hulls, and
+states the proportion each has devoted to the engineering section and the main
+compartment, the price of the basic hull (expressed in millions of credits), and the
+construction time (expressed in months. Hulls in sizes (or engineering/main com-
+partment proportions) not indicated in the chart must be produced on a custom ba-
+sis. Such hulls may be ordered for construction at a shipyard at a base price of CR
+100,000 per ton, with a minimum price of CR 20,000,000. Construction time for any
+custom hull is 36 months, regardless of tonnage. Custom hulls of up to 5000 tons
+mass displacement may be ordered. When consulting the maximum drive potential
+table, tonnage of custom hulls is rounded up to the next higher figure.
+     Different hulls have different requirements for drives and power plants. A drive
+of a certain size will be less efficient as the size of the hull increases. The maximum
+drive potential table lists the 24 possible drive and power plant types (lettered A
+through Z, omitting l and O) at the top and several levels of hull sizes along the left
+side. When drive or power plant letter is correlated with hull size, the number ob-
+
+[TRANSCRIBED BY HAND from the page image: this table has no text layer in the
+ PDF. Checked glyph by glyph at 300 dpi. "-" means the combination cannot be
+ used.]
+
+                            MAXIMUM DRIVE POTENTIAL
+                  Jump Drive, Maneuver Drive, or Power Plant Type
+  Hull   A B C D E F G H J K L M N P Q R S T U V W X Y Z
+   100   2 4 6 - - - - - - - - - - - - - - - - - - - - -
+   200   1 2 3 4 5 6 - - - - - - - - - - - - - - - - - -
+   400   - - 1 2 2 3 3 4 4 5 5 6 6 - - - - - - - - - - -
+   600   - - - 1 1 2 2 2 3 3 3 4 4 4 5 5 5 6 6 6 - - - -
+   800   - - - - - 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5 6
+  1000   - - - - - - - 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 5 6
+  2000   - - - - - - - - - 1 1 1 1 1 1 1 1 1 1 1 2 3 4 5
+  3000   - - - - - - - - - - - - - - 1 1 1 1 1 1 1 2 3 4
+  4000   - - - - - - - - - - - - - - - - - - - 1 1 1 2 3
+  5000   - - - - - - - - - - - - - - - - - - - - - - 1 2
+
+                                          –10–
+
+===== BOOK 2 / PRINTED PAGE 11 / PDF PAGE 16 =====
+
+                            DRIVES AND POWER PLANTS
+             Power Plants            Maneuver Drives               Jump Drives
+ Type        Mass        Price       Mass           Price          Mass       Price
+ A           04          008         01             04             010        010
+ B           07          016         03             08             015        020
+ C           10          024         05             12             020        030
+ D           13          032         07             16             025        040
+ E           16          040         09             20             030        050
+ F           19          048         11             24             035        060
+
+ G           22          056         13             28             040        070
+ H           25          064         15             32             045        080
+ J           28          072         17             36             050        090
+ K           31          080         19             40             055        100
+ L           34          088         21             44             060        110
+ M           37          096         23             48             065        120
+
+ N           40          104         25             52             070        130
+ P           43          112         27             56             075        140
+ Q           46          120         29             60             080        150
+ R           49          128         31             64             085        160
+ S           52          136         33             68             090        170
+ T           55          144         35             72             095        180
+
+ U           58          152         37             76             100        190
+ V           61          160         39             80             105        200
+ W           64          168         41             84             110        210
+ X           67          176         43             88             115        220
+ Y           70          184         45             92             120        230
+ Z           73          192         47             96             125        240
+
+
+tained is termed maximum potential. For jump drives maximum potential is the
+ship’s jump number (Jn); for maneuver drives, the maximum potential is the maxi-
+mum acceleration (in Gs) that ship is capable of. For power plants, the maximum
+potential is the power plant size rating (Pn). For example, a type 200 hull equipped
+with a type A maneuver drive would be capable of 1 G acceleration; a type 800 hull
+equipped with a type H jump drive would be capable of jump-2.
+     The Engineering Section: Each starship is fitted with a power plant (to provide
+internal power and power for the maneuver drive), a maneuver drive (for interplane-
+tary travel), and a jump drive (for interstellar jumps). Each is essential to the defini-
+tion of a starship. The drives and power plants table lists the 24 different types of
+maneuver drives, jump drives, and power plants available, as well as their costs (in
+millions of credits) and their mass displacements (in tons). Only one of each may be
+installed in the engineering section, and the sum of the mass displacements of all
+three may not exceed the mass displacement of the engineering section of the hull.
+
+                                          –11–
+
+===== BOOK 2 / PRINTED PAGE 12 / PDF PAGE 17 =====
+
+                           COMPUTER SOFTWARE LIST
+Title                 Space     Price     Effect and DMs
+Offensive Programs
+Predict 1             1         2.        (+1)
+Predict 2             2         4.        (+2)
+Predict 3             1         6.        (+2)
+Predict 4             3         8.        (+3)
+Predict 5             2         10.       (+3)
+Gunner Interact       1         1.        Adds gunner expertise for his turret.
+Target                1         1.        Required for firing of turret weapons.
+Selective 1           1         0.5       (–2)    Allows gunner to select either main
+Selective 2           2         0.8       (–1)    compartment or engineering sec-
+Selective 3           1         1.        (–)     tion to receive hits inflicted.
+Multi-Target 2        1         1.        Allows engagement of indicated number
+Multi-Target 3        2         2.        of targets by a single ship, but not a single
+Multi-Target 4        4         3.        turret to do so.
+Launch                1         2.        Allows turrets to launch missiles, sand.
+
+Defensive Programs
+Maneuver/Evade 1      1         1.        (–1/4 pilot expertise) Also performs the
+Maneuver/Evade 2      2         2.        (–1/2 pilot expertise) routine functions of
+Maneuver/Evade 3      3         3.        (–3/4 pilot expertise) a maneuver pro-
+Maneuver/Evade 4      4         4.        (– pilot expertise)     gram while in use
+Maneuver/Evade 5      2         5.        (– pilot expertise)
+Maneuver/Evade 6      3         6.        (–5)
+Auto/Evade            1         0.5       (–2)
+Return Fire           1         0.5       Automatic return fire if attacked.
+Anti-Missile          2         1.        Allows laser anti-missile fire.
+ECM                   3         4.        May explode incoming missiles.
+
+Routine Programs
+Maneuver              1         0.1       Required for use of maneuver drive.
+Jump 1                1         0.1       Required for performance of jump 1.
+Jump 2                2         0.3       Required for performance of jump 2.
+Jump 3                2         0.4       Required for performance of jump 3.
+Jump 4                2         0.5       Required for performance of jump 4.
+Jump 5                2         0.6       Required for performance of jump 5.
+Jump 6                2         0.7       Required for performance of jump 6.
+Library               1         0.3       Contains encyclopedic information.
+Navigation            1         0.4       Receives flight plans to control jumps.
+Generate              2         0.8       Generates flight plans internally.
+Anti-Hijack           1         0.1       Reacts to hijack situation.
+
+Programs are more fully described in the text. Prices are in millions of credits.
+The basic software package provided with new ships consists of a credit of CR 2 mil-
+lion, applicable to any programs on the above list.
+
+
+                                        –12–
+
+===== BOOK 2 / PRINTED PAGE 13 / PDF PAGE 18 =====
+
+It is important to note, from the maximum drive potential table, that some drive and
+power plant types will not function in certain types of hulls (those situations indi-
+cated by a dash); the drives and power plants table also indicates that some drives
+will not fit into some hulls. It is also possible to fit a set of drives and power plant
+into a hull and then to have insufficient tonnage remaining for fuel, basic controls or
+life support. The completeness is intended to cover situations where custom hulls
+are produced. A jump capability of greater than 6 (or an acceleration of greater than
+6 Gs) cannot be achieved with the 24 drive types listed in the table.
+      The installed power plant must be of a letter type at least equal to the drive letter
+of the installed maneuver drive (the power plant letter may be higher than the ma-
+neuver drive letter).
+      The Main Compartment: The starship’s main compartment contains all other
+features of the ship, including the bridge, ship's computer, the staterooms, and the
+low passage berths, the cargo hold, fuel tanks, armament and other items.
+      A. The Bridge: All starships must allocate 20 tons displacement for basic con-
+trols, which include guidance radars, drive and power plant controls, communica-
+tions equipment, and other devices required for proper control of the ship. Basic
+controls cost CR 500,000 per 100 tons of hull mass displacement.
+      The basic controls do not include the ship's computer, which is installed adja-
+                                                cent to the bridge and is available in a
+                                                variety of configurations, ranging from
+             COMPUTER MODELS                    the basic Model/1 to the sophisticated
+   Model Price Mass CPU Storage                 Model/7, each being listed in the com-
+   1         02        1     02     04          puter models table. Computer prices
+   1 bis     05        1     04     —           are given in millions of credits, and dis-
+   2         09        2     03     06          placement required in tons. CPU refers
+   2 bis     12        2     06     —           to the computer's Central Processing
+   3         18        3     05     09          Unit, indicating the capacity to process
+   4         30        4     08     15          programs; storage refers to the addi-
+   5         45        5     12     25          tional capacity available to hold pro-
+   6         55        5     15     35          grams in readiness for processing. Pro-
+   7         60        5     20     50          grams themselves are classified by size,
+                                                using a point indicator to specify how
+much of the CPU or storage capacity is required for that program to fit into the com-
+puter. The number of programs (and the exact types of programs) which are on
+hand, in storage, or in the CPU is important in the operation of the starship, especial-
+ly in combat.
+      Computer software (programs) must normally be acquired separately by pur-
+chase (or they may be written by a character who has computer expertise). Each
+computer model is originally furnished with a basic software package of commonly
+used programs. The computer software list indicates the features and prices of indi-
+vidual programs, as well as the contents of the basic software package.
+      Many starships are originally constructed with some tonnage in reserve to allow
+for retrofitting of a better model when assets and circumstances will allow.
+      Fire control equipment is also considered to be adjacent to the bridge. Each in-
+stalled turret (see turrets, below) requires one ton of displacement committed for the
+installation of fire control equipment. Because turrets may well not be initially in-
+stalled, space is often held in reserve to allow for later acquisition and installation.
+
+                                           –13–
+
+===== BOOK 2 / PRINTED PAGE 14 / PDF PAGE 19 =====
+
+     B. Staterooms: Quarters for the crew and for high and middle passengers are
+provided in the form of staterooms, containing sleeping and living facilities. Each
+stateroom is sufficient for one person, and contains all important life support con-
+siderations. Staterooms are included in a starship at the cost of CR 500,000 each, and
+displace 4 tons each. In some starships (especially exploratory vessels, military
+ships, and privately owned starships), double occupancy is allowed in staterooms,
+but two persons is the limit that a stateroom will contain.
+     A non-military starship must have one stateroom for each member of the crew.
+     C. Low Passage Berths: Facilities for carrying passengers in cold sleep may be
+installed in a starship. One low passage berth will carry one low passenger, costs CR
+50,000 to install, and displaces one-half ton. Low passage berths also serve well in
+emergencies, in that they can provide suspended animation facilities for characters
+when medical care, rescue, or assistance is not immediately available.
+     D. Fuel: The amount of fuel tank capacity to be built into a starship must be spe-
+cified in the plans and specifications. No actual cost is involved, but such specifica-
+tion will determine the frequency of refuelling the ship must observe. Computation
+of the amount of fuel that a ship will require per trip is based on the size of the
+drives. Formulae for such computation are given in the section under ship operating
+expenses.
+     E. Cargo Hold: The displacement given over to cargo hold must be indicated in
+the starship plans and specifications. l\|o extra cost is incurred in designating cargo
+capacity.
+     F. Hardpoints and Turrets: Hardpoints for the installation of weaponry on a tem-
+porary or permanent basis may be created when the ship is constructed. Starship
+hulls will accommodate one hardpoint for each 100 tons of hull displacement. One
+turret may be attached at one hardpoint. The designation of hardpoints costs CR
+100,000 each, and they must be included in the ship plans and specifications.
+     Turrets are available to contain one, two, or three weapons, which may be of the
+same or of mixed types. Single weapons turrets cost CR 200,000; double weapons
+turrets cost CR 500,000. Triple weapons turrets cost CR 1,000,000. An installed turret
+requires one ton of displacement for the installation of fire control equipment neces-
+sary for its operation (such displacement must be available when the turret is in-
+stalled, though it may be taken from reserve or surplus tonnage, or from cargo hold
+tonnage).
+     Each turret requires a gunner, in most cases assigned as a specific crew mem-
+ber, and requiring a stateroom, salary, and other crew requirements.
+     Hardpoints and turrets must be specified in ship plans and specifications, al-
+though turrets may be added to unused hardpoints later. In addition, turrets may be
+replaced by different sized turrets at a later time.
+     Weapons are never included in ship plans and specifications, and must be ac-
+quired and installed after delivery.
+
+OPTIONAL STARSHIP COMPONENTS
+     Ship owners may purchase optional items for installation on a starship; some
+must be included at construction, but allow variation to the standard plans and spe-
+cifications controlling even standard designs, while others may be installed or fitted
+at any time, including after construction is completed.
+
+
+                                         –14–
+
+===== BOOK 2 / PRINTED PAGE 15 / PDF PAGE 20 =====
+
+     Computers: Larger of smaller computer models may be installed or retrofitted to
+a starship, regardless of the model originally called for. In new construction, the dif-
+ferent model is in lieu of the originally specified model; in retrofitting situations, the
+old model of computer can generally be traded in at 25% of original cost.
+     Atmospheric Streamlining: A starship may be streamlined when constructed,
+allowing it to enter atmospheres for landings. Such vessels are then not restricted to
+orbital unloading, and dependence on shuttles for cargo and passenger transfer.
+Such streamlining costs CR 1,000,000 per 100 tons of hull displacement, and must be
+included when the ship is constructed. Atmospheric streamlining is an option, and
+may be added to or deleted from standard designs.
+     Ship’s Vehicles: A starship may have one or more subordinate vehicles specified
+                                    as part of the ship's equipment, and tonnage may
+                                    be devoted to the permanent stowage or hanga-
+        SHIP’S VEHICLES             rage of the vehicles. The several possible vehicles
+   Vehicle       Tons Price         are indicated by the ship's vehicle table, which
+   ATV           10      03         shows the tonnage required to be devoted to han-
+   Air/Raft      04      06         garage or stowage, and the price for the item in
+   Life Boat     20      14         millions of credits.
+   Ship’s Boat 30        16              Air/Rafts are anti-gravity floaters, capable of
+   Pinnace       40      20         flying in atmosphere (they are not air-tight); ATVs
+   Cutter        50      28         are All Terrain Vehicles capable of overland travel,
+   Shuttle       95      33         regardless of atmosphere or lack thereof. The re-
+                                    mainder of vessels mentioned are space-going
+ships described in the section on non-starships. All ship's vehicles have direct access
+through the hull to the outside, and may be used with a minimum of preparation.
+     Turrets: Turrets may be installed after construction at hardpoints specified on
+the ship’s hull. Previously installed turrets may be removed and replaced by turrets
+of different sizes. Because they are options, they may be added to, or deleted from,
+the specifications of standard design ships.
+     Used turrets removed in the case of renovation or retrofitting may be sold for
+25% of their original cost. Turrets are considered to be streamlined.
+     Weaponry: Weapons for installation in turrets may be procured and installed by
+a shipyard or by ship's personnel. Four types of weapons are commonly available:
+pulse laser, beam laser, missile launcher, and sandcaster.
+     Pulse Lasers: Pulse lasers fire short bursts of energy at specified targets. Each
+pulse laser costs CR 500,000.
+     Beam Lasers: Beam lasers fire continuous beams of energy at targets and are
+more effective in inflicting damage than are pulse lasers. Each beam laser costs CR
+1,000,000.
+     Missile Launchers: Missile launch racks fire missiles at targets. Missiles them-
+selves are expended when fired, and must be replaced by purchase (see expen-
+dables). The launch racks themselves cost CR 750,000, and allow selective launching
+of one of up to four specific types of missiles.
+     Sandcasters: Sandcasters dispense abrasive particles into the path of enemy
+targets, lessening the effectiveness of lasers, disrupting missile fire, and interfering
+with enemy ship flight. Firing involves the discharge of one canister of sand (see
+expendables) which must be replaced by purchase. Sandcasters cost CR 250,000
+each.
+
+                                          –15–
+
+===== BOOK 2 / PRINTED PAGE 16 / PDF PAGE 21 =====
+
+STARSHIP CREWS
+     The number of crew members required for a starship is based on the work
+which must be performed, and the degree of efficiency and safety required. On small
+ships (200 tons and under), each position is filled by one person, with some cross-
+training possible to allow another to fill in where necessary. On larger starships,
+each position may be duplicated two or three times to allow the standing of watches
+and the full attention of an active crew at all times.
+     The following basic crew positions exist:
+     Pilot: Each starship requires at least one pilot. In small ships, he may be the only
+crew member, filling all other necessary responsibilities as well.
+     Navigator: Each starship with a mass displacement of greater than 200 tons re-
+quires at least one navigator.
+     Engineer: The requirement for engineer is based on power plant and drive size.
+On any starship of mass displacement greater than 100 tons, one engineer is re-
+quired for each 35 tons of mass displacement of drives and power plant actually in-
+stalled in the hull. Of these individuals (if there is more than one), one is designated
+chief engineer (usually the oldest, or the one with the most expertise in engineering),
+and is accorded an additional 10% of salary for the post. A starship of type 100 hull
+or less does not require an engineer.
+     Steward: Stewards are necessary for the care of high passengers. In order for a
+starship to carry high passengers, it must have at least one steward for each 8 or
+fewer high passenger staterooms (not counting crew staterooms) on the starship.
+One of these stewards (if there is more than one) is designated the chief steward (or
+purser) on the basis of expertise, and draws a 10% higher salary.
+     Medic: Each starship of greater than 100 tons hull mass displacement requires a
+medic aboard. Starships carrying more than 120 passengers require one medic for
+each 120 passengers or fraction thereof.
+     Gunner: One gunner is required as a crew member for each turret mounted on
+the starship. In many cases, especially where trouble is not expected, the gunner
+position will be omitted.
+
+     One person may fill two crew positions, providing he has expertise to otherwise
+allow him to perform the work. However, because of the added burden placed upon
+him, he is unable to apply his expertise to the position (that is to say, he is not al-
+lowed expertise DMs in either position), and draws a salary equal to 75% of each job.
+     Other crew positions may be created depending on the facilities of the starship:
+for example, a starship with a cutter would have a position for cutter pilot (and pos-
+sibly cutter gunner) in addition to the normal positions. Generally, specific jobs or
+tasks require crew members to perform them.
+     For starships of greater than 1000 tons hull mass displacement, the crew should
+also include a commanding officer (or captain), his executive officer, and at least
+three administrative personnel. As a general rule, extremely large starships should
+have at least 10 crew members for each 1000 tons of mass displacement.
+
+
+
+
+                                          –16–
+
+===== BOOK 2 / PRINTED PAGE 17 / PDF PAGE 22 =====
+
+NON-STARSHIPS
+     Space-going vessels which do not have jump drive are classed as non-starships.
+Non-starships include some ship’s vehicles, as well as interplanetary ships. The ba-
+sic characteristics of non-starships are described below:
+     Life Boat: The life boat is an emergency device used to allow escape from dan-
+ger, disaster, or calamity in space-going situations. Displacing 20 tons, it is capable
+of 1 G acceleration and can carry up to three conscious passengers. In addition, it
+contains five emergency low berths, each capable of holding four persons in cold
+sleep (all occupants of the same berth share the same survival throw upon revival:
+throw 6+ to survive with normal DMs as applicable). Thus a life boat can carry a total
+of 23 persons. Fuel tankage is 5 tons. Life boats are unarmed, and have a base price
+of CR 14,000,000.
+     Ship's Boat: Designed to carry up to 5 passengers, the ship’s boat displaces 30
+tons, and is capable of accelerations of up to 6 Gs. It has a cargo capacity of 12 tons
+and fuel tankage of 9 tons. Ship's boats are usually unarmed, but have provision for
+the attachment of one beam or pulse laser; no turret is used, but the installation con-
+sumes 2 tons of cargo capacity. The base price for the ship’s boat is CR 16,000,000.
+     Pinnace: The pinnace is a larger version of the ship’s boat, capable of 5 Gs acce-
+leration, carrying up to 8 passengers and displacing 40 tons. It has a fuel tank capaci-
+ty of 12 tons and an equal cargo capacity. Pinnaces are usually armed with one
+beam or pulse laser in a non-turret mount. In some cases (about 15%), a missile
+launch rack is installed instead. Base price is CR 20,000,000.
+     Cutter: The cutter displaces 50 tons, carries up to 12 passengers, and is capable
+of accelerations of up to 4 Gs. Cargo hold capacity and fuel tankage each equal 15
+tons. Standard armament is one beam laser. The base price for a standard cutter is
+set at CR 28,000,000.
+     Shuttle: Access to planetary surfaces by ships incapable of landing themselves
+is made using shuttles which are present at a starport, or which are carried by the
+starship itself. Shuttles have a mass displacement of 95 tons, are capable of 3 Gs of
+acceleration, and can carry up to 30 passengers. They have a cargo hold capacity of
+80 tons and a fuel capacity of 9 tons. Shuttles are unarmed, and are capable of cargo
+transfer in vacuum. Base price for a shuttle is CR 33,000,000.
+
+    The above are standard designs; other non-starships may be designed in accor-
+dance with the starship design rules, but leaving out the jump drive. Such vessels
+may not be converted to take a jump drive at a later time. Construction cost is calcu-
+lated at 50% of the price for a similarly equipped starship.
+
+     All non-starships consume fuel at the rate of 10 kilograms (1/100th of a ton) for
+each G of acceleration for ten minutes, regardless of mass or cargo carried.
+     A non-starship described above can support its passengers for up to 30 days in
+space. Beyond that time, air, food and water begin to run out. The passenger capaci-
+ty cannot be increased, due primarily to design constraints, and potential overload of
+life support equipment. At the end of 30 days, throw 9+ each day to prevent the re-
+cycling machinery from breaking down. If it does fail, it must be repaired on the
+same day (throw 9+ to repair; DM: +1 per level of mechanical expertise, once per
+day) or the air is exhausted and the passengers will suffocate.
+
+
+                                         –17–
+
+===== BOOK 2 / PRINTED PAGE 18 / PDF PAGE 23 =====
+
+EXPENDABLES
+     Certain materials for starship (and non-starship) operation are not considered to
+be routine operating expenses, but nevertheless involve occasional purchases on an
+irregular basis. These include ammunition and repair parts.
+     Missiles: Missiles for missile launch racks are expended when they are fired;
+replacements must be obtained for reloading purposes when the situation warrants.
+Basically, a missile is of the homing type, costing about CR 5000 each. Such missiles
+are committed to a specific target when fired, and after launch, home towards that
+target until either the missile or the target is destroyed. Other types of missiles are
+possible (for example, jump capable message torpedoes, or bombs for attacks
+against planetary surfaces), but such require either specific alterations to ordinary
+torpedoes, or location of an arms supplier who deals in such items. Specific
+attributes of such non-standard missiles are the realm of the referee.
+     Sand: The abrasive particles used in the sandcaster are of a special composition,
+combining prismatic crystals and ablative particles, which allows interference with
+laser beams and pulses, as well as inflicting minor damage on ships which it touch-
+es. Ordinary sand or particles are not considered to be an adequate substitute. Sand
+must be procured from arms merchants, generally pre-packed in a sandcaster canis-
+ter, weighing about 50 kilograms. Base price for a canister of sand is set at CR 400.
+     Repair Parts: Most items in a starship which malfunction can be temporarily re-
+paired from the stock of emergency materials in the ship's Stores. Malfunctions
+usually occur in terms of a specific assembly (ship's computer, jump drive, etc), and
+the cost of the repair is based on the cost of the original assembly. After determining
+the cost of the assembly (from the component cost section of these rules), roll two
+dice: this indicates the cost of replacement of the item in 10% increments; DMs: -2 if
+the repair installation will be made by ship's crew rather than a shipyard. Because
+the repair cost can run to 120%, in some cases, complete replacement of the item is
+sometimes cheaper. In the case of minor malfunctions, DMs may be applied to the
+repair cost throw as considered appropriate. Repair part cost which is indicated to be
+0% is considered to be inconsequential.
+     If the ship's crew undertakes the installation of a repair part, it should have ap-
+propriate expertise levels.
+
+STANDARD STARSHIP DESIGNS
+    The following list indicates the standard starship designs which most starports
+can produce using plans on file and available free of charge. The prices shown in-
+clude the 10% price reduction for standard designs.
+
+    Scout/Courier (Type S): Using the type 100 hull, the scout/courier is equipped
+with 4 staterooms (which may accommodate double occupancy in non-passenger
+service), suitable for the crew of one (pilot) and additional crew members or passen-
+gers as the situation dictates. No low berths are installed. The ship has a jump drive-
+A, maneuver drive-A, and power plant-A, giving it a capability of 2 G acceleration
+and the ability to make jump-2. The hold contains an air/raft in a specially fitted
+compartment, and three tons of cargo hold space. One double turret is installed at
+the vessel’s single hardpoint, but no weaponry is included. Computer Model/1, with
+basic software package is installed. The hull is streamlined for atmospheric landings.
+Fuel tankage for 40 tons is included. Base price is set at CR 32,490,000.
+
+                                         –18–
+
+===== BOOK 2 / PRINTED PAGE 19 / PDF PAGE 24 =====
+
+     Free Trader (Type A): Using the type 200 hull, the free trader is equipped with
+ten staterooms (four for the crew: pilot, engineer, medic and steward; six for high
+and middle passengers) and twenty low passage berths. Jump drive-A, maneuver
+drive-A and power plant-A are all installed in the engineering section, giving the
+starship capability for acceleration of 1 G and jump-1. Fuel tankage for 30 tons and
+cargo hold for 82 tons is provided in the hull. Two hardpoints are specified in the
+hull, but do not have turrets or weaponry attached. Two tons of potential fire control
+space is held in reserve for later armament installation. Computer Model/1 with basic
+software package is installed. The hull is streamlined for atmospheric landings. Base
+price for the free trader is CR 37,080,000.
+     Subsidized Merchant (Type R): Using the type 400 hull, the type R subsidized
+merchant is equipped with 13 staterooms (five for the crew: pilot, navigator, medic,
+steward and engineer; eight for the high or middle passengers) and nine low pas-
+sage berths. The ship is equipped with jump drive-C, maneuver drive-C and power
+plant-C, allowing 1 G acceleration and jump-1 interstellar flight. Cargo capacity is set
+at 200 tons, while fuel tankage will contain 50 tons. The hull is produced with two
+hardpoints, and is streamlined. A life boat is included as a ship’s vehicle. Computer
+Model/1 is installed adjacent to the bridge. Base price for the type R is CR
+100,035,000.
+     Subsidized Merchant (Type M): Using the type 600 hull, the type M subsidized
+merchant has 30 staterooms (nine for the crew: pilot, navigator, medic, three engi-
+neers and three stewards; 21 for the high and middle passengers) and eighty low
+passage berths. The ship has jump drive-J, maneuver drive-D and power plant-D,
+making it capable of jump 3, and 1 G acceleration. Computer model/3 is installed
+adjacent to the bridge. Cargo capacity is set at 124 tons, and fuel tankage will contain
+190 tons. Three hardpoints are specified for the hull, and three tons are reserved for
+fire control purposes. The hull is not streamlined for atmospheric landings. Base
+price for the type M is CR 219,870,000.
+     Yacht (Type Y): Based on the type 200 hull, the yacht is equipped with 16 state-
+rooms (four for the crew: pilot, engineer, medic and steward; eleven for the passen-
+gers). Note that two staterooms have been joined to make a suite for the owner-
+aboard. No low berths are installed. The yacht has jump drive-A, maneuver drive-A
+and power plant-A, allowing it 1 G of acceleration and jump-1. Computer Model/1 is
+installed adjacent to the bridge, and four tons of displacement are held in reserve for
+later use as the owner sees fit. Cargo capacity is 13 tons; fuel tankage is 39 tons,
+which includes one full refuelling load for the ship’s boat. The hull is compartmented
+for the ship’s boat, air/raft, and ATV which form the complement of ship’s vehicles.
+The hull is not streamlined, and has one hardpoint, but no turret or weaponry is in-
+stalled. Base price for the yacht is CR 59,490,000.
+     Cruiser (Type C): Based on the type 800 hull, the type C cruiser is a quasi-military
+vessel designed for private or semi-military operations. It is equipped with 25 state-
+rooms (five for the senior crew: commanding officer, pilot, navigator, medic, and
+chief engineer; double occupancy for the remaining 40 crew members: 8 gunners, 4
+engineers, 3 galley cooks, 2 pinnace pilots, 2 pinnace gunners, 1 admin clerk, 2 med-
+ic/orderlies, 1 forward observer, plus 17 spaces for research personnel, technicians,
+or troops). No low berths are installed. The ship has jump drive-M, maneuver drive-
+M and power plant-M, making it with capable of jump-3 and 3 G acceleration. Eighty
+tons of cargo space are allocated. Computer Model/5 is installed adjacent to the
+
+                                          –19–
+
+===== BOOK 2 / PRINTED PAGE 20 / PDF PAGE 25 =====
+
+bridge, and 8 tons are allocated to fire control equipment. The cruiser has 8 hard-
+points, each equipped with a triple turret, but weaponry is not initially installed. The
+hull is not streamlined. Fuel tankage amounts to 288 tons, including 48 tons availa-
+ble for refuelling the pinnaces. Hull compartmentalization contains two pinnaces,
+two ATVs and one Air/Raft. Base price for the type C cruiser is CR 419,670,000.
+
+CUSTOM DESIGNED SHIPS
+     Should one of the standard design starships not meet an individual's or a gov-
+ernment’s needs, a naval architect will assist in providing the plans and specifica-
+tions for any specific vessel, directing them to the starship design checklist for de-
+tails. In addition, the following notes apply:
+     1. Custom hulls with mass displacements not equaling one of the hull sizes
+shown on the maximum drive potential table are treated as the next larger size. The
+maximum size hull currently possible is the type 5000.
+     2. Only drive and power plants shown on the maximum drive potential table are
+available. Relationships between hulls and drives marked with a dash (-) cannot be
+used.
+     3. Non-starships may be constructed using the basic rules for starship construc-
+tion, but omitting the jump drive. They may not later be converted to interstellar
+drive capability, but may be produced for 50% of the price of a comparable starship.
+     4. Turrets and weapons are easily left off original plans and specifications in or-
+der to reduce total cost.
+     5. The naval architect will insist on his 1% fee upon delivery of the plans and
+specifications.
+
+
+
+
+                                         –20–
+
+===== BOOK 2 / PRINTED PAGE 21 / PDF PAGE 26 =====
+
+STARSHIP DESIGN CHECKLIST
+    Use this checklist to insure that all steps in specification of starship components
+are made.
+
+1.  Hull. Select Hull size.
+2.  Engineering. Select drives and power plant.
+    A. Jump Drive.
+    B. Maneuver Drive.
+    C. Power Plant.
+3. Bridge. Select controls and computer.
+    A. Basic Controls. Requires 20 tons at CR .5 per 100 tons of hull.
+    B. Computer. Select from computer models table.
+    C. Fire Control Equipment. Allow 1 ton per turret.
+4. Life Support. Select total crew and personnel.
+    A. Stateroom. Requires 4 tons, at CR .5 per stateroom.
+    B. Low Passage Berth. Requires .5 tons at CR .05 per berth.
+5. Fuel. Compute fuel tankage necessary.
+    A. Maneuver Drive. Formula: 10Pn.
+    B. Jump Drive. Formula: 0.1MJn
+6. Weaponry. Determine weapons and mountings.
+    A. Hardpoints. Costs CR .1 each.
+    B. Turrets. Select turret sizes. One allowed per hardpoint.
+        1) Single turret. Costs CR .2.
+        2) Double turret. Costs CR .5.
+        3) Triple turret. Costs CR 1.
+    C. Armaments. Select specific weapons for turrets.
+        1) Pulse Laser. Costs CR .5.
+        2) Beam Laser. Costs CR 1.
+        3) Missile Rack. Costs CR .75.
+        4) Sandcaster. Costs CR .25.
+7. Ship's Vehicle. Select one or more vehicles, as desired.
+    A. Ship's Boat. Requires 30 tons, and costs CR 16.
+    B. Pinnace. Requires 40 tons, and costs CR 20.
+    C. Cutter. Requires 50 tons, and costs CR 28.
+    D. Life Boat. Requires 20 tons, and costs CR 14.
+    E. Air/Raft. Requires 4 tons, and costs CR 6.
+    F. ATV. Requires 10 tons, and costs CR 3.
+    G. Other. Custom designed non starship, costs as necessary.
+8. Optional Streamlining. Costs CR 1 per 100 tons of hull.
+9. Cargo Capacity. Remaining tonnage is cargo capacity.
+10. Naval Architect's fee. Add 1% to price.
+11. Construction Time. Based on hull size used.
+
+Note: Costs are given in millions of credits. Weights are in tons.
+
+
+
+
+                                         –21–
+
+===== BOOK 2 / PRINTED PAGE 22 / PDF PAGE 27 =====
+
+Starship Combat
+    When starships encounter in space, they may be forced to do battle as a result
+of desire or of circumstance. In such situations, starship battles may be resolved us-
+ing miniature spaceship combat in accordance with the following rules. These rules
+serve well in nearly all situations, from simple circumstances where a free trader
+attempts to outrun a pirate or revenue cutter, to the complex engagements between
+starship squadrons of rival systems or empires.
+
+BASIC PARAMETERS
+    Traveller starship combat uses the following scale for movement and combat
+resolution:
+    1. Time: Each game turn represents ten minutes elapsed time (six turns equal
+one hour).
+    2. Space: A playing surface is required, representing space as a two dimensional
+surface at the scale of 1:63360000, or, in more familiar terms, one inch equals one
+thousand miles. The term inches and thousands of miles are used interchangeably in
+these rules, and refer to distance. Planetary templates may be made as discs on this
+scale also.
+    3. Thrust: Ships maneuver using reaction drives, referred to as M-Drive or ma-
+neuver drive. Their thrust is measured in Gs (Gravities) expressed as a vector of both
+length and direction. While direction is entirely variable, the length of the arrow is
+represented at the scale 2 inches equal one G (Ten minutes acceleration at 1 G will
+produce a velocity change of 2 inches per turn).
+    4. Units: Starships and space vehicles are individually represented by spacecraft
+miniatures, or (if necessary) by counters or markers. Because spacecraft miniatures
+are almost certainly oversize when compared to the scale in use, each such craft
+should be marked with a spot or point to designate the exact true location of the
+ships in play.
+
+TURN SEQUENCE
+     Starship miniatures battles are resolved in a series of Game—Turns, each
+representing ten minutes elapsed time. Most battles, regardless of the number of
+ships or players participating, will involve only two sides. These two sides alternate
+player turns within a game turn. Thus, each ten minute game turn includes two
+player turns, one for each combatant side. Each player turn is further divided into
+several phases which allow specific activity to be performed in a regular, orderly
+manner.
+     For convenience, the two sides in the battle are referred to here as the intruder
+and the native. Other terms could (and should) serve equally as well when the situa-
+tion warrants.
+     The sequence of the complete turn is given in the game turn sequence table.
+Activity must be performed only in the appropriate phases of the game turn or play-
+er turn; for example, spacecraft may not move during the laser fire phase, and ord-
+nance may only be launched during the ordnance launch phase.
+
+
+
+
+                                        –22–
+
+===== BOOK 2 / PRINTED PAGE 23 / PDF PAGE 28 =====
+
+GAME TURN SEQUENCE
+
+Intruder Player Turn—
+     A. Intruder Movement. The intruder moves his ships using the movement, gravi-
+ty, and other applicable rules. Ordnance (missiles and sand) which he has launched
+in previous game turns is moved at the same time.
+     B. Intruder Laser Fire. The intruder may fire his ships’ laser weaponry at enemy
+targets, subject to the combat, computer and other applicable rules. Only laser wea-
+ponry may fire in this phase.
+     C. Native Laser Return Fire. The native may return fire with his laser weaponry at
+enemy ships which fired on him, provided his return fire computer program is run-
+ning during this phase, and in accordance with the computer program and combat
+rules. Anti-missile fire may be made in this phase if the appropriate computer pro-
+gram is running.
+     D. Intruder Ordnance Launch. The intruder may launch ordnance (missiles
+and/or sand) at enemy targets or on specific missions, subject to the applicable
+rules. Ordnance which has contacted enemy ships explodes in this phase. Lifeboats
+and ship’s vehicles are launched in this phase.
+     E. Intruder Computer Reprogramming. The intruder may remove computer pro-
+grams from his on-board computer, and input other programs in anticipation of their
+use in later turns.
+
+Native Player Turn—
+    A. Native Movement. The native moves his ships using the movement, gravity,
+and other applicable rules. Ordnance (missiles and sand) which he has launched in
+previous game turns is moved as the same time.
+    B. Native Laser Fire. The native may fire his ships’ laser weaponry at enemy tar-
+gets, subject to the combat, computer, and other applicable rules. Only laser weapo-
+nry may fire in this phase.
+    C. Intruder Laser Return Fire. The intruder may return fire with his laser weapo-
+nry at enemy ships which fired on him, provided he has a return fire computer pro-
+gram running during the phase. Anti-missile fire may be made in this phase if the
+appropriate computer program is running.
+    D. Native Ordnance Launch. The native may launch ordnance (missiles and/or
+sand) at enemy targets or on specific missions, subject to the applicable rules. Ord-
+nance which has contacted enemy ships explodes in this phase. Lifeboats and ship’s
+vehicles are launched in this phase.
+    E. Native Computer Reprogramming. The native may remove computer pro-
+grams from his on-board computer, and input other programs in anticipation of their
+use in later turns.
+
+Game Turn Interphase—
+    The end of one game turn is marked. All non-player items such as planets or
+worlds move in accordance with the rules. Other miscellaneous activity may also be
+necessary. The game then proceeds to the movement and combat of the next game
+turn.
+
+
+
+                                         –23–
+
+===== BOOK 2 / PRINTED PAGE 24 / PDF PAGE 29 =====
+
+PREPARATION FOR PLAY
+     Each ship involved in space combat must have a data card prepared for it. This
+card contains basic information about the ship, serving as a reference for the players
+during the course of the battle. As damage occurs, it is marked on the card to reduce
+the ship’s abilities in later turns.
+     To prepare a data card, note the name of the ship on the top line of a blank 3 x 5
+index card. Below the name, on succeeding lines along the left side of the card, write
+the six basic sections of the ship, followed by their capacities or values: 1. M-Drive
+(followed by the drive letter), 2. Power Plant (followed by the power plant letter), 3.
+J-Drive (followed by the drive letter), 4. Fuel (followed by the fuel tonnage, 5. Hold
+(followed by the hold tonnage), and 6. Bridge (followed by the pilot expertise).
+     Below this data, list all turrets (numbered consecutively starting with T-1). After
+each turret designation, indicate the armament with which each turret is equipped,
+using the letters B (beam laser), P (pulse laser), M (missile launcher), and S (sandcas-
+ter). A triple turret would have up to three letters indicating the weapons installed in
+it, while a single turret would only have one. After the letters for the weapons, indi-
+cate the expertise of the gunner manning the turret. Also indicate the number of
+missiles present in each launch rack.
+     To the right of the card, indicate the computer model, as well as the CPU and
+storage capacity. Below that, indicate the computer programs which are carried on
+board the ship. During the game, these programs will be entered into the computer,
+and will be cycled from storage to CPU and back, so leave room to mark them with
+pencil to indicate their status.
+     The data card example below shows how a typical Type S Scout would be
+represented, armed with typical weaponry.
+
+
+
+
+                                DATA CARD EXAMPLE
+
+
+
+            Suleiman (Type S)
+            1. M-Drive (A, 2G)                Model/1
+            2. J-Drive (A, Jump-2)            CPU = 2
+            3. Power Plant (A)                Storage = 4
+            4. Fuel (40)
+            5. Hold (3 tons, plus Air/Raft)   1–Target          1–Auto/Evade
+            6. Bridge (Pilot-1)               1–Return Fire     2–Anti-Missile
+                                              1–Launch          1–Jump-1
+            T-1 (B, M) Gunner-1               1–Predict-1       2–Jump-2
+            five missiles on board            1–Navigation      1–Library
+
+
+
+
+                                          –24–
+
+===== BOOK 2 / PRINTED PAGE 25 / PDF PAGE 30 =====
+[This page also carries a figure or illustration that is not reproduced as text.]
+
+    Data cards must be created for all starships and non-starships. When creating
+cards for non-starships which were designed and built in accordance with the design
+rules, the above format applies. The J-Drive letter designation is simply left blank.
+When a data card is made for such standard non-starships as pinnaces, cutters, or
+shuttles, the standard format is used, and appropriate items are left blank. M-Drive is
+referred to by the vessel type (pinnace, shuttle, etc). No computer is available, and
+no programs are carried. Weaponry is listed below, but without turret designations.
+
+MOVEMENT
+     Ships in miniature combat move using their maneuver drive (M-Drive); use of
+the J-Drive exits a ship into interstellar space, out of the area of play. Maneuver drive
+uses thrust to accelerate a ship in a specific direction for a specified distance. This
+direction and distance is expressed as an arrow (a line in one direction) called a vec-
+tor. Vectors determine how far, and in what direction, a ship can travel.
+
+    Each ship has a vector, which expresses that ship's velocity as a line (arrow) of a
+specific direction. For example, a ship might have a vector of 6 inches at 90°, or of
+4½ inches at 277°. It is possible to have a vector of 0 inches, whereupon the direction
+becomes irrelevant (in this case, the ship is stationary). Vectors are marked on the
+playing surface using string or soft wire. On some playing surfaces chalk can be
+used.
+
+     A ship's vector determines the direction and distance a ship will travel in the
+next turn, provided it is not changed by voluntary acceleration, or by gravitational
+effects. With a vector of 6 inches at 90°, a ship will travel 6 inches at 90° in its next
+movement phase. In clear space, without gravitational influence, and without volun-
+tary acceleration by the ship, it could travel at 6 inches per turn (direction 90°) forev-
+er.
+
+     Acceleration involves altering a ship's vector by adding another to it; this new
+vector can come from thrust using the M-Drive, or from gravity. In either case, the
+method is the same. Vectors are added by placing them in a chain, head to tail, and
+drawing a new vector from the tail of the first to the head of the last.
+     For example, in figure A., to add two
+vectors (vector 1: 3 inches, 90°; vector 2: 1
+inch, 90°) place the tail of vector 2 at the
+head of vector 1, and draw a line from the
+tail of the first to the head of the last. This
+becomes a new vector of 4 inches, 90°.
+     As a more complex example of vector addition (vector 1: 3 inches, 90°; vector 2:
+                        3 inches 180°), in figure B., the tail of vector 2 is placed at the
+                        head of vector 1, and a new vector is drawn from the tail of vec-
+                        tor 1 to the head of vector 2. In this case, the new length is ap-
+                        proximately 4.2 inches, with a direction of 135°.
+                             The important point to note, however, is that mathematics
+                        are not required for the solution of vector problems; a new vec-
+                        tor is generated by simply laying all required vectors on the
+                        playing surface, and connecting them as shown above.
+
+                                           –25–
+
+===== BOOK 2 / PRINTED PAGE 26 / PDF PAGE 31 =====
+
+     In a player’s movement phase, he will indicate the acceleration (new vector) he
+wishes to apply, and note any gravitational influence vector he is required to apply,
+and then add them to his ship’s present vector. His ship then moves in the direction
+of its new vector, for the length of the vector. The vector then remains on the playing
+surface for reference during the next applicable movement phase.
+     Ships are restricted in the amount of acceleration which they may make (and
+thus are restricted in the size of new vectors they may add to their current vector in
+one movement phase. Generally, a ship cannot accelerate more inches than the size
+rating of its M-Drive. Thus, a standard design Free Trader is capable of 1 G accelera-
+tion, and cannot add more than a two inch vector per turn. This does not count acce-
+leration due to gravitational influence, and does not restrict repeated acceleration in
+succeeding turns. While a Free Trader can only accelerate 2 inches per turn, after 10
+turns, it would have accumulated a vector 20 inches in length.
+     There is no restriction on the number of accelerations which may be made by a
+fuelled ship, but the total acceleration in a turn in inches, may not exceed the size
+rating of the M-Drive. Should the letter class of the M-Drive (or the power plant) be
+reduced by combat damage, it may not exceed the revised size rating. Unused acce-
+leration may not be saved or conserved to allow excess acceleration in following
+turns.
+
+PLANETARY TEMPLATES
+     To express the effects of gravity in a scenario, a representative template may be
+created for any world once the diameter of the planet (in thousands of miles) is
+known. If desired, the planetary density (expressed as a fraction of Earth density)
+may be included in the computations. Additionally, the specifications for certain
+standard worlds, and for the planets of the Solar System are provided in tabular
+form.
+     The following steps are required for the computation of necessary data.
+     Step 1. Using the known values for D and
+K, compute the values for R, G, and M, as indi-
+cated in the planetary formulae chart, and
+record these values.
+     Step 2. Compute the values for L using
+formula 4, by substituting varying values for             PLANETARY FORMULAE
+G, beginning at 0.25 and increasing in 0.25
+increments until the value for G equals or ex-             1. R = D/2
+ceeds the value for G found in step 1. Record
+these.                                                     2. G = K (R/4)
+     Step 3. Using a compass and ruler, in-
+                                                                    3
+scribe concentric circles on a paper or card-              3. M = G
+board template. From a central point, indicate
+the planetary surface by inscribing a circle of            4. L = 4 M/G
+radius R. Then inscribe circles to mark expand-
+ing bands using as a radius the increasing val-
+ues of L determined in step 2.
+
+    The units of measure for R, D, and L are
+inches (which represent thousands of miles);
+
+                                         –26–
+
+===== BOOK 2 / PRINTED PAGE 27 / PDF PAGE 32 =====
+[This page also carries a figure or illustration that is not reproduced as text.]
+
+                                                                      2
+G is stated in terms of Earth gravity (one inch per [ten minute turn] ); K refers to den-
+sity in terms of Earth = 1.0; and M is stated in terms of Earth mass equals 1.0.
+
+     As an example of these computations, the following steps were taken to deter-
+mine the values for a template for Earth:
+     Step 1. Earth has a diameter (D) of 8 and a density (l<) of 1.0. Thus, R = 4 (8/2=4).
+G =1 (1.0x4/4= 1). M=1 (13 = 1).
+     Step 2. Because G at the planetary surface equals 1, it is necessary to determine
+L for strengths of G of 0.25, 0.50, and 0.75. At O.25 G. L = 8.0 (4 x square root of
+1/0.25 = 4 x square root of 4 = 4 x 2 = 8).At 0.50 G, L = 5.7 (4 x square root or 1/0.50 =
+4 x square root of 2 = 4 x 1.414 = 5.7 approximately). At 0.75 G, L = 4.6 (4 x square
+root of 1/0.75 = 4 x square root of 1.33 = 4 x 1.15 = 4.6 approximately).
+     Step 3. The template is now drawn using a compass and ruler. A circle of radius
+(R) of 4 is drawn to indicate Earth’s surface. A circle of with a radius of 4.6 inches is
+drawn to indicate the limit of 0.75 G influence. Similarly, circles with radii of 5.7
+inches (for the limit of 0.50 G influence) and 8 inches (for the limit of 0.25 G influ-
+ence) are drawn.
+     The resulting template is 16 inches in diameter (8 inch radius), and represents
+the Earth and its gravity well. The solid planet area should be shaded to indicate this
+fact, and the gravitational bands should be marked with their strengths. The tem-
+plate should be marked with its values for R, G, M, D, and K, as well as the planet’s
+name, and any other interesting data.
+
+
+
+                                          –27–
+
+===== BOOK 2 / PRINTED PAGE 28 / PDF PAGE 33 =====
+
+     Some Notes of Interest: In the scale presented for miniatures combat, no more
+than one planet or world of any important size will be on the average size playing
+surface. The moon (Luna) is 250,000 miles from Earth (Terra) and has a scale separa-
+tion of 250 inches, or slightly more than 20 feet. However, a ship can reach such a
+point in 16 turns (slightly more than 2% hours) by using a constant acceleration of
+1G. This means that the shifting of templates will be necessary as the battle
+progresses.
+     Similarly, in the scale given, the sun (Sol) would require a template 371 feet in
+diameter (in order to include its gravity well out to 0.25 G), and its physical surface
+line would inscribe a circle 70 feet in diameter.
+     Asteroids and Planetoids: Asteroid and planetoid belts are composed of many
+small worldlets, each with no significant gravity, and with no atmosphere or signifi-
+cant size. The average density of such a belt is about one asteroid per 4 square inch-
+es (approximate separation: 2 inches; 36 asteroids per square foot). Asteroids may
+be scattered on the playing surface, or they may be placed on a template for ease of
+shifting.
+
+STANDARD WORLDS
+Name        0D       R        0M         000.25    000.50    00.75    01.00    01.25
+One         01.00    0.50     00.002     00—       00—       0—       0—       0—
+Two         02.00    1.00     00.020     00S       00—       0—       0—       0—
+Three       03.00    1.50     00.050     001.83    00—       0—       0—       0—
+Four        04.00    2.00     00.125     002.82    00S       0—       0—       0—
+Five        05.00    2.50     00.240     003.95    002.77    0—       0—       0—
+Six         06.00    3.00     00.420     005.18    003.67    0S       0—       0—
+Seven       07.00    3.50     00.660     006.54    004.63    03.78    0—       0—
+Eight       08.00    4.00     01.000     008.00    005.70    04.61    0S       0—
+Nine        09.00    4.50     01.420     009.56    006.76    05.52    04.78    0—
+Ten         10.00    5.00     01.950     011.18    007.89    06.44    05.58    0S
+THE SOLAR SYSTEM
+Mercury     03.00     01.50   000.05    001.78   00—       0—      0—       0—
+Venus       07.50     03.75   000.82    007.24   005.12    04.18   0—       0—
+Earth       08.00     04.00   001.00    008.00   005.70    04.61   0S       0—
+Mars        04.20     02.10   000.11    002.65   00—       0—      0—       0—
+Jupiter     88.00     44.00   318.00    142.66   100.67    82.36   71.33    63.79*
+Saturn      75.00     37.50   095.20    078.05   055.19    45.06   39.02    0—
+Uranus      29.00     14.50   014.50    030.46   021.54    17.58   15.23    0—
+Neptune     28.00     14.00   017.30    033.27   023.52    19.21   16.63    14.88
+Pluto       03.60     01.80   000.004   00—      00—       0—      0—       0—
+*Jupiter at closer distances: 1.50G = 58.24, 1.75G = 53.92, 2.00G = 50.43, 2.25G =
+47.55, 2.50G = 45.11.
+
+     Note: D=Diameter, R=Radius, M=Mass. The columns marked 0.25 though 1.25
+indicate the strength of gravity at the distance shown in the column. S indicates that
+that is the strength of gravity at the world’s surface.
+
+
+                                         –28–
+
+===== BOOK 2 / PRINTED PAGE 29 / PDF PAGE 34 =====
+
+GRAVITY
+     When the vector of a ship passes through the gravity bands of a world, the grav-
+ity may alter that vector. During the movement phase, lay out the vector of the ship
+to determine where it will move. If the exact midpoint of the vector lies in a gravity
+band, a gravity vector will be added to the course vector to create a new vector. The
+length of this gravity vector is equal (in inches) to the strength of the gravity band in
+Gs. Thus, a vector dictated by the 0.5 G band of a world is 1.0 inches long. The gravi-
+ty vector is parallel to a line connecting the regular course midpoint to the planetary
+template center. It is added to the regular course vector (along with any ordinary
+course change vector) during a player's movement phase.
+
+LASER FIRE
+      In the laser fire phase of a player turn, the phasing player may fire his laser
+weaponry at enemy targets. The following procedure dictates the order of actions
+which must be taken by ships using laser fire. Several variables may affect this ac-
+tion.
+      First, the firing player selects the target at which the turrets of a single ship will
+fire. All lasers from one turret must fire on the same target; lasers from different tur-
+rets may fire on different targets if a multi-target program is running and will allow
+such activity. The firing player then continues to designate the targets for all of his
+ships.
+      Second, the firing player determines all applicable attack DMs and sums them to
+create one specific DM which he will use. Because of differences in ships, he may
+create one DM for each ship involved. Most attack DMs are the result of computer
+programs, but some may be forced by ship damage, faulty weaponry, or other dis-
+advantages.
+      Third, the target player then determines all applicable defense DMs and sums
+them to create a single defense DM to be used against the enemy fire. Defense DMs
+result from such circumstances as obscuring sand or atmosphere, range, or defen-
+sive programs.
+      Fourth, two dice are thrown, and that result modified by both the attack and de-
+fense DMs. lf the modified result equals or exceeds 8, a hit has been achieved. The
+dice throw is made once for each firing laser weapon. The total number of hits is
+noted.
+      Fifth, each hit received is located on the target ship. Using another two dice
+throw for each hit, the hit location table is consulted, and a specific effect is obtained
+and marked on the ship data card.
+
+     Laser fire is possible only for the phasing player, and hits are imposed on the
+target ship immediately. Return fire occurs in the following phase, and may be con-
+ducted only by ships which are capable of doing so after this phase.
+     Shifting Fire: Each firing ship must allocate its fire to a specific target before any
+ship has actually fired. Such allocation may be changed (shifted) if the target is de-
+stroyed before any weapons on the attacking ship have fired, but such a shift is sub-
+ject to a DM of –6 in addition to all other applicable DMs.
+
+
+
+
+                                           –29–
+
+===== BOOK 2 / PRINTED PAGE 30 / PDF PAGE 35 =====
+
+                                                                    LASER RETURN FIRE
+                   LASER FIRE DMs                                         Laser return fire is conducted
+                                                                    by those ships which have been
+   Attack DMs                                                       targets for laser fire from enemy
+   Target Program ........................................... E     weaponry in the preceding laser
+   Predict Program .......................................... *     fire phase. Both the target and
+   Pulse Laser ................................................. –1 return fire programs must be in
+                                                                    the computer, but they cycle into
+   Defense DMs                                                      the CPU only if actually used. La-
+   Maneuver/Evade Program ......................... *               ser return fire may only be di-
+   Auto/Evade Program .................................–2           rected at an enemy ship which
+   Range Greater than 150”........................... –2            fired at this ship. Laser return fire
+   Range Greater than 300”........................... –5            may be made against multiple
+   Per ½” of obscuring sand .......................... –3           enemy ships only if the multi-
+                                                                    target program is also present.
+   * depends on exact program in use. E indi-                             Anti-missile fire also takes
+   cates that no DM is provided for that item.                      place in the laser return fire phase.
+                                                                    It is dependent on the anti-missile
+fire program or the ECM program, or both. For anti-missile fire, no target program is
+necessary.
+
+ORDNANCE LAUNCH
+     During the ordnance launch phase, missiles or sand, or both may be launched,
+provided both launch and target programs are running. In addition, Iifeboats or
+ship’s vehicles may be launched (without programs being necessary) as desired.
+     During the ordnance launch phase, missiles or sand which contacted a target in
+the preceding movement phase now explode or take effect.
+     Ordnance must be specified as launched during the launch phase, and only one
+missile or sand canister may be launched from a launch rack or sandcaster. The
+launched item does not actually move until the following friendly movement phase.
+All ordnance which is launched has the launching ship's vector, which must be taken
+into account.
+     Reloading: Each launcher (sand or missile) has an inherent capacity for three
+missiles or canisters. This means that a triple turret with three missile launchers has
+a total of 9 missiles in immediate position. Such missiles are fully selectable by the
+gunner for type.
+     When a |launcher’s missiles or canisters are exhausted, it may be reloaded by
+the turret’s gunner in one turn. Reloading three launchers would take three turns. A
+gunner engaged in reloading is unable to fire other weaponry in the turret.
+     Missile Detonation: Ordnance which impacts a target in a movement phase, and
+which then survives anti-missile fire, detonates in the ordnance launch phase. This
+detonation has a variable effect based on the range at detonation. For each missile,
+throw one die to determine the number of hits inflicted; determine each resulting hit
+type separately. When consulting the hit type table, apply a DM of –4.
+
+COMPUTER PROGRAMMING
+    The computer installed on board a ship controls all activity for the ship, and is
+especially used to enhance weapons fire and defensive activity. It also transmits con-
+
+                                                 –30–
+
+===== BOOK 2 / PRINTED PAGE 31 / PDF PAGE 36 =====
+
+trol impulses for maneuver and jump drives, and conducts the routine operation of
+all ship systems. What the computer actually does is based on the programs actually
+installed and operating at any one time. .
+      Computers are specified in terms of their capacity to process and store pro-
+grams. All programs in the computer's CPU are processed simultaneously, while
+programs in storage are available on a revolving basis to replace those in the CPU as
+needed.
+      For example, a model/1 computer has a CPU capacity of two, and an additional
+storage capacity of four. The computer might have in it six programs, (each of size or
+space 1): return fire, predict 1, gunner interact, auto/evade, maneuver, and target. Of
+these six, only two (the capacity limit of the CPU) can function at any one time (in
+one phase). In the laser return fire Phase, both target and return fire programs would
+be required, and only those programs could be used with this capacity CPU to effect
+laser return fire. During a laser fire phase, again, only two programs could be used:
+target is required, but the player could select between predict 1 or gunner interact
+for the program to be processed, depending on which would allow the greater bene-
+fit.
+      During the computer reprogramming phase, specific programs may be removed
+from the computer and others inserted. To continue the example above, both jump-1
+and navigation would be required for the performance of an interstellar jump. Both
+programs would be fed into the computer during the reprogramming phase, but
+only after sufficient space had been cleared (perhaps by removing the maneuver and
+auto/evade programs).
+      Computer programs are presented in the Computer software list. They are clas-
+sified as defensive, offensive and routine programs.
+      Defensive programs are used to protect a starship against enemy action.
+      Maneuver/Evade: The six maneuver/evade programs automatically produce mi-
+nor movement for a ship, thus reducing the chances of the ship being hit by laser
+fire. Each has a DM based on pilot expertise to introduce this action. In addition,
+these programs allow the use of the maneuver drive as required, in lieu of the nor-
+mal maneuver program.
+      Auto/Evade: This program is similar to maneuver/evade, but only introduces a
+defensive DM against laser fire of –2.
+      ECM: The electronic countermeasures program jams and confuses the homing
+heads of incoming missiles, forcing them to explode prematurely in many cases.
+During the laser return fire phase, all missiles in contact with the ship are destroyed
+without damage to the ship, on a throw of 7+.
+      Offensive programs are intended to allow the use of weapons mounted on a
+ship to damage or destroy enemy vessels.
+      Target: This program identifies the target and controls all turrets on board ship.
+Target is required for all laser fire and launches except for anti-missile fire.
+      Predict: These five programs predict the future position of a target, allowing the
+insertion of lead into laser fire and an advantageous DM. Predict applies only to laser
+fire.
+      Gunner Interact: This program interfaces the expertise of the gunner in a specific
+turret to the hit probability of those lasers hitting. The expertise of the gunner be-
+comes a positive DM to hit when using laser fire.
+
+
+                                         –31–
+
+===== BOOK 2 / PRINTED PAGE 32 / PDF PAGE 37 =====
+
+     Selective: These programs allow a gunner to select either main compartment or
+engineering section as the target to receive hits to be inflicted. Each of the three se-
+lective programs inserts DMs against the probability of hitting the more restricted
+target, but hits, if made, are assured of going on the selected portion of the target.
+     Launch: This program is required to allow missiles to be launched from launch
+racks or sand to be fired from sandcasters, or both. The target program is also re-
+quired.
+     Multi-Target: These programs allow a ship to attack more than one target at one
+time. Each turret may still only fire at one specific target, but different turrets may
+fire at different targets. This program is required if more than one ship target is fired
+on in the same phase. The target program is also required. This program is not re-
+quired for use with the anti-missile fire program.
+     Return Fire: This program allows laser weaponry to fire at enemy ships which
+have fired at it in the immediately previous fire phase. Use of this program also re-
+quires the target program, and DMs allowed by other programs (such as gunner in-
+teract) are allowed. If more than one enemy ship is fired on, the multi-target pro-
+gram is also required.
+     Anti-missile: This program allows any or all laser weaponry to fire at enemy
+missiles which have contacted the ship during the preceding movement phase. The
+target and multi-target programs are not required. Other programs do not effect the
+functioning of these programs (with DMs, etc).
+     Double Fire: This program allows a ship to draw excess power (if available) from
+the power plant, and thus increase the output of laser weaponry. When this program
+is functioning, a vessel with a power plant rated at least one letter higher than its M-
+Drive (and which has not yet taken damage to reduce the current letter rating to
+equal to or below the M-Drive letter) can fire a double beam or double pulse with
+laser weaponry. The normal dice throw to hit is made twice. Each time double fire is
+used, a throw must be made to determine if overload has occurred: For the first
+phase of such fire, throw 1+ to survive overload; for the second phase, throw 2+ to
+survive, etc. If the throw is not achieved, a hit is received on the ships power plant.
+     Routine programs are used to operate systems other than weaponry, and with-
+out regard to violent interaction.
+     Maneuver: This program is required to allow the use of Maneuver drive. In com-
+bat it is often replaced by the Maneuver/Evade program.
+     Jump: The jump programs are each required to allow the ship to perform a
+jump through interstellar space. The specific program for the jump distance required
+must be used.
+     Library: Much of the detailed information concerning the universe is contained
+in the purely informational library program. Crew and passengers often refer to this
+program before disembarking on a world. The referee will often find this a handy
+method of imparting commonly known information to the players. The note should
+be made that the library program is not all inclusive, and may be incorrect in some
+facts.
+     Generate: The navigator or pilot can input specific co-ordinates into the comput-
+er concerning a destination, and the generate program will create a flight plan to
+take the ship there. In cases where a generate program is not available, starports
+have single-use flight plans (in self-erasing cassettes) available for all worlds within
+jump range, and for which space lanes exist ( see Book 3).
+
+                                          –32–
+
+===== BOOK 2 / PRINTED PAGE 33 / PDF PAGE 38 =====
+
+     Navigation: Flight plans must be fed into the navigation program, which then
+interfaces with the jump program to actually take a ship to its destination. To actual-
+ly make a jump, both the jump and navigate programs must be functioning in the
+computer (the generate program need only run long enough to actually create the
+flight plan).
+     Anti-Hijack: This program constantly monitors conditions within the starship,
+and automatically locks the access doors to the bridge and controls when a hijack
+situation occurs. Because this system is not foolproof, would-be hijackers may gain
+access in spite of the program on a throw of 5 or less.
+     Player-characters can, and should, seek out new and different computer pro-
+grams to assist them in the use and performance of their spacecraft. Generally, the
+writing of programs will conform to the outline given for computer skill in Book 1.
+
+    Certain types of standard craft (notably pinnaces, lifeboats, and the like) do not
+have standard computers. These craft may, in a game-turn, maneuver (accelerate or
+decelerate), or fire weaponry. They may not do both in the same turn. Return fire
+and anti-missile fire is not possible. A gunner on such craft may apply half of his
+gunnery expertise to a laser or launcher on the vessel.
+
+DETECTION
+    Starships can detect other ships at a range of approximately a half million miles
+(500 inches). Military vessels and scouts have detection ranges out to two million
+miles (2000 inches).
+    Ships which are maintaining complete silence cannot be detected at distances of
+greater than 100,000 miles; ships in orbit around a world and also maintaining com-
+plete silence cannot be detected at distances greater than 10,000 miles. Planetary
+masses and stars will completely conceal a ship from detection.
+
+DAMAGE DEFINITIONS
+   The following instructions detail the manner in which damage affects ships.
+
+     Drives and Power Plants: Each hit achieved on a drive or power plant reduces its
+letter classification by one. Thus C becomes B, X becomes W, etc. The potential of
+the drive or power plant is then computed based on its temporary new letter.
+     A power plant which is reduced to a level of the maximum drive potential table
+where its capabilities are marked with a dash cannot function. A drive reduced to
+less than A is destroyed, and must be replaced rather than repaired.
+     Turrets: Each turret hit incapacitates a turret, preventing it and its weaponry
+from functioning. In cases where multiple hits occur on a ship with more than one
+turret, dice randomly to determine which turret or turrets are hit.
+     Hull: A hull hit decompresses the ship’s hull interior. Further hull hits have no
+effect.
+     Hold: A hold hit allows potential damage to items in the hold, including ship’s
+vehicles and lifeboats, as well as cargo. Dice to determine randomly which items are
+damaged. Such damage may be reparable under the expendables rule.
+     Fuel: Each fuel hit punctures a fuel tank, and releases about 20 tons of fuel.
+When sufficient fuel hits have been inflicted to account for 60% of fuel tankage, the
+
+
+                                         –33–
+
+===== BOOK 2 / PRINTED PAGE 34 / PDF PAGE 39 =====
+
+vessel may not make a jump; when all fuel is accounted for, the vessel may not use
+its maneuver drive.
+     Computer: Each hit on the computer increases its chance of malfunctioning. The
+basic throw for a computer to operate in any situation is 1+, indicating extreme re-
+liability. Each hit on the computer serves as a DM of –1 on the throw to operate.
+Thus, after three hits are inflicted on the computer, a DM of –3 is applied to the
+throw of 1+ to operate. The throw to operate is made each time the computer is used
+(in combat, this is generally once per phase). A computer which does not make its
+throw to operate malfunctions for the remainder of the phase. A new throw is made
+at the beginning of the next phase. A computer which has received 12 hits is perma-
+nently malfunctioning.
+     Persons with computer expertise may apply their skill level as a DM on the
+throw to operate.
+     A computer which is not operating effectively paralyses a starship.
+     Small Craft Passenger Section: A hit on a
+small craft passenger section results in ex-            HIT LOCATION TABLE
+plosive decompression if decompression has
+not already occurred. Additional hits have no      Dice Starship         Small Craft
+effect. Persons in vacc suits while in the pas-    2      Power Plant Drive
+senger section are unaffected.                     3      Maneuver       Drive
+     Small Craft Weaponry: A hit on the wea-       4      Jump           Drive
+ponry of a small craft destroys that weapo-        5      Computer       Drive
+nry. Additional hits have no effect.               6      Hull           Drive
+     Small Craft Drive: A hit on the drive of a    7      Hull           Cabin
+small craft destroys the drive; the craft cannot   8      Hold           Cabin
+maneuver or accelerate.                            9      Fuel           Cabin
+                                                   10     Turret         Weaponry
+     Hits as a result of laser fire, laser return  11     Turret         Weaponry
+fire or missile detonation are located on the      12     Turret         Weaponry
+target vessel through the use of the hit loca-
+tion table. Such damage as indicated above is then marked on the ship’s data card.
+
+SPECIAL SITUATIONS
+    The following are descriptions of the manner in which several special situations
+may be handled when they arise. In addition to the specific instructions given, they
+also serve as a model for the creation of methods of handling other special situa-
+tions.
+
+     Decompression: Starships (and non-starships) depressurize their interiors before
+combat whenever possible; the passengers and crew resorting to vacc suits for safe-
+ty and comfort. This procedure minimizes the danger due to explosive decompres-
+sion as a battle result. In some cases, selected areas may remain pressurized (per-
+haps the hold, for the safety of delicate cargo) while other areas are depressurized.
+     Any number of areas in the ship may be depressurized in the span of one turn
+(ten minutes). Repressurization requires two turns.
+     The following parts of the ship may be individually regulated: engineering sec-
+tion, hold, bridge, staterooms (individually), turrets (individually). The pilot controls
+depressurization from the bridge.
+
+                                          –34–
+
+===== BOOK 2 / PRINTED PAGE 35 / PDF PAGE 40 =====
+
+     Hull hits result in explosive decompression if pressure has not already been lo-
+wered. Explosive decompression kills all persons in that section unless a vacc suit is
+available and put on immediately. Throw 9+ to put on an available vacc suit; DM +
+level of vacc suit expertise, and DM + dexterity of the individual.
+     Atmospheric Braking: Ships passing very close to the surface of a world with a
+standard or dense atmosphere may slow their speed through atmospheric braking. lf
+any portion of a ship’s vector passes within 1/4 inch of a world’s surface, that vector
+is reduced by 1/4 inch in length.
+     Abandon Ship: Should circumstances warrant, a ship may be abandoned using
+ship’s vehicles or other methods.
+     Military vessels (including exploratory vessels) can generally board the full pas-
+senger and crew complement of their ship’s vehicles, and launch them during the
+ordnance phase of a turn, provided those individuals perform no other activity dur-
+ing the turn. If individuals are in vacc suits, each boards on a throw of 6+, boarding
+in the next turn if unsuccessful.
+     Non-military vessels require 1 to 6 turns (throw one die to determine the num-
+ber of turns) to fully load all ship’s vehicles. Crew members in the vehicles may elect
+to abandon ship without waiting for stragglers.
+     Individuals in vacc suits may abandon ship during the ordnance launch phase
+providing no other activity is performed during the player turn. Such persons may
+then be picked up by other ships or vehicles.
+     Individuals in vacc suits who are not picked up may attempt to land on a planet.
+The following notes apply:
+     1. A vacc suit can support its occupant for up to 100 ten-minute turns; an addi-
+tional air/recycling tank will provide another 100 turns.
+     2. A vacc suit is capable of a total of 3 inches of acceleration.
+     3. A foamed atmospheric reentry ablation shield (part of the vacc suit kit) can
+protect the individual while entering atmosphere, provided his vector, while entering
+atmosphere, does not exceed 2 inches.
+     4. Generally, accident or mishap can occur during the process. Throw 6+ to sur-
+vive provided all else is performed properly.
+     Wilderness Refuelling: Unrefined fuel may be obtained by skimming the atmos-
+phere of a gas giant if unavailable elsewhere. Most star systems have at least one
+gas giant; the presence of a gas giant can be predicted from a distance of Jump-1, or
+determined from the ship’s library. Throw 10+ for a system to not have a gas giant
+present.
+     Planetary Defense Fires: Many planets have extensive defenses based on laser
+weaponry, either in orbit or emplaced on the planetary surface. Such weaponry func-
+tions in the same manner as ship’s guns, generally as beam lasers, and generally in
+triple turret mounts. Orbital emplacements are treated as starships; planetary sur-
+face emplacements must receive turret hits to affect them.
+     Ships can fire on such defenses from space. Persons located on the surface and
+in contact with a ship can serve as forward observers to assist in accurate fire.
+     Damage Control: Damage inflicted on starships in combat can be repaired or
+controlled by crew members during the battle. Especially in the case of player-
+characters, expertise or skill in specific fields may be used to remove or repair dam-
+age. Usually, a throw of 9+ will repair one hit of damage, with skill serving as a posi-
+
+
+                                         –35–
+
+===== BOOK 2 / PRINTED PAGE 36 / PDF PAGE 41 =====
+
+tive DM. One repair attempt may be made per ten minute turn. Drive damage which
+has completely destroyed a drive or power plant cannot be repaired.
+     The Ship’s Locker: Most vessels carry a complete survival locker, capable of
+supplying at least the crew of the ship with cold weather clothing, communicators,
+basic rations for at least several days, and medical equipment. Weapons other than
+knives are not generally stocked on non-military vessels, but characters owning their
+own ships may elect to provide shotguns, rifles, or other guns if they desire. They
+may also specify other items they consider valuable or necessary for survival situa-
+tions.
+     Strategic Movement: Gross movement between the stars (the actual jumps per-
+formed by the jump drive) is executed on the star-maps generated in Book 3.
+
+STARSHIP ENCOUNTERS
+     When a ship enters a star system, there is a chance that any one of a variety of
+ships will be encountered. The ship encounter
+table is used to determine the specific type of           SHIP ENCOUNTERS
+vessel which is met. This result may, and
+should, be superseded by the referee in spe-          Die     Ship Encountered
+cific situations, especially if a newly entered    8 or less No encounter
+system is in military or civil turmoil, or in-         9      Free Trader
+volves other circumstances.                           10      Free Trader
+     Throw two dice; apply a DM based on the          11      Free Trader
+starport of the primary world of the system (A        12      Pirate
++6, B +4, C +2, D +1, E –2, X –4). The result         13      Subsidized Merchant
+indicates the ship type encountered. If neces-        14      Patrol
+sary, exact specifications for the ship should        15      Subsidized Merchant
+be generated. Both Patrol and Pirate Ships            16      Yacht
+will generally be Type S Scout/Couriers               17      Yacht
+(throw 6–) or Type C Cruisers (throw 8+), with        18      Patrol
+the chance that they are Armed Type Y Yachts
+(throw 7).
+     Free Traders, if friendly, may serve as a source of information about other cir-
+cumstances in the system; Subsidized Merchants may also provide such informa-
+tion. Patrols may be simple border pickets, or may be a form of pirate, exacting tolls
+or penalties.
+
+COMMENTS
+     This system of starship combat is designed to be used in conjunction with Tra-
+veller characters, but may also be easily adapted to simple space combat when and
+if desired.
+     Dimensions: These rules envision play on a flat surface, such as a floor or table-
+top; the use of a third dimension (height, altitude or elevation) is not required.
+     In small encounters (three or fewer ships, or groups of ships) the third dimen-
+sion is not required as three points define a plane. Even with larger numbers of
+ships, a third dimension adds an element of complication not essential to the game.
+     For those who still desire three dimensional interaction, it is suggested that alti-
+tude above or below the playing surface plane be noted in inches, and trigonometry
+and/or electronic calculators be used to compute distances and altitude changes.
+
+                                          –36–
+
+===== BOOK 2 / PRINTED PAGE 37 / PDF PAGE 42 =====
+
+     Optional Acceleration Effects: The vector movement system used in this game
+assumes, for simplicity, that all acceleration is instantaneous, and occurs at the be-
+ginning of the movement phase of the turn. For those who wish a greater degree of
+realism, note that, if acceleration occurs evenly during the movement phase, initial
+movement (i.e., during the turn acceleration is applied) will only be half that of the
+                         2
+added vector (D = ½at for constant a). Full effect of the new vector will be felt only
+on succeeding turns. This also applies to the force of gravity.
+     Non-Miniatures Battles: In the course of normal Traveller adventures, starship
+travel should be subject to the encounters and potential battles called for by this
+rules section.
+     Generally, when a ship enters a star system, the encounter table should be con-
+sulted. If a ship is present, the encounter should be resolved, whether by communi-
+cator, boarding, warning shots, or simple combat.
+     Ship encounters may be made an easily included part of adventures by abbre-
+viating the movement requirements. In essence, when an encounter occurs, shots (if
+they occur) are traded without regard to range initially. When one vessel elects to
+flee, the referee then states that a certain number of shots may be made before the
+ship is out of range.
+     For greater detail, it is also possible to plot the progress of a space battle on pa-
+per, without regard to miniatures. Such activity gives a permanent record of the ac-
+tivity, and allows the imposition of appropriate scales as necessary.
+
+
+
+
+                                          –37–
+
+===== BOOK 2 / PRINTED PAGE 38 / PDF PAGE 43 =====
+
+Drugs
+     A variety of pharmacological means are commonly (or uncommonly) available
+to travellers for medicinal (and other) purposes. Each drug has its own advantages
+and disadvantages, which users would be well served to be aware of.
+     Drugs, for uniformity and ease of use, are usually available in consistent, one-
+dose pill form. The six classes of drug described below are generally well known in
+the civilized universe. Psi-drugs are described in the section dealing with psionics.
+Other drugs are possible, but their use and availability must be prescribed by the
+referee.
+
+      Slow Drug is named because it makes the universe (from the viewpoint of the
+user) appear to move more slowly. This effect is achieved by accelerating the user's
+metabolism. In effect, the user lives at a much faster rate, approximately twice as
+fast as normal.
+      When taken, slow drug takes effect after three firing round (45 seconds), and
+continuing to function for 40 (real time) firing rounds. At the end of its effect, the
+user receives 1D in wounds or hits. A person using slow drug, because he is living at
+twice the normal rate, is allowed two combat rounds to each one available to normal
+individuals. The person can fire a weapon twice, or make two combat swings or
+blows, or move twice as far as normally.
+      A medical slow drug is also available, being used to hasten recovery from
+wounds or illness. One dose causes unconsciousness, and the passage of 30 days
+equivalent time in one day. During this period, ordinary healing takes place. No
+wounds or hits are received from the use of medical slow drug. Be certain to note
+the passage of time at the increased rate during period of drug use.
+      Fast Drug is named because it makes the universe (to its user) appear to move
+much more quickly; the drug slows down personal metabolism at a ration of approx-
+imately 60 to 1. Users are extremely vulnerable because they are living at such a
+slow rate; but physical aging is also slowed, and the need for consumable supplies is
+reduced, thus allowing conservation of air and food.
+      Fast drug takes effect immediately upon ingestion; one dose lasts for 60 days,
+making that time appear to be only one day. An antidote exists which cancels the
+effect remaining when taken.
+      Combat Drug is taken by fighters (usually military personnel) prior to combat. It
+increases personal strength and endurance each by two. The effect begins 2 combat
+rounds after taking, and lasts for 30 combat rounds. When the effect wears off, the
+user receives 1D in wounds.
+      Medical Drug is a general term describing the set of drugs used by medical per-
+sonnel in the treatment of illness or injury. Generally, medical drug must be adminis-
+tered by a person with medical expertise, and the drug serves as medical treatment.
+Medical drug is used in conjunction with fast drug in most cases.
+      Anagathics are drugs which counteract the aging process. A regimen of regular
+monthly doses enables an individual to ignore the aging die throws and their poten-
+tial for debilitation.
+      Because of the rarity and demand for anagathics, they are quite expensive, and
+are often unavailable at any price.
+
+                                         –38–
+
+===== BOOK 2 / PRINTED PAGE 39 / PDF PAGE 44 =====
+
+    Truth Drug is used to compel individuals to answer interrogation truthfully. One
+dose is sufficient to assure truthful answers for approximately 2 minutes, after which
+the user experiences one hour of unconsciousness, and 2D in wounds.
+
+     The drug table indicates the name, gross effect, base price, technological index
+(see book 3) of the type of world on which it is generally available in pill form, and a
+throw for availability.
+     Availability indicates the chance that, after determined search, a band of adven-
+turers will find an individual with some of the drug available for sale. A DM of +1 for
+each additional level of technological index on a world is allowed. DMs might be
+allowed for trained medical personnel, or admin or bribery expertise.
+     Synergy: If more than one drug is taken (except medical drug), the combination
+may have an adverse effect, called synergy. In addition to all other effects of drugs,
+throw one die for each drug taken, and multiply the results together. This indicates
+the number of hits or wounds received as a result of synergy. Such hits are inflicted
+at the end of the period of drug use.
+
+                                         DRUGS
+Type                 Effect                         Price          Tech     Availability
+Slow                 2:1 Slower                     CR 00500       08      09+
+Medical Slow         30:1 Slower                    CR 00100       7       07+
+Slow Antidote        counteracts slow drug          CR 00600       10      10+
+Fast                 60:1 Faster                    CR 00200       09      08+
+Fast Antidote        counteracts fast drug          CR 00900       12      09+
+Anagathics           voids aging throws             CR 20000       15      10+
+Truth                two minutes of truth           CR 05000       08      07+
+Combat               +2 Stren, Endur                CR 00750       09      06+
+Medical              aids recovery                  CR 00100       06      09+
+Psi-Booster          see psionics                   CR 01000       see psionics
+Psi-Double           see psionics                   CR 04000       see psionics
+Psi-Special          see psionics                   CR 10000       see psionics
+
+     Legality: Worlds may have legal restrictions regarding the possession and use of
+drugs. Book 3 fully describes worlds; there is a chance that local law will prohibit or
+regulate drug possession and use based on the law level of the world. Throw two
+dice: if the result is equal to or greater than the law level of the world, there is gener-
+ally no problem. If the result is less than the law level, then using, possessing or at-
+tempting to purchase drugs is considered to be illegal.
+
+
+
+
+                                           –39–
+
+===== BOOK 2 / PRINTED PAGE 40 / PDF PAGE 45 =====
+
+Experience
+     As characters travel through the universe, they already know their basic physical
+and mental parameters: their basic education and physical development have al-
+ready occurred, and further improvement can happen only by dedicated endeavor.
+The experience which is gained as the individual character travels and adventures is,
+in a very real sense, an increased ability to play the role which he has assumed.
+
+SELF-IMPROVEMENT
+     Limited personal development and experience is possible in the sense of in-
+creasing abilities and skills. Such potential for increases is possible in four specific
+areas, only one of which may be attempted at one time: education, weapon exper-
+tise, other skills, and physical fitness.
+     In each field, the character devotes himself to a four-year program of self-
+improvement, dedicating his endeavors in something like obsession, to the general
+end of self-improvement. Because persons do not always have the will to continue
+with such a program, there is the chance that the program will be planned, but never
+actually carried out. After the general field has been chosen, the character must
+make a dedication die roll. Throw 8+; no DMs apply except when throwing to enter a
+physical fitness program, in which case +2 if intelligence is 8 or less, +4 if intelli-
+gence is 5 or less. Failure to achieve this throw indicates that the self-improvement
+program is not carried out, and a new one may not be attempted for at least one
+year. Success in the throw indicates that the program is undertaken.
+     Education: A character with an education characteristic lower than his intelli-
+gence characteristic may improve his education level through the use of correspon-
+dence courses and tutoring. In general such courses (or tutors) have a base price of
+CR 50 per week. Generally one session per week is taken, though 2 per week are
+possible. After 50 sessions are completed (about one year), the character's education
+level is increased by one. In the four-year period, it is possible to increase the educa-
+tion characteristic a maximum of 6 levels.
+     Education increases gained are permanent. A character may not work in this
+area unless his education characteristic is lower (at the start of the program) than his
+intelligence.
+     In addition, any character may, once in his life, take a sabbatical (for 4 years) for
+the purpose of specifically gaining a skill through education. Such activity is the
+equivalent of a technical school or college education, and allows the acquisition of
+one specific non-weapon skill with a level 2. Cost of this education is CR 70,000.
+     Weapon Expertise: The skill which a character has in his weaponry indicates his
+native trained ability; by dedicating himself (through training and practice) to specific
+weapons, the character may hone his skill on a temporary basis. Consider that highly
+skilled marksmen achieve their best work when at the peak of their training. One gun
+and one blade weapon may be chosen; skill level in each is increased by 1 for the
+duration of the program. If a weapon is chosen in which the character has a skill lev-
+el of ½, his skill level is increased, for that weapon, to 1 on a permanent basis.
+
+    At the end of this program, skill increases are lost unless the program is ex-
+tended or continued formally for another four years. After a second four-year pro-
+gram, the improved skill level becomes permanent. This permanent level may then
+                                          –40–
+
+===== BOOK 2 / PRINTED PAGE 41 / PDF PAGE 46 =====
+
+itself be temporarily improved by further programs of training. Any weapons may be
+chosen for this type of program, and one or both weapons may be dropped for new
+ones in the succeeding program.
+     For example, Johnson has skills of foil-½ and revolver-3, and chooses to practice
+in these weapons. After successfully making his throw of 8+ for dedication to pur-
+pose, his skill levels for these weapons become foil-1 and revoIver-4. At the end of
+the four-year program, his skills would revert to foil-1 and revolver-3 if he does not
+continue his program of training. Johnson successfully makes his dedication throw
+of 8+ again, and continues in these two weapons. His skill level becomes foil-2 and
+revolver-4. At the end of that 4 year program, he elects to abandon this self-
+improvement for another program, and his weapons skills revert to foil-1 and (be-
+cause he has spent a second four-year program on revolver) revolver-4.
+     Skill Improvement: In a fashion similar to that of weapon expertise, a character
+may temporarily improve his skill in another field by dedicating himself to it for a
+program of 4 years duration. Only two skills may be chosen, and the individual must
+already have a level of at least 1 in each skill. Skill level reverts to the original level at
+the end of the program. If the program is continued for a second four-year period,
+the new skill level becomes permanent at the end of that period.
+     Physical Fitness: Because many individuals find a regimen of physical condition-
+ing unrewarding intellectually, a dedication throw of 8+ is required (DMs of +2 for
+intelligence of 8 or less, or +4 for intelligence of 5 or less. lf the throw is attained, the
+character increases his three physical characteristics (strength, endurance, and dex-
+terity) each by 1. This increase remains in effect for the duration of the physical fit-
+ness program. Physical characteristics may never be increased to more than 15.
+
+    The pursuit of a program envisions that the required materials will be available
+on a regular basis. Weapons training requires the weapons specified; tutoring re-
+quires a tutor. If the required materials are not available, the program is suspended
+temporarily, but the benefits are not lost if the suspension is of less than 3 months
+duration.
+
+ALTERNATIVES
+     The above is the only ordinary method of self-improvement available to charac-
+ters. Highly scientific or esoteric methods of improving personal skills and characte-
+ristics are logically available, provided the individuals search hard enough for them.
+Such methods could include RNA intelligence or education implants, surgical altera-
+tion, military or mercenary training, and other systems. Alternatives to the above
+methods must be administered by the referee.
+
+
+
+
+                                            –41–
+
+===== BOOK 2 / PRINTED PAGE 42 / PDF PAGE 47 =====
+
+Trade and Commerce
+     Although most commercial starships routinely carry cargos as common carriers,
+charging a flat rate per ton for the service, many also engage in speculation by buy-
+ing goods at low prices, transporting them in spare cargo space, and then selling
+them for higher prices in markets anxious for them.
+     A reasonably comprehensive listing of trade goods and speculation items is pre-
+sented in the trade and speculation table. Some of the goods have base prices which
+will provide a return insufficient to pay even the overhead necessary for them; none-
+theless, it could prove more profitable to transport such goods than to ship empty
+hold space.
+     All listed trade goods have a specified base price which indicates the absolute
+value of the goods on a constant scale. The actual value table indicates the price
+such goods may be purchased for, by showing a percentage modification to the
+base price. Upon arriving at a potential market, the selling price may also be deter-
+mined as a percentage of the base price (not actual purchase price).
+
+PROCEDURE
+     A trader with cargo space available and free capital with which to speculate may
+seek out suitable goods to buy and sell. The referee throws two dice, noting their
+results consecutively, to create a number between 11 and 66. A DM of +1 is imposed
+on the first die if the world’s population is 9 or greater; a DM of –1 is imposed if the
+world’s population if 5 or less. A modified throw of less than 1 is 1, greater than 6 is
+6. This throw indicates a search by the characters has determined that this type of
+trade good is the best item available for the purpose. A throw may be made once per
+week.
+     The quantity of goods available is then determined. Throw the number of dice
+                                  and multiply as shown (3Dx5 indicates the result of a
+   ACTUAL VALUE TABLE             three dice throw multiplied by 5). This is the quantity
+    Die       Percentage          of goods available in the lot, expressed in tons except
+     2           040%             in the case of items 51 through 56, which are ex-
+     3           050%             pressed per each item. Goods are available up to the
+     4           070%             quantity encountered. A lot may be split or partial
+     5           080%             purchases may be made if the characters desire. Such
+     6           090%             partial purchases do entail a handling fee of 1% if
+     7           100%             made.
+     8           110%                  The price of goods is determined by consulting
+     9           120%             the actual value table; a two dice throw determines
+    10           130%             the percentage of the base price to be paid for the
+    11           150%             goods. This value multiplied by the quantity of goods
+    12           170%             in the lot gives the net cost of the items to the charac-
+    13           200%             ters.
+    14           300%                  The actual value table is subject to DMs from
+    15           400%             three sources: character’s skills, brokers' services, and
+                                  world characteristics.
+
+
+
+
+                                           –42–
+
+===== BOOK 2 / PRINTED PAGE 43 / PDF PAGE 48 =====
+
+     Broker's DMs: Four types of brokers are available to assist in the sale of goods
+once delivered to a world. Each must be paid his fee even if the seller decides not to
+sell his goods. Broker's fees are related to their general worth; 5% of sale price for
+each +1 to the resale die throw. Thus, a +4 broker receives a 20% commission for
+determining the best resale price around. A broker DM may never be higher than +4.
+Only one broker may assist with a sale.
+     Character Skills: lf characters are skilled in bribery or admin, they may apply
+these as DMs for the sale of goods. In any given transaction, such DMs may be used
+by only one person.
+     World Types: The trade and speculation table indicates purchase and resale DMs
+based on world types. Book 3 indicates the meaning of various world characteristics
+for other aspects of the game. They are used here to define six world types of inter-
+est: agricultural and nonagricultural, industrial and nonindustrial, rich and poor
+worlds. A world may meet the criteria for more than one label. Those meeting crite-
+ria for more than one label are subject to the DMs for each such label when using
+the trade goods table.
+     Agricultural Worlds: Any world with atmosphere 4 - 9, hydrographic percentage
+4 - 8, and population 5 - 7 is an agricultural world.
+     Non-Agricultural Worlds: Any world with an atmosphere 3 or less, hydrographic
+percentage 3 or less, and population 6 or greater is a non-agricultural world.
+     Industrial Worlds: A world with an atmosphere 0, 1, 2, 4, 7, or 9, and a popula-
+tion of 9 or more is an industrial world.
+     Non-Industrial Worlds: Any world with a population of 6 or less is a non-
+industrial world.
+     Rich Worlds: Any world with a government type of 4 - 9, an atmosphere of 6 or
+8, and a population of 6 - 8 is a rich world.
+     Poor World: Any world with an atmosphere of 2 - 5, and a hydrographic percen-
+tage of 3 or less is a poor world.
+
+     The trade goods table lists many types of goods, often of general classes which
+may be of interest to characters for various uses. The goods labels are abstractions,
+such that a cargo of firearms could potentially be any form from muzzle-loading rep-
+licas to laser carbines. Should characters wish to divert some part of the cargo to
+personal use (through payment or pilferage), the exact type of cargo must be deter-
+mined by the referee.
+     When determining the contents of a cargo, the players and referee must be cer-
+tain to correlate the established price of goods with the cost per ton. For example,
+the base price of a shotgun is CR 150, while a ton of firearms as trade goods has a
+base price of CR 30,000. A strict weight extension of the shotgun (3.75 kg per shot-
+gun) would indicate 266 shotguns. Extension should be instead based on price, with
+weight as a limiting factor. Thus one ton of shotguns would contain 200 guns, at CR
+150 each. The extra weight would be considered packing and crates. Similar calcula-
+tions should be made to keep prices in line on other trade goods.
+     Some goods (those results 51 - 56, and 66 on the table) are sold individually in-
+stead of by the ton. Quantity is expressed in single units; tonnage weight and base
+prices must be determined by the players or referee in accordance with established
+prices and equipment.
+
+
+                                         –43–
+
+===== BOOK 2 / PRINTED PAGE 44 / PDF PAGE 49 =====
+
+                          TRADE AND SPECULATION TABLE
+Die   Trade Good          Base Price   Purchase DMs      Resale DMs          Quantity
+11    Textiles            3000         A–7, NA–5, NI–3   A–6, NA+1, R+3      3Dx5
+12    Polymers            7000         I–2, R–3, P+2     I–2, R+3            4Dx5
+13    Liquor              10000        A–4               A–3, I+1, R+2       1Dx5
+14    Wood                1000         A–6               A–6, I+1, R+2       2Dx10
+15    Crystals            20000        NA–3, I+4         NA–3, I+3, R+3      1D
+16    Radioactives        1000000      I+7, NI–3, R+5    I+6, NI–3, R–4      1D
+21    Steel               500          I–2, R–1, P+1     I–2, R–1, P+3       4Dx10
+22    Copper              2000         I–3, R–2, P+1     I–3, R–1            2Dx10
+23    Aluminum            1000         I–3, R–2, P+1     I–3, NI+4, R–1      5Dx10
+24    Tin                 9000         I–3, R–2, P+1     I–3, R–1            3Dx10
+25    Silver              70000        I+5, R–1, P+2     I+5, R–1            1Dx5
+26    Special Alloys      200000       I–3, NI+5, R–2    I–3, NI+4, R–1      1D
+31    Petrochemicals      10000        NA–4, I+1, NI–5   NA4, I+3, NI–5      6Dx5
+32    Grain               300          A–2, NA+1, I+2    A–2,                8Dx5
+33    Meat                1500         A–2, NA+2, I+3    A–2, I+2, P+1       4Dx5
+34    Spices              6000         A–2, NA+3, I+2    A–2, R+2, P+3       1Dx5
+35    Fruit               1000         A–3, NA+1, I+2    A–2, I+3, P+2       2Dx5
+36    Pharmaceuticals     100000       NA–3, I+4, P+3    NA–3, I+5, R+4      1·D
+41    Gems                1000000      I+4, NI–8, P–3    I+4, NI–2, R+8      1D
+42    Firearms            30000        I–3, R–2, P+3     I–2, R–1, P+3       2D
+43    Ammunition          30000        I–3, R–2, P+3     I–2, R–1, P+3       2D
+44    Blades              10000        I–3, R–2, P+3     I–2, R–1, P+3       2D
+45    Tools               10000        I–3, R–2, P+3     I–2, R–1, P+3       2D
+46    Body Armor          50000        I–1, R–3, P+3     I–2, R+1, P+4       2D
+51    Aircraft            1000000      I–4, R–3          NI+2, P+1           1D
+52    Air/Raft            6000000      I–3, R–2          NI+2, P+1           1D
+53    Computers           10000000     I–2, R–2          NI+2, P+1, A–3      1D
+54    ATV                 3000000      I–2, R–2          NI+2, P+1, A+1      1D
+55    AFV                 7000000      I–5, R–2, P+4     NA–2, A+2, R+1      1D
+56    Farm Machinery      150000       I–5, R–2          A+5, NA–8, P+1      1D
+61    Electronics Parts   100000       I–4, R–3          NI+2, P+1           1Dx5
+62    Mechanical Parts    75000        I–5, R–3          NI+3, A+2           1Dx5
+63    Cybernetic Parts    250000       I–4, R–1          NI+4, A+1, NA+2     1Dx5
+64    Computer Parts      150000       I–5, R–3          NI+3, A+1, NA+2     1Dx5
+65    Machine Tools       750000       I–5, R–4          NI+3, A+1, NA+2     1Dx5
+66    Vacc Suits          400000       NA–5, I–3, R–1    NA–1, NI+2, P+1     1Dx5
+
+    Use this table to determine goods and prices for goods available for interstellar
+speculation. Die indicates the result of two consecutive die throws. Base price is the
+unaltered value of the goods. Purchase DMs alter this value based on the world of
+purchase. Resale DMs alter this value based on the world of resale. Quantity is the
+amount of goods in the lot which is available. Items 11 through 46 and 61 through 66
+are expressed in tons. Items 51 through 56 are expressed per each single item.
+    Abbreviations: A = Agricultural World, NA = Nonagricultural World, I = Industrial
+World, NI = Nonindustrial World, R = Rich World, P = Poor World.
+
+                                        –44–
+
+===== BOOK 2 / PRINTED PAGE 45 / PDF PAGE 50 =====
+
+–45–

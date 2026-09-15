@@ -410,3 +410,26 @@ test('a duplicated or imported space scene stays a space scene with its ships', 
     assert.deepEqual(copy.tokens[1].velocity, scene.tokens[1].velocity);
   }
 });
+
+// v0.171.0: a space scene publishes as a plot, not as a NaN-sized grid.
+test('an activated space scene publishes its span, bodies and ship vectors', async () => {
+  const { publishedVectorSceneDocument } = await import('../src/published-view.js');
+  let scene = createSceneDocument({ campaignId: 'sea', name: 'San Telmo Approach', boardKind: 'vector', spanThousandMiles: 400, createdAt: 1 });
+  scene = placeSceneBody(scene, worldBody({ name: 'San Telmo', diameter: 8, center: { x: 0, y: 0 } }));
+  scene = placeSceneShip(scene, { actorId: 'design:type-s-scout-courier', side: 'opposition', x: 60, y: 0, label: 'SCOUT' }).scene;
+  const published = buildPublishedScene(scene);
+  assert.equal(published.kind, 'vector');
+  assert.equal(published.spanThousandMiles, 400);
+  assert.equal(published.map, undefined);
+  assert.equal(published.bodies[0].name, 'San Telmo');
+  assert.equal(published.tokens[0].velocity.x, scene.tokens[0].velocity.x);
+  assert.equal(Math.abs(published.tokens[0].velocity.y), 0);
+  // Nothing non-finite reaches Firestore.
+  assert.ok(Number.isFinite(published.tokens[0].position.x) && Number.isFinite(published.tokens[0].velocity.x));
+  assert.doesNotMatch(JSON.stringify(published), /NaN|columns/);
+  const plot = publishedVectorSceneDocument(JSON.parse(JSON.stringify(published)));
+  assert.equal(plot.board.kind, 'vector');
+  assert.equal(plot.tokens[0].label, 'SCOUT');
+  // A grid scene says what it is too.
+  assert.equal(buildPublishedScene(createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 })).kind, 'grid');
+});

@@ -4610,3 +4610,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   border: 1px solid var(--rule);
   background: var(--paper);
 }
+/* v0.170.0: Book 2 p.24's data card, from a ship token's menu. */
+.ship-data-card-dialog { max-width: min(640px, 92vw); }
+.ship-data-card { white-space: pre; overflow-x: auto; margin: 8px 0; font: inherit; line-height: 1.45; }

@@ -38,7 +38,7 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
     createShipCombatEncounter({ id: 'grav', participants }), states, { planet: world, atmosphere: 6 }
   );
   const stage = document.querySelector('main');
-  renderShipVectorMap(stage, withWorld, { commit() {}, setup() {} });
+  renderShipVectorMap(stage, withWorld, { commit() {} });
   let svg = stage.querySelector('svg');
   const labels = [...svg.querySelectorAll('text')].map((node) => node.textContent);
   assert.deepEqual(labels.slice(0, 4), ['0.25 G', '0.5 G', '0.75 G', 'San Telmo']);
@@ -61,7 +61,7 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   });
   const second = document.createElement('div');
   document.body.append(second);
-  renderShipVectorMap(second, clear, { commit() {}, setup() {} });
+  renderShipVectorMap(second, clear, { commit() {} });
   svg = second.querySelector('svg');
   assert.equal(svg.querySelectorAll('circle').length, 3);
   assert.equal(svg.querySelectorAll('polygon').length, 1);
@@ -84,7 +84,7 @@ test('the plot zooms and pans on its own viewBox, leaving plotted coordinates al
     native: { position: { x: 20, y: 0 }, velocity: { x: -2, y: 0 } }
   });
   const stage = document.querySelector('main');
-  const draw = () => renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+  const draw = () => renderShipVectorMap(stage, encounter, { commit() {} });
   draw();
   const svg = () => stage.querySelector('svg');
   const box = () => svg().getAttribute('viewBox');
@@ -149,7 +149,7 @@ test('the plot states its scale and draws Book 2 p.30 range thresholds in view',
     intruder: { position: { x: -10, y: 0 }, velocity: { x: 1, y: 0 } },
     native: { position: { x: 10, y: 0 }, velocity: { x: 0, y: 0 } }
   });
-  renderShipVectorMap(stage, close, { commit() {}, setup() {} });
+  renderShipVectorMap(stage, close, { commit() {} });
   const scaleLabel = texts().find((text) => /MILES$/.test(text));
   assert.match(scaleLabel, /^(1|2|5|10|20)" \u00b7 [\d,]+ MILES$/);
   assert.equal(texts().some((text) => /DM -2/.test(text)), false);
@@ -163,7 +163,7 @@ test('the plot states its scale and draws Book 2 p.30 range thresholds in view',
   });
   const second = document.createElement('div');
   document.body.append(second);
-  renderShipVectorMap(second, far, { commit() {}, setup() {} });
+  renderShipVectorMap(second, far, { commit() {} });
   const farTexts = [...second.querySelectorAll('svg text')].map((node) => node.textContent);
   assert.ok(farTexts.includes('150" \u00b7 DM -2'), 'the -2 threshold is drawn');
   assert.ok(farTexts.includes('300" \u00b7 DM -5'), 'the -5 threshold is drawn');
@@ -193,7 +193,7 @@ test('the reachable envelope follows the coasting endpoint, and clamps to the dr
     intruder: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } },
     native: { position: { x: 30, y: 0 }, velocity: { x: 0, y: 0 } }
   });
-  renderShipVectorMap(stage, still, { commit() {}, setup() {} });
+  renderShipVectorMap(stage, still, { commit() {} });
   assert.match(stage.querySelector('#vector-status').textContent, /VEL 0" \(STATIONARY\)/);
 
   // Moving: the same 4 inches, but now reachable only around a point 20 inches
@@ -204,15 +204,15 @@ test('the reachable envelope follows the coasting endpoint, and clamps to the dr
   });
   const second = document.createElement('div');
   document.body.append(second);
-  renderShipVectorMap(second, fast, { commit() {}, setup() {} });
+  renderShipVectorMap(second, fast, { commit() {} });
   assert.match(second.querySelector('#vector-status').textContent, /VEL 20\.0" @ 000\u00b0/);
 
   // Rules enforcement is offered and says which way it is set, since an
   // unclamped drag is a referee's choice rather than Book 2's.
-  const toggle = [...second.querySelectorAll('button')].find((node) => /RULES:/.test(node.textContent));
-  assert.equal(toggle.textContent, '[ RULES: ON ]');
+  const toggle = [...second.querySelectorAll('button')].find((node) => /CLAMP THRUST:/.test(node.textContent));
+  assert.equal(toggle.textContent, '[ CLAMP THRUST: ON ]');
   toggle.click();
-  assert.equal([...second.querySelectorAll('button')].find((node) => /RULES:/.test(node.textContent)).textContent, '[ RULES: OFF ]');
+  assert.equal([...second.querySelectorAll('button')].find((node) => /CLAMP THRUST:/.test(node.textContent)).textContent, '[ CLAMP THRUST: OFF ]');
   toggle.click();
 
   dom.window.close();
@@ -241,7 +241,7 @@ test('the planet card states p.27 template values and whether p.35 braking appli
   // Atmosphere 6 is standard, so p.35 braking is available.
   renderShipVectorMap(stage, enableVectorMovement(
     createShipCombatEncounter({ id: 'card', participants }), states, { planet: world, atmosphere: 6 }
-  ), { commit() {}, setup() {} });
+  ), { commit() {} });
   const card = stage.querySelector('.vector-planet-card');
   assert.ok(card.hidden, 'the card is hidden until the template is hovered');
   const text = card.textContent;
@@ -260,7 +260,7 @@ test('the planet card states p.27 template values and whether p.35 braking appli
   document.body.append(thin);
   renderShipVectorMap(thin, enableVectorMovement(
     createShipCombatEncounter({ id: 'thin', participants }), states, { planet: world, atmosphere: 3 }
-  ), { commit() {}, setup() {} });
+  ), { commit() {} });
   assert.match(thin.querySelector('.vector-planet-card').textContent, /NO \u00b7 needs a standard or dense atmosphere/);
 
   dom.window.close();
@@ -285,7 +285,7 @@ test('the planet card is hovered on the disc only, and typed thrust is capped', 
     intruder: { position: { x: 6, y: 0 }, velocity: { x: 0, y: -1 } },
     native: { position: { x: -30, y: 5 }, velocity: { x: 0, y: 0 } }
   }, { planet: world, atmosphere: 6 });
-  renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+  renderShipVectorMap(stage, encounter, { commit() {} });
 
   const circles = [...stage.querySelectorAll('svg circle')];
   const target = circles.find((node) => node.getAttribute('fill') === 'transparent');
@@ -326,7 +326,7 @@ test('committed moves leave a course trail, and a moving ship reads as an arrow'
     native: { position: { x: 60, y: 0 }, velocity: { x: 0, y: 0 } }
   });
   const stage = document.querySelector('main');
-  const draw = () => renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+  const draw = () => renderShipVectorMap(stage, encounter, { commit() {} });
 
   // Nothing has been committed, so there is no string on the table yet.
   draw();
@@ -373,8 +373,7 @@ test('thrust entered for one ship survives selecting another, and a commit consu
   const stage = document.querySelector('main');
   const committed = [];
   const draw = () => renderShipVectorMap(stage, encounter, {
-    commit: (id, acceleration) => { committed.push([id, acceleration]); },
-    setup: () => {}
+    commit: (id, acceleration) => { committed.push([id, acceleration]); }
   });
   const fields = () => [...stage.querySelectorAll('input')];
   const picker = () => stage.querySelector('select');
@@ -432,7 +431,7 @@ test('an unavailable commit says which rule or state blocks it', { skip: !JSDOM 
     corsair: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
   });
   const stage = document.querySelector('main');
-  const draw = () => renderShipVectorMap(stage, encounter, { commit() {}, setup() {} });
+  const draw = () => renderShipVectorMap(stage, encounter, { commit() {} });
   const commit = () => stage.querySelector('#vector-commit');
   const blocked = () => stage.querySelector('.vector-commit-blocked');
 
@@ -630,5 +629,115 @@ test('the staging board offers START COMBAT with the intruder and pressurisation
   // No callback, no control.
   renderVectorSceneStage(stage, scene, { moveShip() {}, setVector() {} });
   assert.equal(button(), null);
+  dom.window.close(); delete globalThis.document; delete globalThis.Option;
+});
+
+// v0.168.0: ordnance is drawn — sand at its ruled radius, dashed until active;
+// a missile as a diamond, ringed on contact.
+test('missiles and sand are drawn on the fight plot', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'ordnance-plot',
+    participants: ['intruder', 'native'].map((side) => ({ shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }))
+  }), {
+    intruder: { position: { x: 0, y: 0 }, velocity: { x: 4, y: 0 } },
+    native: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const ruling = { maxG: 6, contactRadius: 0.5, radius: 0.5, note: 'test' };
+  encounter.ordnance = [
+    { id: 'm-1', kind: 'missile', status: 'in-flight', position: { x: 10, y: 0 }, velocity: { x: 8, y: 0 }, ruling },
+    { id: 'm-2', kind: 'missile', status: 'contact', position: { x: 39.5, y: 0 }, velocity: { x: 8, y: 0 }, ruling },
+    { id: 's-3', kind: 'sand', status: 'pending-effect', position: { x: 4, y: 0 }, velocity: { x: 4, y: 0 }, ruling },
+    { id: 's-4', kind: 'sand', status: 'active', position: { x: 8, y: 0 }, velocity: { x: 4, y: 0 }, ruling },
+    { id: 'm-5', kind: 'missile', status: 'spent', position: { x: 20, y: 0 }, velocity: { x: 0, y: 0 }, ruling }
+  ];
+  const stage = document.querySelector('main');
+  renderShipVectorMap(stage, encounter, { commit() {} });
+  assert.equal(stage.querySelectorAll('.vector-missile').length, 2, 'spent rounds are not drawn');
+  const clouds = [...stage.querySelectorAll('.vector-sand')];
+  assert.equal(clouds.length, 2);
+  assert.ok(clouds[0].getAttribute('stroke-dasharray'), 'not yet in effect is dashed');
+  assert.equal(clouds[1].getAttribute('stroke-dasharray'), null);
+  assert.match(stage.textContent, /m-2 CONTACT/);
+  assert.doesNotMatch(stage.textContent, /Vector ordnance is not available/);
+  dom.window.close(); delete globalThis.document; delete globalThis.Option;
+});
+
+// v0.170.0: ship tokens have menus, and the staging board no longer removes a
+// ship on a double-click of its name.
+test('ship tokens open their menu on right-click on both boards', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const scene = {
+    documentType: 'graycloak-traveller-scene', schemaVersion: 3,
+    identity: { id: 'scene-space', name: 'San Telmo Approach' },
+    campaignId: 'sea', folder: 'Space',
+    board: { kind: 'vector', spanThousandMiles: 400 },
+    space: { bodies: [], gravityBodyId: null, atmosphere: null },
+    background: { assetId: null },
+    tokens: [{ id: 't1', actorId: 'marisol', side: 'party', label: 'MARISOL', position: { x: 10, y: 0 }, velocity: { x: -6, y: 0 } }],
+    notes: '', createdAt: 1
+  };
+  const stage = document.querySelector('main');
+  const opened = [];
+  const removed = [];
+  renderVectorSceneStage(stage, scene, { moveShip() {}, setVector() {}, removeShip: (id) => removed.push(id), tokenMenu: (event, token) => opened.push(token.id) });
+  const dot = stage.querySelector('.ship-vector-svg .vector-ship-token');
+  dot.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.deepEqual(opened, ['t1']);
+  const label = [...stage.querySelectorAll('.ship-vector-svg text')].find((node) => node.textContent.startsWith('MARISOL'));
+  label.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+  assert.deepEqual(removed, [], 'double-click no longer removes');
+  label.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.deepEqual(opened, ['t1', 't1']);
+
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'menu-plot',
+    participants: ['intruder', 'native'].map((side) => ({ shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }))
+  }), {
+    intruder: { position: { x: 0, y: 0 }, velocity: { x: 2, y: 0 } },
+    native: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  const menus = [];
+  renderShipVectorMap(stage, encounter, { commit() {}, tokenMenu: (event, id, { select }) => menus.push({ id, select }) });
+  const nativeToken = [...stage.querySelectorAll('.vector-ship-token')][1];
+  nativeToken.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.equal(menus[0].id, 'native');
+  menus[0].select();
+  assert.equal(stage.querySelector('select[aria-label="Selected ship"]').value, 'native');
+  dom.window.close(); delete globalThis.document; delete globalThis.Option;
+});
+
+// v0.171.0: with no callbacks the staging board is read-only (the player page),
+// and the fight plot has no INITIAL STATE block.
+test('a read-only staging board has no drag handles, and the plot has no initial-state editor', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const scene = {
+    identity: { id: 'scene-space', name: 'San Telmo Approach' },
+    board: { kind: 'vector', spanThousandMiles: 400 },
+    space: { bodies: [], gravityBodyId: null, atmosphere: null },
+    background: { assetId: null },
+    tokens: [{ id: 't1', actorId: 'marisol', side: 'party', label: 'MARISOL', position: { x: 10, y: 0 }, velocity: { x: -6, y: 0 } }]
+  };
+  const stage = document.querySelector('main');
+  renderVectorSceneStage(stage, scene, {});
+  assert.equal(stage.querySelectorAll('.vector-endpoint-handle').length, 0);
+  assert.equal(stage.querySelector('.vector-ship-token').style.cursor, '');
+  assert.equal(stage.querySelector('#vector-start-combat'), null);
+  assert.equal([...stage.querySelectorAll('button')].some((button) => /STAGE SHIP|PLACE/.test(button.textContent)), false);
+
+  const ship = importShipDocument(JSON.parse(readFileSync(new URL('../examples/Hawkeye.ship.json', import.meta.url))));
+  const encounter = enableVectorMovement(createShipCombatEncounter({
+    id: 'fresh', participants: ['intruder', 'native'].map((side) => ({ shipId: side, side, name: side, ship, carriedPrograms: ['maneuver'], loadedPrograms: ['maneuver'] }))
+  }), { intruder: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } }, native: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } } });
+  renderShipVectorMap(stage, encounter, { commit() {} });
+  assert.doesNotMatch(stage.textContent, /APPLY INITIAL STATE|INITIAL POSITION/);
   dom.window.close(); delete globalThis.document; delete globalThis.Option;
 });

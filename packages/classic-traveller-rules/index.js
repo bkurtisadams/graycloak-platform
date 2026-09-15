@@ -258,6 +258,7 @@ export {
   previewVectorOrdnance,
   moveVectorOrdnance,
   activateVectorSand,
+  VECTOR_ORDNANCE_DEFAULT_RULING,
   obscuringSand,
   circleEntry
 } from './src/starships/vector-ordnance.js';
@@ -290,6 +291,14 @@ export {
   actingSide,
   opposingSide,
   advanceShipCombatPhase,
+  shipCombatPhaseActions,
+  DAMAGE_CONTROL_THROW,
+  damageControlSkill,
+  damageControlOptions,
+  declareDamageControl,
+  stationVacated,
+  stationActedThisTurn,
+  cancelDamageControl,
   elapsedMinutes,
   participantsOnSide,
   getParticipant,

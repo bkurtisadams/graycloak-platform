@@ -10,6 +10,20 @@
  * also a referee convention; the printed text speaks of sand contacting a target. Those require further referee rules.
  */
 import { moveWithGravity } from './planetary-gravity.js';
+/**
+ * v0.54.0: Graycloak's standing figures for the three numbers Book 2 (1977)
+ * never prints — a missile's acceleration, how close it must come to make
+ * contact, and a sand cloud's radius. Not RAW; a referee may pass other figures
+ * to launchOrdnance. One object serves both kinds, since validateOrdnanceRuling
+ * reads only the fields its kind needs.
+ */
+export const VECTOR_ORDNANCE_DEFAULT_RULING = Object.freeze({
+  maxG: 6,
+  contactRadius: 0.5,
+  radius: 0.5,
+  note: 'Graycloak standing ruling (Book 2 prints none): homing missile 6 G, contact within 1/2 inch; sand cloud 1/2 inch radius',
+  raw: false
+});
 const clone=v=>JSON.parse(JSON.stringify(v));
 function finite(n,name,minimum=0){if(!Number.isFinite(n)||n<minimum)throw new Error(`${name} must be finite and at least ${minimum}`);return n;}
 export function validateOrdnanceRuling(kind,ruling) {
@@ -68,11 +82,24 @@ export function moveVectorOrdnance(encounter) {
     // left as a check that silently does nothing.
     if(round.kind==='missile'&&(!target||target.escaped)){round.status='spent';continue;}
     const move=previewVectorOrdnance(next,round);
-    if(!move.resolved)throw new Error(`${round.id}: planetary surface contact requires referee ruling`);
-    const contact=round.kind==='missile'?circleEntry(round.position,move.endpoint,next.spatial.ships[target.id].position,round.ruling.contactRadius):null;
     const planet=next.spatial.planet;
+    // v0.55.0 (referee ruling, not RAW): ordnance that reaches the world is
+    // gone. Book 2 says nothing about a missile or a cloud meeting a planet,
+    // and refusing the move jammed the movement phase with no way to rule on a
+    // round. A missile that reaches its target first still makes contact.
+    if(!move.resolved){
+      round.status='spent';round.movedTurn=next.gameTurn;
+      next.log.push({kind:'ordnance-surface-impact',gameTurn:next.gameTurn,phasingSide:next.phasingSide,id:round.id,ordnanceKind:round.kind,position:clone(round.position),reason:move.reason??'course-midpoint-at-or-inside-surface',raw:false});
+      continue;
+    }
+    const contact=round.kind==='missile'?circleEntry(round.position,move.endpoint,next.spatial.ships[target.id].position,round.ruling.contactRadius):null;
     const ground=planet?circleEntry(round.position,move.endpoint,planet.center,planet.radius):null;
-    if(ground!==null&&(contact===null||ground<=contact))throw new Error(`${round.id}: planetary surface contact requires referee ruling`);
+    if(ground!==null&&(contact===null||ground<=contact)){
+      const at={x:round.position.x+(move.endpoint.x-round.position.x)*ground,y:round.position.y+(move.endpoint.y-round.position.y)*ground};
+      round.position=at;round.status='spent';round.movedTurn=next.gameTurn;
+      next.log.push({kind:'ordnance-surface-impact',gameTurn:next.gameTurn,phasingSide:next.phasingSide,id:round.id,ordnanceKind:round.kind,position:clone(at),reason:'surface-contact',raw:false});
+      continue;
+    }
     const from=clone(round.position);
     round.velocity=move.velocity;round.position=move.endpoint;round.movedTurn=next.gameTurn;
     if(contact!==null){round.position={x:from.x+(move.endpoint.x-from.x)*contact,y:from.y+(move.endpoint.y-from.y)*contact};round.status='contact';round.contactedGameTurn=next.gameTurn;}

@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.166.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.166.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.174.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.174.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -29,7 +29,7 @@ let enforceThrustLimit = true;
 // side move all of its ships in one movement phase, so several pending thrusts
 // have to coexist.
 let pendingThrust = {};
-export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicate }) {
+export function renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu = null }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
@@ -40,7 +40,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicat
   const title = document.createElement('strong'); title.textContent = `SPACE / TURN ${encounter.gameTurn} / ${encounter.phasingSide.toUpperCase()}`;
   const select = document.createElement('select'); select.setAttribute('aria-label', 'Selected ship');
   encounter.participants.forEach(p => select.add(new Option(p.name, p.id)));
-  select.value = selected; select.onchange = () => { selected = select.value; renderShipVectorMap(stage, encounter, { commit, setup, adjudicate }); };
+  select.value = selected; select.onchange = () => { selected = select.value; renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu }); };
   const zoomButton = (text, label, handler) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'text-button map-zoom-button'; b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler; return b; };
   const zoomLabel = document.createElement('span'); zoomLabel.className = 'map-zoom-label'; zoomLabel.setAttribute('aria-live', 'polite'); zoomLabel.textContent = '100%';
   const zoomTools = document.createElement('span'); zoomTools.className = 'vector-zoom-tools'; zoomTools.setAttribute('aria-label', 'Vector plot zoom controls');
@@ -53,10 +53,13 @@ export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicat
   const rules = document.createElement('button');
   rules.type = 'button';
   rules.className = 'text-button';
-  const labelRules = () => { rules.textContent = enforceThrustLimit ? '[ RULES: ON ]' : '[ RULES: OFF ]'; };
+  // v0.171.0: was [ RULES: ON/OFF ], which read as switching the rules off. It
+  // only clamps the dragged endpoint: the engine refuses an over-thrust either
+  // way (previewShipVector throws).
+  const labelRules = () => { rules.textContent = enforceThrustLimit ? '[ CLAMP THRUST: ON ]' : '[ CLAMP THRUST: OFF ]'; };
   labelRules();
-  rules.title = 'Book 2 p.26 caps voluntary thrust at the M-Drive rating, two inches per G, and unused acceleration cannot be saved. With rules on, dragging the endpoint is clamped to that.';
-  rules.onclick = () => { enforceThrustLimit = !enforceThrustLimit; renderShipVectorMap(stage, encounter, { commit, setup, adjudicate }); };
+  rules.title = 'Book 2 p.26 caps voluntary thrust at the M-Drive rating, two inches per G. With the clamp on, a dragged endpoint stops at the drive limit; with it off you may drag past it, but COMMIT is still refused.';
+  rules.onclick = () => { enforceThrustLimit = !enforceThrustLimit; renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu }); };
   heading.append(title, select, rules, zoomTools); panel.append(heading);
   const tools = document.createElement('div'); tools.className = 'vector-controls';
   const field = (name, value) => { const label = document.createElement('label'); label.textContent = name + ' '; const input = document.createElement('input'); input.type = 'number'; input.value = value; input.step = '0.1'; label.append(input); tools.append(label); return input; };
@@ -140,19 +143,9 @@ export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicat
       panel.append(ruling);
     }
   }
-  if (encounter.gameTurn === 1 && encounter.phaseIndex === 0 && !encounter.log.length && setup) {
-    const settings = document.createElement('details');
-    const summary = document.createElement('summary'); summary.textContent = 'INITIAL POSITION / VELOCITY'; settings.append(summary);
-    const values = {};
-    for (const name of ['x','y','vx','vy']) {
-      const label=document.createElement('label'), input=document.createElement('input');
-      input.type='number'; input.step='0.1'; input.value=String(name.length===1?encounter.spatial.ships[selected].position[name]:encounter.spatial.ships[selected].velocity[name[1]]);
-      label.textContent=name+' ';label.append(input);settings.append(label);values[name]=input;
-    }
-    const apply=document.createElement('button');apply.textContent='APPLY INITIAL STATE';
-    apply.onclick=()=>{const states=structuredClone(encounter.spatial.ships);states[selected]={position:{x:Number(values.x.value),y:Number(values.y.value)},velocity:{x:Number(values.vx.value),y:Number(values.vy.value)}};setup(states);};
-    settings.append(apply);panel.append(settings);
-  }
+  // v0.171.0: INITIAL POSITION / VELOCITY and APPLY INITIAL STATE removed. Its
+  // callback was `() => {}` in every release, and a fight's starting positions
+  // and vectors now come from the scene it was staged on.
   const svg = node('svg', { role:'img', 'aria-label':'Ship positions, velocity and acceleration vectors', viewBox:'0 0 800 430', preserveAspectRatio:'xMidYMid meet' }); svg.classList.add('ship-vector-svg'); panel.append(svg);
   const toView = (clientX, clientY) => { const ctm = svg.getScreenCTM(); if (!ctm) return null; const point = svg.createSVGPoint(); point.x = clientX; point.y = clientY; return point.matrixTransform(ctm.inverse()); };
   function applyView() {
@@ -209,8 +202,8 @@ export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicat
   // end a turn deep in a well and still take no gravity, or the reverse.
   const CAMERA_NOTE = ' Wheel or [ + ] / [ \u2212 ] to zoom, right-drag or middle-drag to pan, [ FIT ] for the whole plot.';
   note.textContent = (encounter.spatial.planet
-    ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). ADVANCE coasts every ship not yet committed (p.26). Vector ordnance is not available.'
-    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts every ship not yet committed (p.26). No world is placed, so no gravity applies. Vector ordnance is not available.') + CAMERA_NOTE;
+    ? 'Coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. The shaded disc is the world and the rings are its quarter-G bands (Book 2 p.27). The cross marks the course midpoint, which is where gravity is sampled (p.29). ADVANCE coasts every ship not yet committed (p.26). Diamonds are missiles; circles are sand, dashed until it takes effect.'
+    : 'Clear space: coordinates in thousands of miles; turn = 10 minutes. Solid line: velocity. Dashed line: proposed movement. ADVANCE coasts every ship not yet committed (p.26). No world is placed, so no gravity applies. Diamonds are missiles; circles are sand, dashed until it takes effect.') + CAMERA_NOTE;
   panel.append(note);
   let transform, dragBasis = null, suppressNextClick = false;
   function draw() {
@@ -425,6 +418,39 @@ export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicat
         }));
       }
     }
+    // v0.168.0: ordnance on the plot. It had position and velocity since
+    // v1.214.00 and was never drawn, so a missile closing on a ship or a sand
+    // cloud on the line of fire could only be read from the log. Sand is its
+    // ruled radius, dashed until it takes effect; a missile is a small diamond
+    // with its velocity, ringed once it has made contact.
+    for (const round of encounter.ordnance ?? []) {
+      if (!round.position || !['in-flight', 'pending-effect', 'active', 'contact'].includes(round.status)) continue;
+      const cx = x(round.position.x), cy = y(round.position.y);
+      if (round.kind === 'sand') {
+        const active = round.status === 'active';
+        const cloud = node('circle', {
+          cx, cy, r: Math.max(round.ruling.radius * scale, 3 / view.zoom),
+          fill: 'currentColor', 'fill-opacity': active ? 0.18 : 0.05,
+          stroke: 'currentColor', 'stroke-opacity': 0.6, 'stroke-width': 1 / view.zoom,
+          ...(active ? {} : { 'stroke-dasharray': `${3 / view.zoom} ${3 / view.zoom}` })
+        });
+        cloud.classList.add('vector-sand');
+        svg.append(cloud);
+        svg.append(node('text', { x: cx, y: cy - Math.max(round.ruling.radius * scale, 3 / view.zoom) - 2 / view.zoom, fill: 'currentColor', 'fill-opacity': 0.7, 'text-anchor': 'middle', 'font-size': 8 / view.zoom }, active ? 'SAND' : 'SAND (NEXT PHASE D)'));
+        continue;
+      }
+      if (round.velocity) {
+        svg.append(node('line', { x1: cx, y1: cy, x2: x(round.position.x + round.velocity.x), y2: y(round.position.y + round.velocity.y), stroke: 'currentColor', 'stroke-opacity': 0.6, 'stroke-width': 1 / view.zoom }));
+      }
+      const m = 3.5 / view.zoom;
+      const missile = node('polygon', { points: `${cx},${cy - m} ${cx + m},${cy} ${cx},${cy + m} ${cx - m},${cy}`, fill: 'currentColor' });
+      missile.classList.add('vector-missile');
+      svg.append(missile);
+      if (round.status === 'contact') {
+        svg.append(node('circle', { cx, cy, r: m * 2.2, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5 / view.zoom }));
+      }
+      svg.append(node('text', { x: cx + m * 1.6, y: cy + m, fill: 'currentColor', 'fill-opacity': 0.8, 'font-size': 8 / view.zoom }, `${round.id}${round.status === 'contact' ? ' CONTACT' : ''}`));
+    }
     for(const ship of encounter.participants){const s=encounter.spatial.ships[ship.id];
       svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(s.position.x+s.velocity.x),y2:y(s.position.y+s.velocity.y),stroke:'currentColor','stroke-width':2}));
       // Heading, not facing. Book 2 gives ships no orientation and no firing
@@ -449,7 +475,18 @@ export function renderShipVectorMap(stage, encounter, { commit, setup, adjudicat
         token = node('circle', { cx: x(s.position.x), cy: y(s.position.y), r: size * 0.6, fill: 'currentColor' });
       }
       token.classList.add('vector-ship-token');
-      token.style.cursor='pointer';token.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, setup});});svg.append(token);
+      token.style.cursor='pointer';token.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, adjudicate, tokenMenu});});
+      // v0.170.0: the token's menu. A right-button press on a token must not
+      // start the plot's pan, or the menu opens on a moving board.
+      if (tokenMenu) {
+        token.addEventListener('pointerdown', (event) => { if (event.button === 2) event.stopPropagation(); });
+        token.addEventListener('contextmenu', (event) => {
+          event.preventDefault(); event.stopPropagation();
+          tokenMenu(event, ship.id, { select: () => { selected = ship.id; renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu }); } });
+        });
+        token.append(node('title', {}, `${ship.name}: click to select, right-click for actions`));
+      }
+      svg.append(token);
       // v0.148.0: no font-size, so the names rendered at the document default
       // and were larger than the world they orbit.
       svg.append(node('text', {
@@ -595,7 +632,7 @@ const MINIMAP_SIZE = 132;
 let stageView = { zoom: 1, cx: 0, cy: 0 };
 let stageViewSceneId = null;
 
-export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [], startCombat = null, combatBlocked = null } = {}) {
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [], startCombat = null, combatBlocked = null, tokenMenu = null } = {}) {
   if (!stage) return;
   if (stageViewSceneId !== scene.identity.id) {
     stageViewSceneId = scene.identity.id;
@@ -761,7 +798,7 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
 
   const note = document.createElement('p');
   note.textContent = (bodies.length || scene.tokens.length)
-    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on; double-click a name to take it off. Right-drag to pan, or click the minimap. Coordinates in thousands of miles (Book 2 p.22).'
+    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on; right-click a ship for its side, vector, name, data card, duplicate and remove. Right-drag to pan, or click the minimap. Coordinates in thousands of miles (Book 2 p.22).'
     : 'Nothing staged. PLACE a world, belt or battery, and STAGE SHIP to put a ship on the board.';
   panel.append(note);
 
@@ -917,27 +954,43 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
           stroke: 'currentColor', 'stroke-width': 2 / z
         }));
         const arrow = node('circle', { cx: x(head.x), cy: y(head.y), r: 4 / z, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 / z });
-        arrow.classList.add('vector-endpoint-handle');
-        arrow.style.cursor = 'move';
-        arrow.addEventListener('pointerdown', (event) => {
-          dragPreview = { kind: 'vector', id: token.id, point: head };
-          startDrag(event, (point) => setVector?.(token.id, { x: point.x - at.x, y: point.y - at.y }));
-        });
+        // v0.171.0: no setVector means a read-only board (the player page), so
+        // there is nothing to drag.
+        if (setVector) {
+          arrow.classList.add('vector-endpoint-handle');
+          arrow.style.cursor = 'move';
+          arrow.addEventListener('pointerdown', (event) => {
+            dragPreview = { kind: 'vector', id: token.id, point: head };
+            startDrag(event, (point) => setVector(token.id, { x: point.x - at.x, y: point.y - at.y }));
+          });
+        }
         svg.append(arrow);
       }
       const dot = node('circle', { cx: x(at.x), cy: y(at.y), r: 5 / z, fill: 'currentColor' });
       dot.classList.add('vector-ship-token');
-      dot.style.cursor = 'move';
-      dot.addEventListener('pointerdown', (event) => { dragPreview = { kind: 'ship', id: token.id, point: at }; startDrag(event, (point) => moveShip?.(token.id, point)); });
+      if (moveShip) {
+        dot.style.cursor = 'move';
+        dot.addEventListener('pointerdown', (event) => {
+          // v0.170.0: the right button opens the token menu, not a pan.
+          if (event.button === 2 && tokenMenu) { event.stopPropagation(); return; }
+          dragPreview = { kind: 'ship', id: token.id, point: at }; startDrag(event, (point) => moveShip(token.id, point));
+        });
+      }
       svg.append(dot);
       const label = node('text', {
         x: x(at.x) + 10 / z, y: y(at.y) - 9 / z,
         fill: 'currentColor', 'font-size': 11 / z
       }, `${token.label || token.actorId}${speed ? ` \u00b7 ${speed.toFixed(1)}"` : ' \u00b7 STATIONARY'}`);
-      if (removeShip) {
-        label.style.cursor = 'pointer';
-        label.addEventListener('dblclick', () => removeShip(token.id));
-        label.append(node('title', {}, 'Double-click to take this ship off the board'));
+      // v0.170.0: a double-click on the name took the ship off the board, which
+      // nobody could discover and anybody could do by accident. REMOVE is on the
+      // token's menu now, with its side, vector, name and data card.
+      if (tokenMenu) {
+        for (const target of [dot, label]) {
+          target.addEventListener('contextmenu', (event) => { event.preventDefault(); event.stopPropagation(); tokenMenu(event, token); });
+        }
+        label.addEventListener('pointerdown', (event) => { if (event.button === 2) event.stopPropagation(); });
+        label.style.cursor = 'context-menu';
+        dot.append(node('title', {}, `${token.label || token.actorId}: drag to move, right-click for side, vector, name, data card and remove`));
       }
       svg.append(label);
     }

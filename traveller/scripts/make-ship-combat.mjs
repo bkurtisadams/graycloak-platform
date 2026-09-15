@@ -108,7 +108,9 @@ function buildShip({ shipId, name, designKey, weapons, missiles = 0, sand = 0 })
 // A Model/1 holds six points: CPU 2 plus storage 4 (Book 2 p.14). Carrying more
 // than that is the point of the reprogramming phase — Book 2 p.24's sample data
 // card carries eleven.
-const CARRIED = ['target', 'return-fire', 'predict-1', 'gunner-interact', 'auto-evade', 'launch', 'anti-missile'];
+// v0.167.0: Maneuver carried and loaded, or no ship on a vector plot can thrust
+// (Book 2 p.32: required for use of the maneuver drive).
+const CARRIED = ['target', 'return-fire', 'predict-1', 'gunner-interact', 'auto-evade', 'maneuver', 'launch', 'anti-missile'];
 function loadoutFor(ship, preference) {
   const model = rules.COMPUTER_MODELS[ship.specifications.computer.model];
   const room = model.cpu + (model.storage ?? 0);
@@ -157,7 +159,7 @@ const encounter = rules.createShipCombatEncounter({
       disposition: 'pirate',
       ship: opponent.ship,
       carriedPrograms: CARRIED,
-      loadedPrograms: loadoutFor(opponent.ship, ['target', 'predict-1', 'gunner-interact', 'auto-evade', 'launch']),
+      loadedPrograms: loadoutFor(opponent.ship, ['target', 'maneuver', 'predict-1', 'gunner-interact', 'auto-evade', 'launch']),
       stations: { pilot: opponent.captainId, gunners: Object.fromEntries(
         opponent.ship.state.armament.turrets.map((turret) => [turret.id, opponent.gunnerId])
       ) },
@@ -173,7 +175,7 @@ const encounter = rules.createShipCombatEncounter({
       disposition: 'merchant',
       ship: player.ship,
       carriedPrograms: CARRIED,
-      loadedPrograms: loadoutFor(player.ship, ['target', 'return-fire', 'auto-evade', 'gunner-interact']),
+      loadedPrograms: loadoutFor(player.ship, ['target', 'return-fire', 'auto-evade', 'gunner-interact', 'maneuver']),
       stations: { pilot: player.captainId, gunners: { 'T-1': player.gunnerId } },
       skills: { pilot: 2, computer: 1, gunnery: { 'T-1': 1 } },
       pressurisedSections: PRESSURE,

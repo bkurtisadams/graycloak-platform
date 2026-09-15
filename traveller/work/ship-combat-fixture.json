@@ -1,9 +1,9 @@
 {
   "version": 1,
   "campaignId": null,
-  "savedAt": 1789471917558,
+  "savedAt": 1789475874575,
   "encounter": {
-    "id": "fixture-ship-combat-1789471917552",
+    "id": "fixture-ship-combat-1789475874571",
     "campaignId": null,
     "spatialMode": "vector",
     "intruderSide": "intruder",
@@ -234,11 +234,13 @@
             "predict-1",
             "gunner-interact",
             "auto-evade",
+            "maneuver",
             "launch",
             "anti-missile"
           ],
           "loaded": [
             "target",
+            "maneuver",
             "predict-1",
             "gunner-interact",
             "auto-evade",
@@ -522,6 +524,7 @@
             "predict-1",
             "gunner-interact",
             "auto-evade",
+            "maneuver",
             "launch",
             "anti-missile"
           ],
@@ -529,7 +532,8 @@
             "target",
             "return-fire",
             "auto-evade",
-            "gunner-interact"
+            "gunner-interact",
+            "maneuver"
           ]
         },
         "stations": {
@@ -597,7 +601,7 @@
       "ships": {
         "opponent": {
           "position": {
-            "x": 35,
+            "x": 38,
             "y": 0
           },
           "velocity": {
@@ -608,7 +612,7 @@
         },
         "player": {
           "position": {
-            "x": 5,
+            "x": 8,
             "y": 0
           },
           "velocity": {

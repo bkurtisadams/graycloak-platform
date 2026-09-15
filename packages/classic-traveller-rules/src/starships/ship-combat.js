@@ -34,9 +34,10 @@ import {
   turretOperational,
   canDoubleFire,
   hullDecompressed,
-  computerOperation
+  computerOperation,
+  repairableLocations
 } from './damage.js';
-import { applyShipHit, applyMissileDetonation, assertValidShipDocument } from './ship-document.js';
+import { applyShipHit, applyMissileDetonation, assertValidShipDocument, repairShipDamage } from './ship-document.js';
 import { createPersonalCombatant, PERSONAL_COMBAT_RANGES } from '../combat/personal-combat.js';
 import {
   READY_CAPACITY,
@@ -55,7 +56,7 @@ import {
   activateVectorSand,
   obscuringSand
 } from './vector-ordnance.js';
-import { coastVectorShips } from './vector-movement.js';
+import { coastVectorShips, previewShipVector } from './vector-movement.js';
 
 export const SHIP_COMBAT_SIDES = Object.freeze(['intruder', 'native']);
 
@@ -290,7 +291,7 @@ export function cycleIntoCpu(participant, { required = [], optional = [] } = {})
  */
 export function throwComputerOperation(participant, dice) {
   requireDice(dice);
-  const operation = computerOperation(participant.ship, { computerSkill: participant.skills.computer ?? 0 });
+  const operation = computerOperation(participant.ship, { computerSkill: stationSkill(participant, 'computer') });
   if (operation.permanentlyFailed) {
     return Object.freeze({ ...operation, roll: null, total: null, operating: false, permanentlyFailed: true });
   }
@@ -506,6 +507,20 @@ function reloadBlockingTurret(participant, turretId) {
   return busy ? busy.id : null;
 }
 
+// v0.58.0 (Kurt's ruling on Book 2 p.35): a repair is made by a named crew
+// member, who gives up every station he holds for the rest of the game turn —
+// by analogy with p.31's reloading gunner, who "is unable to fire other
+// weaponry in the turret".
+export function stationVacated(participant, station) {
+  return Boolean(participant.damageControl?.vacates?.includes(station));
+}
+
+/** Station skill as it applies now: zero while its holder is making a repair. */
+function stationSkill(participant, skill) {
+  const station = skill === 'computer' ? 'computer' : skill;
+  return stationVacated(participant, station) ? 0 : (participant.skills[skill] ?? 0);
+}
+
 /** The ammunition module's clock reads the phase this way. */
 function ammunitionContext(encounter) {
   return {
@@ -555,7 +570,7 @@ function logEvent(encounter, entry) {
  * Advances one phase, then one player turn, then the game turn. The interphase
  * is the boundary at the end of the native reprogramming phase.
  */
-export function advanceShipCombatPhase(encounter) {
+export function advanceShipCombatPhase(encounter, { dice = null } = {}) {
   // v0.53.0: Book 2 p.26 — a vector carries a ship whether or not it thrusts,
   // so a vector movement phase cannot end with a ship left where it started.
   // Callers that care about ordering (ships before ordnance) coast first; this
@@ -591,6 +606,13 @@ export function advanceShipCombatPhase(encounter) {
 
   if (next.phaseIndex < SHIP_COMBAT_PHASES.length - 1) {
     next.phaseIndex += 1;
+    // v0.54.0: vector sand "takes effect in phase D after its first friendly
+    // movement" (vector-ordnance.js), and activateVectorSand was imported with
+    // no caller — so a cast cloud never obscured anything. Entering phase D is
+    // where it belongs.
+    if (next.spatialMode === 'vector' && SHIP_COMBAT_PHASES[next.phaseIndex].key === 'ordnance-launch') {
+      return advanceAmmunitionClocks(activateVectorSand(next));
+    }
     return advanceAmmunitionClocks(next);
   }
 
@@ -614,6 +636,7 @@ export function advanceShipCombatPhase(encounter) {
     kind: 'interphase',
     description: `Game turn ${encounter.gameTurn} ends (${GAME_TURN_MINUTES} minutes elapsed)`
   });
+  resolveDamageControl(next, encounter.gameTurn, dice);
   return advanceAmmunitionClocks(next);
 }
 
@@ -827,7 +850,7 @@ export function laserAttackDM(participant, turretId, { returnFire = false, multi
 export function laserDefenseDM(participant, { alsoRunning = [], encounter = null, firingLine = null } = {}) {
   const components = [];
   let dm = 0;
-  const pilotSkill = participant.skills.pilot ?? 0;
+  const pilotSkill = stationSkill(participant, 'pilot');
   // v1.209.00: this asked only whether a program was in the computer. Book 2
   // p.31 requires it to be RUNNING, which means it has to fit the CPU
   // alongside whatever else the ship is doing this phase — a Model/1 returning
@@ -979,6 +1002,13 @@ export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
     // expected, the gunner position will be omitted." An unmanned turret fires
     // — it just gets nothing from Gunner Interact. The gunner requirement
     // belongs to reloading, which p.31 gives to "the turret's gunner".
+    if (stationVacated(attacker, `gunner:${entry.turretId}`)) {
+      shots.push(Object.freeze({
+        shipId: entry.shipId, turretId: entry.turretId, targetId: entry.targetId,
+        fired: false, reason: 'gunner is making a repair this turn'
+      }));
+      continue;
+    }
     const reloading = reloadBlockingTurret(attacker, entry.turretId);
     if (reloading) {
       shots.push(Object.freeze({
@@ -1213,19 +1243,28 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
   // the ship's totals from the sidecar rather than deducting twice.
   if (participant.ammunition) {
     const context = ammunitionContext(next);
+    const repairing = (launcher) => stationVacated(participant, `gunner:${launcher.turretId}`);
     const pick = (pool, count, named) => {
       const chosen = named.filter((id) => participant.ammunition.launchers.some((l) => l.id === id && l.pool === pool));
+      for (const id of chosen) {
+        const launcher = participant.ammunition.launchers.find((l) => l.id === id);
+        if (repairing(launcher)) throw new Error(`${id}: its gunner is making a repair this turn`);
+      }
       const rest = participant.ammunition.launchers
-        .filter((l) => l.pool === pool && l.ready > 0 && !chosen.includes(l.id))
+        .filter((l) => l.pool === pool && l.ready > 0 && !chosen.includes(l.id) && !repairing(l))
         .map((l) => l.id);
       return [...chosen, ...rest].slice(0, count);
     };
+    const firedLaunchers = [];
     for (const id of pick('missiles', missiles, launcherIds)) {
       participant.ammunition = fireLauncher(participant.ammunition, context, id);
+      firedLaunchers.push(id);
     }
     for (const id of pick('sandCanisters', sandCanisters, launcherIds)) {
       participant.ammunition = fireLauncher(participant.ammunition, context, id);
+      firedLaunchers.push(id);
     }
+    next.lastLaunchers = firedLaunchers;
     const totals = totalsAboard(participant.ammunition);
     participant.ship.state.armament.missiles = totals.missiles;
     participant.ship.state.armament.sandCanisters = totals.sandCanisters;
@@ -1277,7 +1316,8 @@ export function launchOrdnance(encounter, { shipId, missiles = 0, sandCanisters 
       }, launcherState, vectorRuling));
     }
   }
-  logEvent(next, { kind: 'ordnance-launch', shipId, missiles, sandCanisters, targetId: target?.id ?? null });
+  logEvent(next, { kind: 'ordnance-launch', shipId, missiles, sandCanisters, targetId: target?.id ?? null, launcherIds: next.lastLaunchers ?? [] });
+  delete next.lastLaunchers;
   return next;
 }
 
@@ -1380,6 +1420,7 @@ export function resolveAntiMissileFire(encounter, dice, { shipId } = {}) {
   if (programInComputer(participant, 'anti-missile') && fitsWithCommitments('anti-missile')) {
     // p.30: "any or all laser weaponry" may fire at contacting missiles.
     const lasers = operationalTurrets(participant.ship)
+      .filter((turretId) => !stationVacated(participant, `gunner:${turretId}`))
       .flatMap((turretId) => turretLasers(participant, turretId).map((weapon) => ({ turretId, weapon })));
     let remaining = incoming.filter((round) => round.status === 'contact');
     for (const laser of lasers) {
@@ -1954,4 +1995,265 @@ export function prepareBoardingAction(encounter, {
     notes: Object.freeze(notes),
     raw: BOARDING_IS_RAW
   });
+}
+
+
+// ---------------------------------------------------------------------------
+// v0.56.0: what can be done in the current phase.
+//
+// Graycloak ruling: a phase in which no ship on the acting side has a legal
+// action advances by itself, and the reason is logged. "Legal" means the engine
+// would accept it now — not merely that the ship exists. BREAK OFF is not
+// phase-bound (p.37 leaves flight to the referee at any time), so it never
+// holds a phase open.
+// ---------------------------------------------------------------------------
+
+const PHASE_IDLE_REASONS = Object.freeze({
+  movement: 'no ship can thrust, reload or needs a surface ruling',
+  'laser-fire': 'no ship has a laser that can fire at an enemy',
+  'return-fire': 'no ship was fired on with a laser able to answer, and no missile is in contact with an interception program running',
+  'ordnance-launch': 'no rack is ready with Launch and Target running, and no missile is in contact',
+  reprogramming: 'no computer has a carried program it could load'
+});
+
+function computerWorks(participant) {
+  return !computerOperation(participant.ship, { computerSkill: stationSkill(participant, 'computer') }).permanentlyFailed;
+}
+
+function laserReady(participant, turretId, { returnFire = false } = {}) {
+  if (!turretOperational(participant.ship, turretId)) return false;
+  if (!turretLasers(participant, turretId).length) return false;
+  if (participant.spentThisPhase.weapons.includes(turretId)) return false;
+  if (reloadBlockingTurret(participant, turretId)) return false;
+  if (stationVacated(participant, `gunner:${turretId}`)) return false;
+  return laserAttackDM(participant, turretId, { returnFire }).possible;
+}
+
+export function shipCombatPhaseActions(encounter) {
+  const phase = currentPhase(encounter);
+  const side = actingSide(encounter);
+  const actions = [];
+  const result = (extra = {}) => Object.freeze({
+    phase: phase.key, side, legal: actions.length > 0, actions: Object.freeze(actions),
+    reason: actions.length ? null : PHASE_IDLE_REASONS[phase.key], ...extra
+  });
+  if (encounter.outcome !== 'in-progress') return Object.freeze({ phase: phase.key, side, legal: false, actions: Object.freeze([]), reason: 'the fight is over', over: true });
+
+  const live = encounter.participants.filter((entry) => !entry.escaped && !entry.surrendered);
+  const acting = live.filter((entry) => entry.side === side);
+  const enemies = live.filter((entry) => entry.side !== side);
+
+  if (phase.key === 'movement') {
+    const context = ammunitionContext(encounter);
+    for (const ship of acting) {
+      if (encounter.spatialMode === 'vector') {
+        const state = encounter.spatial.ships[ship.id];
+        if (state && state.movedTurn !== encounter.gameTurn) {
+          const coast = previewShipVector(encounter, ship.id, { x: 0, y: 0 });
+          if (coast.unresolved || coast.surfaceContact) actions.push({ kind: 'surface-ruling', shipId: ship.id });
+          else if (coast.maximumG > 0 && computerWorks(ship) && !stationVacated(ship, 'pilot')) {
+            const maneuver = ship.computer.loaded.find((key) => key === 'maneuver' || key.startsWith('maneuver-evade-'));
+            if (maneuver && cycleIntoCpu(ship, { required: [maneuver] }).possible) actions.push({ kind: 'thrust', shipId: ship.id });
+          }
+        }
+      }
+      for (const launcher of ship.ammunition?.launchers ?? []) {
+        try {
+          startLauncherReload(JSON.parse(JSON.stringify(ship.ammunition)), context, launcher.id);
+          actions.push({ kind: 'reload', shipId: ship.id, launcherId: launcher.id });
+        } catch { /* not reloadable now */ }
+      }
+    }
+    return result();
+  }
+
+  if (phase.key === 'laser-fire') {
+    if (!enemies.length) return result();
+    for (const ship of acting) {
+      if (!computerWorks(ship)) continue;
+      for (const turretId of operationalTurrets(ship.ship)) {
+        if (laserReady(ship, turretId)) actions.push({ kind: 'fire', shipId: ship.id, turretId });
+      }
+    }
+    return result();
+  }
+
+  if (phase.key === 'return-fire') {
+    for (const ship of acting) {
+      if (!computerWorks(ship)) continue;
+      const shooters = ship.wasFiredAtBy.filter((id) => live.some((entry) => entry.id === id));
+      if (shooters.length) {
+        for (const turretId of operationalTurrets(ship.ship)) {
+          if (laserReady(ship, turretId, { returnFire: true })) actions.push({ kind: 'return-fire', shipId: ship.id, turretId });
+        }
+      }
+      const incoming = encounter.ordnance.some((round) => round.targetShipId === ship.id && round.status === 'contact');
+      if (incoming && !ship.spentThisPhase.antiMissile
+        && ['anti-missile', 'ecm'].some((key) => programInComputer(ship, key) && cycleIntoCpu(ship, { required: [key] }).possible)) {
+        actions.push({ kind: 'anti-missile', shipId: ship.id });
+      }
+    }
+    return result();
+  }
+
+  if (phase.key === 'ordnance-launch') {
+    if (encounter.ordnance.some((round) => round.status === 'contact' && round.launcherSide === side)) {
+      actions.push({ kind: 'detonate' });
+    }
+    for (const ship of acting) {
+      if (!computerWorks(ship) || !ship.ammunition) continue;
+      if (!cycleIntoCpu(ship, { required: ['launch', 'target'] }).possible) continue;
+      for (const launcher of ship.ammunition.launchers) {
+        const turret = ship.ammunition.turrets.find((entry) => entry.id === launcher.turretId);
+        if (!launcher.ready || launcher.reload || (turret && !turret.operational)) continue;
+        if (!turretOperational(ship.ship, launcher.turretId)) continue;
+        if (launcher.lastLaunchTick === ship.ammunition.clock) continue;
+        if (reloadBlockingTurret(ship, launcher.turretId)) continue;
+        if (stationVacated(ship, `gunner:${launcher.turretId}`)) continue;
+        if (launcher.pool === 'missiles' && !enemies.length) continue;
+        actions.push({ kind: launcher.pool === 'missiles' ? 'launch-missile' : 'cast-sand', shipId: ship.id, launcherId: launcher.id });
+      }
+    }
+    return result();
+  }
+
+  if (phase.key === 'reprogramming') {
+    for (const ship of acting) {
+      if (!computerWorks(ship)) continue;
+      if (ship.computer.carried.some((key) => !ship.computer.loaded.includes(key))) actions.push({ kind: 'reprogram', shipId: ship.id });
+    }
+    return result();
+  }
+  return result();
+}
+
+
+// ---------------------------------------------------------------------------
+// v0.57.0: Book 2 p.35 damage control, in the Game Turn Interphase.
+//
+// "Usually, a throw of 9+ will repair one hit of damage, with skill serving as a
+// positive DM. One repair attempt may be made per ten minute turn. Drive damage
+// which has completely destroyed a drive or power plant cannot be repaired."
+//
+// Rulings (Kurt): it resolves in the interphase; one attempt per SHIP, not per
+// crew member, because the limit sentence is singular and impersonal. So a ship
+// holds one declaration per game turn, which may be changed or withdrawn until
+// the turn ends, and the throw is made as the turn ends.
+//
+// Which skill applies is p.35's "expertise or skill in specific fields", left
+// to judgement. The default is the ship's engineering skill for a drive or the
+// power plant and its computer skill for the computer, else 0; the referee may
+// state another DM, and the declaration records where the DM came from.
+// ---------------------------------------------------------------------------
+
+export const DAMAGE_CONTROL_THROW = 9;
+
+const DRIVE_LOCATIONS = Object.freeze(['power-plant', 'maneuver-drive', 'jump-drive']);
+
+export function damageControlSkill(participant, location) {
+  if (DRIVE_LOCATIONS.includes(location)) return { dm: participant.skills.engineering ?? 0, source: 'engineering' };
+  if (location === 'computer') return { dm: participant.skills.computer ?? 0, source: 'computer' };
+  return { dm: 0, source: 'none' };
+}
+
+/** What a ship could try to repair this turn: one entry per repairable hit location, turrets by id. */
+export function damageControlOptions(participant) {
+  const options = [];
+  for (const location of repairableLocations(participant.ship)) {
+    if (location === 'turret') {
+      for (const turretId of participant.ship.state.damage.turrets) options.push({ location, turretId, ...damageControlSkill(participant, location) });
+    } else {
+      options.push({ location, turretId: null, ...damageControlSkill(participant, location) });
+    }
+  }
+  return Object.freeze(options.map((entry) => Object.freeze(entry)));
+}
+
+/**
+ * Has this station already been used this game turn? A crew member who has
+ * flown or fired cannot then spend the turn on a repair.
+ */
+export function stationActedThisTurn(encounter, participant, station) {
+  const thisTurn = encounter.log.filter((entry) => entry.gameTurn === encounter.gameTurn && entry.shipId === participant.id);
+  if (station === 'pilot') {
+    return thisTurn.some((entry) => entry.kind === 'vector-move' && !entry.coasted && Number(entry.g) > 0);
+  }
+  if (station.startsWith('gunner:')) {
+    const turretId = station.slice('gunner:'.length);
+    const racks = (participant.ammunition?.launchers ?? []).filter((launcher) => launcher.turretId === turretId).map((launcher) => launcher.id);
+    return thisTurn.some((entry) => (entry.kind === 'laser-fire' && entry.fired && entry.turretId === turretId)
+      || (entry.kind === 'ordnance-launch' && (entry.launcherIds ?? []).some((id) => racks.includes(id))));
+  }
+  return false;
+}
+
+export function declareDamageControl(encounter, { shipId, location, turretId = null, crewId = null, crewName = '', dm = null, dmSource = null, note = '' } = {}) {
+  if (encounter.outcome !== 'in-progress') throw new Error('the fight is over');
+  const next = freeze(encounter);
+  next.log = encounter.log.map((entry) => ({ ...entry }));
+  const participant = getParticipant(next, shipId);
+  if (participant.escaped) throw new Error(`${participant.name} has left the fight`);
+  // p.35: "repaired or controlled by crew members". A ship whose crew is known
+  // names who does it; one with no crew roster (an encountered ship) does not.
+  const crewKnown = shipStations(participant).length > 0;
+  if (crewKnown && !crewId) throw new Error(`name the crew member making the repair on ${participant.name} (Book 2 p.35: repairs are made by crew members)`);
+  const vacates = crewId ? shipStations(participant).filter((entry) => entry.actorId === crewId).map((entry) => entry.station) : [];
+  const acted = vacates.filter((station) => stationActedThisTurn(next, participant, station));
+  if (acted.length) {
+    throw new Error(`${crewName || crewId} has already acted as ${acted.join(' and ')} this turn; a repair takes the whole turn`);
+  }
+  const option = damageControlOptions(participant).find((entry) => entry.location === location && (location !== 'turret' || entry.turretId === turretId));
+  if (!option) {
+    throw new Error(`${participant.name} has no repairable ${location === 'turret' ? `turret ${turretId}` : location} damage (Book 2 p.35: a destroyed drive cannot be repaired)`);
+  }
+  const stated = dm === null || dm === undefined || dm === '' ? null : Number(dm);
+  if (stated !== null && !Number.isInteger(stated)) throw new RangeError('a damage control DM must be a whole number');
+  participant.damageControl = {
+    gameTurn: next.gameTurn,
+    location,
+    turretId: location === 'turret' ? turretId : null,
+    crewId: crewId ?? null,
+    crewName: String(crewName || crewId || ''),
+    vacates,
+    dm: stated ?? option.dm,
+    dmSource: stated === null ? option.source : (dmSource ? String(dmSource) : 'referee'),
+    note: String(note ?? '')
+  };
+  logEvent(next, { kind: 'damage-control-declared', shipId, ...participant.damageControl });
+  return next;
+}
+
+export function cancelDamageControl(encounter, { shipId } = {}) {
+  const next = freeze(encounter);
+  next.log = encounter.log.map((entry) => ({ ...entry }));
+  const participant = getParticipant(next, shipId);
+  if (!participant.damageControl) return next;
+  participant.damageControl = null;
+  logEvent(next, { kind: 'damage-control-withdrawn', shipId });
+  return next;
+}
+
+function resolveDamageControl(next, gameTurn, dice) {
+  const declared = next.participants.filter((participant) => participant.damageControl?.gameTurn === gameTurn);
+  for (const participant of next.participants) {
+    if (participant.damageControl && participant.damageControl.gameTurn !== gameTurn) participant.damageControl = null;
+  }
+  if (!declared.length) return;
+  requireDice(dice);
+  for (const participant of declared) {
+    const attempt = participant.damageControl;
+    participant.damageControl = null;
+    const base = { gameTurn, phasingSide: null, phase: 'interphase', kind: 'damage-control', shipId: participant.id, location: attempt.location, turretId: attempt.turretId, crewId: attempt.crewId ?? null, crewName: attempt.crewName ?? '', dm: attempt.dm, dmSource: attempt.dmSource, target: DAMAGE_CONTROL_THROW };
+    if (participant.escaped) continue;
+    const still = damageControlOptions(participant).some((entry) => entry.location === attempt.location && (attempt.location !== 'turret' || entry.turretId === attempt.turretId));
+    if (!still) {
+      next.log.push({ ...base, attempted: false, repaired: false, reason: 'no longer repairable' });
+      continue;
+    }
+    const roll = dice.roll2D6();
+    const total = roll.total + attempt.dm;
+    const repaired = total >= DAMAGE_CONTROL_THROW;
+    if (repaired) participant.ship = repairShipDamage(participant.ship, { location: attempt.location, turretId: attempt.turretId });
+    next.log.push({ ...base, attempted: true, dice: [...roll.dice], roll: roll.total, total, repaired });
+  }
 }

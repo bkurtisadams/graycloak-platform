@@ -250,3 +250,26 @@ test('a turret id that is not on the ship is refused in damage state', async () 
   tampered.state.damage.turrets = ['T-7'];
   assert.throws(() => importShipDocument(tampered), /does not name a turret on this ship/);
 });
+
+// v0.57.0: the whole of Book 2 p.10 (1977), pinned. The 2000- and 3000-ton
+// rows were one letter late until this release.
+test('Book 2 p.10 maximum drive potential matches the 1977 printing, every cell', async () => {
+  const { MAXIMUM_DRIVE_POTENTIAL } = await import('../index.js');
+  const printed = {
+    100: '2 4 6 - - - - - - - - - - - - - - - - - - - - -',
+    200: '1 2 3 4 5 6 - - - - - - - - - - - - - - - - - -',
+    400: '- - 1 2 2 3 3 4 4 5 5 6 6 - - - - - - - - - - -',
+    600: '- - - 1 1 2 2 2 3 3 3 4 4 4 5 5 5 6 6 6 - - - -',
+    800: '- - - - - 1 1 2 2 2 2 3 3 3 3 4 4 4 4 5 5 5 5 6',
+    1000: '- - - - - - - 1 1 2 2 2 2 2 3 3 3 3 3 4 4 4 5 6',
+    2000: '- - - - - - - - - 1 1 1 1 1 1 1 1 1 1 1 2 3 4 5',
+    3000: '- - - - - - - - - - - - - - 1 1 1 1 1 1 1 2 3 4',
+    4000: '- - - - - - - - - - - - - - - - - - - 1 1 1 2 3',
+    5000: '- - - - - - - - - - - - - - - - - - - - - - 1 2'
+  };
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'.split('');
+  for (const [hull, row] of Object.entries(printed)) {
+    const expected = row.split(' ').map((cell) => (cell === '-' ? null : Number(cell)));
+    assert.deepEqual(letters.map((letter) => MAXIMUM_DRIVE_POTENTIAL[hull][letter]), expected, `${hull}-ton row`);
+  }
+});

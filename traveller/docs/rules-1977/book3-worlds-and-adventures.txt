@@ -1,0 +1,2245 @@
+TRAVELLER (1977) BOOK 3: WORLDS AND ADVENTURES
+Game Designers' Workshop, 1977. Text extracted from Kurt's purchased PDF
+(CT__B03_Book_03_Worlds_and_Adventures_1977.pdf) for rules reference inside a private repository.
+NOT FOR PUBLICATION OR DISTRIBUTION.
+
+Each page begins with a line of the form
+  ===== BOOK 3 / PRINTED PAGE n / PDF PAGE m =====
+Cite rules by printed page (the number at the foot of the page in the book).
+Extracted with pdftotext -layout: tables keep their columns, but two-column
+passages beside a table can interleave. Check the PDF when a table matters.
+
+
+===== BOOK 3 / FRONT OR BACK MATTER / PDF PAGE 1 =====
+
+Book 3
+Worlds and Adventures
+          TRAVELLER
+           Science-Fiction Adventure in
+           the Far Future
+
+
+
+
+Game Designers’ Workshop
+
+===== BOOK 3 / FRONT OR BACK MATTER / PDF PAGE 2 =====
+[This page also carries a figure or illustration that is not reproduced as text.]
+
+This page is intentionally blank.
+
+===== BOOK 3 / FRONT OR BACK MATTER / PDF PAGE 3 =====
+
+Book 3
+Worlds and Adventures
+          TRAVELLER
+           Science-Fiction Adventure in
+           the Far Future
+
+
+
+
+Game Designers’ Workshop
+
+===== BOOK 3 / FRONT OR BACK MATTER / PDF PAGE 4 =====
+
+TRAVELLER, Volume 3
+
+Copyright © 1977, by Game Designers’ Workshop
+All Rights Reserved. Printed in the United States of America.
+No part of this book may be reproduced in any form, or
+by any means without permission in writing from the publisher.
+
+                        9
+
+Although this game (as presented in Volumes 1, 2, and 3) envisions
+a referee or umpire to supervise play or to resolve questions,
+the publisher is prepared to answer questions or inquiries on
+Traveller provided a stamped, self addressed envelope accompanies
+the request.
+
+Game Designers’ Workshop
+203 North Street,
+Normal, Illinois 61761
+
+===== BOOK 3 / FRONT OR BACK MATTER / PDF PAGE 5 =====
+
+                                                                                     Table of Contents
+
+WORLDS ............................................................................................................................. 1
+    Star Mapping ............................................................................................................... 1
+    World Creation ............................................................................................................ 2
+    Comments on Basic Planetary Characteristics.......................................................... 8
+    Technological Index .................................................................................................... 9
+    Star Mapping and World Creation Checklist ........................................................... 12
+EQUIPMENT ...................................................................................................................... 13
+    Personal Equipment .................................................................................................. 13
+    Personal Devices ....................................................................................................... 13
+    Vision Aids ................................................................................................................. 14
+    Tools........................................................................................................................... 14
+    Shelters ...................................................................................................................... 15
+    Food and Overhead................................................................................................... 15
+    Vehicles ...................................................................................................................... 16
+ENCOUNTERS .................................................................................................................. 19
+    Routine Encounters ................................................................................................... 19
+    Random Encounters.................................................................................................. 19
+    Patrons ....................................................................................................................... 20
+    Employees and Hirelings .......................................................................................... 22
+    Nobility ....................................................................................................................... 22
+    Non-Player Character Reactions .............................................................................. 22
+ANIMAL ENCOUNTERS ................................................................................................... 24
+    Introduction ............................................................................................................... 24
+    Procedure ................................................................................................................... 24
+    Creating Encounter Tables ....................................................................................... 24
+    Using Encounter Tables ............................................................................................ 26
+    Encounter Table Creation Checklist ......................................................................... 28
+    Animal Definitions..................................................................................................... 30
+PSIONICS .......................................................................................................................... 33
+    The Psionics Institute ................................................................................................ 33
+    Psionic Strength ........................................................................................................ 33
+    Training ...................................................................................................................... 34
+    Range ......................................................................................................................... 35
+    Telepathy ................................................................................................................... 35
+    Clairvoyance .............................................................................................................. 37
+    Telekinesis ................................................................................................................. 38
+    Awareness ................................................................................................................. 39
+    Teleportation ............................................................................................................. 40
+    Special ........................................................................................................................ 41
+    Recover ...................................................................................................................... 41
+    Psi-Drugs .................................................................................................................... 41
+    Public Prejudice ......................................................................................................... 42
+
+===== BOOK 3 / PRINTED PAGE 1 / PDF PAGE 6 =====
+
+                                                                            Worlds
+     The referee has the responsibility for mapping the universe before actual game
+play begins. The entire universe is not necessary immediately, however, as only a
+small portion can be used at any one time. In unsupervised play, one of the players
+can generate worlds and perform mapping on a turn by turn or adventure by adven-
+ture basis.
+     Generally, the universe is mapped in convenient segments, called subsectors. A
+convenient size for subsectors is that of the hex grid sheet printed in this booklet on
+page 3. Each hex in a subsector represents the distance that may be covered by an
+interstellar jump of distance 1 (1 hex = 1 parsec, or 3.26 light years). In mapping,
+each hex is examined to determine if a world (and its attendant star system) is
+present; the quality of the local starport is then determined. Finally, jump routes or
+space lanes connecting worlds are determined.
+     Initially, one or two sub-sectors should be quite enough for years of adventure
+(each sub-sector has, on the average, 40 worlds), but ultimately, travellers will ven-
+ture into unknown areas and additional subsectors will have to be charted.
+
+STAR MAPPING
+   To create an initial subsector, use the following procedure:
+
+      1. World Occurrence: There is a basic one-half chance normally that a world (and
+its attendant stellar system) will be in a hex. Systematically check each hex, throwing
+one die and marking the hex with a circle if the result is a 4, 5, or 6. This indicates
+that a world is present; otherwise, leave the hex blank.
+      The referee may elect to alter the normal chances of worlds, making them more
+frequent or less frequent to correspond to specific regions of the galaxy. This is easi-
+ly accomplished by imposing a DM of +1 or –1 on the whole subsector, or on broad
+areas within a subsector.
+      2. Starport Type: Many worlds have starports, their presence being essential to
+                       interstellar trade and commerce. Each world must be checked
+    STARPORTS          for its starport type; throw two dice for each world in the sub-
+    Die     Type       sector, and mark the world with the letter indicated on the star-
+    02      A          ports table.
+    03      A               The starports table indicates one specific distribution of
+    04      A          starports as a basis for star mapping. Just as the distribution of
+    05      B          stars can be altered (as indicated in item 1), the referee is also
+    06      B          free to create his own starports tables, perhaps as many as one
+    07      C          for each subsector.
+    08      C               Starports are further described in the starport chart. In
+    09      D          many cases, starports will be accompanied by naval or scout
+    10      E          bases, and will have a wide range of facilities. In nearly all cas-
+    11      E          es, a planet will consider that a starport is extraterritorial, and
+    12      X          not subject to local law, but will also enforce strict entrance and
+                       exit controls.
+      3. Route Determination: The worlds of a subsector are connected by the charted
+space lanes, which mark the regular routes travelled by commercial starships. While
+it is possible for starships to travel without regard to the lanes charted, individuals
+                                           –1–
+
+===== BOOK 3 / PRINTED PAGE 2 / PDF PAGE 7 =====
+
+                                                    who do not own or control
+                  JUMP ROUTES                       starships are generally re-
+  World       ———— Jump Distance ————               stricted to commercial travel on
+   Pair    Jump-1 Jump-2 Jump-3 Jump-4              ships which ply to routes which
+   A-A     1         2         4         5          are mapped.
+    A-B    1         3         4         5               For each world, note the
+    A-C    1         4         6         —          starport type for it and for its
+   A-D     1         5         —         —          neighbors. Consult the jump
+    A-E    2         —         —         —          routes table, throwing one die.
+    B-B    1         3         4         6          Four columns are provided,
+    B-C    2         4         6         —          corresponding to jump dis-
+    B-D    3         6         —         —          tances one through four. De-
+    B-E    4         —         —         —          termine the distance between
+    C-C    3         6         —         —          the two worlds, and the rela-
+    C-D    4         —         —         —          tionship between the starports.
+    C-E    4         —         —         —          At the intersection of the dis-
+   D-D     4         —         —         —          tance column and the world
+    D-E    5         —         —         —          pair row, a number is stated. If
+    E-E    6         —         —         —          the one die throw is equal to,
+                                                    or greater than the number, a
+space lane exists. Draw a line connecting the two worlds on the map. Each specific
+pair of worlds should be examined for jump routes only once.
+     This procedure is followed for most worlds within four hexes of each other;
+some worlds will obviously not have connecting space-lanes, and others will ob-
+viously have many. The nature of interstellar jumps is such that a jump-2 may be
+made over two connecting jump-1 links; by remembering this facet of star travel, it is
+possible to ignore some potential connections because they are already present
+through the use of shorted connecting lanes. This may well help in the creation of
+legible subsector maps.
+     The star map, once generated, shows the distribution of star systems in space,
+and shows their relationships to each other in terms of relative distance and com-
+mercial space-lane connections.
+
+WORLD CREATION
+     The worlds contained in the star systems on the subsector map may be further
+classified in terms of their gross physical characteristics and their effects on persons
+living on them or travelling to them. These characteristics (seven basics, plus a tech-
+nological index) indicate specific facts about a world through the use of single digits
+(the numbers 0 though 9) and letters (A through Z, omitting O and I as they may be
+confused with numbers). In most cases, the instructions below concentrate on num-
+bers, reserving letters for use by the referee to describe extraordinary situations.
+     This world creation process applies only to the single inhabited world in a star
+system; additional planets in a system should be generated as necessary.
+     The seven basic planetary characteristics are generated using two dice throws,
+with DMs applied based on other characteristics. After these seven are established, a
+technological index is created from the information they contain. In addition to these
+eight characteristics, any number of other descriptive characteristics are possible,
+and should be generated to more fully describe the specific world.
+
+                                          –2–
+
+===== BOOK 3 / PRINTED PAGE 3 / PDF PAGE 8 =====
+[This page also carries a figure or illustration that is not reproduced as text.]
+
+                              SUB-SECTOR HEX GRID
+
+    This hex grid is intended for use in the generation of stellar subsectors. Permis-
+sion is granted to Traveller players to photocopy this page for personal use.
+
+                                         –3–
+
+===== BOOK 3 / PRINTED PAGE 4 / PDF PAGE 9 =====
+
+                                  Each world should be allocated at least one (and
+     PLANETARY               preferably several) pages in a central notebook main-
+   CHARACTERISTICS           tained by the referee. As characteristics are generated,
+                             they should be recorded along with the name of the
+  Starport Type              world and its location (generally its subsector and hex
+  Planetary Size             number). In addition, the referee should generate other
+  Planetary Atmosphere       information which may be pertinent; this may include
+  Hydrographics              details of other planets in the star system, radiation cha-
+  Population                 racteristics of the star, the types of terrain present on
+  Government                 the planetary surface, unique encounter tables (as pre-
+  Law Level                  scribed by the section on animal encounters), data on
+  Technological Index        flora and fauna, industrial or agricultural capacity, data
+                             on social structure and government, or possibly actual
+maps of the planetary surface.
+     For convenience, planetary characteristics should be expressed as a string of
+digits, in much the same manner as the Universal Personality Profile is used for the
+easy identification of persons.
+
+     Starports: The starport digit ranges from A (the best) through E (the worst); also
+included is X (indicating no starport). Starport type is generated using the starports
+table presented in the section on star mapping. Starport type indicates the type and
+quality of facilities present for the handling of interstellar commerce and travel. See
+the starport table.
+     Planetary Size: The digit representing planetary size indicates the diameter of
+the planetary sphere stated in thousands of miles. This size is used in book 1 to
+compute varying gravitational strengths. It is used in book 2 for the creation of pla-
+netary templates for miniature space combat. See the planetary size table.
+     Planetary size is generated using a two dice throw, minus an automatic DM of –
+2. The resulting value ranges from 0 to 10. Zero indicates an asteroid/planetoid com-
+plex. In addition, certain alternative world forms are possible; these are discussed in
+greater detail in the comments at the end of this section.
+     Planetary Atmosphere: The digit indicating planetary atmosphere represents the
+type of atmosphere encountered on the world. Varying types of atmospheres require
+the use of protective clothing or masks. See the planetary atmosphere table.
+     Planetary atmosphere is generated using a two dice throw, minus an automatic
+DM of –7 and with a further DM of + planetary size. A planet of size zero automatical-
+ly has an atmosphere of zero.
+     Hydrographic Percentage: The digit indicating hydrographic percentage
+represents the percentage of planetary surface (in increments of 10%) covered by
+seas or oceans. For normal worlds, this will be water; on other worlds (with corro-
+sive or exotic atmospheres), it may instead be other liquids of fluids such as ammo-
+nia. See the hydrographic percentage table.
+     Hydrographic percentage is obtained from a two dice throw, with an automatic
+DM of –7 applied. A further DM of + planetary size is also applied (a planetary size of
+O or 1 indicates an automatic result of 0). If planetary atmosphere is 0, 1, or greater
+than 9, apply a DM of –4.
+
+
+
+                                          –4–
+
+===== BOOK 3 / PRINTED PAGE 5 / PDF PAGE 10 =====
+
+STARPORTS
+Type     Description
+A        Excellent quality installation. Refined fuel available. Annual maintenance
+         overhaul available. Shipyard capable of both starship and non-starship con-
+         struction present. Naval base present on a throw of 8+; scout base present
+         on a throw of 10+.
+B        Good quality installation. Refined fuel available. Annual maintenance over-
+         haul available. Shipyard capable of constructing non-starships present. Na-
+         val base present on a throw of 8+; scout base present on a throw of 9+.
+C        Routine quality installation. Only unrefined fuel available. Reasonable repair
+         facilities are present. Scout base (with refined fuel available for scouts) is
+         present on a throw of 8+.
+D        Poor quality installation. Only unrefined fuel available. No repair or shipyard
+         facilities present. Scout base (with refined fuel available for scouts) is
+         present on a throw of 7+.
+E        Frontier installation. Essentially a bare spot of bedrock with no fuel, facilities,
+         or bases present.
+X        No starport. No provision is made for any starship landings.
+
+PLANETARY SIZE                                             PLANETARY ATMOSPHERE
+Digit    Description                                       Digit      Description
+0        Asteroid/Planetoid Complex.                       0          No atmosphere.
+1        1000 miles diameter.                              1          Trace.
+2        2000 miles diameter.                              2          Very thin, tainted.
+3        3000 miles diameter.                              3          Very thin.
+4        4000 miles diameter.                              4          Thin, tainted.
+5        5000 miles diameter.                              5          Thin.
+6        6000 miles diameter.                              6          Standard.
+7        7000 miles diameter.                              7          Standard, tainted.
+8        8000 miles diameter.                              8          Dense.
+9        9000 miles diameter.                              9          Dense, tainted.
+A        10000 miles diameter.                             A          Exotic.
+B        11000 miles diameter.                             B          Corrosive.
+C        12000 miles diameter.                             C          Insidious.
+
+Atmosphere Notes:
+     No atmosphere and trace approximate the effects of vacuum, and require the wearing of
+protective vacc suits at all times.
+     Very thin atmospheres require the use of respirator/compressors to insure sufficient oxy-
+gen is available to breathe.
+     Thin, standard and dense atmospheres are breathable without assistance.
+     Tainted atmospheres are artificially or naturally polluted, and require filter masks in addi-
+tion to any other required apparatus.
+     Exotic atmospheres require the use of oxygen tanks, but protective suits are not required.
+     Corrosive atmospheres require the use of protective suits and measures similar to that
+required for vacuum.
+     Insidious atmospheres are similar to corrosive atmospheres, but will defeat any personal
+protective measures in 2-12 hours.
+
+
+                                               –5–
+
+===== BOOK 3 / PRINTED PAGE 6 / PDF PAGE 11 =====
+
+HYDROGRAPHIC PERCENTAGE                              POPULATION
+Digit    Description                                 Digit    Description
+0        No free standing water.                     0        0. No inhabitants.
+1        10%                                         1        10
+2        20%                                         2        100
+3        30%                                         3        1,000
+4        40%                                         4        10,000
+5        50%                                         5        100,000
+6        60%                                         6        1,000,000
+7        70%                                         7        10,000,000
+8        80%                                         8        100,000,000
+9        90%                                         9        1,000,000,000
+A        All water. No land masses.                  A        10,000,000,000
+
+GOVERNMENTAL TYPE
+Type    Description
+0       No government structure. In many cases, family bonds will predominate.
+1       Company/Corporation. Ruling functions are assumed by a company mana-
+        gerial elite, and most citizenry are company employees or dependents.
+2       Participating Democracy. Ruling function decisions are reached by the advice
+        and consent of the citizenry directly.
+3       Self-Perpetuating Oligarchy. Ruling functions are performed by a restricted
+        minority, with little or no input from the mass of citizenry.
+4       Representative Democracy. Ruling functions are performed by elected repre-
+        sentatives.
+5       Feudal Technocracy. Ruling functions are performed by specific individuals
+        for persons who agree to be ruled by them. Relationships are based on the
+        performance of technical activities which are mutually beneficial.
+6       Captive Government. Ruling functions are performed by an imposed leader-
+        ship answerable to an outside group. A colony or conquered area.
+7       Balkanization. No central ruling authority exists; rival governments compete
+        for control. Law level refers to government nearest the starport.
+8       Civil Service Bureaucracy. Ruling functions are performed by government
+        agencies employing individuals selected for their expertise.
+9       Impersonal Bureaucracy. Ruling functions are performed by agencies which
+        have become insulated from the governed citizens.
+A       Charismatic Dictator. Ruling functions are performed by agencies directed by
+        a single leader who enjoys the overwhelming confidence of the citizens.
+B       Non-Charismatic Leader. A previous charismatic dictator has been replaced
+        by a leader through normal channels.
+C       Charismatic Oligarchy. Ruling functions are performed by a select group of
+        members of an organization or class which enjoys the overwhelming confi-
+        dence of the citizenry.
+D       Religious Dictatorship. Ruling functions are performed by a religious organi-
+        zation without regard to the specific individual needs of the citizenry.
+
+
+                                         –6–
+
+===== BOOK 3 / PRINTED PAGE 7 / PDF PAGE 12 =====
+
+LAW LEVELS
+Law
+Level    Description and Prohibitions
+0        No laws affecting weapons possession or weapons ownership.
+
+1        Certain weapons are prohibited, including specifically 1) body pistols
+         which are undetectable by standard detectors, 2) explosive weapons such
+         as bombs or grenades, and 3) poison gas.
+
+2        Portable energy weapons, such as laser rifles or carbines are prohibited.
+         Ship’s gunnery is not affected.
+
+3        Weapons of a strict military nature (such as machine guns or automatic
+         rifles, though not submachine guns) are prohibited.
+
+4        Light assault weapons (such as submachine guns) are prohibited.
+
+5        Personal concealable firearms (such as pistols and revolvers) are prohi-
+         bited.
+
+6        Most firearms (all except shotguns) are prohibited. The carrying of any
+         type of weapon openly is discouraged.
+
+7        Shotguns are prohibited.
+
+8        Long bladed weapons (all blade weapons except daggers) are strictly con-
+         trolled. Open possession in public is prohibited. Ownership is, however,
+         not restricted.
+
+9        Possession of any weapon outside of one's home is prohibited.
+
+
+    Note: Each law level includes all prohibitions and conditions of levels numbered
+lower than it. Thus, shotguns are prohibited at all law levels from 7 higher.
+    In addition to weapons and arms controls, law levels indicate the general throw
+for police or enforcement harassment for violations. Thus, a person on a world of
+law level 4 would have a saving throw of 4 or more to avoid arrest when encounter-
+ing an enforcement agent such as a policeman or customs agent.
+    Law level does not apply to persons and ships at a starport, as local laws do not
+apply in such areas.
+
+
+
+
+                                        –7–
+
+===== BOOK 3 / PRINTED PAGE 8 / PDF PAGE 13 =====
+
+    Population: The digit indicating population is an exponent of 10. This may be
+viewed as the number of zeros following a one. Thus, a population digit of 6 indi-
+cates a population of approximately 1,000,000. See the population table.
+    Population is generated with a two dice throw, subject to an automatic DM of –2.
+The result is a range from 0 to 10. Also see the notes on population at the end of this
+section.
+    Planetary Government: The digit representing planetary government indicates a
+range of possible ruling systems, from anarchy to totalitarianism. The planetary
+government table gives a brief précis of the general characteristics of each govern-
+ment type. Balkanization is a special result, and indicates that there is no world gov-
+ernment; instead several rival territorial governments exist. In such cases, the refe-
+ree should generate the specific qualities of each territory on the planet separately.
+    Planetary government is generated using a two dice throw, subject to an auto-
+matic DM of –7, and a further DM of + the planet’s population digit.
+    Law Level: The digit representing law level indicates the relative force of law
+extant on the world. The level specifically states the restrictions in force concerning
+the possession and use of weapons by individuals. See the law level table.
+    Law level is obtained from a two dice throw, subject to an automatic DM of –7 ,
+and a further DM of + the government type.
+
+    This procedure for world creation is intended to provide a wide variety of fea-
+tures for worlds to which adventurers will travel. Specific characteristics should be
+taken as guides rather than strict statistics.
+    For example, a population digit of 6 indicates a population of 1,000,000; it can be
+construed to actually cover a range from slightly more than the next lowest level
+(100,000) to slightly less than the next highest level (10,000,000). Similarly, a world
+with 100% water would still possibly have small islands capable of serving as a star-
+port or land base.
+    At times, the referee (or the players) will find combinations of features which
+may seem contradictory or unreasonable. Common sense should rule in such cases;
+either the players or referee will generate a rationale which explains the situation, or
+an alternative description should be made.
+    Finally, the referee should always feel free to impose worlds which have been
+deliberately (rather than randomly) generated. Often such planets will be devised
+specifically to reward or torment players.
+
+COMMENTS ON BASIC PLANETARY CHARACTERISTICS
+     Some comments and several exceptions, are possible to the basic characteris-
+tics indicated above. Their use and implementation are up to the presiding referee.
+     Alternate World Forms: Several alternatives to the traditional spherical world
+form are possible. Most occur when a civilization wishes to trap and use energy from
+its central star, and needs great land surface to do so. In addition, population pres-
+sure (especially on a civilization unable to develop interstellar travel on a large scale)
+may be a contributing factor. Alternate world forms are not included in the world
+creation sequence, but may be provided on a sparing basis by the referee. They are
+ideal for large population worlds, but may also be populated by smaller numbers, as
+in degenerate or decimated worlds.
+
+
+                                           –8–
+
+===== BOOK 3 / PRINTED PAGE 9 / PDF PAGE 14 =====
+
+     Rosettes: Three or more equal masses (worlds) set at the points of an equilateral
+polygon, and with the correct equal angular velocities about their center of mass,
+will have a stable orbital configuration. In fact, no central star is required for the
+group. Rosettes will almost never occur naturally.
+     Ringworlds: An incredibly strong band may be set rotating about a central star,
+making a ringworld which uses centrifugal force to provide a simulation of gravity.
+Such a ringworld, of 93 million miles radius, and with a width of 1 million miles, has
+a usable surface area equal to about 3 million Earths.
+     Sphereworlds: Using materials similar to those in a ringworld, and adding gravi-
+ty generators where necessary for strength and comfort, a spherical shell could be
+used to completely enclose a star. Such a shell would then trap all stellar radiation
+for use by the civilization. With a radius of about 93 million miles, the internal sur-
+face area would equal about one billion Earths.
+
+    Population Density: For comparison, the following population densities are
+common on twentieth century Earth. Earth on the whole, has a population of about
+three billion (population level 9); this is approximately 5 persons per square mile, or
+16 persons per square mile of land area. Europe is populated at about 151 persons
+per square mile, the equivalent of population level 10. The Netherlands contain 1500
+persons per square mile, or about population level 11. Hong Kong has 10,000 per-
+sons per square mile, the equivalent of population level 12.
+
+TECHNOLOGICAL INDEX
+     The degree of technological expertise, and thus the capabilities of local industry,
+depends greatly on the basic characteristics of a world. This technological index is
+generated based on a one die throw, modified by DMs dependent on planetary cha-
+racteristics.
+     Consult the technologi-
+cal index matrix, and refer-             TECHNOLOGICAL INDEX MATRIX
+ence the appropriate plane-
+tary values with the descrip-    Value Starport Size Atm Hyd Pop Govt
+tions; note all DMs indi-          0         —       +2     +1      —      —      +1
+cated, and sum them to             1         —       +2     +1      —      +1     —
+form one total DM. Throw           2         —       +1     +1      —      +1     —
+one die, and modify the            3         —       +1     +1      —      +1     —
+result, thus determining the       4         —       +1     —       —      +1     —
+local technological index.         5         —       —      —       —      +1     +1
+Note the result in the ap-         6         —       —      —       —      —      —
+propriate records.                 7         —       —      —       —      —      —
+     Technological     index       8         —       —      —       —      —      —
+may vary from zero to 18,          9         —       —      —      +1      +2     —
+more commonly ranging              A         +6      —      +1     +2      +4     —
+from 4 through about 10.           B         +4      —      +1      —      —      —
+Higher numbers indicate            C         +2      —      +1      —      —      —
+greater capability.                D         —       —      +1      —      —      –2
+     The technological index       E         —       —      +1      —      —      —
+is used in conjunction with        X         –4      —      —       —      —      —
+the technological level table
+
+                                          –9–
+
+===== BOOK 3 / PRINTED PAGE 10 / PDF PAGE 15 =====
+
+                                   TECHNOLOGICAL LEVELS
+            ——————— Weapons ———————
+       Personal          Armor          Special            Computers        Communication
+0      Club, cudgel,                                                        Runners
+       Spear
+1      Dagger, pike,     Jack           Catapult           Abacus           Heliograph
+       Sword
+2      Halberd,                         Cannon
+       Broadsword
+3      Foil, cutlass,
+       Blade, bayonet
+4      Revolver,         Cloth          Artillery          Adding Machine   Telephones
+       Shotgun
+5      Carbine, Rifle,                  Sandcasters,       Model/1          Radio
+       Pistol, SMG                      Mortars
+6      Auto Rifle                       Missiles,          Model/1 bis      Television
+                                        Rocket Launchers
+7      Body Pistol       Mesh           Pulse Laser        Model/2
+
+8      Laser Carbine                    Auto-Cannon        Model/2 bis
+
+9      Laser Rifle       Ablat          Beam Laser         Model/3
+
+10                       Reflec                            Model/4
+
+11                                                         Model/5
+
+12                                                         Model/6
+
+13                       Battle Dress                      Model/7
+
+14
+
+15
+
+16
+
+17                                                         Artificial
+                                                           Intelligence
+18
+
+
+    to determine the general quality and capability of local industry. The tables indicate
+    the general types or categories of goods in general use on the world. In most cases,
+    such goods are the best which may be produced locally, although better goods may
+    be imported by local organizations or businesses when a specific need is felt. In
+    most cases, local citizenry will not be armed with weapons of a type which cannot be
+    produced locally, although police or military units may be armed with weapons up
+    to several levels above local technology. Technological level also indicates the gen-
+
+                                               –10–
+
+===== BOOK 3 / PRINTED PAGE 11 / PDF PAGE 16 =====
+
+                             TECHNOLOGICAL LEVELS
+          ————————— Transportation —————————
+        Water   Land        Air       Space                           Fuels
+   0    Canoes  Carts                                                 Muscle
+
+   1    Galley          Wagons
+
+   2                                                                  Wind
+
+   3    Sailing Ships                 Hot air balloon                 Water wheel
+
+   4    Steamships      Trains        Dirigibles                      Coal
+
+   5                    Ground cars   Fixed wing aircraft             Oil
+
+   6    Submersibles    ATV, AFV      Rotary wing aircraft            Fission
+
+   7    Hovercraft      Hovercraft                 Non-starships      Solar
+
+   8                                  Air/Raft                        Fusion
+
+   9                                               Starships
+
+   10                                              Drives H or less
+
+   11                                              Drives K or less
+
+   12                                 Grav belts   Drives N or less
+
+   13                                              Drives O or less
+
+   14                                              Drives U or less
+
+   15                                              All drives
+
+   16      ———— Matter Transport ————
+
+   17                                                                 Anti-Matter
+
+   18
+
+
+eral ability of local technology to repair or maintain items which have tailed or mal-
+functioned.
+     The technological level tables have several spaces or holes, and such gaps
+should be filled in by the referee or the players when they discover items or devices
+of interest.
+
+
+
+                                        –11–
+
+===== BOOK 3 / PRINTED PAGE 12 / PDF PAGE 17 =====
+
+STAR MAPPING AND WORLD CREATION CHECKLIST
+     Use this checklist when mapping individual stellar subsectors.
+
+1.   Map local subsector.
+     A. Throw for each hex; 4, 5, or 6 indicates world is present.
+     B. Determine starport type; two dice throw and consult starport table.
+     C. Determine space lanes; check all possible jump routes.
+2.   Generate specific worlds.
+     A. Note previously generated starport type.
+     B. Generate planetary size. 2D–2.
+     C. Generate planetary atmosphere. 2D–7 +planetary size (size 0 requires atmos
+     0).
+     D. Generate hydrographic percentage. 2D–7 +planetary size. (size 0 or 1 re-
+         quires hydrographic 0; Atmosphere 0, 1 or A+, DM –4.
+     E. Generate population. 2D–2.
+     F. Generate planetary government. 2D–7 +population.
+     G. Generate law level. 2D–7+ government type.
+     H. Generate technological index. Determine DMs from matrix and throw 1 die.
+3.   Name each world and note hex number location in subsector.
+
+
+
+
+                                         –12–
+
+===== BOOK 3 / PRINTED PAGE 13 / PDF PAGE 18 =====
+
+                                                                      Equipment
+      The infinity of physical objects in the universe and the variation in their potential
+costs and values defy classification; it is impossible to note and define them all. The
+objects below are presented as basic indications of common qualities and values.
+      Each listing notes the object's name, followed by its technological index in pa-
+rentheses, a price in credits, and a basic description. The technological level indi-
+cates local technology required for manufacture. Statistics such as price, weight, and
+dimensions are given as necessary (an item without weight or dimensions can
+usually be carried or worn without difficulty). Additional lines of explanation are giv-
+en where considered necessary.
+      This listing may be considered a shopping list for travellers. When they original-
+ly outfit themselves for an adventure, each may purchase or acquire items from this
+list in preparation for action or mishap. For the most part, this list does not include
+weaponry, and all items are generally available for purchase without difficulty on
+worlds with a sufficient technology index (on other worlds, they may be available as
+imports at higher prices). Often, the base price for these items will be altered higher
+or lower using the trade and speculation rules for percentage price changes.
+
+PERSONAL EQUIPMENT
+   The following are personal survival items often needed by individuals.
+
+Respirator (5) CR 100. A compressor which allows breathing of atmosphere type 3.
+Filter Mask (3) CR 10. A filter set allowing breathing of atmosphere types 4, 7 or 9.
+Combination (5) CR 150. A combination of both filter mask and respirator which al-
+     lows breathing of atmosphere type 2.
+Oxygen Tanks (5) CR 500. A complete set of compressed oxygen tanks which allows
+     independent breathing in smoke, dust, gas, or type A atmosphere. Two tanks
+     last 6 hours, weigh 5 kg. Refill: CR 20.
+Underwater Air Tanks (5) CR 800. Equivalent to oxygen tanks but designed for use
+     underwater. Two tanks last 6 hours, weigh 5 kg. Refill: CR 20.
+Artificial Gill (8) CR 4000. Extracts oxygen from water to allow unlimited time sub-
+     merged. Functions only on worlds with atmosphere 4-9. Weighs 4 kg.
+Swimming Equipment (3) CR 200. Includes swim fins, wet suit, face mask.
+Protective Suit (5) CR 700. Protects against type B atmosphere. Weighs 5 kg.
+Vacc Suit (7) CR 10000. Worn in vacuum or as protective suit. Includes oxygen tanks,
+     radio communicators and other required equipment. Weighs 10 kg.
+Cold Weather Clothing (1) CR 200. Protects against frigid weather.
+
+PERSONAL DEVICES
+   The following is an assortment of devices which individuals may use:
+
+Short Range Communicator (5) CR 100. Radio capable of 10 km range. .3 kg.
+Medium Range Communicator (5) CR 200. Radio set capable of up to 30 km range,
+   and contact with official radio channels. Weighs .5 kg.
+Long Range Communicator (6) CR 500. Radio capable of ranges up to 500 km and
+   contact with ships in orbit. Weighs 1.5 |<g.
+Magnetic Compass (3) CR 10. Indicates direction of magnetic north, if any exists.
+                                           –13–
+
+===== BOOK 3 / PRINTED PAGE 14 / PDF PAGE 19 =====
+
+Inertial Locator (9) CR 1200. Indicates direction and distance travelled from the start-
+     ing location. Weighs 1.5 kg.
+Metal Detector (6) CR 300. Indicates presence of metal. 1 kg.
+Geiger Counter (5) CR 250. Indicates presence and intensity of radioactivity. Weighs
+     1 kg.
+Bull-Horn (5) CR 120. Amplifies voice to very long range. Weighs .5 kg., but is very
+     bulky and awkward to carry.
+Hand Calculator (6) CR 250. Provides basic mathematical calculations. It is recom-
+     mended that players using such devices be required to have their characters
+     purchase them. Weighs .1 kg.
+Hand Computer (11) CR 1500. Provides services of a programmable calculator, plus
+     serves as a computer terminal when linked (by its integral radio, or by other cir-
+     cuit) to a computer. Weighs .5 kg.
+Artificial Psionic Shield Helmet (8) CR 4000. Acts as a shield against psionic forces.
+     Weighs 1 kg.
+Handcuffs (2) CR 25. Weigh .3 kg. Higher tech levels produce lighter designs.
+Wrist Watch (3) CR 25 to CR 1000. Price determines quality.
+
+VISION AIDS
+    The following items are generally used to allow enhanced vision:
+
+Binoculars (3) CR 75. Weigh 1 kg.
+IR Goggles (6) CR 500. Allows wearer to see heat sources (infrared radiation) in the
+    dark. Quality of vision is necessarily distorted.
+Light Intensifier Goggles (9) CR 500. Allows vision in anything less than total dark.
+Torches (1) CR 1. Last about 20 minutes. Each weighs .25 kg.
+Electric Torches (3) CR 10. Last about 6 hours continuous use. Weigh .5 kg.
+Gas or Oil Lamp (2) CR 10. Last about 6 hours. Weighs .5 kg.
+Cold Light Lantern (6) CR 20. Lasts 3 days continuous use. Weighs .25 kg.
+
+TOOLS
+   The following are examples of tools or tool sets available:
+
+Carpentry Tools Set (2) CR 300. Includes basic tools necessary to cut, shape and
+    build with wood. Boxed set weighs 25 kg.
+Metalwork Tool Set (4) CR 1500. Includes basic tools necessary for metalworking,
+    welding, shaping. Boxed set weighs 50 kg.
+Chain Saw (6) CR 500. Motorized mechanical device for felling, cutting and shaping
+    trees. Weighs 8 kg.
+Mechanical Tool Set (5) CR 1000. Includes basic tools necessary to repair and alter
+    mechanical devices. Boxed set weighs 20 kg.
+Electronic Tool Set (7) CR 2000. Necessary tools for basic electronic assembly and
+    repair. Boxed set weighs 5 kg.
+Lock Pick Set (6) CR 400. Allows picking of most ordinary locks on a throw of 8+;
+    throw once per 15 seconds. Weight is negligible.
+Disguise Kit (7) CR 1000. Allows change of personal appearance on a temporary ba-
+    sis. Complete kit weighs 5 kg.
+
+
+                                         –14–
+
+===== BOOK 3 / PRINTED PAGE 15 / PDF PAGE 20 =====
+
+SHELTERS
+    The following are examples of portable or temporary shelters available to indi-
+viduals:
+
+Tarpaulin (1) CR 10. A canvas or waterproof cloth sheet used to create a temporary
+    shelter. 2 by 4 meters. Weighs 2 kg.
+Tent (2) CR 200. Basic shelter for two persons. Weighs 3 kg. Larger, more elaborate
+    tents weigh and cost more.
+Pressure Tent (7) CR 2000. Basic shelter for two persons, providing standard atmos-
+    phere and conditions. Weighs 25 kg.
+Pre-Fabricated Cabin (6) CR 10,000. Modular unpressurized quarters for 6 persons.
+2 by 6 by 6 meters. Can be carried in the hold of a starship. Weighs 4 tons.
+Advanced Base (8) CR 50,000. Modular pressurized quarters for 6 persons, with air
+    lock, and atmosphere recirculating system. 2 by 6 by 6 meters. Can be carried in
+    the hold of a starship. Weighs 6 tons.
+
+FOOD AND OVERHEAD
+   The following are indications of the prices for food and basic survival:
+
+     Basic Cuisine on a Daily Basis: Food is available in a variety of forms and quali-
+ties. Prices indicated are per person.
+     Restaurant meals of ordinary quality cost CR 10 per day. Excellent quality meals
+range in price from CR 20 to CR 50 per person. Travellers' Aid Society facilities pro-
+vide excellent quality meals to members and guests for CR 20.
+     Food purchased from vendors for preparation at home costs about CR 5 per day,
+and weighs about 1 kg.
+     Preserved foods for rations on expeditions may be canned or packaged (CR 20
+per day, weighs .5 kg) or dehydrated (CR 25 per day, weighs .2 kg, dependent on
+locally supplied water).
+     Subsistence on a Long Term Basis: In situations where time passes quickly, per-
+sonal survival or subsistence costs can be assumed to be the values given below:
+     Starvation Level- bare minimum of food, CR 60 per month. Dismal lodging, CR
+60 per month.
+     Subsistence Level- reasonable food, CR 120 per month. Acceptable lodging, CR
+180 per month.
+     Ordinary Level- good food, CR 200 per month. Good lodging, CR 200 per month.
+     High Living- Excellent food CR 600 per month. Excellent accommodations, CR
+300 per month.
+
+    Ship Crews- Individuals living on ship—board have ordinary lodging and food
+taken care of, but generally spend much of their salary for expenses and other costs.
+
+
+
+
+                                         –15–
+
+===== BOOK 3 / PRINTED PAGE 16 / PDF PAGE 21 =====
+
+VEHICLES
+     Various forms of transportation will be required by adventurers as they travel
+farther away from the starport of a world. The following provide general guidelines
+for the use of various vehicles.
+     Primitive Transportation: On worlds with low technology levels (0 through 3),
+the local means of transportation will tend to depend on beasts of burden, animal
+drawn carts, and watercraft such as galleys and sailing ships. Prices for such items
+will depend on local situations; animals and wagons in hundreds of credits, ships in
+the thousands and ten thousands of credits.
+     Local beasts of burden and riding animals will be domesticated herbivores simi-
+lar to animals in local encounter tables and generally of the 200 or 400 kilogram
+range or above. Note that low passage berths can be used to carry an animal of up
+to 400 kilograms if characters wish to bring along their own riding beasts to a partic-
+ular world.
+     Land Vehicles: Several types of land vehicles are generally available. Persons
+with ATV skill may generally operate any type of land vehicle with expertise and to
+advantage; all characters can operate land vehicles with mediocre results. The fol-
+lowing examples are given to indicate vehicle abilities and characteristics:
+
+Ground Car (5) CR 40,000. This is an ordinary self-powered vehicle suitable for local
+     use in civilized areas or on roads. It has a range of 1000 km before refueling and
+     is capable of speeds up to 150 km per hour. Usually, this type of vehicle (a se-
+     dan) will hold six passengers. Note that other models (convertibles, sports mod-
+     els, limousines, trucks, motorcycles, unicycles, vans, etc) may be available at va-
+     rying prices. Ground cars are unpressurized, and average about 2 tons in weight.
+     The ground car is a mass production item specifically manufactured for a specif-
+     ic world; it will tend to malfunction when transferred to a world not similar to its
+     world of origin.
+All Terrain Vehicle (6) CR 3,000,000. Considerably more expensive than the ground
+     car, the All Terrain Vehicle (abbreviated ATV) is designed to serve admirably on
+     many different worlds under widely varying conditions, including vacuum and
+     insidious atmospheres, and high or low gravity. With a range between refuel-
+     lings of 5000 km (refueling is performed from a ship's power plant), ATVs are
+     capable of speeds up to 100 km per hour on roads, and about half that cross-
+     country. The vehicle is fully pressurized and contains complete (though
+     cramped) eating, sleeping and travel facilities for eight persons. The ATV weighs
+     10 tons.
+Armored Fighting Vehicle (6) CR 7,000,000. Similar in form and bulk to the ATV, the
+     armored fighting vehicle (abbreviated AFV) is identical, except: the vehicle is
+     armored to withstand most forms of attack, and is equipped with a turret mount-
+     ing a laser or auto-cannon of some form. A crew of three is required, with little
+     or no interior facilities provided. The AFV weighs 10 tons.
+Hovercraft (7) CR 2,000,000. Ground effect vehicles are capable of hovering at low
+     altitude (about 1 meter). Usable only on worlds with an atmosphere of 4 or
+     greater, hovercraft are capable of speeds up to 100 km per hour and have an op-
+     erating range of about 1000 km. They may move over both land and water with
+     equal ease, but encounter difficulty with broken ground or precipices. Hovercraft
+     weigh about 8 tons, and carry up to 15 passengers plus operator.
+
+                                          –16–
+
+===== BOOK 3 / PRINTED PAGE 17 / PDF PAGE 22 =====
+
+    Using Land Vehicles: When characters use land vehicles, the referee should note
+specific throws which will affect such use. Generally, throw 11+ for mechanical diffi-
+culty to occur, allowing DMs for personal expertise, terrain, and perhaps age and
+condition of the vehicle. Throw 11+ for terrain difficulty, or include such items with
+the animal encounter tables. Note also that local law level is the throw to avoid such
+things as speed traps or traffic violation arrests.
+    Most vehicles can be refueled/recharged from a starship power plant.
+    Air Vehicles: Most aircraft are advanced technology vehicles. In extreme situa-
+tions, primitive types such as hot—air balloons or gliders may be locally produced to
+specification by some local artisans.
+    Air/Raft skill may be used beneficially by characters for all air vehicles; unlike as
+with land vehicles, persons without air/raft skill cannot operate air vehicles.
+    The following examples of air vehicles are given to indicate characteristics and
+costs:
+
+Primitive Biplane Aircraft (4) CR 200,000. This is a very small early model aircraft
+     capable of being produced by a world of technology level 4. The plane carries
+     two persons and a payload of perhaps 100 kgs, and weighs one ton unloaded.
+     The engine is dependent on chemical fuel and has an endurance of about three
+     hours. Normal cruising speed is 150 km per hour.
+Fixed Wing Aircraft (5) CR 1,000,000. A twin jet aircraft monoplane with a crew of 2
+     and capacity for 6 passengers. The aircraft weighs 5 tons with a cargo capacity
+     of 5 tons. Wingspan: 15 meters. Length: 15 meters. Normal cruise speed is 600
+     km per hour with a range of 3500 km. Referee's options for the craft could in-
+     clude a seaplane version, hardpoints for ordnance or auto-cannon, larger ver-
+     sions, etc.
+Helicopter (6) CR 1,000,000. Single engine rotary wing aircraft capable of vertical
+     take-off and landing, as well as maneuverability in tight places. This craft weighs
+     one ton with a capacity for one ton of cargo and passengers. Range: 600 km;
+     maximum speed: 250 km per hour. A larger version would be a twin engine car-
+     go helicopter costing CR 2,000,000; weighing ten tons, and capable of carrying
+     ten tons.
+Air/Raft (8) CR 6,000,000. Also known as a flier, the air/raft relies on solid state null
+     gravity modules for lift and propulsion. Four independent, individually replacea-
+     ble modules (CR 1,000,000 each) insure a maximum of safety. Loss of one mod-
+     ule reduces lift by one-quarter. The standard air/raft weighs 4 tons and can carry
+     a payload of up to 4 tons including pilot and passengers. Cruise speed is 100 km
+     per hour with unlimited range and endurance. Normally, air/rafts are open
+     topped; the referee may allow a pressurized version or such options as gun
+     mounts, searchlights, crash cushions or larger capacities at higher prices.
+Grav Belts (12) CR 1,000,000. Personal anti-gravity transportation using a single null
+     gravity module and a personal harness. Otherwise similar in speed and range to
+     the air/raft.
+
+     Air Vehicle Use: Nearly all air vehicles except for air/raft and grav belt, while not
+accident prone, do require frequent maintenance between uses to insure continued
+reliable performance. Basic throw for some form of mechanical failure is 11+, DM –1
+for each missed maintenance.
+
+                                          –17–
+
+===== BOOK 3 / PRINTED PAGE 18 / PDF PAGE 23 =====
+
+    Water Vehicles: Water craft require little skill to operate if under about 500 tons
+displacement. Larger vessels and sailing ships require hired crews which possess
+proper skills for ship operation.
+
+Small Steamship (4) CR 600,000. Vessels of this type vary widely; most are capable
+   of 30 KM per hour for sustained periods, and displace about 100 to 500 tons.
+Motor Boat (5) CR 600,000. Advanced small craft utilize hydrofoils to allow speeds up
+   to 100 KM per hour. Typical vessels are 25M in length and displace about 60 to
+   100 tons.
+Submersible (6) CR 2,000,000. Underwater vessels are the safest of watercraft, not
+   subject to surface weather conditions. On worlds with large water percentages
+   (especially level A) submersibles ply the routes between underwater domed ci-
+   ties. Typically, a submersible (nuclear powered) displaces 500 tons and is capa-
+   ble of 40 KM per hour cruising speed. The vessel has indefinite endurance, air-
+   locks, and facilities for 10 passengers.
+
+
+
+
+                                         –18–
+
+===== BOOK 3 / PRINTED PAGE 19 / PDF PAGE 24 =====
+
+                                                                   Encounters
+     Non-player characters are frequently encountered by travellers in the course of
+their adventures. Such persons are manipulated or controlled by the referee; their
+actions and deeds influence and direct the activities of the actual player-characters in
+the game.
+     Encounters with non-player characters are of three general types: ordinary or
+routine encounters, random encounters, and encounters with patrons. When an en-
+counter occurs, the identity or occupation of the encountered person or group is de-
+termined, their reaction to the adventurers is noted from the reaction table, and the
+players then indicate their activity in response.
+     Encounters with non-player characters serve as a vehicle for direction and input
+by the referee. They can offer information or assistance if their reaction is appropri-
+ate. They can hinder or redirect adventurers through the use of threat or violence.
+Encounters also serve as a method for players to gain comrades, weapons, vehicles
+or assistance where necessary.
+
+ROUTINE ENCOUNTERS
+    Adventurers meet ordinary people in the course of ordinary activity. In many
+cases, adventurers actually ignore the persons (and are themselves little noticed),
+concentrating on the activity instead. Personal reactions are rarely of importance,
+and the individual merely performs his duties. For example, an encounter with a
+store clerk in the course of buying equipment is rarely of importance, and the
+process usually continues without trouble.
+
+RANDOM ENCOUNTERS
+     Adventurers, as they travel about on planets, also have random encounters with
+an unpredictable variety of individuals or groups. Such individuals are themselves
+performing various tasks, which may complement, supplement, oppose, or be irre-
+levant to, the goals of the adventurers themselves.
+     Some random encounters are mandated by the referee. For example, a band
+may encounter a guard patrol at a building while in the course of visiting (or burgla-
+rizing) it. The referee is always free to impose encounters to further the cause of the
+adventure being played; in many cases, he actually has a responsibility to do so.
+     Other random encounters are dictated by the random encounter process. Usual-
+ly, a random encounter point with humans will occur once per day. There is a one
+third chance that a group will be met (throw one die: a result of 5 or 6 indicates an
+encounter). Encounters with persons are independent of the procedure for encoun-
+ters with animals described in the animal encounter section.
+     If a random encounter occurs, consult the person encounter table to determine
+the identity or occupation of the person or group encountered. Throw two dice con-
+secutively, and index the result to the table. Indicated on the table are a basic de-
+scription or identity for the encountered individuals, a dice throw to determine their
+number, an indication of their vehicle, if any, and a description of their weaponry
+and armor.
+     After determining the number in the group, roll two dice three times to deter-
+mine respectively the strength, dexterity and endurance of the people in the group.
+Generally, it may be assumed that all individuals in an encountered group have the
+                                         –19–
+
+===== BOOK 3 / PRINTED PAGE 20 / PDF PAGE 25 =====
+
+same characteristics. Later, it may prove necessary to determine the intelligence,
+education and social standing of the individuals in the group; such data is not actual-
+ly necessary upon initial encounter.
+       In addition to the weapons indicated on the table, there is a possibility that one
+of the group’s members will be armed extraordinarily. Consult the weapons table:
+throw one die for column one. If a weapon is shown, one person is armed with it; if a
+dash is shown, re-roll on column 2. If a weapon is shown, one person is armed with
+it; if a dash is shown, re-roll on column 3. If a weapon is shown, one person is armed
+with it; if a dash is shown, no extraordinary weapons are present. Weapon skill is
+generally considered to be 1 for all encountered persons.
+       Six entries in the person encounter table are left blank; initially, they may be
+interpreted as no encounter. Later, they may be filled in by the referee for specific
+situations, as necessary.
+       Once an encounter occurs, a determination of attitude is made using the reac-
+tion table (later in this section). Combat may ensue. Under the provisions of the per-
+sonal combat section of book 1, it is possible for either group to escape or avoid con-
+tact.
+       After an encounter has been resolved, there is the potential for small amounts of
+money to be on the persons (or bodies) of the vanquished. It is also possible to loot
+the vanquished of their equipment, vehicles, weapons or armor.
+
+PATRONS
+     One specific, recurring goal for adventurers is to find a patron who will assist
+them in the pursuit of fortune and power. Such patrons will, if they hire a band of
+adventurers, specify a task or deed to be performed, and then finance reasonable
+expenses for the pursuit of that task. Some tasks may be ordinary in nature, such as
+hired guards or escorts; other tasks may be for the location and procurement of
+items of great value. Generally, a patron’s agreement with a band of adventurers will
+specify that the patron will receive the item he is seeking while all other goods or
+items acquired will belong to the adventurers.
+     In a single week, a band of adventurers may elect to devote their time to en-
+countering a patron. They may frequent bars, taverns, clubs, perhaps the Travellers'
+Aid Building, or any other likely places. One throw is allowed for the entire band: a
+result of 5 or 6 on one die indicates a likely patron has been found. Two dice are then
+thrown consecutively, and the patron table is consulted to determine the general
+character of the potential patron. If necessary, the patron’s personal characteristics
+are generated at this point. The band then meets with the patron, and an interview
+takes place. Throw two dice on the reaction table to determine if the patron con-
+cludes that the band will be suitable (generally, a throw of 7+ on the reaction table is
+sufficient). The patron then discloses his task, and the adventurers may accept or
+reject the offer of employment.
+     Once the patron and the adventurers have met, the responsibility falls on the
+referee to determine the nature of the task the patron desires, the details of the situa-
+tion (perhaps a map or some amount of information), and to establish the limits of
+the patron’s resources in the pursuit of the task.
+
+
+
+
+                                          –20–
+
+===== BOOK 3 / PRINTED PAGE 21 / PDF PAGE 26 =====
+
+                            RANDOM PERSON ENCOUNTERS
+    Die   Type                   Qty   V     Weaponry                   Armor
+    11    Peasants               1D    —     Clubs and cudgels          —
+    12    Peasants               2D    —     Clubs and cudgels          —
+    13    Workers                2D    —     Clubs                      —
+    14    Rowdies                3D    —     Clubs                      Jack
+    15    Thugs                  2D    —     Daggers                    Jack
+    16    Thugs                  2D    —     Revolvers                  Jack
+    21    Soldiers               2D    —     Rifles and bayonets        Cloth
+    22    Soldiers               2D    V     Carbines                   Mesh
+    23    Police                 1D    V     Automatic Pistols          Cloth
+    24    Marines                2D    V     Revolvers and Cutlasses    Mesh
+    25    Naval Troops           3D    V     Carbines                   —
+    26    Soldiers               2D    V     Submachine Guns            Jack
+    31    Adventurers            1D    —     Swords                     Jack
+    32    Noble with retinue     2D    —     Foils                       —
+    33    Hunters                2D    —     Rifles and Spears          Jack
+    34    Tourists               2D    V     —                          —
+    35    Researchers            2D    V     —                          —
+    36    Police                 1D    V     Revolvers                  —
+    41    Fugitives              1D    —     Clubs                      —
+    42    Fugitives              2D    V     Blades                     Jack
+    43    Fugitives              3D    —     Revolvers                  —
+    44    Vigilantes             2D    V     Rifles and carbines        Jack
+    45    Bandits                3D    —     Swords and Pistols         —
+    46    Brigands               3D    —     Broadswords and Pistols    Cloth
+    51    Merchant               3D    V     Foils                      —
+    52    Traders                2D    V     Blades                     Jack
+    53    Religious Group        2D    —     —                          —
+    54    Religious Group        3D    —     Daggers                    —
+    55    Noble with retinue     2D    —     Swords and Pistols         Mesh
+    56    Guards                 3D    —     Halberds and Daggers       Jack
+    61
+    62
+    63
+    64
+    65
+    66
+
+WEAPONS                                     Notes:
+  1              2           3                   Code V in the V column indicates the
+1 Laser Rifle    Shotgun     Broadsword     group has a vehicle, appropriate to the
+2 Auto Rifle     Carbine     Sword          technology and terrain of the area.
+3 —              Revolver    Halberd             Numbers in a group should be ad-
+4 —              —           Cutlass        justed for balance where necessary.
+5 —              —           Foil                Weaponry may be altered to conform
+6 —              —           —              to law level or technology index.
+
+
+
+
+                                          –21–
+
+===== BOOK 3 / PRINTED PAGE 22 / PDF PAGE 27 =====
+
+PATRON ENCOUNTERS
+    1            2            3             4          5             6
+1   Arsonist     Cutthroat    Assassin      Hijacker   Smuggler      Terrorist
+2   Crewman      Peasant      Rumor         Clerk      Soldier       Shopkeeper
+3   Shipowner    Tourist      Merchant      Police     Scout         Rumor
+4   Diplomat     Courier      Spy           Scholar    Governor      Administrator
+5   Mercenary    Navy Off.    Marine Off.   Scout      Army Off.     Mercenary
+6   Noble        Playboy      Avenger       Émigré     Speculator    Rumor
+
+    Note: Rumors are, in effect, absent patrons. They impart knowledge which may
+be acted on by characters if they so choose.
+
+EMPLOYEES AND HIRELINGS
+     When travellers require employees, for any purpose, they must find them in the
+course of their activities. This may require advertising, visiting union hiring halls, or
+active efforts in barrooms or clubs. Hiring is done by stating a requirement to the
+referee, who indicates persons presenting themselves for employment. The inter-
+view consists of generating the person's characteristics and experience. While deci-
+sions to hire are made on qualifications, the number of persons applying for em-
+ployment may be limited.
+
+NOBILITY
+    Persons with social standing of 11 or greater are considered to be nobility, even
+                                in situations where nobility do not take active part in
+           NOBILITY             local government. Nobility have hereditary titles and
+                                high standing in their home communities.
+  11 knight/dame                      At the discretion of the referee, noble persons
+  12 baron/baroness             (especially of social standing 13 or higher) may have
+  13 marquis/marchioness        ancestral lands or fiefs, or they may have actual rul-
+  14 count/countess             ing power. The nobility table indicates the actual
+  15 duke/duchess               designations or titles accruing to specific social
+                                standing values.
+    Ranking above duke/duchess are two levels not reflected in social standing:
+prince/princess or king/queen are titles used by actual rulers of worlds. The title em-
+peror/empress is used by the ruler of an empire of several worlds.
+
+NON-PLAYER CHARACTER REACTIONS
+     When non-player characters are encountered, their reactions will dictate their
+activity in terms of business deals, violence, assistance, charity, cooperation and a
+number of other actions. When an encounter occurs, throw two dice and consult the
+reaction table.
+     Dice throws of 2 and 12 (exactly) are not subject to DMs; any other result is sub-
+ject to DMs, modified results of less than 3 becoming 3 and greater than 12 becom-
+ing 12.
+     The following general DMs apply to the reaction table; other DMs can and
+should be created to deal with specific situations. If a character has served 5 or more
+
+                                          –22–
+
+===== BOOK 3 / PRINTED PAGE 23 / PDF PAGE 28 =====
+
+                                   terms in the army, navy, marines or scouts,
+         REACTIONS                 DM +1. If planetary population is 11 or greater,
+Die   Reaction                     DM –1.
+2     Violent. Immediate attack.        Reaction throws are made once, upon
+3     Hostile. Attacks on 5+.      initial encounter. One throw is sufficient to
+4     Hostile. Attacks on 8+.      determine the reaction of an entire group.
+5     Hostile. May attack.              Reactions are used by the referee and by
+6     Unreceptive.                 players as a guide to the probable actions of
+7     Non-committal.               individuals. They may be used to determine
+8     Interested.                  the response of a person to business offers or
+9     Intrigued.                   deals (often admin or bribery expertise will be
+10    Responsive.                  used as a DM in such cases). Reactions govern
+11    Enthusiastic.                the reliability and quality of hirelings and em-
+12    Genuinely friendly.          ployees. Generally, they would re-roll reac-
+                                   tions in the face of extremely bad treatment or
+                                   unusually dangerous tasks.
+
+
+
+
+                                     –23–
+
+===== BOOK 3 / PRINTED PAGE 24 / PDF PAGE 29 =====
+
+Animal Encounters
+     Animals in any ecological system interact with each other, forming food chains,
+obeying instincts, defending territory, and generally living out their lives. When men
+enter such an ecological system, they will encounter the animals of the system,
+prompting natural reactions, such as attack or flight.
+     Although the precise nature of animals may change, and they may prove quite
+alien to ordinary experience, most will conform to the broad classifications given
+below. A referee may choose to establish his own ecological system on a specific
+world, ignoring the encounter system outlined here. This system, however, is in-
+tended to allow broad latitude in both animal types and attack/defense mechanisms,
+while remaining essentially logical and reasonable.
+
+INTRODUCTION
+     Nearly all animals may be classified into four basic categories: herbivore, omni-
+vore, carnivore and scavenger. Specific definitions for these terms are provided in a
+later section of these rules, and differ from the precise scientific definitions in current
+use. Within each category, a variety of animal types exist, based on specific feed-
+ing/hunting habits; examples of this concept are grazers, chasers and pouncers.
+Again, specific definitions are given later in these rules.
+     Animals which are encounters may be classified into various categories and
+types, and specific attack and defense mechanisms determined. The resulting de-
+scription indicates the actions an animal will take without resorting to such confining
+labels as bear or tiger. While a referee may well elect to use such names, this system
+also allows the players freedom to encounter truly alien beasts as well.
+
+PROCEDURE
+     The referee (or players, if there is no referee) must create a series of unique en-
+counter tables, one for each world in the universe (not necessarily all are necessary
+before play begins), and each consisting of one encounter column for each relevant
+terrain type of the world. Generally, a referee will conceal the exact details of these
+encounter columns, so that persons will only have clues as to the relative abundance
+or scarcity of specific animals in any specific area.
+     Once these tables are created, they are used each day to determine if animals
+are encountered, the specific nature of such animals, and how they react to the ad-
+venturers. Hunting for sport or food is possible, and danger posed by animals may
+be great.
+
+CREATING ENCOUNTER TABLES
+     Initially, the referee must prepare a blank encounter column for each terrain type
+on the world. The terrain DMs chart indicates the general types of terrain which
+might be expected on habitable worlds. On each blank encounter column, allow 11
+entries, to correspond to dice throws 2 through 12. The example shown in the blank
+encounter column indicates the predetermined sequence of animal categories which
+should be used in most cases; this sequence may be varied by the referee to fit spe-
+cific situations or world conditions.
+     For each category, throw two dice and consult the animal type table. Index the
+dice throw and correct category column to determine the specific animal type. DMs
+                                           –24–
+
+===== BOOK 3 / PRINTED PAGE 25 / PDF PAGE 30 =====
+
+must be applied as indicated on the terrain
+                                                      BLANK ENCOUNTER COLUMN
+DMs chart, based on the terrain predominat-
+                                                       Die     Terrain
+ing.
+                                                         2     S (Scavenger)
+     The entries on the encounter column are
+                                                         3     O (Omnivore)
+then further elaborated with specific data indi-
+                                                         4     S (Scavenger)
+cating animal size, total hits, weaponry and
+                                                         5     O (Omnivore)
+armor, and special attributes such as flying or
+                                                         6     H (Herbivore)
+swimming ability.
+                                                         7     H (Herbivore)
+     The event portion of the encounter column
+                                                         8     H (Herbivore)
+is not determined from the animal table. In-
+                                                         9     C (Carnivore)
+stead, the referee should insert an event from
+                                                        10     E (Event)
+those described in these rules, or generate
+                                                        11     C (Carnivore)
+additional events using his own imagination.
+                                                        12     C (Carnivore)
+     Special Attributes: Animals which adven-
+turers will encounter will tend to be walkers, but may be flyers, swimmers, amphi-
+bians, or even triphibians. Throw two dice and consult the special attributes table.
+DMs are imposed for various world sizes and atmospheric types. Insure that the cor-
+rect terrain column is used on the table. Four special attribute types are possible on
+the table:
+     Flyers— Animals capable of flying through the use of wings, levitating gas sacs,
+or other mechanisms.
+     Swimmers— Animals which live in liquid and swim through the use of fins, flip-
+pers, jets, or other mechanisms.
+     Amphibians— Animals which live in liquid, but are capable of emerging onto
+land.
+     Triphibians— Animals which live in liquid, but which can also emerge onto land,
+and which can fly.
+
+    Certain entries on the table are followed by a parenthetical DM which must be
+applied to the animal size throw; its general effect is to make flyers smaller, and
+swimmers larger.
+    Note the special attribute (if any) on the blank encounter column being filled in.
+Record any size DM temporarily for use in the size throw to come.
+
+     Animal Size: Animals range in size from small (massing about 1 kilogram) to
+giant (massing 6 tons or greater), and exhibit a variety of characteristics related to
+size. Throw two dice and consult the animal size column of the animals table. DMs
+are imposed on this throw based on planetary size, the terrain DM chart (by specific
+terrain type), and as required by special attributes, if present.
+     Animal size is expressed on the table in kilograms, and may be taken as a gen-
+eral indication of size in relation to man (man is assumed to be approximately 100
+kilograms). All sizes may be construed to cover a range of plus or minus 20%. The
+size column also indicates the number of hits such an animal can take, expressed as
+a dice throw. When an animal has received wounds equaling or exceeding the first
+dice throw, the animal is considered to be unconscious. When it has received
+wounds equaling or exceeding its total hits, it is dead. If an animal receives wounds
+equal to twice its hits, it is destroyed, and has lost any food or pelt value. For exam-
+
+                                          –25–
+
+===== BOOK 3 / PRINTED PAGE 26 / PDF PAGE 31 =====
+
+                                         ple, an animal listed on the animal size and
+      TERRAIN DM CHART                   weaponry table as taking 2D/2D hits would have
+   Terrain               Type Size       two dice rolled twice: the first result would be
+   Type                   DM    DM       the number of hits required to render the animal
+   Clear, Road            +3    —        unconscious. The second two-dice throw would
+   Plain, Prairie         +4     –       indicate the additional hits required to kill the
+   Desert                 +3    –3       animal. If more than twice this combined value
+   Hills, Foothills       —     —        is achieved, the animal is completely destroyed.
+   Mountain               —     —        Finally, the wounds column indicates the poten-
+   Forest                 –4    –4       tial for wounding that the animal has by virtue of
+   Woods                  –2    –1       its size (thus, the notation –2D indicates that any
+   Jungle                 –4    –3       wound inflicted by the animal is reduced by the
+   Rainforest             –2    –2       throw of two dice). The result is that of two ani-
+   Rough, Broken          –3    –3       mals with the same weapon, the larger will tend
+   Swamp, Marsh           –2    +4       to inflict a heavier wound.
+   Beach, Shore           +3    +2             Only one two-dice throw is required to de-
+   Riverbank              +1    +1       termine weight, hit formula, and wound altera-
+   Cave                   —     –1       tion.
+   Ruins                  –2    —              Animal Weaponry: Animals are naturally
+                                         equipped with weapons which enable them to
+attack and defend. Familiar terms such as teeth and claws indicate the effects in the
+combat system, but should also be considered to approximate other equivalent sys-
+tems if necessary. In some cases, unusual weaponry is indicated by the statement as
+(weapon type), for example: as pike. The combat effect may be read from the wea-
+pons matrix (and wounding from the range matrix) of the personal combat system
+of book 1. Weapon types should always be considered to be descriptive of result
+rather than of strict process.
+       Throw two dice and consult the animal weapons column. Implement DMs as
+indicated on the table.
+       Animal Armor: Some animals have armor in some form, protecting them from
+attacks by other animals. Armor is expressed in the form as (type), for example: as
+mesh, and is used in the combat system as indicated in the weapons matrix.
+       Throw two dice and consult the animal armor column. Implement DMs as indi-
+cated on the table.
+       Common Sense: Airless worlds will almost never have life of any consequence
+on them; if they do, animal life will still tend to follow the same broad outlines given
+above. Still, flyers and liquid breathers will be almost non-existent.
+       The referee should always be prepared to alter or restrain prescribed procedures
+if it is felt that they contravene logic or reason.
+
+USING ENCOUNTER TABLES
+     Each day, an adventuring band may possibly have one or more encounters with
+some animal life forms. As a general rule, the referee will check for an encounter
+once while the band is travelling, and once while the band is halted (for rest, exer-
+cise, encampment, or whatever). There is a one-third chance (throw 5 or 6 on one
+die) that an animal encounter will occur in any of the specified terrain types. Referee-
+initiated modifications to this frequency may be instituted to cover greater or smaller
+probabilities based on planetary or local conditions.
+
+                                           –26–
+
+===== BOOK 3 / PRINTED PAGE 27 / PDF PAGE 32 =====
+
+    In addition, specific encounters at specific locations are always possible. For
+example, the referee may have already populated a location (perhaps a ruin) with
+specific animals. These are not subject to normal random encounter rules.
+
+
+                                    ANIMAL TYPES
+       Die   Herbivore           Omnivore        Carnivore      Scavenger
+         1   Filter              Gatherer        Pouncer        Carrion-Eater (2D)
+         2   Filter              Eater           Siren          Reducer (1D)
+         3   Intermittent        Gatherer        Pouncer        Hijacker (1D)
+         4   Intermittent        Eater (2D)      Killer (1D)    Carrion-Eater (2D)
+         5   Intermittent (1D)   Gatherer        Trapper        Intimidator (1 D)
+         6   Intermittent        Hunter          Pouncer        Reducer
+         7   Grazer              Hunter (1D)     Chaser         Carrion-Eater (1D)
+         8   Grazer (5D)         Hunter          Chaser (3D)    Reducer (3D)
+         9   Grazer (4D)         Gatherer        Chaser         Hijacker
+        10   Grazer (3D)         Eater (1D)      Killer         Intimidator (2D)
+        11   Grazer (2D)         Hunter (1D)     Chaser (2D)    Reducer (1D)
+        12   Grazer (2D)         Gatherer        Siren          Hijacker
+        13   Grazer (1D)         Gatherer        Chaser (1D)    Intimidator (1D)
+
+    Throws on this table are subject to DMs from the terrain DMs chart. Notes in
+parentheses indicate the dice throw for the quantity of animal occurring.
+
+
+                                 SPECIAL ATTRIBUTES
+
+       Die   Beach, Shore     Riverbank    Swamp, Marsh        Sea, Ocean   Other
+         2   S +1             S +1         S –6                S +2         —
+         3   A +2             A +1         A +1                S +2         —
+         4   A +2             —            A +2                S +2         —
+         5   —                —            —                   A +2         —
+         6   —                —            —                   A            —
+         7   —                —            —                   S +1         —
+         8   —                —            —                   S -1         —
+         9   —                —            —                   T –7         —
+        10   —                —            —                   T –6         —
+        11   F –6             F –6         F –6                F –6         F –6
+        12   F –5             F –5         F –5                F –5         F –5
+        13   T –6             F –3         F –3                F –3         F –3
+
+     A = Amphibian, F = Flyer, S = Swimmer, T = Triphibian, — = None.
+     The positive or negative number indicates the size DM to be applied to the ani-
+mal. For flyers, this is the only size DM used. For all other animals, also use the ter-
+rain size DM.
+     Procedure: Twice each day, the referee will throw to determine if an encounter
+occurs. If a band splits temporarily, each portion of the band should be liable for an
+independent encounter. When an encounter does occur, the correct (based on ter-
+
+                                          –27–
+
+===== BOOK 3 / PRINTED PAGE 28 / PDF PAGE 33 =====
+
+rain type) encounter column is then used to ascertain the class, type, quantity and
+characteristics of the animal encountered. It is possible, in some circumstances, for
+the encounter columns to dictate that a non-animal has been encountered instead.
+Using this information, the encounter is then resolved using the personal combat
+procedure of Book 1.
+     Special Effects: Animal encounters constitute the only general possibility of
+access that characters have to food, furs, or other valuable items. Guides may be
+hired or present for the purpose of assisting in the location of specific animals, con-
+tributing a DM of +2 or greater to influence encounter throws for a specific type of
+animal.
+     Animals which are encountered and killed are usually edible (throw 5+ to be ed-
+ible, DM –3 if the atmosphere is tainted) provided the planetary atmosphere is be-
+tween 2 and 9, and the animal does not have a poison weapon. Otherwise, the ani-
+mal is inedible. From 5% to 30% (throw one die times 5%) of an animal’s weight will
+be edible meat. A person requires 1 kilogram of meat per day when living off the
+hunt.
+     Animal Characteristics: The referee may elect to describe animals for the adven-
+turers in order to allow a better image in their minds. The basic system may be used
+without this aspect, but descriptions such as lion-like, amoeboid, etc., may prove
+useful in some circumstances.
+
+
+ENCOUNTER TABLE CREATION CHECKLIST
+     Use this checklist to create unique encounter tables.
+
+1.   Select terrain types for the world in question.
+2.   Draw up one blank encounter column for each terrain type.
+3.   Fill in specific animal types.
+     A. Throw two dice; modify from the terrain DM chart.
+     B. Determine the animal type from the animal type chart.
+4.   Determine special animal attributes.
+     A. Throw two dice; modify with the required DMs.
+     B. Note if a special attribute is called for, and the size DM.
+5.   Determine animal size.
+     A. Throw two dice; modify with the required DMs.
+     B. Note size called for.
+     C. Note hits and wound alteration called for.
+6.   Determine animal weapon.
+     A. Throw two dice; modify with required DMs.
+     B. Note weapon or weapons.
+7.   Determine animal armor.
+     A. Throw two dice; modify with required DMs.
+     B. Note armor type, if any.
+8.   Apply common sense as required.
+
+
+
+
+                                          –28–
+
+===== BOOK 3 / PRINTED PAGE 29 / PDF PAGE 34 =====
+
+                           BASIC ANIMAL CHARACTERISTICS
+Animal Types              To Attack             To Flee             Speed
+Herbivores
+   Filters                lf possible           8+                  Ordinary/none
+   Intermittent           10+                   9+                  Double
+   Grazer                 8+                    5+                  Double
+Omnivores
+   Gatherer               9+                    8+                  Ordinary
+   Hunter                 lf bigger, 6+         8+                  Double
+   Eater                  5+                    10+                 Ordinary/double
+Carnivore
+   Pouncer                lf surprise           lf surprised        Double
+   Chaser                 If more               9+                  Triple/double
+   Trapper                lf surprise           9+                  Ordinary/none
+   Siren                  If surprise           10+                 Ordinary/none
+   Killer                 6+                    11+                 Double/ordinary
+Scavenger
+   Hijacker               7+                    8+                  Double
+   Intimidator            8+                    7+                  Double
+   Carrion-Eater          1+                    8+                  Ordinary
+   Reducer                10+                   8+                  Double
+
+     In order to determine the movement status of an animal in an encounter, throw
+for herbivore flight first, and if they do not flee, throw for attack. For all others, throw
+for attack first, and if they do not attack, throw for flight. If neither occurs, the ani-
+mals stand. Throw for packs or groups of animals with one throw.
+     If animals are attacked, they will attack if their throw to attack is less than their to
+flee throw; otherwise they will flee. If no specific throw to attack is specified, the an-
+imal will attack if attacked (i.e., chasers).
+
+    Explanation of terms in the table:
+    If possible-— Filters will attack if the range and situation allows.
+    If more— Chasers will attack on a throw of 6+ if there are more of them than in
+the encountered party.
+    If bigger— A hunter will attack if it is bigger than one member of the encoun-
+tered party.
+    If surprise— Animals will attack if they have achieved surprise.
+    If surprised— Animals will flee if they are themselves surprised.
+
+     Speeds:
+     Animals will move at ordinary speed (one column per round) or at double or
+triple speed. Some animals may not move (speed = none). When two speeds are
+specified, the first applies on a throw of 7+, otherwise the second applies.
+
+
+
+
+                                            –29–
+
+===== BOOK 3 / PRINTED PAGE 30 / PDF PAGE 35 =====
+
+ANIMAL DEFINITIONS
+    The following definitions more fully detail the meanings of the descriptive terms
+used for animal categories and types.
+
+       Herbivores: Animals which eat unresisting                      Gatherers: Animals which display a greater
+food are generally classed as herbivores. While                 tendency toward herbivorous behavior are
+this is usually construed as covering plant ea-                 termed gatherers. In most respects they are
+ters, the definition is extended here to cover the              similar to intermittents. Typical terran gatherers
+eating of unresisting animals as well. For exam-                are raccoons and chimpanzees.
+ple, the anteater and the whale eat effectively
+unresisting animals (ants and krill and are here-                     Hunters: Animals which display a greater
+by classed as herbivores. Herbivores are of three               tendency toward carnivorous behavior are
+types:                                                          termed hunters. In most respects, they are simi-
+                                                                lar to small or inefficient chasers. Typical terran
+      Grazers: Animals which devote most of                     hunters are baboons and humans.
+their time to eating are termed grazers. They
+may be solitary, or grouped in herds. Their pri-                       Eaters: The true omnivore (in the sense that
+mary defense is flight, although such action may                it will eat anything and everything) does not
+result in stampedes which could endanger ad-                    distinguish its food, consuming all that it is con-
+venturers in their path. When forced to fight,                  fronted with. Eaters present considerable danger
+they will fight fiercely until killed or routed. Typi-          in that they will not avoid adventurers when
+cal terran grazers are the antelope and the                     encountered. Typical of terran eaters is the army
+moose. The whale (which scoops krill from the                   ant (when an entire swarm is considered to be
+sea as it swims through it is also a grazer.                    one organism).
+
+      Intermittent: Herbivores which do not de-                       Carnivores: Animals which prey on other
+vote full time to eating are termed intermittents.              animals by attacking and killing them in the face
+They tend to be solitary. Intermittents will usual-             of resistance are classed as carnivores. Carni-
+ly freeze when an encounter occurs, fleeing if                  vores are of five basic types: pouncers, chasers,
+attacked by a larger animal. There is some po-                  trappers, sirens, and killers.
+tential that an intermittent will attack to protect
+territory or young. Typical terran intermittents                      Pouncers: Animals which kill their prey by
+are the chipmunk and the elephant.                              attacking from hiding, or by stalking and spring-
+                                                                ing are termed pouncers. Because of the difficul-
+       Filters: Herbivores which pass the envi-                 ty of coordinating such attacks, pouncers are
+ronment through their bodies are termed filters.                solitary animals. In an encounter, pouncers
+Unlike grazers, which move to food, filters move                which have achieved surprise have succeeded in
+a flow of water or air through themselves in                    their basic aim, and will attack regardless of
+order to gain food. Generally, filters will suck,               range. If they do not have surprise, they will
+trip, push, or pull anything (even animals) at                  attack on a 9+. They will flee if surprised them-
+close range into a digestive sac, inflicting auto-              selves. Typical terran pouncers are cats.
+matic wounds of 1D per 50 kilograms or less of
+animal mass (wound alteration is ignored for                          Chasers: Animals which kill their prey by
+filters). Filters are solitary and generally slow               attacking after a chase are termed chasers. They
+moving. They will attack reflexively (as indicated              tend to be pack animals. Typical chasers are
+above), succeeding against adventurers with a                   wolves.
+throw of 6+. Prompt struggle by the adventurer
+(costing him an endurance point) will secure an                        Trappers: Animals which passively allow
+escape on a throw of 7+, DM of +2 for each com-                 their prey to enter a created trap, wherein they
+panion at close range assisting. Throw once per                 are killed and then eaten are termed trappers.
+combat round, beginning on the round following                  Trappers tend to be solitary and slow, but will
+attack. A filter can absorb an animal up to twice               attack any animal which enters their trap. Gener-
+its own mass. Terran filters are generally aqua-                ally, any character which is surprised by a trap-
+tic, such as the barnacle.                                      per at close or short range is then trapped on a
+                                                                throw of 5+. He may struggle to escape, (in lieu
+      Omnivores: Animals which eat food with-                   of making any swings or blows, but costing one
+out regard to its resistance are termed omni-                   endurance point) succeeding on a throw of 9+,
+vores. The bear, which will eat fruits and berries              DM of +1 for each assisting companion. Compa-
+as readily as it will hunt for animals, is an omni-             nions are subject to capture by the trap while
+vore. Omnivores are of three types: gatherers,                  providing assistance. Usually, a trap will not
+hunters, and eaters.                                            wound or damage a character, but it will hold
+
+                                                         –30–
+
+===== BOOK 3 / PRINTED PAGE 31 / PDF PAGE 36 =====
+
+the adventurer to allow the trapper to attempt to                    Events: Events are not necessarily animals,
+kill him. A typical terran trapper is the spider.              comprising instead both geographic or geologic
+Less typical is the ant lion.                                  dangers, and special types of animals not ordi-
+                                                               narily encountered. The following examples are
+       Siren: Distinct from the trapper, which                 provided, but more should be generated by the
+creates a trap for its prey, a siren also creates a            referee to cover the wide range of possibilities in
+lure to draw prey to the trap. The trap is treated             the universe.
+in much the same manner as that of a trapper,
+but the lure entails additional coverage. In most                     Ravines and Precipices: The party has
+cases, the lure will be specific to some animal,               encountered unexpected geographic features
+but will be unnoticed by humans. In rare cases                 which will retard progress by one day if travel is
+(throw 11+), the lure will be universal, perhaps a             overland. lf the encounter occurs at close range
+smell or scent, or a mirage or beautiful configu-              (to a party on foot) the lead member of the party
+ration, which will attract characters into a vul-              will probably fall (throw 6+ to fall, DMs allowed
+nerable position. Very rarely, the lure will be                based on personal expertise of the person),
+psionic in nature. Typical terran sirens are the               receiving from 1D to 6D in wounds. lf this event
+angler fish (its mouth is the trap) and the Venus              occurs at close or short range to a party in a
+fly-trap.                                                      vehicle (AFV or ATV), it will topple (throw 8+ to
+                                                               fall, DMs allowed for driver expertise, DM –5 if
+       Killers: Certain carnivores devote much                 the vehicle is moving at high speed), inflicting
+attention to killing, often apparently for the act             from 0D to 5D in wounds to each person in the
+itself, in a kind of blood lust. Killers reason (such          vehicle.
+as territorial defense) is replaced by a raw killing
+instinct. Attacks by killers are fierce and violent.                 Seismic Quake: A seismic disturbance
+Killers will generally disregard the defenders size            occurs. Throw 2 dice, and if the result exceeds
+as a factor. A typical terran killer is the shark.             the strength of an adventurer, he is thrown to
+                                                               the ground by the force of the event. Throw 12
+      Scavengers: Animals which share or steal                 on two dice for this fall to inflict 2D wounds on
+the prey of others, or take the remains of kills,              each fallen adventurer.
+are classed as scavengers. Scavengers are of
+four types: intimidators, hijackers, carrion-eaters,                 Meteor Shower: Especially common in
+and reducers.                                                  asteroid complexes, or on airless worlds, the
+                                                               meteor shower can puncture vacc suits or ve-
+      Intimidators: Scavengers which establish                 hicles. Throw 2 dice to determine the size of the
+their claim to food by frightening or threatening              shower: a result of 7+ indicates a chance (1 in 6)
+other animals are termed intimidators. Their                   that a meteor will puncture a vacc suit. A result
+standard procedure is to approach a kill, and                  of 9+ indicates a chance (1 in 6) that the shower
+force other animals away by appearing to be a                  will hole a vehicle in which the persons are rid-
+threat. A typical terran intimidator is the coyote.            ing.
+
+      Hijackers: Scavengers which establish their                    Chameleon: These animals make use of
+claim to food by simply taking it are termed                   camouflage very effectively. Throw to determine
+hijackers. They rely on their superior strength or             this animal’s category and type, as well as other
+size to allow them to hijack food because other                data, but the encounter will occur at close range.
+animals present cannot effectively object. A                   At that point, determine whether the animal flees
+typical terran hijacker is the lion in a bad mood.             or attacks using the normal encounter proce-
+                                                               dure.
+      Carrion-eaters: Scavengers which take
+dead meat as it becomes available, often waiting                     Psionic Assaulters: From 1 to 6 telepathic
+patiently for all other threats to disperse before             animals (carnivores) will initiate an automatic
+beginning, are termed carrion-eaters. Most typi-               attack on the party of adventurers. All persons
+cal of the terran carrion eaters is the buzzard.               not psionically shielded are immediately ren-
+                                                               dered unconscious and will receive 2D+6 in
+      Reducers: Scavengers which act constantly                wounds. Psionically shielded individuals will
+on all available food are termed reducers. They                undergo combat as indicated in the psionics
+eat the remains of food after other scavengers                 rules. These animals always achieve surprise.
+are finished with it, consuming bone and other
+leavings. Terran reducers are bacteria, and to                       Storm: A violent rainstorm occurs abruptly,
+some extent vermin.                                            forcing the band to stop, or continue with in-
+                                                               creased danger.
+
+
+
+                                                        –31–
+
+===== BOOK 3 / PRINTED PAGE 32 / PDF PAGE 37 =====
+
+                            ANIMAL SIZES AND WEAPONRY
+Die         Weight   Hits        Wounds          Weapons                    Armor
+1                1   1D/0        –2D             •                          as jack
+2                3   1D/1D       –2D             Teeth                      —
+3                6   1D/2D       –1D             Horns                      —
+4               12   2D/2D       –1D             Hooves                     as mesh
+5               25   3D/2D       –1D             Hooves and Teeth           as cloth
+6               50   4D/2D       –1D             Teeth                      —
+7              100   5D/2D       —               •                          —
+8              200   5D/3D       +1D             Stinger                    —
+9              400   6D/3D       +2D             Thrasher                   —
+10             800   7D/3D       +3D             Claws and Teeth            —
+11            1600   8D/3D       +4D             Claws                      —
+12            3200   8D/4D       +5D             Teeth                      —
+13      •            •           •               •                          —
+
+     Use this table to determine the physical abilities of animals for resolution of per-
+sonal combat. In some cases, information as to some abilities will already be known
+from the animal’s basic type. Throw two dice for each value: once for weight (which
+also includes hits and wound alteration), once for weaponry, and once for armor. If
+instructed to re-roll, do so.
+     This table should be used at the instant of encounter, each time an animal is met
+by adventurers.
+
+    Animal Size DMs: As required by attributes. As required by the terrain DMs
+chart. If planetary size is 8+, DM –1. If planetary size is 4–, DM –1.
+    Animal Weapon and Armor DMs: lf carnivore, +6. If herbivore, -6. Scavengers
+automatically have teeth in addition. Flyers automatically have no armor.
+
+• If this value is rolled, reroll one die and consult the appropriate column below:
+ Die         Weight         Hits      Wounds       Hooves and Teeth           as mesh
+   1           6000       9D/4D       x2           as body pistol
+   2          12000      10D/5D       x2           as pike
+   3          18000      11D/6D       x3           as blade
+   4          24000      12D/6D       x3           as broadsword
+   5          30000      14D/7D       x4           stinger
+   6          36000      15D/7D       x4           as halberd
+
+
+
+
+                                          –32–
+
+===== BOOK 3 / PRINTED PAGE 33 / PDF PAGE 38 =====
+
+                                                                             Psionics
+     The powers of the mind are incredible; and some day the study of these powers
+will enable every individual to use them as an active part of his life. At the time in
+which Traveller occurs, however, universal psionic training does not exist; accurate
+information and quality training are available only through branches of the Psionics
+Institute, which is wholly devoted to the study of mental powers. Unfortunately,
+some prejudice exists, and the Institute maintains an extremely low profile.
+
+THE PSIONICS INSTITUTE
+     Because the Institute does not advertise its existence, it is quite difficult to locate
+its facilities. Any world with a population of 9 or greater may have a branch estab-
+lished on it (throw 11+ for a branch to exist; DM +1 per level of population above 9).
+     Although a branch may exist, it still must be located. Any character may indicate
+that he is searching for the local branch of the institute (throw 9+ to find it, or infor-
+mation as to its location; DM +1 per level of streetwise expertise and +1 per level of
+admin expertise). Such search takes one week. If the search is unsuccessful, the cha-
+racter becomes convinced that no branch exists on this world, and gives up the
+search there.
+     If the local branch is located, a character may inform his comrades of his suc-
+cess; There is some chance (throw 7+ to avoid) that the branch is some distance
+away, and will require a long trip to reach it.
+     Branches of the Institute perform two functions: they administer the examina-
+tion for psionic potential, and they provide training in the use of psionic talents. Both
+services entail a fee.
+
+PSIONIC STRENGTH
+     The Institute's comprehensive examination provides a measure of personal
+psionic strength. The process takes two weeks time, and costs CR 5000. Some chari-
+ty is available for truly indigent applicants (referee’s discretion as to suitability, then
+throw 10+ to be given a free examination).
+     The Examination: Each character has a basic potential defined by a two die
+throw. Age constantly lessens this potential, however, unless training is undertaken
+to use it. A DM of -1 is applied for each block of 4 years age above 18. These blocks
+correspond to the aging cycles. For example, a character who takes the examination
+at age 23 is in his second 4·year block, and has a DM of -2. Throw 2 dice and apply
+the DM. The result is the character's Psionic Strength Rating. The examination may
+only be taken once per character.
+     Psionic Strength Ratings: The personal Psionic Strength Rating may range from
+zero to 11. Ratings of 12 or more cannot be attained naturally; they may be achieved
+temporarily through the use of psi-drugs. The maximum possible rating is 15.
+     Psionic Strength Ratings indicate two things: the maximum level of activity
+which may be performed, and the number of strength points at the character's
+command for the performance of specific tasks.
+
+
+
+
+                                           –33–
+
+===== BOOK 3 / PRINTED PAGE 34 / PDF PAGE 39 =====
+
+     Maximum Activity Level: Each type of activity within a psionic field is assigned a
+level. A character may not perform that activity unless his personal psionic strength
+(unenhanced by psionic drugs) is equal to, or greater than, the level of the activity.
+     Available Strength Points: Each type of activity requires the expenditure of psio-
+nic strength points for the activity and for the range at which the activity is per-
+formed. A character's Psionic Strength Rating is an index of the points which he may
+expend. Expended points are regenerated, over time, by rest and recuperation. Psi-
+drugs may increase the points which are available to the character.
+     Aging and Deterioration: An untrained character is subject to a gradual, relent-
+less deterioration of his Psionic Strength Rating. When the aging point occurs (every
+4 years), his rating is reduced by 1. Additionally, if the sum of his strength, endur-
+ance, dexterity, and intelligence characteristics is exceeded by his Psionic Strength
+Rating, the rating is reduced to equal that sum.
+     Trained individuals are not subject to reductions in power through normal ag-
+ing. If the sum of their first four characteristics is less than their psionic strength,
+psionic strength is reduced to equal that sum. Psi-drug abuse may also reduce Psio-
+nic Stength Ratings.
+
+TRAINING
+     The Institute will train individuals in the use of their latent talents. Training re-
+quires 4 months time, and costs CR 100,000. Extremely talented individuals (Psionic
+Strength Ratings of 9 or greater) may apply for a scholarship if they can not other-
+wise afford training. In such cases, the Institute will take 95% of the character's as-
+sets, and waive the remainder of the Cost. (Referee: the Institute can, of course, read
+minds, and will not look favorably at fraudulent or devious applications.)
+     The Six Possible Talents: Although there are a total of six possible areas of psio-
+nic activity, no one person will usually be capable of activity in all areas. In training,
+a character will learn those areas in which he as ability or potential, and those areas
+in which he has no talent at all.
+     Roll two dice successively for each of the six talents listed in the talent table. A
+throw is indicated which must be achieved in order to have ability in that area. A DM
+must be applied to each throw: the throws may be made in any order, but a DM of –1
+on the first throw, –2 on the second throw and –3 on the third throw, and –5 on all
+subsequent throws must be made. Thus, a character extremely anxious to acquire
+teleportation would throw for that talent first.
+     Effects of Training: The training sessions merely acquaint the character with the
+possibilities of his talents, and impart to him a rudimentary control over them. As a
+result, the character can perform any task of level 1. Experience and hard work will
+allow the character to learn, as he lives his life, how to use greater levels of power.
+The effects of time and experience are given in the descriptions of the specific tal-
+ents.
+     Training also instructs the characters in the methods of concealing their powers,
+and in the dangers of allowing common citizens to know of their power. When train-
+ing is completed, the Institute is incapable of further assisting characters in their
+psionic development. From that point, all depends on experience and fortune.
+
+
+
+
+                                          –34–
+
+===== BOOK 3 / PRINTED PAGE 35 / PDF PAGE 40 =====
+
+                                                    It is possible for a character to have a very
+              TALENTS                           high psionic strength rating and nonetheless
+                                                turn out very badly in training, discovering that
+  Telepathy .............................. 5+   he has few or no specific abilities. It is also
+  Clairvoyance ......................... 6+     possible to discover that a character has a ru-
+  Telekinesis ............................ 6+   dimentary talent in a field, but insufficient level
+  Awareness ............................ 7+     to enable him to perform any activity. For ex-
+  Teleportation ........................ 9+     ample, teleportation requires a Psionic
+  Special .................................. 9+ Strength Rating of 7. A character with a psionic
+                                                strength of 5 who achieves teleportation as a
+talent is still unable to teleport because he has an insufficient rating. Psi-drugs will
+increase his strength, but not his rating.
+    Psionic training is not available in the services, nor is it available from any
+source except the Institute.
+
+RANGE
+     Psionic activity is restricted by the range or distance at which it is performed. A
+greater number of Psionic Strength
+Points are required to do psionic tasks                    PSIONIC RANGES
+at greater ranges.
+     The range definitions given here            Close— In physical contact; touching.
+apply to psionic activity. It is important       Short— 1 to 5 meters.
+to note that the ranges close to very            Medium— 6 to 50 meters.
+long are identical to the the tactical           Long— 51 to 250 meters.
+ranges used in personal combat. Psio-            Very Long— 251 to 500 meters.
+nics have so far proven incapable of             Distant— 500 to 5000 meters.
+interplanetary ranges.                           Very Distant— 5 to 50 kilometers.
+     Range refers to simple straight line        Regional— 50 to 500 kilometers.
+distance. Psionic activity, at the ranges        Continental—- 500 to 5000 kilometers.
+given, is effectively instantaneous, and         Planetary— 5000 to 50000 kilometers.
+is not affected by intervening matter in
+most cases (for example, electromechanical psionic shields do interfere with psio-
+nics, but planetary masses or walls do not).
+
+TELEPATHY
+    Telepathy is the ability to contact other minds directly. In rudimentary forms, it
+allows the communication of feelings and emotions; in advanced forms it allows the
+transfer of information. There are several levels of telepathy, which depend on the
+psionic strength and experience of the user.
+
+    Life Detection: The most elementary form of telepathy is the ability to detect the
+presence of other minds. Life detection enables a character to sense the presence of
+other minds, the number of minds present, the general type of minds (animal, hu-
+man, etc) and their approximate location.
+    Life detection is a level 1 ability, and requires 1 psionic strength point to perform
+(plus any additional cost due to range, if applicable). Activity may last up to.60
+seconds. Life detection is reasonably sophisticated, and can ’ignore’ bacteria or un-
+important animals in the area. It functions best in intelligent minds. Shielded minds
+
+                                               –35–
+
+===== BOOK 3 / PRINTED PAGE 36 / PDF PAGE 41 =====
+
+are undetectable (see Shields). If an individual whom the telepath knows is 'life de-
+tected,’ he will be recognized.
+
+     Telempathy: The communication of emotions and basic feelings is accom-
+plished by telempathy. This ability serves well in the handling of animals and beasts
+of burden, but may also be applied as a psychological weapon against humans.
+Sending of emotions such as love, hate, fear, and others may influence other beings
+(although not necessarily in the manner desired). Telempathy also allows the emo-
+tions and feelings of others to be read by a character.
+     Telempathy is a level 2 ability, and requires 1 psionic strength point to perform
+(plus range costs as applicable). Activity may last up to 60 seconds.
+
+     Read Surface Thoughts: The most commonly known feature of telepathy is the
+ability to read the thought of other individuals. Only active, current thoughts are read
+by this ability, with the subject (if himself not a telepath) unaware of the activity. In-
+dividuals with telepathic ability cannot be read due to the presence of their natural
+shields.
+     This ability is of level 4 and requires 2 psionic strength points to perform. Activi-
+ty may take up to 60 seconds. Range costs must be added if applicable.
+
+     Send Thoughts: Complementary to the ability to read surface thoughts is the
+ability to send thoughts to others. Such individuals need not themselves be telepath-
+ic to receive such thoughts.
+     Telepathic individuals are normally open to such transmissions, but may close
+their shields against them if they become bothersome or threatening.
+     A thought transmission may last up to 120 seconds. Sending thoughts is a level
+5 ability, and requires 2 psionic strength points to perform, plus normal costs due to
+range.
+
+     Probe: The application of great psionic strength will enable a telepath to delve
+deep into the mind of a subject and to then read his innermost thoughts. Question-
+ing can be used in the procedure to force the subject to divulge specific information.
+The prober can easily determine deliberate untruths told (thought) by the subject.
+     Probe cannot be used against a shielded mind.
+     Probe is a level 9 ability, and requires 8 strength points to perform. Probing may
+last up to 10 minutes, which time is usually sufficient to determine the information
+sought.
+
+    Assault: Violence may be dealt by a telepath. Against an unshielded mind, the
+result is automatic unconciousness, and possibly death. Against a shielded mind, an
+instant duel ensues.
+    An unshielded mind, when assaulted telepathically, is rendered unconscious
+immediately, and the character receives wounds equal to 2D+6.
+    When a shielded mind is assaulted, the attacking telepath compares his Psionic
+Strength Rating to the Psionic Strength Rating of the defender: the difference (at-
+tacker minus defender) is the required DM. For the assault to succeed, the attacker
+must throw 7+. For example, an attacker of Psionic Strength Rating of 12 assaults a
+
+
+                                          –36–
+
+===== BOOK 3 / PRINTED PAGE 37 / PDF PAGE 42 =====
+
+character with a Psionic Strength rating of 5 (12 – 5 = 7); a DM of +7 is allowed in the
+assault.
+    Assault is a level 10 ability, and requires 13 strength points to perform. The as-
+sault takes less than 2 seconds to occur.
+
+     Shield: All telepathically able characters learn how to create a mental shield
+which protects the mind against unwanted telepathic interference. Such a shield is
+automatically in force at all times and requires no strength point expenditure to
+maintain.
+     Artificial psionic shields are clumsy helmet-like devices which function in much
+the same manner while worn. They weigh 1000 grams, offer little physical protec-
+tion, and have a base price of CR 4000.
+
+     Experience: When the talent of telepathy is initially learned, a telepath is capable
+only of life detection and shield. As time passes, and the character works at improv-
+ing his ability (time passing is sufficient for this), he will gradually improve to the full
+range of his potential.
+     Each month, the character may roll two dice to determine his progress in his
+telepathic talent. For a throw of 8+, he has increased his capability one level. Such
+increase may never result in an ability higher than his Psionic Strength Rating. For
+example, a character with a Psionic Strength Rating of 11 is potentially capable of all
+abilities, including assault. But, upon completion of training, he is actually capable of
+level 1 activity (life detection and shield). After successfully rolling 8+ 10 times (in 10
+or more months, at one roll per month), he will have realized his full potential. A
+character of Psionic Strength Rating 4 could never exceed level 4 (after 4 or more
+months, at one roll per month).
+
+    In situations where a non-character is read or influenced by telepathy, it is the
+responsibility of the referee to determine the person’s reactions and thoughts.
+
+CLAIRVOYANCE
+    Clairvoyance is the term applied to the general talent which allows a person to
+sense events at some location displaced from the viewer.
+    There are several levels of clairvoyant ability.
+
+     Sense: The basic ability to sense things at some point in the distance. A charac-
+ter will become aware of the most rudimentary characteristics of a location when
+applying this ability. For example, the referee will give a basic description, without
+detail: "a room, containing 4 dogs," or "an open plain, with a tree, and no animals or
+men present."
+     The clairvoyant character must state the range at which he is applying his talent,
+and will generally sense the most interesting or important feature at that range.
+     Sense is a level 2 ability, and requires 1 psionic strength point to perform (plus
+any range cost).
+
+     Clairvoyance: This specific ability allows actual viewing of a situation at some
+displaced point. lt may be performed outright, or to allow elaboration of some situa-
+tion sensed. The clairvoyant character must state the range at which he is
+
+                                           –37–
+
+===== BOOK 3 / PRINTED PAGE 38 / PDF PAGE 43 =====
+
+applying his talent. Clairvoyance is a level 5 ability, and requires 2 psionic strength
+points to perform, in addition to any range costs.
+
+    Clairaudience: This ability is identical to clairvoyance, with the exception that it
+allows hearing instead of seeing.
+
+    Combined Clairvoyance and Clairaudience: A character is capable of both seeing
+and hearing a specific situation by using this ability. It is of level 9, and requires 2
+psionic strength points to perform, in addition to any range costs.
+
+     Direction: A character may specify the exact location at which he is applying his
+ability, if it is out of physical sight, by direction, provided he has some knowledge of
+the location by experience or description. This guidance assists him in performing
+his activity in the most efficient manner.
+     Direction is a level 3 ability, and requires no basic points to perform (although
+range costs must be paid).
+
+     Clairvoyance abilities allow eavesdropping activities as well as spying and de-
+tection-free exploration of situations. While telepathic life detection will determine
+the presence of living minds in a closed room, for example, sense will determine if a
+room is occupied or empty. Clairvoyant activity cannot be sensed by others, includ-
+ing by other psionic talented individuals.
+     Experience: A beginning (newly trained) clairvoyant is considered to be of level
+1 regardless of his actual Psionic Strength Rating. Each month, he must throw two
+dice, and if he achieves 8+, he increases his actual ability one level, until he has
+reached his actual psionic strength level.
+
+TELEKINESIS
+      Telekinesis is the talent which allows objects to be manipulated without physi-
+                                     cally touching them. Telekinetic power is classified
+      TELEKINETIC LEVELS             by the number of grams weight which the person
+                                     can manipulate. Any manipulation is treated as if
+   Level 1.................. 1 gram  the person were physically handling the item, but
+   Level 2............... 10 grams   physical danger, pain or stimuli are not present.
+   Level 3............. 100 grams    Telekinesis includes a limited amount of sensory
+   Level 5........... 1000 grams     awareness, sufficient to allow actual intelligent
+   Level 8......... 10 kilograms     manipulation.
+   Level 10..... 100 kilograms            The telekinetic levels table indicates
+                                     the weight manipulation allowed by level of ability.
+ln addition, the level of ability indicates the cost in psionic strength points to perform
+such manipulation. Costs due to range must also be paid. The costs envision normal
+lifting or manipulating; throwing with a strength generally equivalent to physical
+throwing may be performed at a double psionic strength point cost. Any one teleki-
+netic feat may last for up to 60 seconds. Note that personal weight in most cases will
+not exceed 100 kilograms; a character of level 10 telekinetic ability can levitate. Grav-
+ity differences will not alter the mass which can be manipulated.
+
+
+
+                                          –38–
+
+===== BOOK 3 / PRINTED PAGE 39 / PDF PAGE 44 =====
+
+     Telekinetic power may not be applied at greater than very long range, and then
+only (as may be seen from the range table), at relatively great cost in psionic
+strength points.
+     Experience: Regardless of ultimate potential ability, a character leaves training
+capable only of level 1 activity. Each month, upon successful achievement of a roll of
+8+, ability level increases one level. A character's level of ability may never exceed
+his psionic strength rating. This experience throw is independent of other experience
+throws which may be made at the same time.
+
+AWARENESS
+    Awareness is the psionic talent which allows control of one’s own body. Aware-
+ness covers a range of four possible abilities, described below.
+
+     Suspended Animation: Personal body activity may be suspended for varying
+periods of time. A character with awareness may enter a suspended animation state
+(similar to cold sleep, but without the intrinsic danger of death) by willing himself
+into it. Such a state continues for 7 days, without need for food, water, and with mi-
+nimal air needs. Such a person could effectively travel in a cold sleep berth, without
+actually undergoing cold sleep and its dangers.
+     Suspended animation may be stopped at any time, provided external stimulus is
+given to awaken the sleeper (such as a friend or a mechanical alarm). This is a level 2
+ability, and costs 3 points to perform.
+
+    Psionically Enhanced Strength: Psionic strength points may be converted to
+physical strength points on a temporary basis. The character makes the commit-
+ment, reduces his available psionic strength by a specific number of points, and in-
+creases his physical strength characteristic by that number. In no case may the
+number of strength points gained exceed the character's current level of awareness,
+and physical strength may not be increased beyond 15. Psionically enhanced
+strength reaches its new level immediately, remains at that peak for 60 minutes, and
+then declines at the rate of 1 strength point per minute until normal strength level is
+reached. Psionically enhanced strength is a level 4 ability.
+
+    Psionically Enhanced Endurance: Psionic strength points may be converted to
+physical endurance points on a temporary basis. The character makes the commit-
+ment, reduces his available psionic strength points, and increases his endurance
+characteristic by the same number. In no case may the number of endurance points
+gained exceed the character's current level of ability, nor may endurance ever be
+increased to beyond 15. Psionically enhanced endurance reaches its new level im-
+mediately, remains at that level for 60 minutes, and then declines at a rate of one
+point per minute until normal endurance level is reached. Psionically enhanced en-
+durance is a level 5 ability.
+
+     Regeneration: Wounds and injuries may be healed rapidly. Wound points may
+be healed by the application of this ability, exchanging one psionic strength point to
+regenerate one wound point. This healing occurs immediately (less than one
+minute). Should one session of healing be insufficient, further healing and regenera-
+tion may be applied after expended psionic strength is recovered. Regeneration may
+
+                                         –39–
+
+===== BOOK 3 / PRINTED PAGE 40 / PDF PAGE 45 =====
+
+also be applied to the growing of new limbs or organs to replace lost ones, or to heal
+unrecovered old wounds suffered prior to psionic training. Regeneration may not be
+used to counteract aging. Regeneration is a level 9 ability.
+
+   Awareness is not capable of affecting others and may not be used for healing or
+enhancing other characters. For the purposes of combat, each combat round is as-
+sumed to be 15 seconds long.
+
+    Experience: A character with awareness leaves training with level 1 ability, and
+may possibly increase it as time passes. Each month throw two dice, and increase
+the character’s level by one if the throw is 10+. This throw must be made indepen-
+dently of all other experience throws.
+
+TELEPORTATION
+    Teleportation is a talent which allows effectively instantaneous movement from
+one point to another point, especially without regard to intervening matter. Psionic
+teleportation is limited to the movement of the teleporting character’s body and (for
+highly skilled teleports) his or her clothing and weapons.
+
+     Personal teleportation, without clothing or weapons, is a level 5 skill, requiring
+only the range cost (for teleportation) to be performed.
+     Personal teleportation, clothed, but without any personal load or weapons, is a
+level 7 skill, requiring only the range cost (for teleportation) to be performed. A wea-
+pon of up to 1000 grams weight, if worn so as to be a part of clothing holstered, or
+sheathed) may be carried.
+     Personal teleportation, clothed, and carrying a physical load of weapons and
+accessories or items, not to exceed the character’s strength in kilograms, is a level 9
+ability. Such activity requires the expenditure of the range cost in psionic strength
+points.
+
+    Teleportation always involves the movement of one's body to another location.
+Independent items or other individuals may not be so moved. A small animal could
+be carried as part of personal load under the terms of the level 9 ability.
+
+     Preknowledge of Destination— A character must always have a mental image of
+his destination before he may teleport to it. This mental image may be acquired by
+personally visiting the location at some time prior to the teleportation (including
+simply viewing it from a distance), by having the mental image implanted in one's
+mind (by telepathy) by an individual who has visited the location, or by viewing the
+location using clairvoyance (level 5 clairvoyance, not simply the less sensitive
+sense).
+
+     Teleportation involves serious restrictions on movement in order to assure the
+conservation of energy and momentum. These may be stated as follows:
+     On planetary surfaces, teleportation is restricted to jumps of less than regional
+distance. Jumps at very distant range involve certain disorientation for a period of
+up to 2 minutes. Jumps at distant range involve a chance (throw 8+) that the charac-
+ter will stumble or fall upon arrival. It is up to the character to demonstrate the spe-
+
+                                          –40–
+
+===== BOOK 3 / PRINTED PAGE 41 / PDF PAGE 46 =====
+
+cific effects he will encounter, and how he will avoid them, before attempting jumps
+at ranges greater than distant.
+     Changes in altitude (actually, all movement to locations of differing gravitational
+potential) will result in changes in temperature. A jump of 1 mile straight down will
+result in a temperature increase of 7 degrees Fahrenheit; sufficient to cause extreme
+fever, brain damage, and possibly death. Generally, any jump may not involve an
+elevation change of more than 400 meters, and multiple jumps should not involve a
+cumulative elevation change of greater than 600 meters in one hour.
+     A Note of Explanation: A teleport down, into a lower elevation will result in a
+change in energy, manifesting itself as heat; hence the temperature increase. Simi-
+larly, a teleport up will result in a loss of energy, and a corresponding cooling effect.
+These problems may be gotten around through the use of devices, compensators,
+heat suits, and other means. The referee and the players must manage such items
+and insure that they function correctly.
+
+     Experience: Teleports leave training with an ability level of 5 (except for charac-
+ters with a psionic strength rating of less than 5, who may not increase their ability,
+and so cannot teleport). Each month, throw 12 to increase level by one. Teleport lev-
+el may not exceed psionic strength rating.
+
+SPECIAL
+     Although psionic activity generally lends itself to classification, some individuals
+defy this very classification. Individuals with special talent are capable of some ac-
+tivity which is not described above, and generally dispensed by the referee, in a
+manner of his choice. He may include talents or abilities not covered by this section,
+or randomly assign otherwise unreceived abilities to characters who are not normal-
+ly eligible for them.
+     It is suggested that Special Psionic Talents be made psychologically dependent
+on a focus, in the form of some artifact or charm, which must remain in the posses-
+sion of the character.
+
+RECOVERY
+     When psionic strength points are expended, the available points for a character
+are reduced. Such points are naturally recovered by a process of rest and recupera-
+tion.
+     Beginning at a time three hours after the last psionic activity, a character regains
+one psionic strength point per hour until the total equals normal psionic strength
+rating. Such recovery is independent of physical activity.
+     Psionic activity is defined as any psionic related acts, including the taking of psi-
+drugs for any purpose.
+
+PSl-DRUGS
+    Chemical means are available to enhance psionic strength points on a tempo-
+rary basis. These psi-drugs are:
+
+    Booster: The basic psi-drug, derived from thongamonganite, and available in
+small, one dose pills. Booster increases a character’s available psionic strength
+points by 3 if taken when psionic strength is at full power, by 2 if taken while psionic
+
+                                          –41–
+
+===== BOOK 3 / PRINTED PAGE 42 / PDF PAGE 47 =====
+
+strength is at a reduced level. Additional doses of booster have no effect if taken
+within an hour, and the drug will never boost psionic strength points to a level
+greater than normal level plus 3. The drug induced additional psionic strength will
+wane and disappear at the end of one hour.
+
+     Double: A more potent derivative of thongamonganite, also available in small,
+one dose pills. Otherwise identical to booster, double increases psionic power by 6
+if taken when psionic strength is at full power, by 4 if taken when psionic strength
+is at a reduced level.
+
+     Special: The rarest of psi-drugs, (pure thongamonganol) special is only available
+in liquid form, and must be taken by injection. Special gradually increases psionic
+strength points to 15 at the rate of 1 point per hour. Psionic strength remains at this
+level (if unused) for 4 hours, and then wanes at the rate of 1 point per hour, until
+psionic strength reaches zero. Normal recovery then occurs.
+     Special has a chance (throw 11+ when used) that it will permanently reduce
+psionic strength rating by 1.
+     Availability: Because the general public attitude towards psionics is negative,
+psi-drugs are expensive and difficult to obtain. Psi—drugs must be located and bar-
+gained for; in many cases possession is illegal.
+     Dealers may exist on any world (throw 8+ to locate a dealer after 2 days search;
+DM +1 per level of streetwise expertise). Most dealers will only have booster (throw
+one die to indicate the number of doses he has available); double will be available
+on a throw of 10+, special on ·a throw of 2. If double or special is available, throw
+one die and halve the result to determine the number of doses he has available.
+     Base prices for psi-drugs are: booster, CR 1000, double, CR 4000, and special, CR
+10,000. Prices may be higher, but will generally not be lower.
+     Pitfalls: The abuse of psi-drugs can lead to loss of psionic powers and to physi-
+cal debilitation. In any situation in which a character takes three doses in three days
+or four doses in one week, there is a chance (throw 9+ for it to occur) that drug over-
+dose will occur within 6 hours of the last dose.
+     If overdose occurs, the character becomes seriously ill, lapsing into uncons-
+ciousness and taking wounds equal to 3D. Upon recovery from the illness, psionic
+strength rating is reduced (saving th row to avoid is 10+) by one point, permanently.
+
+PUBLIC PREJUDICE
+     The climate of public opinion is extremely negative, to the point that individuals
+find it unhealthy to admit of possession of, or sympathy for, psionic powers.
+     Persons with psionic ability will not admit that they possess them unless com-
+pletely assured that they are in no danger (such procedure usually involves self-
+revelation by a psionic talent).
+     There is small chance that hirelings or citizens have psionic training or ability
+(throw 12 to have any ability; then determine actual ability). There is equal chance
+(throw 12) that a non-character is an informant (or potential informant) who will im-
+mediately report to the authorities.
+     Psionic individuals who are detected by the public or the authorities are subject
+to a variety of responses, based on a two die throw: 12+ Iobotomy, 10+ Iynching, 8+
+for tarring and feathering, 6+ for imprisonment, 4+ for immediate deportation.
+
+                                         –42–
+
+===== BOOK 3 / PRINTED PAGE 43 / PDF PAGE 48 =====
+
+                            PSIONIC RANGE TABLE
+                    ———————————— Talent ————————————
+Range          Telepathy Clairvoyance Telekinesis Teleportation Awareness
+Close          0         0            0           1             —
+Short          1         1            1           2             —
+Medium         2         1            2           3             —
+Long           3         2            4           3             —
+Very Long      3         2            9           3             —
+Distant        4         3            —           4             —
+Very Distant   4         3            —           4             —
+Regional       5         4            —           5             —
+Continental    5         4            —           5             —
+Planetary      6         4            —           5             —
+
+    Because Awareness is an inward directed talent, it has no range cost.
+
+
+
+
+                                        –43–
+
+===== BOOK 3 / PRINTED PAGE 44 / PDF PAGE 49 =====
+
+–44–
