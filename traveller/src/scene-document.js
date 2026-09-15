@@ -12,8 +12,25 @@
 import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
 
 export const SCENE_DOCUMENT_TYPE = 'graycloak-traveller-scene';
-export const CURRENT_SCENE_DOCUMENT_SCHEMA_VERSION = 1;
-export const SUPPORTED_SCENE_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1]);
+export const CURRENT_SCENE_DOCUMENT_SCHEMA_VERSION = 2;
+export const SUPPORTED_SCENE_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+
+// v0.158.0: two kinds of board.
+//
+// A grid board is everything a scene has been until now: a square count and a
+// metre scale, cells addressed by integer column and row. Book 2's space combat
+// is none of those things — p.22 gives a continuous playing surface at 1 inch =
+// 1,000 miles with no grid at all, and p.25 says positions are marked with
+// string or chalk rather than occupying cells. So a vector board carries a span
+// rather than a square count, positions are continuous, and a staged ship may
+// carry the vector it arrives with.
+export const SCENE_BOARD_KINDS = Object.freeze(['grid', 'vector']);
+// A table's worth of surface. p.28 notes Luna would be 250 inches away at this
+// scale and the sun's gravity well 371 feet across, so a span is a staging
+// bound rather than a wall: the plot itself auto-fits to whatever it holds.
+export const SCENE_VECTOR_DEFAULT_SPAN = 400;
+export const SCENE_VECTOR_MIN_SPAN = 40;
+export const SCENE_VECTOR_MAX_SPAN = 5000;
 export const SCENE_GRID_SCALES = Object.freeze([1, 5, 25]);
 export const SCENE_MIN_SQUARES = 10;
 export const SCENE_MAX_METERS = 1000;
@@ -39,7 +56,12 @@ function parse(input) {
   catch (error) { throw new SceneDocumentValidationError(`invalid JSON: ${error.message}`); }
 }
 
+export function sceneIsVectorBoard(scene) {
+  return scene?.board?.kind === 'vector';
+}
+
 export function sceneBoardMeters(scene) {
+  if (sceneIsVectorBoard(scene)) throw new TypeError('a vector board is measured in thousands of miles, not metres');
   return scene.board.squares * scene.board.metersPerSquare;
 }
 
@@ -49,12 +71,30 @@ export function sceneBoardCells(scene) {
   return { columns: meters + 1, rows: meters + 1, metersPerSquare: scene.board.metersPerSquare };
 }
 
-export function createSceneDocument({ id, campaignId, name, folder = DEFAULT_SCENE_FOLDER, squares = 40, metersPerSquare = 5, backgroundAssetId = null, notes = '', createdAt = Date.now() } = {}) {
+// The board as the vector plot sees it: a continuous plane in inches, each inch
+// a thousand miles (p.22), centred on the origin.
+export function sceneVectorExtent(scene) {
+  if (!sceneIsVectorBoard(scene)) throw new TypeError('not a vector board');
+  const half = scene.board.spanThousandMiles / 2;
+  return { half, minimum: -half, maximum: half, spanThousandMiles: scene.board.spanThousandMiles };
+}
+
+export function createSceneDocument({ id, campaignId, name, folder = DEFAULT_SCENE_FOLDER, boardKind = 'grid', squares = 40, metersPerSquare = 5, spanThousandMiles = SCENE_VECTOR_DEFAULT_SPAN, planet = null, atmosphere = null, backgroundAssetId = null, notes = '', createdAt = Date.now() } = {}) {
   if (!nonblank(campaignId)) throw new TypeError('campaignId is required');
   if (!nonblank(name)) throw new TypeError('a scene needs a name');
-  if (!SCENE_GRID_SCALES.includes(metersPerSquare)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
-  if (!Number.isInteger(squares) || squares < SCENE_MIN_SQUARES || squares * metersPerSquare > SCENE_MAX_METERS) {
-    throw new RangeError(`a scene is ${SCENE_MIN_SQUARES} squares to ${SCENE_MAX_METERS} m a side`);
+  if (!SCENE_BOARD_KINDS.includes(boardKind)) throw new RangeError(`board kind must be one of ${SCENE_BOARD_KINDS.join(', ')}`);
+  let board;
+  if (boardKind === 'vector') {
+    if (!Number.isFinite(spanThousandMiles) || spanThousandMiles < SCENE_VECTOR_MIN_SPAN || spanThousandMiles > SCENE_VECTOR_MAX_SPAN) {
+      throw new RangeError(`a vector board spans ${SCENE_VECTOR_MIN_SPAN} to ${SCENE_VECTOR_MAX_SPAN} thousand miles a side`);
+    }
+    board = { kind: 'vector', spanThousandMiles };
+  } else {
+    if (!SCENE_GRID_SCALES.includes(metersPerSquare)) throw new RangeError('grid scale must be 1, 5, or 25 meters');
+    if (!Number.isInteger(squares) || squares < SCENE_MIN_SQUARES || squares * metersPerSquare > SCENE_MAX_METERS) {
+      throw new RangeError(`a scene is ${SCENE_MIN_SQUARES} squares to ${SCENE_MAX_METERS} m a side`);
+    }
+    board = { kind: 'grid', squares, metersPerSquare };
   }
   const document = {
     documentType: SCENE_DOCUMENT_TYPE,
@@ -62,7 +102,14 @@ export function createSceneDocument({ id, campaignId, name, folder = DEFAULT_SCE
     identity: { id: id ?? stableDocumentId('scene', `${campaignId}|${name}|${createdAt}`), name: name.trim() },
     campaignId,
     folder: nonblank(folder) ? folder.trim() : DEFAULT_SCENE_FOLDER,
-    board: { squares, metersPerSquare },
+    board,
+    // Book 2 pp.26-27's template belongs to the scene, not to the fight: the
+    // referee draws San Telmo once and every action there uses it. Atmosphere
+    // rides along because p.35 braking depends on it and nothing else carries
+    // it. Both null on a grid board.
+    space: boardKind === 'vector'
+      ? { planet: planet === null ? null : clone(planet), atmosphere: Number.isInteger(atmosphere) ? atmosphere : null }
+      : null,
     background: { assetId: nonblank(backgroundAssetId) ? backgroundAssetId : null },
     tokens: [],
     notes: typeof notes === 'string' ? notes : '',
@@ -81,20 +128,50 @@ export function validateSceneDocument(document) {
   add(errors, plain(document.identity) && nonblank(document.identity.id) && nonblank(document.identity.name), 'identity needs an id and a name');
   add(errors, nonblank(document.campaignId), 'campaignId is required');
   add(errors, nonblank(document.folder), 'folder is required');
-  add(errors, plain(document.board) && SCENE_GRID_SCALES.includes(document.board.metersPerSquare), 'board.metersPerSquare must be 1, 5, or 25');
-  add(errors, plain(document.board) && Number.isInteger(document.board.squares) && document.board.squares >= SCENE_MIN_SQUARES && document.board.squares * (document.board.metersPerSquare ?? 1) <= SCENE_MAX_METERS, `board is ${SCENE_MIN_SQUARES} squares to ${SCENE_MAX_METERS} m a side`);
+  const vector = plain(document.board) && document.board.kind === 'vector';
+  add(errors, plain(document.board) && SCENE_BOARD_KINDS.includes(document.board.kind), `board.kind must be one of ${SCENE_BOARD_KINDS.join(', ')}`);
+  if (vector) {
+    add(errors, Number.isFinite(document.board.spanThousandMiles)
+      && document.board.spanThousandMiles >= SCENE_VECTOR_MIN_SPAN
+      && document.board.spanThousandMiles <= SCENE_VECTOR_MAX_SPAN,
+      `a vector board spans ${SCENE_VECTOR_MIN_SPAN} to ${SCENE_VECTOR_MAX_SPAN} thousand miles a side`);
+    add(errors, document.board.squares === undefined && document.board.metersPerSquare === undefined,
+      'a vector board has no squares and no metre scale');
+    add(errors, plain(document.space)
+      && (document.space.planet === null || plain(document.space.planet))
+      && (document.space.atmosphere === null || Number.isInteger(document.space.atmosphere)),
+      'a vector board needs a space block with a planet (or null) and an atmosphere (or null)');
+  } else {
+    add(errors, plain(document.board) && SCENE_GRID_SCALES.includes(document.board.metersPerSquare), 'board.metersPerSquare must be 1, 5, or 25');
+    add(errors, plain(document.board) && Number.isInteger(document.board.squares) && document.board.squares >= SCENE_MIN_SQUARES && document.board.squares * (document.board.metersPerSquare ?? 1) <= SCENE_MAX_METERS, `board is ${SCENE_MIN_SQUARES} squares to ${SCENE_MAX_METERS} m a side`);
+    add(errors, document.space === null, 'a grid board carries no space block');
+  }
   add(errors, plain(document.background) && (document.background.assetId === null || nonblank(document.background.assetId)), 'background.assetId must be null or an asset id');
   add(errors, Array.isArray(document.tokens), 'tokens must be an array');
   if (Array.isArray(document.tokens) && plain(document.board)) {
-    const cells = document.board.squares * (document.board.metersPerSquare ?? 1) + 1;
+    const cells = vector ? null : document.board.squares * (document.board.metersPerSquare ?? 1) + 1;
+    const half = vector ? (document.board.spanThousandMiles ?? 0) / 2 : null;
     const ids = new Set();
     for (const token of document.tokens) {
       add(errors, plain(token) && nonblank(token.id) && nonblank(token.actorId), 'a staged token needs an id and an actorId');
       if (!plain(token)) continue;
       if (nonblank(token.id)) { add(errors, !ids.has(token.id), `duplicate staged token: ${token.id}`); ids.add(token.id); }
       add(errors, SCENE_TOKEN_SIDES.includes(token.side), `staged token side must be one of ${SCENE_TOKEN_SIDES.join(', ')}`);
-      add(errors, plain(token.position) && Number.isInteger(token.position.column) && Number.isInteger(token.position.row)
-        && token.position.column >= 0 && token.position.column < cells && token.position.row >= 0 && token.position.row < cells, 'staged token position is off the board');
+      if (vector) {
+        // Continuous inches from the origin, not cells. p.25: a position is a
+        // point on the surface, marked with string or chalk.
+        add(errors, plain(token.position) && Number.isFinite(token.position.x) && Number.isFinite(token.position.y)
+          && Math.abs(token.position.x) <= half && Math.abs(token.position.y) <= half, 'staged token position is off the vector board');
+        // The vector a ship arrives with. p.25 makes 0 a legal vector, so an
+        // absent velocity means stationary rather than unset.
+        add(errors, token.velocity === undefined
+          || (plain(token.velocity) && Number.isFinite(token.velocity.x) && Number.isFinite(token.velocity.y)),
+          'staged token velocity must be a finite vector');
+      } else {
+        add(errors, plain(token.position) && Number.isInteger(token.position.column) && Number.isInteger(token.position.row)
+          && token.position.column >= 0 && token.position.column < cells && token.position.row >= 0 && token.position.row < cells, 'staged token position is off the board');
+        add(errors, token.velocity === undefined, 'a grid token carries no velocity');
+      }
       add(errors, typeof token.label === 'string', 'staged token label must be a string');
       add(errors, token.inCombat === undefined || typeof token.inCombat === 'boolean', 'inCombat must be a boolean');
     }
@@ -108,12 +185,25 @@ export function assertValidSceneDocument(document) {
   if (errors.length) throw new SceneDocumentValidationError(errors);
 }
 
+// Every scene written before v0.158.0 is a grid board: that was the only kind.
+// Migrating rather than rejecting, so existing campaigns keep their scenes.
+export function migrateSceneDocument(input) {
+  const scene = clone(input);
+  if (scene.schemaVersion === 1) {
+    scene.board = { kind: 'grid', squares: scene.board?.squares, metersPerSquare: scene.board?.metersPerSquare };
+    scene.space = null;
+    scene.schemaVersion = 2;
+  }
+  return scene;
+}
+
 export function importSceneDocument(input) {
   const parsed = parse(input);
   if (!plain(parsed)) throw new SceneDocumentValidationError('scene document must be an object');
   if (!SUPPORTED_SCENE_DOCUMENT_SCHEMA_VERSIONS.includes(parsed.schemaVersion)) throw new SceneDocumentValidationError(`unsupported schemaVersion: ${parsed.schemaVersion}`);
-  assertValidSceneDocument(parsed);
-  return clone(parsed);
+  const migrated = migrateSceneDocument(parsed);
+  assertValidSceneDocument(migrated);
+  return clone(migrated);
 }
 
 export function exportSceneDocument(document, { space = 2 } = {}) {
@@ -121,17 +211,31 @@ export function exportSceneDocument(document, { space = 2 } = {}) {
   return JSON.stringify(document, null, space);
 }
 
-export function updateSceneDocument(document, { name, folder, squares, metersPerSquare, backgroundAssetId, notes } = {}) {
+export function updateSceneDocument(document, { name, folder, squares, metersPerSquare, spanThousandMiles, planet, atmosphere, backgroundAssetId, notes } = {}) {
   const next = importSceneDocument(document);
+  const vector = sceneIsVectorBoard(next);
   if (name !== undefined) { if (!nonblank(name)) throw new TypeError('a scene needs a name'); next.identity.name = name.trim(); }
   if (folder !== undefined) next.folder = nonblank(folder) ? folder.trim() : DEFAULT_SCENE_FOLDER;
+  // A board does not change kind: the two express different geometry and the
+  // staged tokens are addressed differently. Applying a grid size to a vector
+  // board would have written squares into it and stranded every ship.
+  if ((squares !== undefined || metersPerSquare !== undefined) && vector) throw new TypeError('a vector board is not sized in squares');
+  if ((spanThousandMiles !== undefined || planet !== undefined || atmosphere !== undefined) && !vector) throw new TypeError('a grid board has no span, planet or atmosphere');
   if (squares !== undefined) next.board.squares = squares;
   if (metersPerSquare !== undefined) next.board.metersPerSquare = metersPerSquare;
+  if (spanThousandMiles !== undefined) next.board.spanThousandMiles = spanThousandMiles;
+  if (planet !== undefined) next.space.planet = planet === null ? null : clone(planet);
+  if (atmosphere !== undefined) next.space.atmosphere = Number.isInteger(atmosphere) ? atmosphere : null;
   if (backgroundAssetId !== undefined) next.background.assetId = nonblank(backgroundAssetId) ? backgroundAssetId : null;
   if (notes !== undefined) next.notes = String(notes ?? '');
   // A smaller board may strand a token: drop any now off the edge.
-  const cells = next.board.squares * next.board.metersPerSquare + 1;
-  next.tokens = next.tokens.filter((token) => token.position.column < cells && token.position.row < cells);
+  if (vector) {
+    const half = next.board.spanThousandMiles / 2;
+    next.tokens = next.tokens.filter((token) => Math.abs(token.position.x) <= half && Math.abs(token.position.y) <= half);
+  } else {
+    const cells = next.board.squares * next.board.metersPerSquare + 1;
+    next.tokens = next.tokens.filter((token) => token.position.column < cells && token.position.row < cells);
+  }
   assertValidSceneDocument(next);
   return next;
 }

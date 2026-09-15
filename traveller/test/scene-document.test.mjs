@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import {
   createSceneDocument, importSceneDocument, updateSceneDocument, placeSceneToken, moveSceneToken, removeSceneToken,
   sceneBoardCells, sceneFolders, SceneDocumentValidationError, setSceneTokenCombat, clearSceneCombatTracker, trackedSceneTokens,
-  duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch
+  duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch,
+  sceneIsVectorBoard,
+  sceneVectorExtent,
+  sceneBoardMeters
 } from '../src/scene-document.js';
 import { buildPublishedScene } from '../src/published-view.js';
 import { authorizePlayerSceneMove } from '../src/player-token-movement.js';
@@ -12,7 +15,8 @@ test('a scene is a named board with a size, a scale, a folder, and staged tokens
   const scene = createSceneDocument({ campaignId: 'sea', name: 'Aster Downport', folder: 'Ports/Aster', squares: 40, metersPerSquare: 5, createdAt: 1 });
   assert.equal(scene.identity.name, 'Aster Downport');
   assert.equal(scene.folder, 'Ports/Aster');
-  assert.deepEqual(scene.board, { squares: 40, metersPerSquare: 5 });
+  // v0.158.0: the board names its kind, so a vector board can exist beside it.
+  assert.deepEqual(scene.board, { kind: 'grid', squares: 40, metersPerSquare: 5 });
   assert.deepEqual(sceneBoardCells(scene), { columns: 201, rows: 201, metersPerSquare: 5 });
   assert.deepEqual(scene.tokens, []);
   assert.equal(importSceneDocument(JSON.stringify(scene)).identity.id, scene.identity.id);
@@ -102,4 +106,92 @@ test('v0.82.0 duplicate, adopt, folder moves, search and the thumbnail', () => {
   assert.match(svg, /^<svg /);
   assert.match(svg, /<circle cx="9\.60" cy="9\.60"/, 'token at column 10 of a 5 m grid is 2 squares in');
   assert.match(svg, /aria-label="Downport"/);
+});
+
+// v0.158.0: Book 2 p.22 gives space combat a continuous surface at 1 inch =
+// 1,000 miles with no grid at all, and p.25 marks a position with string or
+// chalk rather than in a cell. A vector board is that surface.
+test('a vector scene is a continuous plane in thousands of miles, with no grid', () => {
+  const scene = createSceneDocument({
+    campaignId: 'sea', name: 'San Telmo Approach', folder: 'Space/San Telmo',
+    boardKind: 'vector', spanThousandMiles: 400, atmosphere: 6,
+    planet: { name: 'San Telmo', diameter: 8, densityEarth: 1 }, createdAt: 1
+  });
+  assert.deepEqual(scene.board, { kind: 'vector', spanThousandMiles: 400 });
+  assert.equal(scene.board.squares, undefined);
+  assert.equal(scene.board.metersPerSquare, undefined);
+  assert.equal(sceneIsVectorBoard(scene), true);
+  assert.deepEqual(sceneVectorExtent(scene), { half: 200, minimum: -200, maximum: 200, spanThousandMiles: 400 });
+
+  // The template belongs to the scene: the referee draws San Telmo once.
+  assert.equal(scene.space.planet.name, 'San Telmo');
+  // Atmosphere rides along because p.35 braking depends on it.
+  assert.equal(scene.space.atmosphere, 6);
+
+  // Metres are meaningless here and asking for them is a mistake, not a zero.
+  assert.throws(() => sceneBoardMeters(scene), TypeError);
+  assert.throws(() => sceneBoardCells(scene), TypeError);
+  // A grid board has no space block, and a vector board is not sized in squares.
+  assert.equal(createSceneDocument({ campaignId: 'sea', name: 'Alley' }).space, null);
+  assert.throws(() => createSceneDocument({ campaignId: 'sea', name: 'Too small', boardKind: 'vector', spanThousandMiles: 4 }), RangeError);
+  assert.throws(() => createSceneDocument({ campaignId: 'sea', name: 'Unknown', boardKind: 'hex' }), RangeError);
+
+  assert.equal(importSceneDocument(JSON.stringify(scene)).board.kind, 'vector');
+});
+
+test('a staged ship carries a position in inches and the vector it arrives with', () => {
+  const scene = createSceneDocument({
+    campaignId: 'sea', name: 'Clear Space', boardKind: 'vector', spanThousandMiles: 100, createdAt: 1
+  });
+  const staged = {
+    ...scene,
+    tokens: [{ id: 't1', actorId: 'marisol', side: 'party', label: 'Marisol',
+      position: { x: -12.5, y: 3.25 }, velocity: { x: 6, y: 0 } }]
+  };
+  assert.equal(importSceneDocument(staged).tokens[0].velocity.x, 6);
+
+  // p.25 makes a vector of 0 legal, so an absent velocity is stationary rather
+  // than unset.
+  assert.equal(importSceneDocument({ ...staged, tokens: [{ ...staged.tokens[0], velocity: undefined }] }).tokens.length, 1);
+
+  // Off the span, a cell position, or a velocity on a grid token are all errors.
+  assert.throws(() => importSceneDocument({ ...staged, tokens: [{ ...staged.tokens[0], position: { x: 900, y: 0 } }] }), SceneDocumentValidationError);
+  assert.throws(() => importSceneDocument({ ...staged, tokens: [{ ...staged.tokens[0], position: { column: 1, row: 1 } }] }), SceneDocumentValidationError);
+  const grid = createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 });
+  assert.throws(() => importSceneDocument({ ...grid, tokens: [{ id: 'g', actorId: 'x', side: 'party', label: '', position: { column: 1, row: 1 }, velocity: { x: 1, y: 0 } }] }), SceneDocumentValidationError);
+});
+
+test('a board does not change kind, and shrinking a span drops stranded ships', () => {
+  let scene = createSceneDocument({ campaignId: 'sea', name: 'Clear Space', boardKind: 'vector', spanThousandMiles: 400, createdAt: 1 });
+  scene = importSceneDocument({ ...scene, tokens: [
+    { id: 'near', actorId: 'marisol', side: 'party', label: 'M', position: { x: 10, y: 0 } },
+    { id: 'far', actorId: 'corsair', side: 'opposition', label: 'C', position: { x: 190, y: 0 } }
+  ] });
+  assert.equal(updateSceneDocument(scene, { spanThousandMiles: 100 }).tokens.length, 1, 'the far ship falls off a smaller span');
+  assert.equal(updateSceneDocument(scene, { atmosphere: 8 }).space.atmosphere, 8);
+  // Applying a grid size to a vector board would have written squares into it
+  // and stranded every ship on a geometry it does not use.
+  assert.throws(() => updateSceneDocument(scene, { squares: 40 }), TypeError);
+  const grid = createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 });
+  assert.throws(() => updateSceneDocument(grid, { spanThousandMiles: 400 }), TypeError);
+});
+
+test('scenes written before v0.158.0 migrate to grid boards rather than failing', () => {
+  const legacy = {
+    documentType: 'graycloak-traveller-scene',
+    schemaVersion: 1,
+    identity: { id: 'scene-old', name: 'Warehouse' },
+    campaignId: 'sea',
+    folder: 'Scenes',
+    board: { squares: 20, metersPerSquare: 5 },
+    background: { assetId: null },
+    tokens: [{ id: 't', actorId: 'npc', side: 'opposition', label: 'R', position: { column: 10, row: 10 } }],
+    notes: '',
+    createdAt: 1
+  };
+  const migrated = importSceneDocument(legacy);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.deepEqual(migrated.board, { kind: 'grid', squares: 20, metersPerSquare: 5 });
+  assert.equal(migrated.space, null);
+  assert.equal(migrated.tokens.length, 1, 'staged tokens survive the migration');
 });
