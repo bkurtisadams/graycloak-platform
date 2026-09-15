@@ -145,7 +145,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.165.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.166.0';
 
 import {
   ACTION_LABELS,
@@ -171,28 +171,29 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.165.0';
+} from './ui-model.js?v=v0.166.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.165.0';
+} from './document-loader.js?v=v0.166.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.165.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.165.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.165.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.166.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.166.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.166.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.166.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.165.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.165.0';
+} from '../src/campaign-document.js?v=v0.166.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.166.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.165.0';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.166.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.165.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.165.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.165.0';
+} from '../src/document-window.js?v=v0.166.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.166.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.166.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -201,13 +202,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.165.0';
+} from './chargen-view.js?v=v0.166.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.165.0';
+} from './generators.js?v=v0.166.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -218,7 +219,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.165.0';
+} from './subsector-svg.js?v=v0.166.0';
 
 import {
   seededDice,
@@ -227,7 +228,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.165.0';
+} from './commerce-market.js?v=v0.166.0';
 
 import {
   addCharacterToCampaign,
@@ -257,7 +258,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.165.0';
+} from '../src/campaign-document.js?v=v0.166.0';
 
 import {
   NPC_CONDITIONS,
@@ -266,16 +267,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.165.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.165.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.165.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.165.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.165.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.165.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.165.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.165.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.165.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.165.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.166.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.166.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.166.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.166.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.166.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.166.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.166.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.166.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.166.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.166.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -283,14 +284,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.165.0';
+} from '../src/activity-log-document.js?v=v0.166.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.165.0';
+} from '../src/player-session.js?v=v0.166.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -298,19 +299,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.165.0';
+} from './quick-slots.js?v=v0.166.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.165.0';
+} from '../src/campaign-bundle.js?v=v0.166.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.165.0';
+} from '../src/document-registry.js?v=v0.166.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.165.0';
+} from '../src/activity-log.js?v=v0.166.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -320,14 +321,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.165.0';
+} from '../src/contract-document.js?v=v0.166.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.165.0';
+} from '../src/situation-document.js?v=v0.166.0';
 
 import {
   createEncounterDocument,
@@ -355,37 +356,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.165.0';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.166.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.165.0';
+} from '../src/contact-document.js?v=v0.166.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.165.0';
+} from '../src/adventure-thread-document.js?v=v0.166.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.165.0';
+} from '../world/situation-events.js?v=v0.166.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.165.0';
+} from '../world/contract-board.js?v=v0.166.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.165.0';
+} from '../world/thread-consequences.js?v=v0.166.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.165.0';
+} from '../world/far-meridian-subsector.js?v=v0.166.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -9690,6 +9691,48 @@ function vectorOpeningPlacement(planet, proximity) {
   };
 }
 
+// An NPC ship built from one of Book 2 pp.18-20's standard designs. Shared by
+// the Book 2 p.36 encounter and a ship staged on a space scene (v0.166.0).
+function buildEncounteredShip({ designKey, name, key = null }) {
+  // The ship document's authority block is built around Book 1's scout
+  // reserve assignment: it requires an assigned character who appears in the
+  // crew assignments. An encountered ship has no assignee, so it gets a
+  // synthetic captain — which is true enough, since somebody is flying it.
+  // A proper privately-owned authority type belongs in the rules package.
+  const captainId = `npc-captain-${Date.now()}`;
+  const captainName = `${name} captain`;
+  let ship = createShipDocument({
+    designKey,
+    id: `npc-${key ?? 'ship'}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    name,
+    authority: {
+      assignmentType: 'private-owner',
+      controllingAuthority: name,
+      legalTitleHolder: captainName,
+      legalTitleSourceStatus: 'referee-generated-encounter',
+      characterOwnsShip: true,
+      assignedCharacterId: captainId,
+      assignedCharacterName: captainName,
+      recallable: false,
+      saleAllowed: true,
+      useAsDesired: true,
+      possessionAtServicePleasure: false,
+      servicePrivileges: {
+        freeFuelAtScoutBases: false,
+        freeMaintenanceAtScoutBasesAtClassBStarports: false
+      },
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    },
+    crewAssignments: [{ role: 'pilot', characterId: captainId, characterName: captainName }]
+  });
+  // Book 2 p.16 delivers standard designs unarmed, so anything meant to be a
+  // threat has to have been armed by its owner.
+  for (const turret of ship.specifications.armament.turrets.slice(0, 2)) {
+    ship = armShipTurret(ship, { turretId: turret.id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  }
+  return ship;
+}
+
 function engagePendingShipEncounter() {
   try {
     if (!shipDocument) throw new Error('no active ship');
@@ -9699,42 +9742,7 @@ function engagePendingShipEncounter() {
     const theyIntrude = el.setupIntruder ? el.setupIntruder.value === 'them' : Boolean(encounter.hostileByDefault);
     const pressurised = el.setupPressure?.value === 'pressurised';
     const designKey = opposingShipDesignKey(encounter);
-    // The ship document's authority block is built around Book 1's scout
-    // reserve assignment: it requires an assigned character who appears in the
-    // crew assignments. An encountered ship has no assignee, so it gets a
-    // synthetic captain — which is true enough, since somebody is flying it.
-    // A proper privately-owned authority type belongs in the rules package.
-    const captainId = `npc-captain-${Date.now()}`;
-    const captainName = `${encounter.label} captain`;
-    let opponent = createShipDocument({
-      designKey,
-      id: `npc-${encounter.key ?? 'ship'}-${Date.now()}`,
-      name: encounter.label,
-      authority: {
-        assignmentType: 'private-owner',
-        controllingAuthority: encounter.label,
-        legalTitleHolder: captainName,
-        legalTitleSourceStatus: 'referee-generated-encounter',
-        characterOwnsShip: true,
-        assignedCharacterId: captainId,
-        assignedCharacterName: captainName,
-        recallable: false,
-        saleAllowed: true,
-        useAsDesired: true,
-        possessionAtServicePleasure: false,
-        servicePrivileges: {
-          freeFuelAtScoutBases: false,
-          freeMaintenanceAtScoutBasesAtClassBStarports: false
-        },
-        operatorResponsibilities: { upkeep: true, crewCosts: true }
-      },
-      crewAssignments: [{ role: 'pilot', characterId: captainId, characterName: captainName }]
-    });
-    // Book 2 p.16 delivers standard designs unarmed, so anything meant to be a
-    // threat has to have been armed by its owner.
-    for (const turret of opponent.specifications.armament.turrets.slice(0, 2)) {
-      opponent = armShipTurret(opponent, { turretId: turret.id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
-    }
+    const opponent = buildEncounteredShip({ designKey, name: encounter.label, key: encounter.key });
 
     const mine = shipCombatLoadout(shipDocument);
     const theirs = shipCombatLoadout(opponent);
@@ -9802,6 +9810,84 @@ function engagePendingShipEncounter() {
     el.shipCombatSetupDialog?.close();
     setOperationsDeskTab('encounter');
     logActivity('COMBAT', `Ship combat engaged: ${shipCombatEncounter.participants.map((entry) => entry.name).join(' vs ')} / intruder ${theyIntrude ? encounter.label : (shipDocument.identity.name || 'your ship')}${pressurised ? ' / caught pressurised' : ''}`);
+    setStatus('SHIP COMBAT ENGAGED / GAME TURN 1 / INTRUDER MOVEMENT', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// v0.166.0: a space fight starts from the scene it was staged on, not from
+// preset positions and a zero vector. The scene supplies the ships, their
+// positions and vectors (Book 2 p.25), their sides, and the world (p.29).
+function spaceSceneCombatBlocked(scene) {
+  if (shipCombatEncounter) return 'A ship fight is already running. Close it first.';
+  const plan = spaceSceneCombatPlan(scene, { ownShipId: shipDocument?.identity?.id ?? null });
+  return plan.problems.length ? `Cannot start: ${plan.problems.join('; ')}.` : null;
+}
+
+function startSpaceSceneCombat(scene, { intruder = 'opposition', pressurised = false } = {}) {
+  try {
+    const blocked = spaceSceneCombatBlocked(scene);
+    if (blocked) throw new Error(blocked);
+    const plan = spaceSceneCombatPlan(scene, { ownShipId: shipDocument?.identity?.id ?? null, intruder });
+    const participants = plan.ships.map((staged) => {
+      if (staged.own) {
+        const mine = shipCombatLoadout(shipDocument);
+        return {
+          shipId: staged.participantId,
+          disposition: 'merchant',
+          name: shipDocument.identity.name || staged.label || 'SHIP',
+          side: staged.side,
+          ship: shipDocument,
+          carriedPrograms: mine.carried,
+          loadedPrograms: mine.loaded,
+          stations: playerShipStations(),
+          skills: playerShipSkills(),
+          // Book 2 p.35, as the encounter path: depressurised unless caught.
+          pressurisedSections: pressurised ? [...PRESSURE_SECTIONS] : [],
+          occupants: pressurised ? playerShipOccupants() : {}
+        };
+      }
+      const design = getStandardShipDesign(staged.designKey);
+      const name = staged.label || design.name;
+      const ship = buildEncounteredShip({ designKey: staged.designKey, name, key: staged.designKey });
+      const loadout = shipCombatLoadout(ship);
+      return {
+        shipId: staged.participantId,
+        // A staged opposition ship is hostile; one on the party's side is not.
+        // The same Graycloak dispositions the p.36 encounter path assigns.
+        disposition: staged.stagedSide === 'opposition' ? 'pirate' : 'merchant',
+        name,
+        side: staged.side,
+        ship,
+        carriedPrograms: loadout.carried,
+        loadedPrograms: loadout.loaded,
+        pressurisedSections: []
+      };
+    });
+    let encounter = createShipCombatEncounter({
+      id: `ship-combat-${Date.now()}`,
+      campaignId: campaignDocument?.identity?.id ?? null,
+      intruderSide: 'intruder',
+      intruderAssignmentNote: `Referee assigned the intruder turn to the ${intruder} staged on ${scene.identity.name}`,
+      participants
+    });
+    encounter = enableVectorMovement(encounter,
+      Object.fromEntries(plan.ships.map((staged) => [staged.participantId, { position: staged.position, velocity: staged.velocity }])),
+      plan.planet ? { planet: plan.planet, atmosphere: plan.atmosphere } : {});
+    // Where each ship came from, so closing the fight can put it back.
+    shipCombatEncounter = { ...encounter, sceneLink: spaceSceneLink(plan) };
+    shipCombatAllocation = {};
+    pendingShipEncounter = null;
+    persistShipCombat();
+    // The fight is on the board the ships were staged on.
+    stageBoard = 'auto';
+    setOperationsDeskTab('encounter');
+    logActivity('COMBAT', `Ship combat engaged on ${scene.identity.name}: ${participants.map((entry) => `${entry.name} (${entry.side})`).join(', ')}`
+      + `${plan.planet ? ` / ${plan.planet.name} gravity` : ' / clear space'}${pressurised ? ' / caught pressurised' : ''}`);
+    if (plan.standingBy.length) logActivity('COMBAT', `${plan.standingBy.length} neutral ship(s) stay on the scene and out of the fight`);
     setStatus('SHIP COMBAT ENGAGED / GAME TURN 1 / INTRUDER MOVEMENT', 'ok');
     render();
   } catch (error) {
@@ -10105,6 +10191,21 @@ function closeShipCombat() {
       shipCombatEncounter = { ...shipCombatEncounter, outcome: 'disengaged' };
     }
     const outcome = shipCombatOutcome(shipCombatEncounter);
+    // v0.166.0: a fight staged on a scene leaves its ships where it left them.
+    const link = shipCombatEncounter.sceneLink;
+    if (link && shipCombatEncounter.spatialMode === 'vector') {
+      if (sceneDocuments.some((entry) => entry.identity.id === link.sceneId)) {
+        let written = [];
+        updateScene(link.sceneId, (entry) => {
+          const result = writeSpaceCombatToScene(entry, shipCombatEncounter, link);
+          written = result.written;
+          return result.scene;
+        });
+        logActivity('COMBAT', `${written.length} ship position(s) written back to the scene`);
+      } else {
+        logActivity('COMBAT', 'The scene this fight was staged on is gone, so no positions were written back');
+      }
+    }
     const mine = outcome.ships.find((entry) => entry.shipId === 'player');
     if (mine) {
       // The ship as the fight left it: damage, fuel, magazines.
@@ -10216,6 +10317,8 @@ function renderShipVectorStage() {
       // 2 pp.18-20's standard designs, which is what an encountered ship is
       // built from anyway (opposingShipDesignKey).
       shipChoices: vectorSceneShipChoices(scene),
+      combatBlocked: spaceSceneCombatBlocked(scene),
+      startCombat: (options) => startSpaceSceneCombat(scene, options),
       stageShip: (choice, side) => {
         try {
           updateScene(scene.identity.id, (entry) => {

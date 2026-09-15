@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.165.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.165.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.166.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.166.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -595,7 +595,7 @@ const MINIMAP_SIZE = 132;
 let stageView = { zoom: 1, cx: 0, cy: 0 };
 let stageViewSceneId = null;
 
-export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [] } = {}) {
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [], startCombat = null, combatBlocked = null } = {}) {
   if (!stage) return;
   if (stageViewSceneId !== scene.identity.id) {
     stageViewSceneId = scene.identity.id;
@@ -676,6 +676,37 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
       name.value = '';
     };
     tools.append(kind, name, sizeLabel, add);
+    panel.append(tools);
+  }
+
+  // v0.166.0: the fight starts from this board. The intruder is the referee's
+  // call (Book 2 p.22 names the sides "for convenience"); pressurisation is
+  // p.35's, and only the campaign's own ship has a crew placed to lose.
+  if (startCombat) {
+    const tools = document.createElement('div');
+    tools.className = 'vector-controls vector-start-combat';
+    const intruder = document.createElement('select');
+    intruder.setAttribute('aria-label', 'Intruder');
+    intruder.add(new Option('OPPOSITION INTRUDES', 'opposition'));
+    intruder.add(new Option('PARTY INTRUDES', 'party'));
+    const pressure = document.createElement('select');
+    pressure.setAttribute('aria-label', 'Pressurisation');
+    pressure.add(new Option('DEPRESSURISED', 'depressurised'));
+    pressure.add(new Option('CAUGHT PRESSURISED', 'pressurised'));
+    const start = document.createElement('button');
+    start.type = 'button';
+    start.id = 'vector-start-combat';
+    start.textContent = 'START COMBAT';
+    start.disabled = Boolean(combatBlocked);
+    start.title = combatBlocked ?? 'Party and opposition ships fight from where they are staged, on the vectors they are staged with. Neutral ships stay out. The intruder moves first every game turn (Book 2 p.23).';
+    start.onclick = () => startCombat({ intruder: intruder.value, pressurised: pressure.value === 'pressurised' });
+    tools.append(intruder, pressure, start);
+    if (combatBlocked) {
+      const why = document.createElement('span');
+      why.className = 'vector-commit-blocked';
+      why.textContent = combatBlocked;
+      tools.append(why);
+    }
     panel.append(tools);
   }
 

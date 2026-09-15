@@ -598,3 +598,37 @@ test('a course into the world blocks the commit and offers a surface ruling', { 
   assert.equal(stage.querySelector('.vector-surface-ruling'), null);
   dom.window.close(); delete globalThis.document; delete globalThis.Option;
 });
+
+// v0.166.0: the fight starts from the staging board, and says why it cannot.
+test('the staging board offers START COMBAT with the intruder and pressurisation', { skip: !JSDOM }, () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Option = dom.window.Option;
+  const scene = {
+    documentType: 'graycloak-traveller-scene', schemaVersion: 3,
+    identity: { id: 'scene-space', name: 'San Telmo Approach' },
+    campaignId: 'sea', folder: 'Space',
+    board: { kind: 'vector', spanThousandMiles: 400 },
+    space: { bodies: [], gravityBodyId: null, atmosphere: null },
+    background: { assetId: null },
+    tokens: [{ id: 't1', actorId: 'marisol', side: 'party', label: 'MARISOL', position: { x: 10, y: 0 }, velocity: { x: -6, y: 0 } }],
+    notes: '', createdAt: 1
+  };
+  const stage = document.querySelector('main');
+  const started = [];
+  renderVectorSceneStage(stage, scene, { moveShip() {}, setVector() {}, startCombat: (options) => started.push(options), combatBlocked: 'Cannot start: no opposition ship is staged.' });
+  const button = () => stage.querySelector('#vector-start-combat');
+  assert.equal(button().disabled, true);
+  assert.match(stage.querySelector('.vector-start-combat').textContent, /no opposition ship is staged/);
+
+  renderVectorSceneStage(stage, scene, { moveShip() {}, setVector() {}, startCombat: (options) => started.push(options), combatBlocked: null });
+  const [intruder, pressure] = stage.querySelectorAll('.vector-start-combat select');
+  intruder.value = 'party'; pressure.value = 'pressurised';
+  button().click();
+  assert.deepEqual(started, [{ intruder: 'party', pressurised: true }]);
+
+  // No callback, no control.
+  renderVectorSceneStage(stage, scene, { moveShip() {}, setVector() {} });
+  assert.equal(button(), null);
+  dom.window.close(); delete globalThis.document; delete globalThis.Option;
+});
