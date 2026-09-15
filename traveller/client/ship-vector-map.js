@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.160.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.160.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.161.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.161.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -514,5 +514,152 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
     ay.value = thrust.gy.toFixed(2);
     draw();
   });
+  draw();
+}
+
+// ---------------------------------------------------------------------------
+// v0.161.0: the same plane, before there is a fight on it.
+//
+// A vector scene is a board in its own right (v0.158.0), so it has to be
+// lookable-at without an encounter — which is what closing a fight and finding
+// no way back to the map was really about. This draws the scene's own data: the
+// pp.26-27 template, the staged ships, and the vector each arrives with.
+//
+// Deliberately NOT the fight renderer with a null encounter. There are no
+// phases here, no thrust and no commit; a ship is dragged to where it starts
+// and its opening vector is dragged from its nose. Sharing one function would
+// have meant a phase model that is sometimes absent.
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector } = {}) {
+  if (!stage) return;
+  stage.replaceChildren();
+  const panel = document.createElement('section');
+  panel.id = 'ship-vector-workspace';
+  stage.append(panel);
+
+  const heading = document.createElement('div');
+  heading.className = 'vector-controls';
+  const title = document.createElement('strong');
+  const world = scene.space?.planet?.name;
+  title.textContent = `${scene.identity.name.toUpperCase()} \u00b7 ${world ? world.toUpperCase() : 'CLEAR SPACE'} \u00b7 STAGING`;
+  heading.append(title);
+  panel.append(heading);
+
+  const svg = node('svg', {
+    role: 'img', 'aria-label': `${scene.identity.name} staging board`,
+    viewBox: `0 0 ${VIEW_W} ${VIEW_H}`, preserveAspectRatio: 'xMidYMid meet'
+  });
+  svg.classList.add('ship-vector-svg');
+  panel.append(svg);
+
+  const status = document.createElement('div');
+  status.id = 'vector-stage-status';
+  status.className = 'vector-controls';
+  status.setAttribute('aria-live', 'polite');
+  panel.append(status);
+
+  const note = document.createElement('p');
+  note.textContent = scene.tokens.length
+    ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on. Coordinates in thousands of miles (Book 2 p.22).'
+    : 'No ships staged. Nothing is placed on this board yet.';
+  panel.append(note);
+
+  const planet = scene.space?.planet ?? null;
+  // Fit the span, the template and every staged ship with its vector.
+  const points = [{ x: -scene.board.spanThousandMiles / 2, y: -scene.board.spanThousandMiles / 2 },
+    { x: scene.board.spanThousandMiles / 2, y: scene.board.spanThousandMiles / 2 }];
+  const MARGIN = 28;
+  const minX = Math.min(...points.map((p) => p.x)), maxX = Math.max(...points.map((p) => p.x));
+  const minY = Math.min(...points.map((p) => p.y)), maxY = Math.max(...points.map((p) => p.y));
+  const scale = Math.min((VIEW_W - MARGIN * 2) / (maxX - minX), (VIEW_H - MARGIN * 2) / (maxY - minY));
+  const x = (v) => VIEW_W / 2 + (v - (minX + maxX) / 2) * scale;
+  const y = (v) => VIEW_H / 2 - (v - (minY + maxY) / 2) * scale;
+
+  function draw() {
+    svg.replaceChildren();
+    if (planet) {
+      for (const band of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
+        svg.append(node('circle', {
+          cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: band.outerRadius * scale,
+          fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
+        }));
+      }
+      svg.append(node('circle', {
+        cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: planet.radius * scale,
+        fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
+      }));
+      svg.append(node('text', {
+        x: x(planet.center?.x ?? 0), y: y(planet.center?.y ?? 0) + 4,
+        fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
+      }, planet.name));
+    }
+    // The span, so an empty plane still reads as measured.
+    svg.append(node('rect', {
+      x: x(-scene.board.spanThousandMiles / 2), y: y(scene.board.spanThousandMiles / 2),
+      width: scene.board.spanThousandMiles * scale, height: scene.board.spanThousandMiles * scale,
+      fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.2, 'stroke-dasharray': '2 4'
+    }));
+
+    for (const token of scene.tokens) {
+      const velocity = token.velocity ?? { x: 0, y: 0 };
+      const speed = Math.hypot(velocity.x, velocity.y);
+      const head = { x: token.position.x + velocity.x, y: token.position.y + velocity.y };
+      if (speed > 0) {
+        svg.append(node('line', {
+          x1: x(token.position.x), y1: y(token.position.y), x2: x(head.x), y2: y(head.y),
+          stroke: 'currentColor', 'stroke-width': 2
+        }));
+        const arrow = node('circle', { cx: x(head.x), cy: y(head.y), r: 4, fill: 'none', stroke: 'currentColor', 'stroke-width': 2 });
+        arrow.classList.add('vector-endpoint-handle');
+        arrow.style.cursor = 'move';
+        arrow.addEventListener('pointerdown', (event) => startDrag(event, (point) => {
+          setVector?.(token.id, { x: point.x - token.position.x, y: point.y - token.position.y });
+        }));
+        svg.append(arrow);
+      }
+      const dot = node('circle', { cx: x(token.position.x), cy: y(token.position.y), r: 5, fill: 'currentColor' });
+      dot.classList.add('vector-ship-token');
+      dot.style.cursor = 'move';
+      dot.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveShip?.(token.id, point)));
+      svg.append(dot);
+      svg.append(node('text', {
+        x: x(token.position.x) + 10, y: y(token.position.y) - 9,
+        fill: 'currentColor', 'font-size': '11'
+      }, `${token.label || token.actorId}${speed ? ` \u00b7 ${speed.toFixed(1)}"` : ' \u00b7 STATIONARY'}`));
+    }
+    status.textContent = scene.tokens.length
+      ? `${scene.tokens.length} STAGED \u00b7 SPAN ${scene.board.spanThousandMiles}" \u00b7 1" = 1,000 MILES`
+      : `EMPTY \u00b7 SPAN ${scene.board.spanThousandMiles}" \u00b7 1" = 1,000 MILES`;
+  }
+
+  // One drag implementation for both handles: solve the drop back into scene
+  // coordinates and hand it to the caller, which owns the document.
+  function startDrag(event, apply) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const toScene = (clientX, clientY) => {
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return null;
+      const point = svg.createSVGPoint();
+      point.x = clientX; point.y = clientY;
+      const local = point.matrixTransform(ctm.inverse());
+      return { x: (local.x - x(0)) / scale, y: (y(0) - local.y) / scale };
+    };
+    try { svg.setPointerCapture(event.pointerId); } catch { /* jsdom */ }
+    const move = (moveEvent) => {
+      const point = toScene(moveEvent.clientX, moveEvent.clientY);
+      if (point) apply(point);
+    };
+    const end = (endEvent) => {
+      svg.removeEventListener('pointermove', move);
+      svg.removeEventListener('pointerup', end);
+      svg.removeEventListener('pointercancel', end);
+      try { svg.releasePointerCapture(endEvent.pointerId); } catch { /* already released */ }
+    };
+    svg.addEventListener('pointermove', move);
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
+  }
+
   draw();
 }
