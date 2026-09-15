@@ -123,6 +123,9 @@ import {
   resolveAntiMissileFire,
   detonateContactedOrdnance,
   reprogramComputer,
+  reloadLauncher,
+  launcherStatus,
+  READY_CAPACITY,
   declareFlight,
   creditShotAgainstEscape,
   surrender as surrenderShip,
@@ -137,7 +140,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.151.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.152.0';
 
 import {
   ACTION_LABELS,
@@ -163,28 +166,28 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.151.0';
+} from './ui-model.js?v=v0.152.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.151.0';
+} from './document-loader.js?v=v0.152.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.151.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.151.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.151.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.152.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.152.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.152.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.151.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.151.0';
+} from '../src/campaign-document.js?v=v0.152.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.152.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap } from './ship-vector-map.js?v=v0.151.0';
+import { renderShipVectorMap } from './ship-vector-map.js?v=v0.152.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.151.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.151.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.151.0';
+} from '../src/document-window.js?v=v0.152.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.152.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.152.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -193,13 +196,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.151.0';
+} from './chargen-view.js?v=v0.152.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.151.0';
+} from './generators.js?v=v0.152.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -210,7 +213,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.151.0';
+} from './subsector-svg.js?v=v0.152.0';
 
 import {
   seededDice,
@@ -219,7 +222,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.151.0';
+} from './commerce-market.js?v=v0.152.0';
 
 import {
   addCharacterToCampaign,
@@ -249,7 +252,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.151.0';
+} from '../src/campaign-document.js?v=v0.152.0';
 
 import {
   NPC_CONDITIONS,
@@ -258,16 +261,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.151.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.151.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.151.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.151.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.151.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.151.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.151.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.151.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.151.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.151.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.152.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.152.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.152.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.152.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.152.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.152.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.152.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.152.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.152.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.152.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -275,14 +278,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.151.0';
+} from '../src/activity-log-document.js?v=v0.152.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.151.0';
+} from '../src/player-session.js?v=v0.152.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -290,19 +293,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.151.0';
+} from './quick-slots.js?v=v0.152.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.151.0';
+} from '../src/campaign-bundle.js?v=v0.152.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.151.0';
+} from '../src/document-registry.js?v=v0.152.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.151.0';
+} from '../src/activity-log.js?v=v0.152.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -312,14 +315,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.151.0';
+} from '../src/contract-document.js?v=v0.152.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.151.0';
+} from '../src/situation-document.js?v=v0.152.0';
 
 import {
   createEncounterDocument,
@@ -347,37 +350,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.151.0';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.152.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.151.0';
+} from '../src/contact-document.js?v=v0.152.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.151.0';
+} from '../src/adventure-thread-document.js?v=v0.152.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.151.0';
+} from '../world/situation-events.js?v=v0.152.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.151.0';
+} from '../world/contract-board.js?v=v0.152.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.151.0';
+} from '../world/thread-consequences.js?v=v0.152.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.151.0';
+} from '../world/far-meridian-subsector.js?v=v0.152.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -10127,6 +10130,20 @@ function renderShipCombatActions(encounter, phase, acting) {
         continue;
       }
       for (const turretId of participantFireableTurrets(participant)) {
+        if (turretReloadLock(participant, turretId)) {
+          const locked = document.createElement('div');
+          locked.className = 'live-ship-row live-state-attention';
+          const lockedLabel = document.createElement('span');
+          lockedLabel.className = 'live-ship-label';
+          lockedLabel.textContent = `${participant.name.toUpperCase()} ${turretId}`;
+          const lockedValue = document.createElement('span');
+          lockedValue.className = 'live-ship-value';
+          lockedValue.textContent = 'RELOADING';
+          locked.title = 'Book 2 p.31: a gunner engaged in reloading is unable to fire other weaponry in the turret.';
+          locked.append(lockedLabel, lockedValue);
+          actions.append(locked);
+          continue;
+        }
         const row = document.createElement('div');
         row.className = 'live-ship-row';
         const label = document.createElement('span');
@@ -10213,6 +10230,75 @@ function renderShipCombatActions(encounter, phase, acting) {
     }
   }
 
+  // Book 2 p.31: ready ammunition is per rack, three at a time, and a rack is
+  // reloaded by its turret's gunner over one game turn. The engine has carried
+  // all of that since v0.44.0 with nothing on screen to drive it, so a rack
+  // could be emptied and never refilled. Declared in friendly movement, which
+  // is where the engine accepts it and what makes the lock cost a whole turn.
+  if (phase.key === 'movement') {
+    for (const participant of actingShips) {
+      const racks = participantLauncherStatus(participant);
+      if (!racks || !racks.launchers.length) continue;
+      const heading = document.createElement('div');
+      heading.className = 'live-ship-row';
+      heading.textContent = `${participant.name.toUpperCase()} \u00b7 RACKS`;
+      heading.title = `Book 2 p.31: each launcher holds ${READY_CAPACITY} ready rounds, selectable by type, and reloads in one turn. A gunner reloading cannot fire other weaponry in that turret.`;
+      actions.append(heading);
+
+      for (const launcher of racks.launchers) {
+        const pool = launcher.pool === 'missiles' ? 'MISSILES' : 'SAND';
+        const reserve = racks.reserve[launcher.pool] ?? 0;
+        const row = document.createElement('div');
+        const state = launcher.reloading ? ' live-state-attention' : (launcher.ready ? ' live-state-ready' : ' live-state-attention');
+        row.className = `live-ship-row${state}`;
+        const label = document.createElement('span');
+        label.className = 'live-ship-label';
+        label.textContent = `${launcher.id} ${pool}`;
+        const value = document.createElement('span');
+        value.className = 'live-ship-value';
+        value.textContent = launcher.reloading
+          ? `LOADING ${launcher.reloadRounds}`
+          : `${launcher.ready} / ${READY_CAPACITY} READY`;
+        row.append(label, value);
+
+        // The reasons a rack cannot be reloaded are all printed rules, so each
+        // says which one rather than leaving a dead button.
+        const blocked = launcher.reloading
+          ? 'Already loading; it completes at this ship\u2019s next movement phase.'
+          : launcher.ready
+            ? 'Book 2 p.31: a launcher is reloaded when its rounds are exhausted, and partial racks are not topped up.'
+            : !reserve
+              ? 'No reserve rounds aboard. Buy ordnance at a starport.'
+              : racks.launchers.some((other) => other.reloading && other.turretId === launcher.turretId)
+                ? 'That turret\u2019s gunner is already reloading another rack this turn.'
+                : null;
+        if (!blocked) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'text-button';
+          button.textContent = '[ RELOAD ]';
+          button.title = `Loads ${Math.min(READY_CAPACITY, reserve)} of ${reserve} reserve. The turret cannot fire until it completes.`;
+          button.addEventListener('click', () => reloadShipCombatLauncher(participant.id, launcher.id));
+          row.append(button);
+        } else {
+          row.title = blocked;
+        }
+        actions.append(row);
+      }
+
+      const reserveRow = document.createElement('div');
+      reserveRow.className = 'live-ship-row';
+      const reserveLabel = document.createElement('span');
+      reserveLabel.className = 'live-ship-label';
+      reserveLabel.textContent = 'IN STORES';
+      const reserveValue = document.createElement('span');
+      reserveValue.className = 'live-ship-value';
+      reserveValue.textContent = `${racks.reserve.missiles ?? 0} MISSILES / ${racks.reserve.sandCanisters ?? 0} SAND`;
+      reserveRow.append(reserveLabel, reserveValue);
+      actions.append(reserveRow);
+    }
+  }
+
   // Book 2 p.37's boarding, offered once the target cannot fire — which is
   // also when the fight itself ends.
   for (const attacker of live) {
@@ -10231,6 +10317,30 @@ function renderShipCombatActions(encounter, phase, acting) {
   }
   actions.append(makePortButton(`ADVANCE / ${phase.label.toUpperCase()}`, advanceShipCombat));
   actions.append(makePortButton('CLOSE COMBAT', closeShipCombat));
+}
+
+function participantLauncherStatus(participant) {
+  if (!participant?.ammunition) return null;
+  try { return launcherStatus(participant); }
+  catch (error) { console.error('[traveller] launcher status failed:', error); return null; }
+}
+
+// Book 2 p.31: "A gunner engaged in reloading is unable to fire other weaponry
+// in the turret." The engine refuses the shot; this is so the rail does not
+// offer it. Turret-level only — the engine also locks a gunner doubling on a
+// second turret, which launcherStatus does not expose.
+function turretReloadLock(participant, turretId) {
+  const racks = participantLauncherStatus(participant);
+  return Boolean(racks?.launchers.some((launcher) => launcher.turretId === turretId && launcher.reloading));
+}
+
+function reloadShipCombatLauncher(shipId, launcherId) {
+  shipCombatStep(() => {
+    const participant = getShipCombatParticipant(shipCombatEncounter, shipId);
+    shipCombatEncounter = reloadLauncher(shipCombatEncounter, { shipId, launcherId });
+    logActivity('COMBAT', `${participant.name}: ${launcherId} reloading, one turn (Book 2 p.31)`);
+    setStatus(`${launcherId} RELOADING`, 'ok');
+  }, 'RELOAD');
 }
 
 function participantFireableTurrets(participant) {
