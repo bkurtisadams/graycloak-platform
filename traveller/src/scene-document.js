@@ -9,11 +9,34 @@
 // Scenes are square for now — both canvases assume square cells on a square
 // board — and rectangular boards arrive with the shared canvas in v0.73.
 
-import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
+import { stableDocumentId, createPlanet } from '../vendor/classic-traveller-rules/index.js';
 
 export const SCENE_DOCUMENT_TYPE = 'graycloak-traveller-scene';
-export const CURRENT_SCENE_DOCUMENT_SCHEMA_VERSION = 2;
-export const SUPPORTED_SCENE_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+export const CURRENT_SCENE_DOCUMENT_SCHEMA_VERSION = 3;
+export const SUPPORTED_SCENE_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
+
+// v0.163.0: everything Book 2 puts in space, rather than one planet.
+//
+// - 'world': a pp.26-27 template. Diameter in thousands of miles, so Book 3's
+//   size digit for a world and the p.28 Solar System figures for a gas giant
+//   (Jupiter is 88) use the same field.
+// - 'asteroid-field': p.28. "Asteroid and planetoid belts are composed of many
+//   small worldlets, each with no significant gravity, and with no atmosphere
+//   or significant size", about one per four square inches. So a field has an
+//   extent and a density, and no gravity of its own.
+// - 'emplacement': p.35 planetary defence fires. Orbital emplacements are
+//   treated as starships; surface emplacements must receive turret hits. Both
+//   are generally beam lasers in triple turrets.
+//
+// ONE GRAVITY TEMPLATE PER FIGHT. moveWithGravity samples a single planet, and
+// Book 2 p.28 says no more than one world of any important size will be on an
+// average playing surface anyway. Several worlds may be staged; the fight takes
+// the one named by sceneGravityWorld.
+export const SCENE_BODY_KINDS = Object.freeze(['world', 'asteroid-field', 'emplacement']);
+export const SCENE_WORLD_MAX_DIAMETER = 100;
+// p.28's average belt density, in asteroids per square inch.
+export const ASTEROID_DENSITY_PER_SQUARE_INCH = 0.25;
+export const EMPLACEMENT_SITES = Object.freeze(['orbital', 'surface']);
 
 // v0.158.0: two kinds of board.
 //
@@ -74,6 +97,120 @@ export function sceneIsVectorBoard(scene) {
   return scene?.board?.kind === 'vector';
 }
 
+// A pp.26-27 template as a staged body. The planet object the rules package
+// builds is kept whole under `template`, so the gravity code takes exactly what
+// it takes today and nothing is recomputed here.
+export function worldBody(world, { id = null } = {}) {
+  // What matters about a world is its data: a name, a diameter in thousands of
+  // miles, and a density. The pp.26-27 template — surface radius and the
+  // quarter-G band radii — is arithmetic on those, so the scene computes it
+  // rather than making callers arrive with one. A ready-made planet from the
+  // rules package is accepted as-is, which is what a migrated v2 scene has.
+  const centre = { x: Number(world.center?.x) || 0, y: Number(world.center?.y) || 0 };
+  const template = Number.isFinite(world.radius) && Array.isArray(world.bands)
+    ? { ...clone(world), center: centre }
+    : createPlanet({
+      name: String(world.name ?? 'World'),
+      diameter: Number(world.diameter),
+      densityEarth: Number.isFinite(Number(world.densityEarth)) ? Number(world.densityEarth) : 1,
+      center: centre
+    });
+  return {
+    id: id ?? stableDocumentId('body', `world|${template.name}|${centre.x}|${centre.y}`),
+    kind: 'world',
+    name: String(template.name ?? 'World'),
+    center: centre,
+    template: clone(template)
+  };
+}
+
+export function asteroidFieldBody({ name = 'Asteroid belt', center = { x: 0, y: 0 }, radius = 20, perSquareInch = ASTEROID_DENSITY_PER_SQUARE_INCH, id = null } = {}) {
+  if (!Number.isFinite(radius) || radius <= 0) throw new RangeError('an asteroid field needs a radius in inches');
+  return {
+    id: id ?? stableDocumentId('body', `asteroids|${name}|${center.x}|${center.y}`),
+    kind: 'asteroid-field',
+    name: String(name),
+    center: { x: Number(center.x) || 0, y: Number(center.y) || 0 },
+    radius,
+    perSquareInch: Number.isFinite(perSquareInch) && perSquareInch > 0 ? perSquareInch : ASTEROID_DENSITY_PER_SQUARE_INCH
+  };
+}
+
+export function emplacementBody({ name = 'Defence battery', center = { x: 0, y: 0 }, site = 'orbital', turrets = 1, id = null } = {}) {
+  if (!EMPLACEMENT_SITES.includes(site)) throw new RangeError(`an emplacement is ${EMPLACEMENT_SITES.join(' or ')}`);
+  if (!Number.isInteger(turrets) || turrets < 1) throw new RangeError('an emplacement needs at least one turret');
+  return {
+    id: id ?? stableDocumentId('body', `emplacement|${name}|${center.x}|${center.y}`),
+    kind: 'emplacement',
+    name: String(name),
+    center: { x: Number(center.x) || 0, y: Number(center.y) || 0 },
+    site,
+    turrets
+  };
+}
+
+export function placeSceneBody(document, body) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('bodies belong to a vector board');
+  const { half } = sceneVectorExtent(next);
+  if (Math.abs(body.center.x) > half || Math.abs(body.center.y) > half) throw new RangeError('that position is off the board');
+  next.space.bodies.push(clone(body));
+  assertValidSceneDocument(next);
+  return next;
+}
+
+export function moveSceneBody(document, { bodyId, x, y } = {}) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('bodies belong to a vector board');
+  const body = next.space.bodies.find((entry) => entry.id === bodyId);
+  if (!body) throw new Error('that body is not on this scene');
+  const { half } = sceneVectorExtent(next);
+  const centre = {
+    x: Math.max(-half, Math.min(half, Number(x) || 0)),
+    y: Math.max(-half, Math.min(half, Number(y) || 0))
+  };
+  body.center = centre;
+  // A world's gravity is computed from its template's own centre, so the two
+  // have to move together or the bands stay where the disc was.
+  if (body.kind === 'world' && body.template) body.template = { ...body.template, center: { ...centre } };
+  assertValidSceneDocument(next);
+  return next;
+}
+
+export function removeSceneBody(document, bodyId) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('bodies belong to a vector board');
+  next.space.bodies = next.space.bodies.filter((entry) => entry.id !== bodyId);
+  if (next.space.gravityBodyId === bodyId) next.space.gravityBodyId = null;
+  assertValidSceneDocument(next);
+  return next;
+}
+
+export function setSceneGravityBody(document, bodyId) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('bodies belong to a vector board');
+  if (bodyId !== null && !next.space.bodies.some((entry) => entry.id === bodyId && entry.kind === 'world')) {
+    throw new Error('only a staged world can be the gravity template');
+  }
+  next.space.gravityBodyId = bodyId;
+  assertValidSceneDocument(next);
+  return next;
+}
+
+export function sceneBodies(scene) {
+  return sceneIsVectorBoard(scene) ? (scene.space?.bodies ?? []) : [];
+}
+
+// The world a fight on this scene takes its gravity template from: the first
+// one staged, or the one explicitly named. Null for clear space.
+export function sceneGravityWorld(scene) {
+  const bodies = sceneBodies(scene);
+  const named = scene.space?.gravityBodyId
+    ? bodies.find((body) => body.id === scene.space.gravityBodyId && body.kind === 'world')
+    : null;
+  return named ?? bodies.find((body) => body.kind === 'world') ?? null;
+}
+
 export function sceneBoardMeters(scene) {
   if (sceneIsVectorBoard(scene)) throw new TypeError('a vector board is measured in thousands of miles, not metres');
   return scene.board.squares * scene.board.metersPerSquare;
@@ -122,7 +259,11 @@ export function createSceneDocument({ id, campaignId, name, folder = DEFAULT_SCE
     // rides along because p.35 braking depends on it and nothing else carries
     // it. Both null on a grid board.
     space: boardKind === 'vector'
-      ? { planet: planet === null ? null : clone(planet), atmosphere: Number.isInteger(atmosphere) ? atmosphere : null }
+      ? {
+        bodies: planet === null ? [] : [worldBody(planet)],
+        gravityBodyId: null,
+        atmosphere: Number.isInteger(atmosphere) ? atmosphere : null
+      }
       : null,
     background: { assetId: nonblank(backgroundAssetId) ? backgroundAssetId : null },
     tokens: [],
@@ -151,10 +292,38 @@ export function validateSceneDocument(document) {
       `a vector board spans ${SCENE_VECTOR_MIN_SPAN} to ${SCENE_VECTOR_MAX_SPAN} thousand miles a side`);
     add(errors, document.board.squares === undefined && document.board.metersPerSquare === undefined,
       'a vector board has no squares and no metre scale');
-    add(errors, plain(document.space)
-      && (document.space.planet === null || plain(document.space.planet))
+    add(errors, plain(document.space) && Array.isArray(document.space.bodies)
+      && (document.space.gravityBodyId === null || nonblank(document.space.gravityBodyId))
       && (document.space.atmosphere === null || Number.isInteger(document.space.atmosphere)),
-      'a vector board needs a space block with a planet (or null) and an atmosphere (or null)');
+      'a vector board needs a space block with bodies, a gravity body (or null) and an atmosphere (or null)');
+    if (plain(document.space) && Array.isArray(document.space.bodies)) {
+      const half = (document.board.spanThousandMiles ?? 0) / 2;
+      const bodyIds = new Set();
+      for (const body of document.space.bodies) {
+        add(errors, plain(body) && nonblank(body.id) && nonblank(body.name), 'a body needs an id and a name');
+        if (!plain(body)) continue;
+        if (nonblank(body.id)) { add(errors, !bodyIds.has(body.id), `duplicate body: ${body.id}`); bodyIds.add(body.id); }
+        add(errors, SCENE_BODY_KINDS.includes(body.kind), `a body kind must be one of ${SCENE_BODY_KINDS.join(', ')}`);
+        add(errors, plain(body.center) && Number.isFinite(body.center.x) && Number.isFinite(body.center.y)
+          && Math.abs(body.center.x) <= half && Math.abs(body.center.y) <= half, `${body.name} is off the board`);
+        if (body.kind === 'world') {
+          add(errors, plain(body.template) && Number.isFinite(body.template.radius) && Array.isArray(body.template.bands),
+            `${body.name} needs a pp.26-27 template`);
+          add(errors, !Number.isFinite(body.template?.radius) || body.template.radius * 2 <= SCENE_WORLD_MAX_DIAMETER,
+            `a world is at most ${SCENE_WORLD_MAX_DIAMETER}" across`);
+        }
+        if (body.kind === 'asteroid-field') {
+          add(errors, Number.isFinite(body.radius) && body.radius > 0, `${body.name} needs a radius in inches`);
+          add(errors, Number.isFinite(body.perSquareInch) && body.perSquareInch > 0, `${body.name} needs a density`);
+        }
+        if (body.kind === 'emplacement') {
+          add(errors, EMPLACEMENT_SITES.includes(body.site), `${body.name} is ${EMPLACEMENT_SITES.join(' or ')}`);
+          add(errors, Number.isInteger(body.turrets) && body.turrets >= 1, `${body.name} needs at least one turret`);
+        }
+      }
+      add(errors, document.space.gravityBodyId === null || bodyIds.has(document.space.gravityBodyId),
+        'the gravity body is not on this scene');
+    }
   } else {
     add(errors, plain(document.board) && SCENE_GRID_SCALES.includes(document.board.metersPerSquare), 'board.metersPerSquare must be 1, 5, or 25');
     add(errors, plain(document.board) && Number.isInteger(document.board.squares) && document.board.squares >= SCENE_MIN_SQUARES && document.board.squares * (document.board.metersPerSquare ?? 1) <= SCENE_MAX_METERS, `board is ${SCENE_MIN_SQUARES} squares to ${SCENE_MAX_METERS} m a side`);
@@ -208,6 +377,20 @@ export function migrateSceneDocument(input) {
     scene.space = null;
     scene.schemaVersion = 2;
   }
+  if (scene.schemaVersion === 2) {
+    // v2 held one optional planet; v3 holds a list of bodies. A scene with a
+    // planet keeps it as its first world and its gravity template.
+    if (scene.board?.kind === 'vector') {
+      const planet = scene.space?.planet ?? null;
+      const bodies = planet ? [worldBody(planet)] : [];
+      scene.space = {
+        bodies,
+        gravityBodyId: bodies.length ? bodies[0].id : null,
+        atmosphere: scene.space?.atmosphere ?? null
+      };
+    }
+    scene.schemaVersion = 3;
+  }
   return scene;
 }
 
@@ -238,7 +421,21 @@ export function updateSceneDocument(document, { name, folder, squares, metersPer
   if (squares !== undefined) next.board.squares = squares;
   if (metersPerSquare !== undefined) next.board.metersPerSquare = metersPerSquare;
   if (spanThousandMiles !== undefined) next.board.spanThousandMiles = spanThousandMiles;
-  if (planet !== undefined) next.space.planet = planet === null ? null : clone(planet);
+  // v0.163.0: `planet` is kept as a convenience for the single-world case that
+  // v2 scenes and the creation dialog use. It replaces the gravity world, or
+  // clears every world when null; asteroid fields and emplacements are
+  // untouched and are edited with placeSceneBody / moveSceneBody.
+  if (planet !== undefined) {
+    const others = next.space.bodies.filter((body) => body.kind !== 'world');
+    if (planet === null) {
+      next.space.bodies = others;
+      next.space.gravityBodyId = null;
+    } else {
+      const body = worldBody(planet);
+      next.space.bodies = [body, ...others];
+      next.space.gravityBodyId = body.id;
+    }
+  }
   if (atmosphere !== undefined) next.space.atmosphere = Number.isInteger(atmosphere) ? atmosphere : null;
   if (backgroundAssetId !== undefined) next.background.assetId = nonblank(backgroundAssetId) ? backgroundAssetId : null;
   if (notes !== undefined) next.notes = String(notes ?? '');
@@ -246,6 +443,8 @@ export function updateSceneDocument(document, { name, folder, squares, metersPer
   if (vector) {
     const half = next.board.spanThousandMiles / 2;
     next.tokens = next.tokens.filter((token) => Math.abs(token.position.x) <= half && Math.abs(token.position.y) <= half);
+    next.space.bodies = next.space.bodies.filter((body) => Math.abs(body.center.x) <= half && Math.abs(body.center.y) <= half);
+    if (next.space.gravityBodyId && !next.space.bodies.some((body) => body.id === next.space.gravityBodyId)) next.space.gravityBodyId = null;
   } else {
     const cells = next.board.squares * next.board.metersPerSquare + 1;
     next.tokens = next.tokens.filter((token) => token.position.column < cells && token.position.row < cells);
@@ -436,25 +635,32 @@ export function sceneThumbnailSvg(scene, { size = 96 } = {}) {
     const half = scene.board.spanThousandMiles / 2;
     const unit = (size / 2) / half;
     const at = (value) => (size / 2 + value * unit).toFixed(2);
-    const planet = scene.space?.planet ?? null;
-    const rings = planet
-      ? [...(planet.bands ?? [])].map((band) => `<circle cx="${at(planet.center?.x ?? 0)}" cy="${at(planet.center?.y ?? 0)}" r="${Math.max(1, (band.outerRadius ?? 0) * unit).toFixed(2)}" fill="none" stroke="#b8bab4" stroke-width="0.5" stroke-dasharray="1.5 2"/>`).join('')
-        + `<circle cx="${at(planet.center?.x ?? 0)}" cy="${at(planet.center?.y ?? 0)}" r="${Math.max(1.5, ((planet.diameter ?? 0) / 2) * unit).toFixed(2)}" fill="#c3c5bf" stroke="#9b9d97" stroke-width="0.5"/>`
-      : '';
+    // v0.163.0: every body Book 2 puts in space, not just the one planet.
+    const bodies = sceneBodies(scene).map((body) => {
+      if (body.kind === 'world') {
+        const template = body.template;
+        const rings = [...(template.bands ?? [])].map((band) => `<circle cx="${at(body.center.x)}" cy="${at(body.center.y)}" r="${Math.max(1, band.outerRadius * unit).toFixed(2)}" fill="none" stroke="#b8bab4" stroke-width="0.5" stroke-dasharray="1.5 2"/>`).join('');
+        return rings + `<circle cx="${at(body.center.x)}" cy="${at(body.center.y)}" r="${Math.max(1.5, template.radius * unit).toFixed(2)}" fill="#c3c5bf" stroke="#9b9d97" stroke-width="0.5"/>`;
+      }
+      if (body.kind === 'asteroid-field') {
+        // p.28: no significant gravity and no significant size, so a field is
+        // an extent rather than a disc.
+        return `<circle cx="${at(body.center.x)}" cy="${at(body.center.y)}" r="${Math.max(2, body.radius * unit).toFixed(2)}" fill="none" stroke="#9b9d97" stroke-width="0.5" stroke-dasharray="0.5 2"/>`;
+      }
+      // p.35 defence fires: a mark, not an area.
+      const mark = 2.5;
+      return `<path d="M${at(body.center.x)} ${(Number(at(body.center.y)) - mark).toFixed(2)} L${(Number(at(body.center.x)) + mark).toFixed(2)} ${at(body.center.y)} L${at(body.center.x)} ${(Number(at(body.center.y)) + mark).toFixed(2)} L${(Number(at(body.center.x)) - mark).toFixed(2)} ${at(body.center.y)} Z" fill="#6a1f1f"/>`;
+    }).join('');
     const ships = scene.tokens.map((token) => {
       const fill = token.side === 'party' ? '#29465c' : token.side === 'opposition' ? '#6a1f1f' : '#777a75';
       return `<circle cx="${at(token.position.x)}" cy="${at(token.position.y)}" r="2" fill="${fill}"/>`;
     }).join('');
-    // v0.159.2: clear space with nothing staged drew a plain rectangle, which
-    // is accurate and useless. The plane itself gets marked: a frame, the
-    // origin, and a dashed circle at half the span, so an empty vector board
-    // reads as a measured plane rather than a blank card.
     const centre = (size / 2).toFixed(2);
     const frame = `<rect x="0.5" y="0.5" width="${size - 1}" height="${size - 1}" fill="none" stroke="#b8bab4" stroke-width="1"/>`
       + `<circle cx="${centre}" cy="${centre}" r="${(size / 2 - 4).toFixed(2)}" fill="none" stroke="#c9cbc5" stroke-width="0.5" stroke-dasharray="2 3"/>`
       + `<line x1="${centre}" y1="${(size / 2 - 4).toFixed(2)}" x2="${centre}" y2="${(size / 2 + 4).toFixed(2)}" stroke="#9b9d97" stroke-width="0.75"/>`
       + `<line x1="${(size / 2 - 4).toFixed(2)}" y1="${centre}" x2="${(size / 2 + 4).toFixed(2)}" y2="${centre}" stroke="#9b9d97" stroke-width="0.75"/>`;
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${scene.identity.name.replace(/"/g, '&quot;')}"><rect width="${size}" height="${size}" fill="#e7e7e2"/>${frame}${rings}${ships}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${scene.identity.name.replace(/"/g, '&quot;')}"><rect width="${size}" height="${size}" fill="#e7e7e2"/>${frame}${bodies}${ships}</svg>`;
   }
   const squares = scene.board.squares;
   const cell = size / squares;

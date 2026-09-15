@@ -9,7 +9,17 @@ import {
   sceneBoardMeters,
   placeSceneShip,
   moveSceneShip,
-  setSceneShipVector
+  setSceneShipVector,
+  sceneGravityWorld,
+  moveSceneBody,
+  placeSceneBody,
+  asteroidFieldBody,
+  emplacementBody,
+  sceneBodies,
+  setSceneGravityBody,
+  removeSceneBody
+,
+  worldBody
 } from '../src/scene-document.js';
 import { buildPublishedScene } from '../src/published-view.js';
 import { authorizePlayerSceneMove } from '../src/player-token-movement.js';
@@ -127,7 +137,7 @@ test('a vector scene is a continuous plane in thousands of miles, with no grid',
   assert.deepEqual(sceneVectorExtent(scene), { half: 200, minimum: -200, maximum: 200, spanThousandMiles: 400 });
 
   // The template belongs to the scene: the referee draws San Telmo once.
-  assert.equal(scene.space.planet.name, 'San Telmo');
+  assert.equal(sceneGravityWorld(scene).name, 'San Telmo');
   // Atmosphere rides along because p.35 braking depends on it.
   assert.equal(scene.space.atmosphere, 6);
 
@@ -193,7 +203,7 @@ test('scenes written before v0.158.0 migrate to grid boards rather than failing'
     createdAt: 1
   };
   const migrated = importSceneDocument(legacy);
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.schemaVersion, 3);
   assert.deepEqual(migrated.board, { kind: 'grid', squares: 20, metersPerSquare: 5 });
   assert.equal(migrated.space, null);
   assert.equal(migrated.tokens.length, 1, 'staged tokens survive the migration');
@@ -202,18 +212,17 @@ test('scenes written before v0.158.0 migrate to grid boards rather than failing'
 // v0.159.0: a vector board has no grid to draw, so the directory thumbnail has
 // to be the thing that identifies it — the pp.26-27 template and the ships.
 test('a vector scene thumbnail draws the template and its ships, not a grid', () => {
-  const world = { name: 'San Telmo', diameter: 8, center: { x: 0, y: 0 }, bands: [{ g: 0.25, outerRadius: 8 }, { g: 0.5, outerRadius: 5.66 }] };
   let scene = createSceneDocument({
     campaignId: 'sea', name: 'San Telmo Approach', boardKind: 'vector',
-    spanThousandMiles: 100, planet: world, createdAt: 1
+    spanThousandMiles: 100, planet: { name: 'San Telmo', diameter: 8, densityEarth: 1 }, createdAt: 1
   });
   scene = importSceneDocument({ ...scene, tokens: [
     { id: 't1', actorId: 'marisol', side: 'party', label: 'M', position: { x: -20, y: 0 } }
   ] });
   const svg = sceneThumbnailSvg(scene);
-  // Two bands, the disc, the span circle and one ship; the only lines are the
+  // Three bands, the disc, the span circle and one ship; the only lines are the
   // origin cross, never a grid.
-  assert.equal((svg.match(/<circle /g) ?? []).length, 5);
+  assert.equal((svg.match(/<circle /g) ?? []).length, 6);
   assert.equal((svg.match(/<line /g) ?? []).length, 2, 'the origin cross, and no grid');
   assert.match(svg, /stroke-dasharray/, 'the gravity bands read as bands');
 
@@ -279,23 +288,73 @@ test('a vector scene\u2019s world and span can be changed after it is made', () 
     campaignId: 'sea', name: 'San Telmo Approach', boardKind: 'vector',
     spanThousandMiles: 400, createdAt: 1
   });
-  assert.equal(scene.space.planet, null, 'clear space to begin with');
+  assert.equal(sceneGravityWorld(scene), null, 'clear space to begin with');
 
-  // A world arrives later, off the origin.
-  scene = updateSceneDocument(scene, {
-    planet: { name: 'San Telmo', center: { x: 40, y: -10 }, radius: 4, densityEarth: 1, surfaceG: 1, massEarth: 1, bands: [{ g: 0.25, outerRadius: 8 }] }
-  });
-  assert.equal(scene.space.planet.name, 'San Telmo');
-  assert.deepEqual(scene.space.planet.center, { x: 40, y: -10 });
+  // A world arrives later, off the origin. What is supplied is its data; the
+  // pp.26-27 template is arithmetic on that.
+  scene = updateSceneDocument(scene, { planet: { name: 'San Telmo', diameter: 8, densityEarth: 1, center: { x: 40, y: -10 } } });
+  const world = sceneGravityWorld(scene);
+  assert.equal(world.name, 'San Telmo');
+  assert.deepEqual(world.center, { x: 40, y: -10 });
+  assert.equal(world.template.radius, 4);
+  assert.equal(world.template.bands.length, 3, 'p.27 puts a size-8 world in three quarter-G bands');
 
-  // And can be shifted, or removed for clear space.
-  scene = updateSceneDocument(scene, { planet: { ...scene.space.planet, center: { x: 0, y: 60 } } });
-  assert.deepEqual(scene.space.planet.center, { x: 0, y: 60 });
-  assert.equal(updateSceneDocument(scene, { planet: null }).space.planet, null);
+  // And can be shifted — the template moves with the disc, or the bands stay
+  // where the disc was — or removed for clear space.
+  scene = moveSceneBody(scene, { bodyId: world.id, x: 0, y: 60 });
+  assert.deepEqual(sceneGravityWorld(scene).center, { x: 0, y: 60 });
+  assert.deepEqual(sceneGravityWorld(scene).template.center, { x: 0, y: 60 });
+  assert.equal(sceneGravityWorld(updateSceneDocument(scene, { planet: null })), null);
 
   // The span is editable, and p.35 braking depends on the atmosphere, so that
   // is editable too.
   assert.equal(updateSceneDocument(scene, { spanThousandMiles: 1000 }).board.spanThousandMiles, 1000);
   assert.equal(updateSceneDocument(scene, { atmosphere: 8 }).space.atmosphere, 8);
   assert.throws(() => updateSceneDocument(scene, { spanThousandMiles: 5 }), SceneDocumentValidationError);
+});
+
+// v0.163.0: everything Book 2 puts in space. p.28's asteroid belts, p.35's
+// planetary defence emplacements, and more than one world.
+test('asteroid fields, defence emplacements and several worlds all stage', () => {
+  let scene = createSceneDocument({
+    campaignId: 'sea', name: 'San Telmo System', boardKind: 'vector',
+    spanThousandMiles: 400, createdAt: 1
+  });
+
+  // A gas giant: p.28's Solar System table gives Jupiter a diameter of 88, so
+  // the same field carries a world size digit and a gas giant.
+  scene = placeSceneBody(scene, worldBody({ name: 'Calder', diameter: 88, densityEarth: 0.24, center: { x: -80, y: 0 } }));
+  scene = placeSceneBody(scene, worldBody({ name: 'San Telmo', diameter: 8, densityEarth: 1, center: { x: 60, y: 0 } }));
+  assert.equal(sceneBodies(scene).length, 2);
+
+  // p.28: a belt is many worldlets with no significant gravity, about one per
+  // four square inches — an extent and a density, not a disc.
+  scene = placeSceneBody(scene, asteroidFieldBody({ name: 'The Shoals', center: { x: 0, y: 90 }, radius: 40 }));
+  const field = sceneBodies(scene).find((body) => body.kind === 'asteroid-field');
+  assert.equal(field.perSquareInch, 0.25);
+
+  // p.35: orbital emplacements are treated as starships, surface ones take
+  // turret hits. Generally beam lasers in triple turrets.
+  scene = placeSceneBody(scene, emplacementBody({ name: 'San Telmo Battery', center: { x: 60, y: 6 }, site: 'orbital', turrets: 3 }));
+  assert.equal(sceneBodies(scene).filter((body) => body.kind === 'emplacement').length, 1);
+  assert.throws(() => emplacementBody({ site: 'lunar' }), RangeError);
+
+  // Only one world can be the gravity template: moveWithGravity samples a
+  // single planet, and p.28 says one world of any size is all a table holds.
+  const giant = sceneBodies(scene).find((body) => body.name === 'Calder');
+  assert.equal(sceneGravityWorld(scene).name, 'Calder', 'the first world staged, by default');
+  scene = setSceneGravityBody(scene, sceneBodies(scene).find((body) => body.name === 'San Telmo').id);
+  assert.equal(sceneGravityWorld(scene).name, 'San Telmo');
+  assert.throws(() => setSceneGravityBody(scene, field.id), /only a staged world/);
+
+  // Removing the gravity world leaves the scene without one rather than
+  // pointing at something that has gone.
+  scene = removeSceneBody(scene, sceneBodies(scene).find((body) => body.name === 'San Telmo').id);
+  assert.equal(scene.space.gravityBodyId, null);
+  assert.equal(sceneGravityWorld(scene).name, 'Calder', 'falls back to a world that is still there');
+
+  // Off the board is refused, and a shrinking span drops what falls off.
+  assert.throws(() => placeSceneBody(scene, asteroidFieldBody({ center: { x: 9999, y: 0 }, radius: 4 })), RangeError);
+  const shrunk = updateSceneDocument(scene, { spanThousandMiles: 100 });
+  assert.equal(sceneBodies(shrunk).some((body) => body.name === 'Calder'), false, 'the gas giant at -80 falls off a 100" span');
 });

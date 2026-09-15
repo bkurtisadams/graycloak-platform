@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.162.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.162.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.163.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.163.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null;
@@ -534,7 +534,7 @@ export function renderShipVectorMap(stage, encounter, { commit, setup }) {
 // phases here, no thrust and no commit; a ship is dragged to where it starts
 // and its opening vector is dragged from its nose. Sharing one function would
 // have meant a phase model that is sometimes absent.
-export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveWorld, shipChoices = [] } = {}) {
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [] } = {}) {
   if (!stage) return;
   stage.replaceChildren();
   const panel = document.createElement('section');
@@ -544,10 +544,53 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   const heading = document.createElement('div');
   heading.className = 'vector-controls';
   const title = document.createElement('strong');
-  const world = scene.space?.planet?.name;
-  title.textContent = `${scene.identity.name.toUpperCase()} \u00b7 ${world ? world.toUpperCase() : 'CLEAR SPACE'} \u00b7 STAGING`;
+  const worlds = bodies.filter((body) => body.kind === 'world').map((body) => body.name.toUpperCase());
+  title.textContent = `${scene.identity.name.toUpperCase()} \u00b7 ${worlds.join(' + ') || 'CLEAR SPACE'} \u00b7 STAGING`;
   heading.append(title);
   panel.append(heading);
+
+  // Putting a world, a belt or a battery down. Everything Book 2 mentions in
+  // space is placeable, and what matters about each is its data rather than
+  // where it starts, so each arrives at the origin and is dragged from there.
+  if (placeBody) {
+    const tools = document.createElement('div');
+    tools.className = 'vector-controls';
+    const kind = document.createElement('select');
+    kind.setAttribute('aria-label', 'Kind of body');
+    kind.add(new Option('WORLD', 'world'));
+    kind.add(new Option('ASTEROID BELT', 'asteroid-field'));
+    kind.add(new Option('DEFENCE BATTERY', 'emplacement'));
+    const name = document.createElement('input');
+    name.type = 'text'; name.maxLength = 40; name.placeholder = 'name';
+    name.setAttribute('aria-label', 'Name');
+    const sizeLabel = document.createElement('label');
+    const sizeText = document.createTextNode('DIAMETER ');
+    const size = document.createElement('input');
+    size.type = 'number'; size.step = '1'; size.min = '1'; size.value = '8';
+    sizeLabel.append(sizeText, size);
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.textContent = 'PLACE';
+    const describe = () => {
+      // A world is sized by diameter (Book 3's size digit, and p.28's figures
+      // for a gas giant), a belt by the extent it covers, a battery by turrets.
+      sizeText.textContent = kind.value === 'world' ? 'DIAMETER '
+        : kind.value === 'asteroid-field' ? 'RADIUS " ' : 'TURRETS ';
+      size.value = kind.value === 'world' ? '8' : kind.value === 'asteroid-field' ? '20' : '3';
+    };
+    kind.onchange = describe;
+    describe();
+    add.onclick = () => {
+      const label = name.value.trim();
+      const value = Number.parseFloat(size.value);
+      if (kind.value === 'world') placeBody({ kind: 'world', name: label || 'World', diameter: value, densityEarth: 1 });
+      else if (kind.value === 'asteroid-field') placeBody({ kind: 'asteroid-field', name: label || 'Asteroid belt', radius: value });
+      else placeBody({ kind: 'emplacement', name: label || 'Defence battery', site: 'orbital', turrets: Math.max(1, Math.round(value)) });
+      name.value = '';
+    };
+    tools.append(kind, name, sizeLabel, add);
+    panel.append(tools);
+  }
 
   // Putting a ship on the board. Without this the plane could be looked at and
   // never used, which is what every space scene did until v0.161.1.
@@ -666,10 +709,10 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   const note = document.createElement('p');
   note.textContent = scene.tokens.length
     ? 'Drag a ship to move it; drag its vector arrowhead to set the course it arrives on; double-click its name to take it off. Coordinates in thousands of miles (Book 2 p.22).'
-    : 'No ships staged. Pick a ship above and STAGE SHIP to put one on the board.';
+    : 'Nothing staged. PLACE a world, belt or battery, and STAGE SHIP to put a ship on the board.';
   panel.append(note);
 
-  const planet = scene.space?.planet ?? null;
+  // v0.163.0: everything Book 2 puts in space, each placed and each movable.
   // Fit the span, the template and every staged ship with its vector.
   const points = [{ x: -scene.board.spanThousandMiles / 2, y: -scene.board.spanThousandMiles / 2 },
     { x: scene.board.spanThousandMiles / 2, y: scene.board.spanThousandMiles / 2 }];
@@ -682,35 +725,52 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
 
   function draw() {
     svg.replaceChildren();
-    if (planet) {
-      for (const band of [...(planet.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
+    for (const body of bodies) {
+      if (body.kind === 'world') {
+        const template = body.template;
+        for (const band of [...(template.bands ?? [])].sort((a, b) => b.outerRadius - a.outerRadius)) {
+          svg.append(node('circle', {
+            cx: x(body.center.x), cy: y(body.center.y), r: band.outerRadius * scale,
+            fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
+          }));
+        }
         svg.append(node('circle', {
-          cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: band.outerRadius * scale,
-          fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-dasharray': '3 5'
+          cx: x(body.center.x), cy: y(body.center.y), r: template.radius * scale,
+          fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
+        }));
+      } else if (body.kind === 'asteroid-field') {
+        // p.28: many small worldlets, no significant gravity, no atmosphere and
+        // no significant size — an extent, drawn as one rather than as a body.
+        svg.append(node('circle', {
+          cx: x(body.center.x), cy: y(body.center.y), r: body.radius * scale,
+          fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor',
+          'stroke-opacity': 0.4, 'stroke-dasharray': '1 4'
+        }));
+      } else {
+        // p.35 planetary defence fires: a position, orbital or on a surface.
+        const mark = 6 / stageView.zoom;
+        svg.append(node('path', {
+          d: `M${x(body.center.x)} ${y(body.center.y) - mark} L${x(body.center.x) + mark} ${y(body.center.y)} L${x(body.center.x)} ${y(body.center.y) + mark} L${x(body.center.x) - mark} ${y(body.center.y)} Z`,
+          fill: 'currentColor', 'fill-opacity': 0.75
         }));
       }
-      svg.append(node('circle', {
-        cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: planet.radius * scale,
-        fill: 'currentColor', 'fill-opacity': 0.18, stroke: 'currentColor', 'stroke-opacity': 0.5
-      }));
-      const name = node('text', {
-        x: x(planet.center?.x ?? 0), y: y(planet.center?.y ?? 0) + 4,
+      svg.append(node('text', {
+        x: x(body.center.x), y: y(body.center.y) + 4,
         fill: 'currentColor', 'text-anchor': 'middle', 'font-size': '11'
-      }, planet.name);
-      svg.append(name);
-      // v0.162.0: the world was drawn wherever its centre happened to be and
-      // could not be moved, so a template was stuck at the origin. Book 2 p.28
-      // says outright that "the shifting of templates will be necessary as the
-      // battle progresses", so a placed world has to be movable.
-      if (moveWorld) {
+      }, body.kind === 'emplacement' ? `${body.name} (${body.site.toUpperCase()} \u00d7${body.turrets})` : body.name));
+      // Book 2 p.28: "the shifting of templates will be necessary as the battle
+      // progresses", so anything placed can be moved.
+      if (moveBody) {
+        const reach = body.kind === 'world' ? body.template.radius : body.kind === 'asteroid-field' ? body.radius : 0;
         const grip = node('circle', {
-          cx: x(planet.center?.x ?? 0), cy: y(planet.center?.y ?? 0), r: planet.radius * scale,
+          cx: x(body.center.x), cy: y(body.center.y), r: Math.max(6 / stageView.zoom, reach * scale),
           fill: 'transparent', stroke: 'none'
         });
         grip.classList.add('vector-world-grip');
         grip.style.cursor = 'move';
-        grip.append(node('title', {}, `${planet.name} — drag to move the template`));
-        grip.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveWorld(point)));
+        grip.append(node('title', {}, `${body.name} \u2014 drag to move, double-click to remove`));
+        grip.addEventListener('pointerdown', (event) => startDrag(event, (point) => moveBody(body.id, point)));
+        if (removeBody) grip.addEventListener('dblclick', () => removeBody(body.id));
         svg.append(grip);
       }
     }
