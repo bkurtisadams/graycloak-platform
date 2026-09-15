@@ -6,7 +6,10 @@ import {
   duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch,
   sceneIsVectorBoard,
   sceneVectorExtent,
-  sceneBoardMeters
+  sceneBoardMeters,
+  placeSceneShip,
+  moveSceneShip,
+  setSceneShipVector
 } from '../src/scene-document.js';
 import { buildPublishedScene } from '../src/published-view.js';
 import { authorizePlayerSceneMove } from '../src/player-token-movement.js';
@@ -223,4 +226,47 @@ test('a vector scene thumbnail draws the template and its ships, not a grid', ()
   const grid = sceneThumbnailSvg(createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 }));
   assert.ok((grid.match(/<line /g) ?? []).length > 10, 'a grid scene draws its grid');
   assert.doesNotMatch(grid, /stroke-dasharray/);
+});
+
+// v0.160.0: a staged ship's opening vector. Book 2 gives no starting
+// conditions — p.36 leaves setup to the referee and p.25 makes a vector of 0
+// legal — so 6 inches is a Graycloak default, taken from the magnitude p.25's
+// own worked example uses.
+test('a staged ship opens on a 6-inch vector toward the origin', () => {
+  const scene = createSceneDocument({
+    campaignId: 'sea', name: 'San Telmo Approach', boardKind: 'vector',
+    spanThousandMiles: 400, createdAt: 1
+  });
+
+  // Staged to the west, it closes east at 6.
+  const west = placeSceneShip(scene, { actorId: 'marisol', side: 'party', x: -60, y: 0, label: 'M' });
+  assert.deepEqual(west.token.position, { x: -60, y: 0 });
+  assert.equal(Math.hypot(west.token.velocity.x, west.token.velocity.y).toFixed(4), '6.0000');
+  assert.equal(west.token.velocity.x.toFixed(2), '6.00');
+  assert.equal(west.token.velocity.y.toFixed(2), '0.00');
+
+  // Staged to the east, it closes west — so two ships on opposite sides meet
+  // rather than coasting in formation.
+  const both = placeSceneShip(west.scene, { actorId: 'corsair', side: 'opposition', x: 60, y: 0, label: 'C' });
+  assert.equal(both.token.velocity.x.toFixed(2), '-6.00');
+
+  // On the origin there is nothing to close on, so it starts stationary.
+  const centre = placeSceneShip(both.scene, { actorId: 'hulk', side: 'neutral', x: 0, y: 0 });
+  assert.deepEqual(centre.token.velocity, { x: 0, y: 0 });
+
+  // The referee may set any vector, including a stop.
+  const stopped = setSceneShipVector(centre.scene, { tokenId: both.token.id, velocity: { x: 0, y: 0 } });
+  assert.deepEqual(stopped.tokens.find((token) => token.id === both.token.id).velocity, { x: 0, y: 0 });
+
+  // Position is clamped to the span, and moving keeps the vector.
+  const moved = moveSceneShip(stopped, { tokenId: west.token.id, x: -9999, y: 0 });
+  assert.equal(moved.tokens.find((token) => token.id === west.token.id).position.x, -200);
+  assert.equal(moved.tokens.find((token) => token.id === west.token.id).velocity.x.toFixed(2), '6.00');
+
+  // The two staging paths do not cross: a grid board has no vectors and a
+  // vector board has no cells.
+  const grid = createSceneDocument({ campaignId: 'sea', name: 'Alley', squares: 20, createdAt: 1 });
+  assert.throws(() => placeSceneShip(grid, { actorId: 'x' }), TypeError);
+  assert.throws(() => placeSceneToken(scene, { actorId: 'x', column: 1, row: 1 }), TypeError);
+  assert.throws(() => moveSceneToken(west.scene, { tokenId: west.token.id, column: 1, row: 1 }), TypeError);
 });

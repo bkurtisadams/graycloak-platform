@@ -31,6 +31,20 @@ export const SCENE_BOARD_KINDS = Object.freeze(['grid', 'vector']);
 export const SCENE_VECTOR_DEFAULT_SPAN = 400;
 export const SCENE_VECTOR_MIN_SPAN = 40;
 export const SCENE_VECTOR_MAX_SPAN = 5000;
+// A staged ship's opening vector, in inches per ten-minute turn.
+//
+// GRAYCLOAK DEFAULT, not a printed figure. Book 2 specifies the arithmetic of
+// vectors and says nothing about starting conditions — p.36 leaves the setup to
+// the referee, and p.25 makes a vector of 0 perfectly legal. 6 is the magnitude
+// the book's own worked example uses ("a vector of 6 inches at 90"), which is
+// why it is the default here rather than a number invented for the purpose.
+//
+// The DIRECTION is toward the board's origin, which is where the world sits
+// when there is one. Two ships staged on opposite sides therefore close on each
+// other, which is the fight; both staged on the same heading would coast in
+// formation forever. The referee may set any vector afterwards.
+export const SCENE_VECTOR_DEFAULT_SPEED = 6;
+export const SCENE_VECTOR_DEFAULT_SPEED_IS_RAW = false;
 export const SCENE_GRID_SCALES = Object.freeze([1, 5, 25]);
 export const SCENE_MIN_SQUARES = 10;
 export const SCENE_MAX_METERS = 1000;
@@ -244,8 +258,66 @@ function snap(value, gridScale) { return Math.round(value / gridScale) * gridSca
 
 // Stage an actor on the board. Positions are metre cells snapped to the grid,
 // exactly as an encounter stores them.
+// A ship staged on a vector board: a point in inches and the vector it arrives
+// with. Separate from the grid path because nothing about it is the same —
+// continuous coordinates, no snapping, and a velocity.
+export function placeSceneShip(document, { actorId, side = 'neutral', x = 0, y = 0, velocity = null, label = '' } = {}) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('placeSceneShip needs a vector board');
+  if (!nonblank(actorId)) throw new TypeError('actorId is required');
+  if (next.tokens.some((token) => token.actorId === actorId)) throw new Error('that actor is already on this scene');
+  const { half } = sceneVectorExtent(next);
+  const position = {
+    x: Math.max(-half, Math.min(half, Number(x) || 0)),
+    y: Math.max(-half, Math.min(half, Number(y) || 0))
+  };
+  const token = {
+    id: stableDocumentId('token', `${next.identity.id}|${actorId}`),
+    actorId, side, position,
+    velocity: velocity === null ? defaultShipVector(position) : { x: Number(velocity.x) || 0, y: Number(velocity.y) || 0 },
+    label: String(label ?? ''), inCombat: false
+  };
+  next.tokens.push(token);
+  assertValidSceneDocument(next);
+  return { scene: next, token };
+}
+
+// Toward the origin at the default speed. A ship staged exactly on the origin
+// has nowhere to close on, so it starts stationary — p.25's legal vector of 0.
+export function defaultShipVector(position) {
+  const distance = Math.hypot(position.x, position.y);
+  if (!distance) return { x: 0, y: 0 };
+  const scale = SCENE_VECTOR_DEFAULT_SPEED / distance;
+  return { x: -position.x * scale, y: -position.y * scale };
+}
+
+export function setSceneShipVector(document, { tokenId, velocity } = {}) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('a vector belongs to a vector board');
+  const token = next.tokens.find((entry) => entry.id === tokenId);
+  if (!token) throw new Error('token is not on this scene');
+  token.velocity = { x: Number(velocity?.x) || 0, y: Number(velocity?.y) || 0 };
+  assertValidSceneDocument(next);
+  return next;
+}
+
+export function moveSceneShip(document, { tokenId, x, y } = {}) {
+  const next = importSceneDocument(document);
+  if (!sceneIsVectorBoard(next)) throw new TypeError('moveSceneShip needs a vector board');
+  const token = next.tokens.find((entry) => entry.id === tokenId);
+  if (!token) throw new Error('token is not on this scene');
+  const { half } = sceneVectorExtent(next);
+  token.position = {
+    x: Math.max(-half, Math.min(half, Number(x) || 0)),
+    y: Math.max(-half, Math.min(half, Number(y) || 0))
+  };
+  assertValidSceneDocument(next);
+  return next;
+}
+
 export function placeSceneToken(document, { actorId, side = 'neutral', column, row, label = '' } = {}) {
   const next = importSceneDocument(document);
+  if (sceneIsVectorBoard(next)) throw new TypeError('a vector board stages ships with placeSceneShip');
   if (!nonblank(actorId)) throw new TypeError('actorId is required');
   if (next.tokens.some((token) => token.actorId === actorId)) throw new Error('that actor is already on this scene');
   const cells = next.board.squares * next.board.metersPerSquare + 1;
@@ -262,6 +334,7 @@ export function placeSceneToken(document, { actorId, side = 'neutral', column, r
 
 export function moveSceneToken(document, { tokenId, column, row } = {}) {
   const next = importSceneDocument(document);
+  if (sceneIsVectorBoard(next)) throw new TypeError('a vector board moves ships with moveSceneShip');
   const token = next.tokens.find((entry) => entry.id === tokenId);
   if (!token) throw new Error('token is not on this scene');
   const cells = next.board.squares * next.board.metersPerSquare + 1;
