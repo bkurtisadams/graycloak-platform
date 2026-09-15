@@ -111,6 +111,7 @@ import {
   COMPUTER_MODELS,
   createShipCombatEncounter,
   currentPhase as currentShipCombatPhase,
+  SHIP_COMBAT_PHASES,
   actingSide as shipCombatActingSide,
   advanceShipCombatPhase,
   getParticipant as getShipCombatParticipant,
@@ -140,7 +141,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.156.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.157.0';
 
 import {
   ACTION_LABELS,
@@ -166,28 +167,28 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.156.2';
+} from './ui-model.js?v=v0.157.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.156.2';
+} from './document-loader.js?v=v0.157.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.156.2';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.156.2';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.156.2';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.157.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.157.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.157.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.156.2';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.156.2';
+} from '../src/campaign-document.js?v=v0.157.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.157.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap } from './ship-vector-map.js?v=v0.156.2';
+import { renderShipVectorMap } from './ship-vector-map.js?v=v0.157.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.156.2';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.156.2';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.156.2';
+} from '../src/document-window.js?v=v0.157.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.157.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.157.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -196,13 +197,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.156.2';
+} from './chargen-view.js?v=v0.157.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.156.2';
+} from './generators.js?v=v0.157.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -213,7 +214,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.156.2';
+} from './subsector-svg.js?v=v0.157.0';
 
 import {
   seededDice,
@@ -222,7 +223,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.156.2';
+} from './commerce-market.js?v=v0.157.0';
 
 import {
   addCharacterToCampaign,
@@ -252,7 +253,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.156.2';
+} from '../src/campaign-document.js?v=v0.157.0';
 
 import {
   NPC_CONDITIONS,
@@ -261,16 +262,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.156.2';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.156.2';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.156.2';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.156.2';
-import { openSignInDialog } from './signin-ui.js?v=v0.156.2';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.156.2';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.156.2';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.156.2';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.156.2';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.156.2';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.157.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.157.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.157.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.157.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.157.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.157.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.157.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.157.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.157.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.157.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -278,14 +279,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.156.2';
+} from '../src/activity-log-document.js?v=v0.157.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.156.2';
+} from '../src/player-session.js?v=v0.157.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -293,19 +294,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.156.2';
+} from './quick-slots.js?v=v0.157.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.156.2';
+} from '../src/campaign-bundle.js?v=v0.157.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.156.2';
+} from '../src/document-registry.js?v=v0.157.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.156.2';
+} from '../src/activity-log.js?v=v0.157.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -315,14 +316,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.156.2';
+} from '../src/contract-document.js?v=v0.157.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.156.2';
+} from '../src/situation-document.js?v=v0.157.0';
 
 import {
   createEncounterDocument,
@@ -350,37 +351,37 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.156.2';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.157.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.156.2';
+} from '../src/contact-document.js?v=v0.157.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.156.2';
+} from '../src/adventure-thread-document.js?v=v0.157.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.156.2';
+} from '../world/situation-events.js?v=v0.157.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.156.2';
+} from '../world/contract-board.js?v=v0.157.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.156.2';
+} from '../world/thread-consequences.js?v=v0.157.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.156.2';
+} from '../world/far-meridian-subsector.js?v=v0.157.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -10007,9 +10008,49 @@ function renderShipCombatRail() {
   who.className = 'encounter-tracker-ready';
   who.textContent = `ACTING: ${acting.toUpperCase()}`;
   heading.append(state, who);
-  // The heading goes above the actions, not above the cards, so the phase and
-  // the things you can do in it are read together.
   el.shipCombatActions.append(heading);
+
+  // v0.157.0: the turn sequence as a passive stepper, after the Chainmail and
+  // BATTLESYSTEM boards. Book 2 p.23's five phases with what is done struck
+  // through, what is live highlighted, and what is still to come dimmed. The
+  // pills name who acts, which is the one genuinely confusing thing about the
+  // printed sequence: phase C belongs to the side that is NOT phasing.
+  //
+  // Nothing in the rail is clickable. It reports where you are; the arrow
+  // advances and the phase's own verbs live below it.
+  const railRow = document.createElement('div');
+  railRow.className = 'ship-phase-rail';
+  const opposing = encounter.phasingSide === 'intruder' ? 'native' : 'intruder';
+  SHIP_COMBAT_PHASES.forEach((entry, index) => {
+    if (index > 0) {
+      const separator = document.createElement('span');
+      separator.className = 'ship-phase-sep';
+      separator.textContent = '\u203a';
+      railRow.append(separator);
+    }
+    const step = document.createElement('span');
+    const position = index < encounter.phaseIndex ? 'done' : index === encounter.phaseIndex ? 'now' : 'todo';
+    step.className = `ship-phase-step ${position}`;
+    const label = document.createElement('span');
+    label.className = 'ship-phase-label';
+    label.textContent = `${index < encounter.phaseIndex ? '\u2713 ' : ''}${String.fromCharCode(65 + index)} ${entry.label.toUpperCase()}`;
+    const side = entry.actor === 'opposing' ? opposing : encounter.phasingSide;
+    const pill = document.createElement('span');
+    pill.className = `ship-phase-pill ${side}`;
+    pill.textContent = side === 'intruder' ? 'INT' : 'NAT';
+    pill.title = entry.actor === 'opposing'
+      ? 'Book 2 p.23 phase C belongs to the non-phasing side: return fire and anti-missile fire.'
+      : 'Belongs to the phasing side.';
+    step.append(label, pill);
+    railRow.append(step);
+  });
+  el.shipCombatActions.append(railRow);
+
+  // What is required right now, in one line.
+  const hint = document.createElement('div');
+  hint.className = 'ship-phase-hint';
+  hint.textContent = `\u25b8 ${shipCombatPhaseHint(encounter, phase)}`;
+  el.shipCombatActions.append(hint);
 
   // The two house rules and the local-only resume, stated where the fight is
   // being run rather than only in the source.
@@ -10106,6 +10147,34 @@ function renderShipCombatRail() {
 
   renderShipCombatActions(encounter, phase, acting);
   renderShipCombatLog(encounter);
+}
+
+// What this phase is waiting for. Book 2 p.23's own description of each phase,
+// said as an instruction rather than a heading.
+function shipCombatPhaseHint(encounter, phase) {
+  const acting = shipCombatActingSide(encounter);
+  const side = acting.toUpperCase();
+  const live = encounter.participants.filter((entry) => !entry.escaped && !entry.surrendered);
+  switch (phase.key) {
+    case 'movement': {
+      const unmoved = live.filter((entry) => entry.side === acting
+        && encounter.spatial?.ships?.[entry.id]?.movedTurn !== encounter.gameTurn);
+      if (encounter.spatialMode !== 'vector') return `${side}: no plot in abbreviated mode. Advance.`;
+      return unmoved.length
+        ? `${side}: set thrust and COMMIT MANEUVER for ${unmoved.map((entry) => entry.name).join(', ')}.`
+        : `${side}: every ship has moved. Advance to laser fire.`;
+    }
+    case 'laser-fire':
+      return `${side}: allocate each turret to a target, then RESOLVE FIRE. All lasers in one turret fire on the same target (p.29).`;
+    case 'return-fire':
+      return `${side}: may return fire only at ships that just fired on it, and only with Return Fire and Target in the computer (p.30). Anti-missile fire also happens here.`;
+    case 'ordnance-launch':
+      return `${side}: launch missiles or sand, and detonate anything that reached a target (p.30). Needs Launch and Target.`;
+    case 'reprogramming':
+      return `${side}: swap programs in and out of the computer for later turns (p.31).`;
+    default:
+      return `${side}: advance.`;
+  }
 }
 
 function renderShipCombatActions(encounter, phase, acting) {
@@ -10315,7 +10384,17 @@ function renderShipCombatActions(encounter, phase, acting) {
   if (player && !player.fled) {
     actions.append(makePortButton('BREAK OFF', () => fleeShipCombat('player')));
   }
-  actions.append(makePortButton(`ADVANCE / ${phase.label.toUpperCase()}`, advanceShipCombat));
+  // v0.157.0: this read "ADVANCE / MOVEMENT", which parses as a command called
+  // Advance applied to Movement rather than "finish the movement phase". The
+  // arrow names what comes NEXT, as the Chainmail board's does.
+  const index = encounter.phaseIndex;
+  const last = index === SHIP_COMBAT_PHASES.length - 1;
+  const nextLabel = last
+    ? (encounter.phasingSide === 'intruder'
+      ? `NATIVE TURN \u00b7 ${SHIP_COMBAT_PHASES[0].label.toUpperCase()}`
+      : `TURN ${encounter.gameTurn + 1} \u00b7 INTERPHASE`)
+    : SHIP_COMBAT_PHASES[index + 1].label.toUpperCase();
+  actions.append(makePortButton(`\u25b6 NEXT: ${nextLabel}`, advanceShipCombat));
   actions.append(makePortButton('CLOSE COMBAT', closeShipCombat));
 }
 

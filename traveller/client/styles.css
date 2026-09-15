@@ -4571,3 +4571,17 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 /* v0.156.2: why COMMIT MANEUVER is unavailable, beside the button. */
 .ship-vector-stage .vector-commit-blocked { flex: 1 1 100%; opacity: 0.75; font-size: 11px; }
+
+/* v0.157.0: the ship combat turn sequence as a passive stepper, after the
+   Chainmail and BATTLESYSTEM boards. Nothing in it is clickable — the highlight
+   moves, the arrow advances, the phase's verbs sit below. */
+.ship-phase-rail { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; margin: 4px 0 2px; }
+.ship-phase-step { display: inline-flex; align-items: center; gap: 4px; }
+.ship-phase-label { font-size: 10px; letter-spacing: .06em; white-space: nowrap; border-bottom: 2px solid transparent; padding-bottom: 1px; }
+.ship-phase-step.todo .ship-phase-label { opacity: 0.45; }
+.ship-phase-step.done .ship-phase-label { opacity: 0.7; }
+.ship-phase-step.now .ship-phase-label { font-weight: 700; border-bottom-color: var(--link); }
+.ship-phase-pill { font-size: 8px; font-weight: 700; line-height: 1; padding: 2px 4px; border: 1px solid var(--rule); }
+.ship-phase-step.todo .ship-phase-pill, .ship-phase-step.done .ship-phase-pill { opacity: 0.4; }
+.ship-phase-sep { opacity: 0.4; font-size: 10px; }
+.ship-phase-hint { font-size: 11px; opacity: 0.85; margin: 2px 0 6px; }
