@@ -135,18 +135,39 @@ export function canDoubleFire(ship) {
   return DRIVE_LETTERS.indexOf(powerPlant.letter) > DRIVE_LETTERS.indexOf(maneuver.letter);
 }
 
+/**
+ * Book 2 pp.33-34. Two different things, kept apart:
+ *
+ * - The fuel a hit releases is gone. applyShipHit drains it from
+ *   state.currentFuelTons at the moment of the hit, and repairing the hit does
+ *   not bring it back.
+ * - The p.33 thresholds ("sufficient fuel hits ... to account for 60% of fuel
+ *   tankage") are read from the hits still outstanding, 20 tons of tankage
+ *   each. Damage control patches a puncture and removes one of them.
+ */
 export function fuelDamage(ship) {
   const hits = ship.state.damage.fuel ?? 0;
   const capacityTons = ship.specifications.fuel.capacityTons;
-  const lostTons = Math.min(capacityTons, hits * FUEL_TONS_LOST_PER_HIT);
+  const puncturedTons = Math.min(capacityTons, hits * FUEL_TONS_LOST_PER_HIT);
   return Object.freeze({
     hits,
-    lostTons,
+    puncturedTons,
     capacityTons,
-    remainingCapacityTons: capacityTons - lostTons,
-    jumpDisabled: lostTons >= capacityTons * FUEL_LOSS_JUMP_THRESHOLD,
-    maneuverDisabled: lostTons >= capacityTons
+    remainingCapacityTons: capacityTons - puncturedTons,
+    jumpDisabled: puncturedTons >= capacityTons * FUEL_LOSS_JUMP_THRESHOLD,
+    maneuverDisabled: puncturedTons >= capacityTons
   });
+}
+
+/**
+ * Book 2 p.33: "Each fuel hit punctures a fuel tank, and releases about 20
+ * tons of fuel." Returns the fuel after one hit and how much went. Unrecorded
+ * fuel (null) stays unrecorded and nothing is known to have been released.
+ */
+export function releaseFuelFromHit(currentFuelTons) {
+  if (!Number.isFinite(currentFuelTons)) return Object.freeze({ currentFuelTons: null, releasedTons: null });
+  const releasedTons = Math.min(currentFuelTons, FUEL_TONS_LOST_PER_HIT);
+  return Object.freeze({ currentFuelTons: currentFuelTons - releasedTons, releasedTons });
 }
 
 /**

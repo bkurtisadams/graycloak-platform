@@ -1079,6 +1079,7 @@ export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
         target.ship = freeze(located.ship);
         shot.location = located.location;
         shot.turretHit = located.turretId;
+        if (located.location === 'fuel') shot.fuelReleasedTons = located.fuelReleasedTons;
         if (located.location === 'hull') {
           const decompression = resolveDecompression(target, dice);
           if (decompression) shot.decompression = decompression;
@@ -1832,7 +1833,8 @@ export function shipDataCard(participant) {
     fuel: Object.freeze({
       capacityTons: fuel.capacityTons,
       aboardTons: ship.state.currentFuelTons,
-      lostTons: fuel.lostTons,
+      hits: fuel.hits,
+      puncturedTons: fuel.puncturedTons,
       jumpDisabled: fuel.jumpDisabled,
       maneuverDisabled: fuel.maneuverDisabled
     }),

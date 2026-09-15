@@ -9,7 +9,7 @@ import {
   getStandardShipDesign
 } from './standard-designs.js';
 import { TURRET_MOUNTS, TURRET_WEAPONS } from './components.js';
-import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, MISSILE_HIT_LOCATION_DM } from './damage.js';
+import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
 export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 5;
@@ -819,8 +819,15 @@ export function applyShipHit(ship, dice, { kind = 'starship', dm = 0 } = {}) {
   const next = cloneJson(ship);
   const turretId = located.location === 'turret' ? selectTurretHit(next, dice) : null;
   next.state.damage = applyHitToDamage(next.state.damage, located.location, { turretId });
+  let fuelReleasedTons = null;
+  if (located.location === 'fuel') {
+    const released = releaseFuelFromHit(next.state.currentFuelTons);
+    next.state.currentFuelTons = released.currentFuelTons;
+    fuelReleasedTons = released.releasedTons;
+    if (next.state.currentFuelTons === null || next.state.currentFuelTons === 0) next.state.fuelQuality = 'unknown';
+  }
   assertValidShipDocument(next);
-  return Object.freeze({ ship: next, location: located.location, turretId, throw: located });
+  return Object.freeze({ ship: next, location: located.location, turretId, fuelReleasedTons, throw: located });
 }
 
 /**
@@ -835,7 +842,11 @@ export function applyMissileDetonation(ship, dice) {
   for (let index = 0; index < hitCount; index += 1) {
     const result = applyShipHit(current, dice, { dm: MISSILE_HIT_LOCATION_DM });
     current = result.ship;
-    hits.push(Object.freeze({ location: result.location, turretId: result.turretId }));
+    hits.push(Object.freeze({
+      location: result.location,
+      turretId: result.turretId,
+      ...(result.location === 'fuel' ? { fuelReleasedTons: result.fuelReleasedTons } : {})
+    }));
   }
   return Object.freeze({ ship: current, hitCount, hits: Object.freeze(hits) });
 }
@@ -843,7 +854,8 @@ export function applyMissileDetonation(ship, dice) {
 /**
  * Book 2 p.35 damage control: a throw of 9+ repairs one hit, skill a positive
  * DM, one attempt per ten minute turn. A destroyed drive cannot be repaired,
- * which repairableLocations already excludes.
+ * which repairableLocations already excludes. Repairing a fuel hit patches the
+ * tank; the fuel it released is not restored (p.33).
  */
 export function repairShipDamage(ship, { location, turretId = null } = {}) {
   assertValidShipDocument(ship);

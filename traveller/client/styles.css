@@ -4637,3 +4637,86 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   flex: 1 1 100%;
 }
 #subsector-section > .ship-combat-strip { padding-left: 104px; }
+
+/* --- v0.178.0: the throw before the click, and the result after it.
+
+   Book 1 p.30 prices an attack from several tables at once — the weapons
+   matrix for armor, the range matrix for distance, expertise, a
+   characteristic, movement status, and whatever the referee has set. Nothing
+   in the client showed any of that until the dice had already fallen. The
+   throw card lists each modifier where it comes from and states the figure
+   the two dice must show; the attack card says afterwards what they did
+   show, and where the wound landed. */
+.combat-rail .encounter-throw-card {
+  border: 1px solid var(--action-border);
+  border-left: 3px solid var(--action-border);
+  background: var(--paper);
+  padding: 5px 7px;
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+.combat-rail .throw-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.combat-rail .throw-card-head strong { letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combat-rail .throw-card-weapon { font-size: 10px; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
+.combat-rail .throw-card-rows { margin: 4px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 3px 0; }
+.combat-rail .throw-card-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.combat-rail .throw-card-row .throw-card-label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combat-rail .throw-card-row .throw-card-dm { font-weight: 700; flex: 0 0 auto; }
+.combat-rail .throw-card-row.plus .throw-card-dm { color: var(--ok); }
+.combat-rail .throw-card-row.minus .throw-card-dm { color: var(--error); }
+.combat-rail .throw-card-basic .throw-card-label { color: var(--ink); }
+.combat-rail .throw-card-need { display: flex; align-items: baseline; gap: 8px; }
+.combat-rail .throw-card-figure { font-size: 15px; letter-spacing: .04em; }
+.combat-rail .throw-card-odds { font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.combat-rail .throw-card-no-reach { color: var(--error); font-size: 11px; letter-spacing: .04em; }
+.combat-rail .throw-card-wound { font-size: 10px; letter-spacing: .06em; color: var(--muted); padding-top: 3px; }
+
+/* The two Book 1 p.26 step 4 decisions, in place of eight verbs a row. */
+.combat-rail .declare-row { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 1px 0; }
+.combat-rail .declare-label { font-size: 9px; letter-spacing: .1em; color: var(--muted); flex: 0 0 3.2rem; }
+.combat-rail .declare-choice { font-size: 10px; padding: 1px 5px; letter-spacing: 0; border: 1px solid var(--rule); background: var(--paper); }
+.combat-rail .declare-choice.is-on { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
+.combat-rail .declare-confirm { margin-top: 3px; gap: 6px; }
+.combat-rail .declare-mod { font-size: 9px; letter-spacing: .1em; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; }
+.combat-rail .declare-mod input { font: inherit; font-size: 10px; width: 3rem; padding: 1px 2px; }
+.combat-rail .declare-button { flex: 1 1 auto; text-align: left; }
+
+/* A resolved attack. */
+.combat-rail .attack-card { border: 1px solid var(--rule); border-left: 3px solid var(--disabled); background: var(--paper); padding: 4px 6px; margin: 3px 0; font-size: 11px; }
+.combat-rail .attack-card.hit { border-left-color: var(--failure-border); }
+.combat-rail .attack-card.note { border-left-color: var(--rule); color: var(--muted); }
+.combat-rail .attack-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.combat-rail .attack-card-head strong { letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combat-rail .attack-card-weapon { font-size: 10px; color: var(--muted); white-space: nowrap; }
+.combat-rail .attack-card-throw { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 2px 0; }
+.combat-rail .attack-card-dice { display: inline-flex; gap: 2px; }
+.combat-rail .attack-die { font-style: normal; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border: 1px solid var(--ink); font-size: 10px; font-weight: 700; }
+.combat-rail .attack-card-sum { font-size: 10px; color: var(--muted); }
+.combat-rail .attack-card-verdict { font-size: 10px; letter-spacing: .06em; margin-left: auto; color: var(--muted); }
+.combat-rail .attack-card-verdict.hit { color: var(--error); }
+.combat-rail .attack-card-dms { display: flex; flex-wrap: wrap; gap: 3px; padding-bottom: 2px; }
+.combat-rail .attack-card-dm { font-size: 9px; letter-spacing: .04em; padding: 0 3px; border: 1px solid var(--rule); color: var(--muted); }
+.combat-rail .attack-card-dm.plus { border-color: var(--ok); }
+.combat-rail .attack-card-dm.minus { border-color: var(--error); }
+.combat-rail .attack-card-wound { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; border-top: 1px solid var(--rule); padding-top: 3px; }
+.combat-rail .attack-card-wound-roll { font-size: 10px; color: var(--muted); }
+.combat-rail .attack-card-hit-group { font-size: 10px; font-weight: 700; padding: 0 4px; border: 1px solid var(--failure-border); background: var(--failure-bg); }
+.combat-rail .attack-card-hit-group.first-blood { border-style: dashed; }
+.combat-rail .attack-card-noeffect,
+.combat-rail .attack-card-status { font-size: 10px; letter-spacing: .06em; color: var(--error); }
+
+/* Book 1 p.30's own words: the wounded player distributes the groups. */
+.wound-allocation-dialog .wound-allocation-remaining { font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+.wound-allocation-dialog .wound-allocation-hit { font-size: 12px; letter-spacing: .04em; padding: 4px 0; }
+.wound-allocation-dialog .wound-allocation-groups { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 6px 0; }
+.wound-allocation-dialog .wound-group-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wound-allocation-dialog .wound-group-die { flex: 0 0 5.5rem; font-weight: 700; font-size: 12px; }
+.wound-allocation-dialog .wound-group-picks { display: inline-flex; gap: 3px; }
+.wound-allocation-dialog .declare-choice { font-size: 11px; padding: 1px 6px; border: 1px solid var(--rule); background: var(--paper); }
+.wound-allocation-dialog .declare-choice.is-on { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
+.wound-allocation-dialog .wound-group-share { display: inline-flex; gap: 2px; margin-left: auto; }
+.wound-allocation-dialog .wound-allocation-preview { padding: 6px 0; font-size: 12px; }
+.wound-allocation-dialog .wound-preview-line { letter-spacing: .04em; }
+.wound-allocation-dialog .wound-preview-state { font-size: 11px; letter-spacing: .08em; color: var(--muted); padding-top: 2px; }
+.wound-allocation-dialog .wound-preview-state.critical { color: var(--error); font-weight: 700; }
+.wound-allocation-dialog .wound-allocation-error { font-size: 11px; color: var(--error); padding-bottom: 4px; }

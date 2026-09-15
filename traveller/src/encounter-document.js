@@ -18,8 +18,8 @@ import {
 } from '../vendor/classic-traveller-rules/index.js';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
-export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 16;
-export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 17;
+export const SUPPORTED_ENCOUNTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
 // Who decides a combatant's action: the referee (or its player), or the house
 // NPC routine. Party members default to manual, everyone else to auto.
 export const COMBATANT_TACTICS = Object.freeze(['manual', 'auto']);
@@ -260,7 +260,7 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
     map: spatialMode === 'range-line'
       ? { grid: 'line', columns: board.columns, rows: 1, rangeGuide: ENCOUNTER_RANGE_LINE_GUIDE_VERSION, metersPerSquare: board.gridScale, spatialMode }
       : { grid: 'square', columns: board.columns, rows: board.rows, rangeGuide: ENCOUNTER_RANGE_GUIDE_VERSION, metersPerSquare: board.gridScale, spatialMode },
-    roundState: { declaredActions: [] },
+    roundState: { declaredActions: [], resolution: null },
     combatants: [...party, ...hostiles],
     history: [{ round: 0, kind: 'surprise', text: surprise.surpriseSideId ? `${surprise.surpriseSideId} achieved surprise.` : 'Neither side achieved surprise.', detail: surprise }],
     outcome: null,
@@ -306,6 +306,17 @@ export function validateEncounterDocument(document) {
     add(errors, ENCOUNTER_GRID_SCALES.includes(document.map?.metersPerSquare), 'map.metersPerSquare must be 1, 5, or 25');
   }
   add(errors, plain(document.roundState) && Array.isArray(document.roundState?.declaredActions), 'roundState must contain declaredActions');
+  // v0.178.0 (schema 17): a round paused at step 2C while a player allocates
+  // a wound. Everything the resolver had done so far is kept here so the
+  // round can finish later; nothing else may change until it does.
+  const resolution = document.roundState?.resolution;
+  add(errors, resolution === null || (plain(resolution) && Array.isArray(resolution.entries) && Array.isArray(resolution.wounds) && Number.isInteger(resolution.nextIndex) && resolution.nextIndex >= 0), 'roundState.resolution must be null or a paused round');
+  if (plain(resolution)) {
+    add(errors, document.status === 'active', 'a paused round requires an active encounter');
+    for (const wound of resolution.wounds) {
+      add(errors, nonblank(wound.defenderId) && nonblank(wound.attackerId) && Array.isArray(wound.damageDice) && Number.isInteger(wound.modifier) && Number.isInteger(wound.entryIndex), 'a paused wound must name its defender, attacker, dice, modifier and history entry');
+    }
+  }
   if (Array.isArray(document.roundState?.declaredActions)) for (const declaration of document.roundState.declaredActions) {
     add(errors, nonblank(declaration.actorId) && ['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(declaration.action), 'declared party action is invalid');
     add(errors, Number.isInteger(declaration.modifier) && declaration.modifier >= -20 && declaration.modifier <= 20, 'declared party action modifier is invalid');
@@ -512,6 +523,12 @@ function migrateEncounterDocument(document) {
     document.map = { ...document.map, spatialMode: document.map.spatialMode ?? 'scene' };
     document.schemaVersion = 16;
   }
+  if (document.schemaVersion === 16) {
+    // v0.178.0: a round may pause at Book 1 p.30 step 2C for a player's own
+    // wound allocation. No stored encounter was mid-round, so null.
+    document.roundState = { ...document.roundState, resolution: null };
+    document.schemaVersion = 17;
+  }
   // Defensive, independent of the version-gated step above: a document can
   // reach here already marked schemaVersion 16 without a valid spatialMode —
   // for instance one written by a different, incompatible version of this
@@ -530,6 +547,7 @@ function migrateEncounterDocument(document) {
   for (const entry of document.combatants ?? []) {
     if (typeof entry.playerCharacter !== 'boolean') entry.playerCharacter = entry.actorType === 'pc';
   }
+  if (document.roundState && document.roundState.resolution === undefined) document.roundState.resolution = null;
   return document;
 }
 
@@ -1008,6 +1026,7 @@ export function setCombatantFoldingStock(document, { combatantId, foldingStock }
 export function declareEncounterAction(document, { action = 'attack', modifier = 0, actorId = null, targetId = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (next.roundState.resolution) throw new Error('a wound is waiting to be allocated before the round can end');
   if (!['attack', 'evade', 'close', 'open', 'close-run', 'open-run', 'escape', 'wait'].includes(action)) throw new RangeError(`unknown encounter action: ${action}`);
   if (!Number.isInteger(modifier) || modifier < -20 || modifier > 20) throw new RangeError('modifier must be an integer from -20 to 20');
   const active = next.combatants.filter((entry) => entry.status === 'active');
@@ -1048,9 +1067,10 @@ export function undeclaredCombatantIds(document) {
     .map((entry) => entry.id);
 }
 
-export function resolveDeclaredRound(document, { dice, date } = {}) {
+export function resolveDeclaredRound(document, { dice, date, playerAllocatesWounds = false } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (next.roundState.resolution) throw new Error('a wound is waiting to be allocated before the round can end');
   const everyone = next.combatants.map(clone);
   const active = everyone.filter((entry) => entry.status === 'active');
   const surpriseRound = next.round === 1 ? next.surprise.surpriseSideId : null;
@@ -1162,21 +1182,125 @@ export function resolveDeclaredRound(document, { dice, date } = {}) {
   }
 
   // --- Step 2C: wounds land after the last attack, in declaration order.
-  for (const wound of pendingWounds) {
+  // v0.178.0: a player character's wound after first blood is the player's to
+  // allocate (Book 1 p.30), so the round may pause here and finish later.
+  const wounds = pendingWounds.map((wound, index) => ({
+    key: `${next.round}-${index}`,
+    attackerId: wound.result.attackerId,
+    defenderId: wound.defenderId,
+    damageDice: [...wound.damageDice],
+    modifier: wound.result.damageModifier ?? 0,
+    weaponName: wound.result.weaponName,
+    entryIndex: entries.findIndex((entry) => entry.kind === 'attack' && entry.detail === wound.result)
+  }));
+  return settleRoundWounds(next, entries, live, wounds, 0, { dice, date, playerAllocatesWounds });
+}
+
+// Whether the wounded player has a choice to make: not the first wound (p.30
+// puts that on one random characteristic), not a wound that inflicts nothing,
+// and not a combatant already out of the fight.
+function woundNeedsAllocation(defender, wound) {
+  const total = wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier;
+  return Boolean(defender && defender.status === 'active' && defender.playerCharacter && !defender.firstBlood && total > 0);
+}
+
+// Apply the round's wounds from `fromIndex` on. `allocation`, when given, is
+// {allocation, targets} for the wound at fromIndex — the player's choice for
+// applyPersonalDamage. Pauses (returns pending: true) at the first wound that
+// needs a choice and has none.
+function settleRoundWounds(next, entries, live, wounds, fromIndex, { dice, date, playerAllocatesWounds = false, allocation = null } = {}) {
+  for (let index = fromIndex; index < wounds.length; index += 1) {
+    const wound = wounds[index];
     const defender = live.get(wound.defenderId);
+    const result = entries[wound.entryIndex]?.detail;
+    if (!defender || !result) continue;
+    const choice = index === fromIndex ? allocation : null;
+    if (playerAllocatesWounds && woundNeedsAllocation(defender, wound) && !choice) {
+      // Pause: keep what the round has done so far on the document.
+      replaceCombatants(next, ...live.values());
+      next.roundState.resolution = { entries, wounds, nextIndex: index };
+      assertValidEncounterDocument(next);
+      return { encounter: next, entries: [], pending: true, awaitingActorIds: [], awaitingWound: pendingWoundAllocation(next) };
+    }
     // Book 1 p.30: the weapon's constant is part of the wound, and a result of
     // zero or less has no effect - so it is not a wound received, and must not
     // consume the first-blood roll.
-    const modifier = wound.result.damageModifier ?? 0;
-    const inflicts = wound.damageDice.reduce((sum, die) => sum + die, 0) + modifier > 0;
+    const inflicts = wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier > 0;
     const firstBloodRoll = inflicts && defender.firstBlood ? dice.rollD6() : null;
-    const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll, { modifier });
+    const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll, {
+      modifier: wound.modifier,
+      allocation: choice?.allocation ?? null,
+      targets: choice?.targets ?? null
+    });
     live.set(wound.defenderId, { ...damage.combatant, position: defender.position });
-    wound.result.firstBloodRoll = firstBloodRoll;
-    wound.result.allocations = damage.allocations;
-    wound.result.defenderStatus = damage.status;
-    wound.result.noEffect = Boolean(damage.noEffect);
+    result.firstBloodRoll = firstBloodRoll;
+    result.allocations = damage.allocations;
+    result.defenderStatus = damage.status;
+    result.noEffect = Boolean(damage.noEffect);
+    result.playerAllocated = Boolean(choice);
   }
+  next.roundState.resolution = null;
+  return concludeRound(next, entries, live, { dice, date });
+}
+
+// The wound a paused round is waiting on, with what the dialog needs to offer
+// the choice, or null when nothing is pending.
+export function pendingWoundAllocation(document) {
+  const resolution = document?.roundState?.resolution;
+  if (!resolution) return null;
+  const wound = resolution.wounds[resolution.nextIndex];
+  if (!wound) return null;
+  const defender = document.combatants.find((entry) => entry.id === wound.defenderId) ?? null;
+  const attacker = document.combatants.find((entry) => entry.id === wound.attackerId) ?? null;
+  const result = resolution.entries[wound.entryIndex]?.detail ?? null;
+  return {
+    key: wound.key,
+    round: document.round,
+    defender,
+    attacker,
+    attackerName: attacker?.name ?? result?.attackerId ?? 'attacker',
+    weaponName: wound.weaponName,
+    damageDice: [...wound.damageDice],
+    modifier: wound.modifier,
+    total: wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier,
+    remaining: resolution.wounds.length - resolution.nextIndex
+  };
+}
+
+// What a proposed allocation would do, dice-free: the same call the round
+// will make, on a copy. Throws the same errors applyPersonalDamage would, so
+// a dialog can validate by asking.
+export function previewWoundAllocation(document, { allocation = null, targets = null } = {}) {
+  const pending = pendingWoundAllocation(document);
+  if (!pending) throw new Error('no wound is waiting to be allocated');
+  const damage = applyPersonalDamage(clone(pending.defender), pending.damageDice, null, { modifier: pending.modifier, allocation, targets });
+  return { combatant: damage.combatant, allocations: damage.allocations, status: damage.status, wound: damage.wound ?? null };
+}
+
+// The player's answer. `allocation` is one integer share of the weapon
+// constant per die (summing to the constant); `targets` names the
+// characteristic each die goes to. Either may be omitted to take the referee
+// default for that half. Continues the round: pauses again at the next wound
+// that needs a choice, otherwise concludes it exactly as an unpaused round.
+export function allocateRoundWound(document, { key, allocation = null, targets = null, dice, date } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  const resolution = next.roundState.resolution;
+  if (!resolution) throw new Error('no wound is waiting to be allocated');
+  const wound = resolution.wounds[resolution.nextIndex];
+  if (!wound || (key !== undefined && key !== null && wound.key !== key)) throw new Error('that wound is no longer waiting');
+  const live = new Map(next.combatants.map((entry) => [entry.id, clone(entry)]));
+  const entries = resolution.entries;
+  const wounds = resolution.wounds;
+  next.roundState.resolution = null;
+  return settleRoundWounds(next, entries, live, wounds, resolution.nextIndex, {
+    dice, date, playerAllocatesWounds: true, allocation: { allocation, targets }
+  });
+}
+
+// Everything that happens after the last wound has landed: escapes by
+// distance, the encounter's outcome, morale, the next round.
+function concludeRound(next, entries, live, { dice, date } = {}) {
   for (const entry of entries) {
     if (entry.kind !== 'attack' || !entry.detail) continue;
     entry.detail.defenderStatus ??= 'active';

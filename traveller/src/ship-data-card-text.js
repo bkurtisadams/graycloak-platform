@@ -11,7 +11,7 @@ export function dataCardLines(card, { programLabel = (key) => key } = {}) {
   ];
   const left = [
     ...card.sections.map((section, index) => `${index + 1}. ${section.label} (${section.reading})${section.hits ? ` \u00b7 ${section.hits} HIT` : ''}`),
-    `4. Fuel (${card.fuel.aboardTons} of ${card.fuel.capacityTons} tons${card.fuel.lostTons ? `, ${card.fuel.lostTons} lost` : ''})`,
+    `4. Fuel (${card.fuel.aboardTons} of ${card.fuel.capacityTons} tons${card.fuel.hits ? `, ${card.fuel.hits} hit${card.fuel.hits === 1 ? '' : 's'}` : ''})`,
     `5. Hold (${card.hold.capacityTons} tons${card.hold.hits ? `, ${card.hold.hits} HIT` : ''})`,
     `6. Bridge (Pilot-${card.bridge.pilotSkill})`
   ];

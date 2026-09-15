@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.176.0</div>
+          <div id="app-subtitle" class="subtitle">v0.178.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -392,12 +392,13 @@
                 <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
                 <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
               </div>
+              <div id="encounter-throw-card" class="encounter-throw-card" aria-live="polite" hidden></div>
               <div id="encounter-tracker" class="encounter-tracker" aria-label="Combat tracker"></div>
               <div id="encounter-resolve" class="encounter-resolve"></div>
               <div id="encounter-party-roster" class="encounter-party-roster" hidden></div>
               <div id="encounter-roster" class="encounter-roster" hidden></div>
-              <details id="encounter-details" class="encounter-details" hidden>
-                <summary>ENCOUNTER HISTORY</summary>
+              <details id="encounter-details" class="encounter-details" hidden open>
+                <summary>ROUND RECORD</summary>
                 <div id="encounter-record" class="encounter-record" aria-live="polite"></div>
               </details>
             </section>
@@ -739,6 +740,20 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
         </div>
       </form>
     </dialog>
+    <dialog id="wound-allocation-dialog" class="roll-dialog wound-allocation-dialog" aria-labelledby="wound-allocation-title">
+      <form id="wound-allocation-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="wound-allocation-title">ALLOCATE WOUND</strong><span id="wound-allocation-remaining" class="wound-allocation-remaining"></span></div>
+        <div id="wound-allocation-basis" class="roll-dialog-basis">BOOK 1 p.30 // EACH DIE IS ONE WOUND GROUP APPLIED TO A SINGLE CHARACTERISTIC // THE WEAPON'S CONSTANT IS DISTRIBUTED AS YOU CHOOSE</div>
+        <div id="wound-allocation-hit" class="wound-allocation-hit"></div>
+        <div id="wound-allocation-groups" class="wound-allocation-groups"></div>
+        <div id="wound-allocation-preview" class="wound-allocation-preview"></div>
+        <div id="wound-allocation-error" class="wound-allocation-error" hidden></div>
+        <div class="roll-dialog-actions">
+          <button id="wound-allocation-apply" class="text-button action-button" type="submit">[ APPLY WOUND ]</button>
+          <button id="wound-allocation-default" class="text-button" type="button" title="Spread the constant evenly and rotate STR, DEX, END — the referee's default for non-player characters">[ REFEREE DEFAULT ]</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="encounter-placement-dialog" class="roll-dialog encounter-placement-dialog" aria-labelledby="encounter-placement-title">
       <form id="encounter-placement-form" class="roll-dialog-form" method="dialog">
         <div class="roll-dialog-header"><strong id="encounter-placement-title">PLACE ROSTER ACTOR</strong><button id="encounter-placement-close" class="text-button" type="button">[ CLOSE ]</button></div>
@@ -923,6 +938,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.176.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.178.0"></script>
 </body>
 </html>

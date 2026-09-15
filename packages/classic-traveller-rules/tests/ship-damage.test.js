@@ -19,6 +19,8 @@ import {
   currentDriveState,
   canDoubleFire,
   fuelDamage,
+  releaseFuelFromHit,
+  establishShipFuelState,
   computerOperation,
   turretOperational,
   operationalTurrets,
@@ -118,16 +120,50 @@ test('Book 2 p.33: fuel hits release 20 tons each and bite at 60% of tankage', a
   // Total 9 is fuel.
   ship = hitAt(ship, 9).ship;
   let fuel = fuelDamage(ship);
-  assert.equal(fuel.lostTons, FUEL_TONS_LOST_PER_HIT);
+  assert.equal(fuel.puncturedTons, FUEL_TONS_LOST_PER_HIT);
   // 20 of 40 tons is half, short of the 60% that stops a jump.
   assert.equal(fuel.jumpDisabled, false);
 
   ship = hitAt(ship, 9).ship;
   fuel = fuelDamage(ship);
-  assert.equal(fuel.lostTons, 40);
+  assert.equal(fuel.puncturedTons, 40);
   assert.equal(fuel.jumpDisabled, true);
   assert.equal(fuel.maneuverDisabled, true);
   assert.equal(damageReport(ship).adrift, true);
+});
+
+test('Book 2 p.33: a fuel hit releases fuel for good, and repairing the hit does not refill the tank', async () => {
+  let ship = establishShipFuelState(await scout(), { tons: 30, quality: 'refined' });
+
+  let hit = hitAt(ship, 9);
+  ship = hit.ship;
+  assert.equal(hit.location, 'fuel');
+  assert.equal(hit.fuelReleasedTons, 20);
+  assert.equal(ship.state.currentFuelTons, 10);
+  assert.equal(ship.state.fuelQuality, 'refined');
+
+  // p.35: damage control patches the puncture, which lifts the tankage
+  // threshold, but the 20 tons that went into space stay gone.
+  const repaired = repairShipDamage(ship, { location: 'fuel' });
+  assert.equal(fuelDamage(repaired).hits, 0);
+  assert.equal(fuelDamage(repaired).puncturedTons, 0);
+  assert.equal(repaired.state.currentFuelTons, 10);
+
+  // A second hit can only release what is left, and an empty tank has no quality.
+  hit = hitAt(repaired, 9);
+  assert.equal(hit.fuelReleasedTons, 10);
+  assert.equal(hit.ship.state.currentFuelTons, 0);
+  assert.equal(hit.ship.state.fuelQuality, 'unknown');
+  assert.equal(validateShipDocument(hit.ship).valid, true);
+});
+
+test('a fuel hit on a ship whose fuel is unrecorded releases nothing known', async () => {
+  const ship = await scout();
+  assert.equal(ship.state.currentFuelTons, null);
+  const hit = hitAt(ship, 9);
+  assert.equal(hit.fuelReleasedTons, null);
+  assert.equal(hit.ship.state.currentFuelTons, null);
+  assert.equal(releaseFuelFromHit(null).releasedTons, null);
 });
 
 test('Book 2 p.33: a hull hit decompresses once and further hits do nothing', async () => {
@@ -227,7 +263,7 @@ test('a damaged ship still matches its canonical design and round-trips', async 
 
   const restored = importShipDocument(exportShipDocument(ship));
   assert.equal(computerOperation(restored).hits, 1);
-  assert.equal(fuelDamage(restored).lostTons, 20);
+  assert.equal(fuelDamage(restored).puncturedTons, 20);
 
   const cleared = clearShipDamage(restored);
   assert.equal(damageReport(cleared).undamaged, true);

@@ -76,11 +76,11 @@ async function encounterFixture() {
 test('Encounter Document v15 round-trips the metre workspace, grid scale, declarations, positions, range, and audit history', async () => {
   const { encounter } = await encounterFixture();
   const roundTrip = importEncounterDocument(exportEncounterDocument(encounter));
-  assert.equal(roundTrip.schemaVersion, 16);
+  assert.equal(roundTrip.schemaVersion, 17);
   assert.equal(roundTrip.sceneId, null);
   // v0.71.0: a medium-range fight on 5 m squares is a 200 m board (40 squares).
   assert.deepEqual(roundTrip.map, { grid: 'square', columns: 201, rows: 201, rangeGuide: 'graycloak-meter-grid-v4', metersPerSquare: 5, spatialMode: 'scene' });
-  assert.deepEqual(roundTrip.roundState, { declaredActions: [] });
+  assert.deepEqual(roundTrip.roundState, { declaredActions: [], resolution: null });
   assert.deepEqual(roundTrip.combatants[0].position, { column: 50, row: 100 });
   assert.deepEqual(roundTrip.combatants[1].position, { column: 100, row: 100 });
   assert.equal(roundTrip.surprise.surpriseSideId, 'party');
@@ -98,7 +98,7 @@ test('Encounter Document v1 imports migrate through v15 to the metre workspace',
   delete legacy.map;
   for (const combatant of legacy.combatants) delete combatant.position;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(migrated.sceneId, null);
   assert.equal(migrated.map.grid, 'square');
   // A pre-v0.71 board stays a kilometre; nothing about its positions changes.
@@ -117,7 +117,7 @@ test('Encounter Document v11 migration preserves former close pairs as explicit 
   legacy.combatants[1].position = { column: 5, row: 9 };
   for (const combatant of legacy.combatants) delete combatant.contactIds;
   const migrated = importEncounterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 16);
+  assert.equal(migrated.schemaVersion, 17);
   assert.equal(encounterPairRange(migrated.combatants[0], migrated.combatants[1]), 'close');
   assert.deepEqual(migrated.combatants[0].contactIds, [migrated.combatants[1].id]);
 });

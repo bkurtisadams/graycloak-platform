@@ -364,6 +364,7 @@ export {
   currentDriveState,
   canDoubleFire,
   fuelDamage,
+  releaseFuelFromHit,
   computerOperation,
   turretOperational,
   operationalTurrets,

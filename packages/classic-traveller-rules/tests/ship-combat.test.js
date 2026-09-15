@@ -621,7 +621,8 @@ test('the data card reads damage off the design rather than a stored rating', as
 
   const card = shipDataCard(getParticipant(encounter, 'trader'));
   assert.equal(card.sections[1].reading, 'A DESTROYED');
-  assert.equal(card.fuel.lostTons, 20);
+  assert.equal(card.fuel.puncturedTons, 20);
+  assert.equal(card.fuel.hits, 1);
   assert.equal(card.status.canJump, false);
 });
 
