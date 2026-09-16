@@ -70,6 +70,36 @@ function playerNarrationFor(encounter, entry) {
   return null;
 }
 
+// v0.179.0: the wound a paused round is waiting on (Book 1 p.30 step 2C).
+// Only ever a player character's own wound — the engine never pauses for an
+// NPC — so the numbers here are the player's own, and the weapon and attacker
+// are already named by the narration line for the same blow. What is NOT
+// published is any figure belonging to the attacker: no throw, no DM, no
+// armour, no target number.
+function publishedPendingWound(encounter) {
+  const resolution = encounter.roundState?.resolution;
+  if (!resolution) return null;
+  const wound = resolution.wounds?.[resolution.nextIndex];
+  if (!wound) return null;
+  const defender = encounter.combatants.find((entry) => entry.id === wound.defenderId) ?? null;
+  if (!defender) return null;
+  return {
+    key: wound.key,
+    round: encounter.round,
+    defenderId: wound.defenderId,
+    defenderName: defender.name,
+    attackerName: combatantName(encounter, wound.attackerId),
+    weaponName: wound.weaponName ?? null,
+    damageDice: [...wound.damageDice],
+    modifier: wound.modifier,
+    total: wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier,
+    // The wounded character's own current values, so the page can show what
+    // each choice would leave. Their sheet already carries these.
+    current: { STR: defender.current.STR, DEX: defender.current.DEX, END: defender.current.END },
+    remaining: resolution.wounds.length - resolution.nextIndex
+  };
+}
+
 export function buildPublishedView(encounter, { campaignId, publishedAt, rounds = 4 } = {}) {
   if (!encounter) throw new TypeError('an encounter is required');
   // The round in progress is `round` while the fight runs; once it resolves,
@@ -87,6 +117,8 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
     // which is a different number and was confusing to reconcile.
     declaringRound: encounter.status === 'active' ? encounter.round : null,
     status: encounter.status,
+    // v0.179.0: what the round is waiting for, if anything.
+    pendingWound: publishedPendingWound(encounter),
     range: encounter.range,
     lighting: encounter.conditions?.lighting ?? 'normal',
     publishedAt: publishedAt ?? null,

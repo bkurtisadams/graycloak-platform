@@ -12,7 +12,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">PLAYER v0.178.0</span>
+          <span class="subtitle">PLAYER v0.179.0</span>
           <strong id="player-campaign-name" class="masthead-campaign-name">NOT CONNECTED</strong>
           <span class="masthead-label">DATE</span>
           <strong id="player-clock" class="masthead-date">--</strong>
@@ -145,6 +145,24 @@
         </aside>
       </div>
     </main>
+
+    <!-- v0.179.0: Book 1 p.30 — the wounded player places their own wound.
+         The referee's round is paused behind this, so it cannot be dismissed;
+         REFEREE DEFAULT hands the choice back. -->
+    <dialog id="wound-allocation-dialog" class="roll-dialog wound-allocation-dialog" aria-labelledby="wound-allocation-title">
+      <form id="wound-allocation-form" class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-header"><strong id="wound-allocation-title">ALLOCATE WOUND</strong><span id="wound-allocation-remaining" class="wound-allocation-remaining"></span></div>
+        <div class="roll-dialog-basis">BOOK 1 p.30 // EACH DIE IS ONE WOUND GROUP APPLIED TO A SINGLE CHARACTERISTIC // THE WEAPON'S CONSTANT IS DISTRIBUTED AS YOU CHOOSE</div>
+        <div id="wound-allocation-hit" class="wound-allocation-hit"></div>
+        <div id="wound-allocation-groups" class="wound-allocation-groups"></div>
+        <div id="wound-allocation-preview" class="wound-allocation-preview"></div>
+        <div id="wound-allocation-error" class="wound-allocation-error" hidden></div>
+        <div class="roll-dialog-actions">
+          <button id="wound-allocation-apply" class="text-button action-button" type="submit">[ PLACE THE WOUND ]</button>
+          <button id="wound-allocation-default" class="text-button" type="button" title="Let the referee place it: the constant spread evenly and the groups rotating STR, DEX, END">[ LET THE REFEREE PLACE IT ]</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="player.js"></script>
   </body>

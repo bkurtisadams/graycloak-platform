@@ -13,21 +13,24 @@
 //
 // The only write is a create-only combat declaration for an assigned character.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.178.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.178.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.179.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.179.0';
 import {
   ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
-  writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat } from './publish.js?v=v0.178.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.178.0';
-import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.178.0';
-import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.178.0';
-import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.178.0';
-import { renderSubsectorMap } from './subsector-svg.js?v=v0.178.0';
-import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.178.0';
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.178.0';
-import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.178.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.178.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.178.0';
+  writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat,
+  writeWoundAllocation } from './publish.js?v=v0.179.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.179.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.179.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.179.0';
+import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.179.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.179.0';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.179.0';
+import { renderSubsectorMap } from './subsector-svg.js?v=v0.179.0';
+import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.179.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.179.0';
+import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.179.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.179.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.179.0';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -69,6 +72,16 @@ const el = {
   roster: document.querySelector('#player-roster'),
   narration: document.querySelector('#player-narration'),
   orders: document.querySelector('#player-orders'),
+  woundDialog: document.querySelector('#wound-allocation-dialog'),
+  woundForm: document.querySelector('#wound-allocation-form'),
+  woundTitle: document.querySelector('#wound-allocation-title'),
+  woundRemaining: document.querySelector('#wound-allocation-remaining'),
+  woundHit: document.querySelector('#wound-allocation-hit'),
+  woundGroups: document.querySelector('#wound-allocation-groups'),
+  woundPreview: document.querySelector('#wound-allocation-preview'),
+  woundError: document.querySelector('#wound-allocation-error'),
+  woundApply: document.querySelector('#wound-allocation-apply'),
+  woundDefault: document.querySelector('#wound-allocation-default'),
   stage: document.querySelector('#player-stage'),
   tabCharacter: document.querySelector('#player-tab-character'),
   tabScene: document.querySelector('#player-tab-scene'),
@@ -553,6 +566,87 @@ function renderOrders() {
   el.orders.replaceChildren(...blocks);
 }
 
+// --- v0.179.0: the wound, placed by the player it fell on ---------------
+//
+// Book 1 p.30 leaves the distribution of a wound's groups to the wounded
+// player. The referee's round pauses at step 2C and publishes the fact; this
+// is the page's half. What arrives is the player's own numbers — their dice,
+// their characteristics — and nothing about the attacker's throw.
+let woundDraft = null;
+let answeredWoundKey = null;
+
+function pendingWoundForMe() {
+  const pending = view?.pendingWound ?? null;
+  if (!pending) return null;
+  if (!ownedCombatantIds().has(pending.defenderId)) return null;
+  return woundPromptFrom(pending);
+}
+
+function renderWoundPrompt() {
+  const prompt = pendingWoundForMe();
+  if (!prompt) {
+    woundDraft = null;
+    if (el.woundDialog?.open) closeWoundDialog();
+    return;
+  }
+  // A player who has answered waits for the referee to apply it rather than
+  // being asked the same question by every republish.
+  if (answeredWoundKey === prompt.key) return;
+  if (!woundDraft || woundDraft.key !== prompt.key) woundDraft = initialWoundDraft(prompt);
+  el.woundTitle.textContent = `${prompt.defenderName.toUpperCase()} IS HIT`;
+  el.woundRemaining.textContent = prompt.remaining > 1 ? `${prompt.remaining} WOUNDS THIS ROUND` : '';
+  el.woundHit.textContent = woundHitLine(prompt);
+  renderWoundGroups(el.woundGroups, prompt, woundDraft, (next) => { woundDraft = next; renderWoundPrompt(); });
+  const preview = previewWoundDraft(prompt, woundDraft);
+  el.woundError.hidden = preview.ok;
+  el.woundError.textContent = preview.ok ? '' : String(preview.error).toUpperCase();
+  el.woundApply.disabled = !preview.ok;
+  renderWoundPreview(el.woundPreview, prompt, preview);
+  if (!el.woundDialog.open) {
+    if (typeof el.woundDialog.showModal === 'function') el.woundDialog.showModal();
+    else el.woundDialog.setAttribute('open', '');
+  }
+}
+
+function closeWoundDialog() {
+  if (typeof el.woundDialog.close === 'function') el.woundDialog.close();
+  else el.woundDialog.removeAttribute('open');
+}
+
+async function sendWoundAllocation() {
+  const prompt = pendingWoundForMe();
+  if (!prompt || !woundDraft) return;
+  try {
+    const allocation = createPlayerWoundAllocation({
+      uid: currentUserId(),
+      encounterId: view.encounterId,
+      actorId: view.pendingWound.defenderId,
+      key: prompt.key,
+      targets: [...woundDraft.targets],
+      // A weapon with no constant has nothing to distribute, so nothing is
+      // sent and the referee's own default applies to a field that is empty.
+      allocation: prompt.modifier ? [...woundDraft.shares] : null,
+      round: prompt.round ?? view.declaringRound ?? 1,
+      sentAt: Date.now()
+    });
+    await writeWoundAllocation(connectedCampaignId, view.encounterId, allocation);
+    answeredWoundKey = prompt.key;
+    closeWoundDialog();
+    setStatus('WOUND PLACED / WAITING FOR THE REFEREE', 'ok');
+  } catch (error) {
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// Handing the choice back: the referee's dialog is already open on their
+// screen, so this only closes ours and stops asking until the next wound.
+function declineWoundAllocation() {
+  const prompt = pendingWoundForMe();
+  if (prompt) answeredWoundKey = prompt.key;
+  closeWoundDialog();
+  setStatus('THE REFEREE WILL PLACE THIS WOUND', 'ok');
+}
+
 function renderNarration() {
   // Newest round first, so the latest events are at the top where a player
   // glancing at the screen will see them.
@@ -834,6 +928,9 @@ function render() {
   renderLog();
   renderTabs();
   renderScene();
+  // Outside renderScene: a fight that ends, or a view that goes away, must
+  // close the dialog too, and renderScene returns early in both cases.
+  renderWoundPrompt();
 }
 
 // Live subscriptions: the referee publishes, and this updates without asking.
@@ -972,6 +1069,11 @@ el.chatForm.addEventListener('submit', (event) => {
   postChat(interpretChatInput(text, { uid: currentUserId(), name: chatAuthorName() }));
   el.chatInput.value = '';
 });
+// v0.179.0: the referee's round is paused behind this dialog, so ESC does not
+// dismiss it — the way out is placing the wound or handing it back.
+el.woundDialog.addEventListener('cancel', (event) => { event.preventDefault(); });
+el.woundForm.addEventListener('submit', (event) => { event.preventDefault(); sendWoundAllocation(); });
+el.woundDefault.addEventListener('click', declineWoundAllocation);
 el.showScene.addEventListener('click', () => { preferWorldOverScene = false; render(); });
 el.sceneToWorld.addEventListener('click', () => { preferWorldOverScene = true; render(); });
 el.backToWorld.addEventListener('click', () => { showFinishedBoard = false; render(); });

@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.178.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.178.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.179.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.179.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -187,6 +187,47 @@ export async function clearDeclarations(campaignId, encounterId) {
     .collection('travellerCampaigns').doc(campaignId)
     .collection('encounters').doc(encounterId)
     .collection('declarations');
+  const snapshot = await collection.get();
+  await Promise.all(snapshot.docs.map((entry) => entry.ref.delete()));
+  return snapshot.size;
+}
+
+// --- v0.179.0: the wounded player's own distribution of a wound ----------
+//
+// Same shape as a declaration and for the same reason: the player writes an
+// intent, the referee reads it and applies it to its own encounter. Keyed by
+// the wound rather than by the actor, so a second wound in the same round is
+// a second document and an answer to a wound already applied cannot be
+// mistaken for an answer to the next one.
+
+export async function writeWoundAllocation(campaignId, encounterId, allocation) {
+  const db = await ensureFirestore();
+  await db
+    .collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId)
+    .collection('woundAllocations').doc(allocation.key)
+    .set(allocation);
+  return allocation.key;
+}
+
+export async function watchWoundAllocations(campaignId, encounterId, onChange) {
+  const db = await ensureFirestore();
+  return db
+    .collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId)
+    .collection('woundAllocations')
+    .onSnapshot(
+      (snapshot) => onChange(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))),
+      (error) => console.error('[traveller-publish] wound allocations:', error)
+    );
+}
+
+export async function clearWoundAllocations(campaignId, encounterId) {
+  const db = await ensureFirestore();
+  const collection = db
+    .collection('travellerCampaigns').doc(campaignId)
+    .collection('encounters').doc(encounterId)
+    .collection('woundAllocations');
   const snapshot = await collection.get();
   await Promise.all(snapshot.docs.map((entry) => entry.ref.delete()));
   return snapshot.size;

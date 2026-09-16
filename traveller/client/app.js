@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.178.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.179.0';
 
 import {
   ACTION_LABELS,
@@ -180,33 +180,33 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.178.0';
+} from './ui-model.js?v=v0.179.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.178.0';
+} from './document-loader.js?v=v0.179.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.178.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.178.0';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.178.0';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.178.0';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.178.0';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.178.0';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.178.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.178.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.179.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.179.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.179.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.179.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.179.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.179.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.179.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.179.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.178.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.178.0';
+} from '../src/campaign-document.js?v=v0.179.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.179.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.178.0';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.179.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.178.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.178.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.178.0';
+} from '../src/document-window.js?v=v0.179.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.179.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.179.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -215,13 +215,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.178.0';
+} from './chargen-view.js?v=v0.179.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.178.0';
+} from './generators.js?v=v0.179.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -232,7 +232,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.178.0';
+} from './subsector-svg.js?v=v0.179.0';
 
 import {
   seededDice,
@@ -241,7 +241,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.178.0';
+} from './commerce-market.js?v=v0.179.0';
 
 import {
   addCharacterToCampaign,
@@ -271,7 +271,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.178.0';
+} from '../src/campaign-document.js?v=v0.179.0';
 
 import {
   NPC_CONDITIONS,
@@ -280,16 +280,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.178.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.178.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.178.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.178.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.178.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.178.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.178.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.178.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.178.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.178.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.179.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.179.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.179.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.179.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.179.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.179.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.179.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.179.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.179.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.179.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -298,14 +298,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.178.0';
+} from '../src/activity-log-document.js?v=v0.179.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.178.0';
+} from '../src/player-session.js?v=v0.179.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -313,19 +313,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.178.0';
+} from './quick-slots.js?v=v0.179.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.178.0';
+} from '../src/campaign-bundle.js?v=v0.179.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.178.0';
+} from '../src/document-registry.js?v=v0.179.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.178.0';
+} from '../src/activity-log.js?v=v0.179.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -335,14 +335,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.178.0';
+} from '../src/contract-document.js?v=v0.179.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.178.0';
+} from '../src/situation-document.js?v=v0.179.0';
 
 import {
   createEncounterDocument,
@@ -371,40 +371,42 @@ import {
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, previewWoundAllocation, allocateRoundWound } from '../src/encounter-document.js?v=v0.178.0';
+  pendingWoundAllocation, allocateRoundWound } from '../src/encounter-document.js?v=v0.179.0';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.178.0';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.179.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.179.0';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.179.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.178.0';
+} from '../src/contact-document.js?v=v0.179.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.178.0';
+} from '../src/adventure-thread-document.js?v=v0.179.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.178.0';
+} from '../world/situation-events.js?v=v0.179.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.178.0';
+} from '../world/contract-board.js?v=v0.179.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.178.0';
+} from '../world/thread-consequences.js?v=v0.179.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.178.0';
+} from '../world/far-meridian-subsector.js?v=v0.179.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -896,6 +898,9 @@ let encounterGridHidden = false;
 try { encounterGridHidden = window.localStorage?.getItem(ENCOUNTER_GRID_VISIBILITY_KEY) === 'hidden'; } catch { encounterGridHidden = false; }
 let lastPublishedRound = null;
 let unsubscribeDeclarations = null;
+// v0.179.0: the wounded player's own distribution of a wound (Book 1 p.30).
+let unsubscribeWoundAllocations = null;
+let watchedWoundEncounterId = null;
 let watchedDeclarationEncounterId = null;
 let appliedDeclarationKeys = new Set();
 let unsubscribeTokenMoves = null;
@@ -6459,6 +6464,60 @@ function watchPlayerDeclarations() {
     .catch((error) => console.error(error));
 }
 
+// v0.179.0: the wounded player answers the paused round from their own page.
+// Same shape as declarations: the player writes an intent keyed by the wound,
+// this reads it, checks it against the referee's own encounter, and applies
+// it. A refused answer is told to that player and the round stays paused —
+// the referee can always allocate it themselves instead.
+function watchPlayerWoundAllocations() {
+  const encounter = activeEncounterAtCurrentSystem();
+  const online = campaignIsPublished(campaignDocument) && currentUserId();
+  if (!online || !encounter) {
+    unsubscribeWoundAllocations?.();
+    unsubscribeWoundAllocations = null;
+    watchedWoundEncounterId = null;
+    return;
+  }
+  if (watchedWoundEncounterId === encounter.identity.id) return;
+  unsubscribeWoundAllocations?.();
+  watchedWoundEncounterId = encounter.identity.id;
+  const watchedId = encounter.identity.id;
+  watchWoundAllocations(campaignDocument.identity.id, watchedId, applyPlayerWoundAllocations)
+    .then((unsubscribe) => {
+      if (watchedWoundEncounterId !== watchedId) unsubscribe();
+      else unsubscribeWoundAllocations = unsubscribe;
+    })
+    .catch((error) => console.error(error));
+}
+
+function applyPlayerWoundAllocations(entries) {
+  const encounter = activeEncounterAtCurrentSystem();
+  if (!encounter) return;
+  const pending = pendingWoundAllocation(encounter);
+  if (!pending) return;
+  const answer = entries.find((entry) => entry.key === pending.key);
+  if (!answer) return;
+  try {
+    const intent = authorizePlayerWoundAllocation(answer, { campaign: campaignDocument, encounter, pending });
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+    const result = allocateRoundWound(encounter, {
+      key: intent.key,
+      allocation: intent.allocation,
+      targets: [...intent.targets],
+      dice: seededDice(`${encounter.identity.id}|round-${encounter.round}|wound-${intent.key}`),
+      date: campaignDateSnapshot()
+    });
+    encounterDocuments[index] = result.encounter;
+    closeWoundAllocationDialog();
+    logActivity('COMBAT', `${pending.defender?.name ?? 'A character'}: wound placed by ${pending.defender?.name ?? 'the player'} (Book 1 p.30).`);
+    applyResolvedRound(result);
+  } catch (error) {
+    console.warn('[traveller] wound allocation refused:', error?.message ?? error);
+    tellPlayer(answer.uid, `Your wound allocation was refused: ${error?.message ?? error}`);
+  }
+  clearWoundAllocations(campaignDocument.identity.id, encounter.identity.id).catch((error) => console.error(error));
+}
+
 function watchPlayerCanvas() {
   watchTableChat();
   const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
@@ -6686,6 +6745,22 @@ function autoPublishEncounterView(encounter) {
 // so reassigning a character removes it from the previous player's path.
 let publishedCharacterOwners = new Map();
 let playerPublishTimer = null;
+
+// v0.179.0: who plays this combatant, if anybody is seated for it. The
+// combatant id is the character document id for a party character, which is
+// the key ownership.actors uses.
+function seatedOwnerOfCombatant(combatantId) {
+  const uid = campaignDocument?.ownership?.actors?.[combatantId] ?? null;
+  if (typeof uid !== 'string' || !uid.trim()) return null;
+  if (!campaignIsPublished(campaignDocument) || !currentUserId()) return null;
+  // The referee playing their own character answers in their own dialog.
+  if (uid.trim() === currentUserId()) return null;
+  return uid.trim();
+}
+
+function playerLabelForUid(uid) {
+  return seatedPlayers.find((player) => player.uid === uid)?.name || uid;
+}
 
 function seatedOwnership() {
   const owners = new Map();
@@ -8749,8 +8824,20 @@ function applyResolvedRound(result) {
   persistCampaignState();
   if (result.pending) {
     render();
-    openWoundAllocationDialog();
     const pending = pendingWoundAllocation(result.encounter);
+    // v0.179.0: the wound belongs to whoever plays that character. If a
+    // seated player does, the paused view goes out and the page asks them;
+    // the referee's own dialog stays available as the override. Publishing a
+    // paused round is safe — buildPublishedView shows only rounds already
+    // resolved, so the pending wound is the one new thing in it.
+    const ownerUid = pending?.defender ? seatedOwnerOfCombatant(pending.defender.id) : null;
+    if (ownerUid) {
+      autoPublishEncounterView(result.encounter);
+      tellPlayer(ownerUid, `${pending.defender.name} is hit — place the wound on your page.`);
+      setStatus(`${pending.defender.name.toUpperCase()} IS HIT / WAITING FOR ${playerLabelForUid(ownerUid).toUpperCase()}`, 'error');
+      return;
+    }
+    openWoundAllocationDialog();
     setStatus(`${pending?.defender?.name.toUpperCase() ?? 'A CHARACTER'} IS HIT / ALLOCATE THE WOUND`, 'error');
     return;
   }
@@ -8793,12 +8880,8 @@ function openWoundAllocationDialog() {
   const encounter = activeEncounterAtCurrentSystem();
   const pending = encounter ? pendingWoundAllocation(encounter) : null;
   if (!pending) return setStatus('NO WOUND IS WAITING TO BE ALLOCATED', 'error');
-  woundAllocationDraft = {
-    key: pending.key,
-    targets: pending.damageDice.map((die, index) => ['STR', 'DEX', 'END'][index % 3]),
-    // The constant starts undistributed on the first group; the player moves it.
-    shares: pending.damageDice.map((die, index) => (index === 0 ? pending.modifier : 0))
-  };
+  const prompt = woundPromptFrom(pending);
+  woundAllocationDraft = initialWoundDraft(prompt);
   renderWoundAllocationDialog();
   if (typeof el.woundAllocationDialog.showModal === 'function') el.woundAllocationDialog.showModal();
   else el.woundAllocationDialog.setAttribute('open', '');
@@ -8810,98 +8893,26 @@ function closeWoundAllocationDialog() {
   else el.woundAllocationDialog.removeAttribute('open');
 }
 
+// v0.179.0: the rows, the preview and the rules behind them are the shared
+// wound-dialog module, so the referee's dialog and the player's are the same
+// thing with different buttons beneath.
 function renderWoundAllocationDialog() {
   const encounter = activeEncounterAtCurrentSystem();
   const pending = encounter ? pendingWoundAllocation(encounter) : null;
   if (!pending || !woundAllocationDraft) return;
-  const defender = pending.defender;
-  el.woundAllocationTitle.textContent = `${defender.name.toUpperCase()} IS HIT`;
-  el.woundAllocationRemaining.textContent = pending.remaining > 1 ? `${pending.remaining} WOUNDS THIS ROUND` : '';
-  el.woundAllocationHit.textContent = `${pending.attackerName.toUpperCase()} \u00b7 ${String(pending.weaponName).toUpperCase()} \u00b7 `
-    + `${pending.damageDice.map((die) => `[${die}]`).join(' ')}${pending.modifier ? ` ${signedDMText(pending.modifier)}` : ''} = ${pending.total}`;
-
-  el.woundAllocationGroups.replaceChildren();
-  const constant = pending.modifier;
-  woundAllocationDraft.damageDice = pending.damageDice;
-  pending.damageDice.forEach((die, index) => {
-    const row = document.createElement('div');
-    row.className = 'wound-group-row';
-    const label = document.createElement('span');
-    label.className = 'wound-group-die';
-    const share = woundAllocationDraft.shares[index] ?? 0;
-    label.textContent = `[${die}]${share ? ` ${signedDMText(share)}` : ''} = ${Math.max(0, die + share)}`;
-    label.title = 'Book 1 p.30: a group floors at zero; it cannot heal a characteristic';
-    const picks = document.createElement('span');
-    picks.className = 'wound-group-picks';
-    for (const key of ['STR', 'DEX', 'END']) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      const on = woundAllocationDraft.targets[index] === key;
-      button.className = `text-button declare-choice${on ? ' is-on' : ''}`;
-      const current = defender.current[key];
-      button.textContent = `${key} ${current}`;
-      button.disabled = current <= 0;
-      button.title = current <= 0
-        ? `Book 1 p.31: ${key} is already at zero, so further points must go elsewhere`
-        : `Apply this group to ${key}`;
-      button.setAttribute('aria-pressed', String(on));
-      button.addEventListener('click', () => { woundAllocationDraft.targets[index] = key; renderWoundAllocationDialog(); });
-      picks.append(button);
-    }
-    row.append(label, picks);
-    if (constant) {
-      const move = document.createElement('span');
-      move.className = 'wound-group-share';
-      const step = (delta) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'text-button';
-        button.textContent = delta > 0 ? '[ + ]' : '[ \u2212 ]';
-        button.title = `Move one point of the weapon's ${signedDMText(constant)} onto this group`;
-        button.addEventListener('click', () => {
-          const shares = woundAllocationDraft.shares;
-          // Keep the total equal to the constant: take from wherever there is
-          // something to take, so the sum never drifts.
-          const donor = shares.findIndex((value, other) => other !== index && (delta > 0 ? value > 0 || constant < 0 : value < 0 || constant > 0));
-          if (donor < 0) return;
-          shares[index] += delta;
-          shares[donor] -= delta;
-          renderWoundAllocationDialog();
-        });
-        return button;
-      };
-      move.append(step(-1), step(1));
-      row.append(move);
-    }
-    el.woundAllocationGroups.append(row);
+  const prompt = woundPromptFrom(pending);
+  el.woundAllocationTitle.textContent = `${prompt.defenderName.toUpperCase()} IS HIT`;
+  el.woundAllocationRemaining.textContent = prompt.remaining > 1 ? `${prompt.remaining} WOUNDS THIS ROUND` : '';
+  el.woundAllocationHit.textContent = woundHitLine(prompt);
+  renderWoundGroups(el.woundAllocationGroups, prompt, woundAllocationDraft, (next) => {
+    woundAllocationDraft = next;
+    renderWoundAllocationDialog();
   });
-
-  // What this choice would do, asked of the rules rather than recomputed here.
-  let preview = null;
-  let problem = null;
-  try {
-    preview = previewWoundAllocation(encounter, {
-      allocation: constant ? woundAllocationDraft.shares : null,
-      targets: woundAllocationDraft.targets
-    });
-  } catch (error) { problem = error?.message ?? String(error); }
-  el.woundAllocationError.hidden = !problem;
-  el.woundAllocationError.textContent = problem ? problem.toUpperCase() : '';
-  el.woundAllocationApply.disabled = Boolean(problem);
-  el.woundAllocationPreview.replaceChildren();
-  if (preview) {
-    const after = document.createElement('div');
-    after.className = 'wound-preview-line';
-    after.textContent = ['STR', 'DEX', 'END']
-      .map((key) => `${key} ${defender.current[key]} \u2192 ${preview.combatant.current[key]}`)
-      .join('  \u00b7  ');
-    const state = document.createElement('div');
-    state.className = `wound-preview-state${preview.status === 'active' ? '' : ' critical'}`;
-    state.textContent = preview.status === 'active'
-      ? 'STILL STANDING'
-      : preview.status === 'dead' ? 'DEAD \u2014 ALL THREE AT ZERO (p.30)' : 'UNCONSCIOUS \u2014 A CHARACTERISTIC AT ZERO (p.30)';
-    el.woundAllocationPreview.append(after, state);
-  }
+  const preview = previewWoundDraft(prompt, woundAllocationDraft);
+  el.woundAllocationError.hidden = preview.ok;
+  el.woundAllocationError.textContent = preview.ok ? '' : String(preview.error).toUpperCase();
+  el.woundAllocationApply.disabled = !preview.ok;
+  renderWoundPreview(el.woundAllocationPreview, prompt, preview);
 }
 
 function submitWoundAllocation({ refereeDefault = false } = {}) {
@@ -12814,6 +12825,7 @@ function render() {
     ['account', renderAccount],
     ['publish', renderPublishPanel],
     ['player-declarations', watchPlayerDeclarations],
+    ['player-wounds', watchPlayerWoundAllocations],
     ['player-canvas', watchPlayerCanvas],
     ['directory', renderCampaignDirectory],
 
