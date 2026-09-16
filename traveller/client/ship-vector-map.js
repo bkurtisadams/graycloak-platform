@@ -1,8 +1,25 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.188.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.188.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.189.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.189.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null, selectedForTurn = null;
+// v0.189.0: the ship under the pointer, so hover reads on the plot as it does on
+// the personal board. Kept across redraws (a zoom rebuilds every node).
+let hovered = null;
+// The selection the app was last told about. Announced after every render, so
+// the first render, a turn's automatic pick and a click all reach the sidebar.
+let announcedSelection = null;
+// v0.189.0: the app reads the selection to outline the same ship's data card,
+// so the plot and the sidebar never disagree about which ship is selected.
+export function vectorSelectedShipId() { return selected; }
+// Corner brackets around a point, the scene board's selection mark
+// (scene-canvas.js v0.82.0) drawn in screen units so zoom never thins or fattens
+// it. `h` is the half-size of the box, `c` the length of each corner arm.
+function cornerBrackets(cx, cy, h, c) {
+  const l = cx - h, r = cx + h, t = cy - h, b = cy + h;
+  return `M ${l} ${t + c} V ${t} H ${l + c} M ${r - c} ${t} H ${r} V ${t + c} `
+    + `M ${r} ${b - c} V ${b} H ${r - c} M ${l + c} ${b} H ${l} V ${b - c}`;
+}
 // v0.151.0: the plot's own camera. The subsector map's zoom controls drive
 // setSubsectorZoom, which touches the subsector SVG and nothing else, and they
 // live inside #subsector-section, which is hidden whenever the plot is up — so
@@ -41,7 +58,7 @@ function svgPixelScale(svg, viewWidth, viewHeight) {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
-export function renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu = null }) {
+export function renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu = null, onSelect = null }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
@@ -57,12 +74,17 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       && encounter.spatial?.ships?.[entry.id]?.movedTurn !== encounter.gameTurn);
     if (mover) selected = mover.id;
   }
+  if (announcedSelection !== selected) { announcedSelection = selected; onSelect?.(selected); }
   panel.replaceChildren();
   const heading = document.createElement('div'); heading.className = 'vector-controls';
   const title = document.createElement('strong'); title.textContent = `SPACE / TURN ${encounter.gameTurn} / ${encounter.phasingSide.toUpperCase()}`;
   const select = document.createElement('select'); select.setAttribute('aria-label', 'Selected ship');
   encounter.participants.forEach(p => select.add(new Option(p.name, p.id)));
-  select.value = selected; select.onchange = () => { selected = select.value; renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu }); };
+  // v0.189.0: the dropdown, a click on a token and the token menu's "select"
+  // all go through choose(), so there is one selection and the app hears of it.
+  const rerender = () => renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu, onSelect });
+  const choose = (shipId) => { selected = shipId; rerender(); };
+  select.value = selected; select.onchange = () => choose(select.value);
   const zoomButton = (text, label, handler) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'text-button map-zoom-button'; b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler; return b; };
   const zoomLabel = document.createElement('span'); zoomLabel.className = 'map-zoom-label'; zoomLabel.setAttribute('aria-live', 'polite'); zoomLabel.textContent = '100%';
   const zoomTools = document.createElement('span'); zoomTools.className = 'vector-zoom-tools'; zoomTools.setAttribute('aria-label', 'Vector plot zoom controls');
@@ -232,6 +254,13 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
   let transform, dragBasis = null, suppressNextClick = false, drawnOnce = false;
   function draw() {
     drawnOnce = true;
+    // v0.189.0: ships are raised above everything drawn after them, and the
+    // endpoint handle above the ships. The dashed preview and the reachable
+    // envelope used to be drawn over the tokens and took their clicks, so a
+    // ship inside another's envelope, or under its own preview line, could not
+    // be selected at all.
+    const shipLayer = [];
+    let endpointHandle = null;
     const pixelUnits = view.zoom * svgPixelScale(svg, VIEW_W, VIEW_H);
     const px = (n) => n / pixelUnits;
     pendingThrust[selected] = { x: Number(ax.value) || 0, y: Number(ay.value) || 0 };
@@ -510,38 +539,89 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       // phase rail keep saying that — so the hue follows the side a ship
       // fights on, which is what a referee scanning a three-ship board needs.
       token.classList.add(`vector-side-${ship.side === 'party' ? 'party' : ship.side === 'opposition' ? 'opposition' : 'third'}`);
-      token.style.cursor='pointer';token.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, adjudicate, tokenMenu});});
+      // v0.189.0: the token sits in a group with a transparent hit disc, so a
+      // 5px arrow is not a 5px target, and the group carries the ship's id for
+      // the selection and hover marks. Clicks on the disc are still "on a ship",
+      // not on empty space, so they never plot an endpoint (a circle target).
+      const cx = x(s.position.x), cy = y(s.position.y);
+      const group = node('g', { 'data-ship-id': ship.id });
+      group.classList.add('vector-ship');
+      const hit = node('circle', { cx, cy, r: px(11), fill: 'transparent' });
+      hit.classList.add('vector-ship-hit');
+      group.append(hit, token);
+      group.style.cursor = 'pointer';
+      group.addEventListener('click', () => choose(ship.id));
+      // Hover toggles its mark in place rather than redrawing the plot, which
+      // would rebuild the thrust fields under the user's cursor.
+      const hoverMark = node('path', { d: cornerBrackets(cx, cy, px(11), px(4)), 'stroke-width': px(1.5) });
+      hoverMark.classList.add('vector-ship-hover');
+      if (hovered === ship.id && ship.id !== selected) hoverMark.classList.add('is-hovered');
+      group.addEventListener('pointerenter', () => {
+        hovered = ship.id;
+        svg.querySelectorAll('.vector-ship-hover.is-hovered').forEach((mark) => mark.classList.remove('is-hovered'));
+        if (ship.id !== selected) hoverMark.classList.add('is-hovered');
+      });
+      group.addEventListener('pointerleave', () => {
+        if (hovered === ship.id) hovered = null;
+        hoverMark.classList.remove('is-hovered');
+      });
       // v0.170.0: the token's menu. A right-button press on a token must not
       // start the plot's pan, or the menu opens on a moving board.
       if (tokenMenu) {
-        token.addEventListener('pointerdown', (event) => { if (event.button === 2) event.stopPropagation(); });
-        token.addEventListener('contextmenu', (event) => {
+        group.addEventListener('pointerdown', (event) => { if (event.button === 2) event.stopPropagation(); });
+        group.addEventListener('contextmenu', (event) => {
           event.preventDefault(); event.stopPropagation();
-          tokenMenu(event, ship.id, { select: () => { selected = ship.id; renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu }); } });
+          tokenMenu(event, ship.id, { select: () => choose(ship.id) });
         });
         token.append(node('title', {}, `${ship.name}: click to select, right-click for actions`));
       }
-      svg.append(token);
+      svg.append(group, hoverMark);
+      shipLayer.push(group, hoverMark);
+      // v0.189.0: the selected ship wears the gold corner brackets every other
+      // Graycloak board uses for "the one you are giving orders to" — the
+      // personal board's ring and the scene board's brackets are the same gold.
+      if (ship.id === selected) {
+        const mark = node('path', { d: cornerBrackets(cx, cy, px(12), px(5)), 'stroke-width': px(2) });
+        mark.classList.add('vector-ship-selected');
+        svg.append(mark);
+        shipLayer.push(mark);
+      }
       // v0.148.0: no font-size, so the names rendered at the document default
       // and were larger than the world they orbit.
-      svg.append(node('text', {
-        x: x(s.position.x) + px(10), y: y(s.position.y) - px(9),
+      const label = node('text', {
+        x: x(s.position.x) + px(14), y: y(s.position.y) - px(9),
         fill: 'currentColor', 'font-size': px(11),
         'font-weight': ship.id === selected ? '700' : '400'
-      }, ship.name));
+      }, ship.name);
+      // v0.189.0: a ship that has committed its move this turn says so on the
+      // plot, not only in the hint line and a disabled COMMIT button.
+      if (s.movedTurn === encounter.gameTurn) {
+        const moved = node('tspan', { dx: px(4), 'fill-opacity': 0.75 }, '\u2713');
+        moved.classList.add('vector-ship-moved');
+        moved.append(node('title', {}, `${ship.name} has committed its move this turn (Book 2 p.26).`));
+        label.append(moved);
+      }
+      svg.append(label);
+      shipLayer.push(label);
     }
     // The reachable envelope: the ruler and protractor, drawn. Only while the
     // ship may actually move, so it does not imply a choice that is not there.
     if (envelope && envelope.radiusInches > 0 && !button.disabled) {
-      svg.append(node('circle', {
+      // v0.189.0: a drawing, not a target. As a filled circle it caught every
+      // click inside it, and the plot ignores clicks on circles, so clicking
+      // inside the reachable area never plotted an endpoint.
+      const reach = node('circle', {
         cx: x(envelope.centre.x), cy: y(envelope.centre.y), r: envelope.radiusInches * scale,
         fill: 'currentColor', 'fill-opacity': 0.05, stroke: 'currentColor',
-        'stroke-opacity': 0.3, 'stroke-width': px(1)
-      }));
+        'stroke-opacity': 0.3, 'stroke-width': px(1), 'pointer-events': 'none'
+      });
+      reach.classList.add('vector-envelope');
+      svg.append(reach);
     }
     if(preview){const s=encounter.spatial.ships[selected];svg.append(node('line',{x1:x(s.position.x),y1:y(s.position.y),x2:x(preview.endpoint.x),y2:y(preview.endpoint.y),stroke:'currentColor','stroke-dasharray':`${px(6)} ${px(4)}`,'stroke-width':px(1.5)}));
       const handle=node('circle',{cx:x(preview.endpoint.x),cy:y(preview.endpoint.y),r:px(5),fill:'none',stroke:'currentColor','stroke-width':px(1.5)});
       handle.classList.add('vector-endpoint-handle');
+      endpointHandle = handle;
       if(!button.disabled){handle.style.cursor='move';handle.addEventListener('pointerdown',startEndpointDrag);}
       svg.append(handle);
       // Book 2 p.29 reads the band at the midpoint of the course vector, before
@@ -560,6 +640,8 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
         }
       }
     }
+    svg.append(...shipLayer);
+    if (endpointHandle) svg.append(endpointHandle);
   }
   // Dragging the ENDPOINT, not the ship: where the ship ends up is a choice,
   // where it is now is not. The drop position is solved back into thrust the

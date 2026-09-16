@@ -5116,6 +5116,18 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* Parked, not collapsed: a hidden verb keeps its slot so nothing reflows. */
 .ship-combat-verbs .ship-verb[hidden] { display: inline-block !important; visibility: hidden; pointer-events: none; }
 
+/* --- v0.189.0: the selected ship, and the one under the pointer.
+
+   The same gold every Graycloak board uses for "the one you are giving orders
+   to": the personal board's .encounter-token-selected-ring and the scene
+   board's corner brackets. Stroke widths are set in screen units by the plot,
+   so the marks hold their weight at any zoom. Side colour stays on the token;
+   gold is only ever selection. */
+.vector-ship-selected { fill: none; stroke: #d8b53a; stroke-linecap: square; pointer-events: none; }
+.vector-ship-hover { fill: none; stroke: #d8b53a; stroke-opacity: .5; stroke-linecap: square; pointer-events: none; visibility: hidden; }
+.vector-ship-hover.is-hovered { visibility: visible; }
+.ship-data-card-frame.is-selected { outline: 2px solid #d8b53a; outline-offset: 1px; }
+
 /* v0.188.0: the rack controls on each ship's card in the sidebar. */
 .ship-card-ordnance { border-top: 1px dotted var(--disabled); margin-top: 4px; padding-top: 4px; }
 

@@ -46,7 +46,9 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   // v0.154.0's reachable envelope and v0.155.1's hover target on the disc. The
   // moving ship is an arrow from v0.156.0, so it is a polygon rather than a
   // circle.
-  assert.equal(svg.querySelectorAll('circle').length, 8);
+  // v0.189.0: each ship also has a transparent hit disc, which draws nothing.
+  assert.equal(svg.querySelectorAll('circle:not(.vector-ship-hit)').length, 8);
+  assert.equal(svg.querySelectorAll('.vector-ship-hit').length, 2);
   assert.equal(svg.querySelectorAll('polygon').length, 1);
   // Book 2 p.29 samples the band at the course midpoint, so the status says
   // which band applies and how hard it pulls.
@@ -63,7 +65,7 @@ test('the world and its quarter-G bands are drawn, and clear space is not', { sk
   document.body.append(second);
   renderShipVectorMap(second, clear, { commit() {} });
   svg = second.querySelector('svg');
-  assert.equal(svg.querySelectorAll('circle').length, 3);
+  assert.equal(svg.querySelectorAll('circle:not(.vector-ship-hit)').length, 3);
   assert.equal(svg.querySelectorAll('polygon').length, 1);
   assert.match(second.querySelector('p').textContent, /No world is placed/);
 });
