@@ -370,6 +370,25 @@ function defaultAllocation(damageDice, modifier) {
 // applied to — Book 1 p.30 leaves that to the wounded player as well. Omitted,
 // groups rotate STR/DEX/END as before. A group whose characteristic is already
 // at zero spills to the first non-zero one, per p.31.
+// Book 1 pp.30-31: a wound group lands on one characteristic; once that
+// characteristic is at zero, "further points may not be applied to it; they
+// must be applied to other (non-zero) characteristics." So the points a group
+// cannot spend on its target spill onward, which is how first blood "may
+// immediately incapacitate or even kill" (p.30).
+function inflictWound(current, preferred, amount, allocations, extra = {}) {
+  let remaining = amount;
+  const order = [preferred, ...PHYSICAL_KEYS.filter((key) => key !== preferred)];
+  for (const key of order) {
+    if (remaining <= 0) break;
+    if (current[key] <= 0) continue;
+    const spent = Math.min(current[key], remaining);
+    current[key] -= spent;
+    remaining -= spent;
+    allocations.push({ characteristic: key, amount: spent, spilled: key !== preferred, ...extra });
+  }
+  return remaining;
+}
+
 export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null, { modifier = 0, allocation = null, targets = null } = {}) {
   const wound = personalWoundGroups(damageDice, modifier, allocation);
   const next = clone(combatant);
@@ -389,10 +408,9 @@ export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null
     }
     // Book 1 p.30: the first wound is applied ENTIRELY to one randomly
     // determined characteristic, so the modifier is not distributed - the whole
-    // total lands in one place, and may incapacitate or kill outright.
+    // total lands in one place, and what that place cannot hold spills on.
     const key = PHYSICAL_KEYS[(firstBloodRoll - 1) % PHYSICAL_KEYS.length];
-    next.current[key] = Math.max(0, next.current[key] - wound.total);
-    allocations.push({ characteristic: key, amount: wound.total, firstBlood: true });
+    inflictWound(next.current, key, wound.total, allocations, { firstBlood: true });
     next.firstBlood = false;
   } else {
     if (targets !== null) {
@@ -404,13 +422,7 @@ export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null
     wound.groups.forEach((amount, index) => {
       if (amount <= 0) return;
       const preferred = targets ? targets[index] : PHYSICAL_KEYS[index % PHYSICAL_KEYS.length];
-      // Book 1 p.31: once a characteristic is at zero, further points may not be
-      // applied to it and must go to a non-zero one.
-      const key = next.current[preferred] > 0
-        ? preferred
-        : (PHYSICAL_KEYS.find((candidate) => next.current[candidate] > 0) ?? preferred);
-      next.current[key] = Math.max(0, next.current[key] - amount);
-      allocations.push({ characteristic: key, amount });
+      inflictWound(next.current, preferred, amount, allocations);
     });
   }
 
@@ -420,14 +432,19 @@ export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null
 }
 
 
-// Book 1 p.31 terrain DMs, applied to the 2D encounter range throw.
+// Book 1 p.27 terrain DMs, applied to the 2D encounter range throw. The
+// maritime and arctic rows are from the 1981 printing and are not in the
+// 1977 table; they are kept for referees who want them and listed in
+// TERRAIN_DMS_NOT_1977.
 export const TERRAIN_DMS = Object.freeze({
-  clear: 3, prairie: 3, rough: 2, broken: 2, mountain: 3, forest: 1, jungle: 0,
-  river: 1, swamp: -4, desert: 4, 'maritime-surface': 2, 'maritime-subsurface': -1,
-  arctic: 2, city: -4, 'building-interior': -5
+  clear: 3, road: 3, prairie: 3, plain: 3, desert: 4, hills: 2, foothills: 2, mountain: 3,
+  forest: 1, woods: 1, jungle: 0, rough: 2, broken: 2, swamp: -4, marsh: -4,
+  beach: 1, shore: 1, river: 1, suburb: -2, city: -4, 'building-interior': -5, cave: -5,
+  'maritime-surface': 2, 'maritime-subsurface': -1, arctic: 2
 });
+export const TERRAIN_DMS_NOT_1977 = Object.freeze(['maritime-surface', 'maritime-subsurface', 'arctic']);
 
-// Book 1 p.31 encounter range table: 2D plus the terrain DM, clamped to the
+// Book 1 p.27 encounter range table: 2D plus the terrain DM, clamped to the
 // printed 1-13 span.
 export const ENCOUNTER_RANGE_TABLE = Object.freeze({
   1: 'short', 2: 'close', 3: 'short', 4: 'medium', 5: 'short', 6: 'medium', 7: 'medium',
@@ -449,13 +466,16 @@ export function rollEncounterRange(dice, { terrain = null, dm = 0 } = {}) {
   return Object.freeze({ dice: Object.freeze([...roll.dice]), roll: roll.total, terrain, terrainDM, dm, total, range: encounterRangeForThrow(total) });
 }
 
-// Book 1 p.31 surprise DMs. Each is a condition the referee ticks; the sum is
-// the side's surprise DM.
+// Book 1 p.27 surprise DMs: leader expertise +1, tactical expertise +1,
+// military experience +1. That is the whole 1977 table. The vehicle, party
+// size, pouncer and battle dress DMs are 1981 additions, kept as referee
+// options and listed in SURPRISE_DMS_NOT_1977 so the client can label them.
 export const SURPRISE_DMS = Object.freeze({
   leaderSkill: 1, tacticalSkill: 1, militaryExperience: 1,
   inAVehicle: -1, eightOrMoreAdventurers: -1, tenOrMoreAnimals: -1,
   pouncerAnimals: 1, battleDress: 2
 });
+export const SURPRISE_DMS_NOT_1977 = Object.freeze(['inAVehicle', 'eightOrMoreAdventurers', 'tenOrMoreAnimals', 'pouncerAnimals', 'battleDress']);
 
 export function surpriseDMTotal(conditions = {}) {
   let total = 0;
@@ -467,15 +487,16 @@ export function surpriseDMTotal(conditions = {}) {
   return total;
 }
 
-// Book 1 p.31 errata situational DMs applied to the basic 8+ throw. These are
-// conditions of the attack, not of the combatants, so the caller ticks them
-// and passes the total as the situational DM.
+// Situational DMs on the basic 8+ throw. NONE of these are in the 1977 Book 1;
+// cover, concealment and darkness come from the 1981 printing, and the folding
+// stock from its range matrix footnote. Kept as referee options, every entry
+// raw: false, so the client shows them as house rules rather than as printed.
 export const SITUATION_DMS = Object.freeze({
-  cover: { dm: -4, label: 'Cover', page: 'B1 p.31 errata' },
-  concealment: { dm: -1, label: 'Concealment', page: 'B1 p.31 errata' },
-  darkness: { dm: -9, label: 'Darkness', page: 'B1 p.31 errata' },
-  darknessWithLightIntensifier: { dm: -6, label: 'Darkness / light intensifier', page: 'B1 p.31 errata' },
-  foldingStock: { dm: -1, label: 'Folding stock', page: 'B1 p.31 errata' }
+  cover: { dm: -4, label: 'Cover', page: 'Book 1 (1981) p.31', raw: false },
+  concealment: { dm: -1, label: 'Concealment', page: 'Book 1 (1981) p.31', raw: false },
+  darkness: { dm: -9, label: 'Darkness', page: 'Book 1 (1981) p.31', raw: false },
+  darknessWithLightIntensifier: { dm: -6, label: 'Darkness / light intensifier', page: 'Book 1 (1981) p.31', raw: false },
+  foldingStock: { dm: -1, label: 'Folding stock (folded)', page: 'Book 1 p.43 note 5', raw: true }
 });
 
 export function situationDMTotal(conditions = {}) {
@@ -493,18 +514,21 @@ export function situationDMTotal(conditions = {}) {
 // take the weapon's negative DM instead and may be chosen deliberately to
 // conserve it. Gun combat is not affected at all.
 export const BLOW_CLASSES = Object.freeze(['surprise', 'combat', 'weakened', 'special']);
-// Book 1 p.36: a long gun may be used to parry, treated as a cudgel; a pistol
-// may not. Treated as a cudgel means the club's parry, not the gun skill.
-export const LONG_GUN_PARRY_KEYS = Object.freeze(['rifle', 'carbine', 'automatic-rifle', 'shotgun', 'laser-rifle', 'laser-carbine', 'submachine-gun']);
+// Book 1 p.32: a gun-armed character gets the defensive DM only if he "actually
+// uses the gun as a brawling weapon (as a club, for example)"; p.33: "Pistols
+// may be classed as clubs when used in brawling." So any gun parries as a
+// club, on the club's expertise, not the gun's. The old long-gun-only name is
+// kept as an alias.
+export const GUN_PARRY_KEYS = Object.freeze(['body-pistol', 'revolver', 'automatic-pistol', 'rifle', 'carbine', 'automatic-rifle', 'shotgun', 'laser-rifle', 'laser-carbine', 'submachine-gun']);
+export const LONG_GUN_PARRY_KEYS = GUN_PARRY_KEYS;
 
-// Book 1 p.36: expertise in a brawling or blade weapon parries a blow or
-// swing. A long gun parries as a cudgel, so it is the club's expertise that
-// counts, not the gun's; a pistol cannot parry at all.
+// Book 1 p.32: expertise in a brawling or blade weapon is a negative DM
+// against a brawling or blade attack. A gun parries as a club.
 export function parryExpertise(defender) {
   if (!defender?.weaponKey) return 0;
   const weapon = getPersonalWeapon(defender.weaponKey);
   if (weapon.parry) return personalWeaponSkillLevel(defender, defender.weaponKey);
-  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'club');
+  if (GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'club');
   return 0;
 }
 
@@ -617,30 +641,33 @@ export function resolvePersonalAttack({ attacker, defender, range, situationalDM
   return { ...result, defender: damage.combatant, firstBloodRoll, wound: damage.wound ?? null, allocations: damage.allocations, defenderStatus: damage.status, noEffect: Boolean(damage.noEffect) };
 }
 
-// Book 1 p.36 morale DMs. The first three describe facts the caller must know;
-// the casualty penalty is derived from the strength figures by the resolver.
+// Book 1 p.33 morale DMs: +1 military unit, +1 a leader (leader expertise)
+// present, +1 that leader has any tactical expertise; -2 leader killed, -2
+// casualties over half. The casualty penalty is derived by the resolver.
 export const MORALE_DMS = Object.freeze({
   militaryUnit: 1,
+  leaderPresent: 1,
   leaderHasTactics: 1,
   leaderKilled: -2,
   casualtiesOverHalf: -2
 });
 
-export function moraleDMParts({ militaryUnit = false, leaderHasTactics = false, leaderKilled = false, casualtiesOverHalf = false } = {}) {
+export function moraleDMParts({ militaryUnit = false, leaderPresent = false, leaderHasTactics = false, leaderKilled = false, casualtiesOverHalf = false } = {}) {
   return Object.freeze([
     militaryUnit && { key: 'militaryUnit', label: 'MILITARY UNIT', dm: MORALE_DMS.militaryUnit },
+    leaderPresent && { key: 'leaderPresent', label: 'LEADER PRESENT', dm: MORALE_DMS.leaderPresent },
     leaderHasTactics && { key: 'leaderHasTactics', label: 'LEADER TACTICS', dm: MORALE_DMS.leaderHasTactics },
     leaderKilled && { key: 'leaderKilled', label: 'LEADER KILLED', dm: MORALE_DMS.leaderKilled },
     casualtiesOverHalf && { key: 'casualtiesOverHalf', label: 'CASUALTIES OVER 50%', dm: MORALE_DMS.casualtiesOverHalf }
   ].filter(Boolean));
 }
 
-export function resolvePersonalMorale({ casualties, originalStrength, moraleTarget = 7, dm = 0, militaryUnit = false, leaderHasTactics = false, leaderKilled = false, dice } = {}) {
+export function resolvePersonalMorale({ casualties, originalStrength, moraleTarget = 7, dm = 0, militaryUnit = false, leaderPresent = false, leaderHasTactics = false, leaderKilled = false, dice } = {}) {
   requireDice(dice);
   integer(casualties, 'casualties'); integer(originalStrength, 'originalStrength'); integer(moraleTarget, 'moraleTarget'); integer(dm, 'dm');
   if (casualties < 0 || originalStrength < 0 || casualties > originalStrength) throw new RangeError('casualties must be from zero through originalStrength');
   const required = originalStrength > 0 && casualties / originalStrength >= 0.25;
-  const parts = moraleDMParts({ militaryUnit, leaderHasTactics, leaderKilled, casualtiesOverHalf: originalStrength > 0 && casualties / originalStrength > 0.5 });
+  const parts = moraleDMParts({ militaryUnit, leaderPresent, leaderHasTactics, leaderKilled, casualtiesOverHalf: originalStrength > 0 && casualties / originalStrength > 0.5 });
   const rulesDM = parts.reduce((sum, part) => sum + part.dm, 0);
   const totalDM = dm + rulesDM;
   if (!required) return { required: false, roll: null, dice: [], dm: totalDM, refereeDM: dm, parts, total: null, target: moraleTarget, stands: true };
@@ -650,14 +677,16 @@ export function resolvePersonalMorale({ casualties, originalStrength, moraleTarg
   return { required: true, roll, dice: results, dm: totalDM, refereeDM: dm, parts, total, target: moraleTarget, stands: total >= moraleTarget };
 }
 
-// Book 1 p.36: half an hour's rest restores the blow allowance. End of combat
-// is the point the client reaches that rest, so the allowance resets here.
+// Book 1 p.31: half an hour's rest restores the blow allowance. A character
+// knocked unconscious by one zeroed characteristic wakes after ten minutes at
+// the halfway point between full and wounded, fractions against him; one with
+// two zeroes wakes after three hours at the wounded level, or one, whichever
+// is higher. A conscious wounded character gets nothing here: return to full
+// strength "requires medical attention, or three days of rest".
 export function endPersonalCombatRecovery(combatant) {
   const next = clone(combatant);
   next.blowsUsed = 0;
-  if (next.status === 'active' && PHYSICAL_KEYS.some((key) => next.current[key] < next.characteristics[key])) {
-    for (const key of PHYSICAL_KEYS) next.current[key] = Math.floor((next.current[key] + next.characteristics[key]) / 2);
-  } else if (next.status === 'unconscious') {
+  if (next.status === 'unconscious') {
     const zeroes = PHYSICAL_KEYS.filter((key) => next.current[key] <= 0).length;
     if (zeroes === 1) for (const key of PHYSICAL_KEYS) next.current[key] = Math.max(1, Math.floor((next.current[key] + next.characteristics[key]) / 2));
     else for (const key of PHYSICAL_KEYS) next.current[key] = Math.max(1, next.current[key]);

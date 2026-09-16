@@ -129,11 +129,15 @@ export function calculateJumpFuelRequirement(ship, distance, { travelDays = STAN
 
   const hullTons = ship.specifications.hull.tons;
   const powerRating = ship.specifications.drives.powerPlant.rating;
-  const jumpFuelTons = 0.1 * hullTons * distance;
+  // Book 2 p.6: "Jump fuel requirements are based on jump number rather than
+  // the size of the jump actually taken." A J-2 ship burns 0.2M whether it
+  // jumps one parsec or two.
+  const jumpFuelTons = 0.1 * hullTons * jumpRating;
   const powerPlantFuelTons = 10 * powerRating;
   const totalTons = jumpFuelTons + powerPlantFuelTons;
   return Object.freeze({
     distance,
+    jumpRating,
     jumpFuelTons,
     powerPlantFuelTons,
     totalTons,

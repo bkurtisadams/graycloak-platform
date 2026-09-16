@@ -1,12 +1,13 @@
 import { requireDice } from '../dice.js';
 
-// Book 3 p.25: one throw per week for the whole band; a 5 or 6 on one die
+// Book 3 p.20: one throw per week for the whole band; a 5 or 6 on one die
 // indicates a likely patron has been found.
 export const PATRON_AVAILABILITY_FOUND_ROLLS = Object.freeze([5, 6]);
-// Book 3 p.27 standard reaction DMs.
+// Book 3 pp.22-23 reaction DMs: +1 for five or more terms in the army, navy,
+// marines or scouts; -1 if the planetary population is 11 or greater.
 export const REACTION_DMS = Object.freeze({
   fiveOrMoreMilitaryTerms: 1,
-  planetaryPopulation9Plus: -1
+  planetaryPopulation11Plus: -1
 });
 export const PATRON_SUITABILITY_TARGET = 7;
 
@@ -33,7 +34,7 @@ export const REACTION_TABLE = Object.freeze({
   12: 'Genuinely friendly.'
 });
 
-// Book 3 p.27: natural 2 and 12 are not subject to DMs; any other result is
+// Book 3 p.22: natural 2 and 12 are not subject to DMs; any other result is
 // modified, with results below 3 becoming 3 and above 12 becoming 12.
 export function modifiedReactionTotal(naturalRoll, dm = 0) {
   if (!Number.isInteger(naturalRoll) || naturalRoll < 2 || naturalRoll > 12) throw new TypeError('reaction roll must be a 2D total');
