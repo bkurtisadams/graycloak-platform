@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.189.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.189.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.190.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.190.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null, selectedForTurn = null;
@@ -12,6 +12,15 @@ let announcedSelection = null;
 // v0.189.0: the app reads the selection to outline the same ship's data card,
 // so the plot and the sidebar never disagree about which ship is selected.
 export function vectorSelectedShipId() { return selected; }
+// v0.190.0: the ship under the pointer, which T aims the selected ship at.
+export function vectorHoveredShipId() { return hovered; }
+// v0.190.0: ship combat's sides are Book 2 p.23's intruder and native — the
+// engine has no other — so the colour follows them (Kurt 2026-09-16: red
+// intruder, blue native). v0.187.0 keyed on 'party'/'opposition', which no
+// ship combat participant ever has, so every ship drew as a third party.
+export function vectorSideClass(side) {
+  return `vector-side-${side === 'intruder' ? 'intruder' : side === 'native' ? 'native' : 'third'}`;
+}
 // Corner brackets around a point, the scene board's selection mark
 // (scene-canvas.js v0.82.0) drawn in screen units so zoom never thins or fattens
 // it. `h` is the half-size of the box, `c` the length of each corner arm.
@@ -58,7 +67,7 @@ function svgPixelScale(svg, viewWidth, viewHeight) {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
 
-export function renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu = null, onSelect = null }) {
+export function renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu = null, onSelect = null, targetsOf = null }) {
   if (!stage) return;
   let panel = stage.querySelector('#ship-vector-workspace');
   if (!encounter || encounter.spatialMode !== 'vector') { panel?.remove(); return; }
@@ -82,7 +91,7 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
   encounter.participants.forEach(p => select.add(new Option(p.name, p.id)));
   // v0.189.0: the dropdown, a click on a token and the token menu's "select"
   // all go through choose(), so there is one selection and the app hears of it.
-  const rerender = () => renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu, onSelect });
+  const rerender = () => renderShipVectorMap(stage, encounter, { commit, adjudicate, tokenMenu, onSelect, targetsOf });
   const choose = (shipId) => { selected = shipId; rerender(); };
   select.value = selected; select.onchange = () => choose(select.value);
   const zoomButton = (text, label, handler) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'text-button map-zoom-button'; b.textContent = text; b.setAttribute('aria-label', label); b.onclick = handler; return b; };
@@ -503,7 +512,7 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       missile.classList.add('vector-missile');
       // v0.187.0: whose missile this is, so phase D shows whose ordnance is
       // about to detonate on whom. Dashes still carry not-yet-in-effect.
-      missile.classList.add(`vector-side-${round.launcherSide === 'party' ? 'party' : 'opposition'}`);
+      missile.classList.add(vectorSideClass(round.launcherSide));
       svg.append(missile);
       if (round.status === 'contact') {
         svg.append(node('circle', { cx, cy, r: m * 2.2, fill: 'none', stroke: 'currentColor', 'stroke-width': px(1.5) }));
@@ -538,7 +547,7 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       // split is turn ORDER, not friend and foe — the INT/NAT pills in the
       // phase rail keep saying that — so the hue follows the side a ship
       // fights on, which is what a referee scanning a three-ship board needs.
-      token.classList.add(`vector-side-${ship.side === 'party' ? 'party' : ship.side === 'opposition' ? 'opposition' : 'third'}`);
+      token.classList.add(vectorSideClass(ship.side));
       // v0.189.0: the token sits in a group with a transparent hit disc, so a
       // 5px arrow is not a 5px target, and the group carries the ship's id for
       // the selection and hover marks. Clicks on the disc are still "on a ship",
@@ -585,6 +594,14 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
         mark.classList.add('vector-ship-selected');
         svg.append(mark);
         shipLayer.push(mark);
+      }
+      // v0.190.0: a ship the selected ship's turrets are aimed at wears the
+      // personal board's target ring, dashed so it never reads as selection.
+      if (targetsOf && selected && targetsOf(selected).includes(ship.id)) {
+        const ring = node('circle', { cx, cy, r: px(15), 'stroke-width': px(2), 'stroke-dasharray': `${px(4)} ${px(3)}` });
+        ring.classList.add('vector-ship-target');
+        svg.append(ring);
+        shipLayer.push(ring);
       }
       // v0.148.0: no font-size, so the names rendered at the document default
       // and were larger than the world they orbit.

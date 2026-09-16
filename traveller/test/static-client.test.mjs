@@ -43,7 +43,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -60,7 +60,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   const chargenView = await read('chargen-view.js');
   assert.match(chargenView, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
@@ -214,7 +214,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /class="scene shell-stage"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
@@ -234,7 +234,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(model, /panelRow\('BERTHING'/);
@@ -251,7 +251,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -276,7 +276,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -292,7 +292,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   // v0.120.0: TRADE and JOBS are dock flyouts now; the world record is what
   // remains beside the map.
   assert.match(html, /id="operations-tab-port"/);
@@ -314,7 +314,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -331,7 +331,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
@@ -350,7 +350,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -371,7 +371,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -387,7 +387,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -403,7 +403,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -431,7 +431,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -454,7 +454,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="encounter-section"/);
   // v0.47.0: orders are given per combatant, in that combatant's tracker row.
   assert.match(app, /verbs\.className = 'encounter-tracker-verbs';/);
@@ -474,7 +474,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -517,7 +517,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(await read('scene-canvas.js'), /getScreenCTM/);
@@ -535,7 +535,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   // v0.120.0: the roster tab is gone — the section it pointed at already
   // lives in the ACTORS panel, so it was the same roster reached two ways.
   assert.doesNotMatch(html, /id="operations-tab-roster"/);
@@ -556,7 +556,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.189\.0/);
+  assert.match(html, /v0\.190\.0/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -577,7 +577,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.189\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.190\.0</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -637,7 +637,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.189\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.190\.0</);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /class="terminal shell"/);
   assert.match(html, /class="shell-rail"/);
@@ -1643,8 +1643,8 @@ test('v0.60.0 rechecks player ownership and retires stale scene listeners', asyn
   assert.match(app, /if \(watchedDeclarationEncounterId !== watchedId\) unsubscribe\(\);/);
   assert.match(player, /const generation = \+\+sceneWatchGeneration;/);
   assert.match(player, /if \(generation !== sceneWatchGeneration \|\| encounterId !== watchedEncounterId\) unsubscribe\(\);/);
-  assert.match(index, /v0\.189\.0/);
-  assert.match(playerPage, /PLAYER v0\.189\.0/);
+  assert.match(index, /v0\.190\.0/);
+  assert.match(playerPage, /PLAYER v0\.190\.0/);
 });
 
 test('v0.63.0 uses a configurable metre grid, compact shared-square tokens, and selected-actor range boundaries', async () => {
@@ -1839,7 +1839,7 @@ test('v0.67.0 gives players a front door: their own characters, chargen, and a s
 
   // The page: sign in, the list, chargen with the lifted view; the referee
   // client is never imported.
-  assert.match(html, /ENTER v0\.189\.0/);
+  assert.match(html, /ENTER v0\.190\.0/);
   assert.match(html, /id="enter-signin"/);
   assert.match(html, /id="enter-character-list"/);
   assert.match(html, /id="enter-new-character"/);
@@ -2314,7 +2314,7 @@ test('v0.79.0 keeps an explicit canvas and follows Foundry control behavior', as
   const html = await read('index.html');
   const css = await read('styles.css');
   const win = await read('../src/document-window.js');
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.189\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.190\.0</);
   assert.match(html, /class="scene-tab scene-tab-combat-proxy"[^>]*hidden/);
   assert.match(css, /grid-template-columns: 80px minmax\(0, 1fr\) 360px;/);
   assert.match(css, /\.shell-stage \.canvas \{[\s\S]*?height: auto;[\s\S]*?overflow: hidden;/);
@@ -3352,7 +3352,8 @@ test('v0.123.0 ship combat runs Book 2 phases in the rail', async () => {
   assert.match(app, /function renderShipCombatRail\(\)/);
   // Phase C belongs to the side that is NOT acting, and the rail says whose is
   // whose rather than leaving the player to work it out.
-  assert.match(app, /ACTING: \$\{acting\.toUpperCase\(\)\}/);
+  // v0.190.0: the mockup's lead line names the live phase and who acts in it.
+  assert.match(app, /\\u00b7 ACTING \$\{acting === 'intruder' \? 'INT' : 'NAT'\}/);
   assert.match(app, /Phase C belongs to the side that is not acting/);
   // Book 2 p.23 phase A moves ordnance launched in previous game turns.
   assert.match(app, /moveOrdnance\(shipCombatEncounter\)/);
@@ -4651,29 +4652,32 @@ test('the sides carry colour, and nothing rests on hue alone', async () => {
   const map = await readFile(new URL('../client/ship-vector-map.js', import.meta.url), 'utf8');
   const css = await readFile(new URL('../client/styles.css', import.meta.url), 'utf8');
 
-  // Three tokens, and the ochre is deliberately not --error's crimson.
-  for (const token of ['--side-party: #1f3a4d', '--side-opposition: #6b4415', '--side-third: #46365c']) {
+  // v0.190.0: ship combat's sides are Book 2 p.23's intruder and native — the
+  // engine has no party/opposition, so v0.187.0's keys never matched a ship.
+  // Red intruder, blue native (Kurt), and the red is not a damage red.
+  for (const token of ['--side-intruder: #a8321e', '--side-native: #1f4f7a', '--side-third: #46365c']) {
     assert.ok(css.includes(token), `${token} is declared`);
   }
-  assert.ok(!css.includes('--side-opposition: #5c1616'), 'opposition must not read as damage');
+  for (const damage of ['#5c1616', '#7a3a3a']) assert.ok(!css.includes(`--side-intruder: ${damage}`), 'intruder must not read as damage');
 
   // The card's edge and a tag that names the side in words.
-  assert.match(app, /function shipSideKey\(participant\)/);
-  assert.match(css, /\.ship-data-card-frame\.side-opposition \{ border-left: 4px solid var\(--side-opposition\); \}/);
-  assert.match(app, /sideTag\.textContent = participant\.side === 'party' \? 'PARTY'/);
+  assert.match(app, /function shipSideKey\(participant\) \{\n  if \(participant\.side === 'intruder'\) return 'intruder';/);
+  assert.match(css, /\.ship-data-card-frame\.side-intruder \{ border-left: 4px solid var\(--side-intruder\); \}/);
+  assert.match(app, /sideTag\.textContent = participant\.side === 'intruder' \? 'INTRUDER'/);
 
-  // The live phase cell only, tinted by whoever is acting — the ✓ and the
-  // weight still carry done/live/pending on their own.
+  // The live phase cell, the pills and the lead line, in the acting side's colour.
   assert.match(app, /const actingSideKey = position === 'now' \? shipCombatActingSide\(encounter\) : null;/);
-  assert.match(css, /\.ship-phase-step\.now\.acting-party \.ship-phase-label \{/);
-  // Book 2 p.23's intruder/native split is turn order and stays with the pills.
+  assert.match(css, /\.ship-phase-step\.now\.acting-intruder \.ship-phase-label \{/);
+  assert.match(css, /\.ship-phase-pill\.intruder \{ color: var\(--side-intruder\);/);
+  assert.match(css, /\.ship-phase-pill\.native \{ color: var\(--side-native\);/);
   assert.match(app, /pill\.textContent = side === 'intruder' \? 'INT' : 'NAT';/);
 
-  // The plot: one class per group, carried by currentColor; ordnance by the
+  // The plot: one class per side, carried by currentColor; ordnance by the
   // side that launched it.
-  assert.match(map, /token\.classList\.add\(`vector-side-\$\{ship\.side === 'party' \? 'party' : ship\.side === 'opposition' \? 'opposition' : 'third'\}`\);/);
-  assert.match(map, /missile\.classList\.add\(`vector-side-\$\{round\.launcherSide === 'party' \? 'party' : 'opposition'\}`\);/);
-  assert.match(css, /\.ship-vector-svg \.vector-side-party \{ color: var\(--side-party\); \}/);
+  assert.match(map, /export function vectorSideClass\(side\)/);
+  assert.match(map, /token\.classList\.add\(vectorSideClass\(ship\.side\)\);/);
+  assert.match(map, /missile\.classList\.add\(vectorSideClass\(round\.launcherSide\)\);/);
+  assert.match(css, /\.ship-vector-svg \.vector-side-intruder \{ color: var\(--side-intruder\); \}/);
   assert.doesNotMatch(css, /box-shadow/);
 });
 
@@ -4738,3 +4742,25 @@ test('the vector plot marks its selected and hovered ship', async () => {
   // A committed move is marked on the plot.
   assert.match(map, /if \(s\.movedTurn === encounter\.gameTurn\) \{/);
 });
+
+// v0.190.0: T on a hovered ship, the LAUNCH verb, and Multi-Target limits read
+// from the rules package. Behaviour is tested in ship-targeting.test.mjs and in
+// the browser; this pins the wiring.
+test('T aims the selected ship at the hovered one, through the targeting module', async () => {
+  const app = await readFile(new URL('../client/app.js', import.meta.url), 'utf8');
+  const map = await readFile(new URL('../client/ship-vector-map.js', import.meta.url), 'utf8');
+  const targeting = await readFile(new URL('../src/ship-targeting.js', import.meta.url), 'utf8');
+  const html = await readFile(new URL('../client/index.html', import.meta.url), 'utf8');
+  assert.match(map, /export function vectorHoveredShipId\(\) \{ return hovered; \}/);
+  assert.match(app, /targetHoveredShip\(shipCombatEncounter, shipCombatAllocation, \{ shooterId, targetId: vectorHoveredShipId\(\), armedTurretId \}\)/);
+  assert.match(app, /if \(event\.shiftKey\) \{\n    const cleared = clearShipTargets\(/);
+  // The limit comes from the package, never counted in the client.
+  assert.match(targeting, /const \{ limit, program \} = turretTargetLimit\(shooter\);/);
+  assert.doesNotMatch(app, /multi-target-[234]/);
+  // Rings on the plot for the selected ship's targets.
+  assert.match(app, /targetsOf: \(shipId\) => targetsOfShip\(shipCombatAllocation, shipId\)/);
+  assert.match(map, /ring\.classList\.add\('vector-ship-target'\);/);
+  // LAUNCH in phase D's second slot, as the approved mockup has it.
+  assert.match(html, /data-phase="ordnance-launch"><span class="ship-verb-slot"><button id="ship-verb-detonate"[^>]*><\/button><\/span><span class="ship-verb-slot"><button id="ship-verb-launch"/);
+});
+

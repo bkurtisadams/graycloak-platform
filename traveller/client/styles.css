@@ -33,6 +33,14 @@
   --side-opposition: #6b4415;
   --side-opposition-tint: #e8dcc8;
   --side-third: #46365c;
+  /* v0.190.0: ship combat's sides are Book 2 p.23's intruder and native.
+     Red intruder, blue native (Kurt 2026-09-16). The red is a brick red kept
+     clear of --error (#5c1616) and --failure-border (#7a3a3a), which mean
+     damage and refusal. */
+  --side-intruder: #a8321e;
+  --side-intruder-tint: #f1d8d1;
+  --side-native: #1f4f7a;
+  --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
 }
 
@@ -4600,6 +4608,11 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ship-phase-step.done .ship-phase-label { opacity: 0.7; }
 .ship-phase-step.now .ship-phase-label { font-weight: 700; border-bottom-color: var(--link); }
 .ship-phase-pill { font-size: 8px; font-weight: 700; line-height: 1; padding: 2px 4px; border: 1px solid var(--rule); }
+/* v0.190.0: the pills in the sides' own colours, so who acts reads at a glance. */
+.ship-phase-pill.intruder { color: var(--side-intruder); border-color: var(--side-intruder); background: var(--side-intruder-tint); }
+.ship-phase-pill.native { color: var(--side-native); border-color: var(--side-native); background: var(--side-native-tint); }
+.ship-strip-lead .encounter-tracker-ready.acting-intruder { color: var(--side-intruder); opacity: 1; }
+.ship-strip-lead .encounter-tracker-ready.acting-native { color: var(--side-native); opacity: 1; }
 .ship-phase-step.todo .ship-phase-pill, .ship-phase-step.done .ship-phase-pill { opacity: 0.4; }
 .ship-phase-sep { opacity: 0.4; font-size: 10px; }
 .ship-phase-hint { font-size: 11px; opacity: 0.85; margin: 2px 0 6px; }
@@ -5065,7 +5078,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    narrower (Kurt 2026-09-16). The widths are set by the widest thing that can
    occupy each column — a two-line phase label or its longest short verb. */
 :root {
-  --ship-col-lead: 180px;
+  --ship-col-lead: 250px;
   --ship-col-movement: 72px;
   --ship-col-laser-fire: 92px;
   --ship-col-return-fire: 122px;
@@ -5093,7 +5106,9 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ship-strip-lead { min-width: 0; overflow: hidden; line-height: 1.3; }
 .ship-strip-lead > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ship-strip-lead .encounter-tracker-state { font-size: 11px; letter-spacing: .06em; }
-.ship-strip-lead .encounter-tracker-ready { font-size: 10px; letter-spacing: .06em; opacity: .8; }
+/* max-width: none undoes the personal tracker's 18ch cap (v0.91.0), which cut
+   the lead's second line off at any width. */
+.ship-strip-lead .encounter-tracker-ready { font-size: 10px; letter-spacing: .02em; opacity: .8; max-width: none; }
 .ship-combat-rail-row .ship-phase-step { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 0; }
 .ship-combat-rail-row .ship-phase-line { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ship-combat-rail-row .ship-phase-sep { text-align: center; line-height: 13px; }
@@ -5128,6 +5143,13 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .vector-ship-hover.is-hovered { visibility: visible; }
 .ship-data-card-frame.is-selected { outline: 2px solid #d8b53a; outline-offset: 1px; }
 
+/* v0.190.0: a ship the selected ship is aimed at — the personal board's
+   dashed target ring. Never a click target: it sits over the token. */
+.vector-ship-target { fill: none; stroke: var(--failure-border); pointer-events: none; }
+/* A turret armed for the next T. */
+.ship-card-turret { cursor: pointer; }
+.ship-card-turret.is-armed { outline: 2px dashed var(--failure-border); outline-offset: 1px; }
+
 /* v0.188.0: the rack controls on each ship's card in the sidebar. */
 .ship-card-ordnance { border-top: 1px dotted var(--disabled); margin-top: 4px; padding-top: 4px; }
 
@@ -5146,6 +5168,8 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
    chips (green-plus and red-minus already carry those), not the range-line
    zones (shades of one ink are the right way to show an ordered scale), and
    not the wound pips (amber and red already mean exactly what they mean). */
+.ship-data-card-frame.side-intruder { border-left: 4px solid var(--side-intruder); }
+.ship-data-card-frame.side-native { border-left: 4px solid var(--side-native); }
 .ship-data-card-frame.side-party { border-left: 4px solid var(--side-party); }
 .ship-data-card-frame.side-opposition { border-left: 4px solid var(--side-opposition); }
 .ship-data-card-frame.side-third { border-left: 4px solid var(--side-third); }
@@ -5155,12 +5179,16 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
   font-size: 9px; letter-spacing: .1em; padding: 0 4px;
   border: 1px solid var(--rule); color: var(--ink);
 }
+.ship-side-tag.side-intruder { background: var(--side-intruder-tint); color: var(--side-intruder); }
+.ship-side-tag.side-native { background: var(--side-native-tint); color: var(--side-native); }
 .ship-side-tag.side-party { background: var(--side-party-tint); }
 .ship-side-tag.side-opposition { background: var(--side-opposition-tint); }
 .ship-side-tag.side-third { background: var(--side-third-tint); }
 
 /* The live cell takes the acting side's colour. The ✓ and the weight still
    carry done/live/pending on their own. */
+.ship-phase-step.now.acting-intruder .ship-phase-label { border-bottom-color: var(--side-intruder); background: var(--side-intruder-tint); color: var(--side-intruder); }
+.ship-phase-step.now.acting-native .ship-phase-label { border-bottom-color: var(--side-native); background: var(--side-native-tint); color: var(--side-native); }
 .ship-phase-step.now.acting-party .ship-phase-label { border-bottom-color: var(--side-party); background: var(--side-party-tint); }
 .ship-phase-step.now.acting-opposition .ship-phase-label { border-bottom-color: var(--side-opposition); background: var(--side-opposition-tint); }
 
@@ -5168,6 +5196,8 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
    group carries the hue to its token, its vector and its label. Ordnance is
    coloured by the side that launched it (Book 2 p.30), and keeps
    diamond-for-missile, circle-for-sand and dashes for not-yet-in-effect. */
+.ship-vector-svg .vector-side-intruder { color: var(--side-intruder); }
+.ship-vector-svg .vector-side-native { color: var(--side-native); }
 .ship-vector-svg .vector-side-party { color: var(--side-party); }
 .ship-vector-svg .vector-side-opposition { color: var(--side-opposition); }
 .ship-vector-svg .vector-side-third { color: var(--side-third); }

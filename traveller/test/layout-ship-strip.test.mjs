@@ -71,6 +71,8 @@ function measureStrip() {
     verbs: [...document.querySelectorAll('#ship-combat-verbs .ship-verb')].map((button) => ({
       id: button.id, text: button.textContent.trim(), shown: !button.hidden, clipped: button.scrollWidth > button.clientWidth + 1, ...box(button)
     })),
+    // v0.190.0: the lead's two lines, which must never be cut off either.
+    leadClipped: [...document.querySelectorAll('#ship-combat-rail .ship-strip-lead > *')].filter((line) => line.scrollWidth > line.clientWidth + 1).map((line) => line.textContent),
     plot: box(document.querySelector('#ship-vector-stage')),
     plotShown: !document.querySelector('#ship-vector-section')?.hidden
   };
@@ -94,7 +96,7 @@ async function playOneTurn(page) {
   return snapshots;
 }
 
-const where = (snapshot) => `${snapshot.acting.replace(/^ACTING:\s*/, '')} ${snapshot.phase}`;
+const where = (snapshot) => snapshot.acting;
 const px = (value) => `${Math.round(value)}px`;
 
 // Largest movement of each keyed box across the turn, reported by name.
@@ -146,7 +148,7 @@ test('ship combat strip geometry', { skip: launched.skip ?? false }, async (t) =
       // Phases with nothing to do (no hits to return, nothing launched) are
       // passed over by the engine, so count sides rather than steps.
       const seen = turn.map(where).join(' / ');
-      assert.ok(turn.some((s) => /INTRUDER/.test(s.acting)) && turn.some((s) => /NATIVE/.test(s.acting)), `both sides act (saw ${seen})`);
+      assert.ok(turn.some((s) => /ACTING INT\b/.test(s.acting)) && turn.some((s) => /ACTING NAT\b/.test(s.acting)), `both sides act (saw ${seen})`);
       assert.match(turn.at(-1).next, /TURN 2/, `the turn reaches its end (saw ${seen})`);
     });
 
@@ -189,6 +191,7 @@ test('ship combat strip geometry', { skip: launched.skip ?? false }, async (t) =
       const clipped = [];
       for (const snapshot of turn) {
         for (const verb of snapshot.verbs) if (verb.shown && verb.clipped) clipped.push(`"${verb.text}" in ${where(snapshot)}`);
+        for (const line of snapshot.leadClipped) clipped.push(`lead "${line}"`);
       }
       assert.deepEqual([...new Set(clipped)], []);
     });

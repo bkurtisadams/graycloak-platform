@@ -745,11 +745,62 @@ function programAttackValue(key, gunnerSkill) {
  * which would allow the greater benefit". So the options are reported rather
  * than resolved, and `laserAttackDM` takes an explicit choice.
  */
-export function cpuFireOptions(participant, turretId, { returnFire = false, multipleTargets = false } = {}) {
+/**
+ * v0.61.0: Book 2 p.29 — all the lasers in one turret fire on one target, and
+ * different turrets on one ship may fire on different targets only with a
+ * Multi-Target program. The program table (components.js) records how many
+ * targets each allows: Multi-Target 2, 3 and 4.
+ *
+ * Before v0.61.0 the fire check named Multi-Target 2 and asked only whether a
+ * ship had more than one target, so a ship running Multi-Target 3 or 4 was
+ * refused as if it had none, and Multi-Target 2 allowed any number.
+ *
+ * Graycloak ruling (Kurt, 2026-09-16, provisional): Multi-Target N allows at
+ * most N different targets per ship per phase, as the table's `targets` says.
+ */
+export const MULTI_TARGET_PROGRAMS = Object.freeze(['multi-target-2', 'multi-target-3', 'multi-target-4']);
+export const MAXIMUM_TARGETS_PER_SHIP = 4;
+
+/**
+ * The loaded Multi-Target program that covers `targetCount` different targets:
+ * the smallest that does, since it takes the least CPU. Null for one target,
+ * which needs none, or when nothing loaded covers the count.
+ */
+export function multiTargetProgramFor(participant, targetCount) {
+  if (!(targetCount > 1)) return null;
+  return MULTI_TARGET_PROGRAMS
+    .find((key) => programInComputer(participant, key) && getComputerProgram(key).targets >= targetCount) ?? null;
+}
+
+/**
+ * How many different targets this ship's turrets may engage in one phase: 1
+ * with no Multi-Target program loaded, otherwise the largest loaded program's
+ * figure. Whether that program also fits the CPU alongside Target (and Return
+ * Fire) is decided when the ship fires; this is the limit the program allows.
+ */
+export function turretTargetLimit(participant) {
+  const program = [...MULTI_TARGET_PROGRAMS].reverse().find((key) => programInComputer(participant, key)) ?? null;
+  return Object.freeze({ limit: program ? getComputerProgram(program).targets : 1, program });
+}
+
+export function cpuFireOptions(participant, turretId, { returnFire = false, multipleTargets = false, targetCount = null } = {}) {
   const gunnerSkill = participant.skills.gunnery?.[turretId] ?? 0;
   const required = ['target'];
   if (returnFire) required.push('return-fire');
-  if (multipleTargets) required.push('multi-target-2');
+  // `multipleTargets` is the pre-v0.61.0 flag, read as two targets.
+  const count = targetCount ?? (multipleTargets ? 2 : 1);
+  if (count > MAXIMUM_TARGETS_PER_SHIP) {
+    const { cpu } = computerCapacity(participant);
+    return Object.freeze({
+      required: Object.freeze([...required]),
+      possible: false,
+      missing: Object.freeze([`a Multi-Target program for ${count} targets (the largest, Multi-Target 4, allows ${MAXIMUM_TARGETS_PER_SHIP})`]),
+      cpu, requiredSpace: 0, freeSpace: cpu, gunnerSkill, candidates: Object.freeze([])
+    });
+  }
+  // Name the program the ship has, or else the smallest that would do, so a
+  // refusal says what to load.
+  if (count > 1) required.push(multiTargetProgramFor(participant, count) ?? `multi-target-${count}`);
   const mandatory = cycleIntoCpu(participant, { required });
   const candidates = ['predict-5', 'predict-4', 'predict-3', 'predict-2', 'predict-1', 'gunner-interact']
     .filter((key) => programInComputer(participant, key))
@@ -805,15 +856,15 @@ export function bestCpuFireChoice(participant, turretId, options = {}) {
  * programs are running. `chosen` is the player's selection; omitted, the
  * best-value set that fits is used.
  */
-export function laserAttackDM(participant, turretId, { returnFire = false, multipleTargets = false, chosen = null } = {}) {
+export function laserAttackDM(participant, turretId, { returnFire = false, multipleTargets = false, targetCount = null, chosen = null } = {}) {
   const gunnerSkill = participant.skills.gunnery?.[turretId] ?? 0;
-  const available = cpuFireOptions(participant, turretId, { returnFire, multipleTargets });
+  const available = cpuFireOptions(participant, turretId, { returnFire, multipleTargets, targetCount });
   if (!available.possible) {
     return Object.freeze({ possible: false, missing: available.missing, dm: 0, running: Object.freeze([]), components: Object.freeze([]), options: available });
   }
 
   const selection = chosen === null
-    ? bestCpuFireChoice(participant, turretId, { returnFire, multipleTargets })
+    ? bestCpuFireChoice(participant, turretId, { returnFire, multipleTargets, targetCount })
     : chosen.filter((key) => available.candidates.some((candidate) => candidate.key === key));
   const cycle = cycleIntoCpu(participant, { required: available.required, optional: selection });
   if (!cycle.possible) {
@@ -1027,8 +1078,10 @@ export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
       continue;
     }
 
-    const multipleTargets = (targetsPerShip.get(entry.shipId)?.size ?? 1) > 1;
-    const attack = laserAttackDM(attacker, entry.turretId, { returnFire: phase.key === 'return-fire', multipleTargets });
+    // v0.61.0: the number of targets, not "more than one", decides which
+    // Multi-Target program is needed.
+    const targetCount = targetsPerShip.get(entry.shipId)?.size ?? 1;
+    const attack = laserAttackDM(attacker, entry.turretId, { returnFire: phase.key === 'return-fire', targetCount });
     if (!attack.possible) {
       shots.push(Object.freeze({
         shipId: entry.shipId, turretId: entry.turretId, targetId: entry.targetId,

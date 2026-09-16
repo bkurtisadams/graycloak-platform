@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.189.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.190.0';
 
 import {
   ACTION_LABELS,
@@ -180,33 +180,34 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.189.0';
+} from './ui-model.js?v=v0.190.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.189.0';
+} from './document-loader.js?v=v0.190.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.189.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.189.0';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.189.0';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.189.0';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.189.0';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.189.0';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.189.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.189.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.190.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.190.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.190.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.190.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.190.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.190.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.190.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.190.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.189.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.189.0';
+} from '../src/campaign-document.js?v=v0.190.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.190.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage, vectorSelectedShipId } from './ship-vector-map.js?v=v0.189.0';
+import { renderShipVectorMap, renderVectorSceneStage, vectorSelectedShipId, vectorHoveredShipId } from './ship-vector-map.js?v=v0.190.0';
+import { targetHoveredShip, clearShipTargets, targetsOfShip } from '../src/ship-targeting.js?v=v0.190.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.189.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.189.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.189.0';
+} from '../src/document-window.js?v=v0.190.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.190.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.190.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -215,13 +216,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.189.0';
+} from './chargen-view.js?v=v0.190.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.189.0';
+} from './generators.js?v=v0.190.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -232,7 +233,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.189.0';
+} from './subsector-svg.js?v=v0.190.0';
 
 import {
   seededDice,
@@ -241,7 +242,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.189.0';
+} from './commerce-market.js?v=v0.190.0';
 
 import {
   addCharacterToCampaign,
@@ -271,7 +272,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.189.0';
+} from '../src/campaign-document.js?v=v0.190.0';
 
 import {
   NPC_CONDITIONS,
@@ -280,16 +281,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.189.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.189.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.189.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.189.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.189.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, clearChat, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.189.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.189.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.189.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.189.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.189.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.190.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.190.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.190.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.190.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.190.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, clearChat, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.190.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.190.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.190.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.190.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.190.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -298,14 +299,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.189.0';
+} from '../src/activity-log-document.js?v=v0.190.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.189.0';
+} from '../src/player-session.js?v=v0.190.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -313,19 +314,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.189.0';
+} from './quick-slots.js?v=v0.190.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.189.0';
+} from '../src/campaign-bundle.js?v=v0.190.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.189.0';
+} from '../src/document-registry.js?v=v0.190.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.189.0';
+} from '../src/activity-log.js?v=v0.190.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -335,14 +336,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.189.0';
+} from '../src/contract-document.js?v=v0.190.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.189.0';
+} from '../src/situation-document.js?v=v0.190.0';
 
 import {
   createEncounterDocument,
@@ -371,42 +372,42 @@ import {
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.189.0';
+  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.190.0';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.189.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.189.0';
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.189.0';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.190.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.190.0';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.190.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.189.0';
+} from '../src/contact-document.js?v=v0.190.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.189.0';
+} from '../src/adventure-thread-document.js?v=v0.190.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.189.0';
+} from '../world/situation-events.js?v=v0.190.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.189.0';
+} from '../world/contract-board.js?v=v0.190.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.189.0';
+} from '../world/thread-consequences.js?v=v0.190.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.189.0';
+} from '../world/far-meridian-subsector.js?v=v0.190.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -743,6 +744,7 @@ const el = {
   shipVerbReturn: document.querySelector('#ship-verb-return'),
   shipVerbAntiMissile: document.querySelector('#ship-verb-antimissile'),
   shipVerbDetonate: document.querySelector('#ship-verb-detonate'),
+  shipVerbLaunch: document.querySelector('#ship-verb-launch'),
   shipVerbReprogram: document.querySelector('#ship-verb-reprogram'),
   shipVerbBoard: document.querySelector('#ship-verb-board'),
   shipVerbFlee: document.querySelector('#ship-verb-flee'),
@@ -817,6 +819,9 @@ let reserveShipDocuments = [];
 let pendingShipEncounter = null;
 let shipCombatEncounter = null;
 let shipCombatAllocation = {};
+// v0.190.0: a turret chosen on its card chip, which the next T aims alone.
+// { shipId, turretId } or null. Cleared with the allocation.
+let shipCombatArmedTurret = null;
 // v0.128.0: which world the strip's right-hand column is describing. Reading
 // "Starport A" without knowing whether that is here or the destination was the
 // ambiguity the two-column strip exists to remove.
@@ -10975,11 +10980,11 @@ function fightShipTokenMenuItems(participantId, { select }) {
     phaseItems.push({ label: 'FIRE AT', items: () => model.fireAt.map((entry) => ({
       label: `${entry.shipName.toUpperCase()} ${entry.turretId}${entry.blocked ? ' \u00b7 UNAVAILABLE' : ''}`,
       disabled: Boolean(entry.blocked),
-      title: entry.blocked ?? 'Allocates this turret; RESOLVE FIRE in the rail fires the whole allocation (Book 2 p.29).',
+      title: entry.blocked ?? 'Allocates this turret; FIRE in the strip fires the whole allocation (Book 2 p.29).',
       action: () => {
         shipCombatAllocation[entry.shipId] = shipCombatAllocation[entry.shipId] ?? {};
         shipCombatAllocation[entry.shipId][entry.turretId] = participantId;
-        setStatus(`${entry.shipName.toUpperCase()} ${entry.turretId} ALLOCATED TO ${model.name.toUpperCase()} / RESOLVE FIRE WHEN READY`, 'ok');
+        setStatus(`${entry.shipName.toUpperCase()} ${entry.turretId} ALLOCATED TO ${model.name.toUpperCase()} / FIRE WHEN READY`, 'ok');
         render();
       }
     })) });
@@ -11130,6 +11135,7 @@ function stepShipCombatPhase() {
     logActivity('COMBAT', `Game turn ${turnBefore} ends: ${GAME_TURN_MINUTES} minutes pass (Book 2 p.22)`);
   }
   shipCombatAllocation = {};
+  shipCombatArmedTurret = null;
   const phase = currentShipCombatPhase(shipCombatEncounter);
   setStatus(`${shipCombatEncounter.phasingSide.toUpperCase()} / ${phase.label.toUpperCase()} / TURN ${shipCombatEncounter.gameTurn}`, 'ok');
 }
@@ -11592,16 +11598,21 @@ function renderShipVectorStage() {
     tokenMenu: (event, participantId, { select }) => showContextMenu(event, fightShipTokenMenuItems(participantId, { select })),
     // v0.189.0: a new selection re-outlines the sidebar cards. The rail does
     // not draw the plot, so this cannot recurse.
-    onSelect: () => renderShipCombatRail()
+    onSelect: () => renderShipCombatRail(),
+    // v0.190.0: the ships the selected ship's turrets are aimed at get rings.
+    targetsOf: (shipId) => targetsOfShip(shipCombatAllocation, shipId)
   });
 }
 
 // v0.187.0: which of the three side hues a ship takes. A fight has two sides
 // in Book 2's own terms; a third party on the board gets its own colour so a
 // referee is never left counting names to work out who is who.
+// v0.190.0: ship combat's sides ARE intruder and native (Book 2 p.23); the
+// engine has no party/opposition, so the v0.187.0 keys never matched and every
+// ship drew as a third party. Red intruder, blue native (Kurt, 2026-09-16).
 function shipSideKey(participant) {
-  if (participant.side === 'party') return 'party';
-  if (participant.side === 'opposition') return 'opposition';
+  if (participant.side === 'intruder') return 'intruder';
+  if (participant.side === 'native') return 'native';
   return 'third';
 }
 
@@ -11697,7 +11708,8 @@ function renderShipDataCard(card, participant, encounter) {
   for (const turret of card.turrets) {
     const chip = document.createElement('div');
     const allocatedTo = shipCombatAllocation[participant.id]?.[turret.id] ?? '';
-    chip.className = `ship-card-turret${turret.operational ? '' : ' is-out'}${allocatedTo ? ' is-allocated' : ''}`;
+    const armed = shipCombatArmedTurret?.shipId === participant.id && shipCombatArmedTurret?.turretId === turret.id;
+    chip.className = `ship-card-turret${turret.operational ? '' : ' is-out'}${allocatedTo ? ' is-allocated' : ''}${armed ? ' is-armed' : ''}`;
     chip.title = turret.operational
       ? `${turret.mount} turret. Book 2 p.24 notation: B beam laser, P pulse laser, M missile rack, S sandcaster.`
       : 'Book 2 p.33: a turret hit stops the turret and its weaponry.';
@@ -11726,6 +11738,15 @@ function renderShipDataCard(card, participant, encounter) {
         render();
       });
       chip.append(picker);
+      // v0.190.0: clicking the chip itself (not its picker) arms the turret,
+      // so the next T on the plot aims this turret alone.
+      chip.addEventListener('click', (event) => {
+        if (event.target.closest('select')) return;
+        shipCombatArmedTurret = armed ? null : { shipId: participant.id, turretId: turret.id };
+        setStatus(armed ? `${turret.id} DISARMED` : `${participant.name.toUpperCase()} ${turret.id} ARMED / HOVER A SHIP ON THE PLOT AND PRESS T`, 'ok');
+        render();
+      });
+      chip.title += ' Click to arm this turret for the next T on the plot.';
       if (turretReloadLock(participant, turret.id)) {
         picker.disabled = true;
         picker.title = 'Book 2 p.31: a gunner reloading cannot fire other weaponry in the turret.';
@@ -11849,9 +11870,12 @@ function renderShipCombatRail() {
     + (phase.actor === 'opposing'
       ? 'Phase C belongs to the side that is not acting: return fire and anti-missile fire.'
       : 'This phase belongs to the phasing side.');
+  // v0.190.0: the mockup's second line — the live phase, and who acts in it,
+  // in that side's colour.
   const who = document.createElement('span');
-  who.className = 'encounter-tracker-ready';
-  who.textContent = `ACTING: ${acting.toUpperCase()}`;
+  who.className = `encounter-tracker-ready acting-${acting === 'intruder' ? 'intruder' : 'native'}`;
+  who.textContent = `${String.fromCharCode(65 + encounter.phaseIndex)} ${phase.label.toUpperCase()} \u00b7 ACTING ${acting === 'intruder' ? 'INT' : 'NAT'}`;
+  who.title = `Acting: ${acting}.`;
   heading.append(state, who);
   el.shipCombatRailRow.replaceChildren(heading);
 
@@ -11879,7 +11903,7 @@ function renderShipCombatRail() {
     // shipCombatActingSide already answers "whose phase is this", including
     // phase C, where the side that answers is the one fired on (Book 2 p.30).
     const actingSideKey = position === 'now' ? shipCombatActingSide(encounter) : null;
-    step.className = `ship-phase-step ${position}${actingSideKey ? ` acting-${actingSideKey === 'party' ? 'party' : 'opposition'}` : ''}`;
+    step.className = `ship-phase-step ${position}${actingSideKey ? ` acting-${actingSideKey === 'intruder' ? 'intruder' : 'native'}` : ''}`;
     step.dataset.phase = entry.key;
     const words = entry.label.toUpperCase().split(' ');
     const letter = String.fromCharCode(65 + index);
@@ -11967,8 +11991,8 @@ function renderShipCombatRail() {
     // v0.187.0: the side, named as well as tinted, so nothing rests on hue.
     const sideTag = document.createElement('span');
     sideTag.className = `ship-side-tag side-${shipSideKey(participant)}`;
-    sideTag.textContent = participant.side === 'party' ? 'PARTY' : participant.side === 'opposition' ? 'OPPOSITION' : 'THIRD PARTY';
-    sideTag.title = `${sideTag.textContent} \u00b7 ${participant.side === encounter.intruderSide ? 'intruder' : 'native'} in the turn order (Book 2 p.23)`;
+    sideTag.textContent = participant.side === 'intruder' ? 'INTRUDER' : participant.side === 'native' ? 'NATIVE' : 'THIRD PARTY';
+    sideTag.title = `${sideTag.textContent}: Book 2 p.23's turn order. The intruder takes the first half of each game turn.`;
     summary.append(sideTag);
     row.append(summary);
 
@@ -12001,11 +12025,11 @@ function shipCombatPhaseHint(encounter, phase) {
         : `${side}: every ship has moved. Advance to laser fire.`;
     }
     case 'laser-fire':
-      return `${side}: allocate each turret to a target, then RESOLVE FIRE. All lasers in one turret fire on the same target (p.29).`;
+      return `${side}: select a ship, hover an enemy and press T to aim (Shift+T clears), then FIRE. All lasers in one turret fire on the same target (p.29).`;
     case 'return-fire':
-      return `${side}: may return fire only at ships that just fired on it, and only with Return Fire and Target in the computer (p.30). Anti-missile fire also happens here.`;
+      return `${side}: T aims at a ship that just fired on it, then RETURN. Return fire needs Return Fire and Target in the computer, (p.30). Anti-missile fire also happens here.`;
     case 'ordnance-launch':
-      return `${side}: launch missiles or sand, and detonate anything that reached a target (p.30). Needs Launch and Target.`;
+      return `${side}: LAUNCH missiles, cast sand from a ship's card, and DETONATE anything that reached a target (p.30). Needs Launch and Target.`;
     case 'reprogramming':
       return `${side}: swap programs in and out of the computer for later turns (p.31).`;
     default:
@@ -12288,7 +12312,23 @@ function renderShipCombatActions(encounter, phase, acting) {
   const contacted = encounter.ordnance.filter((round) => round.status === 'contact' && round.launcherSide === encounter.phasingSide);
   setShipVerb(el.shipVerbDetonate, contacted.length > 1 ? `DETONATE \u00d7${contacted.length}` : 'DETONATE', detonateShipCombatOrdnance, {
     hidden: !inPhase('ordnance-launch'), disabled: !contacted.length,
-    title: `${contacted.length ? `Detonate ${contacted.length} missile${contacted.length === 1 ? '' : 's'} in contact.` : 'Nothing to detonate.'} Book 2 p.30: ordnance that reached a target detonates in this phase. Launch from a rack on the ship\u2019s card in the sidebar.`
+    title: `${contacted.length ? `Detonate ${contacted.length} missile${contacted.length === 1 ? '' : 's'} in contact.` : 'Nothing to detonate.'} Book 2 p.30: ordnance that reached a target detonates in this phase.`
+  });
+  // v0.190.0: LAUNCH, as in the approved mockup. Every rack on the acting
+  // side against every enemy, from the same model the token menu uses, so it
+  // offers nothing the engine would refuse and says why an entry is shut.
+  // Racks, sand and reloads per ship stay on each card in the sidebar.
+  const launches = (encounter.outcome === 'in-progress' && inPhase('ordnance-launch'))
+    ? encounter.participants.filter((entry) => entry.side !== acting && !entry.escaped && !entry.surrendered)
+      .flatMap((enemy) => fightTokenMenuModel(encounter, enemy.id).launchAt.map((entry) => ({ ...entry, enemy })))
+    : [];
+  setShipVerb(el.shipVerbLaunch, 'LAUNCH', (event) => showContextMenu(event, launches.map((entry) => ({
+    label: `${entry.shipName.toUpperCase()} ${entry.launcherId} \u2192 ${entry.enemy.name.toUpperCase()} \u00b7 ${entry.ready} READY`,
+    disabled: Boolean(entry.blocked), title: entry.blocked ?? 'Book 2 p.30: launch one missile from this rack.',
+    action: () => launchShipCombatMissile(entry.shipId, entry.launcherId, entry.enemy.id)
+  }))), {
+    hidden: !inPhase('ordnance-launch'), disabled: !launches.some((entry) => !entry.blocked),
+    title: launches.length ? 'Launch a missile from a rack. Sand and reloads are on each ship\u2019s card.' : 'No rack on the acting side can launch. Book 2 p.30.'
   });
 
   // E: reprogramming. The programs are the pills on the card (Book 2 p.24).
@@ -14181,6 +14221,36 @@ el.encounterGridScale.addEventListener('change', () => {
     setStatus(`${had ? 'UNTARGET' : 'TARGET'} ${candidate.name.toUpperCase()} / ${actor.name.toUpperCase()}`, 'ok');
   });
 }
+// v0.190.0: T on the vector plot aims the selected ship's turrets at the ship
+// under the pointer; Shift+T clears (src/ship-targeting.js has the rulings).
+// Works wherever focus is, as the personal board's T does (v0.73.4), except
+// while typing — the thrust fields are inputs.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 't' && event.key !== 'T') return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  const tag = event.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || event.target?.isContentEditable) return;
+  if (!shipCombatEncounter || shipCombatEncounter.spatialMode !== 'vector' || el.shipVectorSection?.hidden) return;
+  const shooterId = vectorSelectedShipId();
+  if (!shooterId) return;
+  event.preventDefault();
+  const armedTurretId = shipCombatArmedTurret?.shipId === shooterId ? shipCombatArmedTurret.turretId : null;
+  if (event.shiftKey) {
+    const cleared = clearShipTargets(shipCombatEncounter, shipCombatAllocation, { shooterId, armedTurretId });
+    shipCombatAllocation = cleared.allocation;
+    shipCombatArmedTurret = null;
+    setStatus(cleared.message, 'ok');
+    render();
+    return;
+  }
+  const result = targetHoveredShip(shipCombatEncounter, shipCombatAllocation, { shooterId, targetId: vectorHoveredShipId(), armedTurretId });
+  setStatus(result.message, result.ok ? 'ok' : 'error');
+  if (!result.ok) return;
+  shipCombatAllocation = result.allocation;
+  shipCombatArmedTurret = null;
+  render();
+});
+
 el.combatSetupDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeCombatSetupDialog();

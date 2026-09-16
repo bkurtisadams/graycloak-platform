@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import {
+  turretTargetLimit,
+  multiTargetProgramFor,
   importCharacterDocument,
   createTypeSScoutReserveShipForCharacter,
   creditShipAccount,
@@ -1009,6 +1011,69 @@ test('Book 2 p.30: two turrets on two targets need Multi-Target', async () => {
     { shipId: 'pirate', turretId: 'T-2', targetId: 'a' }
   ]);
   assert.equal(resolveLaserFire(single, createSequenceDice([1, 1, 1, 1])).shots.filter((shot) => shot.fired).length, 2);
+});
+
+// v0.61.0: Multi-Target N allows N targets (Graycloak ruling, Kurt 2026-09-16,
+// from the program table's own `targets` figures). Before, only Multi-Target 2
+// was recognised and it allowed any number.
+test('Book 2 p.29: Multi-Target 2, 3 and 4 allow two, three and four targets', async () => {
+  let cruiser = createShipDocument({
+    designKey: 'type-c-cruiser', id: 'splitter', name: 'Splitter',
+    authority: {
+      assignmentType: 'private-owner', controllingAuthority: 'Splitter',
+      legalTitleHolder: 'Captain', legalTitleSourceStatus: 'referee-generated-encounter',
+      characterOwnsShip: true, assignedCharacterId: 'npc-cap', assignedCharacterName: 'Captain',
+      recallable: false, saleAllowed: true, useAsDesired: true, possessionAtServicePleasure: false,
+      servicePrivileges: { freeFuelAtScoutBases: false, freeMaintenanceAtScoutBasesAtClassBStarports: false },
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    },
+    crewAssignments: [{ role: 'pilot', characterId: 'npc-cap', characterName: 'Captain' }]
+  });
+  cruiser = creditShipAccount(cruiser, 50000000, { kind: 'capital', description: 'Fitting-out fund' });
+  const turrets = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5'];
+  for (const turretId of turrets) {
+    cruiser = armShipTurret(cruiser, { turretId, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  }
+  const enemies = ['a', 'b', 'c', 'd', 'e'];
+  const all = ['target', 'multi-target-2', 'multi-target-3', 'multi-target-4'];
+  const build = (loaded) => createShipCombatEncounter({
+    id: 'enc-limits', intruderSide: 'intruder',
+    participants: [
+      { shipId: 'pirate', side: 'intruder', ship: cruiser, carriedPrograms: all, loadedPrograms: loaded, pressurisedSections: [] },
+      ...enemies.map((id) => ({ shipId: id, side: 'native', ship: cruiser, carriedPrograms: ['target'], loadedPrograms: ['target'], pressurisedSections: [] }))
+    ]
+  });
+  // `count` turrets, each on its own target.
+  const fire = (loaded, count) => {
+    let encounter = advanceShipCombatPhase(build(loaded));
+    encounter = allocateLaserFire(encounter, turrets.slice(0, count).map((turretId, index) => ({ shipId: 'pirate', turretId, targetId: enemies[index] })));
+    return resolveLaserFire(encounter, createSequenceDice(Array(40).fill(1))).shots;
+  };
+
+  // The limit each loaded set allows.
+  const pirate = (loaded) => getParticipant(build(loaded), 'pirate');
+  assert.deepEqual({ ...turretTargetLimit(pirate(['target'])) }, { limit: 1, program: null });
+  assert.deepEqual({ ...turretTargetLimit(pirate(['target', 'multi-target-2'])) }, { limit: 2, program: 'multi-target-2' });
+  assert.deepEqual({ ...turretTargetLimit(pirate(['target', 'multi-target-3'])) }, { limit: 3, program: 'multi-target-3' });
+  assert.deepEqual({ ...turretTargetLimit(pirate(['target', 'multi-target-2', 'multi-target-4'])) }, { limit: 4, program: 'multi-target-4' });
+  // The smallest program that covers the count is the one that runs.
+  assert.equal(multiTargetProgramFor(pirate(['target', 'multi-target-2', 'multi-target-4']), 2), 'multi-target-2');
+  assert.equal(multiTargetProgramFor(pirate(['target', 'multi-target-2', 'multi-target-4']), 3), 'multi-target-4');
+  assert.equal(multiTargetProgramFor(pirate(['target', 'multi-target-2']), 1), null);
+
+  // Multi-Target 3 lets three turrets engage three ships — refused before v0.61.0.
+  const three = fire(['target', 'multi-target-3'], 3);
+  assert.equal(three.filter((shot) => shot.fired).length, 3, JSON.stringify(three.map((shot) => shot.reason)));
+  // Multi-Target 2 does not stretch to three, and the refusal names what would.
+  const tooMany = fire(['target', 'multi-target-2'], 3);
+  assert.equal(tooMany.some((shot) => shot.fired), false);
+  assert.match(tooMany[0].reason, /multi-target-3/);
+  // Multi-Target 3 still covers two.
+  assert.equal(fire(['target', 'multi-target-3'], 2).filter((shot) => shot.fired).length, 2);
+  // Five targets is beyond any program.
+  const five = fire(all, 5);
+  assert.equal(five.some((shot) => shot.fired), false);
+  assert.match(five[0].reason, /Multi-Target 4, allows 4/);
 });
 
 test('Book 2 p.30: interception is once per phase and contends for the CPU', async () => {
