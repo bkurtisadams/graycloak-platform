@@ -1,4 +1,11 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v16
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v17
+// v17 adds the wounded player's own wound distribution:
+//   travellerCampaigns/{id}/encounters/{id}/woundAllocations/{woundKey} —
+//   create-only by the account that owns that combatant, read by the referee
+//   and the writer, cleared by the referee. Book 1 p.30 leaves the
+//   distribution of a wound's groups to the wounded player; the referee's
+//   round pauses for it and applies the answer.
+//
 // v16 adds table chat: travellerCampaigns/{id}/chat/{messageId}, written by
 //   anyone at the table as themselves, read by the table, deleted by the
 //   referee.
@@ -374,6 +381,50 @@ service cloud.firestore {
             && declarationField('uid') == request.auth.uid
             && declarationField('actorId') == combatantId
             && ownsTravellerCombatant(campaignId, combatantId);
+          allow update: if false;
+          allow delete: if isTravellerReferee(campaignId);
+        }
+
+        // v17: the wounded player's own distribution of a wound. Book 1 p.30
+        // gives the wounded PLAYER the placing of each wound group, so the
+        // referee's round pauses at step 2C and waits for this document.
+        //
+        // An intent, like a declaration, and create-only for the same reason:
+        // once sent it cannot be revised after seeing what it did. Keyed by
+        // the wound rather than by the actor, so two wounds in one round are
+        // two documents and an answer to a wound already applied cannot be
+        // mistaken for an answer to the next one.
+        //
+        // The arithmetic is NOT checked here. Whether the shares add up to the
+        // weapon's own constant, and whether there is one group per die, are
+        // questions about dice only the referee has; the client's
+        // authorizePlayerWoundAllocation refuses those and tells the player on
+        // their own log. This rule's job is ownership and immutability.
+        //
+        // Read is narrower than a declaration's: a wound distribution is one
+        // player's business with the referee, not table news.
+        match /woundAllocations/{woundKey} {
+          allow read: if isTravellerReferee(campaignId)
+            || (isAuthed() && resource.data.get('uid', '') == request.auth.uid);
+          allow create: if isAuthed()
+            && request.resource.data.keys().hasOnly(['uid', 'encounterId', 'actorId', 'key', 'targets', 'allocation', 'round', 'sentAt'])
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.encounterId == encounterId
+            && request.resource.data.key == woundKey
+            && request.resource.data.actorId is string
+            && request.resource.data.targets is list
+            && request.resource.data.targets.size() >= 1
+            && request.resource.data.targets.size() <= 12
+            // Book 1 p.30: a wound group falls on one physical characteristic.
+            && request.resource.data.targets.hasOnly(['STR', 'DEX', 'END'])
+            // A weapon with no constant has nothing to distribute, and sends
+            // null; otherwise one share per group.
+            && (request.resource.data.get('allocation', null) == null
+              || (request.resource.data.allocation is list
+                && request.resource.data.allocation.size() == request.resource.data.targets.size()))
+            && request.resource.data.round is int && request.resource.data.round >= 1
+            && request.resource.data.sentAt is int
+            && ownsTravellerCombatant(campaignId, request.resource.data.actorId);
           allow update: if false;
           allow delete: if isTravellerReferee(campaignId);
         }
