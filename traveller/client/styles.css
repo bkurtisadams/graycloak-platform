@@ -16,7 +16,7 @@
   --action-ready: #cfe0cf;
   --action-ready-hover: #bad1ba;
   --action-border: #4f6a4f;
-  /* v0.192.5: buttons and tinted panels split. --action-ready is the tint
+  /* v0.192.6: buttons and tinted panels split. --action-ready is the tint
      behind ink; --button-ready is the fill a button takes. */
   --button-ready: #cfe0cf;
   --button-ready-hover: #bad1ba;
@@ -47,7 +47,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.192.5: every colour outside :root is a token so a theme can swap it.
+  /* v0.192.6: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -92,7 +92,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.192.5: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.192.6: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -5340,7 +5340,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
 
 /* ===========================================================================
-   v0.192.5: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   v0.192.6: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
    character and referee tools — with the masthead above and chat as the
    bottom edge. Nothing here is an overlay: the rail, the flyout and the
    dock-reopen control are absolutely positioned INSIDE the stage cell (an
@@ -5473,7 +5473,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
 
-/* v0.192.5: fixes from the first live look at the grid shell. */
+/* v0.192.6: fixes from the first live look at the grid shell. */
 /* Right column: character, then ship, then the tabbed body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
@@ -5509,17 +5509,35 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
 #shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }
 
-/* v0.192.5 */
+/* v0.192.6 */
 #shell.shell-v2 > .shell-sidebar > #sidebar-character { display: block; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-head { flex-wrap: wrap; gap: 2px 10px; }
 #shell.shell-v2 .subsector-map-tools { padding-right: 500px; }
 
-/* v0.192.5: a collapsed sidebar is the icon strip alone. The character and
+/* v0.192.6: a collapsed sidebar is the icon strip alone. The character and
    ship strips go with the body rather than squeezing into a 0px column and
    leaving their scrollbars behind. */
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > #sidebar-character,
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > #ship-strip,
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > .sidebar-body { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip { overflow-x: hidden; }
+
+/* v0.192.6: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
+   sits after .action-button and so recoloured every filled button with the
+   link colour — unreadable on the dark theme's amber. Filled buttons carry
+   --button-ready-ink; a REQUIRED card's verb sits on the attention tint and
+   takes --ink. */
+.action-button, .text-button.action-button,
+.procedure-card-verb, .panel-card-action, .operations-primary-actions .text-button { color: var(--button-ready-ink); }
+.action-button:hover, .action-button:focus-visible,
+.text-button.action-button:hover, .text-button.action-button:focus-visible { color: var(--button-ready-ink); }
+.procedure-card-verb:hover, .procedure-card-verb:focus-visible,
+.panel-card-action:hover, .panel-card-action:focus-visible,
+.operations-primary-actions .text-button:hover,
+.operations-primary-actions .text-button:focus-visible { color: var(--ink); }
+.procedure-card.required .procedure-card-verb { color: var(--ink); }
+.campaign-transition-action { background: var(--button-ready); color: var(--button-ready-ink); }
+.action-button:disabled, .text-button.action-button:disabled,
+.action-button[aria-disabled="true"] { color: var(--muted); }
