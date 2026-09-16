@@ -4788,19 +4788,19 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    visible (applyOperationsDeskTab), so nothing new decides when this applies.
 
    The stage keeps being pushed rather than covered, per the v0.80.2 ruling. */
-.terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 620px) 52px; }
-.terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(620px + 52px); }
+.terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 620px) 52px; }
+.terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(620px + 52px); }
 @media (max-width: 1500px) {
-  .terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 460px) 52px; }
-  .terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(460px + 52px); }
+  .terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 460px) 52px; }
+  .terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(460px + 52px); }
 }
 @media (max-width: 1100px) {
-  .terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 330px) 52px; }
-  .terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(330px + 52px); }
+  .terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 330px) 52px; }
+  .terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(330px + 52px); }
 }
 @media (max-width: 900px) {
-  .terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 280px) 44px; }
-  .terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(280px + 44px); }
+  .terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 280px) 44px; }
+  .terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(280px + 44px); }
 }
 
 /* Two columns once there is width for them. The tracker is the tall list, so
@@ -4808,7 +4808,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    controls and the record follow in the right. Below 1200px the panel falls
    back to one column and nothing moves. */
 @media (min-width: 1200px) {
-  .combat-focus .sidebar-panel[data-sidebar-panel="combat"] > .combat-rail {
+  .combat-wide .sidebar-panel[data-sidebar-panel="combat"] > .combat-rail {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     /* heading, then the throw card and the round controls at their own
@@ -4819,16 +4819,16 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
     height: 100%;
     min-height: 0;
   }
-  .combat-focus .combat-rail > .section-heading { grid-column: 1 / -1; grid-row: 1; }
-  .combat-focus .combat-rail > #encounter-tracker {
+  .combat-wide .combat-rail > .section-heading { grid-column: 1 / -1; grid-row: 1; }
+  .combat-wide .combat-rail > #encounter-tracker {
     grid-column: 1; grid-row: 2 / -1;
     min-height: 0; overflow-y: auto;
     padding-right: 6px; border-right: 1px solid var(--rule);
   }
-  .combat-focus .combat-rail > #encounter-throw-card { grid-column: 2; grid-row: 2; align-self: start; }
+  .combat-wide .combat-rail > #encounter-throw-card { grid-column: 2; grid-row: 2; align-self: start; }
   /* RESOLVE ROUND is never below the fold of a long tracker. */
-  .combat-focus .combat-rail > #encounter-resolve { grid-column: 2; grid-row: 3; align-self: start; margin-top: 0; }
-  .combat-focus .combat-rail > #encounter-details {
+  .combat-wide .combat-rail > #encounter-resolve { grid-column: 2; grid-row: 3; align-self: start; margin-top: 0; }
+  .combat-wide .combat-rail > #encounter-details {
     grid-column: 2; grid-row: 4;
     min-height: 0; overflow-y: auto; align-self: stretch;
   }
@@ -4836,8 +4836,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 /* The verbs and the declaration strip have room to sit on one line each now,
    rather than wrapping every chip onto its own row. */
-.combat-focus .combat-rail .declare-label { flex: 0 0 4.2rem; }
-.combat-focus .combat-rail .declare-choice { font-size: 11px; padding: 1px 7px; }
+.combat-wide .combat-rail .declare-label { flex: 0 0 4.2rem; }
+.combat-wide .combat-rail .declare-choice { font-size: 11px; padding: 1px 7px; }
 
 /* The token's own wound track and, on a marked target, the throw. Drawn in
    the token's local scale on the tactical board and in the line board's own
@@ -4853,3 +4853,35 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 .encounter-token-throw-badge.no-reach { fill: var(--error); }
 .range-line-token .encounter-token-throw-badge { font-size: 15px; stroke-width: 3px; }
+
+/* --- v0.181.2: the plot was 475x256 in a 921px column.
+
+   Measured on screen: #ship-vector-stage 589x921 with scrollHeight equal to
+   clientHeight — so nothing overflowed and there was nothing to scroll — and
+   the plot itself sitting at its 240px min-height with some 660px of dead
+   space beneath it.
+
+   The height chain was broken one level up. `.ship-vector-stage` is a flex
+   column and `.vector-stage-board` declares `flex: 1 1 0`, but between them
+   sits `#ship-vector-workspace`, a plain <section> created in
+   ship-vector-map.js with no CSS at all: default `display: block` and
+   `flex-grow: 0`. So the workspace took its content height, the board's flex
+   properties applied inside a block parent and did nothing, and the SVG fell
+   back to its floor. Same class of fault as the v0.79.2 1px stage and the
+   v0.32.0 clipping: a wrapper added later that never joined the chain. */
+.ship-vector-stage > #ship-vector-workspace {
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* The board may now shrink as well as grow; the 240px floor was there to stop
+   it collapsing and is no longer what decides its height. */
+.vector-stage-board { min-height: 240px; }
+.vector-stage-board .ship-vector-svg { min-height: 0; max-height: none; }
+/* The subsector map has claimed its gestures since v0.80.2; the plot never
+   did, so a drag could be taken by the browser instead of by the pan handler. */
+.ship-vector-stage .ship-vector-svg { touch-action: none; }
