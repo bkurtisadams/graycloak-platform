@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.183.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.183.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.183.1';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.183.1';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -210,7 +210,12 @@ export async function writeWoundAllocation(campaignId, encounterId, allocation) 
   return allocation.key;
 }
 
-export async function watchWoundAllocations(campaignId, encounterId, onChange) {
+// v0.183.1: this one takes an onError, because its collection is the newest
+// and the rule granting it (Firestore rules v17) may not be deployed yet. A
+// listener the rules refuse is a state the referee needs told about — the
+// player cannot answer a wound until it is deployed — rather than a line in
+// the console.
+export async function watchWoundAllocations(campaignId, encounterId, onChange, onError = null) {
   const db = await ensureFirestore();
   return db
     .collection('travellerCampaigns').doc(campaignId)
@@ -218,7 +223,10 @@ export async function watchWoundAllocations(campaignId, encounterId, onChange) {
     .collection('woundAllocations')
     .onSnapshot(
       (snapshot) => onChange(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))),
-      (error) => console.error('[traveller-publish] wound allocations:', error)
+      (error) => {
+        console.error('[traveller-publish] wound allocations:', error);
+        onError?.(error);
+      }
     );
 }
 
