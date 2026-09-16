@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.184.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.184.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.185.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.185.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -442,6 +442,17 @@ export async function watchChat(campaignId, onChange, { limit = 200 } = {}) {
     .orderBy('createdAt', 'desc').limit(limit)
     .onSnapshot((snapshot) => onChange(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).reverse()),
       (error) => console.error('[traveller-publish] chat:', error));
+}
+
+// v0.185.0: the referee tidies the whole table feed. Rules v16 gives delete on
+// chat to the referee alone, so a player's CLEAR only empties their own local
+// log — which is why CLEAR appeared to leave messages behind.
+export async function clearChat(campaignId) {
+  const db = await ensureFirestore();
+  const collection = db.collection('travellerCampaigns').doc(campaignId).collection('chat');
+  const snapshot = await collection.get();
+  await Promise.all(snapshot.docs.map((entry) => entry.ref.delete()));
+  return snapshot.size;
 }
 
 export async function deleteChatMessage(campaignId, messageId) {
