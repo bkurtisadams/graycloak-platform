@@ -1,4 +1,4 @@
-// v0.192.6: light / dark theme. The choice is per browser, kept in
+// v0.193.0: light / dark theme. The choice is per browser, kept in
 // localStorage; with nothing stored the OS preference decides. The toggle
 // button in each masthead is the only control.
 const THEME_STORAGE_KEY = 'graycloak-traveller-theme';

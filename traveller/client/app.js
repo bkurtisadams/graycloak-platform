@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.192.6';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.193.0';
 
 import {
   ACTION_LABELS,
@@ -456,6 +456,8 @@ const el = {
   chargenTables: document.querySelector('#chargen-tables'),
   rollableTables: document.querySelector('#rollable-tables'),
   personnelSection: document.querySelector('#personnel-section'),
+  sidebarSheet: document.querySelector('#sidebar-sheet'),
+  stageCanvas: document.querySelector('.shell-stage > .canvas'),
   characterWindowTitlebar: document.querySelector('#character-window-titlebar'),
   characterWindowMinimize: document.querySelector('#character-window-minimize'),
   characterWindowClose: document.querySelector('#character-window-close'),
@@ -1802,6 +1804,8 @@ function applyCampaignLayout() {
     el.characterSheet.hidden = false;
     el.personnelSection.hidden = false;
     resetDocumentWindow(characterWindow);
+    if (el.stageCanvas && el.personnelSection.parentElement !== el.stageCanvas) el.stageCanvas.prepend(el.personnelSection);
+    if (el.sidebarSheet) el.sidebarSheet.hidden = true;
     el.procedureSection.hidden = false;
     el.procedure.hidden = false;
     el.actions.hidden = false;
@@ -1844,7 +1848,14 @@ function applyCampaignLayout() {
   // v0.77.0: SYSTEM and COMBAT are the scene; CHARACTER opens the same sheet
   // as a floating window over whichever is showing, rather than replacing it.
   el.sceneTabsRow.hidden = false;
-  applyDocumentWindow(characterWindow);
+  // v0.193.0: the sheet is the right column's own document, not a window
+  // over the scene.
+  resetDocumentWindow(characterWindow);
+  el.personnelSection.hidden = false;
+  if (el.sidebarSheet) {
+    el.sidebarSheet.hidden = false;
+    if (el.personnelSection.parentElement !== el.sidebarSheet) el.sidebarSheet.append(el.personnelSection);
+  }
   const board = viewedSceneIsBoard();
   const vector = shipVectorOnStage();
   el.subsectorSection.hidden = board || vector;
@@ -1860,7 +1871,7 @@ function applyCampaignLayout() {
   renderSceneNav();
   for (const button of el.sceneTabs) {
     const characterButton = button.dataset.sceneTab === 'character';
-    const isActive = characterButton ? characterWindow.state.open : button.dataset.sceneTab === activeSceneTab;
+    const isActive = characterButton ? false : button.dataset.sceneTab === activeSceneTab;
     button.classList.toggle('is-active', isActive);
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     if (button.dataset.sceneTab === 'combat') button.classList.toggle('attention', Boolean(activeEncounterAtCurrentSystem()));
@@ -2358,16 +2369,18 @@ function renderRailTools() {
   rail.replaceChildren(...tools);
 }
 
+// v0.193.0: the sheet is always on screen; "open the sheet" means unfold it
+// and bring it into view.
+function revealCharacterSheet() {
+  if (el.sidebarSheet) el.sidebarSheet.open = true;
+  el.personnelSection?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
 function setSceneTab(tab) {
   if (!['character', 'system', 'combat'].includes(tab)) return;
   // v0.77.0: CHARACTER opens the sheet as a window over whatever scene is
   // showing; it is not a scene of its own any more.
-  if (tab === 'character') {
-    if (characterWindow.state.open) closeWindowController(characterWindow);
-    else openWindowController(characterWindow);
-    applyCampaignLayout();
-    return;
-  }
+  if (tab === 'character') { revealCharacterSheet(); return; }
   activeSceneTab = tab;
   if (activeWorkspaceView !== 'play') activeWorkspaceView = 'play';
   applyCampaignLayout();
@@ -6006,8 +6019,8 @@ function openCombatantSheet(combatant) {
   if (combatant.side === 'party' && partyCharacterDocuments.some((entry) => entry.identity.id === combatant.sourceCharacterId || entry.identity.id === combatant.id)) {
     const id = partyCharacterDocuments.find((entry) => entry.identity.id === combatant.sourceCharacterId)?.identity.id ?? combatant.id;
     activatePartyCharacter(id);
-    if (!characterWindow.state.open) openWindowController(characterWindow);
     applyCampaignLayout();
+    revealCharacterSheet();
     return;
   }
   if (combatant.sourceActorId && npcActorDocuments.some((entry) => entry.identity.id === combatant.sourceActorId)) {
@@ -7559,7 +7572,7 @@ function actorContextMenuItems(item) {
   const onScene = Boolean(scene?.tokens.some((token) => token.actorId === item.id));
   const items = [
     { label: item.kind === 'character' ? 'VIEW SHEET' : 'EDIT', action: () => {
-      if (item.kind === 'character') { activatePartyCharacter(item.id); if (!characterWindow.state.open) openWindowController(characterWindow); applyCampaignLayout(); }
+      if (item.kind === 'character') { activatePartyCharacter(item.id); applyCampaignLayout(); revealCharacterSheet(); }
       else openNpcActorDialog(item.id);
     } },
     { label: onScene ? 'ALREADY ON THE ACTIVE SCENE' : 'PLACE ON ACTIVE SCENE', disabled: !scene || onScene, action: () => placeActorOnActiveScene(item) },
@@ -8401,7 +8414,7 @@ function showStagedTokenMenu(event, scene, token) {
             action: () => addTokensToCombat(scene, tokens) };
         })()];
     })(),
-    { label: 'OPEN SHEET', action: () => { const named = sceneActorNames().get(token.token.actorId); if (named?.kind === 'npc') openNpcActorDialog(token.token.actorId); else { activatePartyCharacter(token.token.actorId); if (!characterWindow.state.open) openWindowController(characterWindow); applyCampaignLayout(); } } },
+    { label: 'OPEN SHEET', action: () => { const named = sceneActorNames().get(token.token.actorId); if (named?.kind === 'npc') openNpcActorDialog(token.token.actorId); else { activatePartyCharacter(token.token.actorId); applyCampaignLayout(); revealCharacterSheet(); } } },
     { heading: 'SCENE' },
     { label: `SIDE: ${token.token.side.toUpperCase()} \u2192 ${next.toUpperCase()}`,
       action: () => {
@@ -14017,7 +14030,6 @@ el.openCampaignView.addEventListener('click', () => setWorkspaceView(activeWorks
 el.openThreadsView.addEventListener('click', () => setWorkspaceView(activeWorkspaceView === 'threads' ? 'play' : 'threads'));
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && campaignPlayActive() && !document.querySelector('dialog[open]')) {
-  if (characterWindow.state.open) { closeWindowController(characterWindow); applyCampaignLayout(); return; }
   if (activeWorkspaceView !== 'play') setWorkspaceView('play');
 }
 });

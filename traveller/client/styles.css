@@ -16,7 +16,7 @@
   --action-ready: #cfe0cf;
   --action-ready-hover: #bad1ba;
   --action-border: #4f6a4f;
-  /* v0.192.6: buttons and tinted panels split. --action-ready is the tint
+  /* v0.193.0: buttons and tinted panels split. --action-ready is the tint
      behind ink; --button-ready is the fill a button takes. */
   --button-ready: #cfe0cf;
   --button-ready-hover: #bad1ba;
@@ -47,7 +47,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.192.6: every colour outside :root is a token so a theme can swap it.
+  /* v0.193.0: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -92,7 +92,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.192.6: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.193.0: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -5340,7 +5340,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
 
 /* ===========================================================================
-   v0.192.6: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   v0.193.0: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
    character and referee tools — with the masthead above and chat as the
    bottom edge. Nothing here is an overlay: the rail, the flyout and the
    dock-reopen control are absolutely positioned INSIDE the stage cell (an
@@ -5473,7 +5473,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
 
-/* v0.192.6: fixes from the first live look at the grid shell. */
+/* v0.193.0: fixes from the first live look at the grid shell. */
 /* Right column: character, then ship, then the tabbed body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
@@ -5509,14 +5509,14 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
 #shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }
 
-/* v0.192.6 */
+/* v0.193.0 */
 #shell.shell-v2 > .shell-sidebar > #sidebar-character { display: block; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-head { flex-wrap: wrap; gap: 2px 10px; }
 #shell.shell-v2 .subsector-map-tools { padding-right: 500px; }
 
-/* v0.192.6: a collapsed sidebar is the icon strip alone. The character and
+/* v0.193.0: a collapsed sidebar is the icon strip alone. The character and
    ship strips go with the body rather than squeezing into a 0px column and
    leaving their scrollbars behind. */
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > #sidebar-character,
@@ -5524,7 +5524,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > .sidebar-body { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip { overflow-x: hidden; }
 
-/* v0.192.6: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
+/* v0.193.0: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
    sits after .action-button and so recoloured every filled button with the
    link colour — unreadable on the dark theme's amber. Filled buttons carry
    --button-ready-ink; a REQUIRED card's verb sits on the attention tint and
@@ -5541,3 +5541,37 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .campaign-transition-action { background: var(--button-ready); color: var(--button-ready-ink); }
 .action-button:disabled, .text-button.action-button:disabled,
 .action-button[aria-disabled="true"] { color: var(--muted); }
+
+/* ===========================================================================
+   v0.193.0: the character sheet is the right column's own document. Rows:
+   identity strip, PERSONNEL RECORD (unfolds, scrolls), ship, tabbed body.
+   Character generation still shows the sheet on the stage; these rules
+   apply only while #personnel-section is inside #sidebar-sheet. */
+#shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto auto minmax(0, 1fr); }
+#shell.shell-v2 > .shell-sidebar > #sidebar-character { grid-column: 1; grid-row: 1; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet { grid-column: 1; grid-row: 2; min-height: 0; border-bottom: 1px solid var(--rule); }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet[hidden] { display: none; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip { grid-row: 3; }
+#shell.shell-v2 > .shell-sidebar > .sidebar-body { grid-row: 4; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet > summary {
+  cursor: pointer; padding: 5px 10px; font-size: 11px; letter-spacing: .1em; font-weight: 700;
+  background: var(--help-paper); border-bottom: 1px solid var(--rule); list-style: none;
+}
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet > summary::-webkit-details-marker { display: none; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet > summary::before { content: '\25b8 '; color: var(--muted); }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet[open] > summary::before { content: '\25be '; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet > #personnel-section {
+  display: block; position: static; margin: 0; padding: 6px 10px 10px;
+  max-height: 44vh; overflow-y: auto; overflow-x: hidden;
+  width: auto; height: auto; border: 0; background: var(--paper);
+}
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet #character-window-titlebar { display: none; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet .document-window-body { display: block; padding: 0; overflow: visible; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet .traveller-character-sheet { padding: 0; margin: 0; max-width: none; font-size: 12px; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-two-column { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-identity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-block { margin-top: 8px; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-banner { flex-wrap: wrap; gap: 2px 10px; }
+/* When a fight holds the column, the sheet folds to its summary line unless
+   the referee opens it. */
+#shell.shell-v2 > .shell-sidebar > #ship-strip { max-height: 30vh; }

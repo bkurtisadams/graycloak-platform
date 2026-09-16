@@ -5,8 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.192.6"></script>
-  <script type="module" src="shell-chat.js?v=v0.192.6"></script>
+  <script type="module" src="theme.js?v=v0.193.0"></script>
+  <script type="module" src="shell-chat.js?v=v0.193.0"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.192.6</div>
+          <div id="app-subtitle" class="subtitle">v0.193.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -37,7 +37,7 @@
 
     <aside class="shell-rail" aria-label="Scene and tools">
       <div class="scene-tabs" role="group" aria-label="Scene and character window">
-        <button id="scene-tab-character" class="scene-tab scene-tab-character" type="button" data-scene-tab="character" aria-pressed="false" title="Open character sheet"><span aria-hidden="true">&#9823;</span><span class="tool-label">CHARACTER</span></button>
+        <button id="scene-tab-character" class="scene-tab scene-tab-character" type="button" data-scene-tab="character" aria-pressed="false" title="Open character sheet" hidden><span aria-hidden="true">&#9823;</span><span class="tool-label">CHARACTER</span></button>
         <button id="scene-tab-system" class="scene-tab is-active" type="button" role="tab" data-scene-tab="system" aria-selected="true" title="Subsector scene" hidden><span aria-hidden="true">&#9673;</span><span class="tool-label">SYSTEM</span></button>
         <button id="scene-tab-combat" class="scene-tab scene-tab-combat-proxy" type="button" role="tab" data-scene-tab="combat" aria-selected="false" hidden>COMBAT</button>
       </div>
@@ -308,7 +308,7 @@
     <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
   </section>
       </div>
-      <!-- v0.192.6: WORLD sits under the map as a strip of the stage, not a sidebar tab. -->
+      <!-- v0.193.0: WORLD sits under the map as a strip of the stage, not a sidebar tab. -->
       <section id="sidebar-port-panel" class="stage-strip" aria-label="World">
       <!-- v0.120.0: TRADE and JOBS are dock flyouts now, and NPCS pointed at
            the ACTOR ROSTER that already lives in the ACTORS panel — the same
@@ -412,7 +412,14 @@
         </div>
       </section>
       </details>
-      <!-- v0.192.6: the ship sits under the character; the jump decision is
+      <!-- v0.193.0: the full sheet lives in the right column during play.
+           applyCampaignLayout moves #personnel-section in here from the
+           stage (and back for character generation), so the sheet renderers
+           keep every id they write to. -->
+      <details id="sidebar-sheet" class="sidebar-strip sidebar-sheet" open hidden>
+        <summary class="sidebar-strip-summary"><span>PERSONNEL RECORD</span></summary>
+      </details>
+      <!-- v0.192.1: the ship sits under the character; the jump decision is
            made from the right column now, not from a band above the map. -->
     <div id="ship-strip" class="ship-strip" hidden>
       <div class="nav-strip">
@@ -581,7 +588,7 @@
         </section>
       </div>
     </aside>
-    <!-- v0.192.6: chat is the bottom edge of the shell, one row until opened. -->
+    <!-- v0.193.0: chat is the bottom edge of the shell, one row until opened. -->
     <footer id="shell-chat" class="shell-chat" aria-label="Chat and log">
         <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
           <div class="activity-header">
@@ -977,6 +984,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.192.6"></script>
+  <script type="module" src="./boot.mjs?v=v0.193.0"></script>
 </body>
 </html>
