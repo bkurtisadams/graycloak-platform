@@ -42,6 +42,133 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
+  /* v0.191.0: every colour outside :root is a token so a theme can swap it.
+     Light values are the literals they replaced; dark values live below. */
+  --line-strong: #111311;
+  --on-token: #f2f2ed;
+  --token-party: #29465c;
+  --token-enemy: #6a1f1f;
+  --token-declared: #667783;
+  --token-inactive: #777a75;
+  --token-selected-stroke: #e7dfb6;
+  --grid-line: #a3a59f;
+  --highlight: #d8b53a;
+  --range-short: #c58b25;
+  --range-medium: #3d7c50;
+  --range-long: #336b9b;
+  --range-very-long: #7b4f91;
+  --range-contact: #c55a25;
+  --target-stroke: #b52a2a;
+  --remote-target: #63a9c7;
+  --move-run: #b57d23;
+  --move-legal: #3f7b43;
+  --move-legal-ink: #285c2f;
+  --warn-ink: #7a5210;
+  --loss: #8c3b30;
+  --blocked-border: #b08079;
+  --field: #e4e4df;
+  --menu-paper: #e5e5e1;
+  --paper-selected: #d9d9d3;
+  --paper-deeper: #d1d1ca;
+  --paper-deepest: #c7c8c1;
+  --portrait-bg: #bfc0bb;
+  --sheet-paper: #fffef8;
+  --sheet-paper-deep: #f7f5ed;
+  --active-row: #eef3ee;
+  --paper-veil: rgba(217, 217, 211, 0.94);
+  --danger-veil: rgba(150, 40, 30, 0.14);
+  --danger-veil-strong: rgba(150, 40, 30, 0.42);
+  --light-veil: rgba(255, 255, 255, 0.1);
+  --shadow-veil: rgba(0, 0, 0, 0.28);
+  --range-line: #2d3f4b;
+  --zone-label: #3a3934;
+  --roster-paper: #deded9;
+  --required-ink: #6b5f1f;
+  --move-walk: #567d46;
+}
+
+/* v0.191.0: dark theme. Same tokens, night values; the masthead toggle sets
+   data-theme on <html>, and the OS preference applies when nothing is set. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #0f1319;
+  --paper-deep: #0b0f14;
+  --ink: #d8dee6;
+  --muted: #93a0b1;
+  --link: #63a9c7;
+  --rule: #4a5568;
+  --error: #f0a19b;
+  --ok: #5cb87a;
+  --action-ready: #e8a84c;
+  --action-ready-hover: #f3c274;
+  --action-border: #e8a84c;
+  --failure-bg: #3a1c1c;
+  --failure-border: #e06c65;
+  --attention: #2e2812;
+  --attention-border: #e8a84c;
+  --disabled: #55627a;
+  --help-paper: #161c24;
+  --side-party: #63a9c7;
+  --side-party-tint: #17242e;
+  --side-opposition: #d9a24a;
+  --side-opposition-tint: #2b2213;
+  --side-third: #b48ad6;
+  --side-third-tint: #241d2e;
+  --side-intruder: #e06c65;
+  --side-intruder-tint: #3a1c1c;
+  --side-native: #5f8fb3;
+  --side-native-tint: #17242e;
+  --tab-selected: #2e2812;
+  --tab-selected-border: #e8a84c;
+  --line-strong: #d8dee6;
+  --on-token: #f2f2ed;
+  --token-party: #5f8fb3;
+  --token-enemy: #a8433d;
+  --token-declared: #5f7d93;
+  --token-inactive: #4a5360;
+  --token-selected-stroke: #f3e9c0;
+  --grid-line: #2f3742;
+  --highlight: #e8a84c;
+  --range-short: #e8a84c;
+  --range-medium: #5cb87a;
+  --range-long: #63a9c7;
+  --range-very-long: #b48ad6;
+  --range-contact: #e06c65;
+  --target-stroke: #e06c65;
+  --remote-target: #63a9c7;
+  --move-run: #e8a84c;
+  --move-legal: #5cb87a;
+  --move-legal-ink: #5cb87a;
+  --warn-ink: #e8a84c;
+  --loss: #f0a19b;
+  --blocked-border: #7a3a3a;
+  --field: #161c24;
+  --menu-paper: #161c24;
+  --paper-selected: #1e2631;
+  --paper-deeper: #1a212a;
+  --paper-deepest: #222b36;
+  --portrait-bg: #222b36;
+  --sheet-paper: #12171e;
+  --sheet-paper-deep: #161c24;
+  --active-row: #1b2431;
+  --paper-veil: rgba(22, 28, 36, 0.94);
+  --danger-veil: rgba(224, 108, 101, 0.18);
+  --danger-veil-strong: rgba(224, 108, 101, 0.45);
+  --light-veil: rgba(255, 255, 255, 0.06);
+  --shadow-veil: rgba(0, 0, 0, 0.6);
+  --range-line: #4a5568;
+  --zone-label: #93a0b1;
+  --roster-paper: #161c24;
+  --required-ink: #e8a84c;
+  --move-walk: #5cb87a;
+}
+
+:root[data-theme="dark"] .action-button,
+:root[data-theme="dark"] .action-button:hover,
+:root[data-theme="dark"] .action-button:focus-visible { color: #10141a; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; }
 }
 
 * { box-sizing: border-box; }
@@ -186,7 +313,7 @@ input[type="text"],
 input[type="number"] {
   border: 1px solid var(--rule);
   border-radius: 0;
-  background: #e4e4df;
+  background: var(--field);
   color: var(--ink);
   padding: 3px 5px;
   min-height: 27px;
@@ -510,7 +637,7 @@ input[readonly] {
 .live-ship-panel {
   border: 1px solid var(--rule);
   padding: 5px 6px 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--light-veil);
 }
 
 .live-ship-heading {
@@ -693,7 +820,7 @@ input[readonly] {
 .encounter-side-panel {
   min-width: 0;
   border: 1px solid var(--rule);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--light-veil);
 }
 
 .encounter-map-toolbar {
@@ -721,7 +848,7 @@ input[readonly] {
   height: min(58vh, 580px);
   min-height: 390px;
   overflow: hidden;
-  background: #c7c8c1;
+  background: var(--paper-deepest);
   cursor: grab;
   overscroll-behavior: contain;
   touch-action: none;
@@ -736,59 +863,59 @@ input[readonly] {
   height: 100%;
   max-width: none;
   touch-action: none;
-  background: #d1d1ca;
+  background: var(--paper-deeper);
 }
 
-.encounter-grid-line { stroke: #a3a59f; stroke-width: .5; vector-effect: non-scaling-stroke; }
-.encounter-grid-major { stroke: #777a75; stroke-width: 1; vector-effect: non-scaling-stroke; }
-.encounter-range-line { stroke: #2d3f4b; stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-.encounter-range-line.contact { stroke: #c55a25; stroke-width: 1.5; stroke-dasharray: none; }
+.encounter-grid-line { stroke: var(--grid-line); stroke-width: .5; vector-effect: non-scaling-stroke; }
+.encounter-grid-major { stroke: var(--token-inactive); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.encounter-range-line { stroke: var(--range-line); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-range-line.contact { stroke: var(--range-contact); stroke-width: 1.5; stroke-dasharray: none; }
 .encounter-range-boundary { fill: none; pointer-events: none; vector-effect: non-scaling-stroke; }
-.encounter-range-boundary.short { stroke: #c58b25; stroke-width: 2.5; }
-.encounter-range-boundary.medium { stroke: #3d7c50; stroke-width: 2; }
-.encounter-range-boundary.long { stroke: #336b9b; stroke-width: 2; }
-.encounter-range-boundary.very-long { stroke: #7b4f91; stroke-width: 2.5; }
+.encounter-range-boundary.short { stroke: var(--range-short); stroke-width: 2.5; }
+.encounter-range-boundary.medium { stroke: var(--range-medium); stroke-width: 2; }
+.encounter-range-boundary.long { stroke: var(--range-long); stroke-width: 2; }
+.encounter-range-boundary.very-long { stroke: var(--range-very-long); stroke-width: 2.5; }
 .encounter-token { cursor: grab; touch-action: none; }
 .encounter-token:focus { outline: none; }
 .encounter-token-hit-area { fill: transparent; stroke: none; pointer-events: all; }
 .encounter-token.dragging { cursor: grabbing; opacity: 0.78; }
-.encounter-token-pc { fill: #29465c; stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-.encounter-token-pc.declared { fill: #667783; opacity: 0.72; }
-.encounter-token-pc-label { fill: #f2f2ed; font: 700 .46px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.encounter-token-enemy { fill: #6a1f1f; stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: pointer; }
+.encounter-token-pc { fill: var(--token-party); stroke: var(--line-strong); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.encounter-token-pc.declared { fill: var(--token-declared); opacity: 0.72; }
+.encounter-token-pc-label { fill: var(--on-token); font: 700 .46px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-enemy { fill: var(--token-enemy); stroke: var(--line-strong); stroke-width: 1.2; vector-effect: non-scaling-stroke; cursor: pointer; }
 .encounter-token-enemy:hover,
-.encounter-token-enemy:focus { stroke: #29465c; stroke-width: 1.5; outline: none; }
-.encounter-token-enemy.inactive { fill: #777a75; opacity: 0.55; cursor: default; }
-.encounter-token-enemy-label { fill: #f2f2ed; font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.encounter-token-condition-marker { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .15px; font: 700 .45px Consolas, monospace; pointer-events: none; }
+.encounter-token-enemy:focus { stroke: var(--token-party); stroke-width: 1.5; outline: none; }
+.encounter-token-enemy.inactive { fill: var(--token-inactive); opacity: 0.55; cursor: default; }
+.encounter-token-enemy-label { fill: var(--on-token); font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.encounter-token-condition-marker { fill: var(--token-enemy); stroke: var(--token-selected-stroke); stroke-width: .15px; font: 700 .45px Consolas, monospace; pointer-events: none; }
 
 /* v0.96.0: Book 1 p.29's own line grid — plain rectangular rows, one per
    band, drawn at real pixel scale rather than the 1-unit-per-cell scale the
    tactical board's tokens use above. */
 .range-line-row { fill: transparent; stroke: none; }
 .range-line-row:nth-of-type(odd) { fill: #00000008; }
-.range-line-row.escaped { fill: #6a1f1f; opacity: .12; }
-.range-line-divider { stroke: #111311; stroke-width: 1; opacity: .6; }
-.range-line-zone-label { fill: #3a3934; font: 700 14px Consolas, monospace; dominant-baseline: central; letter-spacing: .04em; }
+.range-line-row.escaped { fill: var(--token-enemy); opacity: .12; }
+.range-line-divider { stroke: var(--line-strong); stroke-width: 1; opacity: .6; }
+.range-line-zone-label { fill: var(--zone-label); font: 700 14px Consolas, monospace; dominant-baseline: central; letter-spacing: .04em; }
 .range-line-token { cursor: pointer; }
-.range-line-token circle { stroke: #111311; stroke-width: 1.5; }
-.range-line-token.party circle { fill: #29465c; }
-.range-line-token.party.declared circle { fill: #667783; opacity: .72; }
-.range-line-token.enemy circle { fill: #6a1f1f; }
-.range-line-token.enemy.inactive circle { fill: #777a75; opacity: .55; cursor: default; }
-.range-line-token.selected circle { stroke: #e7dfb6; stroke-width: 3; }
-.range-line-token.targeted circle { stroke-dasharray: 3 2; stroke: #b52a2a; stroke-width: 2; }
+.range-line-token circle { stroke: var(--line-strong); stroke-width: 1.5; }
+.range-line-token.party circle { fill: var(--token-party); }
+.range-line-token.party.declared circle { fill: var(--token-declared); opacity: .72; }
+.range-line-token.enemy circle { fill: var(--token-enemy); }
+.range-line-token.enemy.inactive circle { fill: var(--token-inactive); opacity: .55; cursor: default; }
+.range-line-token.selected circle { stroke: var(--token-selected-stroke); stroke-width: 3; }
+.range-line-token.targeted circle { stroke-dasharray: 3 2; stroke: var(--target-stroke); stroke-width: 2; }
 .range-line-token:hover circle,
-.range-line-token:focus circle { stroke: #29465c; }
-.range-line-token-label { fill: #f2f2ed; font: 700 16px Consolas, monospace; pointer-events: none; }
-.range-line-status-glyph { fill: #6a1f1f; stroke: #e7dfb6; stroke-width: .5px; font: 700 16px Consolas, monospace; pointer-events: none; }
+.range-line-token:focus circle { stroke: var(--token-party); }
+.range-line-token-label { fill: var(--on-token); font: 700 16px Consolas, monospace; pointer-events: none; }
+.range-line-status-glyph { fill: var(--token-enemy); stroke: var(--token-selected-stroke); stroke-width: .5px; font: 700 16px Consolas, monospace; pointer-events: none; }
 .range-line-declared-marker { fill: var(--ink); font: 700 13px Consolas, monospace; pointer-events: none; }
 .encounter-token-tooltip,
-.encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid #111311; background: #e5e5e1; color: #111311; padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
+.encounter-token-menu { position: absolute; z-index: 8; max-width: 280px; border: 1px solid var(--line-strong); background: var(--menu-paper); color: var(--line-strong); padding: 5px 7px; font: 11px/1.35 Consolas, monospace; white-space: pre-line; pointer-events: none; }
 .encounter-token-menu { z-index: 9; display: grid; gap: 2px; min-width: 170px; pointer-events: auto; white-space: normal; }
-.encounter-token-menu button { border: 0; background: transparent; color: #111311; padding: 3px; text-align: left; font: inherit; cursor: pointer; }
+.encounter-token-menu button { border: 0; background: transparent; color: var(--line-strong); padding: 3px; text-align: left; font: inherit; cursor: pointer; }
 .encounter-token-menu button:hover,
-.encounter-token-menu button:focus { background: #111311; color: #f2f2ed; outline: none; }
+.encounter-token-menu button:focus { background: var(--line-strong); color: var(--on-token); outline: none; }
 
 .encounter-map-legend {
   display: flex;
@@ -802,8 +929,8 @@ input[readonly] {
 
 .encounter-map-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .encounter-map-legend i { display: inline-block; width: 10px; height: 10px; border: 1px solid var(--rule); }
-.encounter-legend-pc { background: #29465c; }
-.encounter-legend-enemy { background: #6a1f1f; }
+.encounter-legend-pc { background: var(--token-party); }
+.encounter-legend-enemy { background: var(--token-enemy); }
 
 .encounter-side-panel {
   max-height: min(65vh, 650px);
@@ -850,8 +977,8 @@ input[readonly] {
   cursor: pointer;
 }
 
-.encounter-party-card { border-left: 4px solid #29465c; }
-.encounter-party-card.selected { background: var(--attention); border-color: #29465c; font-weight: 700; }
+.encounter-party-card { border-left: 4px solid var(--token-party); }
+.encounter-party-card.selected { background: var(--attention); border-color: var(--token-party); font-weight: 700; }
 .encounter-party-card.declared { color: var(--muted); opacity: 0.72; }
 
 .encounter-enemy-card:hover,
@@ -873,14 +1000,14 @@ input[readonly] {
 .roster-folder { border: 1px solid var(--disabled); }
 .roster-folder summary { padding: 5px 7px; cursor: pointer; font-weight: 700; }
 .roster-folder-body { display: grid; gap: 5px; padding: 0 6px 6px; }
-.roster-card { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 7px; border: 1px solid var(--disabled); background: #deded9; padding: 5px; color: #111311; }
-.roster-portrait { width: 54px; height: 54px; border: 1px solid #111311; background: #bfc0bb; object-fit: cover; }
+.roster-card { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 7px; border: 1px solid var(--disabled); background: var(--roster-paper); padding: 5px; color: var(--line-strong); }
+.roster-portrait { width: 54px; height: 54px; border: 1px solid var(--line-strong); background: var(--portrait-bg); object-fit: cover; }
 .roster-portrait-placeholder { display: grid; place-items: center; font-size: 20px; font-weight: 700; }
 .roster-card-name { font-weight: 700; }
 .roster-card-meta,
-.roster-card-description { display: block; color: #3c3f3b; font-size: 10px; }
+.roster-card-description { display: block; color: var(--muted); font-size: 10px; }
 .roster-card-conditions { display: block; margin-top: 2px; color: var(--muted); font-size: 10px; }
-.roster-card-conditions.active { color: #6a1f1f; font-weight: 700; }
+.roster-card-conditions.active { color: var(--token-enemy); font-weight: 700; }
 .roster-card-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .encounter-placement-dialog,
 .encounter-condition-dialog { width: min(470px, calc(100vw - 24px)); }
@@ -915,7 +1042,7 @@ input[readonly] {
   min-height: 27px;
   border: 1px solid var(--rule);
   border-radius: 0;
-  background: #e4e4df;
+  background: var(--field);
   color: var(--ink);
   padding: 3px 5px;
 }
@@ -929,7 +1056,7 @@ input[readonly] {
 }
 
 .combat-setup-footer label { display: grid; gap: 3px; color: var(--muted); font-size: 11px; font-weight: 700; }
-.combat-setup-footer select { min-height: 27px; border: 1px solid var(--rule); border-radius: 0; background: #e4e4df; color: var(--ink); }
+.combat-setup-footer select { min-height: 27px; border: 1px solid var(--rule); border-radius: 0; background: var(--field); color: var(--ink); }
 /* v0.96.8: the grid-only controls sit inside the footer's flex row as if
    unwrapped, and vanish together when RANGE LINE is chosen. display:
    contents would otherwise override the hidden attribute, hence the second
@@ -941,11 +1068,11 @@ input[readonly] {
    rather than a line in a dropdown. */
 .combat-board-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 4px; padding: 0; border: 0; }
 .combat-board-choice legend { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .06em; padding: 0 0 4px; }
-.combat-board-option { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; row-gap: 2px; align-items: start; padding: 8px 10px; border: 1px solid var(--rule); background: #e4e4df; cursor: pointer; font-size: 11px; }
+.combat-board-option { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; row-gap: 2px; align-items: start; padding: 8px 10px; border: 1px solid var(--rule); background: var(--field); cursor: pointer; font-size: 11px; }
 .combat-board-option input { grid-row: 1 / 3; margin: 2px 0 0; }
 .combat-board-option strong { font-size: 12px; letter-spacing: .06em; color: var(--ink); }
 .combat-board-option span { color: var(--muted); line-height: 1.35; }
-.combat-board-option:has(input:checked) { border-color: var(--ink); background: #d9d9d3; }
+.combat-board-option:has(input:checked) { border-color: var(--ink); background: var(--paper-selected); }
 
 #subsector-section.encounter-workspace-active .subsector-workspace { grid-template-columns: minmax(0, 1fr); }
 #subsector-section.encounter-workspace-active .subsector-map-column,
@@ -1529,7 +1656,7 @@ input[readonly] {
 .traveller-character-sheet {
   margin-top: 0.75rem;
   border: 4px solid var(--ink);
-  background: #f7f5ed;
+  background: var(--sheet-paper-deep);
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -1685,7 +1812,7 @@ input[readonly] {
 .traveller-character-sheet textarea {
   margin-top: 0.25rem;
   border: 2px solid var(--ink);
-  background: #fffef8;
+  background: var(--sheet-paper);
   color: var(--ink);
   font: 0.78rem Consolas, "Courier New", monospace;
 }
@@ -1927,7 +2054,7 @@ input[readonly] {
 }
 
 .roll-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--shadow-veil);
 }
 
 .roll-dialog-form {
@@ -2091,12 +2218,12 @@ input[readonly] {
 .procedure-group-label { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
 .procedure-group-label::after { content: ""; flex: 1; border-top: 1px solid var(--disabled); }
 .procedure-group-toggle { font-size: 10px; order: 3; }
-.procedure-card { display: block; width: 100%; border: 1px solid var(--disabled); margin: 5px 0; padding: 7px 9px; background: rgba(255,255,255,.14); text-align: left; color: var(--ink); font: inherit; }
+.procedure-card { display: block; width: 100%; border: 1px solid var(--disabled); margin: 5px 0; padding: 7px 9px; background: var(--light-veil); text-align: left; color: var(--ink); font: inherit; }
 .procedure-card-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 700; }
 .procedure-card-tag { font-size: 10px; letter-spacing: .08em; color: var(--muted); font-weight: 700; white-space: nowrap; }
 .procedure-card-copy { margin-top: 3px; font-size: 12px; color: var(--muted); }
 .procedure-card.required { background: var(--attention); border-color: var(--attention-border); }
-.procedure-card.required .procedure-card-tag { color: #6b5f1f; }
+.procedure-card.required .procedure-card-tag { color: var(--required-ink); }
 .procedure-card.ready { background: var(--action-ready); border-color: var(--action-border); }
 .procedure-card.ready .procedure-card-tag { color: var(--ok); }
 .procedure-card.blocked, .procedure-card.blocked .procedure-card-title { color: var(--muted); }
@@ -2125,7 +2252,7 @@ input[readonly] {
 #encounter-section { padding: 8px 10px; }
 #subsector-section:not(.encounter-workspace-active) #encounter-section { display: none; }
 .sheet-view { display: none; }
-.sheet-view.sheet-overlay { display: block; position: absolute; inset: 0; overflow: auto; padding: 14px 16px; background: rgba(217,217,211,.92); z-index: 4; }
+.sheet-view.sheet-overlay { display: block; position: absolute; inset: 0; overflow: auto; padding: 14px 16px; background: var(--paper-veil); z-index: 4; }
 .sheet-view .section-heading { display: flex; align-items: baseline; gap: 12px; }
 .sheet-view .sheet-close { margin-left: auto; font-size: 11px; }
 .chargen-mode .sheet-view#personnel-section, .chargen-mode .sheet-view#ship-section { display: block; position: static; padding: 12px 14px; background: transparent; }
@@ -3017,10 +3144,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-range-pair { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .encounter-range-key { white-space: nowrap; color: var(--muted); }
 .encounter-range-key i { display: inline-grid; place-items: center; min-width: 19px; height: 19px; border: 2px solid; font-style: normal; font-size: 9px; color: var(--ink); }
-.encounter-range-key .short { border-color: #c58b25; }
-.encounter-range-key .medium { border-color: #3d7c50; }
-.encounter-range-key .long { border-color: #336b9b; }
-.encounter-range-key .very-long { border-color: #7b4f91; }
+.encounter-range-key .short { border-color: var(--range-short); }
+.encounter-range-key .medium { border-color: var(--range-medium); }
+.encounter-range-key .long { border-color: var(--range-long); }
+.encounter-range-key .very-long { border-color: var(--range-very-long); }
 .encounter-range-buttons { display: flex; justify-content: center; gap: 3px; min-width: 0; }
 .encounter-range-button {
   border: 1px solid var(--disabled);
@@ -3132,15 +3259,15 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-order-line.evade, .encounter-order-line.wait { stroke-dasharray: 2 4; }
 .encounter-order-head.party { fill: var(--tab-selected-border); }
 .encounter-order-head.enemy { fill: var(--failure-border); }
-.encounter-movement-path, .player-movement-path { fill: none; stroke: #567d46; stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-.encounter-movement-path.run, .player-movement-path.run { stroke: #b57d23; }
+.encounter-movement-path, .player-movement-path { fill: none; stroke: var(--move-walk); stroke-width: 2; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-movement-path.run, .player-movement-path.run { stroke: var(--move-run); }
 .movement-drag-trail { fill: none; stroke-width: 3; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-.movement-drag-trail.legal { stroke: #3f7b43; }
-.movement-drag-trail.limit { stroke: #b57d23; }
+.movement-drag-trail.legal { stroke: var(--move-legal); }
+.movement-drag-trail.limit { stroke: var(--move-run); }
 .movement-drag-trail.over { stroke: var(--failure-border); }
 .movement-drag-label { font: 700 4px Consolas, monospace; paint-order: stroke; stroke: var(--paper); stroke-width: 2px; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
-.movement-drag-label.legal { fill: #285c2f; }
-.movement-drag-label.limit { fill: #8a5b13; }
+.movement-drag-label.legal { fill: var(--move-legal-ink); }
+.movement-drag-label.limit { fill: var(--warn-ink); }
 .movement-drag-label.over { fill: var(--failure-border); }
 
 /* --- Cascading token menu. */
@@ -3169,8 +3296,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.43.0: selection and targeting read off the map. Yellow ring: the
    combatant you are giving orders to. Red ring: a marked target, pulsing so
    it is visible without hunting for it. */
-.encounter-token-selected-ring { fill: none; stroke: #d8b53a; stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; vector-effect: non-scaling-stroke; pointer-events: none; }
-.encounter-token-remote-target { fill: #63a9c7; stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-token-selected-ring { fill: none; stroke: var(--highlight); stroke-width: 2; stroke-linecap: square; stroke-linejoin: miter; vector-effect: non-scaling-stroke; pointer-events: none; }
+.encounter-token-remote-target { fill: var(--remote-target); stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
 .encounter-token-target-ring { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 .encounter-light-control { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
 .encounter-light-control select { font: inherit; font-size: 10px; padding: 1px 2px; }
@@ -3263,14 +3390,14 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-grid { stroke: var(--disabled); stroke-width: .45; vector-effect: non-scaling-stroke; }
 .player-grid.major { stroke: var(--muted); stroke-width: 1.2; }
 .player-token-group { cursor: pointer; }
-.player-token { stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-.player-token.party { fill: #29465c; }
-.player-token.enemy { fill: #6a1f1f; }
+.player-token { stroke: var(--line-strong); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.player-token.party { fill: var(--token-party); }
+.player-token.enemy { fill: var(--token-enemy); }
 .player-token.down { opacity: 0.45; }
-.player-token-selected { fill: none; stroke: #d8b53a; stroke-width: 2; stroke-linecap: square; vector-effect: non-scaling-stroke; pointer-events: none; }
+.player-token-selected { fill: none; stroke: var(--highlight); stroke-width: 2; stroke-linecap: square; vector-effect: non-scaling-stroke; pointer-events: none; }
 .player-token-target { fill: none; stroke: var(--failure-border); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
-.player-token-remote-target { fill: #63a9c7; stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
-.player-token-label { fill: #f2f2ed; font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.player-token-remote-target { fill: var(--remote-target); stroke: var(--paper); stroke-width: .7; vector-effect: non-scaling-stroke; pointer-events: none; }
+.player-token-label { fill: var(--on-token); font: 700 .42px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
 .player-token-menu { position: absolute; z-index: 5; display: flex; flex-direction: column; }
 .player-token-menu[hidden] { display: none; }
 
@@ -3278,7 +3405,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-side-heading { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 6px 0 4px; }
 .player-roster { display: flex; flex-direction: column; gap: 2px; }
 .player-roster-row { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 3px 6px; border: 1px solid var(--rule); background: var(--paper); }
-.player-roster-row.yours { border-color: #d8b53a; border-left-width: 3px; }
+.player-roster-row.yours { border-color: var(--highlight); border-left-width: 3px; }
 .player-roster-row.down { color: var(--disabled); }
 .player-roster-name { flex: 1 1 auto; }
 .player-roster-condition { color: var(--muted); }
@@ -3333,7 +3460,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-log { display: flex; flex-direction: column; gap: 3px; max-height: min(80vh, 1000px); overflow: auto; }
 .player-log-empty { font-size: 11px; color: var(--muted); padding: 6px 0; }
 .player-log-entry { border-top: 1px dotted var(--disabled); padding: 3px 0; font-size: 11px; }
-.player-log-entry.addressed { border-left: 3px solid #d8b53a; padding-left: 6px; }
+.player-log-entry.addressed { border-left: 3px solid var(--highlight); padding-left: 6px; }
 .player-log-meta { display: flex; gap: 8px; font-size: 10px; letter-spacing: .08em; color: var(--muted); }
 .player-log-category { font-weight: 700; }
 .player-log-message { padding-top: 1px; overflow-wrap: anywhere; }
@@ -3395,8 +3522,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.72.0: scenes in the directory, in folders. */
 .directory-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .directory-folder { font-size: 10px; letter-spacing: .1em; color: var(--muted); padding: 6px 0 2px 2px; border-bottom: 1px dotted var(--disabled); }
-.directory-row.kind-scene { border-left: 3px solid #6f866f; }
-.directory-row.kind-scene.active { background: #eef3ee; }
+.directory-row.kind-scene { border-left: 3px solid var(--tab-selected-border); }
+.directory-row.kind-scene.active { background: var(--active-row); }
 .scene-basis { font-size: 10px; letter-spacing: .04em; color: var(--muted); max-width: 46ch; padding-bottom: 6px; }
 .scene-dialog label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; letter-spacing: .08em; }
 .scene-dialog input, .scene-dialog select { font: inherit; font-size: 12px; padding: 3px 4px; }
@@ -3407,30 +3534,30 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .enter-generation-line.latest { color: var(--ink); font-weight: 700; }
 
 /* --- v0.73.0: the shared combat canvas (scene-canvas.js), on both pages. */
-.scene-grid { stroke: #a3a59f; stroke-width: .5; vector-effect: non-scaling-stroke; }
-.scene-grid.major { stroke: #777a75; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.scene-grid { stroke: var(--grid-line); stroke-width: .5; vector-effect: non-scaling-stroke; }
+.scene-grid.major { stroke: var(--token-inactive); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .scene-token { cursor: pointer; touch-action: none; }
 .scene-token.draggable { cursor: grab; }
 .scene-token.dragging { cursor: grabbing; opacity: 0.78; }
 .scene-token:focus, .scene-token:focus-visible { outline: none; }
 .scene-token-hit { fill: transparent; stroke: none; pointer-events: all; }
-.scene-token-body { stroke: #111311; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
-.scene-token-body.party { fill: #29465c; }
-.scene-token-body.party.declared { fill: #667783; opacity: 0.72; }
-.scene-token-body.party.owned { stroke: #d8b53a; stroke-width: 2; }
-.scene-token-body.enemy { fill: #6a1f1f; }
-.scene-token-body.inactive { fill: #777a75; opacity: 0.55; }
-.scene-token:hover .scene-token-body, .scene-token:focus .scene-token-body { stroke: #29465c; stroke-width: 1.5; }
-.scene-token-label { fill: #f2f2ed; font: 700 .44px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
-.scene-token-selected { fill: none; stroke: #d8b53a; stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
-.scene-token-target { fill: none; stroke: #b52a2a; stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.scene-token-body { stroke: var(--line-strong); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.scene-token-body.party { fill: var(--token-party); }
+.scene-token-body.party.declared { fill: var(--token-declared); opacity: 0.72; }
+.scene-token-body.party.owned { stroke: var(--highlight); stroke-width: 2; }
+.scene-token-body.enemy { fill: var(--token-enemy); }
+.scene-token-body.inactive { fill: var(--token-inactive); opacity: 0.55; }
+.scene-token:hover .scene-token-body, .scene-token:focus .scene-token-body { stroke: var(--token-party); stroke-width: 1.5; }
+.scene-token-label { fill: var(--on-token); font: 700 .44px Consolas, monospace; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+.scene-token-selected { fill: none; stroke: var(--highlight); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: none; }
+.scene-token-target { fill: none; stroke: var(--target-stroke); stroke-width: 2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; pointer-events: none; }
 .scene-drag-trail { fill: none; stroke-width: 3; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; pointer-events: none; }
-.scene-drag-trail.legal { stroke: #3f7b43; }
-.scene-drag-trail.limit { stroke: #b57d23; }
+.scene-drag-trail.legal { stroke: var(--move-legal); }
+.scene-drag-trail.limit { stroke: var(--move-run); }
 .scene-drag-trail.over { stroke: var(--failure-border); }
 .scene-drag-label { font: 700 4px Consolas, monospace; paint-order: stroke; stroke: var(--paper); stroke-width: 2px; stroke-linejoin: round; pointer-events: none; }
-.scene-drag-label.legal { fill: #285c2f; }
-.scene-drag-label.limit { fill: #7a5210; }
+.scene-drag-label.legal { fill: var(--move-legal-ink); }
+.scene-drag-label.limit { fill: var(--warn-ink); }
 .scene-drag-label.over { fill: var(--failure-border); }
 .panning { cursor: grabbing; }
 /* --- v0.74.0: the combat tracker on the referee's tracker slot. */
@@ -3889,7 +4016,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-masthead {
   position: absolute; top: 0; left: 0; right: 0; z-index: 30;
   min-height: 32px; height: 32px;
-  background: rgba(217, 217, 211, 0.92);
+  background: var(--paper-veil);
   border-bottom: 1px solid var(--rule);
 }
 .shell-masthead .masthead-main { min-height: 32px; }
@@ -3909,7 +4036,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   padding: 0; border: 0; background: transparent; overflow: visible;
 }
 .shell-rail .scene-tab, .rail-tool {
-  background: rgba(217, 217, 211, 0.94);
+  background: var(--paper-veil);
   border: 1px solid var(--rule);
 }
 /* Sidebar: icon strip on the far right, drawer to its left over the canvas. */
@@ -3922,12 +4049,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-sidebar .sidebar-tabs {
   grid-column: 2; grid-row: 1 / -1;
   border-right: 0; border-left: 1px solid var(--rule);
-  background: rgba(217, 217, 211, 0.94);
+  background: var(--paper-veil);
 }
 .shell-sidebar > .sidebar-strip,
 .shell-sidebar > .sidebar-body {
   grid-column: 1; min-width: 0;
-  background: rgba(217, 217, 211, 0.96);
+  background: var(--paper-veil);
   border-left: 1px solid var(--rule);
 }
 .shell-sidebar > #sidebar-character { grid-row: 2; }
@@ -4071,7 +4198,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-tracker-icon.is-on { color: var(--failure-border); border-color: var(--failure-border); }
 .encounter-tracker-wounds { font-size: 11px; font-weight: 700; min-width: 3.5em; text-align: right; }
 .scene-token.is-pinged .scene-token-body { animation: token-ping 0.4s ease-out 3; }
-@keyframes token-ping { 0%, 100% { stroke: #111311; stroke-width: 1.2; } 50% { stroke: #d8b53a; stroke-width: 4; } }
+@keyframes token-ping { 0%, 100% { stroke: var(--line-strong); stroke-width: 1.2; } 50% { stroke: var(--highlight); stroke-width: 4; } }
 .encounter-tracker-conditions { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px dotted var(--disabled); }
 .encounter-tracker-condition { display: flex; align-items: center; gap: 5px; font-size: 10px; letter-spacing: .04em; }
 
@@ -4150,9 +4277,9 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .sidebar-body > .sidebar-panel:not([hidden]) { flex: 1 1 0; min-height: 0; }
 .sidebar-panel[data-sidebar-panel="chat"]:not([hidden]) { height: auto; }
 .encounter-token-status-glyph { font: 700 .5px Consolas, monospace; text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: .08px; pointer-events: none; }
-.encounter-token-status-glyph.dead { fill: #5c1616; }
-.encounter-token-status-glyph.unconscious { fill: #7a5210; }
-.encounter-token-status-glyph.escaped, .encounter-token-status-glyph.withdrawn { fill: #33372f; }
+.encounter-token-status-glyph.dead { fill: var(--error); }
+.encounter-token-status-glyph.unconscious { fill: var(--warn-ink); }
+.encounter-token-status-glyph.escaped, .encounter-token-status-glyph.withdrawn { fill: var(--muted); }
 .encounter-tracker-ready { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* --- v0.92.0: the scene navigation bar, over the canvas at the top. */
@@ -4211,7 +4338,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .dock-collapsed .shell-dock { display: none; }
 .dock-reopen {
   position: absolute; top: 40px; left: 104px; z-index: 22;
-  background: rgba(217, 217, 211, 0.94); border: 1px solid var(--rule);
+  background: var(--paper-veil); border: 1px solid var(--rule);
   padding: 3px 7px; font-size: 10px;
 }
 @media (max-width: 1400px) {
@@ -4375,7 +4502,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    a marker, and get more width than the 42ch the ordinary status takes. */
 .status.error {
   max-width: 72ch;
-  background: rgba(150, 40, 30, 0.14);
+  background: var(--danger-veil);
   border: 1px solid var(--error);
   padding: 2px 8px;
   font-size: 12px;
@@ -4386,8 +4513,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .status.error { animation: status-error-in 220ms ease-out; }
 }
 @keyframes status-error-in {
-  from { background: rgba(150, 40, 30, 0.42); }
-  to { background: rgba(150, 40, 30, 0.14); }
+  from { background: var(--danger-veil-strong); }
+  to { background: var(--danger-veil); }
 }
 
 /* v0.115.0: the state tags read as a traffic light — red stop, amber get
@@ -4400,8 +4527,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    status band: a card that is merely unavailable must not read like an action
    that just failed. Colour is redundancy in every case — the word always
    stays, which matters at 10px in a low-contrast palette. */
-.procedure-card.blocked .procedure-card-tag { color: #8c3b30; }
-.procedure-card.blocked { border-color: #b08079; }
+.procedure-card.blocked .procedure-card-tag { color: var(--loss); }
+.procedure-card.blocked { border-color: var(--blocked-border); }
 .procedure-card.blocked .procedure-card-title { color: var(--ink); }
 
 /* v0.116.0: the ship's books. */
@@ -4411,7 +4538,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .ledger-totals { color: var(--muted); font-size: 10px; }
 .ledger-entry { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
 .ledger-gain { color: var(--ok); }
-.ledger-loss { color: #8c3b30; }
+.ledger-loss { color: var(--loss); }
 
 /* v0.117.0: the tool rail stops reserving a column.
    It has floated over the canvas since v0.80.0, but the stage still padded 96px
@@ -5138,10 +5265,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    board's corner brackets. Stroke widths are set in screen units by the plot,
    so the marks hold their weight at any zoom. Side colour stays on the token;
    gold is only ever selection. */
-.vector-ship-selected { fill: none; stroke: #d8b53a; stroke-linecap: square; pointer-events: none; }
-.vector-ship-hover { fill: none; stroke: #d8b53a; stroke-opacity: .5; stroke-linecap: square; pointer-events: none; visibility: hidden; }
+.vector-ship-selected { fill: none; stroke: var(--highlight); stroke-linecap: square; pointer-events: none; }
+.vector-ship-hover { fill: none; stroke: var(--highlight); stroke-opacity: .5; stroke-linecap: square; pointer-events: none; visibility: hidden; }
 .vector-ship-hover.is-hovered { visibility: visible; }
-.ship-data-card-frame.is-selected { outline: 2px solid #d8b53a; outline-offset: 1px; }
+.ship-data-card-frame.is-selected { outline: 2px solid var(--highlight); outline-offset: 1px; }
 
 /* v0.190.0: a ship the selected ship is aimed at — the personal board's
    dashed target ring. Never a click target: it sits over the token. */

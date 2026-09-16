@@ -5,6 +5,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
+  <script type="module" src="theme.js?v=v0.191.0"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -16,7 +17,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.190.0</div>
+          <div id="app-subtitle" class="subtitle">v0.191.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -25,6 +26,7 @@
           <span id="autosave-status" class="autosave-status" aria-live="polite">NO CAMPAIGN</span>
           <div id="system-status" class="status masthead-status" aria-live="polite">READY</div>
           <span class="masthead-spacer"></span>
+          <button data-theme-toggle class="text-button utility-button" type="button" hidden>[ DARK ]</button>
           <span id="account-name" class="masthead-account" title="Graycloak account"></span>
           <button id="account-button" class="text-button utility-button" type="button" hidden></button>
           <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
@@ -970,6 +972,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.190.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.191.0"></script>
 </body>
 </html>
