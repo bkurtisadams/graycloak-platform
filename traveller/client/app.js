@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.181.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.182.0';
 
 import {
   ACTION_LABELS,
@@ -180,33 +180,33 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.181.2';
+} from './ui-model.js?v=v0.182.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.181.2';
+} from './document-loader.js?v=v0.182.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.181.2';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.181.2';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.181.2';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.181.2';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.181.2';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.181.2';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.181.2';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.181.2';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.182.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.182.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.182.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.182.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.182.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.182.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.182.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.182.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.181.2';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.181.2';
+} from '../src/campaign-document.js?v=v0.182.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.182.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.181.2';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.182.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.181.2';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.181.2';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.181.2';
+} from '../src/document-window.js?v=v0.182.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.182.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.182.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -215,13 +215,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.181.2';
+} from './chargen-view.js?v=v0.182.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.181.2';
+} from './generators.js?v=v0.182.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -232,7 +232,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.181.2';
+} from './subsector-svg.js?v=v0.182.0';
 
 import {
   seededDice,
@@ -241,7 +241,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.181.2';
+} from './commerce-market.js?v=v0.182.0';
 
 import {
   addCharacterToCampaign,
@@ -271,7 +271,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.181.2';
+} from '../src/campaign-document.js?v=v0.182.0';
 
 import {
   NPC_CONDITIONS,
@@ -280,16 +280,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.181.2';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.181.2';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.181.2';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.181.2';
-import { openSignInDialog } from './signin-ui.js?v=v0.181.2';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.181.2';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.181.2';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.181.2';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.181.2';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.181.2';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.182.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.182.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.182.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.182.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.182.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.182.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.182.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.182.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.182.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.182.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -298,14 +298,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.181.2';
+} from '../src/activity-log-document.js?v=v0.182.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.181.2';
+} from '../src/player-session.js?v=v0.182.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -313,19 +313,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.181.2';
+} from './quick-slots.js?v=v0.182.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.181.2';
+} from '../src/campaign-bundle.js?v=v0.182.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.181.2';
+} from '../src/document-registry.js?v=v0.182.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.181.2';
+} from '../src/activity-log.js?v=v0.182.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -335,14 +335,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.181.2';
+} from '../src/contract-document.js?v=v0.182.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.181.2';
+} from '../src/situation-document.js?v=v0.182.0';
 
 import {
   createEncounterDocument,
@@ -371,42 +371,42 @@ import {
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, allocateRoundWound } from '../src/encounter-document.js?v=v0.181.2';
+  pendingWoundAllocation, allocateRoundWound } from '../src/encounter-document.js?v=v0.182.0';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.181.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.181.2';
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.181.2';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.182.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.182.0';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.182.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.181.2';
+} from '../src/contact-document.js?v=v0.182.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.181.2';
+} from '../src/adventure-thread-document.js?v=v0.182.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.181.2';
+} from '../world/situation-events.js?v=v0.182.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.181.2';
+} from '../world/contract-board.js?v=v0.182.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.181.2';
+} from '../world/thread-consequences.js?v=v0.182.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.181.2';
+} from '../world/far-meridian-subsector.js?v=v0.182.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -2140,7 +2140,37 @@ function applyDock() {
   localStorage.setItem('traveller.dock-collapsed.v1', dockCollapsed ? '1' : '0');
 }
 
-function setDockCollapsed(next) { dockCollapsed = Boolean(next); applyDock(); }
+function setDockCollapsed(next) {
+  dockCollapsed = Boolean(next);
+  // v0.182.0: an expand during a fight is deliberate — a contract deadline is
+  // worth checking mid-firefight — so it sticks until the fight ends rather
+  // than being collapsed again by the next render.
+  dockCollapsedByFight = dockCollapsed ? dockCollapsedByFight : false;
+  applyDock();
+}
+
+// v0.182.0: WHAT NOW? and the port opportunities are suspended while a fight
+// runs — the dock's own first card says so — so it collapses to that one line
+// and gives its width to the canvas, then comes back as it was. What it was
+// is remembered here rather than read back out of the collapsed state, which
+// would make the fight's own collapse look like the referee's preference.
+let dockCollapsedByFight = false;
+let dockStateBeforeFight = null;
+function applyFightDock(fightRunning) {
+  if (fightRunning && !dockCollapsedByFight && !dockCollapsed) {
+    dockStateBeforeFight = dockCollapsed;
+    dockCollapsedByFight = true;
+    dockCollapsed = true;
+    applyDock();
+    return;
+  }
+  if (!fightRunning && dockCollapsedByFight) {
+    dockCollapsedByFight = false;
+    dockCollapsed = dockStateBeforeFight ?? false;
+    dockStateBeforeFight = null;
+    applyDock();
+  }
+}
 
 function setSidebarTab(tab, { chosen = true } = {}) {
   if (!SIDEBAR_TABS.includes(tab)) return;
@@ -2209,7 +2239,11 @@ function popOutPanel(tab) {
   const controller = createWindowController({
     element: frame, titlebar, minimizeButton: minimize, closeButton: null,
     storageKey: `traveller.panel-popout.${tab}.v2`,
-    defaultSize: tab === 'chat' ? { width: 360, height: 560 } : { width: 380, height: 520 }
+    // The combat panel carries the tracker, the throw card and the round
+    // record; 380x520 is a directory's window, not a fight's.
+    defaultSize: tab === 'chat' ? { width: 360, height: 560 }
+      : tab === 'combat' ? { width: 620, height: 680 }
+      : { width: 380, height: 520 }
   });
   wireDocumentWindow(controller);
   close.addEventListener('click', () => dockPanel(tab));
@@ -5764,7 +5798,11 @@ function renderEncounterHistory(encounter) {
     if (!rounds.has(entry.round)) rounds.set(entry.round, []);
     rounds.get(entry.round).push(entry);
   }
-  const blocks = [...rounds.entries()].reverse().map(([round, entries]) => {
+  // v0.182.0: oldest at the top, newest at the bottom, as the chat has been
+  // since v0.81.0. Two panels in the same window scrolling opposite ways is
+  // one reading habit too many, and the newest round is what you look at, so
+  // it belongs where the eye already is when the composer is beneath it.
+  const blocks = [...rounds.entries()].sort((left, right) => left[0] - right[0]).map(([round, entries]) => {
     const block = document.createElement('div');
     block.className = 'encounter-history-round';
     const heading = document.createElement('div');
@@ -5789,9 +5827,14 @@ function renderEncounterHistory(encounter) {
     return block;
   });
   const outcome = document.createElement('div');
-  outcome.className = 'encounter-history-heading';
+  outcome.className = 'encounter-history-heading encounter-history-title';
   outcome.textContent = `${encounter.identity.title.toUpperCase()} / ${encounter.status.toUpperCase().replace('-', ' ')}`;
-  el.encounterRecord.replaceChildren(outcome, ...blocks);
+  // Stick to the newest round unless the referee has scrolled up to read
+  // something, which is exactly how the chat behaves.
+  const scroller = el.encounterRecord;
+  const wasAtBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40;
+  scroller.replaceChildren(outcome, ...blocks);
+  if (wasAtBottom) scroller.scrollTop = scroller.scrollHeight;
 }
 
 // One row per combatant: party first, then every other side, each with its
@@ -9232,7 +9275,14 @@ function applyOperationsDeskTab() {
   // live on the stage. The width belongs to a personal fight actually being
   // run, and never while the vector plot or the ship strip is up.
   const personalFightUp = Boolean(activeEncounterAtCurrentSystem()) && !shipCombatEncounter;
-  el.terminal?.classList.toggle('combat-wide', personalFightUp);
+  // v0.182.0: a popped-out combat panel is not in the drawer, so widening the
+  // drawer for it reserves space for nothing. popOutPanel MOVES the panel's
+  // element into a floating window (v0.87.0), so the panel is genuinely
+  // elsewhere and the two-column rules must not follow it — see styles.css.
+  el.terminal?.classList.toggle('combat-wide', personalFightUp && !poppedPanels.has('combat'));
+  // Either kind of fight suspends the dock; Book 2 combat suspends it as
+  // thoroughly as Book 1 does.
+  applyFightDock(personalFightUp || Boolean(shipCombatEncounter));
   // The encounter panel lives in the scene; while combat is active the context
   // panel shows the situation/roster only if selected, otherwise the takeover bar.
   for (const [key, tab] of Object.entries(tabs)) tab?.setAttribute('aria-selected', key === operationsDeskTab ? 'true' : 'false');
