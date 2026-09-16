@@ -43,7 +43,7 @@ test('v0.11.0.1 retains contextual help and highlighted legal actions', async ()
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /data-help-topic="personnel-record"/);
   assert.match(html, /id="context-help"/);
   assert.match(app, /helpForTopic/);
@@ -60,7 +60,7 @@ test('v0.11.0 specialization UI uses engine-supplied legal choices instead of fr
   const html = await read('index.html');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   const chargenView = await read('chargen-view.js');
   assert.match(chargenView, /available\.choices\.specializations/);
   assert.doesNotMatch(app, /id = 'skill-specialization'/);
@@ -214,7 +214,7 @@ test('v0.11.0.1 adds base markers, map zoom controls, and a left navigation rail
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /class="scene shell-stage"/);
   assert.match(html, /id="map-zoom-out"/);
   assert.match(html, /id="map-zoom-in"/);
@@ -234,7 +234,7 @@ test('v0.11.0.2 highlights navigation and port states that require attention', a
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(app, /renderRecordWithHighlights/);
   assert.match(app, /jumpAttention\.push\('FUEL NEED '/);
   assert.match(model, /panelRow\('BERTHING'/);
@@ -251,7 +251,7 @@ test('v0.11.1 exposes Book 2 passengers, freight, speculative trade, and life-su
   const model = await read('ui-model.js');
   const market = await read('commerce-market.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="commerce-section"/);
   assert.match(html, /data-help-topic="commerce"/);
   assert.match(app, /generatePassengerDemand/);
@@ -276,7 +276,7 @@ test('v0.11.2 exposes persistent contracts and the port Contract Board', async (
   const app = await read('app.js');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="contract-section"/);
   assert.match(html, /CONTRACT BOARD/);
   assert.match(app, /createContractDocument/);
@@ -292,7 +292,7 @@ test('v0.11.2.1 keeps port, trade, and jobs beside the map and guards repaired s
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   // v0.120.0: TRADE and JOBS are dock flyouts now; the world record is what
   // remains beside the map.
   assert.match(html, /id="operations-tab-port"/);
@@ -314,7 +314,7 @@ test('v0.12.0 exposes persistent situations, patrons, and non-combat skill check
   const model = await read('ui-model.js');
   const loader = await read('document-loader.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="context-takeover"/);
   assert.match(html, /id="situation-section"/);
   assert.match(app, /generatePatronContact/);
@@ -331,7 +331,7 @@ test('v0.12.0.1 promotes campaign status and interactive rolls into a compact pl
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /id="roll-dialog"/);
   assert.match(html, /id="roll-modifier"[^>]*value="0"/);
@@ -350,7 +350,7 @@ test('v0.12.0.2 keeps tab actions above independently scrolling records', async 
   const html = await read('index.html');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   for (const [actions, record] of [
     ['port-actions', 'port-services-record'],
     ['commerce-actions', 'commerce-record'],
@@ -371,7 +371,7 @@ test('v0.12.0.3 makes Activity Log dice and outcomes visually explicit', async (
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(app, /ROLL 2D \[\$\{dice\.dice\[0\]\}\] \[\$\{dice\.dice\[1\]\}\]/);
   assert.match(app, /appendActivityDiceLine/);
   assert.match(app, /RESULT \/\/ SUCCESS/);
@@ -387,7 +387,7 @@ test('v0.12.0.4 keeps chargen history hidden until explicitly opened in campaign
   const css = await read('styles.css');
   const app = await read('app.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="chargen-record-section"[^>]*hidden/);
   assert.match(css, /\[hidden\]\s*\{[\s\S]*display:\s*none\s*!important/);
   assert.match(app, /el\.chargenRecordSection\.hidden = true;/);
@@ -403,7 +403,7 @@ test('v0.12.1.1 keeps generic adventure machinery separate from Sea of Suns auth
   const engine = await read('../src/adventure-engine.js');
   const definition = await read('../campaigns/sea-of-suns/adventures/carranza-route.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="open-threads-view"/);
   assert.match(html, /id="thread-section"/);
   assert.match(app, /applySituationThreadConsequences/);
@@ -431,7 +431,7 @@ test('v0.12.1.3 keeps live ship state beside navigation and makes the job board 
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="live-ship-panel"/);
   assert.match(html, /id="live-ship-status"/);
   assert.match(app, /renderLiveShipStatus/);
@@ -454,7 +454,7 @@ test('v0.13 exposes compact persistent personal combat', async () => {
   const model = await read('ui-model.js');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="encounter-section"/);
   // v0.47.0: orders are given per combatant, in that combatant's tracker row.
   assert.match(app, /verbs\.className = 'encounter-tracker-verbs';/);
@@ -474,7 +474,7 @@ test('v0.13.1 adds referee-started combat, a square token map, and enemy equipme
   const css = await read('styles.css');
   const encounter = await read('../src/encounter-document.js');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="combat-setup-dialog"/);
   assert.match(html, /id="encounter-map"/);
   assert.match(html, /id="encounter-roster"/);
@@ -517,7 +517,7 @@ test('v0.14.1 gives the encounter map a fluid viewBox camera and live token drag
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /data-help-topic="personal-combat"/);
   assert.match(app, /function encounterMapPoint/);
   assert.match(await read('scene-canvas.js'), /getScreenCTM/);
@@ -535,7 +535,7 @@ test('v0.15.1 adds a persistent actor roster and token inspection actions', asyn
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   // v0.120.0: the roster tab is gone — the section it pointed at already
   // lives in the ACTORS panel, so it was the same roster reached two ways.
   assert.doesNotMatch(html, /id="operations-tab-roster"/);
@@ -556,7 +556,7 @@ test('v0.15.1.1 makes the activity journal portable and anchors token menus to t
   const app = await read('app.js');
   const css = await read('styles.css');
 
-  assert.match(html, /v0\.187\.0/);
+  assert.match(html, /v0\.188\.0/);
   assert.match(html, /id="activity-filter"/);
   assert.match(html, /id="add-activity-note"/);
   assert.match(html, /id="activity-note-dialog"/);
@@ -577,7 +577,7 @@ test('v0.15.2 establishes a Traveller-first campaign hierarchy and removes dupli
   const model = await read('ui-model.js');
 
   assert.match(html, /id="app-title" class="title">TRAVELLER</);
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.187\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.188\.0</);
   assert.match(html, /<strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN<\/strong>/);
   for (const id of ['new-campaign', 'save-campaign', 'load-campaign', 'import-campaign', 'export-campaign']) {
     assert.match(html, new RegExp(`id="${id}"`));
@@ -637,7 +637,7 @@ test('v0.20.0 lays play out as operations left, scene center, and procedure plus
   const css = await read('styles.css');
   const model = await read('ui-model.js');
 
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.187\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.188\.0</);
   assert.match(html, /class="campaign-header-strip"/);
   assert.match(html, /class="terminal shell"/);
   assert.match(html, /class="shell-rail"/);
@@ -1643,8 +1643,8 @@ test('v0.60.0 rechecks player ownership and retires stale scene listeners', asyn
   assert.match(app, /if \(watchedDeclarationEncounterId !== watchedId\) unsubscribe\(\);/);
   assert.match(player, /const generation = \+\+sceneWatchGeneration;/);
   assert.match(player, /if \(generation !== sceneWatchGeneration \|\| encounterId !== watchedEncounterId\) unsubscribe\(\);/);
-  assert.match(index, /v0\.187\.0/);
-  assert.match(playerPage, /PLAYER v0\.187\.0/);
+  assert.match(index, /v0\.188\.0/);
+  assert.match(playerPage, /PLAYER v0\.188\.0/);
 });
 
 test('v0.63.0 uses a configurable metre grid, compact shared-square tokens, and selected-actor range boundaries', async () => {
@@ -1839,7 +1839,7 @@ test('v0.67.0 gives players a front door: their own characters, chargen, and a s
 
   // The page: sign in, the list, chargen with the lifted view; the referee
   // client is never imported.
-  assert.match(html, /ENTER v0\.187\.0/);
+  assert.match(html, /ENTER v0\.188\.0/);
   assert.match(html, /id="enter-signin"/);
   assert.match(html, /id="enter-character-list"/);
   assert.match(html, /id="enter-new-character"/);
@@ -2314,7 +2314,7 @@ test('v0.79.0 keeps an explicit canvas and follows Foundry control behavior', as
   const html = await read('index.html');
   const css = await read('styles.css');
   const win = await read('../src/document-window.js');
-  assert.match(html, /id="app-subtitle" class="subtitle">v0\.187\.0</);
+  assert.match(html, /id="app-subtitle" class="subtitle">v0\.188\.0</);
   assert.match(html, /class="scene-tab scene-tab-combat-proxy"[^>]*hidden/);
   assert.match(css, /grid-template-columns: 80px minmax\(0, 1fr\) 360px;/);
   assert.match(css, /\.shell-stage \.canvas \{[\s\S]*?height: auto;[\s\S]*?overflow: hidden;/);
@@ -3691,7 +3691,8 @@ test('v0.137.0 a boarding hands off to a Book 1 fight on the range-line board', 
   assert.match(app, /range: action\.range,/);
   // Offered only when the engine says the target can no longer fire.
   assert.match(app, /if \(boardingAssessment\(encounter, \{ boarderShipId: attacker\.id, defenderShipId: target\.id \}\)\.allowed\) boarding\.push/);
-  assert.match(app, /BOARD \$\{board\.target\.name\.toUpperCase\(\)\}/);
+  // v0.188.0: the verb is the short word BOARD; the target is named in its title.
+  assert.match(app, /Board \$\{board\.target\.name\}/);
   // Book 2 p.36's ship's locker: no guns on a non-military vessel.
   assert.match(app, /source\.loadout\?\.weaponKey \?\? SHIPS_LOCKER_DEFAULT_WEAPON/);
   // The notes explain the house rule where the referee can see them.
@@ -3945,9 +3946,11 @@ test('v0.149.0 combat actions are reachable and the map is not lost to a fight',
   // The actions rendered after the tracker, which holds a data card per ship,
   // so every button for the current phase sat below two screens of
   // specifications and could only be reached by scrolling.
+  // v0.188.0: the phase's verbs are the strip over the stage; nothing of the
+  // turn's is in the sidebar at all.
   const rail = html.slice(html.indexOf('id="ship-combat-rail-section"'), html.indexOf('id="ship-combat-record"'));
-  assert.ok(rail.indexOf('id="ship-combat-actions"') < rail.indexOf('id="ship-combat-tracker"'),
-    'actions must come before the tracker');
+  assert.doesNotMatch(rail, /ship-verb-/, 'no turn verb lives below the data cards');
+  assert.match(html, /<section id="ship-combat-strip"[\s\S]*id="ship-verb-next"/);
   // v0.186.0: the state line and the rail share one fixed row of their own.
   assert.match(app, /el\.shipCombatRailRow\.replaceChildren\(heading\);/);
 
@@ -3986,7 +3989,9 @@ test('v0.157.0 shows the Book 2 p.23 sequence as a stepper with a next arrow', a
   const app = await read('app.js');
   const css = await read('styles.css');
   assert.match(app, /SHIP_COMBAT_PHASES/);
-  assert.match(app, /ship-phase-rail/);
+  // v0.188.0: the stepper's cells are tracks of the strip's shared grid.
+  assert.match(app, /step\.className = `ship-phase-step \$\{position\}/);
+  assert.match(app, /step\.dataset\.phase = entry\.key;/);
   assert.match(app, /function shipCombatPhaseHint/);
   // done / now / todo, as the Chainmail rail marks them.
   assert.match(app, /index < encounter\.phaseIndex \? 'done'/);
@@ -4245,12 +4250,14 @@ test('damage control names who repairs and uses his skill in the field', async (
 test('ship combat turn controls live in a strip over the stage, not in the tracker', async () => {
   const html = await readFile(new URL('../client/index.html', import.meta.url), 'utf8');
   const vector = html.slice(html.indexOf('<section id="ship-vector-section"'), html.indexOf('<section id="encounter-section"'));
-  assert.match(vector, /<section id="ship-combat-strip"[\s\S]*<div id="ship-combat-actions"/);
+  // v0.188.0: the strip is the rail, the hint and the verbs, and nothing else.
+  assert.match(vector, /<section id="ship-combat-strip"[\s\S]*<div id="ship-combat-verbs"/);
+  assert.doesNotMatch(html, /ship-combat-actions/);
   const rail = html.slice(html.indexOf('<section id="ship-combat-rail-section"'), html.indexOf('</section>', html.indexOf('<section id="ship-combat-rail-section"')));
   assert.doesNotMatch(rail, /ship-combat-actions/);
   const app = await readFile(new URL('../client/app.js', import.meta.url), 'utf8');
   assert.match(app, /const host = shipVectorOnStage\(\) \? el\.shipVectorSection : el\.subsectorSection;/);
-  assert.match(app, /const repair = shipDamageControlRow\(encounter, participant\);\n    if \(repair\) row\.append\(repair\);\n    el\.shipCombatTracker\.append\(row\);/);
+  assert.match(app, /const repair = shipDamageControlRow\(encounter, participant\);\n    if \(repair\) row\.append\(repair\);\n    const ordnance = shipOrdnanceControls\(encounter, phase, acting, participant\);\n    if \(ordnance\) row\.append\(ordnance\);\n    el\.shipCombatTracker\.append\(row\);/);
   assert.doesNotMatch(app, /A SPACE BOARD OPENS WITH A FIGHT ON IT'/);
   assert.match(app, /reloading takes his turn/);
 });
@@ -4625,7 +4632,7 @@ test('the ship turn bar never changes height with the phase', async () => {
   }
   // Kurt's battlesystem-board paradigm: parked with visibility, never display.
   assert.match(css, /\.ship-combat-verbs \.ship-verb\[hidden\] \{ display: inline-block !important; visibility: hidden;/);
-  assert.match(css, /\.ship-combat-strip \.ship-phase-hint \{ min-height: 2\.4em; max-height: 2\.4em;/);
+  assert.match(css, /\.ship-combat-strip \.ship-phase-hint \{[^}]*min-height: 2\.4em; max-height: 2\.4em;/);
 
   // Phase E is the pills on the card; the eight program rows are gone.
   assert.match(app, /const reprogramPhase = isActing && phase && phase\.key === 'reprogramming';/);
@@ -4669,3 +4676,39 @@ test('the sides carry colour, and nothing rests on hue alone', async () => {
   assert.match(css, /\.ship-vector-svg \.vector-side-party \{ color: var\(--side-party\); \}/);
   assert.doesNotMatch(css, /box-shadow/);
 });
+
+// v0.188.0: one column plan for the rail and the verbs, after
+// battlesystem-board.html v0.60.5, and a lane that scrolls rather than
+// reflowing. The geometry itself is measured in layout-ship-strip.test.mjs;
+// this pins the structure that geometry rests on.
+test('the ship strip shares one column plan and scrolls instead of reflowing', async () => {
+  const html = await readFile(new URL('../client/index.html', import.meta.url), 'utf8');
+  const app = await readFile(new URL('../client/app.js', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../client/styles.css', import.meta.url), 'utf8');
+  // Both rows are the same grid.
+  assert.match(html, /id="ship-combat-rail" class="ship-strip-grid/);
+  assert.match(html, /id="ship-combat-verbs" class="ship-strip-grid/);
+  assert.match(css, /\.ship-strip-grid \{\n  display: grid;\n  grid-template-columns:\n    var\(--ship-col-lead\)/);
+  for (const phase of ['movement', 'laser-fire', 'return-fire', 'ordnance-launch', 'reprogramming']) {
+    assert.match(css, new RegExp(`--ship-col-${phase}: \\d+px;`));
+    assert.match(html, new RegExp(`class="ship-verb-col" data-phase="${phase}"`));
+  }
+  // Fixed tracks only: nothing in the plan may take its size from the window.
+  const plan = css.slice(css.indexOf('.ship-strip-grid {'), css.indexOf('}', css.indexOf('.ship-strip-grid {')));
+  assert.doesNotMatch(plan, /fr\b|auto|%/);
+  // The lane is its own width, and the strip scrolls it.
+  assert.match(css, /\.ship-strip-lane \{ width: max-content; \}/);
+  assert.match(css, /\.ship-combat-strip \{\n  flex: 0 0 auto;\n  max-height: none;\n  overflow-x: auto;\n  overflow-y: hidden;/);
+  // Two sub-rows under every phase, and a 2x2 dock.
+  assert.match(css, /\.ship-verb-col \{ display: grid; grid-template-rows: repeat\(2, var\(--ship-verb-height\)\);/);
+  assert.match(css, /\.ship-verb-dock \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); grid-template-rows: repeat\(2, var\(--ship-verb-height\)\);/);
+  // Short verbs; the detail is in the title.
+  assert.match(app, /setShipVerb\(el\.shipVerbNext, '\\u25b6 NEXT', advanceShipCombat/);
+  assert.match(app, /setShipVerb\(el\.shipVerbMovement, 'PLOT', null/);
+  // Nothing under the strip grows with the phase: the ending is the hint, and
+  // the rack controls are on each ship's card.
+  assert.match(app, /el\.shipCombatHint\.textContent = `\\u25b8 \$\{endingText \?\? shipCombatPhaseHint\(encounter, phase\)\}`;/);
+  assert.match(app, /function shipOrdnanceControls\(encounter, phase, acting, participant\)/);
+  assert.doesNotMatch(app, /shipCombatActions/);
+});
+
