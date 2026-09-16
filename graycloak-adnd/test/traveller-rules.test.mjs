@@ -13,6 +13,8 @@
 // list of their own campaigns.
 // v15 lets an owner start a campaign of their own with their own character.
 // v16 adds table chat.
+// v17 adds the wounded player's own wound distribution, which Book 1 p.30
+//   leaves to the wounded player rather than the referee.
 //
 // Requires the emulator:  firebase emulators:start --only firestore
 // Skipped automatically when it is not running, so `npm test` still passes
@@ -404,6 +406,97 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertFails(player.doc(`${path}/${mine.id}`).update({ text: 'edited' }));
     await assertFails(player.doc(`${path}/${mine.id}`).delete());
     await assertSucceeds(referee.doc(`${path}/${mine.id}`).delete());
+  });
+
+  // --- v17: the wounded player's own distribution of a wound ------------
+  //
+  // Book 1 p.30 gives the placing of each wound group to the wounded PLAYER,
+  // so the referee's round pauses and waits for one of these. It is an intent
+  // like a declaration — create-only, owned, immutable — and unlike a
+  // declaration it is not table news: a wound distribution is one player's
+  // business with the referee.
+  //
+  // The arithmetic is deliberately NOT the rule's job. Whether the shares add
+  // up to the weapon's constant, and whether there is one group per die, are
+  // questions about dice only the referee has; the client's
+  // authorizePlayerWoundAllocation refuses those. These cases assert what the
+  // rule can actually know: whose it is, where it goes, and that it cannot
+  // change.
+
+  const WOUND = `travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/woundAllocations`;
+  const woundDoc = (key) => `${WOUND}/${key}`;
+  // The shape createPlayerWoundAllocation writes.
+  const allocation = (over = {}) => ({
+    uid: PLAYER, encounterId: ENCOUNTER, actorId: PC, key: '1-0',
+    targets: ['STR', 'DEX', 'END'], allocation: null, round: 1, sentAt: 1000, ...over
+  });
+
+  await t.test('a player places a wound on their own character (v17)', async () => {
+    await assertSucceeds(player.doc(woundDoc('1-0')).set(allocation()));
+    // A weapon with a damage constant sends one share per group.
+    await assertSucceeds(player.doc(woundDoc('1-1')).set(allocation({
+      key: '1-1', targets: ['STR', 'DEX'], allocation: [3, 1]
+    })));
+  });
+
+  await t.test('a player cannot place a wound on a character they do not own', async () => {
+    // Absent from the ownership map, and present but owned by another account:
+    // both must deny, and the second by comparison rather than by indexing a
+    // missing key.
+    await assertFails(player.doc(woundDoc('foe-1')).set(allocation({ key: 'foe-1', actorId: FOE })));
+    await assertFails(player.doc(woundDoc('other-1')).set(allocation({ key: 'other-1', actorId: 'other-pc' })));
+  });
+
+  await t.test('a player cannot forge the uid on a wound allocation', async () => {
+    await assertFails(player.doc(woundDoc('forged')).set(allocation({ key: 'forged', uid: REFEREE })));
+    await assertFails(outsider.doc(woundDoc('outsider')).set(allocation({ key: 'outsider', uid: OUTSIDER })));
+    await assertFails(anonymous.doc(woundDoc('anon')).set(allocation({ key: 'anon' })));
+  });
+
+  await t.test('the key and the encounter must match the path it is written to', async () => {
+    // Keyed by the wound: an answer filed under the wrong key could be taken
+    // for an answer to the next wound in the same round.
+    await assertFails(player.doc(woundDoc('1-2')).set(allocation({ key: 'somewhere-else' })));
+    await assertFails(player.doc(woundDoc('1-3')).set(allocation({ key: '1-3', encounterId: 'encounter-2' })));
+  });
+
+  await t.test('a wound allocation must name a physical characteristic per group', async () => {
+    await assertFails(player.doc(woundDoc('bad-target')).set(allocation({ key: 'bad-target', targets: ['STR', 'LUCK'] })));
+    await assertFails(player.doc(woundDoc('no-target')).set(allocation({ key: 'no-target', targets: [] })));
+    await assertFails(player.doc(woundDoc('not-a-list')).set(allocation({ key: 'not-a-list', targets: 'STR' })));
+  });
+
+  await t.test('a share list that does not match the groups is refused', async () => {
+    await assertFails(player.doc(woundDoc('short-shares')).set(allocation({
+      key: 'short-shares', targets: ['STR', 'DEX'], allocation: [4]
+    })));
+    await assertFails(player.doc(woundDoc('bad-round')).set(allocation({ key: 'bad-round', round: 0 })));
+    // Nothing beyond the eight fields the client writes.
+    await assertFails(player.doc(woundDoc('extra')).set(allocation({ key: 'extra', wounded: true })));
+  });
+
+  await t.test('a wound allocation cannot be revised once sent', async () => {
+    // The whole point of create-only: it cannot be changed after seeing what
+    // it did to the character.
+    await assertFails(player.doc(woundDoc('1-0')).update({ targets: ['END', 'END', 'END'] }));
+    await assertFails(player.doc(woundDoc('1-0')).set(allocation({ targets: ['END', 'END', 'END'] })));
+  });
+
+  await t.test('a wound allocation is read by its writer and the referee, and nobody else', async () => {
+    await assertSucceeds(referee.doc(woundDoc('1-0')).get());
+    await assertSucceeds(player.doc(woundDoc('1-0')).get());
+    await assertSucceeds(referee.collection(WOUND).get());
+    // Seated, and still not entitled to somebody else's wound.
+    await assertFails(second.doc(woundDoc('1-0')).get());
+    await assertFails(second.collection(WOUND).get());
+    await assertFails(outsider.doc(woundDoc('1-0')).get());
+    await assertFails(anonymous.doc(woundDoc('1-0')).get());
+  });
+
+  await t.test('the referee clears wound allocations; players cannot', async () => {
+    await assertFails(player.doc(woundDoc('1-0')).delete());
+    await assertSucceeds(referee.doc(woundDoc('1-0')).delete());
+    await assertSucceeds(referee.doc(woundDoc('1-1')).delete());
   });
 
   await t.test('an outsider is shut out entirely', async () => {
