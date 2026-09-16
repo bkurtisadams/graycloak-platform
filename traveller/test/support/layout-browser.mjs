@@ -11,8 +11,8 @@
 //
 // Browser, first found wins:
 //   1. TRAVELLER_LAYOUT_BROWSER=<path to a Chromium-family executable>
-//   2. Microsoft Edge   (always present on Windows)
-//   3. Google Chrome
+//   2. Google Chrome    (what Kurt develops Traveller in)
+//   3. Microsoft Edge   (always present on Windows, as a fallback)
 //   4. a Playwright-managed Chromium, if one was ever installed
 // None found: the layout tests skip with a note, as the jsdom tests do.
 
@@ -50,7 +50,7 @@ export async function launchBrowser() {
   if (!chromium) return { skip: 'playwright-core is not installed (pnpm install)' };
   const attempts = [];
   if (process.env.TRAVELLER_LAYOUT_BROWSER) attempts.push({ executablePath: process.env.TRAVELLER_LAYOUT_BROWSER });
-  attempts.push({ channel: 'msedge' }, { channel: 'chrome' }, {});
+  attempts.push({ channel: 'chrome' }, { channel: 'msedge' }, {});
   const failures = [];
   for (const options of attempts) {
     try {

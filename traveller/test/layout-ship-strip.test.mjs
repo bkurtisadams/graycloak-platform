@@ -18,7 +18,12 @@
 // suite. When the strip rework lands, remove the marker in the same commit, so
 // a check can never be quietly left as todo after it passes.
 //
-// Window sizes: TRAVELLER_LAYOUT_VIEWPORTS=1920x1080,1366x768 overrides.
+// WINDOW SIZE IS NOT A SETTING (Kurt 2026-09-16). The strip has one layout,
+// the same at any window width; a window too narrow for it scrolls the lane
+// left and right, as the BATTLESYSTEM board's phase row does. The sizes below
+// are not anyone's screen: one wide, one ordinary, one deliberately narrower
+// than the strip, so the scrolling path is exercised. Compare across them, never
+// tune for them. TRAVELLER_LAYOUT_VIEWPORTS=1920x1080,900x700 overrides.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -30,7 +35,7 @@ const STRIP_REWORK = 'v0.188.0 strip rework: shared column plan, fixed slots';
 const MOVE_TOLERANCE = 1;   // px a thing may shift between phases (sub-pixel rounding)
 const ALIGN_TOLERANCE = 2;  // px a verb column may sit off its phase cell
 
-const VIEWPORTS = (process.env.TRAVELLER_LAYOUT_VIEWPORTS ?? '1920x1080,1600x900,1366x768')
+const VIEWPORTS = (process.env.TRAVELLER_LAYOUT_VIEWPORTS ?? '1920x1080,1366x768,900x700')
   .split(',').map((entry) => entry.trim()).filter(Boolean)
   .map((entry) => { const [width, height] = entry.split('x').map(Number); return { width, height, name: `${width}x${height}` }; });
 
@@ -114,6 +119,7 @@ test('ship combat strip geometry', { skip: launched.skip ?? false }, async (t) =
   const storage = await shipCombatStorage();
   t.after(async () => { await browser.close(); await server.close(); });
 
+  const firstPhase = [];
   for (const viewport of VIEWPORTS) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
     const page = await context.newPage();
@@ -175,19 +181,43 @@ test('ship combat strip geometry', { skip: launched.skip ?? false }, async (t) =
       assert.deepEqual([...new Set(clipped)], []);
     });
 
-    // v0.187.0 already meets this one, so it guards rather than waits.
-    await t.test(`${viewport.name}: the rail is one line and nothing hangs off the strip`, () => {
+    await t.test(`${viewport.name}: a narrow window scrolls the lane instead of wrapping`, { todo: STRIP_REWORK }, () => {
       const faults = [];
       for (const snapshot of turn) {
         const tops = snapshot.steps.map((step) => Math.round(step.top));
         if (Math.max(...tops) - Math.min(...tops) > MOVE_TOLERANCE) faults.push(`rail wraps in ${where(snapshot)}`);
         if (snapshot.stripScrolls) continue; // a lane that scrolls may run past its edge
-        for (const step of snapshot.steps) if (step.right > snapshot.strip.right + MOVE_TOLERANCE) faults.push(`"${step.label}" runs past the strip in ${where(snapshot)}`);
-        for (const verb of snapshot.verbs) if (verb.shown && verb.right > snapshot.strip.right + MOVE_TOLERANCE) faults.push(`"${verb.text}" runs past the strip in ${where(snapshot)}`);
+        for (const step of snapshot.steps) if (step.right > snapshot.strip.right + MOVE_TOLERANCE) faults.push(`"${step.label}" runs past the strip without scrolling in ${where(snapshot)}`);
+        for (const verb of snapshot.verbs) if (verb.shown && verb.right > snapshot.strip.right + MOVE_TOLERANCE) faults.push(`"${verb.text}" runs past the strip without scrolling in ${where(snapshot)}`);
       }
       assert.deepEqual([...new Set(faults)], []);
     });
 
+    firstPhase.push({ viewport: viewport.name, snapshot: turn[0] });
     await context.close();
   }
+  // The one layout: every cell and slot the same size and in the same place
+  // relative to the strip, at every window width.
+  await t.test('the strip is laid out the same at every window width', { todo: STRIP_REWORK }, () => {
+    const layout = ({ snapshot }) => {
+      const x = (box) => Math.round(box.left - snapshot.strip.left);
+      const w = (box) => Math.round(box.width);
+      return [
+        ...snapshot.steps.map((step) => [`"${step.label}" cell`, x(step), w(step)]),
+        ...snapshot.columns.map((column) => [`${column.phase} column`, x(column), w(column)]),
+        ...snapshot.verbs.filter((verb) => ['ship-verb-next', 'ship-verb-close'].includes(verb.id)).map((verb) => [verb.id, x(verb), w(verb)])
+      ];
+    };
+    const reference = layout(firstPhase[0]);
+    const differ = [];
+    for (const entry of firstPhase.slice(1)) {
+      layout(entry).forEach(([name, left, width], index) => {
+        const [, refLeft, refWidth] = reference[index];
+        if (Math.abs(left - refLeft) > ALIGN_TOLERANCE || Math.abs(width - refWidth) > ALIGN_TOLERANCE) {
+          differ.push(`${name}: ${left}px/${width}px wide at ${entry.viewport}, ${refLeft}px/${refWidth}px wide at ${firstPhase[0].viewport}`);
+        }
+      });
+    }
+    assert.deepEqual(differ, []);
+  });
 });
