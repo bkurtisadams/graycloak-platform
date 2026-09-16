@@ -1,4 +1,4 @@
-// v0.192.4: chat is the shell's bottom edge. Closed, it is the composer and
+// v0.192.5: chat is the shell's bottom edge. Closed, it is the composer and
 // the latest line; open, the feed rises above it. State is per browser.
 const CHAT_OPEN_KEY = 'graycloak-traveller-chat-open';
 
