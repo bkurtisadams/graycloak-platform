@@ -4720,3 +4720,58 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .wound-allocation-dialog .wound-preview-state { font-size: 11px; letter-spacing: .08em; color: var(--muted); padding-top: 2px; }
 .wound-allocation-dialog .wound-preview-state.critical { color: var(--error); font-weight: 700; }
 .wound-allocation-dialog .wound-allocation-error { font-size: 11px; color: var(--error); padding-bottom: 4px; }
+
+/* --- v0.180.0: the player page gets the same three things the referee's
+   combat rail got in v0.178.0 — the throw before the click, the two Book 1
+   p.26 step 4 decisions, and a resolved attack as a card. The rail's rules
+   are scoped to .combat-rail, so the player's column names itself here
+   rather than the selectors being loosened for both. */
+.player-orders .encounter-throw-card,
+.player-narration .attack-card {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 5px 7px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+.player-orders .encounter-throw-card { border-left: 3px solid var(--action-border); }
+.player-narration .attack-card { border-left: 3px solid var(--disabled); margin: 3px 0; }
+.player-narration .attack-card.hit { border-left-color: var(--failure-border); }
+.player-orders .throw-card-head,
+.player-narration .attack-card-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.player-orders .throw-card-head strong,
+.player-narration .attack-card-head strong { letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-orders .throw-card-weapon,
+.player-narration .attack-card-weapon { font-size: 10px; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
+.player-orders .throw-card-rows { margin: 4px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 3px 0; }
+.player-orders .throw-card-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.player-orders .throw-card-row .throw-card-label { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-orders .throw-card-row .throw-card-dm { font-weight: 700; flex: 0 0 auto; }
+.player-orders .throw-card-row.plus .throw-card-dm { color: var(--ok); }
+.player-orders .throw-card-row.minus .throw-card-dm { color: var(--error); }
+.player-orders .throw-card-basic .throw-card-label { color: var(--ink); }
+.player-orders .throw-card-need { display: flex; align-items: baseline; gap: 8px; }
+.player-orders .throw-card-figure { font-size: 15px; letter-spacing: .04em; }
+.player-orders .throw-card-odds { font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.player-orders .throw-card-no-reach { color: var(--error); font-size: 11px; letter-spacing: .04em; }
+.player-orders .throw-card-wound { font-size: 10px; letter-spacing: .06em; color: var(--muted); padding-top: 3px; }
+
+.player-orders .declare-row { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 1px 0; }
+.player-orders .declare-label { font-size: 9px; letter-spacing: .1em; color: var(--muted); flex: 0 0 3.6rem; }
+.player-orders .declare-choice { font-size: 11px; padding: 1px 6px; letter-spacing: 0; border: 1px solid var(--rule); background: var(--paper); }
+.player-orders .declare-choice.is-on { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
+.player-orders .declare-confirm { margin-top: 4px; }
+.player-orders .declare-button { flex: 1 1 auto; text-align: left; }
+
+.player-narration .attack-card-throw { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 2px 0; }
+.player-narration .attack-card-dice { display: inline-flex; gap: 2px; }
+.player-narration .attack-die { font-style: normal; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border: 1px solid var(--ink); font-size: 10px; font-weight: 700; }
+.player-narration .attack-card-sum { font-size: 10px; color: var(--muted); }
+.player-narration .attack-card-verdict { font-size: 10px; letter-spacing: .06em; margin-left: auto; color: var(--muted); }
+.player-narration .attack-card-verdict.hit { color: var(--error); }
+.player-narration .attack-card-wound { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; border-top: 1px solid var(--rule); padding-top: 3px; }
+.player-narration .attack-card-wound-roll { font-size: 10px; color: var(--muted); }
+.player-narration .attack-card-hit-group { font-size: 10px; font-weight: 700; padding: 0 4px; border: 1px solid var(--failure-border); background: var(--failure-bg); }
+.player-narration .attack-card-hit-group.first-blood { border-style: dashed; }
+.player-narration .attack-card-noeffect,
+.player-narration .attack-card-status { font-size: 10px; letter-spacing: .06em; color: var(--error); }

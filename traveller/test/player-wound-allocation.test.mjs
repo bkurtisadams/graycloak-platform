@@ -17,6 +17,7 @@ import {
   importEncounterDocument
 } from '../src/encounter-document.js';
 import { buildPublishedView } from '../src/published-view.js';
+import { throwCardModel } from '../client/combat-view.js';
 import {
   createPlayerWoundAllocation,
   authorizePlayerWoundAllocation
@@ -78,8 +79,10 @@ test('the paused wound is published to the player, and nothing of the attacker i
   assert.equal(wound.total, 15);
   assert.deepEqual(wound.current, { STR: pc.current.STR, DEX: pc.current.DEX, END: pc.current.END });
 
-  // The attacker's throw, DMs, armour and target number stay referee-only.
-  const serialized = JSON.stringify(view);
+  // The wound says nothing about how the blow was thrown: no DMs, no target
+  // number, no armour. (v0.180.0 publishes the party's own throws and their
+  // own attack results elsewhere in the view; this object is not that.)
+  const serialized = JSON.stringify(wound);
   for (const leak of ['totalDM', 'skillDM', 'requiredRoll', 'target', 'armor', 'weaponKey', 'characteristics']) {
     assert.doesNotMatch(serialized, new RegExp(`"${leak}"`), `${leak} must not reach the player`);
   }
@@ -187,4 +190,68 @@ test('moving the constant between groups keeps the total the rules demand', () =
   draft = moveWoundShare(prompt, draft, 1, 1);
   assert.equal(draft.shares.reduce((sum, share) => sum + share, 0), prompt.modifier);
   assert.equal(previewWoundDraft(prompt, draft).ok, true);
+});
+
+// --- v0.180.0: the rest of the player-page parity ------------------------
+
+test('the party\u2019s own throws are published, and no enemy attribute is named', async () => {
+  const { encounter, pc, foe } = await pausedFixture();
+  const finished = allocateRoundWound(encounter, { dice: sequenceDice([1, 1, 1, 1]), date }).encounter;
+  const view = buildPublishedView(finished, { campaignId: 'campaign-player-wounds' });
+  const priced = view.throws.find((entry) => entry.attackerId === pc.id && entry.targetId === foe.id);
+  assert.ok(priced, 'the party member is priced against the foe');
+  assert.equal(priced.basic, 8);
+  assert.equal(typeof priced.needed, 'number');
+  assert.equal(typeof priced.chance, 'number');
+  // The tables and every defensive DM arrive as one unlabelled figure.
+  assert.equal(typeof priced.defenceDM, 'number');
+  const serialised = JSON.stringify(view.throws);
+  for (const leak of ['armor', 'jack', 'mesh', 'cloth', 'reflec', 'PARRIES', 'UNTRAINED']) {
+    assert.doesNotMatch(serialised, new RegExp(leak, 'i'), `${leak} must not be named to a player`);
+  }
+  // Only the attacker's own rows are labelled.
+  for (const row of priced.rows) {
+    assert.doesNotMatch(row.label, new RegExp(foe.name, 'i'), 'no row names the defender');
+  }
+  // The published figure is the figure the referee's own card shows.
+  const model = throwCardModel(finished, finished.combatants.find((entry) => entry.id === pc.id), finished.combatants.find((entry) => entry.id === foe.id));
+  assert.equal(priced.needed, model.needed);
+  assert.equal(priced.totalDM, model.totalDM);
+  assert.equal(priced.defenceDM + priced.rows.reduce((sum, row) => sum + row.dm, 0), model.totalDM);
+});
+
+test('a fight between two other sides is priced for nobody and carries no cards', async () => {
+  const { encounter } = await pausedFixture();
+  const finished = allocateRoundWound(encounter, { dice: sequenceDice([1, 1, 1, 1]), date }).encounter;
+  const view = buildPublishedView(finished, { campaignId: 'campaign-player-wounds' });
+  // Every published throw belongs to a party combatant.
+  for (const entry of view.throws) {
+    assert.equal(finished.combatants.find((combatant) => combatant.id === entry.attackerId).side, 'party');
+  }
+  // Every published attack card has a party combatant at one end.
+  for (const attack of view.attacks) {
+    const sides = [attack.attackerId, attack.targetId].map((id) => finished.combatants.find((entry) => entry.id === id)?.side);
+    assert.ok(sides.includes('party'), 'a card is published only for a fight the party was in');
+  }
+});
+
+test('the party\u2019s own attack results are published as the table saw them', async () => {
+  const { encounter, pc } = await pausedFixture();
+  const finished = allocateRoundWound(encounter, { targets: ['STR', 'STR', 'DEX', 'DEX', 'END'], dice: sequenceDice([1, 1, 1, 1]), date }).encounter;
+  const view = buildPublishedView(finished, { campaignId: 'campaign-player-wounds' });
+  const attack = view.attacks.find((entry) => entry.targetId === pc.id);
+  assert.ok(attack, 'the blow that wounded the player is a card');
+  assert.deepEqual(attack.dice, [6, 6]);
+  assert.equal(attack.hit, true);
+  // What the two dice had to show, after every DM — the same figure the
+  // throw card offers before the click.
+  assert.equal(attack.roll >= attack.needed, attack.hit);
+  assert.equal(attack.total, attack.roll + attack.totalDM);
+  assert.ok(attack.wound, 'a hit carries its wound');
+  // Where the wound landed is public — a man clutching his arm is visible —
+  // and it is the distribution the player themselves chose.
+  assert.deepEqual(attack.wound.allocations.map((entry) => entry.characteristic), ['STR', 'STR', 'DEX', 'DEX', 'END']);
+  assert.equal(attack.wound.playerAllocated, true);
+  // No DM is broken out: the breakdown would name the defender's armour.
+  assert.equal(attack.dms, undefined);
 });

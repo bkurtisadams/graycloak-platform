@@ -1,3 +1,4 @@
+import { throwCardModel } from '../client/combat-view.js';
 // published-view.js — what players are allowed to see of an encounter.
 //
 // The encounter document carries enemy characteristics, wounds, cover and blow
@@ -100,6 +101,71 @@ function publishedPendingWound(encounter) {
   };
 }
 
+// v0.180.0: what a party combatant needs to roll against each visible foe.
+//
+// This is a deliberate change to the rule at the top of this file. "No
+// numbers" was written to stop the enemy roster being published as a stat
+// block; it was never meant to stop a player knowing their own throw. At the
+// table the player rolls their own dice and is told what they need — Book 1
+// p.30 is addressed to the player throwing — and the referee's own client has
+// shown that figure since v0.178.0. Publishing it only for combatants the
+// party actually has, against foes it can already see, keeps the asymmetry
+// where it belongs.
+//
+// What is published is the total and the rows that belong to the ATTACKER:
+// their expertise, their characteristic, their fatigue, the band. The
+// defender's armour is never named — the weapons-matrix and range-matrix DMs
+// are published as one combined TABLE row, exactly as the referee's own
+// result card shows them. A player who does the arithmetic can still infer
+// the armour, as they could at a table by looking at the man; what they
+// cannot do is read it off a roster.
+function publishedThrows(encounter) {
+  if (encounter.status !== 'active') return [];
+  const party = encounter.combatants.filter((entry) => entry.side === 'party' && entry.status === 'active');
+  const foes = encounter.combatants.filter((entry) => entry.side !== 'party' && entry.status === 'active');
+  const throws = [];
+  for (const attacker of party) {
+    for (const defender of foes) {
+      let model = null;
+      try { model = throwCardModel(encounter, attacker, defender); }
+      catch { continue; }
+      if (!model) continue;
+      // Only the rows that belong to the ATTACKER are named: their
+      // expertise, their characteristic, their fatigue, their stock, and the
+      // light everyone is fighting in. Everything derived from the defender —
+      // the weapons matrix (armour), the range matrix, their parry, their
+      // evasion, their cover — is published as one combined figure with no
+      // label at all, so no enemy attribute is ever named to a player.
+      const ATTACKER_ROWS = ['skill', 'characteristic', 'untrained', 'weakened', 'foldingStock', 'surprise', 'lighting'];
+      const rows = model.rows
+        .filter((row) => ATTACKER_ROWS.includes(row.key))
+        .map((row) => ({ label: row.label, dm: row.dm, source: row.source, note: row.note ?? null }));
+      const defenceDM = model.rows
+        .filter((row) => !ATTACKER_ROWS.includes(row.key))
+        .reduce((sum, row) => sum + (row.dm ?? 0), 0);
+      throws.push({
+        attackerId: attacker.id,
+        targetId: defender.id,
+        range: model.range,
+        bands: model.bands,
+        reach: model.reach,
+        basic: model.basic,
+        // Tables and defence as one unnamed line.
+        defenceDM: model.reach ? defenceDM : null,
+        rows,
+        totalDM: model.totalDM,
+        needed: model.needed,
+        chance: model.chance,
+        wound: { ...model.wound },
+        blowsRemaining: model.blowsRemaining,
+        melee: model.weapon.melee,
+        weaponName: model.weapon.name
+      });
+    }
+  }
+  return throws;
+}
+
 export function buildPublishedView(encounter, { campaignId, publishedAt, rounds = 4 } = {}) {
   if (!encounter) throw new TypeError('an encounter is required');
   // The round in progress is `round` while the fight runs; once it resolves,
@@ -119,6 +185,8 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
     status: encounter.status,
     // v0.179.0: what the round is waiting for, if anything.
     pendingWound: publishedPendingWound(encounter),
+    // v0.180.0: each party combatant's own throw against each visible foe.
+    throws: publishedThrows(encounter),
     range: encounter.range,
     lighting: encounter.conditions?.lighting ?? 'normal',
     publishedAt: publishedAt ?? null,
@@ -143,6 +211,42 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
       position: { column: combatant.position.column, row: combatant.position.row },
       tokenLabel: combatant.tokenLabel ?? null
     })),
+    // v0.180.0: the party's own dice. An attack with a party combatant on
+    // either end is one the table watched being thrown, so its result is
+    // published as a card: the dice, what was needed, and where the wound
+    // landed. A fight between two other sides stays narrated only, and no
+    // DM is broken out — the breakdown would name the defender's armour.
+    attacks: (encounter.history ?? [])
+      .filter((entry) => entry.kind === 'attack' && entry.detail && entry.round >= earliest && entry.round <= currentRound)
+      .filter((entry) => encounter.combatants.some((combatant) => combatant.side === 'party'
+        && (combatant.id === entry.actorId || combatant.id === entry.targetId)))
+      .map((entry) => ({
+        round: entry.round,
+        attackerId: entry.actorId,
+        targetId: entry.targetId,
+        attackerName: combatantName(encounter, entry.actorId),
+        defenderName: combatantName(encounter, entry.targetId),
+        weaponName: entry.detail.weaponName ?? null,
+        range: entry.detail.range ?? null,
+        dice: [...(entry.detail.dice ?? [])],
+        roll: entry.detail.roll ?? null,
+        totalDM: entry.detail.totalDM ?? 0,
+        needed: Math.max(2, (entry.detail.target ?? 8) - (entry.detail.totalDM ?? 0)),
+        total: entry.detail.total ?? null,
+        hit: Boolean(entry.detail.success),
+        wound: entry.detail.success ? {
+          dice: [...(entry.detail.damageDice ?? [])],
+          modifier: entry.detail.damageModifier ?? 0,
+          total: entry.detail.woundTotal ?? 0,
+          noEffect: Boolean(entry.detail.noEffect),
+          // Where it landed is public: a man clutching his arm is visible.
+          allocations: (entry.detail.allocations ?? []).map((allocation) => ({
+            characteristic: allocation.characteristic, amount: allocation.amount, firstBlood: Boolean(allocation.firstBlood)
+          })),
+          playerAllocated: Boolean(entry.detail.playerAllocated)
+        } : null,
+        defenderStatus: entry.detail.defenderStatus ?? 'active'
+      })),
     // The last few rounds, so a player who looks away does not lose them.
     narration: (encounter.history ?? [])
       .filter((entry) => entry.round >= earliest && entry.round <= currentRound)

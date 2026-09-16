@@ -13,24 +13,25 @@
 //
 // The only write is a create-only combat declaration for an assigned character.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.179.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.179.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.180.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.180.0';
 import {
   ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
   writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat,
-  writeWoundAllocation } from './publish.js?v=v0.179.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.179.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.179.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.179.0';
-import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.179.0';
-import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.179.0';
-import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.179.0';
-import { renderSubsectorMap } from './subsector-svg.js?v=v0.179.0';
-import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.179.0';
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.179.0';
-import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.179.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.179.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.179.0';
+  writeWoundAllocation } from './publish.js?v=v0.180.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.180.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.180.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.180.0';
+import { deriveDeclaration, declarationSummary, rangeLabel, signed as signedDM, woundFormula } from './combat-view.js?v=v0.180.0';
+import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.180.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.180.0';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.180.0';
+import { renderSubsectorMap } from './subsector-svg.js?v=v0.180.0';
+import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.180.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.180.0';
+import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.180.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.180.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.180.0';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -468,6 +469,126 @@ function renderRoster() {
   el.roster.replaceChildren(...rows);
 }
 
+// v0.180.0: the player's own draft declaration, until DECLARE is pressed.
+const declarationDrafts = new Map();
+function declarationDraft(combatantId, foes) {
+  if (!declarationDrafts.has(combatantId)) {
+    declarationDrafts.set(combatantId, { movement: 'stand', pace: 'walk', targetId: null });
+  }
+  const draft = declarationDrafts.get(combatantId);
+  // A token targeted on the map is the draft's target too, and a target that
+  // has gone down is no target at all.
+  const marked = foes.find((foe) => targetTokenIds.has(foe.id));
+  if (marked && !foes.some((foe) => foe.id === draft.targetId)) draft.targetId = marked.id;
+  if (draft.targetId && !foes.some((foe) => foe.id === draft.targetId)) draft.targetId = null;
+  if (!draft.targetId && foes.length === 1) draft.targetId = foes[0].id;
+  return draft;
+}
+
+// The throw card, from the figures the referee published for this pair. The
+// defender's armour is not among them: the tables and every defensive DM
+// arrive as one combined line (see publishedThrows).
+function renderPlayerThrowCard(priced, attacker, target) {
+  if (!priced || !attacker || !target) return null;
+  const card = document.createElement('div');
+  card.className = 'encounter-throw-card player-throw-card';
+  const head = document.createElement('div');
+  head.className = 'throw-card-head';
+  head.append(
+    Object.assign(document.createElement('strong'), { textContent: `${attacker.name.toUpperCase()} \u2192 ${target.name.toUpperCase()}` }),
+    Object.assign(document.createElement('span'), {
+      className: 'throw-card-weapon',
+      textContent: `${String(priced.weaponName).toUpperCase()} \u00b7 ${rangeLabel(priced.range)}${priced.bands !== null && priced.bands !== undefined ? ` (${priced.bands} BAND${priced.bands === 1 ? '' : 'S'})` : ''}`
+    })
+  );
+  card.append(head);
+  if (!priced.reach) {
+    card.append(Object.assign(document.createElement('div'), {
+      className: 'throw-card-need throw-card-no-reach',
+      textContent: `NO REACH \u2014 ${String(priced.weaponName).toUpperCase()} DOES NOT CARRY THAT FAR`
+    }));
+    return card;
+  }
+  const rows = document.createElement('div');
+  rows.className = 'throw-card-rows';
+  const line = (label, dm, title, extra = '') => {
+    const row = document.createElement('div');
+    row.className = `throw-card-row${extra}${dm > 0 ? ' plus' : dm < 0 ? ' minus' : ''}`;
+    row.title = title;
+    row.append(
+      Object.assign(document.createElement('span'), { className: 'throw-card-label', textContent: label }),
+      Object.assign(document.createElement('span'), { className: 'throw-card-dm', textContent: typeof dm === 'string' ? dm : signedDM(dm) })
+    );
+    return row;
+  };
+  rows.append(line('BASIC THROW', `${priced.basic}+`, 'Book 1 p.30', ' throw-card-basic'));
+  rows.append(line('WEAPON, RANGE AND COVER', priced.defenceDM ?? 0, 'Book 1 pp.42-43 and the defender\u2019s own DMs, as one figure'));
+  for (const row of priced.rows) rows.append(line(row.label, row.note ?? row.dm, `Book 1 ${row.source}`));
+  card.append(rows);
+  const need = document.createElement('div');
+  need.className = 'throw-card-need';
+  need.append(
+    Object.assign(document.createElement('strong'), { className: 'throw-card-figure', textContent: priced.needed > 12 ? 'IMPOSSIBLE' : `${priced.needed}+` }),
+    Object.assign(document.createElement('span'), { className: 'throw-card-odds', textContent: `ON 2D \u00b7 ${priced.chance}% \u00b7 DM ${signedDM(priced.totalDM)}` })
+  );
+  card.append(need);
+  card.append(Object.assign(document.createElement('div'), {
+    className: 'throw-card-wound',
+    textContent: `WOUND ${woundFormula(priced.wound.dice, priced.wound.modifier)} \u00b7 ${priced.wound.min}\u2013${priced.wound.max}`
+      + (priced.melee ? ` \u00b7 BLOWS LEFT ${priced.blowsRemaining}` : '')
+  }));
+  return card;
+}
+
+// A resolved attack the party was part of, as a card. The dice are the ones
+// thrown at the table; no DM is broken out, because the breakdown would name
+// the defender's armour.
+function renderPlayerAttackCard(attack) {
+  const card = document.createElement('div');
+  card.className = `attack-card${attack.hit ? ' hit' : ' miss'}`;
+  const head = document.createElement('div');
+  head.className = 'attack-card-head';
+  head.append(
+    Object.assign(document.createElement('strong'), { textContent: `${attack.attackerName.toUpperCase()} \u2192 ${attack.defenderName.toUpperCase()}` }),
+    Object.assign(document.createElement('span'), { className: 'attack-card-weapon', textContent: `${String(attack.weaponName ?? '').toUpperCase()} \u00b7 ${rangeLabel(attack.range)}` })
+  );
+  card.append(head);
+  const throwLine = document.createElement('div');
+  throwLine.className = 'attack-card-throw';
+  const dice = document.createElement('span');
+  dice.className = 'attack-card-dice';
+  for (const die of attack.dice) dice.append(Object.assign(document.createElement('i'), { className: 'attack-die', textContent: String(die) }));
+  throwLine.append(dice,
+    Object.assign(document.createElement('span'), { className: 'attack-card-sum', textContent: `= ${attack.roll}${attack.totalDM ? ` ${signedDM(attack.totalDM)}` : ''} = ${attack.total}` }),
+    Object.assign(document.createElement('strong'), { className: `attack-card-verdict${attack.hit ? ' hit' : ''}`, textContent: `${attack.hit ? 'HIT' : 'MISS'} \u00b7 NEEDED ${attack.needed}+` })
+  );
+  card.append(throwLine);
+  if (attack.wound) {
+    const wound = document.createElement('div');
+    wound.className = 'attack-card-wound';
+    wound.append(Object.assign(document.createElement('span'), {
+      className: 'attack-card-wound-roll',
+      textContent: `WOUND ${attack.wound.dice.map((die) => `[${die}]`).join(' ')}${attack.wound.modifier ? ` ${signedDM(attack.wound.modifier)}` : ''} = ${attack.wound.total}`
+    }));
+    if (attack.wound.noEffect) {
+      wound.append(Object.assign(document.createElement('span'), { className: 'attack-card-noeffect', textContent: 'NO WOUND \u00b7 ZERO OR LESS HAS NO EFFECT (p.30)' }));
+    } else {
+      for (const allocation of attack.wound.allocations) {
+        wound.append(Object.assign(document.createElement('span'), {
+          className: `attack-card-hit-group${allocation.firstBlood ? ' first-blood' : ''}`,
+          textContent: `${allocation.characteristic} \u2212${allocation.amount}`,
+          title: allocation.firstBlood ? 'Book 1 p.30: the first wound falls entirely on one random characteristic' : ''
+        }));
+      }
+      if (attack.defenderStatus !== 'active') {
+        wound.append(Object.assign(document.createElement('span'), { className: 'attack-card-status', textContent: attack.defenderStatus.toUpperCase() }));
+      }
+    }
+    card.append(wound);
+  }
+  return card;
+}
+
 // A player declares for the combatants they own, and for nobody else. The
 // declaration is an intent: the referee resolves it. Once made it cannot be
 // revised — the rules refuse updates — so what everyone else does stays hidden
@@ -517,49 +638,109 @@ function renderOrders() {
     }
 
     const foes = view.combatants.filter((entry) => entry.side !== combatant.side && entry.condition === 'active');
-    const targetRow = document.createElement('label');
-    targetRow.className = 'player-orders-target';
-    targetRow.append(Object.assign(document.createElement('span'), { textContent: 'TARGET' }));
-    const select = document.createElement('select');
-    for (const foe of foes) select.append(new Option(foe.name.toUpperCase(), foe.id));
-    if (!foes.length) select.append(new Option('NOBODY', ''));
-    const marked = foes.find((foe) => targetTokenIds.has(foe.id));
-    if (marked) select.value = marked.id;
-    targetRow.append(select);
-    block.append(targetRow);
+    const draft = declarationDraft(combatantId, foes);
 
+    // v0.180.0: the throw, before the click, as the referee's client has had
+    // since v0.178.0. The figures are published per attacker-target pair;
+    // nothing is computed here, so the page cannot disagree with the dice.
+    const priced = (targetId) => (view.throws ?? []).find((entry) => entry.attackerId === combatantId && entry.targetId === targetId) ?? null;
+    if (draft.movement !== 'evade' && draft.movement !== 'escape' && draft.targetId) {
+      const card = renderPlayerThrowCard(priced(draft.targetId), combatant, view.combatants.find((entry) => entry.id === draft.targetId));
+      if (card) block.append(card);
+    }
+
+    // Book 1 p.26 step 4: movement status, then attack and target.
     const verbs = document.createElement('div');
     verbs.className = 'player-orders-verbs';
-    const declare = (action, needsTarget) => async () => {
-      const targetId = needsTarget ? select.value || null : null;
-      if (needsTarget && !targetId) { setStatus('NO TARGET AVAILABLE', 'error'); return; }
+    const redraw = () => renderOrders();
+    const choice = (label, on, handler, { disabled = false, title = '' } = {}) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `text-button declare-choice${on ? ' is-on' : ''}`;
+      button.textContent = label;
+      button.disabled = disabled;
+      button.title = title;
+      button.setAttribute('aria-pressed', String(on));
+      button.addEventListener('click', () => { handler(); redraw(); });
+      return button;
+    };
+    const group = (label) => {
+      const row = document.createElement('div');
+      row.className = 'declare-row';
+      row.append(Object.assign(document.createElement('span'), { className: 'declare-label', textContent: label }));
+      return row;
+    };
+
+    const move = group('MOVE');
+    move.append(
+      choice('STAND', draft.movement === 'stand', () => { draft.movement = 'stand'; }, { title: 'Book 1 p.29: no movement; attack if you choose a target' }),
+      choice('CLOSE', draft.movement === 'close', () => { draft.movement = 'close'; }, { disabled: !foes.length, title: 'Book 1 p.28: move toward the enemy; walking still lets you attack' }),
+      choice('OPEN', draft.movement === 'open', () => { draft.movement = 'open'; }, { disabled: !foes.length, title: 'Book 1 p.28: move away; walking still lets you attack' }),
+      choice('EVADE', draft.movement === 'evade', () => { draft.movement = 'evade'; }, { title: 'Book 1 p.28: no attack; a defensive DM by range, and you lose your parry' })
+    );
+    if (view.declaringRound === 1) {
+      move.append(choice('ESCAPE', draft.movement === 'escape', () => { draft.movement = 'escape'; }, { title: 'Book 1 p.28: throw 9+ before combat begins, with a DM for range' }));
+    }
+    verbs.append(move);
+
+    if (draft.movement === 'close' || draft.movement === 'open') {
+      const pace = group('PACE');
+      pace.append(
+        choice('WALK', draft.pace === 'walk', () => { draft.pace = 'walk'; }, { title: 'One band a round, and you still attack' }),
+        choice('RUN', draft.pace === 'run', () => { draft.pace = 'run'; }, { title: 'Book 1 p.28: two bands, counted as a combat blow, and no attack this round' })
+      );
+      verbs.append(pace);
+    }
+
+    if (draft.movement !== 'evade' && draft.movement !== 'escape') {
+      const targets = group(draft.movement === 'close' ? 'TOWARD' : draft.movement === 'open' ? 'AWAY FROM' : 'TARGET');
+      for (const foe of foes) {
+        const throwFor = priced(foe.id);
+        const label = throwFor
+          ? `${foe.name.toUpperCase()} \u00b7 ${rangeLabel(throwFor.range)} \u00b7 ${throwFor.reach ? `${throwFor.needed}+` : 'NO REACH'}`
+          : foe.name.toUpperCase();
+        targets.append(choice(label, draft.targetId === foe.id, () => {
+          draft.targetId = foe.id;
+          targetTokenIds = new Set([foe.id]);
+          publishPresence();
+        }, { title: throwFor?.reach ? `${throwFor.chance}% on 2D` : '' }));
+      }
+      if (draft.movement === 'stand') {
+        targets.append(choice('NONE', draft.targetId === null, () => { draft.targetId = null; }, { title: 'Stand without attacking (Book 1 p.29)' }));
+      }
+      verbs.append(targets);
+    }
+
+    const confirm = document.createElement('div');
+    confirm.className = 'declare-row declare-confirm';
+    let derived = null;
+    let problem = null;
+    try { derived = deriveDeclaration({ movement: draft.movement, pace: draft.pace, targetId: draft.targetId, round: view.declaringRound }); }
+    catch (error) { problem = error?.message ?? String(error); }
+    const targetName = draft.targetId ? foes.find((foe) => foe.id === draft.targetId)?.name.toUpperCase() ?? null : null;
+    const reach = draft.targetId ? priced(draft.targetId)?.reach ?? true : true;
+    const declare = document.createElement('button');
+    declare.type = 'button';
+    declare.className = 'text-button action-button declare-button';
+    declare.textContent = `[ DECLARE: ${declarationSummary(draft, { targetName, reach })} ]`;
+    declare.disabled = Boolean(problem);
+    if (problem) declare.title = problem;
+    declare.addEventListener('click', async () => {
+      if (!derived) { setStatus(String(problem).toUpperCase(), 'error'); return; }
       try {
         await writeDeclaration(connectedCampaignId, view.encounterId, createPlayerDeclaration({
-          uid: currentUserId(),
-          actorId: combatantId,
-          action,
-          targetId,
-          round: view.declaringRound,
-          declaredAt: Date.now()
+          uid: currentUserId(), actorId: combatantId,
+          action: derived.action, targetId: derived.targetId,
+          round: view.declaringRound, declaredAt: Date.now()
         }));
-        setStatus(`DECLARED ${action.toUpperCase()}`, 'ok');
+        declarationDrafts.delete(combatantId);
+        setStatus(`DECLARED ${derived.action.toUpperCase()}`, 'ok');
       } catch (error) {
         setStatus(error?.message ?? String(error), 'error');
       }
-    };
-    for (const [label, action, needsTarget] of [
-      ['ATTACK / STAND', 'attack', true], ['CLOSE + ATTACK', 'close', true], ['OPEN + ATTACK', 'open', true],
-      ['RUN CLOSER', 'close-run', true], ['RUN AWAY', 'open-run', true],
-      ['EVADE', 'evade', false], ['ESCAPE', 'escape', false], ['STAND', 'wait', false]
-    ]) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'text-button action-button';
-      button.textContent = `[ ${label} ]`;
-      button.disabled = (needsTarget && !foes.length) || (action === 'escape' && view.declaringRound !== 1);
-      button.addEventListener('click', declare(action, needsTarget));
-      verbs.append(button);
-    }
+    });
+    confirm.append(declare);
+    verbs.append(confirm);
     block.append(verbs);
     return block;
   });
@@ -661,7 +842,17 @@ function renderNarration() {
     block.append(Object.assign(document.createElement('div'), {
       className: 'player-narration-heading', textContent: `ROUND ${round}`
     }));
+    // v0.180.0: the party's own attacks are cards; everything else stays the
+    // narrated line, which is all a player is told about a fight between two
+    // other sides.
+    const cards = (view.attacks ?? []).filter((attack) => attack.round === round);
+    let placed = 0;
     for (const entry of entries) {
+      if (entry.kind === 'attack' && cards[placed]) {
+        block.append(renderPlayerAttackCard(cards[placed]));
+        placed += 1;
+        continue;
+      }
       block.append(Object.assign(document.createElement('div'), {
         className: 'player-narration-line', textContent: entry.text
       }));
