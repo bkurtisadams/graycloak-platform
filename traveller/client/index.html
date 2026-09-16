@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.182.0</div>
+          <div id="app-subtitle" class="subtitle">v0.183.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -392,6 +392,7 @@
                 <h2 id="combat-rail-heading" class="section-title">COMBAT</h2>
                 <button class="help-button" type="button" data-help-topic="personal-combat" aria-label="Explain personal combat">[?]</button>
               </div>
+              <div id="encounter-precombat" class="encounter-precombat" hidden></div>
               <div id="encounter-throw-card" class="encounter-throw-card" aria-live="polite" hidden></div>
               <div id="encounter-tracker" class="encounter-tracker" aria-label="Combat tracker"></div>
               <div id="encounter-resolve" class="encounter-resolve"></div>
@@ -938,6 +939,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.182.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.183.0"></script>
 </body>
 </html>

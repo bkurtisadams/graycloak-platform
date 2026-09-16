@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.182.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.183.0';
 
 import {
   ACTION_LABELS,
@@ -180,33 +180,33 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.182.0';
+} from './ui-model.js?v=v0.183.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.182.0';
+} from './document-loader.js?v=v0.183.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.182.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.182.0';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.182.0';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.182.0';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.182.0';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.182.0';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.182.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.182.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.183.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.183.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.183.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.183.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.183.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.183.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.183.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.183.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.182.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.182.0';
+} from '../src/campaign-document.js?v=v0.183.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.183.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.182.0';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.183.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.182.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.182.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.182.0';
+} from '../src/document-window.js?v=v0.183.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.183.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.183.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -215,13 +215,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.182.0';
+} from './chargen-view.js?v=v0.183.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.182.0';
+} from './generators.js?v=v0.183.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -232,7 +232,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.182.0';
+} from './subsector-svg.js?v=v0.183.0';
 
 import {
   seededDice,
@@ -241,7 +241,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.182.0';
+} from './commerce-market.js?v=v0.183.0';
 
 import {
   addCharacterToCampaign,
@@ -271,7 +271,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.182.0';
+} from '../src/campaign-document.js?v=v0.183.0';
 
 import {
   NPC_CONDITIONS,
@@ -280,16 +280,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.182.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.182.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.182.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.182.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.182.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.182.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.182.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.182.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.182.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.182.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.183.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.183.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.183.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.183.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.183.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.183.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.183.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.183.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.183.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.183.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -298,14 +298,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.182.0';
+} from '../src/activity-log-document.js?v=v0.183.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.182.0';
+} from '../src/player-session.js?v=v0.183.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -313,19 +313,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.182.0';
+} from './quick-slots.js?v=v0.183.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.182.0';
+} from '../src/campaign-bundle.js?v=v0.183.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.182.0';
+} from '../src/document-registry.js?v=v0.183.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.182.0';
+} from '../src/activity-log.js?v=v0.183.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -335,14 +335,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.182.0';
+} from '../src/contract-document.js?v=v0.183.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.182.0';
+} from '../src/situation-document.js?v=v0.183.0';
 
 import {
   createEncounterDocument,
@@ -371,42 +371,42 @@ import {
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, allocateRoundWound } from '../src/encounter-document.js?v=v0.182.0';
+  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.183.0';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.182.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.182.0';
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.182.0';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.183.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.183.0';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.183.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.182.0';
+} from '../src/contact-document.js?v=v0.183.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.182.0';
+} from '../src/adventure-thread-document.js?v=v0.183.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.182.0';
+} from '../world/situation-events.js?v=v0.183.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.182.0';
+} from '../world/contract-board.js?v=v0.183.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.182.0';
+} from '../world/thread-consequences.js?v=v0.183.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.182.0';
+} from '../world/far-meridian-subsector.js?v=v0.183.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -737,6 +737,7 @@ const el = {
   combatEnemyVehicle: document.querySelector('#combat-enemy-vehicle'),
   combatEnemyBattleDress: document.querySelector('#combat-enemy-battledress'),
   combatEnemyPouncer: document.querySelector('#combat-enemy-pouncer'),
+  encounterPrecombat: document.querySelector('#encounter-precombat'),
   encounterThrowCard: document.querySelector('#encounter-throw-card'),
   woundAllocationDialog: document.querySelector('#wound-allocation-dialog'),
   woundAllocationForm: document.querySelector('#wound-allocation-form'),
@@ -4991,6 +4992,26 @@ function appendTokenWoundPips(group, combatant) {
   });
 }
 
+// v0.183.0 (audit item 10): Book 1 pp.31-32 — a combatant has only as many
+// combat blows as his endurance, and every swing after that is weakened. That
+// figure decides whether a melee fighter should still be swinging, and it was
+// visible only in the throw card or an expanded tracker row. Guns are not
+// affected by endurance (p.32), so this appears only with a melee weapon in
+// hand, and only once a blow has been spent.
+function appendTokenBlows(group, combatant) {
+  if (!getPersonalWeapon(combatant.weaponKey).melee) return;
+  const left = blowsRemaining(combatant);
+  if (left >= combatant.blowAllowance) return;
+  const mark = sceneSvgNode('text', { x: .42, y: .2, class: `encounter-token-blows${left <= 0 ? ' spent' : ''}` });
+  mark.textContent = left <= 0 ? 'W' : String(left);
+  const title = sceneSvgNode('title');
+  title.textContent = left <= 0
+    ? `${combatant.name}: combat blows spent — every swing is weakened (Book 1 p.31)`
+    : `${combatant.name}: ${left} of ${combatant.blowAllowance} combat blows left (Book 1 p.31)`;
+  mark.append(title);
+  group.append(mark);
+}
+
 // The needed throw, on the token the selected combatant is aiming at. Drawn
 // only for a marked target, so a crowded board does not sprout numbers.
 function appendTokenThrowBadge(group, encounter, actor, combatant) {
@@ -5342,13 +5363,39 @@ function renderRangeLineBoard(encounter) {
   // exclusively in scene-canvas.js (v0.73.0), and this view has no camera to
   // begin with: nothing here pans or zooms, so it simply lays its rows out
   // inside the space already declared in the markup.
-  const rowCount = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1; // 0..14 fightable, 15 is the escape row
+  // v0.183.0 (audit item 7): the board drew all sixteen bands whether anybody
+  // stood in them or not, so a fight at close quarters was five tokens
+  // squeezed into the bottom 75 units of a 1206 viewBox with fourteen empty
+  // rows above. Book 1 p.29's grid is "broad bands in which combatant
+  // characters are placed" — the bands matter, the empty paper between them
+  // does not. So the board shows the occupied span with one band of headroom
+  // either side, and says how many bands it skipped rather than pretending
+  // they are not there.
+  const occupied = encounter.combatants
+    .map((combatant) => Math.min(combatant.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS))
+    .sort((left, right) => left - right);
+  const lowest = Math.max(0, (occupied[0] ?? 0) - 1);
+  const highest = Math.min(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, (occupied[occupied.length - 1] ?? 0) + 1);
+  const visibleBands = [];
+  for (let band = lowest; band <= highest; band += 1) visibleBands.push(band);
+  // The escape row is always drawn, so "out of the fight" has somewhere to be.
+  if (!visibleBands.includes(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS)) visibleBands.push(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
+  const skipped = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS - highest > 1 ? ENCOUNTER_RANGE_LINE_ESCAPE_BANDS - highest - 1 : 0;
   const width = 1206;
   const height = 1206;
-  const rowHeight = height / rowCount;
-  const labelWidth = 130;
-  const zoneNameForRow = (row) => row === 0 ? 'CLOSE' : row === 1 ? 'SHORT' : row === 2 ? 'MEDIUM' : row === 6 ? 'LONG' : row === 10 ? 'VERY LONG' : row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'ESCAPED' : null;
-  const yForRow = (row) => height - (row + 1) * rowHeight; // row 0 (close, the party's own line) at the bottom
+  const rowSlots = visibleBands.length + (skipped ? 1 : 0);
+  const rowHeight = height / rowSlots;
+  const labelWidth = 150;
+  // Book 1 p.29: the same band is close, one apart is short, 2-5 medium,
+  // 6-9 long, 10-14 very long, 15 out of range. Every band is named now,
+  // rather than only the one that opens each zone.
+  const zoneForBand = (band) => band === 0 ? 'CLOSE'
+    : band === 1 ? 'SHORT'
+    : band <= 5 ? 'MEDIUM'
+    : band <= 9 ? 'LONG'
+    : band < ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'VERY LONG'
+    : 'ESCAPED';
+  const actorForBadge = selectedEncounterActor(encounter);
   const byRow = new Map();
   for (const combatant of encounter.combatants) {
     const row = Math.min(combatant.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
@@ -5360,16 +5407,27 @@ function renderRangeLineBoard(encounter) {
   const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const declaredOn = declaredTargetCounts(encounter);
   const fragments = [];
-  for (let row = 0; row < rowCount; row += 1) {
-    const y = yForRow(row);
-    fragments.push(sceneSvgNode('rect', { x: 0, y, width, height: rowHeight, class: `range-line-row${row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? ' escaped' : ''}` }));
-    fragments.push(sceneSvgNode('line', { x1: 0, y1: y, x2: width, y2: y, class: 'range-line-divider' }));
-    const zoneName = zoneNameForRow(row);
-    if (zoneName) {
-      const label = sceneSvgNode('text', { x: 12, y: y + rowHeight / 2, class: 'range-line-zone-label' });
-      label.textContent = zoneName;
-      fragments.push(label);
+  // Slots run bottom-up: the lowest visible band at the bottom, as before.
+  const slots = [];
+  visibleBands.forEach((band) => slots.push({ kind: 'band', band }));
+  if (skipped) slots.splice(visibleBands.length - 1, 0, { kind: 'gap', bands: skipped });
+  slots.forEach((slot, index) => {
+    const y = height - (index + 1) * rowHeight;
+    if (slot.kind === 'gap') {
+      fragments.push(sceneSvgNode('rect', { x: 0, y, width, height: rowHeight, class: 'range-line-row skipped' }));
+      const note = sceneSvgNode('text', { x: width / 2, y: y + rowHeight / 2, class: 'range-line-skip-label', 'text-anchor': 'middle' });
+      note.textContent = `\u22ef ${slot.bands} EMPTY BAND${slot.bands === 1 ? '' : 'S'} \u22ef`;
+      note.append(Object.assign(sceneSvgNode('title'), { textContent: 'No combatant stands here; the bands are skipped so the occupied ones can be read' }));
+      fragments.push(note);
+      return;
     }
+    const row = slot.band;
+    fragments.push(sceneSvgNode('rect', { x: 0, y, width, height: rowHeight, class: `range-line-row zone-${zoneForBand(row).toLowerCase().replace(' ', '-')}${row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? ' escaped' : ''}` }));
+    fragments.push(sceneSvgNode('line', { x1: 0, y1: y, x2: width, y2: y, class: 'range-line-divider' }));
+    const label = sceneSvgNode('text', { x: 12, y: y + rowHeight / 2, class: 'range-line-zone-label' });
+    label.textContent = row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'ESCAPED' : `${row} \u00b7 ${zoneForBand(row)}`;
+    label.append(Object.assign(sceneSvgNode('title'), { textContent: `Band ${row}: ${zoneForBand(row).toLowerCase()} range to a combatant in band ${row === 0 ? '0' : row}` }));
+    fragments.push(label);
     const occupants = byRow.get(row) ?? [];
     const slotWidth = (width - labelWidth) / Math.max(1, occupants.length);
     occupants.forEach((combatant, index) => {
@@ -5410,15 +5468,15 @@ function renderRangeLineBoard(encounter) {
           group.append(mark);
         });
       }
-      if (actor && encounter.status === 'active' && actor.side !== combatant.side
+      if (actorForBadge && encounter.status === 'active' && actorForBadge.side !== combatant.side
         && combatant.status === 'active' && effectiveTargetIds(encounter, actor.id).has(combatant.id)) {
         try {
-          const model = throwCardModel(encounter, actor, combatant);
+          const model = throwCardModel(encounter, actorForBadge, combatant);
           const badge = sceneSvgNode('text', { x: -26, y: -20, class: `encounter-token-throw-badge${model.reach ? '' : ' no-reach'}` });
           badge.textContent = model.reach ? `${model.needed}+` : 'X';
           const badgeTitle = sceneSvgNode('title');
           badgeTitle.textContent = model.reach
-            ? `${actor.name} needs ${model.needed}+ on 2D at ${model.range.replace('-', ' ')} range (${model.chance}%)`
+            ? `${actorForBadge.name} needs ${model.needed}+ on 2D at ${model.range.replace('-', ' ')} range (${model.chance}%)`
             : `${model.weapon.name} cannot reach at ${model.range.replace('-', ' ')} range`;
           badge.append(badgeTitle);
           group.append(badge);
@@ -5436,7 +5494,7 @@ function renderRangeLineBoard(encounter) {
       group.addEventListener('mouseleave', () => { el.encounterTokenTooltip.hidden = true; });
       fragments.push(group);
     });
-  }
+  });
   el.encounterMap.replaceChildren(...fragments);
   if (el.encounterMapViewport) { el.encounterMapViewport.ondragover = null; el.encounterMapViewport.ondrop = null; }
   let guide = null;
@@ -5616,6 +5674,7 @@ function renderEncounterMap(encounter) {
         const tally = sceneSvgNode('text', { x: .4, y: .48, class: 'encounter-token-declared-marker' }); tally.textContent = `\u00d7${declaredOn[combatant.id]}`; group.append(tally);
       }
       appendTokenWoundPips(group, combatant);
+      appendTokenBlows(group, combatant);
       appendTokenThrowBadge(group, encounter, selectedEncounterActor(encounter), combatant);
     },
     interaction: {
@@ -5951,6 +6010,69 @@ function openCombatantSheet(combatant) {
 // Not the v0.46 DM panel: that summarised a single attack at the top of the
 // rail and duplicated the map. This follows the selection and prices the
 // attack the player is about to declare.
+// v0.183.0 (audit item 9): Book 1 p.26 steps 1-3. Surprise, the initial
+// range and whether escape is possible happen ONCE per encounter, and the
+// tracker said only "NOT STARTED" — so there was nothing on screen to explain
+// why ESCAPE is offered in round 1 and gone in round 2, or why one side got a
+// free round. The strip states all three from the encounter's own record.
+//
+// The terrain DM (p.27) is deliberately absent: the client takes the initial
+// range from the referee's own statement in combat setup, which p.27 allows
+// as the alternative to the 2D throw, so there is no terrain roll to report.
+// Wiring the p.27 terrain and encounter-range tables is still open work.
+function renderEncounterPrecombat(encounter) {
+  const strip = el.encounterPrecombat;
+  if (!strip) return;
+  strip.replaceChildren();
+  strip.hidden = !encounter;
+  if (!encounter) return;
+  const firstRound = encounter.status === 'setup' || encounter.round === 1;
+  const item = (label, value, title) => {
+    const row = document.createElement('div');
+    row.className = 'precombat-item';
+    row.title = title;
+    row.append(
+      Object.assign(document.createElement('span'), { className: 'precombat-label', textContent: label }),
+      Object.assign(document.createElement('span'), { className: 'precombat-value', textContent: value })
+    );
+    return row;
+  };
+
+  // Step 1. One die a side, 3 or more apart to surprise (p.26).
+  const surprise = encounter.surprise ?? {};
+  const throws = (surprise.results ?? []).map((entry) =>
+    `${entry.sideId === 'party' ? 'PARTY' : 'OPPOSITION'} 1D [${entry.roll}]${entry.dm ? signedDM(entry.dm) : ''} = ${entry.total}`).join(' vs ');
+  const who = surprise.surpriseSideId
+    ? `${surprise.surpriseSideId.toUpperCase()} SURPRISED THE OTHER`
+    : 'NEITHER SIDE';
+  strip.append(item('SURPRISE', `${who}${throws ? ` \u00b7 ${throws}` : ''} \u00b7 MARGIN ${surprise.margin ?? 0} (3+ TO SURPRISE)`,
+    'Book 1 p.26: one die each, and a side three or more ahead has surprise. Its DMs come from leader, tactical and military experience (p.27) and the referee\u2019s setup conditions (p.31).'));
+
+  // The DMs that produced it, named, so a referee can see where they came from.
+  for (const side of ['party', 'opposition']) {
+    const conditions = surprise.conditions?.[side] ?? {};
+    const parts = Object.entries(conditions)
+      .filter(([, value]) => value)
+      .map(([key, value]) => `${key.replace(/([A-Z])/g, ' $1').toUpperCase()}${Number.isInteger(value) && value !== 1 ? ` ${signedDM(value)}` : ''}`);
+    if (parts.length) strip.append(item(`${side.toUpperCase()} DMs`, parts.join(' \u00b7 '), 'Book 1 p.27 and p.31 surprise DMs'));
+  }
+
+  // Step 2. The range the parties met at.
+  strip.append(item('MET AT', `${rangeLabel(encounter.range)} RANGE \u00b7 ${encounter.map?.spatialMode === 'range-line' ? 'BOOK 1 RANGE LINE' : `${encounter.map?.metersPerSquare ?? '--'} M SQUARES`}`,
+    'Book 1 p.27: the initial range is the referee\u2019s statement or a 2D throw with a terrain DM. This fight took the referee\u2019s statement in combat setup.'));
+
+  // Step 3. Escape, and only before contact (p.28).
+  if (firstRound) {
+    const dm = ESCAPE_RANGE_DMS[encounter.range] ?? 0;
+    strip.append(item('ESCAPE', `${ESCAPE_TARGET}+ \u00b7 RANGE ${signedDM(dm)} \u00b7 THIS ROUND ONLY`,
+      'Book 1 p.28: either side may try to escape before any contact, on 9+ with a DM for the range. Afterwards the field is left only by opening beyond every enemy.'));
+  } else {
+    strip.append(item('ESCAPE', 'CLOSED \u00b7 CONTACT IS MADE',
+      'Book 1 p.28: once contact or combat begins, a party leaves only through movement.'));
+  }
+  strip.classList.toggle('is-open', firstRound);
+}
+
 function renderEncounterThrowCard(encounter, actor, target) {
   const card = el.encounterThrowCard;
   if (!card) return;
@@ -6301,6 +6423,7 @@ function renderEncounterTracker(encounter, actor) {
     return row;
   });
   el.encounterTracker.replaceChildren(heading, ...rows);
+  renderEncounterPrecombat(encounter);
   renderEncounterThrowCard(encounter, actor, selectedEncounterTarget(encounter));
 
   const undeclared = undeclaredCombatantIds(encounter);
