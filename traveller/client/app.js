@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.183.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.184.0';
 
 import {
   ACTION_LABELS,
@@ -180,33 +180,33 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.183.1';
+} from './ui-model.js?v=v0.184.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.183.1';
+} from './document-loader.js?v=v0.184.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.183.1';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.183.1';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.183.1';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.183.1';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.183.1';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.183.1';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.183.1';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.183.1';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.184.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.184.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.184.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.184.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.184.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.184.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.184.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.184.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.183.1';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.183.1';
+} from '../src/campaign-document.js?v=v0.184.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.184.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.183.1';
+import { renderShipVectorMap, renderVectorSceneStage } from './ship-vector-map.js?v=v0.184.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.183.1';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.183.1';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.183.1';
+} from '../src/document-window.js?v=v0.184.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.184.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.184.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -215,13 +215,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.183.1';
+} from './chargen-view.js?v=v0.184.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.183.1';
+} from './generators.js?v=v0.184.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -232,7 +232,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.183.1';
+} from './subsector-svg.js?v=v0.184.0';
 
 import {
   seededDice,
@@ -241,7 +241,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.183.1';
+} from './commerce-market.js?v=v0.184.0';
 
 import {
   addCharacterToCampaign,
@@ -271,7 +271,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.183.1';
+} from '../src/campaign-document.js?v=v0.184.0';
 
 import {
   NPC_CONDITIONS,
@@ -280,16 +280,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.183.1';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.183.1';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.183.1';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.183.1';
-import { openSignInDialog } from './signin-ui.js?v=v0.183.1';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.183.1';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.183.1';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.183.1';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.183.1';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.183.1';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.184.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.184.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.184.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.184.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.184.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.184.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.184.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.184.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.184.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.184.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -298,14 +298,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.183.1';
+} from '../src/activity-log-document.js?v=v0.184.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.183.1';
+} from '../src/player-session.js?v=v0.184.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -313,19 +313,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.183.1';
+} from './quick-slots.js?v=v0.184.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.183.1';
+} from '../src/campaign-bundle.js?v=v0.184.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.183.1';
+} from '../src/document-registry.js?v=v0.184.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.183.1';
+} from '../src/activity-log.js?v=v0.184.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -335,14 +335,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.183.1';
+} from '../src/contract-document.js?v=v0.184.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.183.1';
+} from '../src/situation-document.js?v=v0.184.0';
 
 import {
   createEncounterDocument,
@@ -371,42 +371,42 @@ import {
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.183.1';
+  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.184.0';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.183.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.183.1';
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.183.1';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.184.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.184.0';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.184.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.183.1';
+} from '../src/contact-document.js?v=v0.184.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.183.1';
+} from '../src/adventure-thread-document.js?v=v0.184.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.183.1';
+} from '../world/situation-events.js?v=v0.184.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.183.1';
+} from '../world/contract-board.js?v=v0.184.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.183.1';
+} from '../world/thread-consequences.js?v=v0.184.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.183.1';
+} from '../world/far-meridian-subsector.js?v=v0.184.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -11582,6 +11582,168 @@ function renderShipVectorStage() {
   });
 }
 
+// v0.184.0 (audit item 13): Book 2 p.24's data card, drawn as a card.
+//
+// The book is specific about this: a 3x5 index card, the ship's name on the
+// top line, the six basic sections numbered 1 to 6 down the left with their
+// letters and capacities, the turrets listed beneath with their armament code
+// and gunner, and the computer to the right with its model, CPU, storage and
+// the programs it carries, "so leave room to mark them with pencil to
+// indicate their status".
+//
+// What the rail had was ten to twelve label/value rows per ship stacked down
+// a narrow column — every figure present, no shape at all, and nothing
+// showing that a hit on a drive is a letter crossed out. This lays the same
+// model out the way the book does, which also makes damage legible: a struck
+// letter for a reduced drive, a struck turret, and the programs as pills so
+// what is in the computer reads at a glance.
+//
+// Every figure still comes from shipDataCard(); nothing is computed here.
+function shipCardSection(number, label, reading, { hits = 0, dead = false, title = '' } = {}) {
+  const row = document.createElement('div');
+  row.className = `ship-card-section${dead ? ' is-dead' : hits ? ' is-hit' : ''}`;
+  row.title = title;
+  row.append(
+    Object.assign(document.createElement('span'), { className: 'ship-card-number', textContent: `${number}.` }),
+    Object.assign(document.createElement('span'), { className: 'ship-card-section-label', textContent: label }),
+    Object.assign(document.createElement('span'), { className: 'ship-card-section-value', textContent: reading })
+  );
+  if (hits) {
+    row.append(Object.assign(document.createElement('span'), {
+      className: 'ship-card-hits',
+      textContent: '\u00d7'.repeat(Math.min(hits, 4)),
+      title: `${hits} hit${hits === 1 ? '' : 's'} (Book 2 p.33)`
+    }));
+  }
+  return row;
+}
+
+function renderShipDataCard(card, participant, encounter) {
+  const frame = document.createElement('div');
+  frame.className = `ship-data-card-frame${card.status.disabled ? ' is-disabled' : ''}`;
+
+  const left = document.createElement('div');
+  left.className = 'ship-card-column';
+  // 1-3: the drives, in the book's own order, each reading its letter and the
+  // potential reread from the p.11 table after damage.
+  const driveTitle = 'Book 2 p.33: each hit reduces the letter by one, and the potential is reread from the p.11 table.';
+  const order = ['M-Drive', 'J-Drive', 'Power Plant'];
+  order.forEach((label, index) => {
+    const drive = card.sections.find((entry) => entry.label === label);
+    if (!drive) return;
+    left.append(shipCardSection(index + 1, label.toUpperCase(), drive.reading, {
+      hits: drive.hits, dead: drive.potential === null, title: driveTitle
+    }));
+  });
+  // 4. Fuel. An encountered ship's tonnage aboard is unrecorded.
+  const aboard = card.fuel.aboardTons === null || card.fuel.aboardTons === undefined ? 'UNRECORDED' : `${card.fuel.aboardTons}t`;
+  left.append(shipCardSection(4, 'FUEL', `${aboard} / ${card.fuel.capacityTons}t`, {
+    hits: card.fuel.hits, dead: card.fuel.maneuverDisabled,
+    title: 'Book 2 p.33: each hit punctures a tank and releases about 20 tons. No jump past 60% lost; no maneuver once it is all gone.'
+  }));
+  // 5. Hold.
+  left.append(shipCardSection(5, 'HOLD', `${card.hold.usedTons ?? 0} / ${card.hold.capacityTons ?? 0}t`, {
+    hits: card.hold.hits,
+    title: 'Book 2 p.33: a hold hit damages what is in it, ship\u2019s vehicles and cargo alike.'
+  }));
+  // 6. Bridge, which the book records as the pilot's expertise.
+  left.append(shipCardSection(6, 'BRIDGE', `PILOT-${card.bridge.pilotSkill}`, {
+    title: 'Book 2 p.24 records the bridge as the pilot\u2019s expertise.'
+  }));
+
+  // The turrets, beneath the six sections as on the card, in p.24 notation.
+  const turrets = document.createElement('div');
+  turrets.className = 'ship-card-turrets';
+  if (!card.turrets.length) {
+    turrets.append(Object.assign(document.createElement('div'), { className: 'ship-card-empty', textContent: 'UNARMED' }));
+  }
+  for (const turret of card.turrets) {
+    const chip = document.createElement('div');
+    chip.className = `ship-card-turret${turret.operational ? '' : ' is-out'}`;
+    chip.title = turret.operational
+      ? `${turret.mount} turret. Book 2 p.24 notation: B beam laser, P pulse laser, M missile rack, S sandcaster.`
+      : 'Book 2 p.33: a turret hit stops the turret and its weaponry.';
+    chip.append(
+      Object.assign(document.createElement('strong'), { className: 'ship-card-turret-id', textContent: turret.id }),
+      Object.assign(document.createElement('span'), { className: 'ship-card-turret-code', textContent: `(${turret.code || '\u2014'})` }),
+      Object.assign(document.createElement('span'), { className: 'ship-card-turret-gunner', textContent: turret.operational ? `GUNNER-${turret.gunnerSkill}` : 'OUT' })
+    );
+    turrets.append(chip);
+  }
+  if (card.magazine.missiles || card.magazine.sandCanisters) {
+    turrets.append(Object.assign(document.createElement('div'), {
+      className: 'ship-card-magazine',
+      textContent: `${card.magazine.missiles} MISSILES \u00b7 ${card.magazine.sandCanisters} SAND ABOARD`,
+      title: 'Book 2 p.30: each launcher holds three ready rounds; the rest are stores.'
+    }));
+  }
+  left.append(turrets);
+
+  // The computer, to the right as the book draws it, with the programs it
+  // carries marked for what is in it.
+  const right = document.createElement('div');
+  right.className = 'ship-card-column ship-card-computer';
+  const computer = card.computer;
+  const head = document.createElement('div');
+  head.className = `ship-card-computer-head${computer.permanentlyFailed ? ' is-dead' : computer.hits ? ' is-hit' : ''}`;
+  head.title = 'Book 2 p.34: the throw to operate is 1+, with a \u22121 DM for each hit, and twelve hits is permanent.';
+  head.append(
+    Object.assign(document.createElement('strong'), { textContent: `MODEL/${computer.model}` }),
+    Object.assign(document.createElement('span'), { textContent: `CPU ${computer.cpu} \u00b7 STORE ${computer.storage ?? 0}` })
+  );
+  if (computer.hits) {
+    head.append(Object.assign(document.createElement('span'), {
+      className: 'ship-card-computer-dm',
+      textContent: computer.permanentlyFailed ? 'FAILED' : `${computer.hits} HIT \u00b7 DM ${signedDM(computer.operationDM)}`
+    }));
+  }
+  right.append(head);
+  const programs = document.createElement('div');
+  programs.className = 'ship-card-programs';
+  programs.title = 'Book 2 p.31: CPU plus storage is what the computer holds. A program cycles into the CPU as a phase needs it; loaded ones are marked.';
+  for (const key of computer.carried) {
+    const program = COMPUTER_PROGRAMS[key];
+    const pill = document.createElement('span');
+    pill.className = `ship-card-program${computer.loaded.includes(key) ? ' is-loaded' : ''}`;
+    pill.textContent = program.label;
+    pill.title = `${program.label} (${program.space})${program.notes ? ` \u2014 ${program.notes}` : ''}`;
+    programs.append(pill);
+  }
+  if (!computer.carried.length) {
+    programs.append(Object.assign(document.createElement('span'), { className: 'ship-card-empty', textContent: 'NO PROGRAMS' }));
+  }
+  right.append(programs);
+  right.append(Object.assign(document.createElement('div'), {
+    className: 'ship-card-computer-space',
+    textContent: `${computer.loadedSpace}/${computer.inComputerCapacity} POINTS IN COMPUTER`
+  }));
+  if (card.doubleFire) {
+    right.append(Object.assign(document.createElement('div'), {
+      className: 'ship-card-note',
+      textContent: 'DOUBLE FIRE AVAILABLE',
+      title: 'Book 2 p.32: the power plant is rated above the M-Drive, so laser fire may be doubled \u2014 at the risk of an overload hit.'
+    }));
+  }
+  if (card.decompressed) {
+    right.append(Object.assign(document.createElement('div'), {
+      className: 'ship-card-note is-dead',
+      textContent: 'HULL OPEN \u00b7 INTERIOR DECOMPRESSED',
+      title: 'Book 2 p.33: a hull hit decompresses the interior. Further hull hits have no effect.'
+    }));
+  }
+  const incoming = ordnanceInFlight(encounter, { targetShipId: participant.id }).filter((round) => round.status === 'contact');
+  if (incoming.length) {
+    right.append(Object.assign(document.createElement('div'), {
+      className: 'ship-card-note is-dead',
+      textContent: `${incoming.length} MISSILE${incoming.length === 1 ? '' : 'S'} IN CONTACT`,
+      title: 'Book 2 p.30: ordnance that reached the ship detonates in the launching side\u2019s ordnance phase unless it is shot down first.'
+    }));
+  }
+
+  frame.append(left, right);
+  return frame;
+}
+
 function renderShipCombatRail() {
   const section = el.shipCombatRailSection;
   if (!section) return;
@@ -11704,37 +11866,8 @@ function renderShipCombatRail() {
     summary.append(label);
     row.append(summary);
 
-    // Book 2 p.24's data card: the six sections, turrets, magazine, computer.
-    for (const drive of card.sections) {
-      shipCombatCardRow(row, drive.label.toUpperCase(), drive.reading, {
-        stateClass: drive.potential === null ? 'live-state-critical' : (drive.hits ? 'live-state-attention' : ''),
-        title: 'Book 2 p.33: each hit reduces the letter by one and the potential is reread from p.11.'
-      });
-    }
-    // v0.175.0: an encountered ship's fuel is unrecorded (null), which printed "nullt".
-    shipCombatCardRow(row, 'FUEL', `${card.fuel.aboardTons === null || card.fuel.aboardTons === undefined ? 'UNRECORDED' : `${card.fuel.aboardTons}t`} / ${card.fuel.capacityTons}t${card.fuel.hits ? ` / ${card.fuel.hits} HIT${card.fuel.hits === 1 ? '' : 'S'}` : ''}`, {
-      stateClass: card.fuel.jumpDisabled ? 'live-state-critical' : (card.fuel.hits ? 'live-state-attention' : '')
-    });
-    for (const turret of card.turrets) {
-      shipCombatCardRow(row, turret.id, `${turret.mount.toUpperCase()} / ${turret.code || 'EMPTY'}${turret.operational ? '' : ' / OUT'}${turret.gunnerSkill ? ` / GUNNER-${turret.gunnerSkill}` : ''}`, {
-        stateClass: turret.operational ? '' : 'live-state-critical'
-      });
-    }
-    if (card.magazine.missiles || card.magazine.sandCanisters) {
-      shipCombatCardRow(row, 'MAGAZINE', `${card.magazine.missiles} MISSILES / ${card.magazine.sandCanisters} SAND`);
-    }
-    const computer = card.computer;
-    shipCombatCardRow(row, 'COMPUTER', `MODEL/${computer.model} / CPU ${computer.cpu} / STORE ${computer.storage ?? 0}${computer.hits ? ` / ${computer.hits} HIT` : ''}`, {
-      stateClass: computer.permanentlyFailed ? 'live-state-critical' : (computer.hits ? 'live-state-attention' : ''),
-      title: 'Book 2 p.34: the throw to operate is 1+, with a -1 DM per hit.'
-    });
-    shipCombatCardRow(row, '  IN COMPUTER', `${computer.loaded.map((key) => COMPUTER_PROGRAMS[key].label).join(', ') || 'NOTHING'} (${computer.loadedSpace}/${computer.inComputerCapacity})`, {
-      title: 'Book 2 p.31: CPU plus storage. Programs cycle into the CPU automatically as a phase needs them; this changes only in the reprogramming phase.'
-    });
-    const incoming = ordnanceInFlight(encounter, { targetShipId: participant.id }).filter((round) => round.status === 'contact');
-    if (incoming.length) {
-      shipCombatCardRow(row, 'INCOMING', `${incoming.length} MISSILE(S) IN CONTACT`, { stateClass: 'live-state-critical' });
-    }
+    // v0.184.0: Book 2 p.24's card as a card. See renderShipDataCard.
+    row.append(renderShipDataCard(card, participant, encounter));
     const repair = shipDamageControlRow(encounter, participant);
     if (repair) row.append(repair);
     el.shipCombatTracker.append(row);

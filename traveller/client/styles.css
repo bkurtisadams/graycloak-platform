@@ -4976,3 +4976,69 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 .encounter-token-blows.spent { fill: var(--error); }
 .range-line-token .encounter-token-blows { font-size: 13px; stroke-width: 3px; }
+
+/* --- v0.184.0 (audit item 13): Book 2 p.24's data card, as a card.
+
+   The book describes a 3x5 index card: the name on top, the six basic
+   sections numbered down the left, turrets beneath them, the computer to the
+   right with room to pencil in which programs are running. The rail had all
+   of that as ten to twelve label/value rows stacked down a narrow column.
+   Two columns, so damage is legible as damage: a struck letter is a reduced
+   drive, a struck turret is a turret out, and the programs are pills. */
+.ship-data-card-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 5px 7px 6px;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+}
+.ship-data-card-frame.is-disabled { opacity: .72; }
+.ship-card-column { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ship-card-section { display: flex; align-items: baseline; gap: 5px; }
+.ship-card-number { flex: 0 0 1.1rem; color: var(--muted); }
+.ship-card-section-label { flex: 0 0 5.4rem; letter-spacing: .06em; color: var(--muted); }
+.ship-card-section-value { flex: 1 1 auto; min-width: 0; font-weight: 700; }
+.ship-card-hits { flex: 0 0 auto; color: var(--error); letter-spacing: .1em; }
+/* A hit letter is struck, as it would be in pencil on the card. */
+.ship-card-section.is-hit .ship-card-section-value { color: var(--error); }
+.ship-card-section.is-dead .ship-card-section-value { color: var(--error); text-decoration: line-through; }
+
+.ship-card-turrets { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.ship-card-turret {
+  display: inline-flex; align-items: baseline; gap: 4px;
+  padding: 0 4px; border: 1px solid var(--rule); background: var(--paper); font-size: 10px;
+}
+.ship-card-turret.is-out { border-color: var(--failure-border); color: var(--error); text-decoration: line-through; }
+.ship-card-turret-id { letter-spacing: .04em; }
+.ship-card-turret-code { font-weight: 700; }
+.ship-card-turret-gunner { color: var(--muted); }
+.ship-card-turret.is-out .ship-card-turret-gunner { color: inherit; }
+.ship-card-magazine { flex: 1 1 100%; font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+
+.ship-card-computer { border-left: 1px dotted var(--disabled); padding-left: 10px; }
+.ship-card-computer-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.ship-card-computer-head span { font-size: 10px; letter-spacing: .06em; color: var(--muted); }
+.ship-card-computer-head.is-hit strong, .ship-card-computer-head.is-dead strong { color: var(--error); }
+.ship-card-computer-head.is-dead strong { text-decoration: line-through; }
+.ship-card-computer-dm { color: var(--error) !important; font-weight: 700; }
+.ship-card-programs { display: flex; flex-wrap: wrap; gap: 2px; margin: 3px 0; }
+.ship-card-program {
+  font-size: 9px; letter-spacing: .02em; padding: 0 3px;
+  border: 1px solid var(--rule); color: var(--muted); background: var(--paper);
+}
+/* What is actually in the computer this phase — the pencil mark p.24 asks for. */
+.ship-card-program.is-loaded {
+  color: var(--ink); font-weight: 700;
+  border-color: var(--tab-selected-border); background: var(--tab-selected);
+}
+.ship-card-computer-space { font-size: 9px; letter-spacing: .08em; color: var(--muted); }
+.ship-card-note { font-size: 10px; letter-spacing: .06em; color: var(--muted); padding-top: 2px; }
+.ship-card-note.is-dead { color: var(--error); font-weight: 700; }
+.ship-card-empty { font-size: 10px; letter-spacing: .06em; color: var(--disabled); }
+
+/* One column when the drawer is narrow; the card is a card, not a table. */
+@media (max-width: 1100px) {
+  .ship-data-card-frame { grid-template-columns: minmax(0, 1fr); }
+  .ship-card-computer { border-left: 0; padding-left: 0; border-top: 1px dotted var(--disabled); padding-top: 4px; }
+}
