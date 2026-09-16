@@ -42,7 +42,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.192.1: every colour outside :root is a token so a theme can swap it.
+  /* v0.192.2: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -87,7 +87,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.192.1: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.192.2: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -5335,7 +5335,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
 
 /* ===========================================================================
-   v0.192.1: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   v0.192.2: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
    character and referee tools — with the masthead above and chat as the
    bottom edge. Nothing here is an overlay: the rail, the flyout and the
    dock-reopen control are absolutely positioned INSIDE the stage cell (an
@@ -5468,7 +5468,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
 
-/* v0.192.1: fixes from the first live look at the grid shell. */
+/* v0.192.2: fixes from the first live look at the grid shell. */
 /* Right column: character, then ship, then the tabbed body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
@@ -5503,3 +5503,10 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel + .context-panel { margin-top: 0; }
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
 #shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }
+
+/* v0.192.2 */
+#shell.shell-v2 > .shell-sidebar > #sidebar-character { display: block; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-head { flex-wrap: wrap; gap: 2px 10px; }
+#shell.shell-v2 .subsector-map-tools { padding-right: 500px; }
