@@ -4775,3 +4775,81 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .player-narration .attack-card-hit-group.first-blood { border-style: dashed; }
 .player-narration .attack-card-noeffect,
 .player-narration .attack-card-status { font-size: 10px; letter-spacing: .06em; color: var(--error); }
+
+/* --- v0.181.0 (audit item 1): while a fight is up, combat gets the room.
+
+   v0.178.0 to v0.180.0 put the throw card, the two-decision strip and the
+   round record into a 360px drawer that was sized for a chat feed and a
+   directory listing. Nothing in the fight is optional — the throw is the
+   decision and the record is the result — so the drawer widens while combat
+   holds it, and at a wide window the panel becomes two columns: the tracker
+   on the left, the throw card, the resolve controls and the record on the
+   right. `combat-focus` is already on .terminal whenever the combat rail is
+   visible (applyOperationsDeskTab), so nothing new decides when this applies.
+
+   The stage keeps being pushed rather than covered, per the v0.80.2 ruling. */
+.terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 620px) 52px; }
+.terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(620px + 52px); }
+@media (max-width: 1500px) {
+  .terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 460px) 52px; }
+  .terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(460px + 52px); }
+}
+@media (max-width: 1100px) {
+  .terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 330px) 52px; }
+  .terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(330px + 52px); }
+}
+@media (max-width: 900px) {
+  .terminal.shell.combat-focus .shell-sidebar { grid-template-columns: minmax(0, 280px) 44px; }
+  .terminal.shell.combat-focus:not(.sidebar-collapsed) .shell-stage { padding-right: calc(280px + 44px); }
+}
+
+/* Two columns once there is width for them. The tracker is the tall list, so
+   it takes the left column and scrolls on its own; the throw card, the round
+   controls and the record follow in the right. Below 1200px the panel falls
+   back to one column and nothing moves. */
+@media (min-width: 1200px) {
+  .combat-focus .sidebar-panel[data-sidebar-panel="combat"] > .combat-rail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    /* heading, then the throw card and the round controls at their own
+       heights, then the record taking what is left. The tracker spans all
+       three and scrolls on its own. */
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    column-gap: 10px;
+    height: 100%;
+    min-height: 0;
+  }
+  .combat-focus .combat-rail > .section-heading { grid-column: 1 / -1; grid-row: 1; }
+  .combat-focus .combat-rail > #encounter-tracker {
+    grid-column: 1; grid-row: 2 / -1;
+    min-height: 0; overflow-y: auto;
+    padding-right: 6px; border-right: 1px solid var(--rule);
+  }
+  .combat-focus .combat-rail > #encounter-throw-card { grid-column: 2; grid-row: 2; align-self: start; }
+  /* RESOLVE ROUND is never below the fold of a long tracker. */
+  .combat-focus .combat-rail > #encounter-resolve { grid-column: 2; grid-row: 3; align-self: start; margin-top: 0; }
+  .combat-focus .combat-rail > #encounter-details {
+    grid-column: 2; grid-row: 4;
+    min-height: 0; overflow-y: auto; align-self: stretch;
+  }
+}
+
+/* The verbs and the declaration strip have room to sit on one line each now,
+   rather than wrapping every chip onto its own row. */
+.combat-focus .combat-rail .declare-label { flex: 0 0 4.2rem; }
+.combat-focus .combat-rail .declare-choice { font-size: 11px; padding: 1px 7px; }
+
+/* The token's own wound track and, on a marked target, the throw. Drawn in
+   the token's local scale on the tactical board and in the line board's own
+   units; the classes are shared so the two read the same. */
+.encounter-token-wound-pip { stroke: var(--ink); stroke-width: .02; vector-effect: non-scaling-stroke; }
+.encounter-token-wound-pip.whole { fill: var(--ink); }
+.encounter-token-wound-pip.hurt { fill: var(--attention); }
+.encounter-token-wound-pip.gone { fill: var(--failure-bg); stroke: var(--failure-border); }
+.range-line-token .encounter-token-wound-pip { stroke-width: 1; }
+.encounter-token-throw-badge {
+  font-size: .34px; font-weight: 700; text-anchor: middle; dominant-baseline: central;
+  fill: var(--ink); stroke: var(--paper); stroke-width: .07px; paint-order: stroke fill;
+}
+.encounter-token-throw-badge.no-reach { fill: var(--error); }
+.range-line-token .encounter-token-throw-badge { font-size: 15px; stroke-width: 3px; }
