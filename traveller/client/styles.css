@@ -42,7 +42,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.191.0: every colour outside :root is a token so a theme can swap it.
+  /* v0.192.1: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -87,7 +87,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.191.0: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.192.1: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -5333,3 +5333,173 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-ship-token.vector-side-third { stroke: currentColor; stroke-width: 1; }
 .ship-vector-svg .vector-missile.vector-side-party,
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
+
+/* ===========================================================================
+   v0.192.1: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   character and referee tools — with the masthead above and chat as the
+   bottom edge. Nothing here is an overlay: the rail, the flyout and the
+   dock-reopen control are absolutely positioned INSIDE the stage cell (an
+   absolutely positioned grid item takes its grid-area as its containing
+   block), so no hand-tuned left/top offsets survive from the v0.80 era.
+   Every rule is keyed on #shell so it wins over the earlier layers without
+   !important. */
+#shell.shell-v2 {
+  position: fixed; inset: 0; bottom: 2px;
+  display: grid;
+  grid-template-columns: var(--dock-w, 340px) minmax(0, 1fr) var(--side-w, 380px);
+  grid-template-rows: 40px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mast mast mast"
+    "dock stage side"
+    "chat chat chat";
+  column-gap: 0; row-gap: 0;
+  padding: 0; margin: 0; width: 100vw; max-width: none;
+  overflow: hidden;
+}
+#shell.shell-v2.dock-collapsed { --dock-w: 0px; }
+#shell.shell-v2.sidebar-collapsed { --side-w: 52px; }
+@media (max-width: 1400px) {
+  #shell.shell-v2 { --dock-w: 300px; --side-w: 340px; }
+}
+@media (max-width: 1100px) {
+  #shell.shell-v2 { --dock-w: 260px; --side-w: 300px; }
+}
+
+#shell.shell-v2 > .shell-masthead { grid-area: mast; }
+
+/* WHAT NOW? is a column, not a dock floated over the stage. */
+#shell.shell-v2 > .shell-dock {
+  grid-area: dock; position: static; inset: auto; z-index: auto;
+  width: auto; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 8px 10px; overflow-x: hidden; overflow-y: auto;
+  border-right: 1px solid var(--rule); background: var(--paper);
+}
+#shell.shell-v2.dock-collapsed > .shell-dock { display: none; }
+#shell.shell-v2 > .dock-reopen {
+  grid-area: stage; position: absolute; left: 8px; top: 8px; z-index: 22;
+  background: var(--paper-veil); border: 1px solid var(--rule); padding: 3px 7px; font-size: 10px;
+}
+
+/* The scene owns its cell; the port strip sits under the map. */
+#shell.shell-v2 > .shell-stage {
+  grid-area: stage; position: relative; padding: 0 !important;
+  min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+}
+#shell.shell-v2 > .shell-stage > .canvas { flex: 1 1 0; min-height: 0; }
+#shell.shell-v2 > .shell-stage > .stage-strip {
+  flex: 0 0 auto; max-height: 34%; min-height: 0; overflow-y: auto;
+  border-top: 1px solid var(--rule); background: var(--paper);
+  padding: 6px 10px 8px;
+}
+#shell.shell-v2 > .shell-stage > .stage-strip:has(> #context-tabs[hidden]) > #context-tabs { display: none; }
+#shell.shell-v2 > .shell-stage > .stage-strip .context-panel { border: 0; padding: 0; margin: 0; }
+#shell.shell-v2 > .shell-stage > .stage-strip:not(:has(#port-services-section:not([hidden]), #commerce-section:not([hidden]), #contract-section:not([hidden]), #situation-section:not([hidden]))) { display: none; }
+
+/* The rail is a horizontal toolbar in the scene's top-right corner. */
+#shell.shell-v2 > .shell-rail {
+  grid-area: stage; position: absolute; top: 8px; right: 8px; left: auto; bottom: auto;
+  transform: none; z-index: 20;
+  display: flex; flex-direction: row; align-items: center; gap: 6px;
+  width: auto; height: auto; padding: 4px 6px; overflow: visible;
+  border: 1px solid var(--rule); background: var(--paper-veil);
+}
+#shell.shell-v2 > .shell-rail .scene-tabs { display: flex; flex-direction: row; gap: 4px; border: 0; padding: 0; }
+#shell.shell-v2 > .shell-rail .scene-tab {
+  writing-mode: horizontal-tb; transform: none; font-size: 10px; letter-spacing: .1em;
+  padding: 5px 8px; min-height: 28px; border: 1px solid var(--rule); background: var(--paper);
+}
+#shell.shell-v2 > .shell-rail .scene-tab[hidden] { display: none; }
+#shell.shell-v2 > .shell-rail .scene-tab.is-active { background: var(--tab-selected); border-color: var(--tab-selected-border); font-weight: 700; }
+#shell.shell-v2 > .shell-rail .scene-nav { position: static; left: auto; top: auto; margin: 0; }
+#shell.shell-v2 > .shell-rail .rail-tools { display: flex; flex-direction: row; gap: 4px; }
+#shell.shell-v2 > .shell-rail .rail-tools button { min-height: 28px; }
+
+/* The flyout unfolds beside WHAT NOW?, inside the stage cell. */
+#shell.shell-v2 > .shell-flyout {
+  grid-area: stage; position: absolute; left: 0; top: 0; bottom: 0; width: 300px; z-index: 23;
+  border-right: 1px solid var(--rule); background: var(--paper);
+  display: flex; flex-direction: column; min-height: 0; overflow: auto;
+}
+#shell.shell-v2 > .shell-flyout[hidden] { display: none; }
+
+/* Right column: character strip always open, referee tabs beneath. */
+#shell.shell-v2 > .shell-sidebar { grid-area: side; position: static; inset: auto; min-width: 0; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-character > summary { display: none; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
+
+/* Chat: the bottom edge. One row until opened; open, the feed rises to a
+   fixed height and scrolls. shell-chat.js toggles .open. */
+#shell.shell-v2 > .shell-chat {
+  grid-area: chat; display: flex; flex-direction: column; min-height: 0;
+  border-top: 1px solid var(--rule); background: var(--paper-deep);
+}
+#shell.shell-v2 > .shell-chat > .activity-panel { display: none; border: 0; margin: 0; padding: 4px 10px 0; }
+#shell.shell-v2 > .shell-chat.open > .activity-panel { display: flex; flex-direction: column; height: var(--chat-open-h, 320px); min-height: 0; }
+#shell.shell-v2 > .shell-chat.open .activity-feed { flex: 1 1 auto; min-height: 0; overflow: auto; }
+#shell.shell-v2 > .shell-chat > .chat-composer { display: flex; align-items: center; gap: 8px; padding: 5px 10px; margin: 0; border: 0; }
+#shell.shell-v2 > .shell-chat > .chat-composer[hidden] { display: none; }
+#shell.shell-v2 > .shell-chat .chat-form { flex: 1 1 auto; display: flex; gap: 6px; min-width: 0; }
+#shell.shell-v2 > .shell-chat .chat-form input { flex: 1 1 auto; min-width: 0; }
+#shell.shell-v2 > .shell-chat .dice-tray { flex: 0 0 auto; }
+#shell.shell-v2 > .shell-chat .chat-open-toggle { flex: 0 0 auto; font-size: 10px; }
+#shell.shell-v2 > .shell-chat .chat-latest {
+  flex: 0 1 38ch; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 11px; color: var(--muted);
+}
+#shell.shell-v2 > .shell-chat .chat-latest:empty { display: none; }
+#shell.shell-v2 > .shell-chat.open .chat-latest { display: none; }
+
+/* Masthead and sidebar were absolute overlays in the v0.80 layer; here they
+   are grid items. */
+#shell.shell-v2 > .shell-masthead {
+  position: static; inset: auto; z-index: auto;
+  min-height: 40px; height: 40px; background: var(--paper);
+}
+#shell.shell-v2 > .shell-masthead .masthead-main { min-height: 40px; }
+#shell.shell-v2 > .shell-sidebar {
+  height: auto; width: auto; max-width: none;
+  display: grid; grid-template-columns: minmax(0, 1fr) 52px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  border-left: 1px solid var(--rule); background: var(--paper); overflow: hidden;
+}
+#shell.shell-v2 > .shell-sidebar > .sidebar-strip,
+#shell.shell-v2 > .shell-sidebar > .sidebar-body { background: var(--paper); border-left: 0; }
+#shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
+#shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
+
+/* v0.192.1: fixes from the first live look at the grid shell. */
+/* Right column: character, then ship, then the tabbed body. */
+#shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
+#shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-character { grid-column: 1; grid-row: 1; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip { grid-column: 1; grid-row: 2; margin: 0; padding: 6px 10px; border-bottom: 1px solid var(--rule); max-height: 40vh; overflow-y: auto; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip[hidden] { display: none; }
+#shell.shell-v2 > .shell-sidebar > .sidebar-body { grid-column: 1; grid-row: 3; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip .nav-strip { display: flex; flex-direction: column; gap: 8px; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip .nav-strip-col { min-width: 0; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Combat focus used to collapse the strip to one line for the rosters; the
+   rosters have their own row now. */
+#shell.shell-v2.combat-focus > .shell-sidebar > #ship-strip { max-height: 20vh; }
+
+/* The map is the top of the stage: its in-flow zoom buttons duplicate the
+   rail, so only the caption and the zoom figure stay, and the caption row
+   leaves room for the rail at its right. */
+#shell.shell-v2 .subsector-map-tools { padding-right: 300px; min-height: 36px; align-items: center; }
+#shell.shell-v2 .subsector-map-tools .map-zoom-button { display: none; }
+#shell.shell-v2 .subsector-map-tools #map-to-ship-vector:not([hidden]) { display: inline-block; }
+#shell.shell-v2 > .shell-rail { top: 6px; }
+#shell.shell-v2 > .dock-reopen { top: 6px; left: 8px; }
+
+/* WORLD, TRADE and JOBS side by side under the map; a situation or the
+   context tabs span the row. */
+#shell.shell-v2 > .shell-stage > .stage-strip.port-stacked {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 14px; align-items: start;
+}
+#shell.shell-v2 > .shell-stage > .stage-strip.port-stacked > #context-tabs,
+#shell.shell-v2 > .shell-stage > .stage-strip.port-stacked > #context-takeover,
+#shell.shell-v2 > .shell-stage > .stage-strip.port-stacked > #situation-section { grid-column: 1 / -1; }
+#shell.shell-v2 > .shell-stage > .stage-strip .context-panel + .context-panel { margin-top: 0; }
+#shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
+#shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }

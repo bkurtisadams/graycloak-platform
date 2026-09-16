@@ -5,19 +5,20 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.191.0"></script>
+  <script type="module" src="theme.js?v=v0.192.1"></script>
+  <script type="module" src="shell-chat.js?v=v0.192.1"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <!-- v0.95.0: Foundry's interaction model. The canvas is permanent; scene
        layers and their contextual tools stay left, while one collapsible
        game directory or tracker opens from the right rail. -->
-  <main class="terminal shell" aria-labelledby="app-title">
+  <main id="shell" class="terminal shell shell-v2" aria-labelledby="app-title">
     <header class="masthead shell-masthead">
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.191.0</div>
+          <div id="app-subtitle" class="subtitle">v0.192.1</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -172,35 +173,6 @@
                land — and those two halves used to sit at opposite ends of the
                screen. The ids are unchanged so existing renderers keep
                working. -->
-          <div id="ship-strip" class="ship-strip" hidden>
-            <div class="nav-strip">
-              <div class="nav-strip-col">
-                <div class="ship-strip-head">
-                  <span id="ship-strip-name" class="ship-strip-name">--</span>
-                  <span id="ship-strip-account" class="ship-strip-account">--</span>
-                </div>
-                <div id="ship-strip-cells" class="ship-strip-cells"></div>
-              </div>
-              <div class="nav-strip-col nav-strip-world">
-                <div class="ship-strip-head">
-                  <span id="world-strip-name" class="ship-strip-name">--</span>
-                  <span class="world-strip-toggle">
-                    <button id="world-view-current" class="text-button" type="button" aria-pressed="true">[ CURRENT ]</button>
-                    <button id="world-view-selected" class="text-button" type="button" aria-pressed="false">[ SELECTED ]</button>
-                  </span>
-                </div>
-                <div id="world-strip-cells" class="ship-strip-cells"></div>
-                <div id="world-strip-route" class="world-strip-route" aria-live="polite"></div>
-                <!-- The jump action, beneath the line that states the whole
-                     decision: distance, fuel needed against fuel aboard, and
-                     the verdict. The container is moved rather than rebuilt so
-                     every blocked reason it already renders — berthing due,
-                     cargo bound elsewhere, a charter in progress, life support
-                     the account cannot cover — comes with it. -->
-                <div id="jump-actions" class="actions jump-actions"></div>
-              </div>
-            </div>
-          </div>
           <div class="subsector-map-tools" aria-label="Subsector map zoom controls">
             <span id="subsector-name" class="subsector-caption-main">FAR MERIDIAN</span>
             <span id="jump-capability">JUMP --</span>
@@ -336,6 +308,49 @@
     <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
   </section>
       </div>
+      <!-- v0.192.1: WORLD sits under the map as a strip of the stage, not a sidebar tab. -->
+      <section id="sidebar-port-panel" class="stage-strip" aria-label="World">
+      <!-- v0.120.0: TRADE and JOBS are dock flyouts now, and NPCS pointed at
+           the ACTOR ROSTER that already lives in the ACTORS panel — the same
+           roster reached two ways. One tab left is no tab row at all; WORLD is
+           what this panel is. -->
+      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views" hidden>
+        <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
+      </div>
+      <div id="context-takeover" class="context-takeover" hidden></div>
+            <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
+              <div class="section-heading">
+                <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
+                <button class="help-button" type="button" data-help-topic="port-services" aria-label="Explain port services">[?]</button>
+              </div>
+              <div id="port-actions" class="actions operations-primary-actions port-actions" aria-label="Port actions"></div>
+              <pre id="port-services-record" class="record operations-panel-record port-services-record" aria-live="polite"></pre>
+            </section>
+            <section id="commerce-section" class="context-panel" aria-labelledby="commerce-heading">
+              <div class="section-heading">
+                <h2 id="commerce-heading" class="section-title">COMMERCE</h2>
+                <button class="help-button" type="button" data-help-topic="commerce" aria-label="Explain commerce">[?]</button>
+              </div>
+              <div id="commerce-actions" class="actions operations-primary-actions commerce-actions" aria-label="Trade actions"></div>
+              <pre id="commerce-record" class="record operations-panel-record commerce-record" aria-live="polite"></pre>
+            </section>
+            <section id="contract-section" class="context-panel" hidden aria-labelledby="contract-heading">
+              <div class="section-heading">
+                <h2 id="contract-heading" class="section-title">CONTRACT BOARD</h2>
+                <button class="help-button" type="button" data-help-topic="contract-board" aria-label="Explain contracts">[?]</button>
+              </div>
+              <div id="contract-actions" class="actions operations-primary-actions contract-actions" aria-label="Job actions"></div>
+              <pre id="contract-record" class="record operations-panel-record contract-record" aria-live="polite"></pre>
+            </section>
+            <section id="situation-section" class="context-panel" hidden aria-labelledby="situation-heading">
+              <div class="section-heading">
+                <h2 id="situation-heading" class="section-title">SITUATION</h2>
+                <button class="help-button" type="button" data-help-topic="situations" aria-label="Explain situations and patrons">[?]</button>
+              </div>
+              <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
+              <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
+            </section>
+      </section>
     <section id="system-record-section" class="system-record-section" hidden aria-labelledby="system-record-heading">
       <div class="section-heading">
         <h2 id="system-record-heading" class="section-title">SYSTEM RECORD</h2>
@@ -371,18 +386,16 @@
     </aside>
     <aside class="shell-sidebar" id="sidebar" aria-label="Sidebar">
       <div class="sidebar-tabs" role="tablist" aria-label="Sidebar">
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="chat" aria-selected="true" title="CHAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9993;</span><span class="sidebar-tab-label">CHAT</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="combat" aria-selected="false" title="COMBAT"><span class="sidebar-tab-icon" aria-hidden="true">&#9876;</span><span class="sidebar-tab-label">COMBAT</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="scenes" aria-selected="false" title="SCENES"><span class="sidebar-tab-icon" aria-hidden="true">&#9635;</span><span class="sidebar-tab-label">SCENES</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="actors" aria-selected="false" title="ACTORS"><span class="sidebar-tab-icon" aria-hidden="true">&#9823;</span><span class="sidebar-tab-label">ACTORS</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="vehicles" aria-selected="false" title="VEHICLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9650;</span><span class="sidebar-tab-label">VEHICLES</span></button>
-        <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="port" aria-selected="false" title="PORT"><span class="sidebar-tab-icon" aria-hidden="true">&#9737;</span><span class="sidebar-tab-label">PORT</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="journal" aria-selected="false" title="JOURNAL"><span class="sidebar-tab-icon" aria-hidden="true">&#9998;</span><span class="sidebar-tab-label">JOURNAL</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="tables" aria-selected="false" title="TABLES"><span class="sidebar-tab-icon" aria-hidden="true">&#9856;</span><span class="sidebar-tab-label">TABLES</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="players" aria-selected="false" title="PLAYERS"><span class="sidebar-tab-icon" aria-hidden="true">&#9787;</span><span class="sidebar-tab-label">PLAYERS</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="settings" aria-selected="false" title="SETTINGS"><span class="sidebar-tab-icon" aria-hidden="true">&#9881;</span><span class="sidebar-tab-label">SETTINGS</span></button>
       </div>
-      <details id="sidebar-character" class="sidebar-strip" hidden>
+      <details id="sidebar-character" class="sidebar-strip" open hidden>
         <summary class="sidebar-strip-summary"><span id="sidebar-character-summary">CHARACTER</span></summary>
       <section class="campaign-header-strip" aria-label="Character status">
         <div class="character-identity-line">
@@ -399,26 +412,38 @@
         </div>
       </section>
       </details>
+      <!-- v0.192.1: the ship sits under the character; the jump decision is
+           made from the right column now, not from a band above the map. -->
+    <div id="ship-strip" class="ship-strip" hidden>
+      <div class="nav-strip">
+        <div class="nav-strip-col">
+          <div class="ship-strip-head">
+            <span id="ship-strip-name" class="ship-strip-name">--</span>
+            <span id="ship-strip-account" class="ship-strip-account">--</span>
+          </div>
+          <div id="ship-strip-cells" class="ship-strip-cells"></div>
+        </div>
+        <div class="nav-strip-col nav-strip-world">
+          <div class="ship-strip-head">
+            <span id="world-strip-name" class="ship-strip-name">--</span>
+            <span class="world-strip-toggle">
+              <button id="world-view-current" class="text-button" type="button" aria-pressed="true">[ CURRENT ]</button>
+              <button id="world-view-selected" class="text-button" type="button" aria-pressed="false">[ SELECTED ]</button>
+            </span>
+          </div>
+          <div id="world-strip-cells" class="ship-strip-cells"></div>
+          <div id="world-strip-route" class="world-strip-route" aria-live="polite"></div>
+          <!-- The jump action, beneath the line that states the whole
+               decision: distance, fuel needed against fuel aboard, and
+               the verdict. The container is moved rather than rebuilt so
+               every blocked reason it already renders — berthing due,
+               cargo bound elsewhere, a charter in progress, life support
+               the account cannot cover — comes with it. -->
+          <div id="jump-actions" class="actions jump-actions"></div>
+        </div>
+      </div>
+    </div>
       <div class="sidebar-body">
-        <section class="sidebar-panel" data-sidebar-panel="chat">
-        <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
-          <div class="activity-header">
-            <h2 id="activity-heading" class="activity-title">CHAT</h2>
-            <select id="activity-filter" class="activity-filter" aria-label="Show"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select>
-            <select id="activity-order" class="activity-order" aria-label="Order"><option value="oldest" selected>NEWEST AT BOTTOM</option><option value="newest">NEWEST AT TOP</option></select>
-            <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
-          </div>
-          <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
-          <button id="activity-scroll-latest" class="activity-scroll-latest text-button" type="button" hidden>[ ↓ NEWEST ]</button>
-        </aside>
-          <div id="chat-composer" class="chat-composer" hidden>
-            <div id="dice-tray" class="dice-tray" aria-label="Dice tray"></div>
-            <form id="chat-form" class="chat-form">
-              <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Say something, or /roll 2d6+1">
-              <button id="chat-send" class="text-button" type="submit">[ SEND ]</button>
-            </form>
-          </div>
-        </section>
         <section class="sidebar-panel" data-sidebar-panel="combat" hidden>
             <section id="combat-rail-section" class="context-panel combat-rail" hidden aria-labelledby="combat-rail-heading">
               <div class="section-heading">
@@ -497,48 +522,6 @@
             </div>
             <div id="directory-vehicles" class="campaign-directory" aria-label="Vehicles"></div>
         </section>
-        <section class="sidebar-panel" id="sidebar-port-panel" data-sidebar-panel="port" hidden>
-      <!-- v0.120.0: TRADE and JOBS are dock flyouts now, and NPCS pointed at
-           the ACTOR ROSTER that already lives in the ACTORS panel — the same
-           roster reached two ways. One tab left is no tab row at all; WORLD is
-           what this panel is. -->
-      <div id="context-tabs" class="context-tabs" role="tablist" aria-label="Context views" hidden>
-        <button id="operations-tab-port" class="text-button context-tab" type="button" role="tab" aria-controls="port-services-section" aria-selected="true">WORLD</button>
-      </div>
-      <div id="context-takeover" class="context-takeover" hidden></div>
-            <section id="port-services-section" class="context-panel" hidden aria-labelledby="port-services-heading">
-              <div class="section-heading">
-                <h2 id="port-services-heading" class="section-title">PORT SERVICES</h2>
-                <button class="help-button" type="button" data-help-topic="port-services" aria-label="Explain port services">[?]</button>
-              </div>
-              <div id="port-actions" class="actions operations-primary-actions port-actions" aria-label="Port actions"></div>
-              <pre id="port-services-record" class="record operations-panel-record port-services-record" aria-live="polite"></pre>
-            </section>
-            <section id="commerce-section" class="context-panel" aria-labelledby="commerce-heading">
-              <div class="section-heading">
-                <h2 id="commerce-heading" class="section-title">COMMERCE</h2>
-                <button class="help-button" type="button" data-help-topic="commerce" aria-label="Explain commerce">[?]</button>
-              </div>
-              <div id="commerce-actions" class="actions operations-primary-actions commerce-actions" aria-label="Trade actions"></div>
-              <pre id="commerce-record" class="record operations-panel-record commerce-record" aria-live="polite"></pre>
-            </section>
-            <section id="contract-section" class="context-panel" hidden aria-labelledby="contract-heading">
-              <div class="section-heading">
-                <h2 id="contract-heading" class="section-title">CONTRACT BOARD</h2>
-                <button class="help-button" type="button" data-help-topic="contract-board" aria-label="Explain contracts">[?]</button>
-              </div>
-              <div id="contract-actions" class="actions operations-primary-actions contract-actions" aria-label="Job actions"></div>
-              <pre id="contract-record" class="record operations-panel-record contract-record" aria-live="polite"></pre>
-            </section>
-            <section id="situation-section" class="context-panel" hidden aria-labelledby="situation-heading">
-              <div class="section-heading">
-                <h2 id="situation-heading" class="section-title">SITUATION</h2>
-                <button class="help-button" type="button" data-help-topic="situations" aria-label="Explain situations and patrons">[?]</button>
-              </div>
-              <div id="situation-actions" class="actions operations-primary-actions situation-actions" aria-label="Situation actions"></div>
-              <pre id="situation-record" class="record operations-panel-record situation-record" aria-live="polite"></pre>
-            </section>
-        </section>
         <section class="sidebar-panel" data-sidebar-panel="journal" hidden>
             <div class="sidebar-buttons">
               <button id="open-campaign-view" class="text-button utility-button" type="button" title="Campaign record" hidden>[ CAMPAIGN RECORD ]</button>
@@ -598,6 +581,28 @@
         </section>
       </div>
     </aside>
+    <!-- v0.192.1: chat is the bottom edge of the shell, one row until opened. -->
+    <footer id="shell-chat" class="shell-chat" aria-label="Chat and log">
+        <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
+          <div class="activity-header">
+            <h2 id="activity-heading" class="activity-title">CHAT</h2>
+            <select id="activity-filter" class="activity-filter" aria-label="Show"><option value="play" selected>PLAY</option><option value="all">ALL</option><option value="character">CHARACTER</option><option value="trade">TRADE + JOBS</option><option value="ship">SHIP + TRAVEL</option><option value="personal-combat">PERSONAL COMBAT</option><option value="space-combat">SPACE COMBAT</option><option value="campaign">CAMPAIGN + NOTES</option><option value="system">SYSTEM</option></select>
+            <select id="activity-order" class="activity-order" aria-label="Order"><option value="oldest" selected>NEWEST AT BOTTOM</option><option value="newest">NEWEST AT TOP</option></select>
+            <span class="activity-header-actions"><button id="add-activity-note" class="text-button" type="button">[ NOTE ]</button><button id="clear-activity" class="text-button activity-clear" type="button">[ CLEAR ]</button></span>
+          </div>
+          <div id="activity-feed" class="activity-feed" role="log" aria-live="polite" aria-relevant="additions"></div>
+          <button id="activity-scroll-latest" class="activity-scroll-latest text-button" type="button" hidden>[ ↓ NEWEST ]</button>
+        </aside>
+          <div id="chat-composer" class="chat-composer" hidden>
+            <div id="dice-tray" class="dice-tray" aria-label="Dice tray"></div>
+            <form id="chat-form" class="chat-form">
+              <input id="chat-input" type="text" maxlength="500" autocomplete="off" placeholder="Say something, or /roll 2d6+1">
+              <button id="chat-send" class="text-button" type="submit">[ SEND ]</button>
+            </form>
+            <span class="chat-latest" aria-hidden="true"></span>
+            <button class="text-button chat-open-toggle" type="button" aria-controls="activity-panel" aria-expanded="false">[ OPEN &#9652; ]</button>
+          </div>
+    </footer>
 
     <dialog id="roll-dialog" class="roll-dialog" aria-labelledby="roll-dialog-title">
       <form id="roll-dialog-form" class="roll-dialog-form" method="dialog">
@@ -972,6 +977,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.191.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.192.1"></script>
 </body>
 </html>
