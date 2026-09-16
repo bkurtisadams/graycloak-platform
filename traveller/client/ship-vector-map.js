@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.185.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.185.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.187.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.187.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null, selectedForTurn = null;
@@ -472,6 +472,9 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
       const m = px(3.5);
       const missile = node('polygon', { points: `${cx},${cy - m} ${cx + m},${cy} ${cx},${cy + m} ${cx - m},${cy}`, fill: 'currentColor' });
       missile.classList.add('vector-missile');
+      // v0.187.0: whose missile this is, so phase D shows whose ordnance is
+      // about to detonate on whom. Dashes still carry not-yet-in-effect.
+      missile.classList.add(`vector-side-${round.launcherSide === 'party' ? 'party' : 'opposition'}`);
       svg.append(missile);
       if (round.status === 'contact') {
         svg.append(node('circle', { cx, cy, r: m * 2.2, fill: 'none', stroke: 'currentColor', 'stroke-width': px(1.5) }));
@@ -502,6 +505,11 @@ export function renderShipVectorMap(stage, encounter, { commit, adjudicate, toke
         token = node('circle', { cx: x(s.position.x), cy: y(s.position.y), r: size * 0.6, fill: 'currentColor' });
       }
       token.classList.add('vector-ship-token');
+      // v0.187.0: the side carries the colour. Book 2 p.23's intruder/native
+      // split is turn ORDER, not friend and foe — the INT/NAT pills in the
+      // phase rail keep saying that — so the hue follows the side a ship
+      // fights on, which is what a referee scanning a three-ship board needs.
+      token.classList.add(`vector-side-${ship.side === 'party' ? 'party' : ship.side === 'opposition' ? 'opposition' : 'third'}`);
       token.style.cursor='pointer';token.addEventListener('click',()=>{selected=ship.id;renderShipVectorMap(stage,encounter,{commit, adjudicate, tokenMenu});});
       // v0.170.0: the token's menu. A right-button press on a token must not
       // start the plot's pan, or the menu opens on a moving board.

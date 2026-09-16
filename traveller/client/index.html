@@ -16,7 +16,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.185.0</div>
+          <div id="app-subtitle" class="subtitle">v0.187.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -231,7 +231,26 @@
                can do, and ADVANCE, over the board the fight is on. It is moved
                into the subsector section when an abbreviated fight has no plot
                on the stage. -->
+          <!-- v0.187.0: three fixed rows. The rail, one hint line, and one row
+               of verbs in declared slots, so the bar's height never depends on
+               the phase and the plot below it never moves. Per-ship controls
+               live on each ship's data card in the sidebar. -->
           <section id="ship-combat-strip" class="ship-combat-strip" hidden aria-label="Ship combat turn">
+            <div id="ship-combat-rail" class="ship-combat-rail-row"></div>
+            <div id="ship-combat-hint" class="ship-phase-hint"></div>
+            <div id="ship-combat-verbs" class="ship-combat-verbs">
+              <span class="ship-verb-col" data-phase="movement"><button id="ship-verb-movement" class="text-button action-button ship-verb" type="button" hidden></button></span>
+              <span class="ship-verb-col" data-phase="laser-fire"><button id="ship-verb-fire" class="text-button action-button ship-verb" type="button" hidden></button></span>
+              <span class="ship-verb-col" data-phase="return-fire"><button id="ship-verb-return" class="text-button action-button ship-verb" type="button" hidden></button><button id="ship-verb-antimissile" class="text-button action-button ship-verb" type="button" hidden></button></span>
+              <span class="ship-verb-col" data-phase="ordnance-launch"><button id="ship-verb-detonate" class="text-button action-button ship-verb" type="button" hidden></button></span>
+              <span class="ship-verb-col" data-phase="reprogramming"><button id="ship-verb-reprogram" class="text-button action-button ship-verb" type="button" hidden></button></span>
+              <span class="ship-verb-dock">
+                <button id="ship-verb-board" class="text-button action-button ship-verb" type="button" hidden></button>
+                <button id="ship-verb-flee" class="text-button action-button ship-verb" type="button" hidden></button>
+                <button id="ship-verb-next" class="text-button action-button ship-verb" type="button"></button>
+                <button id="ship-verb-close" class="text-button action-button ship-verb" type="button">[ CLOSE COMBAT ]</button>
+              </span>
+            </div>
             <div id="ship-combat-actions" class="encounter-resolve ship-combat-strip-actions"></div>
           </section>
           <div id="ship-vector-stage" class="ship-vector-stage"></div>
@@ -939,6 +958,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.185.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.187.0"></script>
 </body>
 </html>

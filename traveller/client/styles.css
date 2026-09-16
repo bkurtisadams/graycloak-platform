@@ -22,6 +22,18 @@
   --attention-border: #7d7340;
   --disabled: #7c7f79;
   --help-paper: #e5e3da;
+  /* v0.187.0: the sides. Party takes --link's blue, which the palette already
+     carried; opposition takes an ochre deliberately clear of --error's
+     crimson, so a hostile ship never reads as a damaged one; a third party on
+     the board gets its own muted violet rather than leaving a referee to
+     count names. Colour is always a second channel here — every place these
+     appear also names the side in text. */
+  --side-party: #1f3a4d;
+  --side-party-tint: #d7e0e6;
+  --side-opposition: #6b4415;
+  --side-opposition-tint: #e8dcc8;
+  --side-third: #46365c;
+  --side-third-tint: #ded7e6;
 }
 
 * { box-sizing: border-box; }
@@ -5042,3 +5054,82 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   .ship-data-card-frame { grid-template-columns: minmax(0, 1fr); }
   .ship-card-computer { border-left: 0; padding-left: 0; border-top: 1px dotted var(--disabled); padding-top: 4px; }
 }
+
+/* --- v0.186.0: the turn bar is three fixed rows.
+
+   Kurt's battlesystem-board.html v0.60.2 states the paradigm: "every verb owns
+   a fixed slot under its phase column and parks with visibility, never
+   display." The ship strip had been appending whatever the phase produced —
+   one row per turret, per launcher, per rack, and in phase E one per carried
+   program, eight on a Model/1 — so its height was a function of the phase. It
+   took half the canvas, grew its own scrollbar, and the plot moved every time
+   the turn advanced. */
+.ship-combat-strip {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+}
+.ship-combat-rail-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-height: 22px; }
+.ship-combat-strip .ship-phase-hint { min-height: 2.4em; max-height: 2.4em; overflow: hidden; }
+/* One row of verbs: five phase columns and the fight's own dock. */
+.ship-combat-verbs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, auto);
+  column-gap: 8px;
+  align-items: start;
+  min-height: 26px;
+}
+.ship-verb-col { display: flex; gap: 4px; min-width: 0; }
+.ship-verb-dock { display: flex; gap: 4px; justify-content: flex-end; min-width: 0; }
+.ship-combat-verbs .ship-verb {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 11px; padding: 1px 6px;
+}
+/* Parked, not collapsed: a hidden verb keeps its slot so nothing reflows. */
+.ship-combat-verbs .ship-verb[hidden] { display: inline-block !important; visibility: hidden; pointer-events: none; }
+
+/* The card's own controls (Book 2 p.24: marked on the card, in pencil). */
+.ship-card-turret.is-allocated { border-color: var(--failure-border); background: var(--failure-bg); }
+.ship-card-turret-target { font: inherit; font-size: 10px; padding: 0 2px; margin-left: 3px; max-width: 8rem; }
+button.ship-card-program.is-live { cursor: pointer; }
+button.ship-card-program.is-live:hover:not(:disabled) { border-color: var(--link); color: var(--ink); }
+button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-allowed; }
+
+/* --- v0.187.0: the sides, in three places and nowhere else.
+
+   The card's edge, the live phase cell, and the plot. Not the card's six
+   sections (red already means damage there, and v0.184.0 exists so the card
+   reads like the book's pencilled index card), not the throw cards or DM
+   chips (green-plus and red-minus already carry those), not the range-line
+   zones (shades of one ink are the right way to show an ordered scale), and
+   not the wound pips (amber and red already mean exactly what they mean). */
+.ship-data-card-frame.side-party { border-left: 4px solid var(--side-party); }
+.ship-data-card-frame.side-opposition { border-left: 4px solid var(--side-opposition); }
+.ship-data-card-frame.side-third { border-left: 4px solid var(--side-third); }
+
+.ship-side-tag {
+  margin-left: auto; flex: 0 0 auto;
+  font-size: 9px; letter-spacing: .1em; padding: 0 4px;
+  border: 1px solid var(--rule); color: var(--ink);
+}
+.ship-side-tag.side-party { background: var(--side-party-tint); }
+.ship-side-tag.side-opposition { background: var(--side-opposition-tint); }
+.ship-side-tag.side-third { background: var(--side-third-tint); }
+
+/* The live cell takes the acting side's colour. The ✓ and the weight still
+   carry done/live/pending on their own. */
+.ship-phase-step.now.acting-party .ship-phase-label { border-bottom-color: var(--side-party); background: var(--side-party-tint); }
+.ship-phase-step.now.acting-opposition .ship-phase-label { border-bottom-color: var(--side-opposition); background: var(--side-opposition-tint); }
+
+/* The plot. Everything there inherits currentColor, so one class per ship
+   group carries the hue to its token, its vector and its label. Ordnance is
+   coloured by the side that launched it (Book 2 p.30), and keeps
+   diamond-for-missile, circle-for-sand and dashes for not-yet-in-effect. */
+.ship-vector-svg .vector-side-party { color: var(--side-party); }
+.ship-vector-svg .vector-side-opposition { color: var(--side-opposition); }
+.ship-vector-svg .vector-side-third { color: var(--side-third); }
+.ship-vector-svg .vector-ship-token.vector-side-party,
+.ship-vector-svg .vector-ship-token.vector-side-opposition,
+.ship-vector-svg .vector-ship-token.vector-side-third { stroke: currentColor; stroke-width: 1; }
+.ship-vector-svg .vector-missile.vector-side-party,
+.ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
