@@ -97,7 +97,10 @@ test('the preview is dice-free and shows the chosen distribution', async () => {
   const paused = resolveDeclaredRound(encounter, { dice: sequenceDice(hitDice), date, playerAllocatesWounds: true }).encounter;
   const targets = ['STR', 'STR', 'DEX', 'END', 'END'];
   const preview = previewWoundAllocation(paused, { targets });
-  assert.equal(preview.combatant.current.STR, pc.current.STR - 6);
+  // v0.195.1: Book 1 p.31 — what END cannot hold spills onto the next
+  // non-zero characteristic, so the points past zero land on STR.
+  const endSpill = Math.max(0, 6 - pc.current.END);
+  assert.equal(preview.combatant.current.STR, pc.current.STR - 6 - endSpill);
   assert.equal(preview.combatant.current.DEX, pc.current.DEX - 3);
   assert.equal(preview.combatant.current.END, Math.max(0, pc.current.END - 6));
   // Shares must distribute the whole constant.

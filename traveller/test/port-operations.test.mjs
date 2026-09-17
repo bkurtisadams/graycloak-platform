@@ -79,9 +79,11 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
     notes: 'Contract cargo'
   });
 
-  // Book 2 p.6: a jump-1 trip costs 10 tons of jump fuel plus a full 10Pn of
-  // power plant fuel, so a Type S leaves 40 tons of tankage with 10 aboard.
-  assert.equal(ship.state.currentFuelTons, 10);
+  // Book 2 p.6: jump fuel is 0.1M per jump NUMBER, not per parsec, so a
+  // jump-1 trip in a jump-2 Scout costs 20 tons, plus a full 10Pn of power
+  // plant fuel: the 40 tons of tankage are empty on arrival. (v0.195.1; the
+  // earlier 10-aboard figure charged the parsec, which the book rules out.)
+  assert.equal(ship.state.currentFuelTons, 0);
   assert.equal(ship.state.finances.balanceCr, 500);
   assert.equal(ship.state.cargoUsedTons, 1);
 
@@ -92,7 +94,7 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
     source: 'STARPORT C',
     dateLabel: '008-4800'
   });
-  assert.equal(partial.ship.state.currentFuelTons, 15);
+  assert.equal(partial.ship.state.currentFuelTons, 5);
   assert.equal(partial.ship.state.finances.balanceCr, 0);
   assert.equal(partial.ship.state.cargoUsedTons, 1);
 });
@@ -120,7 +122,8 @@ test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port cost
   assert.equal(ship.state.finances.balanceCr, 5000);
 
   ship = consumeJumpFuel(ship, 1).ship;
-  assert.equal(ship.state.currentFuelTons, 10);
+  // v0.195.1: 20 tons for the jump-2 drive plus 20 for the power plant.
+  assert.equal(ship.state.currentFuelTons, 0);
   ship = beginPortCall(ship, { systemId: 'calder', arrivalDate: '008-4800', berthingDueCr: 100 });
   ship = payCurrentBerthing(ship, { dateLabel: '008-4800', description: 'Calder starport berthing' }).ship;
   assert.equal(ship.state.finances.balanceCr, 4900);
@@ -137,11 +140,12 @@ test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port cost
     dateLabel: '008-4800'
   });
   ship = refueled.ship;
-  assert.equal(refueled.addedTons, 30);
-  assert.equal(refueled.costCr, 3000);
+  assert.equal(refueled.addedTons, 40);
+  assert.equal(refueled.costCr, 4000);
   assert.equal(ship.state.currentFuelTons, 40);
-  assert.equal(ship.state.fuelQuality, 'mixed');
-  assert.equal(ship.state.finances.balanceCr, 1900);
+  // An empty tank takes the quality of what fills it.
+  assert.equal(ship.state.fuelQuality, 'unrefined');
+  assert.equal(ship.state.finances.balanceCr, 900);
 
   let campaign = createCampaignDocument({
     id: 'campaign-port-ops-test', name: 'Sea of Suns',

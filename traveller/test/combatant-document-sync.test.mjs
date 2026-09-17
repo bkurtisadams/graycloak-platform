@@ -110,7 +110,11 @@ test('encounter wounds and Book 1 status synchronize to linked Character Documen
   assert.equal(fatal.characters[0].status.consciousness, 'not-applicable');
 });
 
-test('end-of-combat halfway recovery reaches the persistent Character Document', async () => {
+// v0.195.1: Book 1 p.31 gives the halfway recovery only to a character who
+// was knocked unconscious; a conscious wounded character keeps the wound
+// until treated or rested. So the end-of-combat sync carries the wound as it
+// stands, and consciousness with it.
+test('end-of-combat sync carries a conscious character\'s wound unchanged to the Character Document', async () => {
   const character = await characterFixture();
   const encounter = createEncounterDocument({
     campaign: campaignFor(character),
@@ -131,7 +135,7 @@ test('end-of-combat halfway recovery reaches the persistent Character Document',
     dice: sequenceDice([])
   }).encounter;
   const recoveredParty = resolved.combatants.find((entry) => entry.id === party.id);
-  const expectedStrength = Math.floor((party.current.STR + party.characteristics.STR) / 2);
+  const expectedStrength = party.current.STR;
   assert.equal(resolved.status, 'victory');
   assert.equal(recoveredParty.current.STR, expectedStrength);
 

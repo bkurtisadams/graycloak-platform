@@ -16,7 +16,7 @@
   --action-ready: #cfe0cf;
   --action-ready-hover: #bad1ba;
   --action-border: #4f6a4f;
-  /* v0.195.0: buttons and tinted panels split. --action-ready is the tint
+  /* v0.195.1: buttons and tinted panels split. --action-ready is the tint
      behind ink; --button-ready is the fill a button takes. */
   --button-ready: #cfe0cf;
   --button-ready-hover: #bad1ba;
@@ -47,7 +47,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.195.0: every colour outside :root is a token so a theme can swap it.
+  /* v0.195.1: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -92,7 +92,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.195.0: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.195.1: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -5340,7 +5340,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
 
 /* ===========================================================================
-   v0.195.0: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   v0.195.1: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
    character and referee tools — with the masthead above and chat as the
    bottom edge. Nothing here is an overlay: the rail, the flyout and the
    dock-reopen control are absolutely positioned INSIDE the stage cell (an
@@ -5473,7 +5473,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
 
-/* v0.195.0: fixes from the first live look at the grid shell. */
+/* v0.195.1: fixes from the first live look at the grid shell. */
 /* Right column: character, then ship, then the tabbed body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
@@ -5509,14 +5509,14 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
 #shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }
 
-/* v0.195.0 */
+/* v0.195.1 */
 #shell.shell-v2 > .shell-sidebar > #sidebar-character { display: block; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-head { flex-wrap: wrap; gap: 2px 10px; }
 #shell.shell-v2 .subsector-map-tools { padding-right: 500px; }
 
-/* v0.195.0: a collapsed sidebar is the icon strip alone. The character and
+/* v0.195.1: a collapsed sidebar is the icon strip alone. The character and
    ship strips go with the body rather than squeezing into a 0px column and
    leaving their scrollbars behind. */
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > #sidebar-character,
@@ -5524,7 +5524,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > .sidebar-body { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip { overflow-x: hidden; }
 
-/* v0.195.0: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
+/* v0.195.1: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
    sits after .action-button and so recoloured every filled button with the
    link colour — unreadable on the dark theme's amber. Filled buttons carry
    --button-ready-ink; a REQUIRED card's verb sits on the attention tint and
@@ -5543,7 +5543,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .action-button[aria-disabled="true"] { color: var(--muted); }
 
 /* ===========================================================================
-   v0.195.0: the character sheet is the right column's own document. Rows:
+   v0.195.1: the character sheet is the right column's own document. Rows:
    identity strip, PERSONNEL RECORD (unfolds, scrolls), ship, tabbed body.
    Character generation still shows the sheet on the stage; these rules
    apply only while #personnel-section is inside #sidebar-sheet. */
@@ -5576,7 +5576,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
    the referee opens it. */
 #shell.shell-v2 > .shell-sidebar > #ship-strip { max-height: 30vh; }
 
-/* v0.195.0: the sheet at column width. The printed-form look stays; the
+/* v0.195.1: the sheet at column width. The printed-form look stays; the
    scale drops so the record reads as a record, not a poster. */
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .traveller-character-sheet { border-width: 2px; font-size: 12px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-banner strong,
@@ -5595,7 +5595,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-data-list dd { font-size: 11px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .record { font-size: 11px; }
 
-/* v0.195.0: the strip is the sheet's header and its roll surface; the record
+/* v0.195.1: the strip is the sheet's header and its roll surface; the record
    beneath is the archive. So the record starts folded, and in the column it
    drops the block the strip already shows — the characteristic boxes — while
    keeping the STATUS line (original UPP, wounds) under the identity grid. */
@@ -5605,7 +5605,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar > #sidebar-character > .campaign-header-strip { max-height: none; }
 
 /* ===========================================================================
-   v0.195.0: the player page on the shell. One grid, the same three regions:
+   v0.195.1: the player page on the shell. One grid, the same three regions:
    YOUR ORDERS and WHAT HAPPENED on the left, the scene in the centre, your
    sheet and the fight's roster on the right, chat as the bottom edge. The
    CHARACTER / SCENE tab row is retired; both are always on screen. */
@@ -5690,7 +5690,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #player-shell.player-shell .shell-chat .chat-latest { flex: 0 1 38ch; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--muted); }
 #player-shell.player-shell .shell-chat .chat-latest:empty, #player-shell.player-shell .shell-chat.open .chat-latest { display: none; }
 
-/* v0.195.0: the combat rail is one column in the grid shell. .combat-wide
+/* v0.195.1: the combat rail is one column in the grid shell. .combat-wide
    used to widen the sidebar to 620px and lay the rail out as two columns;
    the right column is a fixed 380px now, so that layout overlapped itself.
    The round controls move to WHAT NOW? in the content slice; until then the
@@ -5700,7 +5700,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #shell.shell-v2 .combat-rail > #encounter-details { overflow: visible; }
 #shell.shell-v2 .combat-rail .declare-label { flex: 0 0 auto; }
 
-/* v0.195.0: the round in WHAT NOW?. */
+/* v0.195.1: the round in WHAT NOW?. */
 #shell.shell-v2 .dock-round { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 #shell.shell-v2 .dock-round[hidden] { display: none; }
 #shell.shell-v2 .dock-round .dock-round-card { border-color: var(--action-border); background: var(--action-ready); }
@@ -5715,3 +5715,12 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #shell.shell-v2 .dock-round > #encounter-throw-card[hidden] { display: none; }
 #shell.shell-v2 .dock-round > #encounter-resolve { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
 #shell.shell-v2 .dock-round > #encounter-resolve .encounter-resolve-note { flex-basis: 100%; font-size: 11px; color: var(--muted); }
+
+/* v0.195.1: the vector board's caption row keeps one height whatever the
+   phase text says, so the plot never moves as the turn advances (the layout
+   suite measures it). Long captions clip with an ellipsis. */
+#shell.shell-v2 #ship-vector-section > .encounter-map-toolbar,
+#shell.shell-v2 #encounter-section > .encounter-map-toolbar { flex-wrap: nowrap; min-height: 32px; max-height: 32px; overflow: hidden; align-items: center; }
+#shell.shell-v2 #ship-vector-section > .encounter-map-toolbar > *,
+#shell.shell-v2 #encounter-section > .encounter-map-toolbar > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#shell.shell-v2 #ship-vector-status, #shell.shell-v2 #encounter-selection-status { flex: 1 1 auto; }
