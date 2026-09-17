@@ -5,8 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.200.0"></script>
-  <script type="module" src="shell-chat.js?v=v0.200.0"></script>
+  <script type="module" src="theme.js?v=v0.201.0"></script>
+  <script type="module" src="shell-chat.js?v=v0.201.0"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.200.0</div>
+          <div id="app-subtitle" class="subtitle">v0.201.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -739,10 +739,13 @@
 Dragging tokens suggests a range band. Book 1 range changes only through an explicit combat or referee action.</div>
         <fieldset class="combat-board-choice" aria-label="How positions are tracked">
           <legend>HOW IS POSITION TRACKED?</legend>
-          <label class="combat-board-option"><input type="radio" name="combat-board-mode" value="scene" checked>
-            <strong>GRID</strong><span>Tokens on a tactical board, real meters and squares. Pick a scene, or let one be sized to the fight.</span></label>
-          <label class="combat-board-option"><input type="radio" name="combat-board-mode" value="range-line">
+          <!-- v0.201.0: the book's own board first, and the default for a fight
+               with no scene; the grid for when tactical position matters or a
+               random encounter needs a map on the spot. -->
+          <label class="combat-board-option"><input type="radio" name="combat-board-mode" value="range-line" checked>
             <strong>RANGE LINE</strong><span>Book 1's own line of bands (p.29). No map: range is how many bands apart two combatants stand.</span></label>
+          <label class="combat-board-option"><input type="radio" name="combat-board-mode" value="scene">
+            <strong>GRID</strong><span>Tokens on a tactical board, real meters and squares. Pick a scene, or let one be sized to the fight.</span></label>
         </fieldset>
         <div class="combat-roster-picker"><label>ROSTER ACTOR<select id="combat-roster-actor"><option value="">-- SELECT SAVED NPC --</option></select></label><button id="combat-add-roster-actor" class="text-button" type="button">[ ADD TO SETUP ]</button></div>
         <div id="combat-enemy-groups" class="combat-enemy-groups">
@@ -1000,6 +1003,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.200.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.201.0"></script>
 </body>
 </html>

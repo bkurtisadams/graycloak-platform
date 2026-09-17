@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.200.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.201.0';
 
 import {
   ACTION_LABELS,
@@ -180,34 +180,34 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.200.0';
+} from './ui-model.js?v=v0.201.0';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.200.0';
+} from './document-loader.js?v=v0.201.0';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.200.0';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.200.0';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.200.0';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.200.0';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.200.0';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.200.0';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.200.0';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.200.0';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.201.0';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.201.0';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.201.0';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.201.0';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.201.0';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.201.0';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.201.0';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.201.0';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.200.0';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.200.0';
+} from '../src/campaign-document.js?v=v0.201.0';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.201.0';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage, vectorSelectedShipId, vectorHoveredShipId } from './ship-vector-map.js?v=v0.200.0';
-import { targetHoveredShip, clearShipTargets, targetsOfShip } from '../src/ship-targeting.js?v=v0.200.0';
+import { renderShipVectorMap, renderVectorSceneStage, vectorSelectedShipId, vectorHoveredShipId } from './ship-vector-map.js?v=v0.201.0';
+import { targetHoveredShip, clearShipTargets, targetsOfShip } from '../src/ship-targeting.js?v=v0.201.0';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.200.0';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.200.0';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.200.0';
+} from '../src/document-window.js?v=v0.201.0';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.201.0';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.201.0';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -216,13 +216,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.200.0';
+} from './chargen-view.js?v=v0.201.0';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.200.0';
+} from './generators.js?v=v0.201.0';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -233,7 +233,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.200.0';
+} from './subsector-svg.js?v=v0.201.0';
 
 import {
   seededDice,
@@ -242,7 +242,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.200.0';
+} from './commerce-market.js?v=v0.201.0';
 
 import {
   addCharacterToCampaign,
@@ -272,7 +272,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.200.0';
+} from '../src/campaign-document.js?v=v0.201.0';
 
 import {
   NPC_CONDITIONS,
@@ -281,16 +281,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.200.0';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.200.0';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.200.0';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.200.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.200.0';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, clearChat, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.200.0';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.200.0';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.200.0';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.200.0';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.200.0';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.201.0';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.201.0';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.201.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.201.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.201.0';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, clearChat, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.201.0';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.201.0';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.201.0';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.201.0';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.201.0';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -299,14 +299,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.200.0';
+} from '../src/activity-log-document.js?v=v0.201.0';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.200.0';
+} from '../src/player-session.js?v=v0.201.0';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -314,19 +314,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.200.0';
+} from './quick-slots.js?v=v0.201.0';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.200.0';
+} from '../src/campaign-bundle.js?v=v0.201.0';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.200.0';
+} from '../src/document-registry.js?v=v0.201.0';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.200.0';
+} from '../src/activity-log.js?v=v0.201.0';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -336,14 +336,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.200.0';
+} from '../src/contract-document.js?v=v0.201.0';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.200.0';
+} from '../src/situation-document.js?v=v0.201.0';
 
 import {
   createEncounterDocument,
@@ -372,42 +372,42 @@ import {
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
   setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.200.0';
+  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.201.0';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.200.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.200.0';
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.200.0';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.201.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.201.0';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.201.0';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.200.0';
+} from '../src/contact-document.js?v=v0.201.0';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.200.0';
+} from '../src/adventure-thread-document.js?v=v0.201.0';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.200.0';
+} from '../world/situation-events.js?v=v0.201.0';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.200.0';
+} from '../world/contract-board.js?v=v0.201.0';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.200.0';
+} from '../world/thread-consequences.js?v=v0.201.0';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.200.0';
+} from '../world/far-meridian-subsector.js?v=v0.201.0';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -5414,68 +5414,102 @@ function renderRangeLineBoard(encounter) {
   // does not. So the board shows the occupied span with one band of headroom
   // either side, and says how many bands it skipped rather than pretending
   // they are not there.
-  const occupied = encounter.combatants
-    .map((combatant) => Math.min(combatant.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS))
-    .sort((left, right) => left - right);
-  const lowest = Math.max(0, (occupied[0] ?? 0) - 1);
-  const highest = Math.min(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, (occupied[occupied.length - 1] ?? 0) + 1);
-  const visibleBands = [];
-  for (let band = lowest; band <= highest; band += 1) visibleBands.push(band);
-  // The escape row is always drawn, so "out of the fight" has somewhere to be.
-  if (!visibleBands.includes(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS)) visibleBands.push(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
-  const skipped = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS - highest > 1 ? ENCOUNTER_RANGE_LINE_ESCAPE_BANDS - highest - 1 : 0;
+  // v0.201.0: Book 1 p.29 as the diagram shows it — broad bands side by
+  // side, markers in bands, every band drawn. Range is a relation between two
+  // markers, not a property of a band, so the board reads range FROM the
+  // selected actor: that band is CLOSE, its neighbours SHORT, 2-5 MEDIUM, 6-9
+  // LONG, 10-14 VERY LONG, and the fifteenth band out is where a character
+  // has escaped. Nothing here pans or zooms; the line lays itself out in the
+  // 1206-unit viewBox the markup declares.
+  const BANDS = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1; // 0..14 and the escape band
   const width = 1206;
   const height = 1206;
-  const rowSlots = visibleBands.length + (skipped ? 1 : 0);
-  const rowHeight = height / rowSlots;
-  const labelWidth = 150;
-  // Book 1 p.29: the same band is close, one apart is short, 2-5 medium,
-  // 6-9 long, 10-14 very long, 15 out of range. Every band is named now,
-  // rather than only the one that opens each zone.
-  const zoneForBand = (band) => band === 0 ? 'CLOSE'
-    : band === 1 ? 'SHORT'
-    : band <= 5 ? 'MEDIUM'
-    : band <= 9 ? 'LONG'
-    : band < ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'VERY LONG'
-    : 'ESCAPED';
-  const actorForBadge = selectedEncounterActor(encounter);
-  const byRow = new Map();
-  for (const combatant of encounter.combatants) {
-    const row = Math.min(combatant.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
-    if (!byRow.has(row)) byRow.set(row, []);
-    byRow.get(row).push(combatant);
-  }
+  const marginX = 18;
+  const bandTop = 150;
+  const bandBottom = 1060;
+  const bandWidth = (width - marginX * 2) / BANDS;
+  const bandX = (band) => marginX + band * bandWidth;
   const actor = selectedEncounterActor(encounter);
   const target = selectedEncounterTarget(encounter);
+  const actorForBadge = actor;
+  const reference = actor ?? encounter.combatants.find((entry) => entry.side === 'party' && entry.status === 'active') ?? null;
+  const referenceBand = reference ? Math.min(reference.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS) : null;
+  const zoneForGap = (gap) => gap === 0 ? 'close' : gap === 1 ? 'short' : gap <= 5 ? 'medium' : gap <= 9 ? 'long' : gap <= 14 ? 'very-long' : 'escaped';
+  const zoneLabel = { close: 'CLOSE', short: 'SHORT', medium: 'MEDIUM \u00b7 2\u20135', long: 'LONG \u00b7 6\u20139', 'very-long': 'VERY LONG \u00b7 10\u201314', escaped: 'ESCAPED' };
   const declared = new Set(encounter.roundState?.declaredActions?.map((entry) => entry.actorId) ?? []);
   const declaredOn = declaredTargetCounts(encounter);
+  const byBand = new Map();
+  for (const combatant of encounter.combatants) {
+    const band = Math.min(combatant.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
+    if (!byBand.has(band)) byBand.set(band, []);
+    byBand.get(band).push(combatant);
+  }
   const fragments = [];
-  // Slots run bottom-up: the lowest visible band at the bottom, as before.
-  const slots = [];
-  visibleBands.forEach((band) => slots.push({ kind: 'band', band }));
-  if (skipped) slots.splice(visibleBands.length - 1, 0, { kind: 'gap', bands: skipped });
-  slots.forEach((slot, index) => {
-    const y = height - (index + 1) * rowHeight;
-    if (slot.kind === 'gap') {
-      fragments.push(sceneSvgNode('rect', { x: 0, y, width, height: rowHeight, class: 'range-line-row skipped' }));
-      const note = sceneSvgNode('text', { x: width / 2, y: y + rowHeight / 2, class: 'range-line-skip-label', 'text-anchor': 'middle' });
-      note.textContent = `\u22ef ${slot.bands} EMPTY BAND${slot.bands === 1 ? '' : 'S'} \u22ef`;
-      note.append(Object.assign(sceneSvgNode('title'), { textContent: 'No combatant stands here; the bands are skipped so the occupied ones can be read' }));
-      fragments.push(note);
-      return;
+
+  // The bands, shaded by their range from the reference marker.
+  for (let band = 0; band < BANDS; band += 1) {
+    const zone = referenceBand === null ? null : band === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'escaped' : zoneForGap(Math.abs(band - referenceBand));
+    const classes = ['range-line-band', band % 2 ? 'alt' : ''];
+    if (zone) classes.push(`zone-${zone}`);
+    if (band === referenceBand) classes.push('reference');
+    if (band === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS) classes.push('escaped');
+    const rect = sceneSvgNode('rect', { x: bandX(band), y: bandTop, width: bandWidth, height: bandBottom - bandTop, class: classes.filter(Boolean).join(' ') });
+    const hint = sceneSvgNode('title');
+    hint.textContent = band === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS
+      ? 'Fifteen bands from any other character: out of range, escaped'
+      : zone ? `Band ${band}: ${zoneLabel[zone].toLowerCase()} range from ${reference.name}` : `Band ${band}`;
+    rect.append(hint);
+    fragments.push(rect);
+    const number = sceneSvgNode('text', { x: bandX(band) + bandWidth / 2, y: bandBottom + 26, class: 'range-line-band-number', 'text-anchor': 'middle' });
+    number.textContent = band === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'OUT' : String(band);
+    fragments.push(number);
+  }
+
+  // Zone labels above the bands, one per contiguous run on each side of the
+  // reference marker; a run that would collide with its neighbour on the
+  // other side is written once, centred on the reference.
+  if (referenceBand !== null) {
+    const runs = new Map();
+    for (let band = 0; band < ENCOUNTER_RANGE_LINE_ESCAPE_BANDS; band += 1) {
+      const zone = zoneForGap(Math.abs(band - referenceBand));
+      const side = band < referenceBand ? 'left' : band > referenceBand ? 'right' : 'centre';
+      const key = `${zone}:${side}`;
+      if (!runs.has(key)) runs.set(key, { zone, first: band, last: band });
+      runs.get(key).last = band;
     }
-    const row = slot.band;
-    fragments.push(sceneSvgNode('rect', { x: 0, y, width, height: rowHeight, class: `range-line-row zone-${zoneForBand(row).toLowerCase().replace(' ', '-')}${row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? ' escaped' : ''}` }));
-    fragments.push(sceneSvgNode('line', { x1: 0, y1: y, x2: width, y2: y, class: 'range-line-divider' }));
-    const label = sceneSvgNode('text', { x: 12, y: y + rowHeight / 2, class: 'range-line-zone-label' });
-    label.textContent = row === ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'ESCAPED' : `${row} \u00b7 ${zoneForBand(row)}`;
-    label.append(Object.assign(sceneSvgNode('title'), { textContent: `Band ${row}: ${zoneForBand(row).toLowerCase()} range to a combatant in band ${row === 0 ? '0' : row}` }));
-    fragments.push(label);
-    const occupants = byRow.get(row) ?? [];
-    const slotWidth = (width - labelWidth) / Math.max(1, occupants.length);
+    for (const run of runs.values()) {
+      const cx = bandX(run.first) + (bandWidth * (run.last - run.first + 1)) / 2;
+      const text = sceneSvgNode('text', { x: cx, y: bandTop - 16, class: `range-line-zone-label zone-${run.zone}`, 'text-anchor': 'middle' });
+      const wide = run.last - run.first >= 1;
+      text.textContent = wide || run.zone === 'close' || run.zone === 'short' ? zoneLabel[run.zone] : zoneLabel[run.zone].split(' \u00b7 ')[0];
+      fragments.push(text);
+    }
+    const escapeLabel = sceneSvgNode('text', { x: bandX(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS) + bandWidth / 2, y: bandTop - 16, class: 'range-line-zone-label zone-escaped', 'text-anchor': 'middle' });
+    escapeLabel.textContent = 'ESCAPED';
+    fragments.push(escapeLabel);
+  }
+
+  // The pair line: actor to target, with the range it prices at.
+  const midY = (bandTop + bandBottom) / 2;
+  if (actor && target && actor.id !== target.id) {
+    const a = Math.min(actor.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
+    const t = Math.min(target.position.column, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS);
+    const gap = Math.abs(a - t);
+    const x1 = bandX(a) + bandWidth / 2;
+    const x2 = bandX(t) + bandWidth / 2;
+    fragments.push(sceneSvgNode('line', { x1, y1: midY - 60, x2, y2: midY - 60, class: 'range-line-pair' }));
+    const pairLabel = sceneSvgNode('text', { x: (x1 + x2) / 2, y: midY - 72, class: 'range-line-pair-label', 'text-anchor': 'middle' });
+    pairLabel.textContent = `${zoneLabel[zoneForGap(gap)].split(' \u00b7 ')[0]} \u00b7 ${gap} BAND${gap === 1 ? '' : 'S'} \u00b7 ${gap * 25} M`;
+    fragments.push(pairLabel);
+  }
+
+  // Markers, stacked within their band.
+  for (const [band, occupants] of byBand) {
+    const cx = bandX(band) + bandWidth / 2;
+    const step = Math.min(70, (bandBottom - bandTop - 60) / Math.max(1, occupants.length));
+    const firstY = midY - (step * (occupants.length - 1)) / 2;
     occupants.forEach((combatant, index) => {
-      const cx = labelWidth + slotWidth * (index + 0.5);
-      const cy = y + rowHeight / 2;
+      const cy = firstY + step * index;
       const group = sceneSvgNode('g', {
         class: `range-line-token ${combatant.side === 'party' ? 'party' : 'enemy'}${selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id ? ' selected' : ''}${target?.id === combatant.id ? ' targeted' : ''}${combatant.side === 'party' && declared.has(combatant.id) ? ' declared' : ''}${combatant.side !== 'party' && combatant.status !== 'active' ? ' inactive' : ''}`,
         transform: `translate(${cx}, ${cy})`, tabindex: '0'
@@ -5537,7 +5571,7 @@ function renderRangeLineBoard(encounter) {
       group.addEventListener('mouseleave', () => { el.encounterTokenTooltip.hidden = true; });
       fragments.push(group);
     });
-  });
+  }
   el.encounterMap.replaceChildren(...fragments);
   if (el.encounterMapViewport) { el.encounterMapViewport.ondragover = null; el.encounterMapViewport.ondrop = null; }
   let guide = null;

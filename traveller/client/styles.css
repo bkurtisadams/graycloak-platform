@@ -897,10 +897,6 @@ input[readonly] {
 /* v0.96.0: Book 1 p.29's own line grid — plain rectangular rows, one per
    band, drawn at real pixel scale rather than the 1-unit-per-cell scale the
    tactical board's tokens use above. */
-.range-line-row { fill: transparent; stroke: none; }
-.range-line-row:nth-of-type(odd) { fill: #00000008; }
-.range-line-row.escaped { fill: var(--token-enemy); opacity: .12; }
-.range-line-divider { stroke: var(--line-strong); stroke-width: 1; opacity: .6; }
 .range-line-zone-label { fill: var(--zone-label); font: 700 14px Consolas, monospace; dominant-baseline: central; letter-spacing: .04em; }
 .range-line-token { cursor: pointer; }
 .range-line-token circle { stroke: var(--line-strong); stroke-width: 1.5; }
@@ -4977,13 +4973,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 /* 7. The line board draws the occupied span, so the zones need naming and the
       five Book 1 p.29 bands need telling apart. */
-.range-line-row.zone-close { fill: var(--failure-bg); fill-opacity: .5; }
-.range-line-row.zone-short { fill: var(--attention); fill-opacity: .18; }
-.range-line-row.zone-medium { fill: var(--ink); fill-opacity: .05; }
-.range-line-row.zone-long { fill: var(--ink); fill-opacity: .09; }
-.range-line-row.zone-very-long { fill: var(--ink); fill-opacity: .13; }
-.range-line-row.skipped { fill: var(--paper-deep); fill-opacity: .6; }
-.range-line-skip-label {
   font-size: 15px; letter-spacing: .3em; fill: var(--muted);
   dominant-baseline: central;
 }
@@ -5713,3 +5702,25 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 #shell.shell-v2 > .shell-sidebar > #sidebar-ship-rail .section-heading { position: sticky; top: 0; z-index: 1; background: var(--paper); }
 #shell.shell-v2 > .shell-sidebar:has(> #sidebar-ship-rail:not([hidden])) > #ship-strip { max-height: 12vh; }
 .masthead-lobby { text-decoration: none; }
+
+/* v0.201.0: the range line as Book 1 p.29 draws it. Bands side by side,
+   shaded by their range from the selected marker. */
+.range-line-band { fill: var(--paper-deep); stroke: var(--rule); stroke-width: 1; }
+.range-line-band.alt { fill: var(--paper); }
+.range-line-band.zone-close { fill: var(--range-contact); fill-opacity: .16; }
+.range-line-band.zone-short { fill: var(--range-short); fill-opacity: .16; }
+.range-line-band.zone-medium { fill: var(--range-medium); fill-opacity: .13; }
+.range-line-band.zone-long { fill: var(--range-long); fill-opacity: .12; }
+.range-line-band.zone-very-long { fill: var(--range-very-long); fill-opacity: .12; }
+.range-line-band.reference { stroke: var(--highlight); stroke-width: 2; }
+.range-line-band.escaped { fill: var(--token-enemy); fill-opacity: .08; stroke-dasharray: 6 4; }
+.range-line-band-number { fill: var(--muted); font: 700 13px Consolas, monospace; letter-spacing: .06em; }
+.range-line-zone-label { fill: var(--zone-label); font: 700 14px Consolas, monospace; letter-spacing: .08em; dominant-baseline: auto; }
+.range-line-zone-label.zone-close { fill: var(--range-contact); }
+.range-line-zone-label.zone-short { fill: var(--range-short); }
+.range-line-zone-label.zone-medium { fill: var(--range-medium); }
+.range-line-zone-label.zone-long { fill: var(--range-long); }
+.range-line-zone-label.zone-very-long { fill: var(--range-very-long); }
+.range-line-zone-label.zone-escaped { fill: var(--muted); }
+.range-line-pair { stroke: var(--highlight); stroke-width: 2; stroke-dasharray: 8 6; }
+.range-line-pair-label { fill: var(--highlight); font: 700 14px Consolas, monospace; letter-spacing: .06em; }
