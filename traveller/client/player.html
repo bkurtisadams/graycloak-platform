@@ -5,7 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Graycloak Traveller — Player</title>
-    <script type="module" src="theme.js?v=v0.193.2"></script>
+    <script type="module" src="theme.js?v=v0.194.0"></script>
+  <script type="module" src="shell-chat.js?v=v0.194.0"></script>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body class="player-body">
@@ -13,7 +14,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">PLAYER v0.193.2</span>
+          <span class="subtitle">PLAYER v0.194.0</span>
           <strong id="player-campaign-name" class="masthead-campaign-name">NOT CONNECTED</strong>
           <span class="masthead-label">DATE</span>
           <strong id="player-clock" class="masthead-date">--</strong>
@@ -26,17 +27,8 @@
       </div>
     </header>
 
-    <main class="player-main">
-      <section class="player-connect-bar" aria-label="Connect to a campaign">
-        <label>CAMPAIGN <input id="player-campaign-id" type="text" placeholder="campaign id from your referee" autocomplete="off" size="40"></label>
-        <button id="player-connect" class="text-button action-button" type="button">[ CONNECT ]</button>
-        <span id="player-status" class="player-status"></span>
-      </section>
+    <main id="player-shell" class="player-main player-shell">
 
-      <nav class="player-tabs" role="tablist" aria-label="Player view">
-        <button id="player-tab-character" class="text-button player-tab" type="button" role="tab" aria-selected="true">CHARACTER</button>
-        <button id="player-tab-scene" class="text-button player-tab" type="button" role="tab" aria-selected="false">SCENE</button>
-      </nav>
 
       <div id="player-stage" class="player-stage" data-tab="character">
         <section id="player-character-column" class="player-character-column" aria-label="Your character">
@@ -92,6 +84,9 @@
               <div id="player-sheet-notes" class="sheet-list"></div>
             </section>
           </article>
+          <!-- v0.194.0: who is in the fight, under your own sheet. -->
+          <div class="player-side-heading">COMBATANTS</div>
+          <div id="player-roster" class="player-roster"></div>
         </section>
         <section class="player-scene-column" aria-label="Scene">
           <!-- v0.70.1: between fights the scene is the world — where the party is. -->
@@ -125,26 +120,35 @@
                referee's staging renderer. -->
           <div id="player-vector-stage" class="ship-vector-stage" hidden></div>
         </section>
-        <aside class="player-side" aria-label="Combatants and events">
-          <div class="player-side-heading">COMBATANTS</div>
-          <div id="player-roster" class="player-roster"></div>
+        <aside class="player-side" aria-label="Your orders and what happened">
+      <section class="player-connect-bar" aria-label="Connect to a campaign">
+        <label>CAMPAIGN <input id="player-campaign-id" type="text" placeholder="campaign id from your referee" autocomplete="off" size="40"></label>
+        <button id="player-connect" class="text-button action-button" type="button">[ CONNECT ]</button>
+        <span id="player-status" class="player-status"></span>
+      </section>
+      <nav class="player-tabs" hidden role="tablist" aria-label="Player view">
+        <button id="player-tab-character" class="text-button player-tab" type="button" role="tab" aria-selected="true">CHARACTER</button>
+        <button id="player-tab-scene" class="text-button player-tab" type="button" role="tab" aria-selected="false">SCENE</button>
+      </nav>
           <div class="player-side-heading">YOUR ORDERS</div>
           <div id="player-orders" class="player-orders" aria-live="polite"></div>
           <div class="player-side-heading">WHAT HAPPENED</div>
           <div id="player-narration" class="player-narration" aria-live="polite"></div>
         </aside>
-        <aside class="player-log-column" aria-label="Chat and log">
+        <footer id="shell-chat" class="player-log-column shell-chat" aria-label="Chat and log">
           <div class="player-side-heading">CHAT</div>
-          <div id="player-log" class="player-log" aria-live="polite"></div>
-          <!-- v0.77.0: players type here; a formula rolls for the table. -->
+          <div id="player-log" class="player-log" data-chat-feed aria-live="polite"></div>
+          <!-- v0.77.0: players type here; a formula rolls for the campaign. -->
           <div id="player-chat-composer" class="chat-composer">
             <div id="player-dice-tray" class="dice-tray" aria-label="Dice tray"></div>
             <form id="player-chat-form" class="chat-form">
-              <input id="player-chat-input" type="text" maxlength="500" autocomplete="off" placeholder="say something, or /roll 2d6+1">
+              <input id="player-chat-input" data-chat-input type="text" maxlength="500" autocomplete="off" placeholder="say something, or /roll 2d6+1">
               <button class="text-button" type="submit">[ SEND ]</button>
             </form>
+            <span class="chat-latest" aria-hidden="true"></span>
+            <button class="text-button chat-open-toggle" type="button" aria-controls="player-log" aria-expanded="false">[ OPEN &#9652; ]</button>
           </div>
-        </aside>
+        </footer>
       </div>
     </main>
 

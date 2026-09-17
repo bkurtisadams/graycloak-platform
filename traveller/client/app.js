@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.193.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.194.0';
 
 import {
   ACTION_LABELS,
@@ -1642,7 +1642,7 @@ function saveCharacterSheetState(patch, message) {
 function renderCampaignHeader() {
   const active = campaignPlayActive();
   el.campaignHeader.hidden = !active;
-  // v0.193.2: the strip's own wrapper was never unhidden, so the identity
+  // v0.194.0: the strip's own wrapper was never unhidden, so the identity
   // line, wounds and quick skills had not been on screen since the strip
   // became a fold.
   const characterStrip = document.querySelector('#sidebar-character');

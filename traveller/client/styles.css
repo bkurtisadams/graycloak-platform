@@ -16,7 +16,7 @@
   --action-ready: #cfe0cf;
   --action-ready-hover: #bad1ba;
   --action-border: #4f6a4f;
-  /* v0.193.2: buttons and tinted panels split. --action-ready is the tint
+  /* v0.194.0: buttons and tinted panels split. --action-ready is the tint
      behind ink; --button-ready is the fill a button takes. */
   --button-ready: #cfe0cf;
   --button-ready-hover: #bad1ba;
@@ -47,7 +47,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.193.2: every colour outside :root is a token so a theme can swap it.
+  /* v0.194.0: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -92,7 +92,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.193.2: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.194.0: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -5340,7 +5340,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
 
 /* ===========================================================================
-   v0.193.2: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   v0.194.0: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
    character and referee tools — with the masthead above and chat as the
    bottom edge. Nothing here is an overlay: the rail, the flyout and the
    dock-reopen control are absolutely positioned INSIDE the stage cell (an
@@ -5473,7 +5473,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
 
-/* v0.193.2: fixes from the first live look at the grid shell. */
+/* v0.194.0: fixes from the first live look at the grid shell. */
 /* Right column: character, then ship, then the tabbed body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
@@ -5509,14 +5509,14 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
 #shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }
 
-/* v0.193.2 */
+/* v0.194.0 */
 #shell.shell-v2 > .shell-sidebar > #sidebar-character { display: block; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-head { flex-wrap: wrap; gap: 2px 10px; }
 #shell.shell-v2 .subsector-map-tools { padding-right: 500px; }
 
-/* v0.193.2: a collapsed sidebar is the icon strip alone. The character and
+/* v0.194.0: a collapsed sidebar is the icon strip alone. The character and
    ship strips go with the body rather than squeezing into a 0px column and
    leaving their scrollbars behind. */
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > #sidebar-character,
@@ -5524,7 +5524,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > .sidebar-body { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip { overflow-x: hidden; }
 
-/* v0.193.2: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
+/* v0.194.0: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
    sits after .action-button and so recoloured every filled button with the
    link colour — unreadable on the dark theme's amber. Filled buttons carry
    --button-ready-ink; a REQUIRED card's verb sits on the attention tint and
@@ -5543,7 +5543,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .action-button[aria-disabled="true"] { color: var(--muted); }
 
 /* ===========================================================================
-   v0.193.2: the character sheet is the right column's own document. Rows:
+   v0.194.0: the character sheet is the right column's own document. Rows:
    identity strip, PERSONNEL RECORD (unfolds, scrolls), ship, tabbed body.
    Character generation still shows the sheet on the stage; these rules
    apply only while #personnel-section is inside #sidebar-sheet. */
@@ -5576,7 +5576,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
    the referee opens it. */
 #shell.shell-v2 > .shell-sidebar > #ship-strip { max-height: 30vh; }
 
-/* v0.193.2: the sheet at column width. The printed-form look stays; the
+/* v0.194.0: the sheet at column width. The printed-form look stays; the
    scale drops so the record reads as a record, not a poster. */
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .traveller-character-sheet { border-width: 2px; font-size: 12px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-banner strong,
@@ -5595,7 +5595,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-data-list dd { font-size: 11px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .record { font-size: 11px; }
 
-/* v0.193.2: the strip is the sheet's header and its roll surface; the record
+/* v0.194.0: the strip is the sheet's header and its roll surface; the record
    beneath is the archive. So the record starts folded, and in the column it
    drops the block the strip already shows — the characteristic boxes — while
    keeping the STATUS line (original UPP, wounds) under the identity grid. */
@@ -5603,3 +5603,89 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-characteristics-block .sheet-characteristics { display: none; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-characteristics-block { margin-top: 4px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character > .campaign-header-strip { max-height: none; }
+
+/* ===========================================================================
+   v0.194.0: the player page on the shell. One grid, the same three regions:
+   YOUR ORDERS and WHAT HAPPENED on the left, the scene in the centre, your
+   sheet and the fight's roster on the right, chat as the bottom edge. The
+   CHARACTER / SCENE tab row is retired; both are always on screen. */
+body.player-body { height: 100vh; margin: 0; display: grid; grid-template-rows: 40px minmax(0, 1fr); overflow: hidden; }
+body.player-body > .masthead { min-height: 40px; height: 40px; border-bottom: 1px solid var(--rule); background: var(--paper); margin: 0; }
+body.player-body > .masthead .masthead-main { display: flex; align-items: center; min-height: 40px; padding: 0 12px; border-bottom: 0; }
+#player-shell.player-shell { padding: 0; margin: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+#player-shell.player-shell > .player-stage,
+#player-shell.player-shell > .player-stage[data-tab="character"],
+#player-shell.player-shell > .player-stage[data-tab="scene"] {
+  flex: 1 1 auto; min-height: 0; padding: 0; gap: 0; align-items: stretch;
+  display: grid;
+  grid-template-columns: var(--dock-w, 320px) minmax(0, 1fr) var(--side-w, 380px);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "dock stage side" "chat chat chat";
+}
+@media (max-width: 1400px) { #player-shell.player-shell > .player-stage { --dock-w: 280px; --side-w: 340px; } }
+@media (max-width: 1100px) { #player-shell.player-shell > .player-stage { --dock-w: 250px; --side-w: 300px; } }
+#player-shell.player-shell .player-stage[data-tab="character"] .player-scene-column,
+#player-shell.player-shell .player-stage[data-tab="character"] .player-side,
+#player-shell.player-shell .player-stage[data-tab="scene"] .player-character-column { display: flex; }
+
+#player-shell.player-shell .player-side {
+  grid-area: dock; border-left: 0; border-right: 1px solid var(--rule); padding: 8px 10px; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px; background: var(--paper);
+}
+#player-shell.player-shell .player-connect-bar { padding: 0 0 8px; }
+#player-shell.player-shell .player-connect-bar input { width: 100%; min-width: 0; }
+#player-shell.player-shell .player-connect-bar label { display: flex; flex-direction: column; gap: 3px; flex: 1 1 100%; }
+#player-shell.player-shell .player-tabs[hidden] { display: none; }
+
+#player-shell.player-shell .player-scene-column {
+  grid-area: stage; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--paper);
+}
+#player-shell.player-shell .player-world { flex: 1 1 auto; min-height: 0; padding: 8px 10px 0; }
+#player-shell.player-shell .player-world[hidden] { display: none; }
+#player-shell.player-shell .player-world-map { flex: 1 1 auto; height: auto; min-height: 0; }
+#player-shell.player-shell .player-scene-heading { padding: 8px 10px 0; }
+#player-shell.player-shell .player-map-tools { padding: 0 10px; }
+#player-shell.player-shell .player-back-to-world { margin: 4px 10px 0; align-self: flex-start; }
+#player-shell.player-shell .player-map-viewport { flex: 1 1 auto; height: auto; min-height: 0; border-left: 0; border-right: 0; }
+#player-shell.player-shell .player-map-viewport[hidden] { display: none; }
+#player-shell.player-shell .player-vector-stage { flex: 1 1 auto; min-height: 0; overflow: auto; }
+#player-shell.player-shell .player-vector-stage[hidden] { display: none; }
+
+#player-shell.player-shell .player-character-column {
+  grid-area: side; border-left: 1px solid var(--rule); padding: 8px 10px; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px; background: var(--paper);
+}
+#player-shell.player-shell .player-sheet { max-height: none; overflow: visible; margin-top: 0; border-width: 2px; font-size: 12px; }
+#player-shell.player-shell .player-sheet .sheet-banner strong { font-size: 15px; }
+#player-shell.player-shell .player-sheet .sheet-banner span, #player-shell.player-shell .player-sheet .sheet-number { font-size: 10px; }
+#player-shell.player-shell .player-sheet .sheet-identity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#player-shell.player-shell .player-sheet .sheet-identity-grid strong { font-size: 13px; }
+#player-shell.player-shell .player-sheet .sheet-block h3 { font-size: 11px; letter-spacing: .06em; padding: 3px 6px; }
+#player-shell.player-shell .player-sheet .sheet-two-column { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+#player-shell.player-shell .player-sheet .sheet-characteristics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+#player-shell.player-shell .player-sheet .sheet-characteristic { min-height: 3rem; padding: 2px; }
+#player-shell.player-shell .player-sheet .sheet-characteristic .sheet-stat-value { font-size: 1.1rem; }
+#player-shell.player-shell .player-sheet .sheet-characteristic .sheet-stat-current { font-size: 0.55rem; letter-spacing: 0; }
+#player-shell.player-shell .player-sheet .sheet-data-list dt { font-size: 9px; }
+#player-shell.player-shell .player-sheet .sheet-data-list dd { font-size: 11px; }
+#player-shell.player-shell .player-sheet .record { font-size: 11px; }
+#player-shell.player-shell .player-sheet[hidden] { display: none; }
+#player-shell.player-shell .player-roster:empty { display: none; }
+
+/* Chat: the bottom edge, as on the referee page. */
+#player-shell.player-shell .shell-chat {
+  grid-area: chat; border-left: 0; padding: 0; display: flex; flex-direction: column; min-height: 0;
+  border-top: 1px solid var(--rule); background: var(--paper-deep);
+}
+#player-shell.player-shell .shell-chat > .player-side-heading,
+#player-shell.player-shell .shell-chat > .player-log { display: none; }
+#player-shell.player-shell .shell-chat.open > .player-side-heading { display: block; padding: 4px 10px 0; }
+#player-shell.player-shell .shell-chat.open > .player-log { display: flex; height: var(--chat-open-h, 320px); max-height: none; min-height: 0; overflow: auto; padding: 0 10px; }
+#player-shell.player-shell .shell-chat > .chat-composer { display: flex; align-items: center; gap: 8px; padding: 5px 10px; margin: 0; border: 0; }
+#player-shell.player-shell .shell-chat > .chat-composer[hidden] { display: none; }
+#player-shell.player-shell .shell-chat .chat-form { flex: 1 1 auto; display: flex; gap: 6px; min-width: 0; }
+#player-shell.player-shell .shell-chat .chat-form input { flex: 1 1 auto; min-width: 0; }
+#player-shell.player-shell .shell-chat .dice-tray { flex: 0 0 auto; }
+#player-shell.player-shell .shell-chat .chat-open-toggle { flex: 0 0 auto; font-size: 10px; }
+#player-shell.player-shell .shell-chat .chat-latest { flex: 0 1 38ch; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--muted); }
+#player-shell.player-shell .shell-chat .chat-latest:empty, #player-shell.player-shell .shell-chat.open .chat-latest { display: none; }
