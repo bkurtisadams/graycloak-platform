@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.201.1';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.201.1';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.201.2';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.201.2';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null, selectedForTurn = null;
@@ -1007,6 +1007,9 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     draw();
   }
   const stagePoint = (clientX, clientY) => {
+    // v0.201.2: jsdom draws no layout, so it has no screen CTM; a pointer
+    // there has no stage point, and a move over it is nothing, not a throw.
+    if (typeof svg.getScreenCTM !== 'function' || typeof svg.createSVGPoint !== 'function') return null;
     const ctm = svg.getScreenCTM();
     if (!ctm) return null;
     const point = svg.createSVGPoint();
