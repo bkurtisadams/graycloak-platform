@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.197.0';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.197.0';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.198.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.198.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null, selectedForTurn = null;
@@ -766,7 +766,7 @@ const MINIMAP_SIZE = 132;
 let stageView = { zoom: 1, cx: 0, cy: 0 };
 let stageViewSceneId = null;
 
-// v0.197.0: controlsHost, when given, receives the staging controls (place a
+// v0.198.0: controlsHost, when given, receives the staging controls (place a
 // body, stage a ship, starting conditions and START COMBAT) as one card
 // instead of rows above the plot: the scene is a place, and what to do next
 // belongs in WHAT NOW?. The handlers are unchanged.
@@ -789,7 +789,7 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   const heading = document.createElement('div');
   heading.className = 'vector-controls';
   const title = document.createElement('strong');
-  // v0.197.0: the scene's name once; the world only when it is not the same
+  // v0.198.0: the scene's name once; the world only when it is not the same
   // name ("SAN TELMO · SAN TELMO · STAGING" read as a stutter).
   const sceneName = scene.identity.name.toUpperCase();
   const worlds = bodies.filter((body) => body.kind === 'world').map((body) => body.name.toUpperCase()).filter((name) => name !== sceneName);

@@ -16,7 +16,7 @@
   --action-ready: #cfe0cf;
   --action-ready-hover: #bad1ba;
   --action-border: #4f6a4f;
-  /* v0.197.0: buttons and tinted panels split. --action-ready is the tint
+  /* v0.198.0: buttons and tinted panels split. --action-ready is the tint
      behind ink; --button-ready is the fill a button takes. */
   --button-ready: #cfe0cf;
   --button-ready-hover: #bad1ba;
@@ -47,7 +47,7 @@
   --side-native: #1f4f7a;
   --side-native-tint: #d5e2ee;
   --side-third-tint: #ded7e6;
-  /* v0.197.0: every colour outside :root is a token so a theme can swap it.
+  /* v0.198.0: every colour outside :root is a token so a theme can swap it.
      Light values are the literals they replaced; dark values live below. */
   --line-strong: #111311;
   --on-token: #f2f2ed;
@@ -92,7 +92,7 @@
   --move-walk: #567d46;
 }
 
-/* v0.197.0: dark theme. Same tokens, night values; the masthead toggle sets
+/* v0.198.0: dark theme. Same tokens, night values; the masthead toggle sets
    data-theme on <html>, and the OS preference applies when nothing is set. */
 :root[data-theme="dark"] {
   color-scheme: dark;
@@ -3603,7 +3603,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   column-gap: 0; row-gap: 0;
   overflow: hidden;
 }
-.terminal.shell.sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr) 44px; }
 .shell-dock .whatnow { border-width: 0; background: transparent; padding: 0; }
 .whatnow-collapse { font-size: 10px; margin-left: 6px; }
 .shell-masthead { grid-area: mast; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--rule); background: var(--paper); margin: 0; }
@@ -3672,7 +3671,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* v0.75.1: the masthead is one row and never wraps into the rail; the sidebar
    opens on its tabs, with WHAT NOW? and the character as collapsible strips
    below them that scroll inside a bounded height. */
-.terminal.shell { grid-template-rows: auto minmax(0, 1fr); }
 .shell-masthead { display: block; min-height: 40px; border-bottom: 1px solid var(--rule); }
 .shell-masthead .masthead-main { display: flex; flex-wrap: nowrap; align-items: center; gap: 14px; border-bottom: 0; padding: 0; min-height: 40px; }
 .shell-masthead .product-line { flex: 0 0 auto; flex-wrap: nowrap; }
@@ -3742,7 +3740,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   grid-template-columns: 88px minmax(0, 1fr) 392px;
   grid-template-areas: "mast mast mast" "rail stage side";
 }
-.terminal.shell.sidebar-collapsed { grid-template-columns: 88px minmax(0, 1fr) 392px; }
 .shell-rail {
   display: block;
   padding: 8px;
@@ -3887,11 +3884,9 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 
 @media (max-width: 900px) {
   .terminal.shell,
-  .terminal.shell.sidebar-collapsed { grid-template-columns: 48px minmax(0, 1fr) 300px; }
   .shell-rail { padding: 5px; }
   .shell-rail .scene-tabs,
   .rail-tools { grid-template-columns: 36px; }
-  .shell-sidebar { grid-template-columns: 46px minmax(0, 254px); }
   .shell-sidebar .sidebar-tabs { padding-inline: 2px; }
 }
 
@@ -3953,7 +3948,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-rail .scene-tab,
 .rail-tool { width: 34px; height: 38px; flex: 0 0 38px; }
 
-.shell-sidebar { grid-template-columns: 52px minmax(0, 308px); }
 .sidebar-body {
   display: block;
   overflow: auto;
@@ -3971,34 +3965,23 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .sidebar-panel[hidden] { display: none !important; }
 .shell .activity-panel { height: auto; min-height: 0; }
 .shell .activity-feed { min-height: 180px; }
-.sidebar-collapsed .shell-sidebar { grid-template-columns: 52px 0; }
 .sidebar-collapsed .shell-sidebar > .sidebar-strip,
 .sidebar-collapsed .shell-sidebar > .sidebar-body { display: none; }
 .sidebar-collapsed .shell-sidebar .sidebar-tabs { grid-column: 1; }
 
 @media (max-width: 900px) {
-  .terminal.shell { grid-template-columns: 42px minmax(0, 1fr) 300px; }
-  .terminal.shell.sidebar-collapsed { grid-template-columns: 42px minmax(0, 1fr) 46px; }
-  .shell-rail { grid-template-columns: 30px; padding-inline: 5px; }
   .shell-rail .scene-tabs { grid-column: 1; }
   .rail-tools { grid-column: 1; grid-row: auto; padding: 6px 0 0; border-left: 0; border-top: 1px dotted var(--disabled); }
   .shell-rail .scene-tab,
   .rail-tool { width: 30px; min-width: 30px; }
-  .shell-sidebar { grid-template-columns: 46px minmax(0, 254px); }
-  .sidebar-collapsed .shell-sidebar { grid-template-columns: 46px 0; }
 }
 
 /* v0.79.1: the shell's narrow breakpoint, placed last so it wins over the
    v0.79.0 column rule at the same specificity. Below 1100px the sidebar
    narrows; below 900px it starts collapsed so the canvas keeps its width.
    The legacy 1299px rule above no longer applies to the shell at all. */
-@media (max-width: 1100px) {
-  .terminal.shell { grid-template-columns: 80px minmax(0, 1fr) 300px; }
-  .terminal.shell.sidebar-collapsed { grid-template-columns: 80px minmax(0, 1fr) 52px; }
-}
 @media (max-width: 900px) {
   .terminal.shell,
-  .terminal.shell.sidebar-collapsed { grid-template-columns: 48px minmax(0, 1fr) 52px; }
 }
 
 /* v0.79.2: the three row items fill the row regardless of content, and shed
@@ -4014,43 +3997,16 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    the top. Nothing takes width from the canvas any more — the earlier
    three-column grid, and every narrow-window fight it caused, is retired.
    ========================================================================= */
-.terminal.shell, .terminal.shell.sidebar-collapsed {
-  display: block;
-  grid-template-columns: none; grid-template-rows: none; grid-template-areas: none;
-}
-.shell-masthead {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 30;
-  min-height: 32px; height: 32px;
-  background: var(--paper-veil);
-  border-bottom: 1px solid var(--rule);
-}
-.shell-masthead .masthead-main { min-height: 32px; }
 /* The stage is the base layer. Its in-flow headers (COMBAT / ROUND, the
    status strip) are kept clear of the masthead and the controls; the map
    itself runs to the right edge and under the sidebar drawer, as in Foundry. */
-.shell-stage {
-  position: absolute; inset: 0; z-index: 1;
-  box-sizing: border-box; padding: 34px 0 0 96px;
-  margin: 0; height: auto; overflow: hidden;
-}
 .shell-stage .canvas { border: 0; }
 /* Scene controls: two icon columns floating over the canvas, top-left. */
-.shell-rail {
-  position: absolute; top: 40px; left: 8px; bottom: auto; z-index: 20;
-  height: auto; width: auto;
-  padding: 0; border: 0; background: transparent; overflow: visible;
-}
 .shell-rail .scene-tab, .rail-tool {
   background: var(--paper-veil);
   border: 1px solid var(--rule);
 }
 /* Sidebar: icon strip on the far right, drawer to its left over the canvas. */
-.shell-sidebar {
-  position: absolute; top: 34px; right: 0; bottom: 0; z-index: 25;
-  height: auto; width: auto; max-width: calc(100vw - 96px);
-  grid-template-columns: minmax(0, 360px) 52px;
-  border: 0; background: transparent; overflow: visible;
-}
 .shell-sidebar .sidebar-tabs {
   grid-column: 2; grid-row: 1 / -1;
   border-right: 0; border-left: 1px solid var(--rule);
@@ -4064,18 +4020,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 .shell-sidebar > #sidebar-character { grid-row: 2; }
 .shell-sidebar > .sidebar-body { grid-row: 3; }
-.sidebar-collapsed .shell-sidebar { grid-template-columns: 0 52px; }
 .sidebar-collapsed .shell-sidebar > .sidebar-strip,
 .sidebar-collapsed .shell-sidebar > .sidebar-body { display: none; }
 .sidebar-collapsed .shell-sidebar .sidebar-tabs { grid-column: 2; }
 /* Narrow windows: the drawer shrinks rather than the canvas. */
-@media (max-width: 1100px) {
-  .shell-sidebar { grid-template-columns: minmax(0, 300px) 52px; }
-}
-@media (max-width: 900px) {
-  .shell-sidebar { grid-template-columns: minmax(0, 260px) 44px; }
-  .shell-stage { padding-left: 88px; }
-}
 
 /* v0.80.1: the drawer and strip are opaque, as Foundry's cabinet is — no map
    or zoom row ghosting through; the stage keeps clear of the strip so a
@@ -4085,15 +4033,10 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .shell-sidebar > .sidebar-body { background: var(--paper); }
 .shell-sidebar .sidebar-tabs { overflow: hidden; }
 .shell-sidebar > .sidebar-body { overflow-x: hidden; overflow-y: auto; }
-.shell-stage { padding-right: 52px; }
-@media (max-width: 900px) { .shell-stage { padding-right: 44px; } }
 
 /* v0.80.2: the drawer pushes the stage rather than covering it — the map and
    the port/ship strip are never under an open panel. Collapsed, only the
    strip is reserved. The world map pans by right-drag like the board. */
-.terminal.shell:not(.sidebar-collapsed) .shell-stage { padding-right: calc(360px + 52px); }
-@media (max-width: 1100px) { .terminal.shell:not(.sidebar-collapsed) .shell-stage { padding-right: calc(300px + 52px); } }
-@media (max-width: 900px) { .terminal.shell:not(.sidebar-collapsed) .shell-stage { padding-right: calc(260px + 44px); } }
 .subsector-map { cursor: grab; touch-action: none; }
 .subsector-map.panning { cursor: grabbing; user-select: none; }
 
@@ -4288,7 +4231,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .encounter-tracker-ready { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* --- v0.92.0: the scene navigation bar, over the canvas at the top. */
-.scene-nav { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); z-index: 24; }
 .scene-nav[hidden] { display: none; }
 .scene-nav-button { display: flex; align-items: center; gap: 7px; font: inherit; font-size: 11px; letter-spacing: .08em; padding: 4px 10px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink); cursor: pointer; max-width: 46ch; }
 .scene-nav-button:hover { border-color: var(--link); }
@@ -4299,8 +4241,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 /* --- v0.92.1: the navigation bar sat centred over the canvas and covered the
    subsector's own header. It belongs in the stage's top-left, clear of both
    the masthead and the header text; the stage reserves the row. */
-.scene-nav { top: 38px; left: 8px; transform: none; }
-.shell-stage { padding-top: 66px; }
 .scene-nav-button { max-width: 34ch; }
 
 /* --- v0.92.2: the navigation bar clears the tool rail. The rail is an overlay
@@ -4308,8 +4248,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    the two on top of each other. The stage already reserves 96px on the left
    for the rail, so the bar starts there — and sits above it, since it is the
    frontmost chrome on the canvas. */
-.scene-nav { left: 104px; z-index: 26; }
-@media (max-width: 900px) { .scene-nav { left: 96px; } }
 
 /* --- v0.93.0: the after-fight group in the tracker. */
 .encounter-after-fight { border-top: 1px dotted var(--disabled); margin-top: 7px; padding-top: 5px; }
@@ -4339,7 +4277,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   padding: 8px 10px; overflow-x: hidden; overflow-y: auto;
   border-right: 1px solid var(--rule); background: var(--paper);
 }
-.terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(96px + 300px); }
 .dock-collapsed .shell-dock { display: none; }
 .dock-reopen {
   position: absolute; top: 40px; left: 104px; z-index: 22;
@@ -4348,12 +4285,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 }
 @media (max-width: 1400px) {
   .shell-dock { width: 260px; }
-  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(96px + 260px); }
-}
-@media (max-width: 900px) {
-  .shell-dock { left: 88px; width: 240px; }
-  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: calc(88px + 240px); }
-  .dock-reopen { left: 96px; }
 }
 
 /* v0.99.0: the port call shows WORLD, TRADE and JOBS stacked. The tab row
@@ -4435,17 +4366,8 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    header rather than being lost — but with the canvas on a scene it was the
    only way back to the subsector map, sitting on top of another panel. Both
    clear the dock while it is open. */
-.terminal.shell:not(.dock-collapsed) .scene-nav { left: calc(96px + 300px + 8px); }
-@media (max-width: 1400px) {
-  .terminal.shell:not(.dock-collapsed) .scene-nav { left: calc(96px + 260px + 8px); }
-}
-@media (max-width: 900px) {
-  .terminal.shell:not(.dock-collapsed) .scene-nav { left: calc(88px + 240px + 8px); }
-}
 /* Collapsed, the reopen button would land on the bar's own coordinates, so it
    sits a row beneath it rather than under it. */
-.terminal.shell.dock-collapsed .scene-nav { left: 104px; }
-.dock-reopen { top: 68px; left: 104px; }
 
 /* v0.101.0: what remains of the scene status strip is a single control row:
    depart, and the system record toggle. The three-column cell grid is gone
@@ -4551,9 +4473,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    twice, once as a float and once as reserved space it did not occupy. The rail
    now sits just clear of the dock, over the canvas margin, and the stage
    reserves only the dock. That returns ~96px to the map at every width. */
-.terminal.shell .shell-stage { padding-left: 0; }
-.terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 300px; }
-.terminal.shell .shell-dock { left: 0; }
 /* v0.117.2: the rail sits just below the map's own header, over the canvas
    margin. --rail-top is measured from the map container rather than written
    as a constant: the ship strip and the header above it both change height,
@@ -4563,20 +4482,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
   left: 308px;
   top: var(--rail-top, 160px); bottom: auto;
   transform: none;
-}
-.terminal.shell.dock-collapsed .shell-rail { left: 8px; }
-.terminal.shell.dock-collapsed .dock-reopen { left: 8px; top: 40px; }
-.terminal.shell.dock-collapsed .scene-nav { left: 52px; }
-.terminal.shell:not(.dock-collapsed) .scene-nav { left: 352px; }
-@media (max-width: 1400px) {
-  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 260px; }
-  .terminal.shell:not(.dock-collapsed) .shell-rail { left: 268px; }
-  .terminal.shell:not(.dock-collapsed) .scene-nav { left: 312px; }
-}
-@media (max-width: 900px) {
-  .terminal.shell:not(.dock-collapsed) .shell-stage { padding-left: 240px; }
-  .terminal.shell:not(.dock-collapsed) .shell-rail { left: 248px; }
-  .terminal.shell:not(.dock-collapsed) .scene-nav { left: 292px; }
 }
 
 /* v0.118.0: the dock flyout. A sibling column between the dock and the stage,
@@ -4593,22 +4498,9 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .flyout-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 5px; }
 .flyout-title { font-weight: 700; letter-spacing: .04em; }
 .flyout-record { margin: 0; border: 0; background: transparent; padding: 0; }
-.terminal.shell.flyout-open .shell-stage { padding-left: 560px; }
-.terminal.shell.flyout-open .shell-rail { left: 568px; }
-.terminal.shell.flyout-open .scene-nav { left: 612px; }
-.terminal.shell.dock-collapsed .shell-flyout { left: 0; }
-.terminal.shell.dock-collapsed.flyout-open .shell-stage { padding-left: 260px; }
-.terminal.shell.dock-collapsed.flyout-open .shell-rail { left: 268px; }
-@media (max-width: 1400px) {
-  .shell-flyout { left: 260px; width: 240px; }
-  .terminal.shell.flyout-open .shell-stage { padding-left: 500px; }
-  .terminal.shell.flyout-open .shell-rail { left: 508px; }
-  .terminal.shell.flyout-open .scene-nav { left: 552px; }
-}
 /* Below this the map has nothing left to give, so the flyout takes the stage
    instead of squeezing the hexes into a strip. */
 @media (max-width: 1100px) {
-  .shell-flyout { left: 240px; width: calc(100vw - 240px - 52px); }
   .terminal.shell.flyout-open .shell-rail { display: none; }
 }
 
@@ -4930,20 +4822,6 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
    visible (applyOperationsDeskTab), so nothing new decides when this applies.
 
    The stage keeps being pushed rather than covered, per the v0.80.2 ruling. */
-.terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 620px) 52px; }
-.terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(620px + 52px); }
-@media (max-width: 1500px) {
-  .terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 460px) 52px; }
-  .terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(460px + 52px); }
-}
-@media (max-width: 1100px) {
-  .terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 330px) 52px; }
-  .terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(330px + 52px); }
-}
-@media (max-width: 900px) {
-  .terminal.shell.combat-wide .shell-sidebar { grid-template-columns: minmax(0, 280px) 44px; }
-  .terminal.shell.combat-wide:not(.sidebar-collapsed) .shell-stage { padding-right: calc(280px + 44px); }
-}
 
 /* Two columns once there is width for them. The tracker is the tall list, so
    it takes the left column and scrolls on its own; the throw card, the round
@@ -5340,7 +5218,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .ship-vector-svg .vector-missile.vector-side-opposition { stroke: currentColor; stroke-width: 1; }
 
 /* ===========================================================================
-   v0.197.0: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
+   v0.198.0: the shell as one grid. Three fixed regions — WHAT NOW? | scene |
    character and referee tools — with the masthead above and chat as the
    bottom edge. Nothing here is an overlay: the rail, the flyout and the
    dock-reopen control are absolutely positioned INSIDE the stage cell (an
@@ -5473,7 +5351,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar .sidebar-tabs { background: var(--help-paper); }
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar { grid-template-columns: 0 52px; }
 
-/* v0.197.0: fixes from the first live look at the grid shell. */
+/* v0.198.0: fixes from the first live look at the grid shell. */
 /* Right column: character, then ship, then the tabbed body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > .sidebar-tabs { grid-column: 2; grid-row: 1 / -1; }
@@ -5509,14 +5387,14 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-stage > .stage-strip .context-panel[hidden] { display: none; }
 #shell.shell-v2 > .shell-stage > .stage-strip { max-height: 40%; }
 
-/* v0.197.0 */
+/* v0.198.0 */
 #shell.shell-v2 > .shell-sidebar > #sidebar-character { display: block; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character[hidden] { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip .ship-strip-head { flex-wrap: wrap; gap: 2px 10px; }
 #shell.shell-v2 .subsector-map-tools { padding-right: 500px; }
 
-/* v0.197.0: a collapsed sidebar is the icon strip alone. The character and
+/* v0.198.0: a collapsed sidebar is the icon strip alone. The character and
    ship strips go with the body rather than squeezing into a 0px column and
    leaving their scrollbars behind. */
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > #sidebar-character,
@@ -5524,7 +5402,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2.sidebar-collapsed > .shell-sidebar > .sidebar-body { display: none; }
 #shell.shell-v2 > .shell-sidebar > #ship-strip { overflow-x: hidden; }
 
-/* v0.197.0: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
+/* v0.198.0: button ink wins. The v0.117 rule `.text-button { color: var(--link) }`
    sits after .action-button and so recoloured every filled button with the
    link colour — unreadable on the dark theme's amber. Filled buttons carry
    --button-ready-ink; a REQUIRED card's verb sits on the attention tint and
@@ -5543,7 +5421,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 .action-button[aria-disabled="true"] { color: var(--muted); }
 
 /* ===========================================================================
-   v0.197.0: the character sheet is the right column's own document. Rows:
+   v0.198.0: the character sheet is the right column's own document. Rows:
    identity strip, PERSONNEL RECORD (unfolds, scrolls), ship, tabbed body.
    Character generation still shows the sheet on the stage; these rules
    apply only while #personnel-section is inside #sidebar-sheet. */
@@ -5576,7 +5454,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
    the referee opens it. */
 #shell.shell-v2 > .shell-sidebar > #ship-strip { max-height: 30vh; }
 
-/* v0.197.0: the sheet at column width. The printed-form look stays; the
+/* v0.198.0: the sheet at column width. The printed-form look stays; the
    scale drops so the record reads as a record, not a poster. */
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .traveller-character-sheet { border-width: 2px; font-size: 12px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-banner strong,
@@ -5595,7 +5473,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .sheet-data-list dd { font-size: 11px; }
 #shell.shell-v2 > .shell-sidebar > #sidebar-sheet .record { font-size: 11px; }
 
-/* v0.197.0: the strip is the sheet's header and its roll surface; the record
+/* v0.198.0: the strip is the sheet's header and its roll surface; the record
    beneath is the archive. So the record starts folded, and in the column it
    drops the block the strip already shows — the characteristic boxes — while
    keeping the STATUS line (original UPP, wounds) under the identity grid. */
@@ -5605,7 +5483,7 @@ button.ship-card-program.is-live:disabled { color: var(--disabled); cursor: not-
 #shell.shell-v2 > .shell-sidebar > #sidebar-character > .campaign-header-strip { max-height: none; }
 
 /* ===========================================================================
-   v0.197.0: the player page on the shell. One grid, the same three regions:
+   v0.198.0: the player page on the shell. One grid, the same three regions:
    YOUR ORDERS and WHAT HAPPENED on the left, the scene in the centre, your
    sheet and the fight's roster on the right, chat as the bottom edge. The
    CHARACTER / SCENE tab row is retired; both are always on screen. */
@@ -5690,7 +5568,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #player-shell.player-shell .shell-chat .chat-latest { flex: 0 1 38ch; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; color: var(--muted); }
 #player-shell.player-shell .shell-chat .chat-latest:empty, #player-shell.player-shell .shell-chat.open .chat-latest { display: none; }
 
-/* v0.197.0: the combat rail is one column in the grid shell. .combat-wide
+/* v0.198.0: the combat rail is one column in the grid shell. .combat-wide
    used to widen the sidebar to 620px and lay the rail out as two columns;
    the right column is a fixed 380px now, so that layout overlapped itself.
    The round controls move to WHAT NOW? in the content slice; until then the
@@ -5700,7 +5578,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #shell.shell-v2 .combat-rail > #encounter-details { overflow: visible; }
 #shell.shell-v2 .combat-rail .declare-label { flex: 0 0 auto; }
 
-/* v0.197.0: the round in WHAT NOW?. */
+/* v0.198.0: the round in WHAT NOW?. */
 #shell.shell-v2 .dock-round { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 #shell.shell-v2 .dock-round[hidden] { display: none; }
 #shell.shell-v2 .dock-round .dock-round-card { border-color: var(--action-border); background: var(--action-ready); }
@@ -5716,7 +5594,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #shell.shell-v2 .dock-round > #encounter-resolve { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
 #shell.shell-v2 .dock-round > #encounter-resolve .encounter-resolve-note { flex-basis: 100%; font-size: 11px; color: var(--muted); }
 
-/* v0.197.0: the vector board's caption row keeps one height whatever the
+/* v0.198.0: the vector board's caption row keeps one height whatever the
    phase text says, so the plot never moves as the turn advances (the layout
    suite measures it). Long captions clip with an ellipsis. */
 #shell.shell-v2 #ship-vector-section > .encounter-map-toolbar,
@@ -5725,7 +5603,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #shell.shell-v2 #encounter-section > .encounter-map-toolbar > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #shell.shell-v2 #ship-vector-status, #shell.shell-v2 #encounter-selection-status { flex: 1 1 auto; }
 
-/* v0.197.0: staging a space scene from WHAT NOW?; the plot keeps the stage. */
+/* v0.198.0: staging a space scene from WHAT NOW?; the plot keeps the stage. */
 #shell.shell-v2 .dock-staging .dock-staging-card { border-color: var(--attention-border); }
 #shell.shell-v2 .dock-staging .dock-staging-step { margin: 8px 0 4px; }
 #shell.shell-v2 .dock-staging .vector-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; margin: 0; align-items: center; }
@@ -5747,7 +5625,7 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #shell.shell-v2 #ship-vector-section > .encounter-map-toolbar { min-height: 0; max-height: none; padding: 4px 10px 0; justify-content: flex-start; }
 #shell.shell-v2 .ship-vector-stage { padding-left: 10px; }
 
-/* v0.197.0: the tracker under the identity strip; the record folds beneath.
+/* v0.198.0: the tracker under the identity strip; the record folds beneath.
    Rows: strip, tracker, record, ship, body. */
 #shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto auto auto minmax(0, 1fr); }
 #shell.shell-v2 > .shell-sidebar > #sidebar-character { grid-column: 1; grid-row: 1; }
@@ -5765,3 +5643,20 @@ body.player-body > .masthead .masthead-main { display: flex; align-items: center
 #player-shell.player-shell .player-roster:empty + .player-sheet { margin-top: 0; }
 #player-shell.player-shell .player-roster:empty { display: none; }
 #player-shell.player-shell .player-roster-heading:has(+ .player-roster:empty) { display: none; }
+
+/* ===========================================================================
+   v0.198.0: housekeeping. The v0.79/v0.80 overlay geometry, the dock and
+   flyout offsets and the combat-wide drawer widths are deleted above; the
+   grid shell (#shell.shell-v2) is the only layout. What follows tidies the
+   duplication the column moves exposed. */
+/* The tracker in the column keeps its rows; the round card states the round. */
+#shell.shell-v2 > .shell-sidebar > #sidebar-tracker .encounter-tracker-header { display: none; }
+/* The combat board's caption: one fixed row, status text yields first, nothing
+   under the rail; the range row below it drops the ACTOR / TARGET repeat. */
+#shell.shell-v2 #encounter-section > .encounter-map-toolbar { flex-wrap: nowrap; min-height: 32px; max-height: 32px; overflow: hidden; align-items: center; gap: 8px; padding-right: 470px; }
+#shell.shell-v2 #encounter-section > .encounter-map-toolbar > * { flex: 0 0 auto; white-space: nowrap; }
+#shell.shell-v2 #encounter-section > .encounter-map-toolbar > #encounter-selection-status { flex: 1 1 0; min-width: 4ch; overflow: hidden; text-overflow: ellipsis; }
+#shell.shell-v2 #encounter-section > .encounter-map-toolbar .encounter-map-tools { display: inline-flex; align-items: center; gap: 6px; }
+#shell.shell-v2 #encounter-section > .encounter-range-panel { min-height: 26px; max-height: 26px; overflow: hidden; display: flex; align-items: center; gap: 14px; }
+#shell.shell-v2 #encounter-section > .encounter-range-panel > #encounter-range-pair { display: none; }
+#shell.shell-v2 #ship-vector-section > .encounter-map-toolbar { padding-right: 470px; }
