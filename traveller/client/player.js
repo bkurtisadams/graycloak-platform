@@ -13,25 +13,25 @@
 //
 // The only write is a create-only combat declaration for an assigned character.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.194.1';
-import { openSignInDialog } from './signin-ui.js?v=v0.194.1';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.194.2';
+import { openSignInDialog } from './signin-ui.js?v=v0.194.2';
 import {
   ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
   writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat,
-  writeWoundAllocation } from './publish.js?v=v0.194.1';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.194.1';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.194.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.194.1';
-import { deriveDeclaration, declarationSummary, rangeLabel, signed as signedDM, woundFormula } from './combat-view.js?v=v0.194.1';
-import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.194.1';
-import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.194.1';
-import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.194.1';
-import { renderSubsectorMap } from './subsector-svg.js?v=v0.194.1';
-import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.194.1';
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.194.1';
-import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.194.1';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.194.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.194.1';
+  writeWoundAllocation } from './publish.js?v=v0.194.2';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.194.2';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.194.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.194.2';
+import { deriveDeclaration, declarationSummary, rangeLabel, signed as signedDM, woundFormula } from './combat-view.js?v=v0.194.2';
+import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.194.2';
+import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.194.2';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.194.2';
+import { renderSubsectorMap } from './subsector-svg.js?v=v0.194.2';
+import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.194.2';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.194.2';
+import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.194.2';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.194.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.194.2';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -266,8 +266,11 @@ function renderWorld() {
 
 function renderScene() {
   renderWorld();
-  if (!(!view && stagedSceneShowing() && campaign.activeScene?.kind === 'vector')) showVectorStage(false);
-  if (!view && stagedSceneShowing()) { renderStagedScene(campaign.activeScene); return; }
+  // v0.194.2: stagedSceneShowing() already yields to a RUNNING fight; the
+  // extra !view guard here meant that once any fight had happened, finished
+  // or not, the referee's staged scene never reached the player again.
+  if (!(stagedSceneShowing() && campaign.activeScene?.kind === 'vector')) showVectorStage(false);
+  if (stagedSceneShowing()) { renderStagedScene(campaign.activeScene); return; }
   if (!view) {
     el.scene.textContent = campaign ? 'NO FIGHT IN PROGRESS' : '';
     el.map.replaceChildren();
