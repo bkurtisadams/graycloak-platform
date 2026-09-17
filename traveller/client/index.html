@@ -5,8 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.199.0"></script>
-  <script type="module" src="shell-chat.js?v=v0.199.0"></script>
+  <script type="module" src="theme.js?v=v0.200.0"></script>
+  <script type="module" src="shell-chat.js?v=v0.200.0"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.199.0</div>
+          <div id="app-subtitle" class="subtitle">v0.200.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -28,6 +28,7 @@
           <div id="system-status" class="status masthead-status" aria-live="polite">READY</div>
           <span class="masthead-spacer"></span>
           <button data-theme-toggle class="text-button utility-button" type="button" hidden>[ DARK ]</button>
+          <a class="text-button utility-button masthead-lobby" href="enter.html" title="Your characters and campaigns">[ LOBBY ]</a>
           <span id="account-name" class="masthead-account" title="Graycloak account"></span>
           <button id="account-button" class="text-button utility-button" type="button" hidden></button>
           <button id="new-character-from-campaign" class="text-button utility-button" type="button" title="Leave campaign play and start a new character generation" hidden>[ NEW CHARACTER ]</button>
@@ -427,6 +428,10 @@
            the identity strip and above the record, so the fight and the sheet
            are one glance. renderEncounterTracker moves it in and out. -->
       <section id="sidebar-tracker" class="sidebar-strip sidebar-tracker combat-rail" aria-label="Combat tracker" hidden></section>
+      <!-- v0.200.0: a ship fight's data cards and log sit here likewise; the
+           turn strip stays over the plot, where its seven phases have the
+           width they need. -->
+      <section id="sidebar-ship-rail" class="sidebar-strip sidebar-tracker combat-rail" aria-label="Ship combat" hidden></section>
       <details id="sidebar-sheet" class="sidebar-strip sidebar-sheet" hidden>
         <summary class="sidebar-strip-summary"><span>PERSONNEL RECORD</span></summary>
       </details>
@@ -589,7 +594,7 @@
               <button id="export-campaign" class="text-button utility-button" type="button" title="Export a portable campaign JSON file" disabled>[ EXPORT CAMPAIGN ]</button>
               <a id="open-lobby" class="text-button utility-button" href="enter.html" title="Your characters and campaigns">[ LOBBY ]</a>
             </div>
-            <div class="sidebar-group-title">TABLE</div>
+            <div class="sidebar-group-title">CAMPAIGN</div>
             <div class="sidebar-buttons">
               <button id="new-campaign" class="text-button utility-button" type="button" title="Create a campaign from the current completed character">[ NEW CAMPAIGN ]</button>
               <button id="add-character-to-campaign" class="text-button utility-button" type="button" title="Add a completed Character Document to the active campaign" hidden>[ ADD CHARACTER ]</button>
@@ -995,6 +1000,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.199.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.200.0"></script>
 </body>
 </html>

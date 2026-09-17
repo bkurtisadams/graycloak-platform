@@ -5700,3 +5700,16 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 #enter-shell.enter-shell > .enter-chargen[hidden] { display: none; }
 #enter-shell.enter-shell .enter-chargen-rail, #enter-shell.enter-shell .enter-sheet { max-height: none; height: 100%; min-height: 0; }
 #enter-shell.enter-shell > .enter-chargen { height: 100%; box-sizing: border-box; }
+
+/* v0.200.0: ship combat in the column. Rows: strip, tracker, ship rail,
+   record, ship, body. The turn strip stays over the plot. */
+#shell.shell-v2 > .shell-sidebar { grid-template-rows: auto auto auto auto auto minmax(0, 1fr); }
+#shell.shell-v2 > .shell-sidebar > #sidebar-ship-rail { grid-column: 1; grid-row: 3; min-height: 0; max-height: 46vh; overflow-y: auto; padding: 6px 10px; border-bottom: 1px solid var(--rule); background: var(--paper); }
+#shell.shell-v2 > .shell-sidebar > #sidebar-ship-rail[hidden] { display: none; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-sheet { grid-row: 4; }
+#shell.shell-v2 > .shell-sidebar > #ship-strip { grid-row: 5; }
+#shell.shell-v2 > .shell-sidebar > .sidebar-body { grid-row: 6; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-ship-rail > #ship-combat-rail-section { border: 0; padding: 0; margin: 0; }
+#shell.shell-v2 > .shell-sidebar > #sidebar-ship-rail .section-heading { position: sticky; top: 0; z-index: 1; background: var(--paper); }
+#shell.shell-v2 > .shell-sidebar:has(> #sidebar-ship-rail:not([hidden])) > #ship-strip { max-height: 12vh; }
+.masthead-lobby { text-decoration: none; }
