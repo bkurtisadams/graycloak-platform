@@ -8,26 +8,26 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.198.0';
-import { openSignInDialog } from './signin-ui.js?v=v0.198.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.199.0';
+import { openSignInDialog } from './signin-ui.js?v=v0.199.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome
-} from './publish.js?v=v0.198.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.198.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.198.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.198.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.198.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.198.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.198.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.198.0';
-import { generateCharacterName } from './generators.js?v=v0.198.0';
+} from './publish.js?v=v0.199.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.199.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.199.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.199.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.199.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.199.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.199.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.199.0';
+import { generateCharacterName } from './generators.js?v=v0.199.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
-} from '../src/character-record.js?v=v0.198.0';
+} from '../src/character-record.js?v=v0.199.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.198.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.199.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -38,6 +38,7 @@ const el = {
   signinButton: document.querySelector('#enter-signin-button'),
   characters: document.querySelector('#enter-characters'),
   list: document.querySelector('#enter-character-list'),
+  selected: document.querySelector('#enter-selected'),
   newCharacter: document.querySelector('#enter-new-character'),
   loadCharacter: document.querySelector('#enter-load-character'),
   characterFile: document.querySelector('#enter-character-file'),
@@ -248,7 +249,10 @@ function recordSummary(record) {
 function renderCharacterRow(record) {
   const status = characterRecordStatus(record);
   const row = document.createElement('div');
-  row.className = `enter-character${status.enter ? ' enterable' : ''}`;
+  row.className = `enter-character${status.enter ? ' enterable' : ''}${selectedRecord()?.characterId === record.characterId ? ' is-selected' : ''}`;
+  row.tabIndex = 0;
+  row.addEventListener('click', (event) => { if (event.target.closest('button, a, input')) return; selectCharacter(record); });
+  row.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target === row) selectCharacter(record); });
   const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = record.name.toUpperCase();
   const summary = document.createElement('span'); summary.className = 'enter-character-summary'; summary.textContent = recordSummary(record);
   const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = status.label;
@@ -332,6 +336,78 @@ function renderDraftRow() {
   return row;
 }
 
+// v0.199.0: the character you pick reads in full in the centre column.
+let selectedCharacterId = null;
+
+function selectedRecord() {
+  if (!records.length) return null;
+  return records.find((record) => record.characterId === selectedCharacterId) ?? records[0];
+}
+
+function selectCharacter(record) {
+  selectedCharacterId = record?.characterId ?? null;
+  render();
+}
+
+function renderSelectedCharacter() {
+  if (!el.selected) return;
+  const record = selectedRecord();
+  if (!record) {
+    el.selected.replaceChildren(Object.assign(document.createElement('div'), { className: 'enter-empty', textContent: 'PICK A CHARACTER, OR ROLL ONE.' }));
+    return;
+  }
+  const c = record.character ?? {};
+  const status = characterRecordStatus(record);
+  const sheet = document.createElement('article');
+  sheet.className = 'traveller-character-sheet enter-record';
+  const banner = document.createElement('header');
+  banner.className = 'sheet-banner';
+  banner.innerHTML = '<div><span class="sheet-number">PERSONAL DATA AND HISTORY</span><strong></strong></div><div><span>STATUS</span><strong></strong></div>';
+  banner.querySelectorAll('strong')[0].textContent = record.name;
+  banner.querySelectorAll('strong')[1].textContent = status.label;
+  sheet.append(banner);
+  const grid = document.createElement('div');
+  grid.className = 'sheet-identity-grid';
+  const cell = (label, value) => {
+    const box = document.createElement('div');
+    box.append(Object.assign(document.createElement('span'), { textContent: label }), Object.assign(document.createElement('strong'), { textContent: value }));
+    return box;
+  };
+  const career = c.career ?? {};
+  const ageYears = Number.isFinite(c.chronology?.chronologicalAgeMonths) ? Math.floor(c.chronology.chronologicalAgeMonths / 12) : (c.age ?? '--');
+  grid.append(
+    cell('UPP', c.upp ?? '------'),
+    cell('SERVICE', `${String(career.service ?? 'none').toUpperCase()}${career.terms ? ` · ${career.terms} TERM${career.terms === 1 ? '' : 'S'}` : ''}`),
+    cell('RANK', career.rankTitle ?? '--'),
+    cell('AGE', String(ageYears)),
+    cell('WORLD', record.world?.kind === 'campaign' ? (record.world.campaignName ?? record.world.campaignId ?? 'A CAMPAIGN').toUpperCase() : 'UNASSIGNED'),
+    cell('CASH', `Cr${Number(c.finances?.credits ?? 0).toLocaleString()}`)
+  );
+  sheet.append(grid);
+  const block = (title, body) => {
+    const section = document.createElement('section');
+    section.className = 'sheet-block';
+    section.append(Object.assign(document.createElement('h3'), { textContent: title }), body);
+    return section;
+  };
+  const skills = document.createElement('div');
+  skills.className = 'sheet-skills';
+  const skillEntries = Object.entries(c.skills ?? {}).filter(([, level]) => level > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (!skillEntries.length) skills.textContent = 'NO SKILLS';
+  for (const [name, level] of skillEntries) skills.append(Object.assign(document.createElement('span'), { className: 'sheet-skill', textContent: `${name}-${level}` }));
+  sheet.append(block('SKILLS', skills));
+  const kit = document.createElement('dl');
+  kit.className = 'sheet-data-list';
+  const datum = (label, value) => { kit.append(Object.assign(document.createElement('dt'), { textContent: label }), Object.assign(document.createElement('dd'), { textContent: value })); };
+  datum('READY WEAPON', String(c.loadout?.weaponKey ?? 'none').replace(/-/g, ' ').toUpperCase());
+  datum('WORN ARMOR', String(c.loadout?.armor ?? 'none').toUpperCase());
+  const benefits = Array.isArray(c.benefits) ? c.benefits : [];
+  if (benefits.length) datum('BENEFITS', benefits.map((b) => (typeof b === 'string' ? b : b?.label ?? b?.kind ?? '')).filter(Boolean).join(' · '));
+  if (Number.isFinite(c.finances?.retirementPayAnnual) && c.finances.retirementPayAnnual > 0) datum('RETIREMENT PAY', `Cr${c.finances.retirementPayAnnual.toLocaleString()} / YEAR`);
+  sheet.append(block('EQUIPMENT AND BENEFITS', kit));
+  el.selected.replaceChildren(sheet);
+}
+
 function renderCharacters() {
   const draftRow = renderDraftRow();
   if (!records.length && !draftRow) {
@@ -339,9 +415,11 @@ function renderCharacters() {
     empty.className = 'enter-empty';
     empty.textContent = 'YOU HAVE NO CHARACTERS YET. ROLL ONE TO BEGIN.';
     el.list.replaceChildren(empty);
+    renderSelectedCharacter();
     return;
   }
   el.list.replaceChildren(...[draftRow, ...records.map(renderCharacterRow)].filter(Boolean));
+  renderSelectedCharacter();
 }
 
 async function removeRecord(record) {
@@ -362,7 +440,7 @@ async function redeemInvite(record, rawCode) {
   try {
     if (!code) throw new Error('enter the invite code your referee sent you');
     const invite = await readInvite(code);
-    if (!invite || invite.game !== 'traveller' || !invite.campaignId) throw new Error('that code does not open a Traveller table');
+    if (!invite || invite.game !== 'traveller' || !invite.campaignId) throw new Error('that code does not open a Traveller campaign');
     const uid = currentUserId();
     const { user } = authStatus();
     const join = createJoinRequest({ uid, name: user?.displayName ?? user?.email ?? null, code, campaignId: invite.campaignId, record });
