@@ -5,8 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.194.2"></script>
-  <script type="module" src="shell-chat.js?v=v0.194.2"></script>
+  <script type="module" src="theme.js?v=v0.195.0"></script>
+  <script type="module" src="shell-chat.js?v=v0.195.0"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.194.2</div>
+          <div id="app-subtitle" class="subtitle">v0.195.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -308,7 +308,7 @@
     <pre id="thread-record" class="record thread-record" aria-live="polite"></pre>
   </section>
       </div>
-      <!-- v0.194.2: WORLD sits under the map as a strip of the stage, not a sidebar tab. -->
+      <!-- v0.195.0: WORLD sits under the map as a strip of the stage, not a sidebar tab. -->
       <section id="sidebar-port-panel" class="stage-strip" aria-label="World">
       <!-- v0.120.0: TRADE and JOBS are dock flyouts now, and NPCS pointed at
            the ACTOR ROSTER that already lives in the ACTORS panel — the same
@@ -381,6 +381,10 @@
         </div>
         <div id="procedure" class="procedure" aria-live="polite"></div>
         <div id="actions" class="actions"></div>
+        <!-- v0.195.0: during a fight the round is the first thing in WHAT NOW?
+             — declarations as they come in, the party's fire by target, the
+             throw card and RESOLVE ROUND. renderDockRound fills it. -->
+        <div id="dock-round" class="dock-round" hidden aria-live="polite"></div>
         <div id="play-procedure" class="play-procedure" hidden aria-live="polite"></div>
       </section>
     </aside>
@@ -412,7 +416,7 @@
         </div>
       </section>
       </details>
-      <!-- v0.194.2: the full sheet lives in the right column during play.
+      <!-- v0.195.0: the full sheet lives in the right column during play.
            applyCampaignLayout moves #personnel-section in here from the
            stage (and back for character generation), so the sheet renderers
            keep every id they write to. -->
@@ -588,7 +592,7 @@
         </section>
       </div>
     </aside>
-    <!-- v0.194.2: chat is the bottom edge of the shell, one row until opened. -->
+    <!-- v0.195.0: chat is the bottom edge of the shell, one row until opened. -->
     <footer id="shell-chat" class="shell-chat" aria-label="Chat and log">
         <aside id="activity-panel" class="activity-panel panel" aria-labelledby="activity-heading">
           <div class="activity-header">
@@ -984,6 +988,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.194.2"></script>
+  <script type="module" src="./boot.mjs?v=v0.195.0"></script>
 </body>
 </html>
