@@ -1,5 +1,5 @@
-import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.195.1';
-import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.195.1';
+import { previewShipVector } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js?v=v0.196.0';
+import { LASER_RANGE_DMS, atmosphereBrakes, ATMOSPHERIC_BRAKING_BAND } from '../vendor/classic-traveller-rules/index.js?v=v0.196.0';
 const NS = 'http://www.w3.org/2000/svg';
 const node = (name, attrs = {}, text = '') => { const n = document.createElementNS(NS, name); for (const [k,v] of Object.entries(attrs)) n.setAttribute(k,v); n.textContent = text; return n; };
 let selected = null, encounterId = null, selectedForTurn = null;
@@ -766,7 +766,11 @@ const MINIMAP_SIZE = 132;
 let stageView = { zoom: 1, cx: 0, cy: 0 };
 let stageViewSceneId = null;
 
-export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [], startCombat = null, combatBlocked = null, tokenMenu = null } = {}) {
+// v0.196.0: controlsHost, when given, receives the staging controls (place a
+// body, stage a ship, starting conditions and START COMBAT) as one card
+// instead of rows above the plot: the scene is a place, and what to do next
+// belongs in WHAT NOW?. The handlers are unchanged.
+export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stageShip, removeShip, moveBody, removeBody, placeBody, bodies = [], shipChoices = [], startCombat = null, combatBlocked = null, tokenMenu = null, controlsHost = null } = {}) {
   if (!stage) return;
   if (stageViewSceneId !== scene.identity.id) {
     stageViewSceneId = scene.identity.id;
@@ -785,8 +789,11 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   const heading = document.createElement('div');
   heading.className = 'vector-controls';
   const title = document.createElement('strong');
-  const worlds = bodies.filter((body) => body.kind === 'world').map((body) => body.name.toUpperCase());
-  title.textContent = `${scene.identity.name.toUpperCase()} \u00b7 ${worlds.join(' + ') || 'CLEAR SPACE'} \u00b7 STAGING`;
+  // v0.196.0: the scene's name once; the world only when it is not the same
+  // name ("SAN TELMO · SAN TELMO · STAGING" read as a stutter).
+  const sceneName = scene.identity.name.toUpperCase();
+  const worlds = bodies.filter((body) => body.kind === 'world').map((body) => body.name.toUpperCase()).filter((name) => name !== sceneName);
+  title.textContent = [sceneName, worlds.join(' + ') || (bodies.some((body) => body.kind === 'world') ? '' : 'CLEAR SPACE'), 'STAGING'].filter(Boolean).join(' \u00b7 ');
   const zoomLabel = document.createElement('span');
   zoomLabel.className = 'map-zoom-label';
   zoomLabel.setAttribute('aria-live', 'polite');
@@ -807,10 +814,42 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
   heading.append(title, zoomTools);
   panel.append(heading);
 
+  // Where the three staging rows go: the dock card when a host is given.
+  let card = null;
+  const host = (() => {
+    if (!controlsHost) return panel;
+    controlsHost.replaceChildren();
+    card = document.createElement('div');
+    card.className = 'procedure-card required dock-staging-card';
+    const head = document.createElement('div');
+    head.className = 'procedure-card-title';
+    head.append(
+      Object.assign(document.createElement('span'), { textContent: 'Stage the scene' }),
+      Object.assign(document.createElement('span'), { className: 'procedure-card-tag', textContent: `${scene.tokens.length} SHIP${scene.tokens.length === 1 ? '' : 'S'}` })
+    );
+    card.append(head);
+    const copy = document.createElement('div');
+    copy.className = 'procedure-card-copy';
+    copy.textContent = 'Place bodies, stage ships on their sides, then set who intrudes and the pressure state. Book 2 pp.22-23.';
+    card.append(copy);
+    controlsHost.append(card);
+    controlsHost.hidden = false;
+    return card;
+  })();
+  const step = (label) => {
+    if (!card) return null;
+    const lab = document.createElement('div');
+    lab.className = 'procedure-group-label dock-staging-step';
+    lab.textContent = label;
+    host.append(lab);
+    return lab;
+  };
+
   // Placing a world, a belt or a battery. What matters about each is its data
   // rather than where it starts, so each arrives at the view's centre and is
   // dragged from there.
   if (placeBody) {
+    step('1 \u00b7 BODIES');
     const tools = document.createElement('div');
     tools.className = 'vector-controls';
     const kind = document.createElement('select');
@@ -847,13 +886,15 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
       name.value = '';
     };
     tools.append(kind, name, sizeLabel, add);
-    panel.append(tools);
+    host.append(tools);
   }
 
   // v0.166.0: the fight starts from this board. The intruder is the referee's
   // call (Book 2 p.22 names the sides "for convenience"); pressurisation is
   // p.35's, and only the campaign's own ship has a crew placed to lose.
-  if (startCombat) {
+  const startBlock = () => {
+    if (!startCombat) return;
+    step('3 \u00b7 STARTING CONDITIONS');
     const tools = document.createElement('div');
     tools.className = 'vector-controls vector-start-combat';
     const intruder = document.createElement('select');
@@ -867,7 +908,8 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
     const start = document.createElement('button');
     start.type = 'button';
     start.id = 'vector-start-combat';
-    start.textContent = 'START COMBAT';
+    start.textContent = card ? '[ START COMBAT ]' : 'START COMBAT';
+    if (card) start.className = 'text-button action-button';
     start.disabled = Boolean(combatBlocked);
     start.title = combatBlocked ?? 'Party and opposition ships fight from where they are staged, on the vectors they are staged with. Neutral ships stay out. The intruder moves first every game turn (Book 2 p.23).';
     start.onclick = () => startCombat({ intruder: intruder.value, pressurised: pressure.value === 'pressurised' });
@@ -878,10 +920,12 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
       why.textContent = combatBlocked;
       tools.append(why);
     }
-    panel.append(tools);
-  }
+    host.append(tools);
+  };
+  if (!card) startBlock();
 
   if (stageShip && shipChoices.length) {
+    step('2 \u00b7 SHIPS');
     const tools = document.createElement('div');
     tools.className = 'vector-controls';
     const picker = document.createElement('select');
@@ -900,8 +944,9 @@ export function renderVectorSceneStage(stage, scene, { moveShip, setVector, stag
       if (choice) stageShip(choice, sidePicker.value);
     };
     tools.append(picker, sidePicker, add);
-    panel.append(tools);
+    host.append(tools);
   }
+  if (card) startBlock();
 
   const board = document.createElement('div');
   board.className = 'vector-stage-board';
