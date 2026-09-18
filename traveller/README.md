@@ -1,5 +1,34 @@
 # Graycloak Traveller
 
+## v0.211.0 the arrival ship encounter
+
+Fifth part of the port-call slice. Arriving at a world now throws for shipping
+encountered in orbit (Book 2 p.38, `rollShipEncounter` with the starport DM,
+then `rollReaction`). When the throw finds something, it leads the What Now?
+column: the ship type, its hull where the table gives one, and its reaction
+("Hostile. Attacks on 5+."). Port business stays listed behind it. "Let it
+pass" dismisses it and hands the column back to the port call.
+
+The throw is seeded on the arrival itself (campaign, world, date), so the same
+arrival always yields the same encounter and a reload cannot reroll it for a
+better result. The encounter is held in the session rather than saved as a
+document: a reload forgets it, which is the same as the referee letting the
+ship pass. Departing clears it.
+
+How often this fires is entirely the starport: roughly 95% at class A, 82% at
+B, 58% at C, 36% at D, 11% at E, and never at X. Arriving at a frontier port
+like Cinder will usually show nothing at all, which is correct.
+
+Engaging the encounter is not on this page: fights are still run in the
+current client, and the card says so. That is the combat slice.
+
+Two tests added to `test/play-session.test.mjs` covering the encounter
+appearing, leading, dismissing, and being deterministic across identical
+arrivals. Suite: 605 pass, 0 fail.
+
+Still to come on this page: mail, brokers, patrons, gas-giant skimming, and
+combat wired to a real combatant.
+
 ## v0.210.0 departure: leaving port, the week in jump, and arrival
 
 Fourth part of the port-call slice, and the one that closes the loop: a

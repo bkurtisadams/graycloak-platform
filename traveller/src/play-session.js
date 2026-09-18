@@ -22,7 +22,7 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
-  starportFuelService, unloadCargo
+  rollReaction, rollShipEncounter, starportFuelService, unloadCargo
 } from '../vendor/classic-traveller-rules/index.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
@@ -481,6 +481,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   let saving = false;
   let queued = false;
   let lastMessage = null;
+  // The arrival encounter is held for the current port call only. It is not a
+  // document: a reload forgets it, which is the same as the referee letting
+  // the ship pass.
+  let pendingArrivalEncounter = null;
 
   const reload = () => { resolved = registry.resolveCampaign(campaignId); };
   // `label` is the few words the masthead has room for; `detail` is the sentence.
@@ -629,7 +633,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         persist([result.ship]);
         message = `${shipName} took on ${result.addedTons} t ${facts.fuelService.quality} fuel at ${facts.system.name}, ${result.costCr ? cr(result.costCr) : 'free'}`;
         log('SHIP', message);
+      } else if (command === 'arrival:dismiss') {
+        if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
+        message = `${pendingArrivalEncounter.label} let pass at ${facts.system?.name ?? 'the port'}`;
+        pendingArrivalEncounter = null;
+        log('NAV', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
       } else if (command === 'depart') {
+        pendingArrivalEncounter = null;
         if (!facts.destination) throw new Error('choose a destination within jump range first');
         if (!facts.destination.reachable) throw new Error(`${facts.destination.name} is ${facts.destination.distance} parsecs; beyond Jump-${facts.ship.specifications.drives.jump.rating}`);
         if (facts.berthingOwed) throw new Error('pay berthing before departure');
@@ -698,6 +712,26 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         }
 
         ship = beginPortCall(ship, { systemId: target.id, arrivalDate: dateLabel, berthingDueCr: targetProfile.starport === 'X' ? 0 : calculateBerthingCost(1) });
+
+        // Book 2 p.38: a throw for shipping encountered on arrival, with the
+        // starport's DM. Seeded on the arrival itself so the same arrival
+        // always yields the same encounter, and a reload cannot reroll it.
+        const arrivalSeed = `${campaign.identity.id}|arrival|${target.id}|${dateLabel}`;
+        const encounterDice = seededDice(arrivalSeed);
+        const shipEncounter = rollShipEncounter(encounterDice, { starport: targetProfile.starport });
+        let arrival = null;
+        if (shipEncounter.type) {
+          const reaction = rollReaction(seededDice(`${arrivalSeed}|reaction`));
+          arrival = {
+            type: shipEncounter.type,
+            label: shipEncounter.label,
+            hull: shipEncounter.hull?.label ?? null,
+            hostileByDefault: Boolean(shipEncounter.hostileByDefault),
+            reaction: reaction.description,
+            systemId: target.id,
+            dateLabel
+          };
+        }
         const upkeep = chargeShipUpkeep(ship, { dateLabel, sinceLabel: ship.state.finances?.ledger?.[0]?.date ?? null, unpaid: ship.authority?.assignedCharacterId ? [ship.authority.assignedCharacterId] : [] });
         ship = upkeep.ship;
 
@@ -712,6 +746,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (ship.state.portCall.berthingDueCr > 0) parts.push(`berthing due, ${cr(ship.state.portCall.berthingDueCr)}`);
         message = parts.join('. ');
         log('ARRIVAL', message);
+        if (arrival) {
+          pendingArrivalEncounter = arrival;
+          const seen = `${arrival.label}${arrival.hull ? ` (${arrival.hull})` : ''} encountered at ${target.name}: ${arrival.reaction}`;
+          log('NAV', seen);
+          message = `${message}. ${seen}`;
+          lastMessage = { ok: true, message };
+        }
       } else if (command === 'speculation:buy' || command.startsWith('speculation:sell:')) {
         if (facts.exclusive) throw new Error(`exclusive charter active for ${facts.exclusive.destination.systemName}; commercial capacity is committed`);
         if (command === 'speculation:buy') {
@@ -775,6 +816,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
 
   return {
     connect, run, saveToCloud, reload,
+    get arrivalEncounter() { return pendingArrivalEncounter; },
+    dismissArrivalEncounter() { pendingArrivalEncounter = null; onChange(); },
     get resolved() { return resolved; },
     get revision() { return revision; },
     get save() { return save; },
@@ -783,7 +826,19 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       if (state.situation.kind !== 'port') return { ...state, save, notice: lastMessage };
       const procedure = portProcedure(resolved, { subsector, selectedSystemId, writable: save.state !== 'stale' });
-      return { ...state, ...procedure, scene: { ...state.scene, selectedId: selectedSystemId }, save, notice: lastMessage };
+      // The arrival encounter leads the column while it stands: it is what is
+      // happening, and the port business waits behind it.
+      const encounter = pendingArrivalEncounter && pendingArrivalEncounter.systemId === resolved.campaign.location?.systemId
+        ? pendingArrivalEncounter : null;
+      const next = encounter
+        ? {
+          title: `${encounter.label} at ${resolved.campaign.location.worldName ?? resolved.campaign.location.systemName}`,
+          copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${encounter.reaction}${encounter.hostileByDefault ? ' This kind of ship is hostile by default.' : ''} Book 2 p.38. Fights are still run in the current client; dismissing this leaves the port call as it was.`,
+          cite: 'Book 2 p.38',
+          actions: [{ command: 'arrival:dismiss', label: 'Let it pass', primary: true }]
+        }
+        : procedure.next;
+      return { ...state, ...procedure, next, arrivalEncounter: encounter, scene: { ...state.scene, selectedId: selectedSystemId }, save, notice: lastMessage };
     }
   };
 }

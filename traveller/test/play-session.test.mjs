@@ -463,7 +463,9 @@ test('departure advances a week, burns the whole jump fuel allowance, and opens 
   assert.ok(ship.state.currentFuelTons < beforeFuel);
   assert.equal(ship.state.portCall.systemId, 'calder');
   assert.equal(ship.state.portCall.berthingPaid, false);
-  assert.equal(after.activityLogs[0].entries.at(-1).category, 'ARRIVAL');
+  // ARRIVAL is always logged; a NAV entry follows it when the arrival throw
+  // turns up shipping (Book 2 p.38), so check ARRIVAL is among the last two.
+  assert.ok(after.activityLogs[0].entries.slice(-2).some((entry) => entry.category === 'ARRIVAL'));
 
   // Cannot depart twice without a new destination in range of the new port.
   assert.equal(session.run('depart', at).ok, false);
@@ -528,4 +530,49 @@ test('departure is refused when berthing is owed, fuel is short, or an exclusive
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.match(session.run('depart', { selectedSystemId: 'calder' }).message, /chartered to Port Meridian/);
   assert.equal(session.run('depart', { selectedSystemId: 'port-meridian' }).ok, true);
+});
+
+// ---------------------------------------------------------------- v0.211.0
+test('arrival throws for shipping, leads the column with it, and lets it be dismissed', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.arrivalEncounter, null, 'nothing is standing before a jump');
+
+  const result = session.run('depart', { selectedSystemId: 'calder' });
+  assert.equal(result.ok, true);
+  const encounter = session.arrivalEncounter;
+
+  if (encounter) {
+    // The throw found shipping: it leads the column until it is dismissed.
+    assert.equal(encounter.systemId, 'calder');
+    assert.ok(typeof encounter.label === 'string' && encounter.label.length > 0);
+    assert.ok(typeof encounter.reaction === 'string' && encounter.reaction.length > 0);
+    const view = session.view();
+    assert.match(view.next.title, new RegExp(encounter.label));
+    assert.equal(view.next.actions[0].command, 'arrival:dismiss');
+    assert.equal(view.arrivalEncounter.label, encounter.label);
+    // Port business is still listed behind it.
+    assert.ok(view.steps.some((step) => step.id === 'berthing' || step.id === 'fuel'));
+
+    assert.equal(session.run('arrival:dismiss').ok, true);
+    assert.equal(session.arrivalEncounter, null);
+    assert.equal(new RegExp(encounter.label).test(session.view().next.title), false);
+    assert.equal(session.run('arrival:dismiss').ok, false, 'nothing left to dismiss');
+  } else {
+    // The throw found nothing: the port call proceeds as usual.
+    assert.equal(session.view().arrivalEncounter, null);
+    assert.equal(session.run('arrival:dismiss').ok, false);
+  }
+});
+
+test('the arrival encounter is seeded on the arrival, so it does not reroll', async () => {
+  const roll = async () => {
+    const { registry, campaignId } = await traderAtAster({ steward: true });
+    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    session.run('depart', { selectedSystemId: 'calder' });
+    return session.arrivalEncounter;
+  };
+  const first = await roll();
+  const second = await roll();
+  assert.deepEqual(first, second, 'the same arrival always yields the same encounter');
 });

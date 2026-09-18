@@ -79,7 +79,8 @@ module under `src/`. No view code changes in any slice.
    freight and passengers per destination. v0.208.3: speculation and resale.
    v0.209.0: inventory and load. v0.210.0: departure itself (jump, arrival,
    delivery, contracts, new port call, upkeep). Remaining: the arrival ship
-   encounter, mail, brokers, patrons, skim.
+   v0.211.0: the arrival ship encounter. Remaining: mail, brokers, patrons,
+   skim.
    Port call: `playProcedureSnapshot()` and its commands (berth, fuel,
    freight, passengers, speculation, resale, destination, depart) into
    `src/play-session.js`. `buildPlayProcedure` cards map to lead + rows.
