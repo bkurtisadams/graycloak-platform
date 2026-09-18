@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.204.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.204.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.204.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.205.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.205.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.205.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.204.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.205.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -140,11 +140,33 @@ function orderText(fighter, state) {
   return target ? `\u2192 ${shortName(target)} ${order.attack ? (move === 'stand' ? 'fire' : `${move}+fire`) : move}` : move;
 }
 
+// Weapon and armor drive every DM in the fight, so they sit in boxes like the
+// characteristics. The weapon box is the control for changing it. Blows left
+// shows only with a brawling or blade weapon in hand: guns ignore endurance
+// (Book 1 p.32).
+function gearRow(reader, state, handlers) {
+  const d = state.next?.declare;
+  const declaring = d && d.actorId === reader.id && !isDown(reader);
+  const weaponKey = declaring ? (d.weaponKey ?? reader.weaponKey) : reader.weaponKey;
+  const weapon = getPersonalWeapon(weaponKey);
+  const dice = woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 });
+  const label = (key) => { const spec = getPersonalWeapon(key); return `${spec.name}  ${woundText({ damageDice: spec.damageDice, damageModifier: spec.damageModifier ?? 0 })}`; };
+  const left = blowsRemaining(reader);
+  return h('div', { class: 'sel-gear' },
+    h('label', { class: 'sel-stat is-gear' }, h('small', { text: 'In hand' }),
+      declaring && reader.weapons.length > 1
+        ? h('select', { class: 'gear-select', onchange: (event) => handlers.onPickWeapon(event.target.value) },
+          reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: label(key) })))
+        : h('b', { text: `${weapon.name}  ${dice}` })),
+    h('span', { class: 'sel-stat is-gear' }, h('small', { text: 'Armor' }), h('b', { text: reader.armor === 'none' ? 'None' : reader.armor[0].toUpperCase() + reader.armor.slice(1) })),
+    weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: 'Combat blows before every swing is weakened (Book 1 p.31)' },
+      h('small', { text: 'Blows' }), h('b', { text: `${left}/${reader.blowAllowance}` })) : null);
+}
+
 // The selected combatant: who they are, what state they are in, and — when
 // they are yours to declare for — the two choices Book 1 p.28 asks for each
 // round: a movement status, and an attack.
 function selectedPanel(reader, state, handlers) {
-  const weapon = getPersonalWeapon(reader.weaponKey);
   const d = state.next?.declare;
   const declaring = d && d.actorId === reader.id;
   const parts = [
@@ -156,13 +178,11 @@ function selectedPanel(reader, state, handlers) {
         const now = reader.characteristics[key];
         const full = reader.full[key];
         return h('span', { class: `sel-stat${now < full ? ' is-hurt' : ''}` }, h('small', { text: key }), h('b', { text: now < full ? `${now}/${full}` : String(now) }));
-      }),
-      reader.other ? h('span', { class: 'sel-stat is-other' }, h('small', { text: reader.other })) : null),
+      })),
+    gearRow(reader, state, handlers),
     h('dl', { class: 'sel-lines' },
       h('dt', { text: 'Status' }),
-      h('dd', { class: condition(reader) === 'Unwounded' ? '' : 'is-hurt', text: weapon.melee ? `${condition(reader)}, ${blowsRemaining(reader)} blows left` : condition(reader) }),
-      h('dt', { text: 'In hand' }),
-      h('dd', { text: `${weapon.name} ${woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 })}, ${reader.armor === 'none' ? 'no armor' : reader.armor}` }))
+      h('dd', { class: condition(reader) === 'Unwounded' ? '' : 'is-hurt', text: condition(reader) }))
   ];
   if (declaring && !isDown(reader)) {
     const foes = state.fighters.filter((fighter) => fighter.side !== reader.side && !isDown(fighter));
@@ -177,8 +197,6 @@ function selectedPanel(reader, state, handlers) {
       noAttack
         ? h('p', { class: 'attack-line is-off', text: d.move === 'Evade' ? 'Evading: no attack this round.' : 'Running: no attack this round.' })
         : h('div', { class: 'attack-line' },
-          h('select', { 'aria-label': 'Weapon', onchange: (event) => handlers.onPickWeapon(event.target.value) },
-            reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: getPersonalWeapon(key).name }))),
           h('span', { class: 'attack-at' }, target ? `\u2192 ${target.name}` : 'pick a target below'),
           line ? h('b', { class: 'attack-need', title: line.preview?.canAttack ? dmBreakdown(line.preview) : '', text: /^\d/.test(line.text) ? `needs ${line.text}` : line.text }) : null));
   } else if (!isDown(reader)) {
@@ -305,9 +323,11 @@ function worldCaption(system, { role, label, onChoose = null } = {}) {
     onChoose ? h('button', { type: 'button', class: 'button is-primary', onclick: onChoose }, h('span', { text: `Set course for ${system.name}` })) : null);
 }
 
-function subsectorScene(scene, { onSelectSystem }) {
+function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
   const subsector = FAR_MERIDIAN_SUBSECTOR;
-  const current = getSubsectorSystem(subsector, scene.currentId ?? scene.fromId);
+  let current;
+  try { current = getSubsectorSystem(subsector, scene.currentId ?? scene.fromId); } catch { current = null; }
+  if (!current) return [h('p', { class: 'scene-title', text: `${subsector.name} subsector. This campaign's location is not on it.` })];
   const selected = (scene.selectedId ?? scene.toId) ? getSubsectorSystem(subsector, scene.selectedId ?? scene.toId) : null;
   const reachable = new Map(getJumpDestinations(subsector, current.id, scene.jump).map((entry) => [entry.system.id, entry.distance]));
   const svg = renderSubsectorMap({
@@ -322,7 +342,7 @@ function subsectorScene(scene, { onSelectSystem }) {
     const distance = reachable.get(selected.id);
     const away = `${distance} parsec${distance === 1 ? '' : 's'} away`;
     captions.push(Number.isFinite(distance)
-      ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, onChoose: inJump ? null : () => {} })
+      ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, onChoose: inJump || readOnly ? null : () => {} })
       : h('div', { class: 'caption caption-there' }, h('p', { class: 'caption-role', text: 'Out of range' }),
         h('h2', { text: selected.name }), h('p', { class: 'caption-facts', text: `Beyond Jump-${scene.jump} from ${current.name}.` })));
   }
@@ -439,7 +459,7 @@ export function renderScene(state, handlers) {
   const scene = state.scene;
   if (scene.kind === 'bands') return bandsScene(state, handlers);
   if (scene.kind === 'plot') return plotScene(state);
-  return subsectorScene(scene, handlers);
+  return subsectorScene(scene, handlers, Boolean(state.live));
 }
 
 // ----------------------------------------------------------------- drawers
@@ -452,26 +472,29 @@ function gauge(label, { now, full, note }, unit, { inverse = false } = {}) {
     note ? h('p', { text: note }) : null);
 }
 
-function characterDrawer(c) {
+function characterDrawer(c, state, handlers) {
+  const live = Boolean(state.live);
   return [
+    state.party?.length > 1 ? h('div', { class: 'tabs', role: 'tablist' }, state.party.map((member) => h('button', { type: 'button', role: 'tab', 'aria-selected': member.id === c.id, text: member.name, onclick: () => handlers.onPickCharacter(member.id) }))) : null,
     h('header', { class: 'drawer-head' }, h('h2', { text: c.name }), h('p', {}, h('span', { class: 'code', text: c.upp }), ` ${c.service}`)),
     h('div', { class: 'stats' }, c.characteristics.map((entry) =>
       h('div', { class: `stat${entry.now < entry.full ? ' is-hurt' : ''}` },
         h('span', { text: entry.key }), h('b', { text: entry.now < entry.full ? `${entry.now}/${entry.full}` : String(entry.now) })))),
-    h('p', { class: `status${c.hurt ? ' is-hurt' : ''}`, text: `${c.status}. ${c.blows}.` }),
+    h('p', { class: `status${c.hurt ? ' is-hurt' : ''}`, text: c.blows ? `${c.status}. ${c.blows}.` : `${c.status}.` }),
     h('h3', { text: 'Skills' }),
-    h('div', { class: 'skills' }, c.skills.map((skill) => h('button', { type: 'button', class: 'button is-small', title: `Throw 2D with ${skill}`, text: skill }))),
+    h('div', { class: 'skills' }, c.skills.length ? c.skills.map((skill) => (live ? h('span', { class: 'skill', text: skill }) : h('button', { type: 'button', class: 'button is-small', title: `Throw 2D with ${skill}`, text: skill }))) : h('span', { class: 'empty', text: 'None' })),
     h('h3', { text: 'Carried' }),
     h('dl', { class: 'pairs' },
       c.weapons.flatMap((weapon) => [h('dt', { text: weapon.name }), h('dd', { text: weapon.note || ' ' })]),
       h('dt', { text: 'Armor' }), h('dd', { text: c.armor }),
-      h('dt', { text: 'Load' }), h('dd', { text: c.carrying }),
+      c.carrying ? [h('dt', { text: 'Load' }), h('dd', { text: c.carrying })] : null,
       h('dt', { text: 'Cash' }), h('dd', { text: cr(c.cashCr) })),
-    h('button', { type: 'button', class: 'button', text: 'Open the full personnel record' })
+    live ? null : h('button', { type: 'button', class: 'button', text: 'Open the full personnel record' })
   ];
 }
 
-function shipDrawer(s) {
+function shipDrawer(s, state) {
+  const live = Boolean(state.live);
   return [
     h('header', { class: 'drawer-head' }, h('h2', { text: s.name }), h('p', { text: `${s.kind}, ${s.registry}` })),
     h('dl', { class: 'pairs' }, h('dt', { text: 'Ship’s account' }), h('dd', { text: cr(s.accountCr) }), h('dt', { text: 'Upkeep' }), h('dd', { text: s.upkeep })),
@@ -482,11 +505,13 @@ function shipDrawer(s) {
     h('dl', { class: 'pairs' }, s.crew.flatMap((member) => [h('dt', { text: member.name }), h('dd', { text: member.roles })])),
     h('h3', { text: 'Armament' }),
     h('p', { text: s.armament }),
-    h('button', { type: 'button', class: 'button', text: 'Fit armament' })
+    s.damage ? [h('h3', { text: 'Damage' }), h('p', { class: 'status is-hurt', text: s.damage })] : null,
+    live ? null : h('button', { type: 'button', class: 'button', text: 'Fit armament' })
   ];
 }
 
-function refereeDrawer(referee) {
+function refereeDrawer(referee, state) {
+  const live = Boolean(state.live);
   return [
     h('header', { class: 'drawer-head' }, h('h2', { text: 'Referee' }), h('p', { text: 'Drag an actor onto the scene to place it.' })),
     h('div', { class: 'tabs', role: 'tablist' }, referee.tabs.map((tab, index) => h('button', { type: 'button', role: 'tab', 'aria-selected': index === 0, text: tab }))),
@@ -496,14 +521,15 @@ function refereeDrawer(referee) {
       group.rows.length
         ? h('ul', {}, group.rows.map(([name, note]) => h('li', { draggable: 'true' }, h('span', { text: name }), h('span', { text: note }))))
         : h('p', { class: 'empty', text: 'Nothing here yet.' }))),
-    h('div', { class: 'lead-actions' }, h('button', { type: 'button', class: 'button', text: 'Create an actor' }), h('button', { type: 'button', class: 'button', text: 'Roll an NPC' }))
+    live ? null : h('div', { class: 'lead-actions' }, h('button', { type: 'button', class: 'button', text: 'Create an actor' }), h('button', { type: 'button', class: 'button', text: 'Roll an NPC' }))
   ];
 }
 
-export function renderDrawer(kind, state, referee) {
-  if (kind === 'character') return characterDrawer(state.character).flat();
-  if (kind === 'ship') return shipDrawer(state.ship).flat();
-  if (kind === 'referee') return refereeDrawer(referee).flat();
+export function renderDrawer(kind, state, referee, handlers = {}) {
+  const tidy = (parts) => parts.flat(Infinity).filter(Boolean);
+  if (kind === 'character' && state.character) return tidy(characterDrawer(state.character, state, handlers));
+  if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state));
+  if (kind === 'referee') return tidy(refereeDrawer(referee, state));
   return [];
 }
 

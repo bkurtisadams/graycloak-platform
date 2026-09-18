@@ -6,7 +6,10 @@ replaces them.
 
 Open it: `serve-traveller.bat`, then
 `http://localhost:8080/traveller/client/play.html`
-(`?show=port|decision|jump|fight|shipfight` opens a sample situation directly).
+
+- no parameters: the campaign last opened in this browser, read-only
+- `?campaign=<id>`: that campaign
+- `?show=port|decision|jump|fight|shipfight`: a sample screen
 
 ## The layout rule
 
@@ -32,6 +35,23 @@ hit them, the throw they need to hit back, and this round's order. Click a
 Movement and attack are separate declarations (p.28). A player seat will see
 only what is observable about the opposition; the referee sees all of it.
 
+## Rulings
+
+- The screen shows only the current situation (supersedes "nothing hidden").
+- Fight: selected combatant over a compact tracker; bands at full width.
+- Players see what an observer would of the opposition: movement, attack and
+  target, weapon, armor, condition in words. Not characteristics, weakened
+  blows, morale, or combatants the referee has marked hidden. Auto NPCs lock
+  their orders at the start of the round.
+- **Edition exception.** The 1977 printings are the authority, except
+  movement and range bands, which follow the 1981 text: 25 m bands; same band
+  is short, or close when markers touch; 1-2 medium; 3-10 long; 11-20 very
+  long; more than 20 from the nearest enemy has escaped; one band a round, two
+  at a run; short to close costs a move; opening from close reaches the next
+  band without running. The 1977 rounds-per-range movement table is unused.
+  `src/encounter-document.js` still implements the 1977 table until that
+  change lands.
+
 ## Files
 
 | file | job |
@@ -41,6 +61,7 @@ only what is observable about the opposition; the referee sees all of it.
 | `play.js` | shell state: situation, drawer, chat, theme |
 | `play-views.js` | pure DOM builders from a view state |
 | `play-sample.js` | the view-state contract, with sample data |
+| `../src/play-session.js` | headless: campaign documents to view state |
 
 `test/play-page.test.mjs` pins the separation: no imports from `app.js`,
 `ui-model.js` or the other page controllers, and no `styles.css`.
@@ -51,8 +72,8 @@ Each slice replaces part of `viewState()` in `play.js` with a read of the real
 campaign and ports the matching commands out of `app.js` into a headless
 module under `src/`. No view code changes in any slice.
 
-1. Load a campaign (`document-registry.js`, `?campaign=`): masthead, character
-   and ship drawers, current system on the map. Read-only.
+1. Done, v0.205.0. Load a campaign (`document-registry.js`, `?campaign=`):
+   masthead, character and ship drawers, jobs, current system on the map.
 2. Port call: `playProcedureSnapshot()` and its commands (berth, fuel,
    freight, passengers, speculation, resale, destination, depart) into
    `src/play-session.js`. `buildPlayProcedure` cards map to lead + rows.

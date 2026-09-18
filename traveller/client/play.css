@@ -302,7 +302,12 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .sel-head h2 { font-size: 22px; font-weight: 700; line-height: 1.15; }
 .sel-head p { font-size: 14px; color: var(--ink-2); }
 .sel-upp { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
-.sel-stats { display: flex; gap: 6px; }
+.sel-stats, .sel-gear { display: flex; gap: 6px; }
+.sel-stats .sel-stat { flex: 1; }
+.sel-gear .is-gear { flex: 1 1 0; min-width: 0; }
+.sel-gear .is-gear:first-child { flex: 2 1 0; }
+.sel-gear b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gear-select { width: 100%; padding: 0; border: 0; background: transparent; font-size: 16px; font-weight: 700; cursor: pointer; }
 .sel-stat { display: grid; min-width: 62px; padding: 4px 8px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; line-height: 1.25; }
 .sel-stat small { font-size: 13px; color: var(--ink-2); }
 .sel-stat b { font-size: 16px; }
@@ -312,7 +317,7 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .sel-lines { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 14px; }
 .sel-lines dt { color: var(--ink-2); }
 .sel-lines dd { text-align: right; font-weight: 700; }
-.attack-line { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.attack-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
 .attack-line.is-off { display: block; color: var(--ink-2); }
 .attack-at { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .attack-need { font-size: 18px; white-space: nowrap; cursor: help; }
@@ -381,6 +386,9 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .stat.is-hurt b, .status.is-hurt { color: var(--red); }
 .status { font-size: 14px; }
 .skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.skill { padding: 3px 9px; border: 1px solid var(--line); border-radius: 2px; font-size: 14px; }
+a.button { text-decoration: none; color: inherit; }
+.preview[hidden] { display: none; }
 .pairs { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; font-size: 14px; }
 .pairs dt { color: var(--ink-2); }
 .pairs dd { text-align: right; }

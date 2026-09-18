@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.205.0 the play page reads your campaign
+
+`client/play.html` now opens a real campaign, read-only. With no parameters it
+reads the campaign last opened in this browser; `?campaign=<id>` names one;
+`?show=port|decision|jump|fight|shipfight` still opens a sample screen. It
+reads the same document registry `index.html` autosaves to, and follows saves
+made in another tab, so the two pages can sit side by side.
+
+Real from the documents: campaign name and date, current world with its
+starport and hex, the party's characters (UPP, service, characteristics with
+wounds, skills, weapon in hand, armor, cash), the ship (account, fuel, hold
+with its manifest, staterooms, crew, armament, damage), accepted jobs soonest
+first with time left, the ship's real jump range on the map, and the referee
+drawer's party and actors. Nothing on the page changes the campaign yet.
+
+`src/play-session.js` is the headless adapter (`buildPlayViewState`), with
+`test/play-session.test.mjs`. No view code changed shape to take live data.
+
+Ruling recorded in `docs/play-page.md`: this project follows the 1977
+printings with one named exception — movement and range bands follow the 1981
+text. The engine still implements the 1977 band table; that change is the
+next version.
+
+## v0.204.2 weapon, armor and blows in boxes on the fight panel
+
+Weapon and armor drive every DM in a fight, so on the selected combatant they
+now sit in labelled boxes under STR / DEX / END. The "In hand" box is the
+weapon control itself (name and wound dice), which removes the separate menu
+from the attack line. A "Blows" box appears only with a brawling or blade
+weapon in hand, since guns ignore endurance (Book 1 p.32). INT, EDU and SOC
+leave the fight panel; they are in the character drawer.
+
 ## v0.204.1 the fight screen: selected combatant, compact tracker, full-width bands
 
 The per-combatant cards are gone: they did not scale past a handful of NPCs
