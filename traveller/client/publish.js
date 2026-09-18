@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.211.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.211.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.211.1';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.211.1';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -368,6 +368,23 @@ function homeRef(db, campaignId) {
 // `expectedRevision` is what this browser loaded (null for a campaign that
 // has never been saved to Firestore). On success the home's revision is what
 // was written; the caller keeps it for the next save.
+// v0.211.1: a campaign that does not exist yet cannot be read. Both the
+// envelope rule (allow get: isAtTravellerTable) and the home rule (allow
+// read: isTravellerReferee) decide "referee" by reading the campaign
+// document itself, so before the first save there is nothing to read and
+// Firestore denies rather than returning an empty snapshot. Treat a denied
+// read of an absent campaign as absent: the create that follows still has to
+// satisfy allow create, which checks ownership.ownerUid against the caller,
+// so nothing is taken on trust. Any other error is rethrown.
+async function getOrAbsent(ref) {
+  try {
+    return await ref.get();
+  } catch (error) {
+    if (error?.code === 'permission-denied') return { exists: false, data: () => null };
+    throw error;
+  }
+}
+
 export async function saveCampaignHome(home, envelope, { expectedRevision = null } = {}) {
   const db = await ensureFirestore();
   const ref = homeRef(db, home.campaignId);
@@ -377,7 +394,7 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
   // or write beneath it. Creating is allowed to the account it names as owner.
   let envelopeExisted = true;
   if (expectedRevision === null) {
-    envelopeExisted = (await envelopeRef.get()).exists;
+    envelopeExisted = (await getOrAbsent(envelopeRef)).exists;
     if (!envelopeExisted) await envelopeRef.set({ ...envelope, homeRevision: null, homeSavedAt: null });
   }
   let written = home.revision;
@@ -407,7 +424,7 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
 
 export async function loadCampaignHome(campaignId) {
   const db = await ensureFirestore();
-  const snapshot = await homeRef(db, campaignId).get();
+  const snapshot = await getOrAbsent(homeRef(db, campaignId));
   return snapshot.exists ? snapshot.data() : null;
 }
 

@@ -1,5 +1,35 @@
 # Graycloak Traveller
 
+## v0.211.1 a new campaign could not reach the cloud
+
+Starting a campaign from the lobby failed with "Missing or insufficient
+permissions", and the campaign stayed local.
+
+The Firestore rules decide who the referee is by reading the campaign
+document itself: the envelope is `allow get: if isAtTravellerTable(...)` and
+its home is `allow read: if isTravellerReferee(...)`, both of which resolve
+through `travellerCampaignExists(...)`. That is sound once a campaign exists
+and impossible before it does. A brand-new campaign has no document, so both
+reads deny, and Firestore denies a read of an absent document exactly as it
+denies a forbidden one — the client cannot tell "not there" from "not
+allowed".
+
+Two calls in `client/publish.js` did that pre-read and treated the denial as
+a hard failure:
+- `loadCampaignHome()`, which `openCampaignFromHome()` calls on boot, so
+  opening a new campaign threw instead of reporting nothing to open.
+- `saveCampaignHome()`, whose first-save path reads the envelope to decide
+  whether to create it — so the create that the rules *would* have allowed
+  never ran.
+
+Both now treat a `permission-denied` read as absent and carry on; any other
+error is rethrown. Nothing is taken on trust: the create that follows still
+has to satisfy `allow create`, which checks `ownership.ownerUid` against the
+signed-in account. No rules change is needed.
+
+Existing campaigns were never affected, which is why cloud saving looked
+fine until a new one was started.
+
 ## v0.211.0 the arrival ship encounter
 
 Fifth part of the port-call slice. Arriving at a world now throws for shipping
