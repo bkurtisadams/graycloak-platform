@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.204.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.204.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.204.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.204.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.204.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.204.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.204.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.204.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -27,7 +27,7 @@ export function h(tag, attributes = {}, ...children) {
     else if (key.startsWith('aria-')) node.setAttribute(key, String(value));
     else node.setAttribute(key, value === true ? '' : String(value));
   }
-  for (const child of children.flat()) {
+  for (const child of children.flat(Infinity)) {
     if (child === null || child === undefined || child === false) continue;
     node.append(child instanceof Node ? child : document.createTextNode(String(child)));
   }
@@ -104,28 +104,132 @@ function dmBreakdown(preview) {
   return `${parts.join(', ')}.`;
 }
 
-function declareForm(d, state, handlers) {
-  const actor = state.fighters.find((fighter) => fighter.id === d.actorId);
-  const foes = state.fighters.filter((fighter) => fighter.side !== actor.side && !fighter.down);
-  const target = foes.find((fighter) => fighter.id === d.targetId) ?? foes[0];
-  const weaponKey = d.weaponKey ?? actor.weaponKey;
-  const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Movement' },
-    d.moves.map((move) => h('button', { type: 'button', class: 'seg-option', 'aria-pressed': move === d.move, text: move,
-      onclick: (event) => { for (const b of event.currentTarget.parentNode.children) b.setAttribute('aria-pressed', String(b === event.currentTarget)); } })));
-  const weaponSelect = h('select', { onchange: (event) => handlers.onPickWeapon(event.target.value) },
-    actor.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: getPersonalWeapon(key).name })));
-  const targetSelect = h('select', { onchange: (event) => handlers.onPickTarget(event.target.value) },
-    foes.map((foe) => h('option', { value: foe.id, selected: foe.id === target?.id, text: `${foe.name}, ${rangeBetween(actor, foe).name.toLowerCase()}` })));
-  const line = target ? hitLine(actor, target, weaponKey) : null;
-  return h('div', { class: 'declare' },
-    seg,
-    h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: d.running }), ' At a run (spends a blow, no attack)'),
-    h('div', { class: 'field-pair' },
-      h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'Attack with' }), weaponSelect),
-      h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'At' }), targetSelect)),
-    line ? h('p', { class: 'need' }, h('b', { text: /^\d/.test(line.text) ? `Needs ${line.text}` : line.text[0].toUpperCase() + line.text.slice(1) }),
-      line.preview?.canAttack ? ` for ${woundText(line.preview)} wounds` : '') : null,
-    line?.preview?.canAttack ? h('p', { class: 'odds', text: dmBreakdown(line.preview) }) : null);
+function isDown(fighter) {
+  return fighter.down || ['STR', 'DEX', 'END'].some((key) => fighter.characteristics[key] <= 0);
+}
+
+function condition(fighter) {
+  const zeros = ['STR', 'DEX', 'END'].filter((key) => fighter.characteristics[key] <= 0).length;
+  if (zeros === 3) return 'Dead';
+  if (zeros === 2) return 'Seriously wounded';
+  if (zeros === 1) return 'Unconscious';
+  return ['STR', 'DEX', 'END'].some((key) => fighter.characteristics[key] < fighter.full[key]) ? 'Wounded' : 'Unwounded';
+}
+
+function shortName(fighter) {
+  return fighter.name.replace(/[^A-Z0-9]/g, '').slice(0, 2) || fighter.name[0];
+}
+
+// The declaration in force for a combatant: the player's live choice for the
+// one being declared, the stored order for everyone else.
+function orderOf(fighter, state) {
+  const d = state.next?.declare;
+  if (d && fighter.id === d.actorId) {
+    const evading = d.move === 'Evade';
+    return { move: d.running ? `${d.move}, running` : d.move, attack: evading || d.running ? null : 'fire', targetId: evading || d.running ? null : d.targetId, weaponKey: d.weaponKey ?? fighter.weaponKey };
+  }
+  return fighter.order ?? null;
+}
+
+function orderText(fighter, state) {
+  if (isDown(fighter)) return { Dead: 'dead', 'Seriously wounded': 'serious wound', Unconscious: 'unconscious' }[condition(fighter)];
+  const order = orderOf(fighter, state);
+  if (!order) return 'undeclared';
+  const target = order.targetId ? state.fighters.find((entry) => entry.id === order.targetId) : null;
+  const move = order.move.toLowerCase().replace(', running', ' (run)');
+  return target ? `\u2192 ${shortName(target)} ${order.attack ? (move === 'stand' ? 'fire' : `${move}+fire`) : move}` : move;
+}
+
+// The selected combatant: who they are, what state they are in, and — when
+// they are yours to declare for — the two choices Book 1 p.28 asks for each
+// round: a movement status, and an attack.
+function selectedPanel(reader, state, handlers) {
+  const weapon = getPersonalWeapon(reader.weaponKey);
+  const d = state.next?.declare;
+  const declaring = d && d.actorId === reader.id;
+  const parts = [
+    h('div', { class: 'sel-head' },
+      h('div', {}, h('h2', { text: reader.name }), reader.service ? h('p', { text: reader.service }) : h('p', { text: reader.side === 'party' ? 'Party' : 'Opposition' })),
+      reader.upp ? h('span', { class: 'sel-upp', text: reader.upp }) : null),
+    h('div', { class: 'sel-stats' },
+      ['STR', 'DEX', 'END'].map((key) => {
+        const now = reader.characteristics[key];
+        const full = reader.full[key];
+        return h('span', { class: `sel-stat${now < full ? ' is-hurt' : ''}` }, h('small', { text: key }), h('b', { text: now < full ? `${now}/${full}` : String(now) }));
+      }),
+      reader.other ? h('span', { class: 'sel-stat is-other' }, h('small', { text: reader.other })) : null),
+    h('dl', { class: 'sel-lines' },
+      h('dt', { text: 'Status' }),
+      h('dd', { class: condition(reader) === 'Unwounded' ? '' : 'is-hurt', text: weapon.melee ? `${condition(reader)}, ${blowsRemaining(reader)} blows left` : condition(reader) }),
+      h('dt', { text: 'In hand' }),
+      h('dd', { text: `${weapon.name} ${woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 })}, ${reader.armor === 'none' ? 'no armor' : reader.armor}` }))
+  ];
+  if (declaring && !isDown(reader)) {
+    const foes = state.fighters.filter((fighter) => fighter.side !== reader.side && !isDown(fighter));
+    const target = foes.find((fighter) => fighter.id === d.targetId) ?? null;
+    const weaponKey = d.weaponKey ?? reader.weaponKey;
+    const noAttack = d.move === 'Evade' || d.running;
+    const line = target && !noAttack ? hitLine(reader, target, weaponKey) : null;
+    parts.push(
+      h('div', { class: 'seg', role: 'group', 'aria-label': 'Movement this round' },
+        d.moves.map((move) => h('button', { type: 'button', class: 'seg-option', 'aria-pressed': move === d.move, text: move, onclick: () => handlers.onPickMove(move) }))),
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: d.running, onchange: (event) => handlers.onPickRunning(event.target.checked) }), ' At a run: two bands, spends a blow, no attack'),
+      noAttack
+        ? h('p', { class: 'attack-line is-off', text: d.move === 'Evade' ? 'Evading: no attack this round.' : 'Running: no attack this round.' })
+        : h('div', { class: 'attack-line' },
+          h('select', { 'aria-label': 'Weapon', onchange: (event) => handlers.onPickWeapon(event.target.value) },
+            reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: getPersonalWeapon(key).name }))),
+          h('span', { class: 'attack-at' }, target ? `\u2192 ${target.name}` : 'pick a target below'),
+          line ? h('b', { class: 'attack-need', title: line.preview?.canAttack ? dmBreakdown(line.preview) : '', text: /^\d/.test(line.text) ? `needs ${line.text}` : line.text }) : null));
+  } else if (!isDown(reader)) {
+    parts.push(h('p', { class: 'attack-line is-off', text: `This round: ${orderText(reader, state)}` }));
+  }
+  return h('section', { class: 'selected', 'aria-label': 'Selected combatant' }, parts);
+}
+
+function trackerRow(fighter, reader, state, handlers) {
+  const opposing = fighter.side !== reader.side;
+  const down = isDown(fighter);
+  const d = state.next?.declare;
+  const canTarget = d && d.actorId === reader.id && opposing && !down;
+  const targeted = canTarget && d.targetId === fighter.id;
+  const out = opposing && !down ? hitLine(reader, fighter, d && d.actorId === reader.id ? (d.weaponKey ?? reader.weaponKey) : reader.weaponKey) : null;
+  const back = opposing && !down ? hitLine(fighter, reader) : null;
+  const short = (line) => (line ? (/^\d/.test(line.text) ? line.text : line.text === 'cannot miss' ? 'auto' : '\u2014') : '');
+  const range = fighter === reader ? '' : { Close: 'C', Short: 'S', Medium: 'M', Long: 'L', 'Very long': 'VL', 'Out of range': 'out' }[rangeBetween(reader, fighter).name];
+  const stats = ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
+    h('span', { class: fighter.characteristics[key] < fighter.full[key] ? 'is-hurt' : '', text: String(fighter.characteristics[key]) })]);
+  const order = orderText(fighter, state);
+  return h('tr', { class: `is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-reader' : ''}`,
+    onclick: (event) => { if (!event.target.closest('button')) handlers.onSelectMarker(fighter.id); } },
+    h('td', {}, h('div', { class: 'tr-name' }, h('span', { class: 'tr-dot', 'aria-hidden': 'true' }), h('button', { type: 'button', class: 'tr-select', text: fighter.name, onclick: () => handlers.onSelectMarker(fighter.id) }))),
+    h('td', { class: 'tr-stats' }, stats),
+    h('td', { class: 'tr-range', title: fighter === reader ? '' : rangeBetween(reader, fighter).name, text: range }),
+    h('td', { class: 'tr-hit' }, canTarget
+      ? h('button', { type: 'button', class: 'tr-target', 'aria-pressed': targeted, title: out.preview?.canAttack ? `Target ${fighter.name}. ${dmBreakdown(out.preview)}` : `${fighter.name}: ${out.text}`, text: short(out), onclick: () => handlers.onPickTarget(fighter.id) })
+      : short(out)),
+    h('td', { class: 'tr-hit', title: back?.preview?.canAttack ? dmBreakdown(back.preview) : (back?.text ?? ''), text: short(back) }),
+    h('td', { class: `tr-order${order === 'undeclared' ? ' is-undeclared' : ''}`, title: order, text: order }));
+}
+
+function fightColumn(state, handlers) {
+  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
+  const sides = [state.fighters.filter((fighter) => fighter.side === 'party'), state.fighters.filter((fighter) => fighter.side !== 'party')];
+  const referee = state.seat !== 'player';
+  return [
+    h('header', { class: 'now-head' }, h('h1', { text: state.situation.title }), h('p', { text: state.situation.detail })),
+    selectedPanel(reader, state, handlers),
+    h('table', { class: 'tracker' },
+      h('thead', {}, h('tr', {},
+        h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'S\u00b7D\u00b7E' }), h('th', { title: `Range from ${reader.name}`, text: 'Rng' }),
+        h('th', { title: `What ${reader.name} must throw to hit them. Click to target.`, text: 'Hit' }), h('th', { title: `What they must throw to hit ${reader.name}`, text: 'Hit by' }), h('th', { text: 'This round' }))),
+      sides.map((side) => h('tbody', {}, side.map((fighter) => trackerRow(fighter, reader, state, handlers))))),
+    h('div', { class: 'lead-actions' },
+      (state.next?.actions ?? []).map((action) => h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button' }, h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null)),
+      referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
+      referee ? h('button', { type: 'button', class: 'button is-small', text: 'End fight' }) : null),
+    state.lastRound?.length ? h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))) : null
+  ];
 }
 
 function leadCard(next, state, handlers) {
@@ -133,7 +237,6 @@ function leadCard(next, state, handlers) {
   return h('section', { class: 'lead', 'aria-label': 'Do this next' },
     h('h2', { text: next.title }),
     next.copy ? h('p', { text: next.copy }) : null,
-    next.declare ? declareForm(next.declare, state, handlers) : null,
     next.actions?.length ? h('div', { class: 'lead-actions' }, next.actions.map((action) =>
       h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button' },
         h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null))) : null,
@@ -162,6 +265,7 @@ function rosterRow(entry) {
 }
 
 export function renderNow(state, handlers = {}) {
+  if (state.fighters?.length) return fightColumn(state, handlers).filter(Boolean);
   const parts = [
     h('header', { class: 'now-head' },
       h('h1', { text: state.situation.title }),
@@ -234,118 +338,69 @@ function subsectorScene(scene, { onSelectSystem }) {
   return parts;
 }
 
-// Book 1 p.29: lined paper. Same band close, next band short, 2-5 medium,
-// 6-9 long, 10-14 very long, 15 escaped. The line is one-dimensional, so it
-// is drawn as a narrow strip and the room beside it goes to the fight cards:
-// what each combatant is, and what it takes to hit or be hit by them.
-function initials(name) {
-  return name.replace(/[^A-Z0-9]/g, '').slice(0, 2) || name[0];
-}
-
-function bandStrip(state, reader, handlers) {
+// Book 1 p.29: lined paper, drawn across the whole scene. Same band close,
+// next band short, 2-5 medium, 6-9 long, 10-14 very long, 15 escaped. Ranges
+// are read from the selected marker; its declared target gets a line.
+function bandsScene(state, handlers) {
+  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
   const bands = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
-  const rowH = 40;
-  const width = 300;
-  const lane = 176;
-  const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${bands * rowH}`, class: 'bands', preserveAspectRatio: 'xMidYMin meet', role: 'group', 'aria-label': 'Range bands' });
+  const rowH = 46;
+  const width = 1000;
+  const gutter = 130;
+  const lane = width - gutter;
+  const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${bands * rowH}`, class: 'bands', preserveAspectRatio: 'xMidYMid meet', role: 'group', 'aria-label': 'Range bands' });
   const spans = [];
   for (let band = 0; band < bands; band += 1) {
     const gap = Math.abs(band - reader.band);
-    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out' : RANGE_NAMES[rangeBandForBandGap(gap)];
+    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band });
     svg.append(createSvgNode('rect', { x: 0, y: band * rowH, width: lane, height: rowH, class: `band${gap === 0 ? ' is-own' : ''}` }));
-    const number = createSvgNode('text', { x: 8, y: band * rowH + 15, class: 'band-number' });
+    const number = createSvgNode('text', { x: 10, y: band * rowH + 17, class: 'band-number' });
     number.textContent = String(band + 1);
     svg.append(number);
   }
   for (const span of spans) {
     const top = span.from * rowH + 4;
     const bottom = (span.to + 1) * rowH - 4;
-    svg.append(createSvgNode('line', { x1: lane + 10, y1: top, x2: lane + 10, y2: bottom, class: 'span-rule' }));
-    const label = createSvgNode('text', { x: lane + 20, y: (top + bottom) / 2 + 5, class: 'span-label' });
+    svg.append(createSvgNode('line', { x1: lane + 12, y1: top, x2: lane + 12, y2: bottom, class: 'span-rule' }));
+    const label = createSvgNode('text', { x: lane + 22, y: (top + bottom) / 2 + 5, class: 'span-label' });
     label.textContent = span.name;
     svg.append(label);
   }
+  const at = new Map();
   const perBand = new Map();
   for (const fighter of state.fighters) {
     const index = perBand.get(fighter.band) ?? 0;
     perBand.set(fighter.band, index + 1);
-    const cx = 50 + index * 36;
-    const cy = fighter.band * rowH + rowH / 2;
+    at.set(fighter.id, { cx: 80 + index * 230, cy: fighter.band * rowH + rowH / 2 });
+  }
+  const order = orderOf(reader, state);
+  if (order?.targetId && at.has(order.targetId) && !isDown(reader)) {
+    const from = at.get(reader.id);
+    const to = at.get(order.targetId);
+    svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: 'target-line' }));
+  }
+  for (const fighter of state.fighters) {
+    const { cx, cy } = at.get(fighter.id);
+    const down = isDown(fighter);
     const group = createSvgNode('g', {
-      class: `marker is-${fighter.side}${fighter.down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
+      class: `marker is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
       role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band + 1}`
     });
-    const title = createSvgNode('title');
-    title.textContent = fighter.name;
-    group.append(title, createSvgNode('circle', { cx, cy, r: 14 }));
-    const initial = createSvgNode('text', { x: cx, y: cy + 4, class: 'marker-initial', 'text-anchor': 'middle' });
-    initial.textContent = initials(fighter.name);
-    group.append(initial);
+    group.append(createSvgNode('circle', { cx, cy, r: 16 }));
+    const initial = createSvgNode('text', { x: cx, y: cy + 5, class: 'marker-initial', 'text-anchor': 'middle' });
+    initial.textContent = shortName(fighter);
+    const name = createSvgNode('text', { x: cx + 26, y: cy + 6, class: 'marker-name' });
+    name.textContent = down ? `${fighter.name} (down)` : fighter.name;
+    group.append(initial, name);
     group.addEventListener('click', () => handlers.onSelectMarker(fighter.id));
     group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.onSelectMarker(fighter.id); } });
     svg.append(group);
   }
-  return svg;
-}
-
-function condition(fighter) {
-  const zeros = ['STR', 'DEX', 'END'].filter((key) => fighter.characteristics[key] <= 0).length;
-  if (zeros === 3) return 'Dead';
-  if (zeros === 2) return 'Out, seriously wounded';
-  if (zeros === 1) return 'Unconscious';
-  return ['STR', 'DEX', 'END'].some((key) => fighter.characteristics[key] < fighter.full[key]) ? 'Wounded' : 'Unwounded';
-}
-
-function fightCard(fighter, reader, state, handlers) {
-  const isReader = fighter === reader;
-  const weapon = getPersonalWeapon(fighter.weaponKey);
-  const targetId = state.next?.declare?.targetId;
-  const stats = h('div', { class: 'card-stats' }, ['STR', 'DEX', 'END'].map((key) => {
-    const now = fighter.characteristics[key];
-    const full = fighter.full[key];
-    return h('span', { class: now < full ? 'is-hurt' : '' }, `${key} `, h('b', { text: now < full ? `${now}/${full}` : String(now) }));
-  }));
-  const facts = h('dl', { class: 'card-facts' },
-    h('dt', { text: 'In hand' }), h('dd', { text: `${weapon.name}, ${woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 })}` }),
-    h('dt', { text: 'Armor' }), h('dd', { text: fighter.armor === 'none' ? 'None' : fighter.armor[0].toUpperCase() + fighter.armor.slice(1) }),
-    weapon.melee ? [h('dt', { text: 'Blows left' }), h('dd', { text: `${blowsRemaining(fighter)} of ${fighter.blowAllowance}` })] : null,
-    fighter.order ? [h('dt', { text: 'This round' }), h('dd', { text: fighter.order })] : null);
-  const parts = [
-    h('header', {},
-      h('span', { class: 'card-badge', text: initials(fighter.name), 'aria-hidden': 'true' }),
-      h('h3', { text: fighter.name }),
-      h('span', { class: 'card-condition', text: condition(fighter) })),
-    stats,
-    facts
-  ];
-  if (!isReader && !fighter.down && fighter.side !== reader.side) {
-    const out = hitLine(reader, fighter);
-    const back = hitLine(fighter, reader);
-    parts.push(h('div', { class: 'card-odds' },
-      h('p', {}, h('span', { text: `${out.range.name}, ${out.range.gap} band${out.range.gap === 1 ? '' : 's'}` })),
-      h('p', {}, h('span', { text: `${reader.name} hits on` }), h('b', { text: out.text })),
-      h('p', {}, h('span', { text: `Hits ${reader.name} on` }), h('b', { text: back.text }))));
-    if (reader.id === state.next?.declare?.actorId) {
-      parts.push(h('button', { type: 'button', class: fighter.id === targetId ? 'button is-small is-chosen' : 'button is-small',
-        'aria-pressed': fighter.id === targetId, text: fighter.id === targetId ? 'Target' : 'Make target', onclick: () => handlers.onPickTarget(fighter.id) }));
-    }
-  }
-  return h('article', { class: `fight-card is-${fighter.side}${fighter.down ? ' is-down' : ''}${isReader ? ' is-reader' : ''}`,
-    onclick: (event) => { if (!event.target.closest('button')) handlers.onSelectMarker(fighter.id); } }, parts);
-}
-
-function bandsScene(state, handlers) {
-  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
-  const group = (label, side) => h('section', { class: 'card-group' },
-    h('h2', { text: label }),
-    h('div', { class: 'card-row' }, state.fighters.filter((fighter) => (fighter.side === 'party') === (side === 'party')).map((fighter) => fightCard(fighter, reader, state, handlers))));
   return [
-    h('p', { class: 'scene-title', text: `Ranges and throws are read from ${reader.name}. Select a marker or a card to read from someone else.` }),
-    h('div', { class: 'fight' },
-      bandStrip(state, reader, handlers),
-      h('div', { class: 'cards' }, group('Party', 'party'), group('Opposition', 'foe')))
+    h('p', { class: 'scene-title', text: `Ranges read from ${reader.name}. Each band is 25 m; one band a round, two at a run.` }),
+    svg
   ];
 }
 

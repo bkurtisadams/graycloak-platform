@@ -1,5 +1,21 @@
 # Graycloak Traveller
 
+## v0.204.1 the fight screen: selected combatant, compact tracker, full-width bands
+
+The per-combatant cards are gone: they did not scale past a handful of NPCs
+and squeezed the board into a strip. In a fight the left column is now the
+selected combatant (characteristics with wounds, status, weapon in hand and
+armor, and the round's declaration) over a one-line-per-combatant tracker:
+S·D·E, range, the throw the selected combatant needs to hit them, the throw
+they need to hit back, and this round's order. Clicking a "Hit" number makes
+that combatant the target; clicking a name or a marker reads from them. The
+range bands take the whole scene again, with the declared target joined by a
+line.
+
+Movement status and attack are declared separately, as Book 1 p.28 has it:
+closing or opening while firing is legal; evading or running forbids the
+attack, and the attack line says so.
+
 ## v0.204.0 a new play page, beside the old client
 
 `client/play.html` is a new entry page with its own stylesheet and pure view

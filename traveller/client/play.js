@@ -2,8 +2,8 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.204.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.204.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.204.1';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.204.1';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -16,7 +16,9 @@ const ui = {
   selectedSystemId: null,
   selectedMarker: null,
   fightTargetId: null,
-  fightWeaponKey: null
+  fightWeaponKey: null,
+  fightMove: null,
+  fightRunning: null
 };
 if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 
@@ -29,7 +31,8 @@ function viewState() {
   if (scene.kind === 'bands' && ui.selectedMarker) scene.selected = ui.selectedMarker;
   let next = sample.next;
   if (next?.declare) {
-    next = { ...next, declare: { ...next.declare, targetId: ui.fightTargetId ?? next.declare.targetId, weaponKey: ui.fightWeaponKey ?? next.declare.weaponKey } };
+    next = { ...next, declare: { ...next.declare, targetId: ui.fightTargetId ?? next.declare.targetId, weaponKey: ui.fightWeaponKey ?? next.declare.weaponKey,
+      move: ui.fightMove ?? next.declare.move, running: ui.fightRunning ?? next.declare.running } };
   }
   return { ...sample, next, scene };
 }
@@ -56,7 +59,9 @@ function render() {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
     onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
     onPickTarget: (id) => { ui.fightTargetId = id; render(); },
-    onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); }
+    onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },
+    onPickMove: (move) => { ui.fightMove = move; render(); },
+    onPickRunning: (on) => { ui.fightRunning = on; render(); }
   };
   $('now').replaceChildren(...renderNow(state, handlers));
   $('scene').replaceChildren(...renderScene(state, handlers));
@@ -72,7 +77,7 @@ function render() {
 
   $('preview').replaceChildren(h('span', { text: 'Sample data' }), ...SAMPLE_ORDER.map(([key, label]) =>
     h('button', { type: 'button', 'aria-pressed': key === ui.situation, text: label,
-      onclick: () => { ui.situation = key; ui.selectedSystemId = null; ui.selectedMarker = null; ui.fightTargetId = null; ui.fightWeaponKey = null; render(); } })));
+      onclick: () => { ui.situation = key; ui.selectedSystemId = null; ui.selectedMarker = null; ui.fightTargetId = null; ui.fightWeaponKey = null; ui.fightMove = null; ui.fightRunning = null; render(); } })));
 }
 
 function paintThemeButton() {

@@ -285,43 +285,66 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .span-label { font: 600 15px var(--display); fill: var(--ink); }
 .marker { cursor: pointer; }
 .marker circle { fill: var(--ink); stroke: var(--ink); stroke-width: 2; }
-.marker .marker-initial { font: 11px var(--code); fill: var(--ground); }
-.marker .marker-name { font: 600 15px var(--display); fill: var(--ink); }
+.marker .marker-initial { font: 700 12px var(--code); fill: var(--ground); }
+.marker .marker-name { font: 600 17px var(--display); fill: var(--ink); }
 .marker.is-foe circle { fill: var(--ground); stroke: var(--red); }
 .marker.is-foe .marker-initial { fill: var(--red); }
 .marker.is-selected circle { stroke: var(--signal); stroke-width: 4; }
 .marker.is-down { opacity: 0.45; }
 
-/* A fight: the band strip, and beside it a card per combatant. */
-.fight { grid-row: 3; min-height: 0; display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 8px; padding: 8px 20px 16px; }
-.scene .fight svg { padding: 0; height: 100%; }
-.cards { min-height: 0; overflow-y: auto; display: grid; gap: 16px; align-content: start; }
-.card-group h2 { font-size: 14px; font-weight: 700; padding-bottom: 6px; }
-.card-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
-.fight-card { display: grid; gap: 8px; align-content: start; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--signal); cursor: pointer; }
-.fight-card.is-foe { border-top-color: var(--red); }
-.fight-card.is-reader { background: var(--signal-wash); border-color: var(--signal); }
-.fight-card.is-down { opacity: 0.55; }
-.fight-card header { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; }
-.card-badge { grid-row: span 2; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--panel); font-size: 13px; font-weight: 700; }
-.is-foe .card-badge { background: var(--panel); color: var(--red); border: 2px solid var(--red); }
-.fight-card h3 { font-size: 16px; font-weight: 700; line-height: 1.2; }
-.card-condition { font-size: 13px; color: var(--ink-2); }
-.card-stats { display: flex; gap: 12px; font-size: 14px; }
-.card-stats b { font-size: 16px; }
-.card-stats .is-hurt, .card-stats .is-hurt b { color: var(--red); }
-.card-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 14px; }
-.card-facts dt { color: var(--ink-2); }
-.card-odds { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
-.card-odds p { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
-.card-odds b { font-size: 18px; }
-.button.is-chosen { background: var(--ink); color: var(--panel); }
-.need { font-size: 15px; }
-.need b { font-size: 20px; }
-@container (max-width: 700px) {
-  .fight { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
-  .scene .fight svg { height: 420px; }
-}
+/* A fight. The left column widens to hold the selected combatant and the
+   tracker; the scene is the band board and nothing else. */
+.shell[data-situation='fight'] { --now-width: 520px; }
+.target-line { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 5; pointer-events: none; }
+
+.selected { display: grid; gap: 10px; padding-top: 12px; border-top: 3px solid var(--ink); }
+.sel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.sel-head h2 { font-size: 22px; font-weight: 700; line-height: 1.15; }
+.sel-head p { font-size: 14px; color: var(--ink-2); }
+.sel-upp { font-size: 20px; font-weight: 700; letter-spacing: 0.08em; }
+.sel-stats { display: flex; gap: 6px; }
+.sel-stat { display: grid; min-width: 62px; padding: 4px 8px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; line-height: 1.25; }
+.sel-stat small { font-size: 13px; color: var(--ink-2); }
+.sel-stat b { font-size: 16px; }
+.sel-stat.is-hurt { border-color: var(--red); }
+.sel-stat.is-hurt b, .sel-lines .is-hurt { color: var(--red); }
+.sel-stat.is-other { flex: 1; align-content: center; }
+.sel-lines { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 14px; }
+.sel-lines dt { color: var(--ink-2); }
+.sel-lines dd { text-align: right; font-weight: 700; }
+.attack-line { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.attack-line.is-off { display: block; color: var(--ink-2); }
+.attack-at { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attack-need { font-size: 18px; white-space: nowrap; cursor: help; }
+
+.tracker { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+.tracker th:nth-child(1) { width: 33%; }
+.tracker th:nth-child(2) { width: 14%; }
+.tracker th:nth-child(3) { width: 7%; }
+.tracker th:nth-child(4) { width: 10%; }
+.tracker th:nth-child(5) { width: 10%; }
+.lead-actions { align-items: center; }
+.tracker th { text-align: left; font-weight: 400; font-size: 13px; color: var(--ink-2); padding: 0 6px 4px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; cursor: help; }
+.tracker td { overflow: hidden; padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tracker tbody + tbody tr:first-child td { border-top: 2px solid var(--ink); }
+.tracker tr { cursor: pointer; }
+.tracker tbody tr:hover td { background: var(--raise); }
+.tracker tr.is-reader td { background: var(--signal-wash); }
+.tracker tr.is-down td { opacity: 0.5; }
+.tr-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tr-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--signal); }
+.is-foe .tr-dot { background: var(--red); }
+.is-down .tr-dot { background: var(--ink-2); }
+.tr-select { background: none; border: 0; padding: 0; font-weight: 700; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-stats .is-hurt { color: var(--red); font-weight: 700; }
+.tr-range { color: var(--ink-2); }
+.tr-hit { font-weight: 700; text-align: center; }
+.tracker th:nth-child(4), .tracker th:nth-child(5) { text-align: center; }
+.tr-target { min-width: 44px; padding: 1px 6px; background: none; border: 1px solid var(--ink); border-radius: 2px; font-weight: 700; cursor: pointer; }
+.tr-target:hover { background: var(--go); color: var(--go-ink); border-color: var(--go-border); }
+.tr-target[aria-pressed='true'] { background: var(--ink); color: var(--panel); }
+.tr-order { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
+.tr-order.is-undeclared { color: var(--ink); background: var(--attention); padding-left: 6px; }
 
 .phases { display: flex; gap: 0; margin: 12px 20px 0; border: 1px solid var(--ink); border-radius: 2px; counter-reset: phase; }
 .phases li { flex: 1; padding: 7px 10px; font-size: 14px; border-left: 1px solid var(--ink); counter-increment: phase; white-space: nowrap; }
