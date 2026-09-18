@@ -14,6 +14,8 @@
 // client/app.js uses, through a `cloud` adapter so none of it needs a browser.
 
 import {
+  PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
+  setCharacterMilitaryLoad, updateCharacterInventoryItem,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, bookPassenger, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost,
   canShipMakeJump, generateFreightOffers, generatePassengerDemand, getPersonalWeapon, getSubsectorSystem,
   generateSpeculativeTradeOffer, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile, payCurrentBerthing,
@@ -52,7 +54,21 @@ function sentenceCase(text) {
   return value ? value[0].toUpperCase() + value.slice(1) : '';
 }
 
-export function characterView(document) {
+const kg = (grams) => `${(grams / 1000).toFixed(grams % 1000 === 0 ? 0 : grams % 100 === 0 ? 1 : 2)} kg`;
+const LOAD_WORDS = Object.freeze({
+  unencumbered: 'Not encumbered',
+  encumbered: 'Encumbered: STR, DEX and END count as one less',
+  'military-load': 'Military load: STR, DEX and END count as two less',
+  overloaded: 'More than can be carried: something must be put down'
+});
+
+// Weapons that can be added to an inventory by name, with their printed weights.
+export function weaponCatalog() {
+  return Object.entries(PERSONAL_WEAPON_WEIGHTS_GRAMS).filter(([key, weight]) => weight.weapon > 0 && PERSONAL_WEAPONS[key])
+    .map(([key, weight]) => ({ key, name: PERSONAL_WEAPONS[key].name, grams: weight.weapon + weight.ammunition }));
+}
+
+export function characterView(document, { gravityFactor = null } = {}) {
   const full = document.characteristics ?? {};
   const current = document.current ?? {};
   const characteristics = ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC'].map((key) => ({
@@ -87,7 +103,25 @@ export function characterView(document) {
     weapons,
     armor: sentenceCase(document.loadout?.armor ?? 'none'),
     carrying: null,
-    blows: null
+    blows: null,
+    ...loadView(document, gravityFactor)
+  };
+}
+
+function loadView(document, gravityFactor) {
+  if (!Array.isArray(document.inventory)) return { inventory: [], load: null };
+  const load = characterLoad(document, { gravityFactor });
+  return {
+    inventory: document.inventory.map((item) => ({
+      id: item.id, name: item.name, quantity: item.quantity, carried: item.carried, counts: item.countsTowardLoad,
+      weight: item.countsTowardLoad ? kg(item.weightGrams * item.quantity) : 'not counted'
+    })),
+    load: {
+      state: load.state, dm: load.characteristicDM, military: load.military,
+      text: `${kg(load.loadGrams)} of ${kg(load.normalGrams)}`,
+      words: LOAD_WORDS[load.state],
+      limits: `Free to ${kg(load.normalGrams)}, encumbered to ${kg(load.doubleGrams)}${load.military ? `, military load to ${kg(load.tripleGrams)}` : ''}${load.multiplier !== 1 ? `; local gravity ${load.multiplier > 1 ? 'adds' : 'takes'} ${Math.abs(Math.round((load.multiplier - 1) * 1000) / 10)}%` : ''}.`
+    }
   };
 }
 
@@ -172,7 +206,9 @@ export function refereeView(resolved) {
 export function buildPlayViewState(resolved, { subsector, seat = 'referee', characterId = null } = {}) {
   const { campaign, characters = [], ships = [], contracts = [] } = resolved;
   const party = (campaign.party?.characterIds ?? []).map((id) => characters.find((entry) => entry.identity.id === id)).filter(Boolean);
-  const roster = (party.length ? party : characters).map(characterView);
+  let gravityFactor = null;
+  try { gravityFactor = parseUniversalWorldProfile(getSubsectorSystem(subsector, campaign.location?.systemId).mainWorld.uwp).size; } catch { /* off the map */ }
+  const roster = (party.length ? party : characters).map((entry) => characterView(entry, { gravityFactor }));
   const wanted = characterId ?? campaign.activeCharacterId;
   const character = roster.find((entry) => entry.id === wanted) ?? roster[0] ?? null;
   const shipDocument = ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? ships[0] ?? null;
@@ -199,7 +235,8 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     done: [],
     scene: { kind: 'subsector', currentId: campaign.location?.systemId ?? null, selectedId: null, jump: ship?.jump ?? 0 },
     chat: [],
-    referee: refereeView(resolved)
+    referee: refereeView(resolved),
+    weaponCatalog: weaponCatalog()
   };
 }
 
@@ -512,9 +549,51 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   }
 
   // Returns { ok, message }. A refused command changes nothing.
-  function run(command, { selectedSystemId = null } = {}) {
+  function runInventory(command, { characterId = null, item = null } = {}) {
+    const character = resolved.characters.find((entry) => entry.identity.id === characterId) ?? null;
+    if (!character) throw new Error('choose a character first');
+    const [, verb, ...rest] = command.split(':');
+    const itemId = rest.join(':');
+    const named = character.inventory.find((entry) => entry.id === itemId);
+    let next;
+    let message;
+    if (verb === 'add') {
+      if (item?.weaponKey) next = addCharacterInventoryItem(character, { weaponKey: item.weaponKey, carried: true });
+      else {
+        const name = String(item?.name ?? '').trim();
+        const grams = Math.round(Number(item?.weightKg ?? 0) * 1000);
+        const quantity = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
+        if (!name) throw new Error('give the item a name');
+        if (!Number.isFinite(grams) || grams < 0) throw new Error('weight must be zero or more kilograms');
+        next = addCharacterInventoryItem(character, { name, weightGrams: grams, quantity, carried: true });
+      }
+      message = `${character.identity.name} now has ${next.inventory.at(-1).name}`;
+    } else if (verb === 'toggle') {
+      if (!named) throw new Error('that item is no longer listed');
+      next = updateCharacterInventoryItem(character, itemId, { carried: !named.carried });
+      message = `${character.identity.name} ${named.carried ? 'put down' : 'picked up'} ${named.name}`;
+    } else if (verb === 'remove') {
+      if (!named) throw new Error('that item is no longer listed');
+      next = removeCharacterInventoryItem(character, itemId);
+      message = `${named.name} removed from ${character.identity.name}\u2019s inventory`;
+    } else if (verb === 'military') {
+      next = setCharacterMilitaryLoad(character, itemId === 'on');
+      message = `${character.identity.name} ${itemId === 'on' ? 'carries as part of a military force' : 'carries as a civilian'}`;
+    } else throw new Error(`unknown command: ${command}`);
+    persist([next]);
+    return message;
+  }
+
+  function run(command, { selectedSystemId = null, characterId = null, item = null } = {}) {
     try {
       if (save.state === 'stale') throw new Error('this campaign was changed elsewhere; reload first');
+      if (command.startsWith('inventory:')) {
+        if (resolved.encounters.some((entry) => entry.status === 'active')) throw new Error('a fight is in progress; finish it in the current client');
+        lastMessage = { ok: true, message: runInventory(command, { characterId, item }) };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       const facts = portFacts(resolved, subsector, selectedSystemId);
       if (facts.fight) throw new Error('a fight is in progress; finish it in the current client');
       if (!facts.ship || !facts.system) throw new Error('an active ship at a mapped world is required');

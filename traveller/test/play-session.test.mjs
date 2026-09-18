@@ -374,3 +374,41 @@ test('a speculative lot carried to another world is quoted there and sold', asyn
   assert.equal(ship.state.cargoManifest.some((entry) => /^speculative:/.test(entry.category)), false);
   assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.at(-1).category, 'TRADE');
 });
+
+// ---------------------------------------------------------------- v0.209.0
+test('a saved character gains an inventory on load, seeded from the weapon in hand', async () => {
+  const { character } = buildPlayViewState(await resolved(), { subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.deepEqual(character.inventory.map((item) => [item.name, item.weight, item.carried]), [['Laser Rifle, loaded', '10 kg', true]]);
+  // Hawkeye is STR 10 on Cinder (size 2): (7 - 2) x 12.5% more may be carried.
+  assert.equal(character.load.state, 'unencumbered');
+  assert.equal(character.load.text, '10 kg of 16.25 kg');
+});
+
+test('inventory commands change the character, the load, and the saved document', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true }); // Orison is size 5
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const id = session.view().character.id;
+  const load = () => session.view().character.load;
+  assert.equal(load().text, '10 kg of 12.5 kg');
+
+  assert.equal(session.run('inventory:add', { characterId: id, item: { name: 'Medical kit', weightKg: '10', quantity: '1' } }).ok, true);
+  assert.deepEqual([load().state, load().dm, load().text], ['encumbered', -1, '20 kg of 12.5 kg']);
+  assert.equal(session.run('inventory:add', { characterId: id, item: { weaponKey: 'revolver' } }).ok, true);
+  assert.equal(load().text, '21 kg of 12.5 kg');
+  assert.equal(session.run('inventory:add', { characterId: id, item: { name: 'Vacc suit', weightKg: '10' } }).ok, true);
+  assert.equal(load().state, 'overloaded', '31 kg is past double 12.5');
+  assert.equal(session.run('inventory:military:on', { characterId: id }).ok, true);
+  assert.deepEqual([load().state, load().dm], ['military-load', -2]);
+
+  const kit = session.view().character.inventory.find((item) => item.name === 'Medical kit');
+  assert.equal(session.run(`inventory:toggle:${kit.id}`, { characterId: id }).ok, true);
+  assert.equal(load().text, '21 kg of 12.5 kg', 'put down, it no longer counts, but it stays listed');
+  assert.equal(session.view().character.inventory.find((item) => item.id === kit.id).carried, false);
+  assert.equal(session.run(`inventory:remove:${kit.id}`, { characterId: id }).ok, true);
+
+  const saved = registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === id);
+  assert.equal(saved.schemaVersion, 4);
+  assert.deepEqual(saved.inventory.map((item) => item.name), ['Laser Rifle, loaded', 'Revolver, loaded', 'Vacc suit']);
+  assert.equal(saved.loadout.militaryLoad, true);
+  assert.equal(session.run('inventory:add', { characterId: id, item: { name: '  ', weightKg: '1' } }).ok, false);
+});

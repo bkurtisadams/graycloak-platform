@@ -35,7 +35,13 @@ const character = {
   skills: ['Pilot-1', 'Navigation-2', 'Electronics-1', 'Mechanical-1', 'Jack-of-all-Trades-2', 'Grav Vehicle-1'],
   weapons: [{ name: 'Laser rifle', note: '+1 DEX 10+' }, { name: 'Blade', note: '' }],
   armor: 'None',
-  carrying: '6.0 of 10 kg',
+  carrying: null,
+  inventory: [
+    { id: 'weapon-laser-rifle', name: 'Laser Rifle, loaded', quantity: 1, carried: true, counts: true, weight: '10 kg' },
+    { id: 'weapon-blade', name: 'Blade', quantity: 1, carried: true, counts: true, weight: '0.35 kg' },
+    { id: 'item-medical-kit', name: 'Medical kit', quantity: 1, carried: false, counts: true, weight: '10 kg' }
+  ],
+  load: { state: 'encumbered', dm: -1, military: false, text: '10.35 kg of 10 kg', words: 'Encumbered: STR, DEX and END count as one less', limits: 'Free to 10 kg, encumbered to 20 kg.' },
   blows: '5 combat blows'
 };
 

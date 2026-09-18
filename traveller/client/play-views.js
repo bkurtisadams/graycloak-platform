@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.208.3';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.208.3';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.208.3';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.209.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.209.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.209.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.208.3';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.209.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -483,6 +483,43 @@ function gauge(label, { now, full, note }, unit, { inverse = false } = {}) {
     note ? h('p', { text: note }) : null);
 }
 
+// What the character carries, and what it costs them (Book 1 p.32). Carried
+// items count toward load; items put down stay listed so they can be picked
+// up again. Read-only when the page cannot change the campaign.
+function inventorySection(c, state, handlers) {
+  if (!c.load) return c.carrying ? [h('h3', { text: 'Carried' }), h('dl', { class: 'pairs' }, h('dt', { text: 'Load' }), h('dd', { text: c.carrying }))] : null;
+  const act = state.live && handlers.onInventory ? (command, item) => handlers.onInventory(command, c.id, item) : null;
+  const rows = c.inventory.map((item) => h('li', { class: `inv${item.carried ? '' : ' is-down'}` },
+    h('label', { class: 'inv-name' },
+      h('input', { type: 'checkbox', checked: item.carried, disabled: !act, title: item.carried ? 'Carried. Untick to put it down.' : 'Put down. Tick to carry it.', onchange: act ? () => act(`inventory:toggle:${item.id}`) : null }),
+      h('span', { text: item.quantity > 1 ? `${item.name} \u00d7${item.quantity}` : item.name })),
+    h('span', { class: 'inv-weight', text: item.weight }),
+    act ? h('button', { type: 'button', class: 'inv-remove', 'aria-label': `Remove ${item.name}`, title: 'Remove from the inventory', text: '\u00d7', onclick: () => act(`inventory:remove:${item.id}`) }) : null));
+  const form = act ? h('form', { class: 'inv-add', onsubmit: (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    if (data.get('weapon')) act('inventory:add', { weaponKey: data.get('weapon') });
+    else act('inventory:add', { name: data.get('name'), weightKg: data.get('kg'), quantity: data.get('qty') });
+  } },
+    h('select', { name: 'weapon', 'aria-label': 'Add a weapon from Book 1', onchange: (event) => { for (const field of event.currentTarget.form.querySelectorAll('.inv-custom')) field.disabled = Boolean(event.currentTarget.value); } },
+      h('option', { value: '', text: 'Something else\u2026' }),
+      (state.weaponCatalog ?? []).map((weapon) => h('option', { value: weapon.key, text: `${weapon.name}, ${(weapon.grams / 1000).toFixed(2).replace(/\.?0+$/, '')} kg` }))),
+    h('input', { class: 'inv-custom', name: 'name', type: 'text', placeholder: 'Item', 'aria-label': 'Item name' }),
+    h('input', { class: 'inv-custom inv-num', name: 'kg', type: 'number', min: '0', step: '0.05', placeholder: 'kg', 'aria-label': 'Weight in kilograms, each' }),
+    h('input', { class: 'inv-custom inv-num', name: 'qty', type: 'number', min: '1', step: '1', value: '1', 'aria-label': 'Quantity' }),
+    h('button', { type: 'submit', class: 'button is-small', text: 'Add' })) : null;
+  return [
+    h('h3', { text: 'Carried' }),
+    h('div', { class: `load is-${c.load.state}` },
+      h('div', { class: 'gauge-head' }, h('span', { text: 'Load' }), h('b', { text: c.load.text })),
+      h('p', { class: 'load-words', text: c.load.words }),
+      h('p', { class: 'load-limits', text: c.load.limits })),
+    c.inventory.length ? h('ul', { class: 'inv-list' }, rows) : h('p', { class: 'empty', text: 'Nothing listed. Clothing, worn armor, holsters and belts never count.' }),
+    form,
+    act ? h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: c.load.military, onchange: (event) => act(`inventory:military:${event.currentTarget.checked ? 'on' : 'off'}`) }), ' Part of a military force: may carry triple, at two less') : null
+  ];
+}
+
 function characterDrawer(c, state, handlers) {
   const live = Boolean(state.live);
   return [
@@ -494,12 +531,12 @@ function characterDrawer(c, state, handlers) {
     h('p', { class: `status${c.hurt ? ' is-hurt' : ''}`, text: c.blows ? `${c.status}. ${c.blows}.` : `${c.status}.` }),
     h('h3', { text: 'Skills' }),
     h('div', { class: 'skills' }, c.skills.length ? c.skills.map((skill) => (live ? h('span', { class: 'skill', text: skill }) : h('button', { type: 'button', class: 'button is-small', title: `Throw 2D with ${skill}`, text: skill }))) : h('span', { class: 'empty', text: 'None' })),
-    h('h3', { text: 'Carried' }),
+    h('h3', { text: 'In hand and worn' }),
     h('dl', { class: 'pairs' },
       c.weapons.flatMap((weapon) => [h('dt', { text: weapon.name }), h('dd', { text: weapon.note || ' ' })]),
       h('dt', { text: 'Armor' }), h('dd', { text: c.armor }),
-      c.carrying ? [h('dt', { text: 'Load' }), h('dd', { text: c.carrying })] : null,
       h('dt', { text: 'Cash' }), h('dd', { text: cr(c.cashCr) })),
+    inventorySection(c, state, handlers),
     live ? null : h('button', { type: 'button', class: 'button', text: 'Open the full personnel record' })
   ];
 }

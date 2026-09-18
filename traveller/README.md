@@ -1,5 +1,52 @@
 # Graycloak Traveller
 
+## v0.209.0 inventory, load and encumbrance (rules package 0.62.0)
+
+Characters could not carry anything, nothing had a weight, and Book 1 p.32's
+WEIGHT rule was not implemented.
+
+**Rules package, `classic-traveller-rules` 0.62.0**
+- `src/characters/load.js`: `assessLoad()` is p.32 as printed. Strength in kg
+  is carried freely; up to double is encumbered and Strength, Dexterity and
+  Endurance count as one less "for all purposes, including wounds and strength
+  advantage"; a member of a military force may carry triple at two less; more
+  than that cannot be carried. Local gravity adds or takes 12.5% of load for
+  each factor from 7 (the world's size digit). `applyLoadToCharacteristics()`
+  gives the reduced values.
+- `PERSONAL_WEAPON_WEIGHTS_GRAMS`: every weapon's printed weight from pp.33-38,
+  with its magazine, cartridges or power pack; a gun is reckoned loaded. Where
+  the book prints a range the midpoint is used and noted. A dagger is "worn
+  constantly" and does not count, as the book says.
+- Character documents are schema 4 with an `inventory`: id, name, quantity,
+  weight each, carried or put down, whether it counts toward load, and the
+  weapon key if it is one. Saved characters migrate on load, seeded with the
+  weapon in hand (carried) and other mustering-out weapons (put down).
+  `addCharacterInventoryItem`, `updateCharacterInventoryItem`,
+  `removeCharacterInventoryItem`, `setCharacterMilitaryLoad`, `characterLoad`.
+- Load is reckoned against the full Strength characteristic, not Strength as
+  wounded: the rule says "his strength characteristic".
+- Two misprints on p.33 are noted in the code and the rule as stated followed:
+  a gravity of 3 "allows an additional 40%" though four steps of 12.5% is 50%,
+  and a gravity of 8 is worked as "(8 - 9 = -1)".
+
+**Play page.** The character drawer has a Carried section: the load against
+the free limit, what state that puts the character in, the limits with local
+gravity, each item with a tick to carry it or put it down and a remove button,
+an add row (any Book 1 weapon by name with its printed weight, or a named item
+with a weight and quantity), and the military-force switch. Changes save like
+every other command and are refused while a fight is running.
+
+**Not yet.** The fight engine does not read encumbrance: a fight still uses the
+character's own Strength, Dexterity and Endurance. That belongs with the combat
+slice, where the reduced values must feed the required and advantageous DMs and
+the wound track without being written back as wounds. Book 3's equipment list
+has no catalogue yet, so gear other than weapons is typed in with its weight.
+Armor worn, clothing, holsters and belts never count, per the text.
+
+The rules package suite has six failures that are in the uploaded package
+before this change (Book 3 p.27 reaction floor, the facsimile wound reset, the
+long-gun parry, and three Book 2 fuel tests); this version adds none.
+
 ## v0.208.3 speculation on the play page; encounters say 1977
 
 **Speculative trade (Book 2 pp.42-47).** Third part of the port-call slice.

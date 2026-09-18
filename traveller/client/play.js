@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.208.3';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.208.3';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.208.3';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.208.3';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.208.3';
-import { createPlayCloud } from './play-cloud.js?v=v0.208.3';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.208.3';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.209.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.209.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.209.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.209.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.209.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.209.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.209.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -186,7 +186,8 @@ function render() {
   $('scene').replaceChildren(...renderScene(state, handlers));
 
   $('drawer').hidden = !ui.drawer;
-  if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, state.referee ?? SAMPLE_REFEREE, { onPickCharacter: (id) => { ui.characterId = id; render(); } }));
+  if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, state.referee ?? SAMPLE_REFEREE, { onPickCharacter: (id) => { ui.characterId = id; render(); },
+    onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); } }));
 
   const last = state.chat[state.chat.length - 1];
   $('talk-last').replaceChildren(...(last ? [h('b', { text: `${last.who} ` }), last.text] : []));

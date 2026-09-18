@@ -82,7 +82,9 @@ test('schema v2 gameplay characters migrate with current health and a usable loa
   delete legacy.loadout;
 
   const migrated = importCharacterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 3);
+  assert.equal(migrated.schemaVersion, 4);
+  // v0.62.0 (schema 4): migration seeds the inventory from what is known.
+  assert.ok(Array.isArray(migrated.inventory));
   assert.deepEqual(migrated.current, {
     STR: migrated.characteristics.STR,
     DEX: migrated.characteristics.DEX,

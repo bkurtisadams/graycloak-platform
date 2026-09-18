@@ -118,8 +118,25 @@ export {
   migrateCharacterDocument,
   linkCharacterToShip,
   updateCharacterShipReference,
-  updateCharacterGameplayState
+  updateCharacterGameplayState,
+  addCharacterInventoryItem,
+  updateCharacterInventoryItem,
+  removeCharacterInventoryItem,
+  setCharacterMilitaryLoad,
+  characterLoad
 } from './src/characters/character-document.js';
+
+export {
+  NORMAL_GRAVITY_FACTOR,
+  GRAVITY_LOAD_STEP,
+  PERSONAL_WEAPON_WEIGHTS_GRAMS,
+  personalWeaponWeight,
+  personalWeaponCarriedWeightGrams,
+  gravityLoadMultiplier,
+  assessLoad,
+  applyLoadToCharacteristics,
+  inventoryLoadGrams
+} from './src/characters/load.js';
 
 export {
   stableDocumentId

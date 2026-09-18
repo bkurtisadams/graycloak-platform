@@ -4,15 +4,16 @@ import { assertValidCharacter } from './serialization.js';
 import { SERVICE_KEYS, getService } from '../careers/services.js';
 import { stableDocumentId } from '../documents/ids.js';
 import { PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, getPersonalWeapon } from '../combat/personal-combat.js';
+import { assessLoad, inventoryLoadGrams, personalWeaponCarriedWeightGrams, personalWeaponWeight } from './load.js';
 
 export const CHARACTER_DOCUMENT_TYPE = 'classic-traveller-character';
-export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 3;
-export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
+export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 4;
+export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
 
 const SERVICE_VALUES = new Set(SERVICE_KEYS);
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'age', 'chronology',
-  'characteristics', 'current', 'upp', 'status', 'career', 'skills', 'loadout', 'finances',
+  'characteristics', 'current', 'upp', 'status', 'career', 'skills', 'loadout', 'inventory', 'finances',
   'benefits', 'shipRefs', 'history', 'notes', 'provenance'
 ]);
 const LEGACY_V1_TOP_LEVEL_KEYS = new Set([
@@ -221,6 +222,7 @@ export function createCharacterDocument(character, { id, aliases = [], notes = '
       weaponKey: defaultCharacterWeaponKey({ benefits, skills: character.skills }),
       armor: 'none'
     },
+    inventory: initialInventory({ benefits, weaponKey: defaultCharacterWeaponKey({ benefits, skills: character.skills }) }),
     finances: {
       credits: character.credits,
       retirementPayAnnual: character.retirementPayAnnual
@@ -416,6 +418,25 @@ export function validateCharacterDocument(document) {
     add(errors, PERSONAL_ARMOR_TYPES.includes(document.loadout.armor), 'loadout.armor is invalid');
   }
 
+  add(errors, Array.isArray(document.inventory), 'inventory must be an array');
+  if (Array.isArray(document.inventory)) {
+    const seen = new Set();
+    document.inventory.forEach((item, index) => {
+      const at = `inventory[${index}]`;
+      if (!isPlainObject(item)) { errors.push(`${at} must be an object`); return; }
+      add(errors, typeof item.id === 'string' && item.id.trim() !== '' && !seen.has(item.id), `${at}.id must be a unique nonblank string`);
+      seen.add(item.id);
+      add(errors, typeof item.name === 'string' && item.name.trim() !== '', `${at}.name must be a nonblank string`);
+      add(errors, Number.isInteger(item.quantity) && item.quantity >= 1, `${at}.quantity must be a positive integer`);
+      add(errors, Number.isFinite(item.weightGrams) && item.weightGrams >= 0, `${at}.weightGrams must be a non-negative number`);
+      add(errors, typeof item.carried === 'boolean', `${at}.carried must be a boolean`);
+      add(errors, typeof item.countsTowardLoad === 'boolean', `${at}.countsTowardLoad must be a boolean`);
+      add(errors, item.weaponKey === null || typeof item.weaponKey === 'string', `${at}.weaponKey must be a string or null`);
+      if (typeof item.weaponKey === 'string') { try { getPersonalWeapon(item.weaponKey); } catch (error) { errors.push(`${at}: ${error.message}`); } }
+    });
+  }
+  if (isPlainObject(document.loadout) && document.loadout.militaryLoad !== undefined) add(errors, typeof document.loadout.militaryLoad === 'boolean', 'loadout.militaryLoad must be a boolean');
+
   add(errors, isPlainObject(document.finances), 'finances must be an object');
   if (isPlainObject(document.finances)) {
     add(errors, integerAtLeast(document.finances.credits, 0), 'finances.credits must be a non-negative integer');
@@ -491,6 +512,13 @@ export function migrateCharacterDocument(document) {
     };
     migrated.schemaVersion = 3;
   }
+  if (migrated.schemaVersion === 3) {
+    // v4: what the character carries (Book 1 p.32 WEIGHT). Start from what is
+    // already known: the weapon in hand, carried, and any other weapons from
+    // mustering out, stowed.
+    migrated.inventory = initialInventory({ benefits: migrated.benefits, weaponKey: migrated.loadout?.weaponKey });
+    migrated.schemaVersion = 4;
+  }
   if (migrated.schemaVersion === CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION) return migrated;
   throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);
 }
@@ -524,6 +552,71 @@ export function updateCharacterGameplayState(document, { current, alive, conscio
   if (notes !== undefined) next.notes = String(notes);
   assertValidCharacterDocument(next);
   return next;
+}
+
+// ---- inventory (schema 4) ----------------------------------------------------
+
+function weaponItem(weaponKey, { carried }) {
+  const spec = getPersonalWeapon(weaponKey);
+  const weight = personalWeaponWeight(weaponKey);
+  return {
+    id: `weapon-${weaponKey}`, name: weight?.ammunition ? `${spec.name}, loaded` : spec.name, quantity: 1,
+    weightGrams: personalWeaponCarriedWeightGrams(weaponKey), carried, countsTowardLoad: weight?.countsTowardLoad ?? true, weaponKey
+  };
+}
+
+function initialInventory({ benefits, weaponKey } = {}) {
+  const items = [];
+  const held = weaponKey && weaponKey !== 'hands' && personalWeaponWeight(weaponKey) ? weaponKey : null;
+  if (held) items.push(weaponItem(held, { carried: true }));
+  const names = new Map(Object.entries(PERSONAL_WEAPONS).map(([key, spec]) => [spec.name.toLowerCase(), key]));
+  for (const entry of benefits?.equipment ?? []) {
+    const key = names.get(String(entry?.name ?? '').toLowerCase());
+    if (key && key !== held && personalWeaponWeight(key) && !items.some((item) => item.weaponKey === key)) items.push(weaponItem(key, { carried: false }));
+  }
+  return items;
+}
+
+export function addCharacterInventoryItem(document, { id = null, name, quantity = 1, weightGrams = 0, carried = true, countsTowardLoad = true, weaponKey = null } = {}) {
+  const next = importCharacterDocument(document);
+  const item = weaponKey && !name ? weaponItem(weaponKey, { carried }) : { id: null, name: String(name ?? '').trim(), quantity, weightGrams, carried, countsTowardLoad, weaponKey };
+  let itemId = id ?? item.id ?? `item-${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'}`;
+  const taken = new Set(next.inventory.map((entry) => entry.id));
+  if (taken.has(itemId)) { let n = 2; while (taken.has(`${itemId}-${n}`)) n += 1; itemId = `${itemId}-${n}`; }
+  next.inventory.push({ ...item, id: itemId, quantity: Number(item.quantity), weightGrams: Number(item.weightGrams), carried: Boolean(item.carried), countsTowardLoad: Boolean(item.countsTowardLoad), weaponKey: item.weaponKey ?? null });
+  assertValidCharacterDocument(next);
+  return next;
+}
+
+export function updateCharacterInventoryItem(document, itemId, patch = {}) {
+  const next = importCharacterDocument(document);
+  const index = next.inventory.findIndex((entry) => entry.id === itemId);
+  if (index < 0) throw new CharacterDocumentValidationError(`no inventory item: ${itemId}`);
+  const allowed = ['name', 'quantity', 'weightGrams', 'carried', 'countsTowardLoad'];
+  next.inventory[index] = { ...next.inventory[index], ...Object.fromEntries(Object.entries(patch).filter(([key]) => allowed.includes(key))) };
+  assertValidCharacterDocument(next);
+  return next;
+}
+
+export function removeCharacterInventoryItem(document, itemId) {
+  const next = importCharacterDocument(document);
+  if (!next.inventory.some((entry) => entry.id === itemId)) throw new CharacterDocumentValidationError(`no inventory item: ${itemId}`);
+  next.inventory = next.inventory.filter((entry) => entry.id !== itemId);
+  assertValidCharacterDocument(next);
+  return next;
+}
+
+export function setCharacterMilitaryLoad(document, military) {
+  const next = importCharacterDocument(document);
+  next.loadout.militaryLoad = Boolean(military);
+  assertValidCharacterDocument(next);
+  return next;
+}
+
+// Load is reckoned against the full Strength characteristic: the rule speaks
+// of "his strength characteristic", not of strength as wounded.
+export function characterLoad(document, { gravityFactor = null } = {}) {
+  return assessLoad({ strength: document.characteristics.STR, loadGrams: inventoryLoadGrams(document.inventory), military: Boolean(document.loadout?.militaryLoad), gravityFactor });
 }
 
 export function updateCharacterShipReference(document, { shipId, shipType, shipName, relationship } = {}) {
