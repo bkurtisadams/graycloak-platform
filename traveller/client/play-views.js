@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.205.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.205.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.205.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.206.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.206.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.206.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.205.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.206.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -73,10 +73,16 @@ function jobRow(job) {
 
 const RANGE_NAMES = { close: 'Close', short: 'Short', medium: 'Medium', long: 'Long', 'very-long': 'Very long' };
 
+// 1981 bands (the project's edition exception): close and short share a band,
+// and close is contact — markers touching.
+function inContact(a, b) {
+  return Boolean(a.contactIds?.includes(b.id) && b.contactIds?.includes(a.id));
+}
+
 function rangeBetween(a, b) {
   const gap = Math.abs(a.band - b.band);
   if (gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS) return { gap, key: null, name: 'Out of range' };
-  const key = rangeBandForBandGap(gap);
+  const key = rangeBandForBandGap(gap, { touching: inContact(a, b) });
   return { gap, key, name: RANGE_NAMES[key] };
 }
 
@@ -126,7 +132,8 @@ function orderOf(fighter, state) {
   const d = state.next?.declare;
   if (d && fighter.id === d.actorId) {
     const evading = d.move === 'Evade';
-    return { move: d.running ? `${d.move}, running` : d.move, attack: evading || d.running ? null : 'fire', targetId: evading || d.running ? null : d.targetId, weaponKey: d.weaponKey ?? fighter.weaponKey };
+    const verb = getPersonalWeapon(d.weaponKey ?? fighter.weaponKey).melee ? 'swing' : 'fire';
+    return { move: d.running ? `${d.move}, running` : d.move, attack: evading || d.running ? null : verb, targetId: evading || d.running ? null : d.targetId, weaponKey: d.weaponKey ?? fighter.weaponKey };
   }
   return fighter.order ?? null;
 }
@@ -137,7 +144,7 @@ function orderText(fighter, state) {
   if (!order) return 'undeclared';
   const target = order.targetId ? state.fighters.find((entry) => entry.id === order.targetId) : null;
   const move = order.move.toLowerCase().replace(', running', ' (run)');
-  return target ? `\u2192 ${shortName(target)} ${order.attack ? (move === 'stand' ? 'fire' : `${move}+fire`) : move}` : move;
+  return target ? `\u2192 ${shortName(target)} ${order.attack ? (move === 'stand' ? order.attack : `${move}+${order.attack}`) : move}` : move;
 }
 
 // Weapon and armor drive every DM in the fight, so they sit in boxes like the
@@ -364,7 +371,7 @@ function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
 function bandsScene(state, handlers) {
   const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
   const bands = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
-  const rowH = 46;
+  const rowH = 40;
   const width = 1000;
   const gutter = 130;
   const lane = width - gutter;
@@ -372,7 +379,7 @@ function bandsScene(state, handlers) {
   const spans = [];
   for (let band = 0; band < bands; band += 1) {
     const gap = Math.abs(band - reader.band);
-    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
+    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : gap === 0 ? 'Short, or close' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band });
     svg.append(createSvgNode('rect', { x: 0, y: band * rowH, width: lane, height: rowH, class: `band${gap === 0 ? ' is-own' : ''}` }));
@@ -393,7 +400,9 @@ function bandsScene(state, handlers) {
   for (const fighter of state.fighters) {
     const index = perBand.get(fighter.band) ?? 0;
     perBand.set(fighter.band, index + 1);
-    at.set(fighter.id, { cx: 80 + index * 230, cy: fighter.band * rowH + rowH / 2 });
+    // Markers in contact are drawn touching, as the 1981 text has it.
+    const partner = state.fighters.find((other) => at.has(other.id) && other.band === fighter.band && inContact(fighter, other));
+    at.set(fighter.id, partner ? { cx: at.get(partner.id).cx + 30, cy: at.get(partner.id).cy, tucked: true } : { cx: 80 + index * 230, cy: fighter.band * rowH + rowH / 2 });
   }
   const order = orderOf(reader, state);
   if (order?.targetId && at.has(order.targetId) && !isDown(reader)) {
@@ -408,10 +417,10 @@ function bandsScene(state, handlers) {
       class: `marker is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
       role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band + 1}`
     });
-    group.append(createSvgNode('circle', { cx, cy, r: 16 }));
+    group.append(createSvgNode('circle', { cx, cy, r: 14 }));
     const initial = createSvgNode('text', { x: cx, y: cy + 5, class: 'marker-initial', 'text-anchor': 'middle' });
     initial.textContent = shortName(fighter);
-    const name = createSvgNode('text', { x: cx + 26, y: cy + 6, class: 'marker-name' });
+    const name = createSvgNode('text', { x: cx + 24, y: cy + 6, class: 'marker-name' });
     name.textContent = down ? `${fighter.name} (down)` : fighter.name;
     group.append(initial, name);
     group.addEventListener('click', () => handlers.onSelectMarker(fighter.id));
@@ -419,7 +428,7 @@ function bandsScene(state, handlers) {
     svg.append(group);
   }
   return [
-    h('p', { class: 'scene-title', text: `Ranges read from ${reader.name}. Each band is 25 m; one band a round, two at a run.` }),
+    h('p', { class: 'scene-title', text: `Ranges read from ${reader.name}. Bands are 25 m: one a round, two at a run. Touching markers are at close range.` }),
     svg
   ];
 }

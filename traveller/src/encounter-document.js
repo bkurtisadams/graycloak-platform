@@ -48,8 +48,19 @@ export const ENCOUNTER_RANGE_GUIDE_VERSION = 'graycloak-meter-grid-v4';
 // the line has no width, so every combatant shares it; only column carries
 // meaning, and it is a raw band count, never multiplied into meters.
 export const ENCOUNTER_RANGE_LINE_GUIDE_VERSION = 'graycloak-book1-line-grid-v1';
-export const ENCOUNTER_RANGE_LINE_BAND_GAP = Object.freeze({ close: 0, short: 1, medium: 5, long: 9, 'very-long': 14 });
-export const ENCOUNTER_RANGE_LINE_ESCAPE_BANDS = 15;
+// v0.206.0, Graycloak ruling: the 1977 printings are this project's authority
+// with one named exception — movement and range bands follow the 1981 text.
+// The 1977 band table (same band close, next short, 2-5 medium, 6-9 long,
+// 10-14 very long, 15 escaped) fits no single band size against Book 1's own
+// distances and contradicts its rounds-per-range movement table at medium.
+// 1981 drops that table and states: bands are 25 m; close and short both lie
+// inside one band (close is markers touching, which is contactIds here);
+// 1-2 bands medium, 3-10 long, 11-20 very long; anyone more than 20 bands
+// from the nearest enemy has escaped. Placement uses each range's far edge,
+// as the scene board does.
+export const ENCOUNTER_RANGE_LINE_BAND_GAP = Object.freeze({ close: 0, short: 0, medium: 2, long: 10, 'very-long': 20 });
+// The first gap that is off the field: "more than 20 bands away".
+export const ENCOUNTER_RANGE_LINE_ESCAPE_BANDS = 21;
 export const ENCOUNTER_RANGE_LINE_COLUMNS = 41;
 // v0.94.0: 'setup' is the phase Foundry's tracker occupies — the encounter
 // exists and collects combatants, and BEGIN COMBAT turns it into a fight. Our
@@ -587,16 +598,16 @@ export function rangeBandForMapDistance(distance) {
   return PERSONAL_COMBAT_RANGES.find((range) => range !== 'close' && distance <= ENCOUNTER_RANGE_GUIDE[range].maximum) ?? 'very-long';
 }
 
-// Book 1 p.29's own line-grid table: same band is close, one row apart is
-// short, 2-5 rows is medium, 6-9 is long, 10-14 is very long. Fifteen or more
-// means one side has left the fight — resolveDeclaredRound handles that as an
-// escape, not as a combat range, so this never needs to express it.
-export function rangeBandForBandGap(gap) {
+// The 1981 range band table (see the ruling above the band constants). Two
+// combatants in the same band are at short range unless they are in contact;
+// pass touching for that, or use encounterPairRange, which reads contactIds.
+// Twenty-one or more means one side has left the fight — resolveDeclaredRound
+// handles that as an escape, not as a combat range.
+export function rangeBandForBandGap(gap, { touching = false } = {}) {
   if (!Number.isInteger(gap) || gap < 0) throw new RangeError('band gap must be a non-negative integer');
-  if (gap === 0) return 'close';
-  if (gap === 1) return 'short';
-  if (gap <= 5) return 'medium';
-  if (gap <= 9) return 'long';
+  if (gap === 0) return touching ? 'close' : 'short';
+  if (gap <= 2) return 'medium';
+  if (gap <= 10) return 'long';
   return 'very-long';
 }
 
@@ -943,7 +954,12 @@ function closestOpposingBand(entries, spatialMode = 'scene') {
   const foes = entries.filter((entry) => entry.side === 'opposition' && entry.status === 'active');
   if (!party.length || !foes.length) return null;
   let best = Infinity;
-  for (const actor of party) for (const foe of foes) best = Math.min(best, encounterMapDistance(actor, foe));
+  let touching = false;
+  for (const actor of party) for (const foe of foes) {
+    best = Math.min(best, encounterMapDistance(actor, foe));
+    if (actor.contactIds?.includes(foe.id) && foe.contactIds?.includes(actor.id)) touching = true;
+  }
+  if (touching) return 'close';
   return spatialMode === 'range-line' ? rangeBandForBandGap(best) : rangeBandForMapDistance(best);
 }
 
@@ -1117,7 +1133,13 @@ export function resolveDeclaredRound(document, { dice, date, playerAllocatesWoun
   // Establish contact only after every destination has landed; otherwise the
   // declaration order would change a simultaneous result.
   for (const plan of movementPlans) {
-    if (plan.direction === 'close' && encounterMapDistance(plan.mover, plan.moveTarget) === 0) setContact(plan.mover, plan.moveTarget);
+    // 1981: "Moving from short to close range is counted as moving one range
+    // band." On the line, arriving in the target's band spends the move and
+    // leaves the mover at short; contact needs a move still in hand — a walk
+    // from the same band, or a run from the next one.
+    const gapBefore = encounterMapDistance({ position: plan.result.from }, beforeMovement.get(plan.moveTarget.id));
+    const reaches = next.map.spatialMode !== 'range-line' || gapBefore + 1 <= plan.result.bands;
+    if (plan.direction === 'close' && reaches && encounterMapDistance(plan.mover, plan.moveTarget) === 0) setContact(plan.mover, plan.moveTarget);
     const band = encounterPairRange(plan.mover, plan.moveTarget, next.map.spatialMode);
     const squares = Number((plan.result.meters / next.map.metersPerSquare).toFixed(2));
     entries.push({
@@ -1313,7 +1335,8 @@ function concludeRound(next, entries, live, { dice, date } = {}) {
     if (entry.status !== 'active') continue;
     const nearest = nearestActiveOpponent(entry, [...live.values()].filter((candidate) => candidate.side !== entry.side));
     const escapeThreshold = next.map.spatialMode === 'range-line' ? ENCOUNTER_RANGE_LINE_ESCAPE_BANDS : 20 * ENCOUNTER_METERS_PER_RANGE_BAND;
-    if (nearest && encounterMapDistance(entry, nearest) > escapeThreshold) entry.status = 'escaped';
+    const gone = next.map.spatialMode === 'range-line' ? encounterMapDistance(entry, nearest ?? entry) >= escapeThreshold : encounterMapDistance(entry, nearest ?? entry) > escapeThreshold;
+    if (nearest && gone) entry.status = 'escaped';
   }
   replaceCombatants(next, ...live.values());
   next.range = closestOpposingBand(next.combatants, next.map.spatialMode) ?? next.range;

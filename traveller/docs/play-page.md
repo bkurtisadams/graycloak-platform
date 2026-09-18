@@ -49,8 +49,7 @@ only what is observable about the opposition; the referee sees all of it.
   long; more than 20 from the nearest enemy has escaped; one band a round, two
   at a run; short to close costs a move; opening from close reaches the next
   band without running. The 1977 rounds-per-range movement table is unused.
-  `src/encounter-document.js` still implements the 1977 table until that
-  change lands.
+  Implemented in `src/encounter-document.js` as of v0.206.0.
 
 ## Files
 

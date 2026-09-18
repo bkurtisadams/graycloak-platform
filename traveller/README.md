@@ -1,5 +1,39 @@
 # Graycloak Traveller
 
+## v0.206.0 range bands follow the 1981 text (the one edition exception)
+
+Graycloak ruling: the 1977 printings remain this project's authority, except
+movement and range bands, which follow the 1981 text. The 1977 band table
+(same band close, next short, 2-5 medium, 6-9 long, 10-14 very long, 15
+escaped) fits no single band size against Book 1's own distances, and its
+rounds-per-range movement table contradicts the bands at medium. 1981 drops
+that table and makes the bands 25 m, which reproduces the stated distances.
+
+`src/encounter-document.js`, range-line fights only:
+- `rangeBandForBandGap(gap, { touching })`: same band is short, or close when
+  the two are in contact; 1-2 medium; 3-10 long; 11-20 very long.
+- `ENCOUNTER_RANGE_LINE_ESCAPE_BANDS` is 21: more than twenty bands from the
+  nearest enemy has escaped.
+- `ENCOUNTER_RANGE_LINE_BAND_GAP` places the sides at each range's far edge:
+  close 0 (in contact), short 0, medium 2, long 10, very long 20.
+- Short to close costs a move: walking into an enemy's band leaves you at
+  short; contact needs a move still in hand (a walk from the same band, a run
+  from the next). Opening from close reaches the next band in one move.
+- The fight's overall range reads close when any opposing pair is in contact.
+
+Scene (tactical grid) fights are unchanged; they already measured in metres.
+A range-line fight saved mid-round under the old table keeps its positions
+and now reads them by the new one.
+
+Old client: the band board draws 0-20 plus the escape band, labels zones by
+the 1981 table, and asks the engine for the selected pair's range so contact
+shows as close. New page: the sample fight uses the same table, draws markers
+in contact touching, and words a melee order "swing".
+
+Known and unchanged: the party is placed in band 0, so on the band board it
+cannot open range past the edge; only the opposition can. To be fixed with
+the combat slice.
+
 ## v0.205.0 the play page reads your campaign
 
 `client/play.html` now opens a real campaign, read-only. With no parameters it

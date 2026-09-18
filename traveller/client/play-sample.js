@@ -149,6 +149,8 @@ export const SAMPLE_SITUATIONS = Object.freeze({
     character: woundedCharacter,
     place: { name: 'Cinder', detail: 'Startown, behind the freight sheds' },
     situation: { kind: 'fight', title: 'Fight, round 3', detail: 'Range bands, 25 m each' },
+    // Bands follow the 1981 table. Thug 1 has walked into Hawkeye's band:
+    // short range, one more move from contact.
     // Combatants are in the rules package's own shape, so every number on the
     // fight cards comes from previewPersonalAttack(), not from this file.
     fighters: [
@@ -161,15 +163,15 @@ export const SAMPLE_SITUATIONS = Object.freeze({
         full: { STR: 6, DEX: 7, END: 5 }, characteristics: { STR: 6, DEX: 7, END: 5 },
         armor: 'none', weaponKey: 'revolver', weapons: ['revolver', 'hands'], skills: { Revolver: 0 }, blowAllowance: 5, blowsUsed: 0,
         order: null },
-      { id: 'thug-1', name: 'Thug 1', side: 'foe', band: 4,
+      { id: 'thug-1', name: 'Thug 1', side: 'foe', band: 2,
         full: { STR: 9, DEX: 6, END: 8 }, characteristics: { STR: 9, DEX: 6, END: 8 },
         armor: 'jack', weaponKey: 'club', weapons: ['club'], skills: { Club: 1 }, blowAllowance: 8, blowsUsed: 0,
-        order: { move: 'Close, running', attack: null, targetId: null } },
-      { id: 'thug-2', name: 'Thug 2', side: 'foe', band: 6,
+        order: { move: 'Close', attack: 'swing', targetId: 'hawkeye' } },
+      { id: 'thug-2', name: 'Thug 2', side: 'foe', band: 4,
         full: { STR: 8, DEX: 7, END: 7 }, characteristics: { STR: 8, DEX: 7, END: 4 },
         armor: 'jack', weaponKey: 'revolver', weapons: ['revolver'], skills: { Revolver: 1 }, blowAllowance: 7, blowsUsed: 0,
         order: { move: 'Stand', attack: 'fire', targetId: 'hawkeye' } },
-      { id: 'thug-3', name: 'Thug 3', side: 'foe', band: 5, down: true,
+      { id: 'thug-3', name: 'Thug 3', side: 'foe', band: 7, down: true,
         full: { STR: 7, DEX: 8, END: 6 }, characteristics: { STR: 0, DEX: 3, END: 0 },
         armor: 'jack', weaponKey: 'dagger', weapons: ['dagger'], skills: { Dagger: 0 }, blowAllowance: 6, blowsUsed: 2,
         order: null }
