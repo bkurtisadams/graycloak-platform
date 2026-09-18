@@ -5729,3 +5729,12 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .manual-setup-adders { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; margin-top: 8px; }
 .manual-setup-adders > select { min-width: 0; width: 100%; box-sizing: border-box; font: inherit; font-size: 11px; }
 .manual-setup-adders > select:first-child { grid-column: 1 / -1; }
+
+/* v0.202.3: selection and target read on the bands as they do on the grid.
+   Stated after the hover rule so a fresh click is not painted over by it. */
+.range-line-token.selected circle:first-of-type { stroke: var(--highlight); stroke-width: 3; }
+.range-line-token.selected:hover circle:first-of-type, .range-line-token.selected:focus circle:first-of-type { stroke: var(--highlight); }
+.range-line-selected-ring { fill: none; stroke: var(--highlight); stroke-width: 2.5; stroke-dasharray: 5 4; pointer-events: none; }
+.range-line-target-ring { fill: none; stroke: var(--target-stroke); stroke-width: 2.5; pointer-events: none; }
+@keyframes range-line-ring-land { from { stroke-width: 6; opacity: .4; } to { stroke-width: 2.5; opacity: 1; } }
+.range-line-selected-ring, .range-line-target-ring { animation: range-line-ring-land .25s ease-out; }
