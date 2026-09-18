@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.213.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.213.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.213.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.213.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.213.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.213.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -252,9 +252,9 @@ function fightColumn(state, handlers) {
         h('th', { title: `What ${reader.name} must throw to hit them. Click to target.`, text: 'Hit' }), h('th', { title: `What they must throw to hit ${reader.name}`, text: 'Hit by' }), h('th', { text: 'This round' }))),
       sides.map((side) => h('tbody', {}, side.map((fighter) => trackerRow(fighter, reader, state, handlers))))),
     h('div', { class: 'lead-actions' },
-      (state.next?.actions ?? []).map((action) => h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button' }, h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null)),
+      (state.next?.actions ?? []).map((action) => h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button', onclick: action.command ? () => handlers.onCommand?.(action.command) : null }, h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null)),
       referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
-      referee ? h('button', { type: 'button', class: 'button is-small', text: 'End fight' }) : null),
+      (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
     state.lastRound?.length ? h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))) : null
   ];
 }

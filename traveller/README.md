@@ -1,5 +1,31 @@
 # Graycloak Traveller
 
+## v0.213.1 the fight screen's buttons work
+
+Clicking Hit or Declare did nothing. Two faults, both in the page rather than
+the engine.
+
+1. **The fight column's action buttons had no click handler.** `leadCard()`
+   attaches `onCommand` to its actions; `fightColumn()` was written without
+   it, so Declare, Resolve round and End fight were inert and no command ever
+   reached the session. That is also why no notice appeared: nothing had run.
+   The referee's buttons now come from `state.refereeActions` and are wired
+   the same way.
+2. **The declaration being built never reached the live view.** The page holds
+   the movement status, the target and the weapon while they are being chosen;
+   the session only knows what has been *declared*. The sample path overlaid
+   the page's choices onto the declare card and the live path did not, so
+   clicking a Hit number set nothing visible and Declare always sent Stand
+   with no target.
+
+Both fixed. A full round now plays on the page: select a combatant, pick a
+movement status, click a Hit number to target, Declare, repeat, Resolve.
+Verified in a browser — four declarations, resolution with real 2D throws and
+DM breakdowns, round advancing to 2, and the narration showing on screen.
+
+This also closes the known gap reported in v0.213.0: command results appear in
+the fight column now.
+
 ## v0.213.0 combat runs on the play page
 
 Second half of the combat slice. A live fight can now be played on

@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.213.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.213.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.213.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.213.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.213.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.213.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.213.1';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.213.1';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.213.1';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.213.1';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.213.1';
+import { createPlayCloud } from './play-cloud.js?v=v0.213.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.1';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -54,7 +54,21 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // The one seam. Replace the body with a read of the campaign documents and
 // the rest of the page follows.
 function viewState() {
-  if (source.mode === 'live') return source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker });
+  if (source.mode === 'live') {
+    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker });
+    // The declaration being built lives in the page, not the session: the
+    // session only knows what has been declared. Overlay what is chosen here
+    // so the movement row, the target and the throw all agree before Declare.
+    if (!state.next?.declare) return state;
+    const declare = {
+      ...state.next.declare,
+      move: ui.fightMove ?? state.next.declare.move,
+      running: ui.fightRunning ?? state.next.declare.running,
+      weaponKey: ui.fightWeaponKey ?? state.next.declare.weaponKey,
+      targetId: ui.fightTargetId ?? state.next.declare.targetId
+    };
+    return { ...state, next: { ...state.next, declare } };
+  }
   const sample = SAMPLE_SITUATIONS[ui.situation];
   const scene = { ...sample.scene };
   if (scene.kind === 'subsector') scene.selectedId = ui.selectedSystemId;
@@ -171,7 +185,7 @@ function render() {
       if (source.mode !== 'live' || !command) return;
       // A fight command carries the declaration the screen is showing.
       const fight = command.startsWith('fight:')
-        ? { actorId: ui.selectedMarker ?? viewState().next?.declare?.actorId ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }
+        ? { actorId: viewState().next?.declare?.actorId ?? ui.selectedMarker ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }
         : null;
       source.session.run(command, { selectedSystemId: ui.selectedSystemId, fight });
       if (command === 'fight:resolve' || command === 'fight:declare') { ui.fightMove = null; ui.fightRunning = null; ui.fightTargetId = null; }
