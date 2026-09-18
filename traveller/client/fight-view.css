@@ -1,0 +1,127 @@
+/* v0.204.0: the fight's columns, from Combat.dc.html / Combat-Light.dc.html
+   on the design canvas. Values are the mockup's, keyed to the theme tokens
+   so both themes get their own drawing. Kept out of styles.css on purpose:
+   this is the mockup's stylesheet, not the terminal's. */
+:root {
+  --fv-ground: #eeece4;
+  --fv-card: #e5e3da;
+  --fv-line: #b9b7ad;
+  --fv-line-soft: #d4d2c8;
+  --fv-ink: #101210;
+  --fv-muted: #33372f;
+  --fv-dim: #5f635b;
+  --fv-accent: #7d7340;
+  --fv-accent-fill: #cfe0cf;
+  --fv-accent-fill-border: #4f6a4f;
+  --fv-accent-ink: #101210;
+  --fv-red: #7a3a3a;
+  --fv-red-soft: #5c1616;
+  --fv-green: #1f3a26;
+  --fv-chip: #dad8ce;
+  --fv-selected: #dad8ce;
+  --fv-party: #29465c;
+  --fv-foe: #7a3a3a;
+  --fv-other: #b48ad6;
+  --fv-sans: 'IBM Plex Sans Condensed', 'Arial Narrow', 'Segoe UI', sans-serif;
+  --fv-mono: 'IBM Plex Mono', Consolas, Menlo, monospace;
+}
+:root[data-theme="dark"] {
+  --fv-ground: #0f1319;
+  --fv-card: #161c24;
+  --fv-line: #2a3340;
+  --fv-line-soft: #1e2631;
+  --fv-ink: #d8dee6;
+  --fv-muted: #93a0b1;
+  --fv-dim: #55627a;
+  --fv-accent: #e8a84c;
+  --fv-accent-fill: #e8a84c;
+  --fv-accent-fill-border: #e8a84c;
+  --fv-accent-ink: #10141a;
+  --fv-red: #e06c65;
+  --fv-red-soft: #f0a19b;
+  --fv-green: #5cb87a;
+  --fv-chip: #1e2631;
+  --fv-selected: #1e2631;
+  --fv-party: #e8a84c;
+  --fv-foe: #e06c65;
+  --fv-other: #b48ad6;
+}
+
+.fv-dock, .fv-side {
+  font-family: var(--fv-sans); font-size: 14px; color: var(--fv-ink);
+  display: flex; flex-direction: column; gap: 10px; min-height: 0;
+}
+.fv-dock { padding: 0 0 8px; }
+.fv-side { padding: 12px 14px; height: 100%; box-sizing: border-box; overflow-y: auto; }
+.fv-mono { font-family: var(--fv-mono); }
+.fv-lbl { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fv-muted); font-weight: 600; }
+.fv-small { font-size: 12px; }
+.fv-muted { color: var(--fv-muted); }
+.fv-dim { color: var(--fv-dim); }
+.fv-warn { color: var(--fv-accent); }
+.fv-grow { flex-grow: 1; }
+.fv-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.fv-card { background: var(--fv-card); border: 1px solid var(--fv-line); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.fv-card-live { border-color: var(--fv-accent); }
+.fv-card-title { font-weight: 700; }
+.fv-tag { font-family: var(--fv-mono); font-size: 10px; letter-spacing: 0.1em; padding: 2px 6px; border: 1px solid var(--fv-dim); border-radius: 3px; color: var(--fv-muted); white-space: nowrap; }
+.fv-tag-ready { color: var(--fv-accent); border-color: var(--fv-accent); }
+.fv-tag-done { color: var(--fv-green); border-color: var(--fv-green); }
+.fv-tag-blocked { color: var(--fv-red); border-color: var(--fv-red); }
+.fv-btn {
+  font-family: var(--fv-sans); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase;
+  background: var(--fv-accent-fill); color: var(--fv-accent-ink); border: 1px solid var(--fv-accent-fill-border); border-radius: 4px;
+  padding: 8px 14px; cursor: pointer; min-height: 36px; text-decoration: none;
+}
+.fv-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.fv-btn:disabled { opacity: 0.45; cursor: default; }
+.fv-btn.fv-quiet { background: transparent; color: var(--fv-muted); border-color: var(--fv-line); }
+.fv-btn.fv-danger { background: transparent; color: var(--fv-red); border-color: var(--fv-red); }
+.fv-btn.fv-tiny { min-height: 26px; padding: 2px 8px; font-size: 10px; }
+.fv-btn.fv-on { border-color: var(--fv-accent); color: var(--fv-accent); }
+.fv-btn.fv-fire { flex: 1 1 auto; }
+.fv-verbs { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.fv-verbs-orders { margin-top: 2px; }
+.fv-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.fv-chip { font-family: var(--fv-mono); font-size: 12px; background: var(--fv-chip); border: 1px solid var(--fv-line); border-radius: 4px; padding: 4px 8px; }
+.fv-log-line { color: var(--fv-muted); font-size: 13px; }
+
+/* Right column */
+.fv-ident { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.fv-name { font: inherit; font-size: 20px; font-weight: 700; color: var(--fv-ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.fv-subtitle { font-size: 13px; }
+.fv-upp { font-size: 18px; font-weight: 600; letter-spacing: 0.08em; }
+.fv-boxes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr); gap: 6px; }
+.fv-box { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; background: var(--fv-card); border: 1px solid var(--fv-line); border-radius: 4px; padding: 6px 8px; min-height: 44px; font: inherit; color: var(--fv-ink); cursor: pointer; text-align: left; }
+.fv-box-key { font-size: 10px; letter-spacing: 0.1em; color: var(--fv-muted); }
+.fv-box-value { font-family: var(--fv-mono); font-size: 16px; font-weight: 600; }
+.fv-box-hurt { border-color: var(--fv-red); }
+.fv-box-hurt .fv-box-key, .fv-box-hurt .fv-box-value { color: var(--fv-red-soft); }
+.fv-box-mental { font-size: 11px; color: var(--fv-muted); cursor: default; justify-content: center; }
+.fv-status { letter-spacing: 0.02em; }
+.fv-status-wounded { color: var(--fv-accent); }
+.fv-status-critical { color: var(--fv-red); }
+.fv-status-ready { color: var(--fv-green); }
+.fv-tracker-head { margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--fv-line); }
+.fv-tracker { display: flex; flex-direction: column; }
+.fv-trow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 7px 4px; border-bottom: 1px solid var(--fv-line-soft); cursor: pointer; border-radius: 3px; }
+.fv-trow:hover, .fv-trow:focus-visible { background: var(--fv-selected); outline: 0; }
+.fv-trow-selected { background: var(--fv-selected); box-shadow: inset 3px 0 0 var(--fv-accent); }
+.fv-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--fv-dim); }
+.fv-trow-party .fv-dot { background: var(--fv-party); }
+.fv-trow-foe .fv-dot { background: var(--fv-foe); }
+.fv-trow-other .fv-dot { background: var(--fv-other); }
+.fv-trow-down .fv-dot { background: var(--fv-dim); }
+.fv-trow-down .fv-trow-name, .fv-trow-down .fv-track { color: var(--fv-dim); }
+.fv-trow-name { font-size: 14px; }
+.fv-track { font-size: 13px; letter-spacing: 0.04em; }
+.fv-track b { font-weight: 600; }
+.fv-track .fv-hurt { color: var(--fv-red-soft); }
+.fv-orders { text-align: right; white-space: nowrap; }
+.fv-tracker-tools { margin-top: 10px; }
+.fv-ship { padding-top: 8px; border-top: 1px solid var(--fv-line); }
+
+/* The throw card inside the round card keeps the app's own rendering; only
+   its frame follows the mockup. */
+.fv-card > #encounter-throw-card { margin-top: 6px; border: 1px solid var(--fv-accent); border-radius: 4px; padding: 8px 10px; background: var(--fv-card); }
+.fv-card > #encounter-throw-card[hidden] { display: none; }

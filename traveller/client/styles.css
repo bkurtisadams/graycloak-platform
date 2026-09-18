@@ -5801,3 +5801,17 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 #shell.shell-v2.fight-on .encounter-tracker-wounds { font-family: Consolas, monospace; font-size: 12px; letter-spacing: .04em; }
 #shell.shell-v2.fight-on .encounter-tracker-row.inactive .encounter-tracker-name, #shell.shell-v2.fight-on .encounter-tracker-row.inactive .encounter-tracker-wounds { color: var(--disabled); }
 #shell.shell-v2.fight-on .encounter-tracker-row.selected > summary { background: var(--paper-selected); }
+
+/* v0.204.0: while a fight runs the right column is fight-view.js's drawing;
+   the strip, tracker, record, ship and tabbed body step aside. */
+#shell.shell-v2 > .shell-sidebar > #fight-side { grid-column: 1; grid-row: 1 / -1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--paper); }
+#shell.shell-v2 > .shell-sidebar > #fight-side[hidden] { display: none; }
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-character,
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-tracker,
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-ship-rail,
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-sheet,
+#shell.shell-v2.fight-on > .shell-sidebar > #ship-strip,
+#shell.shell-v2.fight-on > .shell-sidebar > .sidebar-body { display: none; }
+#shell.shell-v2.fight-on > .shell-dock { padding: 12px; }
+#shell.shell-v2.fight-on > .shell-dock > .dock-round { flex: 1 1 auto; min-height: 0; }
+#shell.shell-v2.fight-on > .shell-dock > .dock-round:not(.show-port) ~ * { display: none; }
