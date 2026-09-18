@@ -5765,3 +5765,39 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .encounter-tracker-wounds b { font-weight: 600; }
 .encounter-tracker-wounds b.is-wounded { color: var(--loss); }
 #shell.shell-v2 .encounter-tracker-orders { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); }
+
+/* v0.203.1: the right column as the range-band mockup draws it. */
+#shell.shell-v2 .character-identity-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: nowrap; }
+#shell.shell-v2 .campaign-header-name { font-size: 19px; font-weight: 700; letter-spacing: .02em; text-decoration: none; padding: 0; }
+#shell.shell-v2 .header-upp { font-family: Consolas, monospace; font-size: 18px; font-weight: 700; letter-spacing: .08em; }
+#shell.shell-v2 .header-characteristics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin: 8px 0 6px; }
+#shell.shell-v2 .header-roll-button {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 4px 7px; min-height: 40px; border: 1px solid var(--rule); background: var(--paper-deep);
+  font: inherit; text-decoration: none; color: var(--ink); cursor: pointer;
+}
+#shell.shell-v2 .header-roll-button:hover, #shell.shell-v2 .header-roll-button:focus-visible { border-color: var(--ink); background: var(--paper); outline: 0; }
+#shell.shell-v2 .header-roll-key { font-size: 9px; letter-spacing: .12em; color: var(--muted); }
+#shell.shell-v2 .header-roll-value { font-family: Consolas, monospace; font-size: 16px; font-weight: 700; line-height: 1.1; }
+#shell.shell-v2 .header-roll-button.injured { border-color: var(--failure-border); background: var(--paper-deep); }
+#shell.shell-v2 .header-roll-button.injured .header-roll-key, #shell.shell-v2 .header-roll-button.injured .header-roll-value { color: var(--loss); }
+#shell.shell-v2 .header-status-line { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+#shell.shell-v2 .header-status-line .header-loadout-label { flex: 0 0 auto; }
+#shell.shell-v2 .header-status-line .header-status { font-family: Consolas, monospace; letter-spacing: .04em; flex: 1 1 auto; text-align: right; }
+#shell.shell-v2 .header-status-line .header-posture { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); }
+#shell.shell-v2 .header-status-line .header-credits { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); }
+#shell.shell-v2 .header-loadout-line { justify-content: space-between; }
+#shell.shell-v2 .header-loadout { text-align: right; }
+/* While a fight runs the column is the mockup's: strip, verbs, tracker,
+   ship as a line. Skills, the record and the ship block step aside. */
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-character .character-skill-line { display: none; }
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-sheet { display: none; }
+#shell.shell-v2.fight-on > .shell-sidebar > #ship-strip { max-height: 2.4em; overflow: hidden; padding: 4px 10px; font-size: 11px; }
+#shell.shell-v2.fight-on > .shell-sidebar > #ship-strip .ship-strip-cells, #shell.shell-v2.fight-on > .shell-sidebar > #ship-strip .nav-strip-world { display: none; }
+#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-tracker { max-height: none; flex: 1 1 auto; }
+#shell.shell-v2.fight-on .encounter-tracker-icon { display: none; }
+#shell.shell-v2.fight-on .encounter-tracker-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 5px 4px; }
+#shell.shell-v2.fight-on .encounter-tracker-name { font-size: 13px; }
+#shell.shell-v2.fight-on .encounter-tracker-wounds { font-family: Consolas, monospace; font-size: 12px; letter-spacing: .04em; }
+#shell.shell-v2.fight-on .encounter-tracker-row.inactive .encounter-tracker-name, #shell.shell-v2.fight-on .encounter-tracker-row.inactive .encounter-tracker-wounds { color: var(--disabled); }
+#shell.shell-v2.fight-on .encounter-tracker-row.selected > summary { background: var(--paper-selected); }

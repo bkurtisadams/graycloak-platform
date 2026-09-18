@@ -5,8 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.203.0"></script>
-  <script type="module" src="shell-chat.js?v=v0.203.0"></script>
+  <script type="module" src="theme.js?v=v0.203.1"></script>
+  <script type="module" src="shell-chat.js?v=v0.203.1"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.203.0</div>
+          <div id="app-subtitle" class="subtitle">v0.203.1</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -406,14 +406,20 @@
       <details id="sidebar-character" class="sidebar-strip" open hidden>
         <summary class="sidebar-strip-summary"><span id="sidebar-character-summary">CHARACTER</span></summary>
       <section class="campaign-header-strip" aria-label="Character status">
+        <!-- v0.203.1: the strip as the mockup draws it — name and UPP on one
+             line, the six characteristics as boxes, then STATUS and POSTURE
+             as labelled rows. -->
         <div class="character-identity-line">
           <button id="header-character-name" class="campaign-header-name text-button header-character-link" type="button">--</button>
           <span id="header-upp" class="header-upp" tabindex="0">--</span>
+        </div>
+        <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
+        <div class="header-status-line">
+          <span class="header-loadout-label">STATUS</span>
           <span id="header-status" class="header-status">--</span>
           <span id="header-posture" class="header-posture" hidden>--</span>
           <span id="header-credits" class="header-credits">--</span>
         </div>
-        <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
         <!-- v0.203.0: what the character is holding, and the round's verbs for the
              selected party actor while a fight runs. -->
         <div id="header-loadout-line" class="header-loadout-line" hidden>
@@ -1011,6 +1017,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.203.0"></script>
+  <script type="module" src="./boot.mjs?v=v0.203.1"></script>
 </body>
 </html>
