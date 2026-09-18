@@ -18,6 +18,12 @@
 // 4 steps of 12.5% is 50%, and a gravity of 8 is worked as "(8 - 9 = -1)". The
 // rule as stated (12.5% a step from 7) is followed; its second example's
 // result, a 12.5% reduction, agrees with it.
+//
+// Graycloak rulings (Sep 2026): the 40% is a misprint and a gravity of 3 adds
+// 50%; load is reckoned against the full Strength characteristic, not Strength
+// as wounded; and the limit follows the gravity of whatever world the
+// character is on, so callers pass that world's size as gravityFactor and
+// pass none aboard ship.
 
 export const NORMAL_GRAVITY_FACTOR = 7;
 export const GRAVITY_LOAD_STEP = 0.125;

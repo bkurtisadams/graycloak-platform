@@ -1,5 +1,30 @@
 # Graycloak Traveller
 
+## v0.209.1 load rulings recorded; three stale fuel tests brought to 1977 (rules 0.62.1)
+
+**Graycloak rulings on Book 1 p.32-33 WEIGHT**, all as implemented in v0.209.0
+and now written into the code:
+1. Load is reckoned against the full Strength characteristic, not Strength as
+   wounded.
+2. p.33's "additional 40% load" for a gravity of 3 is a misprint; four steps of
+   12.5% is 50%.
+3. A character is subject to the gravity of whatever world they are on, so the
+   carrying limit is worked out afresh for each planet. One change follows:
+   aboard ship in jump the character is on no world, and the limit is the
+   unadjusted one. A test walks Hawkeye (STR 10) through Cinder (size 2,
+   16.25 kg), Orison (size 5, 12.5 kg), Aster (size 7, 10 kg) and jumpspace
+   (10 kg).
+
+**Rules package 0.62.1.** Three of the six tests that were already failing in
+the package were wrong, not the code. `tests/starship-operations.test.js`
+expected jump fuel by the distance jumped (10 t for a Type S going one parsec).
+Book 2 (1977) p.6 says otherwise in so many words: "Jump fuel requirements are
+based on jump number rather than the size of the jump actually taken", and the
+code follows it: a Jump-2 Type S burns its whole 40 t on any jump. The tests
+now expect that, the skim that follows is the full 40 t, and empty tanks filled
+by skimming are unrefined, not mixed. The other three failures (Book 3 p.27
+reaction floor, the facsimile wound reset, the long-gun parry) are untouched.
+
 ## v0.209.0 inventory, load and encumbrance (rules package 0.62.0)
 
 Characters could not carry anything, nothing had a weight, and Book 1 p.32's

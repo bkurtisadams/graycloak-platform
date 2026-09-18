@@ -206,8 +206,16 @@ export function refereeView(resolved) {
 export function buildPlayViewState(resolved, { subsector, seat = 'referee', characterId = null } = {}) {
   const { campaign, characters = [], ships = [], contracts = [] } = resolved;
   const party = (campaign.party?.characterIds ?? []).map((id) => characters.find((entry) => entry.identity.id === id)).filter(Boolean);
+  // Graycloak rulings (Sep 2026): load is reckoned against full Strength; p.33's
+  // "additional 40%" for a gravity of 3 is a misprint for 50%; and a character
+  // is subject to the gravity of whatever world they are on, so the limit is
+  // worked out afresh for each planet. Aboard ship in jump they are on no
+  // world, and the limit is the unadjusted one.
+  const underway = ships.find((entry) => entry.identity.id === campaign.activeShipId)?.state?.operationalStatus === 'in-jump';
   let gravityFactor = null;
-  try { gravityFactor = parseUniversalWorldProfile(getSubsectorSystem(subsector, campaign.location?.systemId).mainWorld.uwp).size; } catch { /* off the map */ }
+  if (!underway) {
+    try { gravityFactor = parseUniversalWorldProfile(getSubsectorSystem(subsector, campaign.location?.systemId).mainWorld.uwp).size; } catch { /* off the map */ }
+  }
   const roster = (party.length ? party : characters).map((entry) => characterView(entry, { gravityFactor }));
   const wanted = characterId ?? campaign.activeCharacterId;
   const character = roster.find((entry) => entry.id === wanted) ?? roster[0] ?? null;

@@ -412,3 +412,19 @@ test('inventory commands change the character, the load, and the saved document'
   assert.equal(saved.loadout.militaryLoad, true);
   assert.equal(session.run('inventory:add', { characterId: id, item: { name: '  ', weightKg: '1' } }).ok, false);
 });
+
+test('the carrying limit follows the world the character is on, and is unadjusted in jump', async () => {
+  const limit = async (mutate) => {
+    const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+    mutate(bundle);
+    const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+    const { campaign } = registry.putBundle(bundle);
+    return buildPlayViewState(registry.resolveCampaign(campaign.identity.id), { subsector: FAR_MERIDIAN_SUBSECTOR }).character.load.text;
+  };
+  const at = (systemId, name) => (bundle) => { bundle.campaign.location = { systemId, systemName: name, worldId: `${systemId}-main`, worldName: name }; };
+  // Hawkeye is STR 10. Cinder is size 2 (+62.5%), Orison size 5 (+25%), Aster size 7 (none).
+  assert.equal(await limit(at('cinder', 'Cinder')), '10 kg of 16.25 kg');
+  assert.equal(await limit(at('orison', 'Orison')), '10 kg of 12.5 kg');
+  assert.equal(await limit(at('aster', 'Aster')), '10 kg of 10 kg');
+  assert.equal(await limit((bundle) => { bundle.documents.ships[0].state.operationalStatus = 'in-jump'; }), '10 kg of 10 kg');
+});
