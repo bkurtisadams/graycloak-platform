@@ -5,8 +5,8 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
-  <script type="module" src="theme.js?v=v0.202.3"></script>
-  <script type="module" src="shell-chat.js?v=v0.202.3"></script>
+  <script type="module" src="theme.js?v=v0.203.0"></script>
+  <script type="module" src="shell-chat.js?v=v0.203.0"></script>
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
@@ -18,7 +18,7 @@
       <div class="masthead-main">
         <div class="product-line">
           <div id="app-title" class="title">TRAVELLER</div>
-          <div id="app-subtitle" class="subtitle">v0.202.3</div>
+          <div id="app-subtitle" class="subtitle">v0.203.0</div>
         </div>
         <nav class="utility masthead-utility" aria-label="Campaign status">
           <strong id="header-campaign-name" class="masthead-campaign-name">NO CAMPAIGN</strong>
@@ -414,6 +414,14 @@
           <span id="header-credits" class="header-credits">--</span>
         </div>
         <div id="header-characteristics" class="header-characteristics" aria-label="Clickable character characteristics"></div>
+        <!-- v0.203.0: what the character is holding, and the round's verbs for the
+             selected party actor while a fight runs. -->
+        <div id="header-loadout-line" class="header-loadout-line" hidden>
+          <span class="header-loadout-label">POSTURE</span>
+          <span id="header-loadout" class="header-loadout">--</span>
+          <button id="header-ready-weapon" class="text-button header-ready-weapon" type="button" title="Change the ready weapon">[ READY ]</button>
+        </div>
+        <div id="header-combat-verbs" class="header-combat-verbs" hidden aria-label="Combat orders for the selected actor"></div>
         <div class="character-skill-line">
           <div id="header-quick-skills" class="header-quick-skills" aria-label="Quick skill slots"></div>
           <button id="header-all-skills" class="text-button header-all-skills" type="button" title="Choose which skills fill the quick slots">[ ALL SKILLS ]</button>
@@ -1003,6 +1011,6 @@ Dragging tokens suggests a range band. Book 1 range changes only through an expl
   <!-- v0.109.0: boot.mjs imports the rules package dynamically before app.js,
        so a vendor/ that has not been rebuilt says so instead of dying with a
        SyntaxError naming one missing export. -->
-  <script type="module" src="./boot.mjs?v=v0.202.3"></script>
+  <script type="module" src="./boot.mjs?v=v0.203.0"></script>
 </body>
 </html>

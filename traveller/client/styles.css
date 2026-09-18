@@ -5738,3 +5738,30 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .range-line-target-ring { fill: none; stroke: var(--target-stroke); stroke-width: 2.5; pointer-events: none; }
 @keyframes range-line-ring-land { from { stroke-width: 6; opacity: .4; } to { stroke-width: 2.5; opacity: 1; } }
 .range-line-selected-ring, .range-line-target-ring { animation: range-line-ring-land .25s ease-out; }
+
+/* v0.203.0: the fight's two columns as the range-band mockup draws them. */
+/* Left: the four cards; the port call folded to one line. */
+#shell.shell-v2 .dock-round:not([hidden]) ~ #play-procedure { display: none; }
+#shell.shell-v2 .dock-round.show-port:not([hidden]) ~ #play-procedure { display: block; }
+#shell.shell-v2 .dock-round .dock-fight-card + .dock-fight-card { margin-top: 0; }
+#shell.shell-v2 .dock-round .dock-round-line.note { border-left-color: var(--attention-border); color: var(--ink); margin-top: 6px; padding-top: 4px; border-top: 1px dotted var(--disabled); }
+#shell.shell-v2 .dock-round .dock-round-verbs { display: flex; gap: 6px; margin-top: 8px; }
+#shell.shell-v2 .dock-round .dock-round-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+#shell.shell-v2 .dock-round .dock-round-chips .chip { font-family: Consolas, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid var(--rule); background: var(--paper-deep); }
+#shell.shell-v2 .dock-round .dock-suspended { align-self: flex-start; font-size: 10px; margin-top: 4px; }
+#shell.shell-v2 .dock-round > #encounter-resolve .action-button { font-weight: 700; }
+/* Right: the posture line and the verbs under it; tracker rows as drawn. */
+.header-loadout-line { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 12px; }
+.header-loadout-line[hidden] { display: none; }
+.header-loadout-label { font-size: 9px; letter-spacing: .12em; color: var(--muted); }
+.header-loadout { font-family: Consolas, monospace; letter-spacing: .04em; flex: 1 1 auto; }
+.header-ready-weapon { font-size: 10px; }
+.header-combat-verbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.header-combat-verbs[hidden] { display: none; }
+.header-verb-who { flex-basis: 100%; font-size: 10px; letter-spacing: .1em; color: var(--muted); }
+.header-verb { font-size: 12px; padding: 3px 8px; }
+.header-verb.is-on { border-color: var(--highlight); color: var(--ink); }
+.header-verb-fire { font-weight: 700; }
+.encounter-tracker-wounds b { font-weight: 600; }
+.encounter-tracker-wounds b.is-wounded { color: var(--loss); }
+#shell.shell-v2 .encounter-tracker-orders { font-family: Consolas, monospace; font-size: 11px; color: var(--muted); }
