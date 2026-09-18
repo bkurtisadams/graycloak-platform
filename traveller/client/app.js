@@ -154,7 +154,7 @@ import {
   SHIPS_LOCKER_DEFAULT_WEAPON,
   elapsedMinutes as shipCombatElapsedMinutes,
   COMPUTER_PROGRAMS
-} from '../vendor/classic-traveller-rules/index.js?v=v0.201.3';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.202.1';
 
 import {
   ACTION_LABELS,
@@ -180,34 +180,34 @@ import {
   helpForTopic,
   nobleTitleLabel,
   serviceName
-} from './ui-model.js?v=v0.201.3';
+} from './ui-model.js?v=v0.202.1';
 
 import {
   TRAVELLER_DOCUMENT_KINDS,
   loadTravellerDocument
-} from './document-loader.js?v=v0.201.3';
+} from './document-loader.js?v=v0.202.1';
 
-import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.201.3';
-import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.201.3';
-import { resolveShipImport } from '../src/ship-import.js?v=v0.201.3';
-import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.201.3';
-import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.201.3';
-import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.201.3';
-import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.201.3';
-import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.201.3';
+import { createTravellerInvite, generateInviteCode, unassignedWorld, importCharacterRecord, WORLD_KINDS } from '../src/character-record.js?v=v0.202.1';
+import { createCampaignHome, nextCampaignHome, importCampaignHome, campaignHomeBytes, StaleCampaignHomeError, CAMPAIGN_HOME_SOFT_LIMIT_BYTES } from '../src/campaign-home.js?v=v0.202.1';
+import { resolveShipImport } from '../src/ship-import.js?v=v0.202.1';
+import { stagingTokenMenuModel, fightTokenMenuModel, launcherBlockedReason, vectorToward, baseShipLabel } from '../src/ship-token-menu.js?v=v0.202.1';
+import { dataCardLines } from '../src/ship-data-card-text.js?v=v0.202.1';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene } from '../src/space-scene-combat.js?v=v0.202.1';
+import { setSceneTokenSide, setSceneTokenLabel, defaultShipVector, SCENE_VECTOR_DEFAULT_SPEED } from '../src/scene-document.js?v=v0.202.1';
+import { createSceneDocument, updateSceneDocument, sceneFolders, sceneBoardMeters, sceneBoardCells, placeSceneToken, moveSceneToken, removeSceneToken, placeSceneShip, moveSceneShip, setSceneShipVector, sceneGravityWorld, sceneBodies, placeSceneBody, moveSceneBody, removeSceneBody, worldBody, asteroidFieldBody, emplacementBody, SCENE_WORLD_MAX_DIAMETER, trackedSceneTokens, SCENE_MIN_SQUARES, SCENE_MAX_METERS, SCENE_VECTOR_DEFAULT_SPAN, SCENE_VECTOR_MIN_SPAN, SCENE_VECTOR_MAX_SPAN, sceneIsVectorBoard, duplicateSceneDocument, moveScenesToFolder, adoptSceneDocument, sceneThumbnailSvg, sceneMatchesSearch, sceneActorIsDesignReference, exportSceneDocument, importSceneDocument, DEFAULT_SCENE_FOLDER } from '../src/scene-document.js?v=v0.202.1';
 import { directoryFolders, removeEncounterFromCampaign
-} from '../src/campaign-document.js?v=v0.201.3';
-import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.201.3';
+} from '../src/campaign-document.js?v=v0.202.1';
+import { createSceneCanvas, svgNode as sceneSvgNode } from './scene-canvas.js?v=v0.202.1';
 // v0.147.0: wired in v1.224.00 and never imported — the smoke test imported the
 // map module directly, so app.js's own imports were never exercised.
-import { renderShipVectorMap, renderVectorSceneStage, vectorSelectedShipId, vectorHoveredShipId } from './ship-vector-map.js?v=v0.201.3';
-import { targetHoveredShip, clearShipTargets, targetsOfShip } from '../src/ship-targeting.js?v=v0.201.3';
+import { renderShipVectorMap, renderVectorSceneStage, vectorSelectedShipId, vectorHoveredShipId } from './ship-vector-map.js?v=v0.202.1';
+import { targetHoveredShip, clearShipTargets, targetsOfShip } from '../src/ship-targeting.js?v=v0.202.1';
 import {
   clampWindowGeometry, dragWindowGeometry, resizeWindowGeometry, loadWindowGeometry, saveWindowGeometry,
   createDocumentWindowState, openDocumentWindow, closeDocumentWindow, toggleMinimizeDocumentWindow, moveDocumentWindow
-} from '../src/document-window.js?v=v0.201.3';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.201.3';
-import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.201.3';
+} from '../src/document-window.js?v=v0.202.1';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.202.1';
+import { inspectElement, formatInspection } from '../src/ui-debug.js?v=v0.202.1';
 
 import {
   SHEET_CHARACTERISTICS as HEADER_CHARACTERISTICS,
@@ -216,13 +216,13 @@ import {
   renderChargenSheet as renderChargenSheetView,
   renderChargenActions,
   renderChargenTables as renderChargenTablesView
-} from './chargen-view.js?v=v0.201.3';
+} from './chargen-view.js?v=v0.202.1';
 
 import {
   generateCharacterName,
   generateShipName,
   generateShipRegistry
-} from './generators.js?v=v0.201.3';
+} from './generators.js?v=v0.202.1';
 
 import {
   SUBSECTOR_SVG_GEOMETRY,
@@ -233,7 +233,7 @@ import {
   splitSystemName,
   subsectorHexCenter,
   subsectorSvgViewBox
-} from './subsector-svg.js?v=v0.201.3';
+} from './subsector-svg.js?v=v0.202.1';
 
 import {
   seededDice,
@@ -242,7 +242,7 @@ import {
   routeMarketSeed,
   weeklyTradeSeed,
   saleQuoteSeed
-} from './commerce-market.js?v=v0.201.3';
+} from './commerce-market.js?v=v0.202.1';
 
 import {
   addCharacterToCampaign,
@@ -272,7 +272,7 @@ import {
   speculativeLotPurchasedQuantity,
   recordSpeculativeLotPurchase,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
-} from '../src/campaign-document.js?v=v0.201.3';
+} from '../src/campaign-document.js?v=v0.202.1';
 
 import {
   NPC_CONDITIONS,
@@ -281,16 +281,16 @@ import {
   importNpcActorDocument,
   activeNpcActorConditions,
   setNpcActorCondition,
-  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.201.3';
-import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.201.3';
-import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.201.3';
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.201.3';
-import { openSignInDialog } from './signin-ui.js?v=v0.201.3';
-import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, clearChat, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.201.3';
-import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.201.3';
-import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.201.3';
-import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.201.3';
-import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.201.3';
+  clearNpcActorConditions, duplicateNpcActorDocument, setNpcActorArchived, npcActorMatchesSearch, exportNpcActorDocument } from '../src/npc-actor-document.js?v=v0.202.1';
+import { synchronizeEncounterDocuments } from '../src/combatant-document-sync.js?v=v0.202.1';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from '../src/npc-tactics.js?v=v0.202.1';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.202.1';
+import { openSignInDialog } from './signin-ui.js?v=v0.202.1';
+import { publishCampaign, publishEncounterView, publishStatus, seatPlayer, unseatPlayer, listSeatedPlayers, watchDeclarations, clearDeclarations, clearChat, watchWoundAllocations, clearWoundAllocations, watchTokenMoves, clearTokenMove, watchCanvasPresence, publishPlayerCharacter, removePlayerCharacter, publishPlayerLog, createInvite, deleteInvite, listCampaignInvites, watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, saveCampaignHome, loadCampaignHome, loadCharacterRecord, sendChatMessage, watchChat } from './publish.js?v=v0.202.1';
+import { authorizePlayerDeclaration } from '../src/player-declaration.js?v=v0.202.1';
+import { authorizePlayerTokenMove, playerMoveToCombatantMove, authorizePlayerSceneMove } from '../src/player-token-movement.js?v=v0.202.1';
+import { buildPublishedView, buildPublishedCampaign, buildPublishedCharacter, buildPublishedLog, buildPublishedScene } from '../src/published-view.js?v=v0.202.1';
+import { createMediaAssetDocument, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.202.1';
 import {
   ACTIVITY_VISIBILITY,
   createActivityLogDocument,
@@ -299,14 +299,14 @@ import {
   clearActivityLogDocument,
   importActivityLogDocument,
   visibleActivityLogEntries
-} from '../src/activity-log-document.js?v=v0.201.3';
+} from '../src/activity-log-document.js?v=v0.202.1';
 
 import {
   PLAYER_ROLES,
   createPlayerSession,
   createPlayerSessionStore,
   setPlayerViewedCharacter
-} from '../src/player-session.js?v=v0.201.3';
+} from '../src/player-session.js?v=v0.202.1';
 
 import {
   QUICK_SLOT_LIMIT,
@@ -314,19 +314,19 @@ import {
   defaultQuickSlots,
   normalizeQuickSlots,
   resolveQuickSlots
-} from './quick-slots.js?v=v0.201.3';
+} from './quick-slots.js?v=v0.202.1';
 
 import {
   exportCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.201.3';
+} from '../src/campaign-bundle.js?v=v0.202.1';
 
 import {
   createDocumentRegistry
-} from '../src/document-registry.js?v=v0.201.3';
+} from '../src/document-registry.js?v=v0.202.1';
 
 import {
   createActivityLogStore
-} from '../src/activity-log.js?v=v0.201.3';
+} from '../src/activity-log.js?v=v0.202.1';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
@@ -336,14 +336,14 @@ import {
   importContractDocument,
   isContractOverdue,
   reconcileContractDeadlines
-} from '../src/contract-document.js?v=v0.201.3';
+} from '../src/contract-document.js?v=v0.202.1';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   createSituationDocument,
   importSituationDocument,
   resolveSituationDocument
-} from '../src/situation-document.js?v=v0.201.3';
+} from '../src/situation-document.js?v=v0.202.1';
 
 import {
   createEncounterDocument,
@@ -371,43 +371,43 @@ import {
   declaredTargetCounts,
   addEncounterCombatantFromActor,
   removeEncounterCombatant,
-  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
-  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.201.3';
+  setEncounterCombatantCondition, opponentSpecFromNpcActor, encounterBoardMeters, setCombatantCurrent, restoreCombatant, addEncounterCombatantFromCharacter, beginEncounter, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_BAND_GAP,
+  pendingWoundAllocation, allocateRoundWound, ESCAPE_TARGET, ESCAPE_RANGE_DMS } from '../src/encounter-document.js?v=v0.202.1';
 // v0.178.0: the throw card, the two-step declaration and the attack result
 // card are pure view models; app.js draws them.
-import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.201.3';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.201.3';
-import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.201.3';
+import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.202.1';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.202.1';
+import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.202.1';
 
 import {
   createContactDocument,
   importContactDocument,
   touchContactDocument
-} from '../src/contact-document.js?v=v0.201.3';
+} from '../src/contact-document.js?v=v0.202.1';
 
 import {
   importAdventureThreadDocument,
   linkAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.201.3';
+} from '../src/adventure-thread-document.js?v=v0.202.1';
 
 import {
   arrivalSituationEventKey,
   patronSituationEventKey,
   generateArrivalSituationOffer,
   buildPatronSituationOffer
-} from '../world/situation-events.js?v=v0.201.3';
+} from '../world/situation-events.js?v=v0.202.1';
 
 import {
   generateContractBoard
-} from '../world/contract-board.js?v=v0.201.3';
+} from '../world/contract-board.js?v=v0.202.1';
 
 import {
   applySituationThreadConsequences
-} from '../world/thread-consequences.js?v=v0.201.3';
+} from '../world/thread-consequences.js?v=v0.202.1';
 
 import {
   FAR_MERIDIAN_SUBSECTOR
-} from '../world/far-meridian-subsector.js?v=v0.201.3';
+} from '../world/far-meridian-subsector.js?v=v0.202.1';
 
 const el = {
   status: document.querySelector('#system-status'),
@@ -5512,7 +5512,11 @@ function renderRangeLineBoard(encounter) {
       const cy = firstY + step * index;
       const group = sceneSvgNode('g', {
         class: `range-line-token ${combatant.side === 'party' ? 'party' : 'enemy'}${selectedEncounterTokenIds.has(combatant.id) || actor?.id === combatant.id ? ' selected' : ''}${target?.id === combatant.id ? ' targeted' : ''}${combatant.side === 'party' && declared.has(combatant.id) ? ' declared' : ''}${combatant.side !== 'party' && combatant.status !== 'active' ? ' inactive' : ''}`,
-        transform: `translate(${cx}, ${cy})`, tabindex: '0'
+        transform: `translate(${cx}, ${cy})`, tabindex: '0',
+        // v0.202.1: the viewport's pointerdown clears the selection and
+        // re-renders unless the press landed on a token; without this mark
+        // the marker was replaced before its own click could fire.
+        'data-scene-token': combatant.id
       });
       group.append(sceneSvgNode('circle', { r: 22 }));
       const label = sceneSvgNode('text', { class: 'range-line-token-label', 'text-anchor': 'middle', 'dominant-baseline': 'central' });
@@ -5562,13 +5566,15 @@ function renderRangeLineBoard(encounter) {
       const onSelect = (event) => selectEncounterToken(encounter.identity.id, combatant.id, { additive: Boolean(event?.shiftKey) });
       group.addEventListener('click', onSelect);
       group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(event); } });
-      group.addEventListener('contextmenu', (event) => { event.preventDefault(); showEncounterTokenMenu(event, encounter, combatant); });
+      group.addEventListener('contextmenu', (event) => { event.preventDefault(); event.stopPropagation(); showEncounterTokenMenu(event, encounter, combatant); });
       group.addEventListener('mouseenter', (event) => {
+        // v0.202.1: T targets the hovered marker here too.
+        hoveredEncounterCombatantId = combatant.id;
         el.encounterTokenTooltip.textContent = combatantHoverText(combatant);
         positionEncounterOverlay(el.encounterTokenTooltip, event);
         el.encounterTokenTooltip.hidden = false;
       });
-      group.addEventListener('mouseleave', () => { el.encounterTokenTooltip.hidden = true; });
+      group.addEventListener('mouseleave', () => { hoveredEncounterCombatantId = null; el.encounterTokenTooltip.hidden = true; });
       fragments.push(group);
     });
   }
@@ -5596,6 +5602,11 @@ function renderEncounterMap(encounter) {
   // shows its own staged tokens; a fight shows its board only when it belongs
   // to that scene, or when MANUAL FIGHT is the thing being viewed.
   const scene = viewedScene();
+  // v0.202.0: a manual fight being set up is drawn while MANUAL FIGHT is
+  // viewed (which opening it selects), so the empty board is on screen while
+  // the combatants are added.
+  const manualSetup = manualSetupEncounter();
+  if (!encounter && manualSetup && viewedSceneId === 'manual') { renderManualSetup(manualSetup); return; }
   if (encounter && scene && encounter.sceneId !== scene.identity.id) { renderStagedScene(scene); return; }
   if (!encounter && scene) { renderStagedScene(scene); return; }
   if (!encounter && activeScene()) { renderStagedScene(activeScene()); return; }
@@ -5619,26 +5630,8 @@ function renderEncounterMap(encounter) {
       renderEncounterRangePanel(null, null, null, null);
       return;
     }
-    const start = scene
-      ? makePortButton('START COMBAT', () => startCombatFromScene(scene))
-      : makePortButton('START COMBAT', () => openCombatSetupDialog());
-    // v0.201.1: a fight without a board — Book 1's range line, or a grid sized
-    // to the fight — is always one verb away, scene or no scene.
-    const manual = manualCombatButton();
-    if (scene) {
-      const tracked = trackedSceneTokens(scene);
-      const needParty = !tracked.some((token) => token.side === 'party');
-      const needFoe = !tracked.some((token) => token.side !== 'party');
-      start.disabled = needParty || needFoe;
-      start.title = start.disabled
-        ? (!scene.tokens.length
-        ? `${scene.identity.name} has no tokens at all. Drag an actor from the ACTORS tab onto the board, or right-click an empty square and PLACE ACTOR HERE.`
-        : `${scene.identity.name} has no tracked tokens. Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`)
-        : `Begin a fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
-    } else {
-      start.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
-    }
-    el.encounterResolve.replaceChildren(start, ...(scene ? [manual] : []));
+    // v0.202.0: two verbs — the board, then who is in it.
+    el.encounterResolve.replaceChildren(...startCombatButtons(scene));
     el.encounterMap.replaceChildren();
     el.encounterPartyRoster.replaceChildren();
     el.encounterRoster.replaceChildren();
@@ -5651,6 +5644,11 @@ function renderEncounterMap(encounter) {
   // counts, not meters. It gets its own renderer entirely; everything below
   // this point assumes a square, meters-based board.
   if (encounter.map.spatialMode === 'range-line') { renderRangeLineBoard(encounter); return; }
+  renderEncounterBoard(encounter);
+}
+
+// The square, metres-based board; everything here assumes one.
+function renderEncounterBoard(encounter) {
   // Restore whatever the range-line view above hides, in case the previous
   // render was a range-line fight and this one is a real, mapped board.
   if (el.encounterMapTools) el.encounterMapTools.hidden = false;
@@ -6628,26 +6626,9 @@ function renderEncounterTracker(encounter, actor) {
     ? (pausedWound
       ? makePortButton(`ALLOCATE ${pausedWound.defender?.name.toUpperCase() ?? 'WOUND'}'S WOUND`, openWoundAllocationDialog)
       : makePortButton(`RESOLVE ROUND ${encounter.round}`, resolveDeclaredEncounterRound))
-    : scene
-      ? makePortButton('START COMBAT', () => startCombatFromScene(scene))
-      : makePortButton('START COMBAT', () => openCombatSetupDialog());
-  if (encounter.status !== 'active' && scene) {
-    // v0.92.3: resolving a fight clears the tracker, so this button had
-    // nothing to start and threw "track at least one party character" every
-    // time. A new fight needs tokens tracked again; the button says so and
-    // stays disabled until they are, rather than failing when pressed.
-    const tracked = trackedSceneTokens(scene);
-    const needParty = !tracked.some((token) => token.side === 'party');
-    const needFoe = !tracked.some((token) => token.side !== 'party');
-    button.disabled = needParty || needFoe;
-    button.title = button.disabled
-      ? (!scene.tokens.length
-        ? `${scene.identity.name} has no tokens at all. Drag an actor from the ACTORS tab onto the board, or right-click an empty square and PLACE ACTOR HERE.`
-        : `${scene.identity.name} has no tracked tokens. Add ${[needParty ? 'a party token' : null, needFoe ? 'an opponent' : null].filter(Boolean).join(' and ')}: right-click a token on the board, ADD TO COMBAT`)
-      : `Begin a new fight on ${scene.identity.name} from the ${tracked.length} tracked token${tracked.length === 1 ? '' : 's'}`;
-  } else if (encounter.status !== 'active') {
-    button.title = 'Create a manual personal encounter with referee-defined enemy statistics and equipment';
-  }
+    : null;
+  // v0.202.0: after a fight, the next one starts from the same two verbs.
+  const afterFight = button ? [] : startCombatButtons(scene);
   const note = document.createElement('span');
   note.className = 'encounter-resolve-note';
   const autoPending = pendingNpcDeclarations(encounter).length;
@@ -6656,7 +6637,7 @@ function renderEncounterTracker(encounter, actor) {
     : undeclared.length
       ? `${undeclared.length} UNDECLARED${autoPending ? ` / ${autoPending} ON AUTO` : ''} / THE REST ATTACK THEIR NEAREST ENEMY`
       : 'ALL DECLARED';
-  const controls = [button];
+  const controls = [...(button ? [button] : []), ...afterFight];
   // v0.96.8: one verb, one destination, in every phase. This was CLOSE
   // TRACKER (setup), END COMBAT (active) and CLEAR TRACKER (resolved) —
   // three names for the same action, sat beside PUT AWAY, which looked like
@@ -8368,14 +8349,189 @@ function renderStagedScene(scene) {
   renderEncounterLighting(null);
 }
 
-// v0.201.3: the way to a fight without this scene's board — Book 1's range
-// line, or a grid sized to the fight. Offered whenever no fight is being set
-// up or run on the viewed scene.
-function manualCombatButton() {
-  const manual = makePortButton('MANUAL COMBAT', () => openCombatSetupDialog({ fromBoard: true }));
-  manual.className = 'text-button';
-  manual.title = 'Begin a fight without this scene: the Book 1 range line, or a grid sized to the fight';
-  return manual;
+// v0.202.0: starting a fight is two verbs — the board first, then who is in
+// it. COMBAT · RANGE BANDS opens an empty tracker on Book 1 p.29's line;
+// COMBAT · GRID opens one on the viewed scene's board (or a grid sized to the
+// fight when no scene is viewed). Combatants are then added: party members
+// and NPCs from the tracker's own pickers, or scene tokens by right-click.
+function manualSetupEncounter() {
+  const current = mappedCurrentSystem();
+  if (!current) return null;
+  return encounterDocuments.find((entry) => entry.status === 'setup' && !entry.sceneId && entry.location.systemId === current.id) ?? null;
+}
+
+function startCombatButtons(scene) {
+  const bands = makePortButton('COMBAT \u00b7 RANGE BANDS', () => openManualSetup('range-line'));
+  bands.title = 'Open a combat tracker on the Book 1 p.29 line of bands, then add who is in the fight';
+  const grid = makePortButton('COMBAT \u00b7 GRID', () => (scene ? openSceneSetup(scene) : openManualSetup('scene')));
+  grid.title = scene
+    ? `Open a combat tracker on ${scene.identity.name}'s grid, then add tokens with ADD TO COMBAT`
+    : 'Open a combat tracker on a metre grid sized to the fight, then add who is in the fight';
+  return [bands, grid];
+}
+
+function openManualSetup(spatialMode) {
+  try {
+    if (!campaignDocument || !gameplayDocument || !mappedCurrentSystem()) throw new Error('an active character at a mapped campaign location is required');
+    if (manualSetupEncounter()) throw new Error('a fight is already being set up; END COMBAT it first');
+    if (activeEncounterAtCurrentSystem()) throw new Error('a fight is running; END COMBAT it first');
+    // The next fight replaces a finished one on the desk, as END COMBAT would.
+    const finished = latestEncounterAtCurrentSystem();
+    if (finished && finished.status !== 'active') discardEncounter(finished);
+    const date = campaignDateSnapshot();
+    const encounter = createEncounterDocument({
+      campaign: campaignDocument, scene: null, setup: true, spatialMode,
+      encounterKey: `${campaignDocument.identity.id}|manual|${date.year}-${date.dayOfYear}|${encounterDocuments.length + 1}`,
+      date, dice: seededDice(`manual|${encounterDocuments.length + 1}|setup`)
+    });
+    encounterDocuments.push(encounter);
+    campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    logActivity('COMBAT', `Combat tracker opened on ${spatialMode === 'range-line' ? 'the Book 1 range line' : 'a grid sized to the fight'}.`);
+    viewedSceneId = 'manual';
+    activeSceneTab = 'combat';
+    operationsDeskTab = 'encounter';
+    persistCampaignState();
+    setStatus(spatialMode === 'range-line' ? 'RANGE BANDS READY / ADD WHO IS IN THE FIGHT' : 'GRID READY / ADD WHO IS IN THE FIGHT', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function openSceneSetup(scene) {
+  try {
+    if (combatEncounterForScene(scene)) return;
+    if (activeEncounterAtCurrentSystem()) throw new Error('a fight is running; END COMBAT it first');
+    const finished = latestEncounterAtCurrentSystem();
+    if (finished && finished.status !== 'active') discardEncounter(finished);
+    const date = campaignDateSnapshot();
+    const encounter = createEncounterDocument({
+      campaign: campaignDocument, scene, setup: true,
+      encounterKey: `${campaignDocument.identity.id}|scene-${scene.identity.id}|${date.year}-${date.dayOfYear}|${encounterDocuments.length + 1}`,
+      date, dice: seededDice(`${scene.identity.id}|setup`)
+    });
+    encounterDocuments.push(encounter);
+    campaignDocument = addEncounterToCampaign(campaignDocument, encounter);
+    logActivity('COMBAT', `Combat tracker opened on ${scene.identity.name}.`);
+    persistCampaignState();
+    setStatus('GRID READY / RIGHT-CLICK TOKENS TO ADD THEM TO COMBAT', 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// Where a combatant stands when added to a manual setup: party in band 0 (or
+// the grid's party column), everyone else the starting range away.
+function manualSetupPlacement(encounter, side) {
+  if (encounter.map.spatialMode === 'range-line') {
+    return { column: side === 'party' ? 0 : Math.min(ENCOUNTER_RANGE_LINE_BAND_GAP[encounter.range] ?? 5, encounter.map.columns - 1), row: 0 };
+  }
+  const existing = encounter.combatants.filter((entry) => entry.side === side).length;
+  const scale = encounter.map.metersPerSquare || 1;
+  const snap = (value) => Math.round(value / scale) * scale;
+  const partyColumn = Math.max(0, Math.min(encounter.map.columns - 1, snap((encounter.map.columns - 1) * 0.25)));
+  const row = Math.max(0, Math.min(encounter.map.rows - 1, snap((encounter.map.rows - 1) / 2 + existing * 2 * scale)));
+  if (side === 'party') return { column: partyColumn, row };
+  const gap = { close: 0, short: 5, medium: 50, long: 250, 'very-long': 500 }[encounter.range] ?? 50;
+  return { column: Math.min(encounter.map.columns - 1, snap(partyColumn + gap)), row };
+}
+
+function addToManualSetup(encounter, { characterId = null, actorId = null, side = 'opposition' } = {}) {
+  try {
+    const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+    const doc = encounterDocuments[index];
+    if (doc.combatants.some((entry) => entry.id === (characterId ?? actorId) || entry.sourceActorId === actorId)) throw new Error('already in the tracker');
+    const at = manualSetupPlacement(doc, characterId ? 'party' : side);
+    const result = characterId
+      ? addEncounterCombatantFromCharacter(doc, { character: currentPartyCharacters().find((entry) => entry.identity.id === characterId), column: at.column, row: at.row })
+      : addEncounterCombatantFromActor(doc, { actor: npcActorDocuments.find((entry) => entry.identity.id === actorId), side, column: at.column, row: at.row });
+    encounterDocuments[index] = result.encounter;
+    persistCampaignState();
+    setStatus(`${(result.combatant?.name ?? 'COMBATANT').toUpperCase()} ADDED TO COMBAT`, 'ok');
+    render();
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+function setManualSetupRange(encounter, range) {
+  const index = encounterDocuments.findIndex((entry) => entry.identity.id === encounter.identity.id);
+  const doc = JSON.parse(JSON.stringify(encounterDocuments[index]));
+  doc.range = range;
+  for (const combatant of doc.combatants) {
+    if (combatant.side !== 'party') combatant.position = manualSetupPlacement(doc, combatant.side);
+  }
+  encounterDocuments[index] = doc;
+  persistCampaignState();
+  render();
+}
+
+// The tracker while a manual fight is being set up: who is in, how to add
+// more, the starting range, BEGIN and END.
+function renderManualSetupTracker(encounter) {
+  const heading = document.createElement('div');
+  heading.className = 'encounter-tracker-header';
+  heading.append(Object.assign(document.createElement('strong'), { className: 'encounter-tracker-state', textContent: `COMBAT TRACKER \u00b7 ${encounter.combatants.length} IN \u00b7 ${encounter.map.spatialMode === 'range-line' ? 'RANGE BANDS' : 'GRID'}` }));
+  const rows = encounter.combatants.map((combatant) => {
+    const row = document.createElement('div');
+    row.className = `encounter-tracker-row${combatant.side === 'party' ? '' : ' enemy'}`;
+    row.append(Object.assign(document.createElement('span'), { className: 'encounter-tracker-name', textContent: `${combatant.name.toUpperCase()} / ${combatant.side.toUpperCase()}` }));
+    row.append(makePortButton('REMOVE', () => removeCombatantFromTracker(encounter, combatant.id)));
+    return row;
+  });
+  const adders = document.createElement('div');
+  adders.className = 'manual-setup-adders';
+  const inTracker = new Set(encounter.combatants.flatMap((entry) => [entry.id, entry.sourceActorId].filter(Boolean)));
+  const partyPick = document.createElement('select');
+  partyPick.append(new Option('-- ADD PARTY MEMBER --', ''));
+  for (const character of currentPartyCharacters().filter((entry) => !inTracker.has(entry.identity.id))) partyPick.append(new Option(character.identity.name, character.identity.id));
+  partyPick.addEventListener('change', () => { if (partyPick.value) addToManualSetup(encounter, { characterId: partyPick.value }); });
+  const npcPick = document.createElement('select');
+  npcPick.append(new Option('-- ADD NPC --', ''));
+  for (const actor of npcActorDocuments.filter((entry) => !entry.state.archived && !inTracker.has(entry.identity.id))) npcPick.append(new Option(`${actor.identity.name}${actor.profile.role ? ` / ${actor.profile.role}` : ''}`, actor.identity.id));
+  const sidePick = document.createElement('select');
+  for (const side of ['opposition', 'party', 'neutral']) sidePick.append(new Option(`AS ${side.toUpperCase()}`, side));
+  npcPick.addEventListener('change', () => { if (npcPick.value) addToManualSetup(encounter, { actorId: npcPick.value, side: sidePick.value }); });
+  const rangePick = document.createElement('select');
+  for (const range of ['close', 'short', 'medium', 'long', 'very-long']) rangePick.append(new Option(`MET AT ${range.toUpperCase().replace('-', ' ')}`, range));
+  rangePick.value = encounter.range;
+  rangePick.title = 'Book 1 p.27: the referee states the range the parties met at, or throws for it';
+  rangePick.addEventListener('change', () => setManualSetupRange(encounter, rangePick.value));
+  adders.append(partyPick, npcPick, sidePick, rangePick);
+  el.encounterTracker.replaceChildren(heading, ...rows, adders);
+
+  const party = encounter.combatants.filter((entry) => entry.side === 'party');
+  const foes = encounter.combatants.filter((entry) => entry.side !== 'party');
+  const begin = makePortButton('BEGIN COMBAT', () => beginCombatFromTracker(encounter));
+  const missing = [!party.length ? 'a party character' : null, !foes.length ? 'an opponent' : null].filter(Boolean);
+  begin.disabled = missing.length > 0;
+  begin.title = missing.length ? `Add ${missing.join(' and ')} from the pickers above` : `Roll surprise and begin round 1 with ${encounter.combatants.length} combatants`;
+  const end = makePortButton('END COMBAT', () => { if (window.confirm('End combat and empty the tracker? Nothing has happened yet, so nothing is recorded.')) discardEncounter(encounter); });
+  el.encounterResolve.replaceChildren(begin, end);
+  renderSceneSurpriseConditions(el.encounterResolve);
+  el.encounterPartyRoster.replaceChildren();
+  el.encounterRoster.replaceChildren();
+}
+
+// The board while a manual fight is being set up.
+function renderManualSetup(encounter) {
+  hideEncounterTokenOverlays();
+  try {
+    if (encounter.map.spatialMode === 'range-line') renderRangeLineBoard(encounter);
+    else renderEncounterBoard(encounter);
+  } catch (error) {
+    console.error('[traveller] setup board failed:', error);
+  }
+  // Setup lives on the COMBAT tab, as a scene's setup does; the column takes
+  // the tracker once the fight begins.
+  placeEncounterTracker(false);
+  renderDockRound(null, null);
+  el.encounterSelectionStatus.textContent = `COMBAT SETUP // ${encounter.map.spatialMode === 'range-line' ? 'BOOK 1 RANGE BANDS' : `${encounter.map.metersPerSquare} M GRID`} // ${encounter.combatants.length} IN // ADD WHO IS IN THE FIGHT, THEN BEGIN`;
+  renderManualSetupTracker(encounter);
 }
 
 // v0.95.0: the tracker shows who is in the fight — the encounter's own
@@ -8397,7 +8553,7 @@ function renderSceneTracker(scene) {
         ? 'RIGHT-CLICK A TOKEN AND ADD TO COMBAT TO OPEN THE TRACKER'
         : 'THIS SCENE HAS NO TOKENS / DRAG AN ACTOR FROM THE ACTORS TAB ONTO THE BOARD'
     }));
-    el.encounterResolve.replaceChildren(manualCombatButton());
+    el.encounterResolve.replaceChildren(...startCombatButtons(scene));
     return;
   }
   const names = sceneActorNames();
@@ -8444,7 +8600,7 @@ function renderSceneTracker(scene) {
   });
   end.title = 'Ending combat empties the tracker';
   controls.push(end);
-  if (combat.status !== 'setup' && combat.status !== 'active') controls.push(manualCombatButton());
+  if (combat.status !== 'setup' && combat.status !== 'active') controls.push(...startCombatButtons(scene));
   el.encounterResolve.replaceChildren(...controls);
   renderSceneSurpriseConditions(el.encounterResolve);
 }

@@ -5724,3 +5724,8 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .range-line-zone-label.zone-escaped { fill: var(--muted); }
 .range-line-pair { stroke: var(--highlight); stroke-width: 2; stroke-dasharray: 8 6; }
 .range-line-pair-label { fill: var(--highlight); font: 700 14px Consolas, monospace; letter-spacing: .06em; }
+
+/* v0.202.0: the manual setup tracker's pickers. */
+.manual-setup-adders { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 6px; margin-top: 8px; }
+.manual-setup-adders > select { min-width: 0; width: 100%; box-sizing: border-box; font: inherit; font-size: 11px; }
+.manual-setup-adders > select:first-child { grid-column: 1 / -1; }
