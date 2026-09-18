@@ -16,18 +16,25 @@
 import {
   PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
   setCharacterMilitaryLoad, updateCharacterInventoryItem,
-  FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, bookPassenger, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost,
-  canShipMakeJump, generateFreightOffers, generatePassengerDemand, getPersonalWeapon, getSubsectorSystem,
-  generateSpeculativeTradeOffer, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile, payCurrentBerthing,
-  purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, starportFuelService
+  FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, beginPortCall, bookPassenger,
+  calculateBerthingCost, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost, canShipMakeJump,
+  chargeLifeSupportForTrip, chargeShipUpkeep, consumeJumpFuel, creditShipAccount, deliverFreightAtDestination,
+  disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
+  getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
+  payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
+  starportFuelService, unloadCargo
 } from '../vendor/classic-traveller-rules/index.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
 import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
-  setCampaignOwner, speculativeLotPurchasedQuantity
+  setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays
 } from './campaign-document.js';
+import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
+
+// client/app.js's own convention for a contract's reserved cargo manifest id.
+const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
 import { appendActivityLogEntry, createActivityLogDocument, mergeActivityLogHistory } from './activity-log-document.js';
 import { StaleCampaignHomeError, createCampaignHome, importCampaignHome, nextCampaignHome } from './campaign-home.js';
 import { buildPublishedCampaign, buildPublishedScene } from './published-view.js';
@@ -448,8 +455,9 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
   else if (facts.berthingOwed) jump = { figure: `${destination.name}: berthing unpaid`, copy: 'Pay berthing before departure.' };
   else if (facts.route?.passengersElsewhere.length) jump = { figure: `Passengers aboard for ${facts.route.passengersElsewhere.join(', ')}`, copy: 'Passengers already booked must be carried to their own destination first.' };
   else if (facts.exclusive && facts.exclusive.destination.systemId !== destination.id) jump = { figure: `Chartered to ${facts.exclusive.destination.systemName}`, copy: 'An exclusive charter goes to its own destination. Deliver it, or abandon it in the current client.' };
-  else jump = { figure: `${destination.name}, ${destination.distance} parsec${destination.distance === 1 ? '' : 's'}`, copy: `Ready to go${facts.route?.lifeSupport?.totalCr ? `; life support for the trip will be ${cr(facts.route.lifeSupport.totalCr)}` : ''}. Departure itself is still run from the current client; it arrives on this page next.` };
-  steps.push({ id: 'jump', title: 'Depart', state: 'blocked', cite: 'Book 2 p.5', ...jump });
+  else jump = { figure: `${destination.name}, ${destination.distance} parsec${destination.distance === 1 ? '' : 's'}`, command: 'depart', verb: 'Depart',
+    copy: `Ready to go${facts.route?.lifeSupport?.totalCr ? `; life support for the trip will be ${cr(facts.route.lifeSupport.totalCr)}` : ''}. The trip takes a week (Book 2 p.5).` };
+  steps.push({ id: 'jump', title: 'Depart', state: jump.command ? 'ready' : 'blocked', cite: 'Book 2 p.5', ...jump });
 
   const first = steps.find((step) => step.state === 'ready' && (step.id === 'berthing' || step.id === 'fuel'));
   const next = facts.fight
@@ -458,8 +466,8 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
       ? { title: first.title, copy: first.copy, cite: first.cite, actions: [act(first.command, first.verb, first.figure)].filter(Boolean) }
       : !destination
         ? { title: 'Choose a destination', copy: `Worlds within Jump-${ship.specifications.drives.jump.rating} of ${system.name} are marked on the map. Freight and passengers are offered per destination.`, cite: 'Book 2 p.8', actions: [] }
-        : { title: `Bound for ${destination.name}`, cite: 'Book 2 p.8', actions: [],
-          copy: facts.route && !facts.exclusive ? `Take what you want of the freight and passengers waiting for ${destination.name}, below. Pick another world to see what is waiting for it instead.` : jump.copy };
+        : { title: `Bound for ${destination.name}`, cite: 'Book 2 p.5', actions: [act('depart', 'Depart', jump.figure)].filter(Boolean),
+          copy: facts.route && !facts.exclusive ? `Take what you want of the freight and passengers waiting for ${destination.name}, below, then Depart. ${jump.copy}` : jump.copy };
   return { next, steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)), done };
 }
 
@@ -621,6 +629,89 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         persist([result.ship]);
         message = `${shipName} took on ${result.addedTons} t ${facts.fuelService.quality} fuel at ${facts.system.name}, ${result.costCr ? cr(result.costCr) : 'free'}`;
         log('SHIP', message);
+      } else if (command === 'depart') {
+        if (!facts.destination) throw new Error('choose a destination within jump range first');
+        if (!facts.destination.reachable) throw new Error(`${facts.destination.name} is ${facts.destination.distance} parsecs; beyond Jump-${facts.ship.specifications.drives.jump.rating}`);
+        if (facts.berthingOwed) throw new Error('pay berthing before departure');
+        if (facts.route?.passengersElsewhere.length) throw new Error(`passengers aboard for ${facts.route.passengersElsewhere.join(', ')} must be carried there first`);
+        if (facts.exclusive && facts.exclusive.destination.systemId !== facts.destination.id) throw new Error(`chartered to ${facts.exclusive.destination.systemName}; deliver or abandon it in the current client first`);
+        const fuelCheck = canShipMakeJump(facts.ship, facts.destination.distance);
+        if (!fuelCheck.allowed) throw new Error(fuelCheck.reason === 'FUEL UNRECORDED' ? 'ship fuel is unrecorded; refuel or skim before jumping' : `insufficient fuel: need ${fuelCheck.requirement.totalTons} t, have ${fuelCheck.availableTons} t`);
+        const lifeSupport = calculateLifeSupportCostForTrip(facts.ship);
+        if (lifeSupport.totalCr > facts.ship.state.finances.balanceCr) throw new Error(`life support for the trip needs ${cr(lifeSupport.totalCr)}; account holds ${cr(facts.ship.state.finances.balanceCr)}`);
+
+        const origin = facts.system;
+        const target = getSubsectorSystem(subsector, facts.destination.id);
+        const targetProfile = parseUniversalWorldProfile(target.mainWorld.uwp);
+        let ship = facts.ship;
+        const lifeSupportResult = chargeLifeSupportForTrip(ship, { dateLabel });
+        ship = lifeSupportResult.ship;
+        const fuelResult = consumeJumpFuel(ship, facts.destination.distance);
+        ship = fuelResult.ship;
+
+        let campaign = updateCampaignLocation(resolved.campaign, {
+          systemId: target.id, systemName: target.name, worldId: target.mainWorld.id, worldName: target.mainWorld.name
+        });
+        // Book 2: jump travel takes about one week regardless of distance.
+        campaign = advanceCampaignDays(campaign, 7);
+        registry.put(campaign);
+        // persist() below rebuilds document refs from resolved.campaign, so
+        // the new date and location must be in resolved before it runs.
+        reload();
+
+        const freightDelivery = deliverFreightAtDestination(ship, target.id, { dateLabel });
+        ship = freightDelivery.ship;
+        const passengerDelivery = disembarkPassengersAtDestination(ship, target.id, { dateLabel });
+        ship = passengerDelivery.ship;
+
+        // Contracts for this destination: pay out or fail, and release any
+        // reserved cargo. Every other contract passes through unchanged.
+        const afterTrip = { ...campaign, time: campaign.time };
+        const contractResults = [];
+        const contracts = (resolved.contracts ?? []).map((contract) => {
+          if (contract.status !== 'accepted' || contract.destination?.systemId !== target.id) return contract;
+          let cargoOk = true;
+          if (contract.requirements?.cargoTons > 0) {
+            const cargoId = contractCargoId(contract);
+            const cargo = ship.state.cargoManifest.find((entry) => entry.id === cargoId);
+            cargoOk = Boolean(cargo && Math.abs(cargo.tons - contract.requirements.cargoTons) < 1e-9);
+            if (cargo) ship = unloadCargo(ship, cargoId).ship;
+          }
+          const overdue = isContractOverdue(contract, afterTrip.time);
+          if (overdue || !cargoOk) {
+            const failed = failContractDocument(contract, { date: afterTrip.time, notes: overdue ? 'deadline missed' : 'required contract cargo missing' });
+            contractResults.push({ contract: failed, success: false });
+            return failed;
+          }
+          ship = creditShipAccount(ship, contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} completed / ${target.name}`, dateLabel });
+          const completed = completeContractDocument(contract, { date: afterTrip.time, paymentCr: contract.economics.paymentCr, notes: `Completed at ${target.name}` });
+          contractResults.push({ contract: completed, success: true });
+          return completed;
+        });
+        // Every other accepted contract, anywhere, also has its deadline checked.
+        const reconciled = reconcileContractDeadlines(contracts, afterTrip.time);
+        for (const contract of reconciled.failed) {
+          if (contract.requirements?.cargoTons > 0) {
+            const cargoId = contractCargoId(contract);
+            if (ship.state.cargoManifest.some((entry) => entry.id === cargoId)) ship = unloadCargo(ship, cargoId).ship;
+          }
+        }
+
+        ship = beginPortCall(ship, { systemId: target.id, arrivalDate: dateLabel, berthingDueCr: targetProfile.starport === 'X' ? 0 : calculateBerthingCost(1) });
+        const upkeep = chargeShipUpkeep(ship, { dateLabel, sinceLabel: ship.state.finances?.ledger?.[0]?.date ?? null, unpaid: ship.authority?.assignedCharacterId ? [ship.authority.assignedCharacterId] : [] });
+        ship = upkeep.ship;
+
+        persist([ship, ...reconciled.contracts]);
+        const shipName = facts.ship.identity.name || 'The ship';
+        const parts = [`${shipName} arrived at ${target.name} (${target.hex}), ${facts.destination.distance} parsec${facts.destination.distance === 1 ? '' : 's'} from ${origin.name}, fuel ${ship.state.currentFuelTons} t`];
+        if (freightDelivery.delivered?.length) parts.push(`${freightDelivery.delivered.length} freight shipment${freightDelivery.delivered.length === 1 ? '' : 's'} delivered, ${cr(freightDelivery.revenueCr)}`);
+        if (passengerDelivery.passengers?.length) parts.push(`${passengerDelivery.passengers.length} passenger${passengerDelivery.passengers.length === 1 ? '' : 's'} disembarked, ${cr(passengerDelivery.revenueCr)}`);
+        for (const result of contractResults) parts.push(result.success ? `${result.contract.identity.title} completed, ${cr(result.contract.economics.paymentCr)}` : `${result.contract.identity.title} failed (${result.contract.notes})`);
+        if (upkeep.paidCr > 0) parts.push(`upkeep settled, ${cr(upkeep.paidCr)}`);
+        if (upkeep.outstandingCr > 0) parts.push(`upkeep outstanding, ${cr(upkeep.outstandingCr)}`);
+        if (ship.state.portCall.berthingDueCr > 0) parts.push(`berthing due, ${cr(ship.state.portCall.berthingDueCr)}`);
+        message = parts.join('. ');
+        log('ARRIVAL', message);
       } else if (command === 'speculation:buy' || command.startsWith('speculation:sell:')) {
         if (facts.exclusive) throw new Error(`exclusive charter active for ${facts.exclusive.destination.systemName}; commercial capacity is committed`);
         if (command === 'speculation:buy') {

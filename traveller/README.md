@@ -1,5 +1,56 @@
 # Graycloak Traveller
 
+## v0.210.0 departure: leaving port, the week in jump, and arrival
+
+Fourth part of the port-call slice, and the one that closes the loop: a
+campaign can now actually leave port on `client/play.html`, not just prepare
+to. Once a destination is chosen, "Bound for X" carries a Depart action
+(also the jump row itself, once nothing blocks it). Depart runs the same
+rules-package calls the current client uses:
+
+- charges life support for the trip (`chargeLifeSupportForTrip`)
+- burns the ship's whole jump-fuel allowance, not a distance-prorated share
+  ("Jump fuel requirements are based on jump number rather than the size of
+  the jump actually taken", Book 2 p.6) via `consumeJumpFuel`
+- advances the campaign clock seven days (`advanceCampaignDays`) and moves
+  the campaign to the destination (`updateCampaignLocation`)
+- delivers any freight and passengers booked for that world and credits the
+  revenue (`deliverFreightAtDestination`, `disembarkPassengersAtDestination`)
+- pays out or fails any accepted contract for that destination, and checks
+  every other contract's deadline against the new date
+  (`completeContractDocument`, `failContractDocument`,
+  `reconcileContractDeadlines`), releasing reserved cargo for anything that
+  fails
+- opens the new port call and assesses berthing (`beginPortCall`,
+  `calculateBerthingCost`)
+- charges ship upkeep, crew salary and annual maintenance, for whatever
+  periods elapsed (`chargeShipUpkeep`)
+
+It refuses, with a specific message, when berthing is unpaid, the
+destination is out of jump range, fuel is short, life support cannot be
+afforded, passengers are booked for a different world, or an exclusive
+charter binds the ship elsewhere.
+
+Verified end to end in a real browser against the campaign fixture: paid
+berthing and fuelled at Orison, departed for Cinder, watched the date advance
+106 to 113, fuel burn to 0, and the new port call open with berthing due.
+
+A bug worth remembering: the session's `persist()` helper rebuilds the
+campaign document from an in-memory snapshot captured at the top of the
+command. Depart wrote the new date and location straight to the registry and
+then called `persist()` for the ship, which silently overwrote them with the
+stale snapshot. Fixed by reloading immediately after the direct write, before
+`persist()` runs. Any future command that writes the campaign document
+directly needs the same care.
+
+Four tests added to `test/play-session.test.mjs`: the full round trip,
+freight and passenger delivery, contract payout on arrival, and all four
+refusal cases. Suite: 603 pass, 0 fail.
+
+Still to come on this page: the ship encounter throw on arrival and what it
+can lead to, mail, brokers, patrons, gas-giant skimming. Combat is not yet
+wired to a real combatant.
+
 ## v0.209.1 load rulings recorded; three stale fuel tests brought to 1977 (rules 0.62.1)
 
 **Graycloak rulings on Book 1 p.32-33 WEIGHT**, all as implemented in v0.209.0

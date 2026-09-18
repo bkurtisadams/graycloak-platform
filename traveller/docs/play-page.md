@@ -77,7 +77,9 @@ module under `src/`. No view code changes in any slice.
    masthead, character and ship drawers, jobs, current system on the map.
 2. In progress. v0.207.0: the session, saving, berthing and fuel. v0.208.0:
    freight and passengers per destination. v0.208.3: speculation and resale.
-   Remaining: mail, brokers, patrons, skim, departure.
+   v0.209.0: inventory and load. v0.210.0: departure itself (jump, arrival,
+   delivery, contracts, new port call, upkeep). Remaining: the arrival ship
+   encounter, mail, brokers, patrons, skim.
    Port call: `playProcedureSnapshot()` and its commands (berth, fuel,
    freight, passengers, speculation, resale, destination, depart) into
    `src/play-session.js`. `buildPlayProcedure` cards map to lead + rows.

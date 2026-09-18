@@ -243,7 +243,9 @@ async function traderAtAster({ steward = false } = {}) {
   if (steward) crewAssignments.push({ role: 'steward', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' });
   bundle.documents.ships[0] = createShipDocument({
     designKey: 'type-a-free-trader', id: old.identity.id, name: 'Marisol', registry: 'A-1', authority: old.authority, crewAssignments,
-    state: { currentFuelTons: 30, portCall: { systemId: 'aster', arrivalDate: '106-4800', berthingDueCr: 100, berthingPaid: true } }
+    state: { currentFuelTons: 30,
+      finances: { balanceCr: 500000, ledger: [{ id: 'opening', date: '106-4800', kind: 'transfer', description: 'Opening balance', amountCr: 500000, balanceCr: 500000 }] },
+      portCall: { systemId: 'aster', arrivalDate: '106-4800', berthingDueCr: 100, berthingPaid: true } }
   });
   const registry = createDocumentRegistry({ storage: createMemoryStorage() });
   const { campaign } = registry.putBundle(bundle);
@@ -316,9 +318,18 @@ test('freight and passengers need a destination in range, and an exclusive chart
 
   const resolved = registry.resolveCampaign(campaignId);
   const charter = { ...resolved.contracts.find((entry) => entry.status === 'accepted'), requirements: { cargoTons: 0, exclusiveShip: true, description: '' } };
-  const procedure = portProcedure({ ...resolved, contracts: [charter] }, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId: 'calder' });
+  // A destination other than the charter's own (Calder): commerce and the
+  // jump itself both refuse, since the charter must be delivered first.
+  const procedure = portProcedure({ ...resolved, contracts: [charter] }, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId: 'port-meridian' });
   assert.equal(procedure.steps.some((step) => step.command), false);
   assert.match(procedure.steps.find((step) => step.id === 'commerce').figure, /^Chartered to /);
+  assert.match(procedure.steps.find((step) => step.id === 'jump').figure, /^Chartered to /);
+
+  // Departing for the charter's own destination is allowed: Depart appears
+  // as the lead action and the jump row is ready.
+  const toCharter = portProcedure({ ...resolved, contracts: [charter] }, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId: 'calder' });
+  assert.equal(toCharter.next.actions[0]?.command, 'depart');
+  assert.equal(toCharter.steps.find((step) => step.id === 'jump').state, 'ready');
 });
 
 // ---------------------------------------------------------------- v0.208.3
@@ -427,4 +438,94 @@ test('the carrying limit follows the world the character is on, and is unadjuste
   assert.equal(await limit(at('orison', 'Orison')), '10 kg of 12.5 kg');
   assert.equal(await limit(at('aster', 'Aster')), '10 kg of 10 kg');
   assert.equal(await limit((bundle) => { bundle.documents.ships[0].state.operationalStatus = 'in-jump'; }), '10 kg of 10 kg');
+});
+
+// ---------------------------------------------------------------- v0.210.0
+test('departure advances a week, burns the whole jump fuel allowance, and opens a new port call', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = session.resolved;
+  const beforeDate = before.campaign.time;
+  const beforeFuel = before.ships[0].state.currentFuelTons;
+
+  assert.deepEqual(session.run('depart'), { ok: false, message: 'choose a destination within jump range first' });
+  const at = { selectedSystemId: 'calder' };
+  const result = session.run('depart', at);
+  assert.equal(result.ok, true);
+  assert.match(result.message, /arrived at Calder/);
+
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(after.campaign.time.dayOfYear, beforeDate.dayOfYear + 7);
+  assert.equal(after.campaign.location.systemId, 'calder');
+  const ship = after.ships[0];
+  // A free trader with a Jump-1 drive burns its whole jump-fuel allowance
+  // (Book 2 p.6) regardless of the one-parsec distance actually jumped.
+  assert.ok(ship.state.currentFuelTons < beforeFuel);
+  assert.equal(ship.state.portCall.systemId, 'calder');
+  assert.equal(ship.state.portCall.berthingPaid, false);
+  assert.equal(after.activityLogs[0].entries.at(-1).category, 'ARRIVAL');
+
+  // Cannot depart twice without a new destination in range of the new port.
+  assert.equal(session.run('depart', at).ok, false);
+});
+
+test('freight and passengers loaded for the destination are delivered and paid on arrival', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const at = { selectedSystemId: 'calder' };
+  const lot = session.view(at).steps.find((step) => step.command?.startsWith('freight:load:'));
+  session.run(lot.command, at);
+  session.run('passengers:book:middle', at);
+  const before = session.resolved.ships[0].state.finances.balanceCr;
+
+  const result = session.run('depart', at);
+  assert.equal(result.ok, true);
+  assert.match(result.message, /freight shipment.*delivered/);
+  assert.match(result.message, /passenger.*disembarked/);
+
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  assert.equal(ship.state.cargoManifest.some((entry) => entry.destinationSystemId === 'calder'), false);
+  assert.equal(ship.state.passengerManifest.length, 0);
+  assert.ok(ship.state.finances.balanceCr > before, 'freight revenue and passenger fares were credited');
+});
+
+test('an accepted contract for the destination pays out on arrival; one overdue elsewhere fails', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const resolved = registry.resolveCampaign(campaignId);
+  const contracts = resolved.contracts.map((contract) => (contract.status === 'accepted'
+    ? { ...contract, destination: { ...contract.destination, systemId: 'calder', systemName: 'Calder' }, timing: { ...contract.timing, deadlineDate: { year: 4900, dayOfYear: 1 } } }
+    : contract));
+  registry.putAll(contracts);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = session.resolved.ships[0].state.finances.balanceCr;
+  const result = session.run('depart', { selectedSystemId: 'calder' });
+  assert.equal(result.ok, true);
+  assert.match(result.message, /completed, Cr/);
+
+  const after = registry.resolveCampaign(campaignId);
+  const completed = after.contracts.filter((entry) => entry.status === 'completed');
+  assert.ok(completed.length >= 1);
+  assert.ok(after.ships[0].state.finances.balanceCr > before);
+});
+
+test('departure is refused when berthing is owed, fuel is short, or an exclusive charter binds elsewhere', async () => {
+  const { registry: unpaidRegistry, campaignId: unpaidId } = await traderAtAster({ steward: true });
+  const unpaidResolved = unpaidRegistry.resolveCampaign(unpaidId);
+  unpaidRegistry.put({ ...unpaidResolved.ships[0], state: { ...unpaidResolved.ships[0].state, portCall: { ...unpaidResolved.ships[0].state.portCall, berthingPaid: false } } });
+  const unpaidSession = createPlaySession({ registry: unpaidRegistry, campaignId: unpaidId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.deepEqual(unpaidSession.run('depart', { selectedSystemId: 'calder' }), { ok: false, message: 'pay berthing before departure' });
+
+  const { registry: dryRegistry, campaignId: dryId } = await traderAtAster({ steward: true });
+  const dryResolved = dryRegistry.resolveCampaign(dryId);
+  dryRegistry.put({ ...dryResolved.ships[0], state: { ...dryResolved.ships[0].state, currentFuelTons: 0 } });
+  const drySession = createPlaySession({ registry: dryRegistry, campaignId: dryId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.match(drySession.run('depart', { selectedSystemId: 'calder' }).message, /insufficient fuel/);
+
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const resolved = registry.resolveCampaign(campaignId);
+  const charter = { ...resolved.contracts.find((entry) => entry.status === 'accepted'), destination: { systemId: 'port-meridian', systemName: 'Port Meridian' }, requirements: { cargoTons: 0, exclusiveShip: true, description: '' } };
+  registry.put(charter);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.match(session.run('depart', { selectedSystemId: 'calder' }).message, /chartered to Port Meridian/);
+  assert.equal(session.run('depart', { selectedSystemId: 'port-meridian' }).ok, true);
 });
