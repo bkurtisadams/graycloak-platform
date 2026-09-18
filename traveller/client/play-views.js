@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.206.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.206.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.206.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.207.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.207.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.206.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.207.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -263,12 +263,12 @@ function leadCard(next, state, handlers) {
     h('h2', { text: next.title }),
     next.copy ? h('p', { text: next.copy }) : null,
     next.actions?.length ? h('div', { class: 'lead-actions' }, next.actions.map((action) =>
-      h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button' },
+      h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button', onclick: action.command ? () => handlers.onCommand?.(action.command) : null },
         h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null))) : null,
     next.cite ? h('p', { class: 'cite', text: next.cite }) : null);
 }
 
-function stepRow(step) {
+function stepRow(step, handlers = {}) {
   const row = h('li', { class: `step is-${step.state}` });
   const head = h('button', { type: 'button', class: 'step-head', 'aria-expanded': 'false',
     onclick: () => { const open = row.classList.toggle('is-open'); head.setAttribute('aria-expanded', String(open)); } },
@@ -276,7 +276,7 @@ function stepRow(step) {
     h('span', { class: 'step-title', text: step.title }),
     h('span', { class: 'step-figure', text: step.figure }));
   row.append(head);
-  if (step.verb) row.append(h('button', { type: 'button', class: 'button is-small', text: step.verb }));
+  if (step.verb) row.append(h('button', { type: 'button', class: 'button is-small', text: step.verb, onclick: step.command ? () => handlers.onCommand?.(step.command) : null }));
   row.append(h('p', { class: 'step-more' }, step.copy, step.cite ? h('span', { class: 'cite', text: ` ${step.cite}` }) : null));
   return row;
 }
@@ -300,12 +300,13 @@ export function renderNow(state, handlers = {}) {
   if (state.lastRound?.length) {
     parts.push(h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))));
   }
+  if (state.notice) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }));
   parts.push(leadCard(state.next, state, handlers));
   if (state.hold) parts.push(h('p', { class: 'hold-note', text: state.hold }));
   if (state.roster?.length) parts.push(h('ul', { class: 'roster', 'aria-label': 'Who is fighting' }, state.roster.map(rosterRow)));
   const open = (state.steps ?? []).filter((step) => step.state !== 'done');
   const finished = [...(state.done ?? []), ...(state.steps ?? []).filter((step) => step.state === 'done').map((step) => `${step.title}, ${step.figure}`)];
-  if (open.length) parts.push(h('ul', { class: 'steps', 'aria-label': 'Also possible now' }, open.map(stepRow)));
+  if (open.length) parts.push(h('ul', { class: 'steps', 'aria-label': 'Also possible now' }, open.map((step) => stepRow(step, handlers))));
   if (finished.length) parts.push(h('p', { class: 'done-line' }, h('span', { class: 'done-label', text: 'Done ' }), finished.join('. ') + '.'));
   return parts;
 }

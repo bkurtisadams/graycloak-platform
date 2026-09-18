@@ -1,5 +1,36 @@
 # Graycloak Traveller
 
+## v0.207.0 the play page acts: berthing and fuel, saved like the current client
+
+First part of the port-call slice. On `client/play.html` a live campaign now
+has a working procedure: the lead card is the next thing owed (pay berthing,
+then fill the tanks), everything else is a row, finished steps fold into the
+Done line, and picking a world on the map checks it against the ship's jump
+rating and fuel and says what blocks departure. Paying and fuelling run the
+same rules-package calls the current client does (`payCurrentBerthing`,
+`starportFuelService`, `purchaseShipFuel`), write the ledger, and add PORT and
+SHIP entries to the activity log.
+
+Saving. `createPlaySession()` in `src/play-session.js` writes every change to
+the browser registry, and, when signed in, to the campaign's cloud home by the
+same contract `app.js` uses: load the home on open and adopt its revision,
+save `nextCampaignHome` with `expectedRevision`, publish the envelope with the
+active scene and fight so players lose nothing, and on
+`StaleCampaignHomeError` stop — commands are refused and the masthead offers a
+reload — rather than overwrite a campaign changed elsewhere. Signed out, it
+says the change is in this browser only and offers sign-in.
+`client/play-cloud.js` is the adapter over `auth.js` and `publish.js`.
+
+The page refuses to change a campaign while a fight is running at its
+location; fights are still run in the current client.
+
+Not yet on this page: gas-giant skimming (it advances the calendar and
+expires contracts), freight, passengers, mail, speculation, patrons, and
+departure. The Depart row says what blocks the jump but does not jump.
+
+The cloud path is tested against a fake with the same revision rules
+(`test/play-session.test.mjs`); it has not been run against Firebase.
+
 ## v0.206.0 range bands follow the 1981 text (the one edition exception)
 
 Graycloak ruling: the 1977 printings remain this project's authority, except

@@ -2,11 +2,12 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.206.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.206.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.206.0';
-import { buildPlayViewState } from '../src/play-session.js?v=v0.206.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.206.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.0';
+import { createPlaySession } from '../src/play-session.js?v=v0.207.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.207.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -23,12 +24,14 @@ function openCampaign() {
     const registry = createDocumentRegistry({ storage: window.localStorage });
     const id = params.get('campaign') || registry.getActiveCampaignId();
     if (!id) return { mode: 'empty', reason: 'No campaign has been opened in this browser yet.' };
-    return { mode: 'live', resolved: registry.resolveCampaign(id) };
+    const session = createPlaySession({ registry, campaignId: id, subsector: FAR_MERIDIAN_SUBSECTOR, cloud, onChange: () => render() });
+    return { mode: 'live', session };
   } catch (error) {
     return { mode: 'empty', reason: error?.message ?? String(error) };
   }
 }
-let source = openCampaign();
+const cloud = createPlayCloud();
+let source = { mode: 'empty', reason: 'Opening.' };
 
 const ui = {
   characterId: null,
@@ -47,10 +50,7 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // The one seam. Replace the body with a read of the campaign documents and
 // the rest of the page follows.
 function viewState() {
-  if (source.mode === 'live') {
-    const state = buildPlayViewState(source.resolved, { subsector: FAR_MERIDIAN_SUBSECTOR, characterId: ui.characterId });
-    return { ...state, scene: { ...state.scene, selectedId: ui.selectedSystemId } };
-  }
+  if (source.mode === 'live') return source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId });
   const sample = SAMPLE_SITUATIONS[ui.situation];
   const scene = { ...sample.scene };
   if (scene.kind === 'subsector') scene.selectedId = ui.selectedSystemId;
@@ -95,20 +95,30 @@ function render() {
   shell.dataset.drawer = ui.drawer ? 'open' : 'closed';
   shell.dataset.talk = ui.talkOpen ? 'open' : 'closed';
 
-  $('mast-campaign').textContent = state.campaign.name;
-  $('mast-place').textContent = state.place.name;
-  $('mast-detail').textContent = state.place.detail;
-  $('mast-date').textContent = state.campaign.date;
-  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer }));
-
   const handlers = {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
     onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
     onPickTarget: (id) => { ui.fightTargetId = id; render(); },
     onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },
     onPickMove: (move) => { ui.fightMove = move; render(); },
-    onPickRunning: (on) => { ui.fightRunning = on; render(); }
+    onPickRunning: (on) => { ui.fightRunning = on; render(); },
+    onCommand: (command) => { if (source.mode === 'live' && command) source.session.run(command); },
+    onSignIn: () => cloud.signIn().catch((error) => console.error('[traveller] sign-in:', error))
   };
+  $('mast-campaign').textContent = state.campaign.name;
+  $('mast-place').textContent = state.place.name;
+  $('mast-detail').textContent = state.place.detail;
+  $('mast-date').textContent = state.campaign.date;
+  const saveLine = $('mast-save');
+  saveLine.hidden = !state.save;
+  if (state.save) {
+    saveLine.className = `mast-save is-${state.save.state}`;
+    saveLine.replaceChildren(...[state.save.detail,
+      state.save.state === 'local' ? h('button', { type: 'button', class: 'mast-signin', text: 'Sign in', onclick: handlers.onSignIn }) : null,
+      state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
+  }
+  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer }));
+
   $('now').replaceChildren(...renderNow(state, handlers));
   $('scene').replaceChildren(...renderScene(state, handlers));
 
@@ -147,10 +157,27 @@ document.addEventListener('keydown', (event) => {
 
 // index.html autosaves into the same registry from another tab; follow it.
 window.addEventListener('storage', (event) => {
-  if (source.mode === 'sample' || (event.key && event.key !== DOCUMENT_REGISTRY_STORAGE_KEY)) return;
-  source = openCampaign();
+  if (source.mode !== 'live' || (event.key && event.key !== DOCUMENT_REGISTRY_STORAGE_KEY)) return;
+  source.session.reload();
   render();
 });
 
+// Open the campaign, draw it at once from this browser, then ask the cloud.
+// Signing in later (or out) reconnects; a failed or blocked Firebase load
+// leaves the page working locally, as the current client does.
+async function start() {
+  source = openCampaign();
+  render();
+  if (source.mode !== 'live') return;
+  await cloud.start();
+  let seen;
+  cloud.onAuthChange((user) => {
+    const uid = user?.uid ?? null;
+    if (uid === seen) return;
+    seen = uid;
+    source.session.connect().then(() => render());
+  });
+}
+
 paintThemeButton();
-render();
+start();

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const client = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'client');
 const read = (file) => readFile(path.join(client, file), 'utf8');
-const PLAY_MODULES = ['play.js', 'play-views.js', 'play-sample.js'];
+const PLAY_MODULES = ['play.js', 'play-views.js', 'play-sample.js', 'play-cloud.js'];
 const FORBIDDEN = ['app.js', 'ui-model.js', 'boot.mjs', 'player.js', 'enter.js', 'theme.js', 'chargen-view.js', 'combat-view.js'];
 
 test('the play page imports nothing from the old client', async () => {

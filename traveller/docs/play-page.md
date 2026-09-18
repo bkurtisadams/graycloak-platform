@@ -60,7 +60,8 @@ only what is observable about the opposition; the referee sees all of it.
 | `play.js` | shell state: situation, drawer, chat, theme |
 | `play-views.js` | pure DOM builders from a view state |
 | `play-sample.js` | the view-state contract, with sample data |
-| `../src/play-session.js` | headless: campaign documents to view state |
+| `play-cloud.js` | sign-in and the revisioned cloud save, over `auth.js` and `publish.js` |
+| `../src/play-session.js` | headless: view state, the port procedure, commands, saving |
 
 `test/play-page.test.mjs` pins the separation: no imports from `app.js`,
 `ui-model.js` or the other page controllers, and no `styles.css`.
@@ -73,7 +74,9 @@ module under `src/`. No view code changes in any slice.
 
 1. Done, v0.205.0. Load a campaign (`document-registry.js`, `?campaign=`):
    masthead, character and ship drawers, jobs, current system on the map.
-2. Port call: `playProcedureSnapshot()` and its commands (berth, fuel,
+2. In progress. v0.207.0: the session, saving, berthing and fuel. Remaining:
+   skim, freight, passengers, mail, speculation, resale, patrons, departure.
+   Port call: `playProcedureSnapshot()` and its commands (berth, fuel,
    freight, passengers, speculation, resale, destination, depart) into
    `src/play-session.js`. `buildPlayProcedure` cards map to lead + rows.
 3. Jump, arrival, ship encounter, situations/decisions.

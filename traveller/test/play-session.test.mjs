@@ -73,6 +73,155 @@ test('dates', () => {
 
 test('play-session touches no DOM', async () => {
   const source = await readFile(new URL('../src/play-session.js', import.meta.url), 'utf8');
-  assert.equal(/\bdocument\.(?!identity|characteristics|current|status|career|age|finances|skills|loadout|upp|crew|design|specifications|state|authority)/.test(source), false);
+  assert.equal(/createElement|querySelector|getElementById|addEventListener|innerHTML/.test(source), false);
   assert.equal(/\bwindow\b|localStorage/.test(source), false);
+});
+
+// ---------------------------------------------------------------- v0.207.0
+import { createPlaySession, portProcedure } from '../src/play-session.js';
+import { StaleCampaignHomeError } from '../src/campaign-home.js';
+
+// The fixture is berthed and full at Cinder (starport E). Move it to Orison
+// (starport B), owe the berthing and drain the tanks, so there is port
+// business to do.
+async function atOrison({ fuel = 10, berthingPaid = false } = {}) {
+  const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+  bundle.campaign.location = { systemId: 'orison', systemName: 'Orison', worldId: 'orison-main', worldName: 'Orison' };
+  const ship = bundle.documents.ships[0];
+  ship.state.currentFuelTons = fuel;
+  ship.state.portCall = { systemId: 'orison', arrivalDate: '106-4800', berthingDueCr: 100, berthingPaid };
+  const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+  const { campaign } = registry.putBundle(bundle);
+  return { registry, campaignId: campaign.identity.id };
+}
+
+function fakeCloud({ uid = 'referee-1', remote = null } = {}) {
+  const calls = [];
+  let stored = remote;
+  return {
+    calls,
+    userId: () => uid,
+    load: async () => stored,
+    save: async (home, envelope, { expectedRevision }) => {
+      const current = stored?.revision ?? null;
+      if (current !== expectedRevision) throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision: current });
+      stored = home;
+      calls.push({ revision: home.revision, expectedRevision, envelope });
+      return home.revision;
+    },
+    bump: () => { stored = { ...stored, revision: stored.revision + 1 }; }
+  };
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('the port procedure leads with what is owed and lists the rest', async () => {
+  const { registry, campaignId } = await atOrison();
+  const procedure = portProcedure(registry.resolveCampaign(campaignId), { subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(procedure.next.title, 'Pay berthing');
+  assert.deepEqual(procedure.next.actions.map((action) => action.command), ['berthing:pay']);
+  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['jump', 'blocked']]);
+  assert.match(procedure.steps[0].figure, /^30 t refined, Cr 15,000$/);
+});
+
+test('paying berthing and filling the tanks change the ship, the ledger and the log', async () => {
+  const { registry, campaignId } = await atOrison();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = session.resolved.ships[0].state.finances.balanceCr;
+
+  assert.deepEqual(session.run('berthing:pay'), { ok: true, message: 'Marisol paid Cr 100 berthing at Orison' });
+  assert.equal(session.resolved.ships[0].state.portCall.berthingPaid, true);
+  assert.equal(session.resolved.ships[0].state.finances.balanceCr, before - 100);
+
+  const filled = session.run('fuel:fill');
+  assert.equal(filled.ok, true);
+  assert.equal(session.resolved.ships[0].state.currentFuelTons, 40);
+  assert.equal(session.resolved.ships[0].state.finances.balanceCr, before - 100 - 15000);
+
+  // It is in the registry, not only in the session: a fresh resolve sees it.
+  const fresh = registry.resolveCampaign(campaignId);
+  assert.equal(fresh.ships[0].state.currentFuelTons, 40);
+  assert.deepEqual(fresh.activityLogs[0].entries.slice(-2).map((entry) => entry.category), ['PORT', 'SHIP']);
+
+  const view = session.view();
+  assert.equal(view.next.title, 'Choose a destination');
+  assert.deepEqual(view.done, ['Berthed, Cr 100', 'Tanks full, 40 t']);
+});
+
+test('a refused command changes nothing', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = JSON.stringify(registry.resolveCampaign(campaignId).ships[0]);
+  assert.deepEqual(session.run('fuel:fill'), { ok: false, message: 'fuel tanks are already full' });
+  assert.equal(session.run('warp:nine').ok, false);
+  assert.equal(JSON.stringify(registry.resolveCampaign(campaignId).ships[0]), before);
+});
+
+test('a chosen destination is checked for reach and fuel', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 10, berthingPaid: true });
+  const resolved = registry.resolveCampaign(campaignId);
+  const jump = (selectedSystemId) => portProcedure(resolved, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId }).steps.find((step) => step.id === 'jump');
+  assert.equal(jump(null).figure, 'No destination yet');
+  assert.match(jump('cinder').figure, /short of fuel/);
+  assert.match(jump('heliograph').figure, /parsecs$/);
+});
+
+test('signed out, changes stay in the browser; signed in, they are saved by revision', async () => {
+  const local = await atOrison();
+  const offline = createPlaySession({ ...local, subsector: FAR_MERIDIAN_SUBSECTOR });
+  await offline.connect();
+  assert.equal(offline.save.state, 'local');
+
+  const { registry, campaignId } = await atOrison();
+  const cloud = fakeCloud();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  await session.connect();
+  assert.equal(session.revision, null, 'no cloud copy yet');
+  session.run('berthing:pay');
+  await settle();
+  session.run('fuel:fill');
+  await settle();
+  assert.deepEqual(cloud.calls.map((call) => [call.expectedRevision, call.revision]), [[null, 1], [1, 2]]);
+  assert.equal(session.save.state, 'cloud');
+  assert.equal(registry.resolveCampaign(campaignId).campaign.ownership.ownerUid, 'referee-1');
+});
+
+test('a campaign changed elsewhere stops the page rather than overwrite it', async () => {
+  const { registry, campaignId } = await atOrison();
+  const cloud = fakeCloud();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  await session.connect();
+  session.run('berthing:pay');
+  await settle();
+  cloud.bump(); // another browser saved revision 2
+  session.run('fuel:fill');
+  await settle();
+  assert.equal(session.save.state, 'stale');
+  assert.equal(cloud.calls.length, 1, 'the stale write never landed');
+  assert.deepEqual(session.run('fuel:fill'), { ok: false, message: 'this campaign was changed elsewhere; reload first' });
+  assert.equal(session.view().steps.every((step) => !step.command), true);
+});
+
+test('opening signed in adopts the cloud copy and its revision', async () => {
+  const first = await atOrison();
+  const cloud = fakeCloud();
+  const writer = createPlaySession({ ...first, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  await writer.connect();
+  writer.run('berthing:pay');
+  await settle();
+
+  const second = await atOrison(); // a browser that has not seen the payment
+  const reader = createPlaySession({ ...second, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  assert.equal(reader.resolved.ships[0].state.portCall.berthingPaid, false);
+  await reader.connect();
+  assert.equal(reader.revision, 1);
+  assert.equal(reader.resolved.ships[0].state.portCall.berthingPaid, true);
+});
+
+test('the page leaves a campaign alone while a fight is running there', async () => {
+  const { registry, campaignId } = await atOrison();
+  const resolved = registry.resolveCampaign(campaignId);
+  const procedure = portProcedure({ ...resolved, encounters: [{ status: 'active', location: { systemId: 'orison' }, identity: { id: 'e1' } }] }, { subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(procedure.next.title, 'A fight is in progress');
+  assert.equal(procedure.steps.every((step) => !step.command), true);
 });
