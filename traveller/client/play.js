@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.211.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.211.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.211.1';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.211.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.211.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.211.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.211.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.212.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.212.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.212.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.212.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.212.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.212.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.212.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -51,7 +51,7 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // The one seam. Replace the body with a read of the campaign documents and
 // the rest of the page follows.
 function viewState() {
-  if (source.mode === 'live') return source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId });
+  if (source.mode === 'live') return source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker });
   const sample = SAMPLE_SITUATIONS[ui.situation];
   const scene = { ...sample.scene };
   if (scene.kind === 'subsector') scene.selectedId = ui.selectedSystemId;

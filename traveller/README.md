@@ -1,5 +1,50 @@
 # Graycloak Traveller
 
+## v0.212.0 the fight screen shows a real fight
+
+First half of the combat slice. A campaign with an active encounter now
+renders that encounter on `client/play.html` instead of sample data: real
+combatants, their positions on the Book 1 p.29 band line, their actual
+characteristics and wounds, and the throws computed against them by
+`previewPersonalAttack()`. A fight takes over the column entirely — no port
+business is offered while one is running.
+
+`fightView()` in `src/play-session.js` reshapes the encounter document, which
+was already headless, so no combat logic moved. Three things it has to
+translate: a range-line keeps a combatant's band in `position.column`,
+`characteristics` is the full score while `current` is the wounded one, and
+this round's orders live in `roundState.declaredActions`. Weapons offered are
+what the character actually carries (from the v0.209.0 inventory) plus what
+is in hand and bare hands. Last round's narration comes from the encounter's
+own history.
+
+Declaring and resolving are NOT wired yet, and the card says so. Before they
+can be, a rules question needs your ruling.
+
+**The engine and the fight screen disagree about declarations.** The screen
+was built with movement and attack as two separate choices, because Book 1
+p.28 states a movement status each round and only evading and running are
+said to forbid an attack — so closing at a walk while firing looked legal,
+and I told you so when I built it. The encounter engine disagrees: it takes
+one action per combatant per round from `attack`, `evade`, `close`, `open`,
+`close-run`, `open-run`, `escape`, `wait`. In that model `close` means close
+and do not attack, and closing while firing cannot be expressed.
+
+Whichever way you rule, one side has to change, and I would rather you decide
+than have me quietly pick:
+1. **Engine is right.** The screen collapses to one row of choices and the
+   attack line only appears for `attack`. Smallest change, and it keeps the
+   engine and the current client consistent.
+2. **The screen is right.** The engine grows a combined action so a combatant
+   may close or open at a walk and still attack. This touches
+   `declareEncounterAction`, `resolveDeclaredRound`, their tests, and the
+   current client's own combat UI.
+
+My reading of p.28 favours 2, but it is a rules call and the engine has been
+played against; I have not.
+
+Two tests added to `test/play-session.test.mjs`. Suite: 607 pass, 0 fail.
+
 ## v0.211.1 a new campaign could not reach the cloud
 
 Starting a campaign from the lobby failed with "Missing or insufficient

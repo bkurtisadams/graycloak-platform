@@ -576,3 +576,65 @@ test('the arrival encounter is seeded on the arrival, so it does not reroll', as
   const second = await roll();
   assert.deepEqual(first, second, 'the same arrival always yields the same encounter');
 });
+
+// ---------------------------------------------------------------- v0.212.0
+import { createEncounterDocument, endEncounterByReferee } from '../src/encounter-document.js';
+import { addEncounterToCampaign } from '../src/campaign-document.js';
+import { fightView } from '../src/play-session.js';
+
+const fixedDice = { rollD6: () => 3, roll2D6: () => ({ dice: [2, 2], total: 4 }) };
+
+async function campaignInAFight() {
+  const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+  const { campaign } = registry.putBundle(JSON.parse(await readFile(fixture, 'utf8')));
+  const r = registry.resolveCampaign(campaign.identity.id);
+  const encounter = createEncounterDocument({
+    campaign: r.campaign, characters: [r.characters[0]], opponents: [{ name: 'Thug' }, { name: 'Thug 2' }],
+    spatialMode: 'range-line', date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: fixedDice
+  });
+  registry.put(encounter);
+  registry.put(addEncounterToCampaign(r.campaign, encounter));
+  return { registry, campaignId: campaign.identity.id, encounterId: encounter.identity.id };
+}
+
+test('a live encounter becomes the fight screen, and takes over the column', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const view = session.view();
+
+  assert.equal(view.situation.kind, 'fight');
+  assert.match(view.situation.title, /^Fight, round 1$/);
+  assert.equal(view.scene.kind, 'bands');
+  assert.deepEqual(view.steps, [], 'port business is not offered during a fight');
+
+  assert.equal(view.fighters.length, 3);
+  const hawkeye = view.fighters.find((entry) => entry.playerCharacter);
+  assert.equal(hawkeye.name, 'Hawkeye');
+  assert.equal(hawkeye.side, 'party');
+  assert.equal(hawkeye.down, false);
+  // The range line keeps a combatant's band in position.column.
+  assert.ok(Number.isInteger(hawkeye.band));
+  // Full scores and wounded scores are kept apart.
+  assert.deepEqual(hawkeye.full.STR, hawkeye.characteristics.STR);
+  assert.ok(hawkeye.weapons.includes('hands'));
+  assert.equal(hawkeye.upp, 'AB5678');
+
+  const foes = view.fighters.filter((entry) => entry.side === 'foe');
+  assert.equal(foes.length, 2);
+  assert.ok(foes.every((entry) => entry.order === null), 'nothing is declared yet');
+  assert.ok(view.fighters.every((entry) => entry.awaiting), 'everyone is awaiting orders in round 1');
+});
+
+test('fightView ignores an encounter that is over, so the port call returns', async () => {
+  const { registry, campaignId, encounterId } = await campaignInAFight();
+  const resolved = registry.resolveCampaign(campaignId);
+  const encounter = resolved.encounters.find((entry) => entry.identity.id === encounterId);
+  registry.put(endEncounterByReferee(encounter, { date: { year: 4800, dayOfYear: 106 } }).encounter);
+
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const view = session.view();
+  assert.equal(view.situation.kind, 'port');
+  assert.equal(view.fighters, undefined);
+  assert.equal(fightView({ status: 'resolved' }), null);
+  assert.equal(fightView(null), null);
+});

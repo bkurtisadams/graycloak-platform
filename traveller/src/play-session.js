@@ -32,6 +32,7 @@ import {
   setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays
 } from './campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
+import { undeclaredCombatantIds } from './encounter-document.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
 const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
@@ -252,6 +253,70 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     chat: [],
     referee: refereeView(resolved),
     weaponCatalog: weaponCatalog()
+  };
+}
+
+// v0.212.0: a live encounter as the fight screen's view state. The encounter
+// document is already headless, so this only reshapes it: the range-line puts
+// a combatant's band in position.column, `characteristics` is the full score
+// and `current` the wounded one, and this round's orders live in
+// roundState.declaredActions.
+const ENGINE_ORDER_WORDS = Object.freeze({
+  attack: 'stand', evade: 'evade', close: 'close', open: 'open',
+  'close-run': 'close (run)', 'open-run': 'open (run)', escape: 'escape', wait: 'stand'
+});
+
+export function fightView(encounter, { characters = [] } = {}) {
+  if (!encounter || encounter.status !== 'active') return null;
+  const byId = new Map(characters.map((entry) => [entry.identity.id, entry]));
+  const declared = new Map((encounter.roundState?.declaredActions ?? []).map((entry) => [entry.actorId, entry]));
+  const awaiting = new Set(undeclaredCombatantIds(encounter));
+  const line = encounter.map?.spatialMode === 'range-line';
+
+  const fighters = encounter.combatants.map((entry) => {
+    const order = declared.get(entry.id) ?? null;
+    const source = byId.get(entry.sourceActorId ?? entry.id) ?? null;
+    // What else this combatant could pick up: carried weapons from the
+    // character's own inventory, plus what is in hand and bare hands.
+    const carried = (source?.inventory ?? []).filter((item) => item.carried && item.weaponKey).map((item) => item.weaponKey);
+    const weapons = [...new Set([entry.weaponKey, ...carried, 'hands'])];
+    return {
+      id: entry.id,
+      name: entry.name,
+      side: entry.side === 'party' ? 'party' : 'foe',
+      band: line ? entry.position.column : null,
+      playerCharacter: Boolean(entry.playerCharacter),
+      full: { ...entry.characteristics },
+      characteristics: { ...entry.current },
+      armor: entry.armor,
+      weaponKey: entry.weaponKey,
+      weapons,
+      skills: { ...entry.skills },
+      blowAllowance: entry.blowAllowance,
+      blowsUsed: entry.blowsUsed,
+      down: entry.status !== 'active',
+      contactIds: [...(entry.contactIds ?? [])],
+      upp: source?.upp ?? null,
+      service: source ? characterView(source).service : null,
+      awaiting: awaiting.has(entry.id),
+      order: order
+        ? { move: ENGINE_ORDER_WORDS[order.action] ?? order.action, attack: order.action === 'attack' ? null : null, targetId: order.targetId ?? null, engineAction: order.action }
+        : null
+    };
+  });
+
+  const lastRound = (encounter.history ?? [])
+    .filter((entry) => entry.round === encounter.round - 1 && entry.text)
+    .map((entry) => entry.text);
+
+  return {
+    encounterId: encounter.identity.id,
+    fighters,
+    round: encounter.round,
+    lastRound,
+    awaitingIds: [...awaiting],
+    situation: { kind: 'fight', title: `Fight, round ${encounter.round}`, detail: line ? 'Range bands' : 'Tactical grid' },
+    scene: { kind: line ? 'bands' : 'grid', selected: fighters.find((entry) => entry.playerCharacter && !entry.down)?.id ?? fighters[0]?.id ?? null }
   };
 }
 
@@ -822,8 +887,23 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     get revision() { return revision; },
     get save() { return save; },
     get lastMessage() { return lastMessage; },
-    view({ seat = 'referee', characterId = null, selectedSystemId = null } = {}) {
+    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
+      // A fight in progress is what is happening; nothing else is offered.
+      const live = (resolved.encounters ?? []).find((entry) => entry.status === 'active');
+      const fight = fightView(live, { characters: resolved.characters ?? [] });
+      if (fight) {
+        return {
+          ...state,
+          fighters: fight.fighters,
+          situation: fight.situation,
+          lastRound: fight.lastRound,
+          scene: { ...fight.scene, selected: selectedFighterId ?? fight.scene.selected },
+          next: { title: 'Fight in progress', copy: `Round ${fight.round}. Declarations and resolution are still run from the current client; this page shows the fight as it stands.`, cite: 'Book 1 p.28', actions: [] },
+          steps: [], done: [],
+          save, notice: lastMessage
+        };
+      }
       if (state.situation.kind !== 'port') return { ...state, save, notice: lastMessage };
       const procedure = portProcedure(resolved, { subsector, selectedSystemId, writable: save.state !== 'stale' });
       // The arrival encounter leads the column while it stands: it is what is
