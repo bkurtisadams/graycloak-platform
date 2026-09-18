@@ -96,8 +96,10 @@ button, input, select { font: inherit; color: inherit; }
 .mast-place { font-size: 22px; font-weight: 700; line-height: 1; }
 .mast-detail { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
 .mast-date { font-family: var(--code); font-size: 14px; }
-.mast-save { font-size: 13px; color: var(--ink-2); flex: 0 1 230px; line-height: 1.25; }
-.mast-where { flex: 1 0 300px; }
+.mast-save { font-size: 13px; color: var(--ink-2); white-space: nowrap; flex: none; }
+.mast { min-height: 0; }
+.mast > * { flex-shrink: 0; }
+.mast-where { flex: 1 1 0; min-width: 0; }
 .mast-save.is-stale, .mast-save.is-error { color: var(--red); font-weight: 700; }
 .mast-signin { margin-left: 8px; padding: 0; background: none; border: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .notice { padding: 8px 10px; border-left: 3px solid var(--go-border); background: var(--go); color: var(--go-ink); font-size: 14px; }
@@ -430,6 +432,21 @@ a.button { text-decoration: none; color: inherit; }
 .talk-input { height: 32px; padding: 0 10px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; min-width: 0; }
 .talk-last { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .talk-toggle { background: none; border: 0; color: var(--ink-2); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------------------------------------------------------------- sign-in */
+.signin { width: min(420px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--ink); border-top: 3px solid var(--brand-rule); background: var(--panel); color: var(--ink); }
+.signin::backdrop { background: rgb(0 0 0 / 0.5); }
+.signin-form { display: grid; gap: 12px; padding: 20px; }
+.signin-form header { display: flex; justify-content: space-between; align-items: baseline; }
+.signin-form header .drawer-close { position: static; }
+.signin-form h2 { font-size: 22px; font-weight: 700; }
+.signin-why, .signin-or { font-size: 14px; color: var(--ink-2); }
+.signin-or { text-align: center; border-top: 1px solid var(--line); padding-top: 10px; }
+.signin-form input { width: 100%; padding: 8px 10px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
+.signin-form .button { justify-items: center; text-align: center; }
+[hidden] { display: none !important; }
+.signin-status { min-height: 1.4em; font-size: 14px; color: var(--ink-2); }
+.signin-status.is-error { color: var(--red); font-weight: 700; }
 
 /* ---------------------------------------------------------------- preview
    Scaffolding for the sample situations. Goes when the page reads a campaign. */

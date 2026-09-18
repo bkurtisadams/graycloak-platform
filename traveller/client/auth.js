@@ -11,7 +11,7 @@
 // from file:// — the client carries on signed out and entirely local, which is
 // how it has worked up to now and must keep working.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.1';
 
 const SDK_VERSION = '10.12.2';
 const SDK_SCRIPTS = Object.freeze([
@@ -111,6 +111,34 @@ export async function createAccountWithEmail(email, password, { displayName = nu
     try { await credential.user.updateProfile({ displayName }); } catch (error) { console.warn(error); }
   }
   return credential.user;
+}
+
+// v0.207.1: Firebase's messages are written for developers ("Firebase: Error
+// (auth/invalid-credential).") and say nothing a person at the sign-in box can
+// act on. Say what happened, and keep the code so a report can name it.
+const AUTH_ERROR_TEXT = Object.freeze({
+  'auth/invalid-credential': 'That email and password do not match an account. Check both, or create the account first.',
+  'auth/wrong-password': 'That password is not right for this email.',
+  'auth/user-not-found': 'No account uses that email. Create the account first.',
+  'auth/invalid-email': 'That is not a complete email address.',
+  'auth/missing-password': 'Enter a password.',
+  'auth/missing-email': 'Enter an email address.',
+  'auth/weak-password': 'Passwords need at least six characters.',
+  'auth/email-already-in-use': 'An account already uses that email. Sign in instead of creating one.',
+  'auth/operation-not-allowed': 'Email sign-in is switched off for this Firebase project. Enable Email/Password under Authentication, Sign-in method.',
+  'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
+  'auth/network-request-failed': 'The sign-in service could not be reached. Check the connection.',
+  'auth/unauthorized-domain': 'This address is not an authorized domain for the Firebase project.',
+  'auth/popup-blocked': 'The browser blocked the Google window. Allow pop-ups for this site.',
+  'auth/popup-closed-by-user': 'The Google window was closed before sign-in finished.',
+  'auth/user-disabled': 'That account has been disabled.'
+});
+
+export function describeAuthError(error) {
+  const code = typeof error?.code === 'string' ? error.code : null;
+  const text = code ? AUTH_ERROR_TEXT[code] : null;
+  if (text) return `${text} (${code})`;
+  return error?.message ?? String(error);
 }
 
 export async function signOutOfTraveller() {

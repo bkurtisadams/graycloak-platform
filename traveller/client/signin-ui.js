@@ -5,7 +5,7 @@
 // some do not, and because Google will not let you invent an account for
 // testing. Firebase has both enabled.
 
-import { signIn, signInWithEmail, createAccountWithEmail } from './auth.js?v=v0.207.0';
+import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError } from './auth.js?v=v0.207.1';
 
 const DIALOG_ID = 'signin-dialog';
 
@@ -56,10 +56,27 @@ export function openSignInDialog() {
       return user;
     } catch (error) {
       // Firebase error codes are terse; the message is more use than the code.
-      setStatus(error?.message ?? String(error), 'error');
+      setStatus(describeAuthError(error), 'error');
       return null;
     }
   };
+
+  // v0.207.1: the dialog element outlives this call but `creating` does not.
+  // Reopened after [ CREATE AN ACCOUNT ], it still showed the create form
+  // while `creating` was false again, so [ CREATE ACCOUNT ] tried to sign in
+  // to an account that did not exist. Every open starts from sign-in.
+  const showMode = () => {
+    nameRow.hidden = !creating;
+    field('email-in').textContent = creating ? '[ CREATE ACCOUNT ]' : '[ SIGN IN ]';
+    field('toggle-create').textContent = creating ? '[ I ALREADY HAVE ONE ]' : '[ CREATE AN ACCOUNT ]';
+    field('password').setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
+  };
+  showMode();
+  field('password').value = '';
+  // Enter in either box does what the button does.
+  for (const name of ['email', 'password', 'name']) {
+    field(name).onkeydown = (event) => { if (event.key === 'Enter') { event.preventDefault(); field('email-in').click(); } };
+  }
 
   field('close').onclick = () => dialog.close();
   field('google').onclick = () => run(() => signIn());
@@ -68,9 +85,7 @@ export function openSignInDialog() {
     : signInWithEmail(field('email').value.trim(), field('password').value)));
   field('toggle-create').onclick = () => {
     creating = !creating;
-    nameRow.hidden = !creating;
-    field('email-in').textContent = creating ? '[ CREATE ACCOUNT ]' : '[ SIGN IN ]';
-    field('toggle-create').textContent = creating ? '[ I ALREADY HAVE ONE ]' : '[ CREATE AN ACCOUNT ]';
+    showMode();
     setStatus('');
   };
 

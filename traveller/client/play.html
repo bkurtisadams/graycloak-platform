@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.207.0">
+  <link rel="stylesheet" href="./play.css?v=v0.207.1">
   <script>
     // Same key the other pages use, applied before first paint.
     try {
@@ -56,10 +56,27 @@
     </footer>
   </div>
 
+  <dialog class="signin" id="signin" aria-labelledby="signin-title">
+    <form method="dialog" class="signin-form" id="signin-form">
+      <header><h2 id="signin-title">Sign in</h2><button class="drawer-close" type="button" id="signin-close">Close</button></header>
+      <p class="signin-why">Signing in saves this campaign to the cloud. Without it, changes stay in this browser.</p>
+      <button class="button" type="button" id="signin-google"><span>Continue with Google</span></button>
+      <p class="signin-or">or with email</p>
+      <label class="field"><span class="field-label">Email</span><input id="signin-email" type="email" autocomplete="username" required></label>
+      <label class="field"><span class="field-label">Password</span><input id="signin-password" type="password" autocomplete="current-password" required minlength="6"></label>
+      <label class="field" id="signin-name-row" hidden><span class="field-label">Name, shown to your referee</span><input id="signin-name" type="text" autocomplete="nickname"></label>
+      <p class="signin-status" id="signin-status" role="status"></p>
+      <div class="lead-actions">
+        <button class="button is-primary" type="submit" id="signin-submit"><span>Sign in</span></button>
+        <button class="button" type="button" id="signin-mode"><span>Create an account</span></button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Scaffolding: steps through the sample situations. Deleted when the page
        reads a real campaign, along with play-sample.js. -->
   <div class="preview" id="preview" role="group" aria-label="Preview a situation (sample data)"></div>
 
-  <script type="module" src="./play.js?v=v0.207.0"></script>
+  <script type="module" src="./play.js?v=v0.207.1"></script>
 </body>
 </html>

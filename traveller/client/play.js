@@ -2,12 +2,12 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.0';
-import { createPlaySession } from '../src/play-session.js?v=v0.207.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.207.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.1';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.1';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.1';
+import { createPlaySession } from '../src/play-session.js?v=v0.207.1';
+import { createPlayCloud } from './play-cloud.js?v=v0.207.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.1';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -103,7 +103,7 @@ function render() {
     onPickMove: (move) => { ui.fightMove = move; render(); },
     onPickRunning: (on) => { ui.fightRunning = on; render(); },
     onCommand: (command) => { if (source.mode === 'live' && command) source.session.run(command); },
-    onSignIn: () => cloud.signIn().catch((error) => console.error('[traveller] sign-in:', error))
+    onSignIn: () => openSignIn()
   };
   $('mast-campaign').textContent = state.campaign.name;
   $('mast-place').textContent = state.place.name;
@@ -113,7 +113,8 @@ function render() {
   saveLine.hidden = !state.save;
   if (state.save) {
     saveLine.className = `mast-save is-${state.save.state}`;
-    saveLine.replaceChildren(...[state.save.detail,
+    saveLine.title = state.save.detail;
+    saveLine.replaceChildren(...[h('span', { text: state.save.state === 'cloud' && source.session.revision ? `${state.save.label}, revision ${source.session.revision}` : state.save.label }),
       state.save.state === 'local' ? h('button', { type: 'button', class: 'mast-signin', text: 'Sign in', onclick: handlers.onSignIn }) : null,
       state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
   }
@@ -161,6 +162,43 @@ window.addEventListener('storage', (event) => {
   source.session.reload();
   render();
 });
+
+// Sign-in: Google or email, in the page's own dialog. The mode lives on the
+// dialog's data attribute, so what the button says is always what it does.
+function openSignIn() {
+  const dialog = $('signin');
+  const setMode = (creating) => {
+    dialog.dataset.mode = creating ? 'create' : 'signin';
+    $('signin-title').textContent = creating ? 'Create an account' : 'Sign in';
+    $('signin-submit').firstElementChild.textContent = creating ? 'Create account' : 'Sign in';
+    $('signin-mode').firstElementChild.textContent = creating ? 'I already have one' : 'Create an account';
+    $('signin-name-row').hidden = !creating;
+    $('signin-password').setAttribute('autocomplete', creating ? 'new-password' : 'current-password');
+    $('signin-status').textContent = '';
+  };
+  const attempt = async (action) => {
+    const status = $('signin-status');
+    status.className = 'signin-status';
+    status.textContent = 'Working\u2026';
+    try { await action(); status.textContent = ''; dialog.close(); }
+    catch (error) { status.className = 'signin-status is-error'; status.textContent = cloud.describeError(error); }
+  };
+  $('signin-close').onclick = () => dialog.close();
+  $('signin-mode').onclick = () => setMode(dialog.dataset.mode !== 'create');
+  $('signin-google').onclick = () => attempt(() => cloud.signIn());
+  $('signin-form').onsubmit = (event) => {
+    event.preventDefault();
+    const email = $('signin-email').value.trim();
+    const password = $('signin-password').value;
+    attempt(() => (dialog.dataset.mode === 'create'
+      ? cloud.createAccountWithEmail(email, password, { displayName: $('signin-name').value.trim() || null })
+      : cloud.signInWithEmail(email, password)));
+  };
+  setMode(false);
+  $('signin-password').value = '';
+  dialog.showModal();
+  $('signin-email').focus();
+}
 
 // Open the campaign, draw it at once from this browser, then ask the cloud.
 // Signing in later (or out) reconnects; a failed or blocked Firebase load

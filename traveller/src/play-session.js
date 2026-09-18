@@ -279,13 +279,15 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   if (!registry) throw new TypeError('a document registry is required');
   let resolved = registry.resolveCampaign(campaignId);
   let revision = null;
-  let save = { state: 'local', detail: 'Saved in this browser', at: null };
+  let save = { state: 'local', label: 'This browser only', detail: 'Saved in this browser', at: null };
   let saving = false;
   let queued = false;
   let lastMessage = null;
 
   const reload = () => { resolved = registry.resolveCampaign(campaignId); };
-  const setSave = (state, detail) => { save = { state, detail, at: Date.now() }; onChange(); };
+  // `label` is the few words the masthead has room for; `detail` is the sentence.
+  const LABELS = { local: 'This browser only', cloud: 'Saved to the cloud', stale: 'Changed elsewhere', error: 'Cloud save failed' };
+  const setSave = (state, detail) => { save = { state, label: LABELS[state] ?? state, detail, at: Date.now() }; onChange(); };
 
   function persist(changed) {
     const { campaign } = resolved;

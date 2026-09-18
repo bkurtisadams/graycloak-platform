@@ -1,5 +1,29 @@
 # Graycloak Traveller
 
+## v0.207.1 email sign-in
+
+Three faults, found by reading the sign-in path; none could be run against
+Firebase from the development sandbox.
+
+- `client/signin-ui.js`: the dialog element is built once and reused, but the
+  `creating` flag lived in each call to `openSignInDialog()`. Open it, press
+  [ CREATE AN ACCOUNT ], close it, open it again: the form still showed the
+  create fields and a [ CREATE ACCOUNT ] button while `creating` was false, so
+  that button tried to sign in to an account that did not exist and Firebase
+  answered "invalid credential". Every open now starts in sign-in mode and the
+  button text is set from the flag. Enter in any field submits. The password
+  box switches its autocomplete hint between current and new password.
+- `client/auth.js`: `describeAuthError()` turns Firebase's codes into
+  sentences and keeps the code in brackets so a report can name it, including
+  the two that look like bugs but are configuration: `auth/operation-not-allowed`
+  (Email/Password is not enabled for the project) and `auth/unauthorized-domain`.
+- `client/play.html`: the page offered Google only, so an email account could
+  not sign in there at all. It now has its own sign-in box with both, the mode
+  held on the dialog so the button always does what it says. The masthead save
+  line is a few words with the sentence on hover; at 1440 px it had wrapped to
+  three lines and pushed the Sign in link under the scene, where it could not
+  be clicked.
+
 ## v0.207.0 the play page acts: berthing and fuel, saved like the current client
 
 First part of the port-call slice. On `client/play.html` a live campaign now
