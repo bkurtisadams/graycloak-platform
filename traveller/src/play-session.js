@@ -22,7 +22,7 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
-  rollReaction, rollShipEncounter, starportFuelService, unloadCargo
+  createDice, rollReaction, rollShipEncounter, starportFuelService, unloadCargo
 } from '../vendor/classic-traveller-rules/index.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
@@ -32,7 +32,10 @@ import {
   setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays
 } from './campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
-import { undeclaredCombatantIds } from './encounter-document.js';
+import {
+  allocateRoundWound, declareEncounterAction, endEncounterByReferee, pendingWoundAllocation,
+  resolveDeclaredRound, undeclaredCombatantIds
+} from './encounter-document.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
 const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
@@ -265,6 +268,18 @@ const ENGINE_ORDER_WORDS = Object.freeze({
   attack: 'stand', evade: 'evade', close: 'close', open: 'open',
   'close-run': 'close (run)', 'open-run': 'open (run)', escape: 'escape', wait: 'stand'
 });
+
+// The fight screen declares a movement status and an attack separately, as
+// Book 1 p.28 steps 4A and 4B do. The engine encodes the pair as one action:
+// walking while closing or opening still permits an attack, running and
+// evading do not. This is that mapping, in one place.
+export function engineActionFor({ move = 'Stand', running = false, attack = true } = {}) {
+  const status = String(move).toLowerCase();
+  if (status === 'evade') return 'evade';
+  if (status === 'close') return running ? 'close-run' : (attack ? 'close' : 'close-run');
+  if (status === 'open') return running ? 'open-run' : (attack ? 'open' : 'open-run');
+  return attack ? 'attack' : 'wait';
+}
 
 export function fightView(encounter, { characters = [] } = {}) {
   if (!encounter || encounter.status !== 'active') return null;
@@ -550,6 +565,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // document: a reload forgets it, which is the same as the referee letting
   // the ship pass.
   let pendingArrivalEncounter = null;
+  const liveEncounter = () => (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
 
   const reload = () => { resolved = registry.resolveCampaign(campaignId); };
   // `label` is the few words the masthead has room for; `detail` is the sentence.
@@ -669,12 +685,56 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     return message;
   }
 
-  function run(command, { selectedSystemId = null, characterId = null, item = null } = {}) {
+  function run(command, { selectedSystemId = null, characterId = null, item = null, fight = null } = {}) {
     try {
       if (save.state === 'stale') throw new Error('this campaign was changed elsewhere; reload first');
       if (command.startsWith('inventory:')) {
         if (resolved.encounters.some((entry) => entry.status === 'active')) throw new Error('a fight is in progress; finish it in the current client');
         lastMessage = { ok: true, message: runInventory(command, { characterId, item }) };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command.startsWith('fight:')) {
+        let message;
+        const encounter = liveEncounter();
+        if (!encounter) throw new Error('no fight is running');
+        const [, verb] = command.split(':');
+        if (verb === 'declare') {
+          const actorId = fight?.actorId;
+          if (!actorId) throw new Error('choose who is declaring');
+          const action = engineActionFor(fight ?? {});
+          const result = declareEncounterAction(encounter, { action, actorId, targetId: fight?.targetId ?? null });
+          persist([result.encounter]);
+          const actor = encounter.combatants.find((entry) => entry.id === actorId);
+          message = `${actor?.name ?? 'Combatant'} declared ${action.replace('-', ' at a ')}`;
+        } else if (verb === 'resolve') {
+          const waiting = undeclaredCombatantIds(encounter);
+          if (waiting.length) {
+            const names = waiting.map((id) => encounter.combatants.find((entry) => entry.id === id)?.name ?? id);
+            throw new Error(`${names.join(', ')} ${names.length === 1 ? 'has' : 'have'} no orders yet`);
+          }
+          // A player character's wound after first blood is the player's to
+          // place (Book 1 p.30), so the round may pause and finish later.
+          const result = resolveDeclaredRound(encounter, { dice: createDice(), date: resolved.campaign.time, playerAllocatesWounds: true });
+          persist([result.encounter]);
+          const narration = (result.encounter.history ?? []).filter((entry) => entry.round === encounter.round && entry.text).map((entry) => entry.text);
+          message = narration.length ? narration.join('. ') : `Round ${encounter.round} resolved`;
+        } else if (verb === 'wound') {
+          const waiting = pendingWoundAllocation(encounter);
+          if (!waiting) throw new Error('no wound is waiting to be allocated');
+          const targets = fight?.woundTargets ?? null;
+          if (!Array.isArray(targets) || !targets.length) throw new Error('choose where each wound group falls');
+          const result = allocateRoundWound(encounter, { key: waiting.key, targets, allocation: fight?.woundAllocation ?? null, dice: createDice(), date: resolved.campaign.time });
+          persist([result.encounter]);
+          message = `${waiting.defender?.name ?? 'The wounded'} took ${targets.join(', ')}`;
+        } else if (verb === 'end') {
+          const result = endEncounterByReferee(encounter, { date: resolved.campaign.time });
+          persist([result.encounter]);
+          message = 'The fight is over';
+        } else throw new Error(`unknown command: ${command}`);
+        log('COMBAT', message);
+        lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
         return lastMessage;
@@ -893,13 +953,43 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       const live = (resolved.encounters ?? []).find((entry) => entry.status === 'active');
       const fight = fightView(live, { characters: resolved.characters ?? [] });
       if (fight) {
+        const writable = save.state !== 'stale';
+        const wound = pendingWoundAllocation(live);
+        const selected = fight.fighters.find((entry) => entry.id === (selectedFighterId ?? fight.scene.selected)) ?? null;
+        let next;
+        if (wound) {
+          // Book 1 p.30: the wounded player places each group of the wound.
+          next = {
+            title: `Where does ${wound.defender?.name ?? 'the wound'} take it?`,
+            copy: `${wound.attackerName} hit with the ${wound.weaponName} for ${wound.damageDice.join(' + ')}${wound.modifier ? ` ${wound.modifier > 0 ? '+' : ''}${wound.modifier}` : ''}. Each group falls whole on one of STR, DEX or END; nothing may go on a characteristic already at zero.`,
+            cite: 'Book 1 p.30',
+            wound: { key: wound.key, defenderId: wound.defender?.id ?? null, damageDice: [...wound.damageDice], modifier: wound.modifier, weaponName: wound.weaponName },
+            actions: []
+          };
+        } else if (selected && !selected.down && selected.awaiting) {
+          next = {
+            title: `Declare for ${selected.name}`,
+            copy: 'A movement status and an attack, as Book 1 p.28 has it. Walking while closing or opening still permits an attack; running and evading do not.',
+            cite: 'Book 1 p.28',
+            declare: { actorId: selected.id, moves: ['Close', 'Stand', 'Open', 'Evade'], move: 'Stand', running: false, targetId: null },
+            actions: writable ? [{ command: 'fight:declare', label: 'Declare', primary: true }, { command: 'fight:resolve', label: 'Resolve round', note: `${fight.awaitingIds.length} still to declare` }] : []
+          };
+        } else {
+          next = {
+            title: fight.awaitingIds.length ? 'Orders outstanding' : `Round ${fight.round}`,
+            copy: fight.awaitingIds.length ? 'Some combatants have no orders yet. Select them to declare, or resolve and let them fall back on the nearest enemy.' : 'Everyone has orders. Resolve the round.',
+            cite: 'Book 1 p.28',
+            actions: writable ? [{ command: 'fight:resolve', label: 'Resolve round', note: fight.awaitingIds.length ? `${fight.awaitingIds.length} still to declare` : 'all declared', primary: true }] : []
+          };
+        }
         return {
           ...state,
           fighters: fight.fighters,
           situation: fight.situation,
           lastRound: fight.lastRound,
           scene: { ...fight.scene, selected: selectedFighterId ?? fight.scene.selected },
-          next: { title: 'Fight in progress', copy: `Round ${fight.round}. Declarations and resolution are still run from the current client; this page shows the fight as it stands.`, cite: 'Book 1 p.28', actions: [] },
+          next,
+          refereeActions: writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
           steps: [], done: [],
           save, notice: lastMessage
         };

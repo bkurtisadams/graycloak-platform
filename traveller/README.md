@@ -1,5 +1,41 @@
 # Graycloak Traveller
 
+## v0.213.0 combat runs on the play page
+
+Second half of the combat slice. A live fight can now be played on
+`client/play.html`: declare for a combatant, resolve the round, place a wound,
+end the fight. All four go through `src/encounter-document.js` unchanged.
+
+**Your ruling, and my correction.** You ruled that a character may move and
+attack but not run and attack. The engine already did exactly that — I read
+`declareEncounterAction`'s action list, saw `close` alongside `attack`, and
+concluded they were exclusive without reading `resolveDeclaredRound`, which
+says in as many words: "Walking while closing or opening still permits an
+attack. Running and evading do not (Book 1 p.32)." I verified all four cases
+against a real encounter: close attacks, close-run does not, open attacks,
+evade does not. There was no disagreement to resolve. `engineActionFor()` in
+`src/play-session.js` now holds that mapping in one place, with a test.
+
+The one genuine gap: there is no way to walk and deliberately hold fire. The
+engine has no combined action for it, so `engineActionFor` falls back to the
+run, which also forbids the attack but spends a blow. Easy to add if it ever
+matters at the table.
+
+Commands: `fight:declare`, `fight:resolve`, `fight:wound`, `fight:end`. They
+sit ahead of the port-call guard, which otherwise refused every one of them
+with "a fight is in progress". Resolution refuses while anyone is still
+undeclared and names them. Wounds after first blood pause the round for the
+player to place, per Book 1 p.30.
+
+Four tests added. Suite: 611 pass, 0 fail.
+
+**Known gap.** The result of a fight command does not appear on screen during
+a fight: declarations and the round's narration land in the encounter and the
+log, and the tracker updates, but the notice line stays empty. The port call
+shows notices correctly, so this is specific to the fight column and I have
+not found it yet. The loop is playable without it; the narration is readable
+in the activity log.
+
 ## v0.212.0 the fight screen shows a real fight
 
 First half of the combat slice. A campaign with an active encounter now

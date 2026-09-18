@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.212.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.212.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.212.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.213.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.213.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.212.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.213.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -243,6 +243,8 @@ function fightColumn(state, handlers) {
   const referee = state.seat !== 'player';
   return [
     h('header', { class: 'now-head' }, h('h1', { text: state.situation.title }), h('p', { text: state.situation.detail })),
+    // What the last command said: during a fight this is the round's narration.
+    state.notice ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null,
     selectedPanel(reader, state, handlers),
     h('table', { class: 'tracker' },
       h('thead', {}, h('tr', {},

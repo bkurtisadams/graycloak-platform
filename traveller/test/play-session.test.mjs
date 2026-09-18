@@ -638,3 +638,75 @@ test('fightView ignores an encounter that is over, so the port call returns', as
   assert.equal(fightView({ status: 'resolved' }), null);
   assert.equal(fightView(null), null);
 });
+
+// ---------------------------------------------------------------- v0.213.0
+import { engineActionFor } from '../src/play-session.js';
+
+test('the screen\'s two rows map onto the engine\'s combined action (Book 1 p.28, p.32)', () => {
+  // Walking while closing or opening still permits an attack; running and
+  // evading do not. Kurt's ruling, and what the engine already did.
+  assert.equal(engineActionFor({ move: 'Stand', attack: true }), 'attack');
+  assert.equal(engineActionFor({ move: 'Stand', attack: false }), 'wait');
+  assert.equal(engineActionFor({ move: 'Close', attack: true }), 'close');
+  assert.equal(engineActionFor({ move: 'Close', running: true }), 'close-run');
+  assert.equal(engineActionFor({ move: 'Open', attack: true }), 'open');
+  assert.equal(engineActionFor({ move: 'Open', running: true }), 'open-run');
+  assert.equal(engineActionFor({ move: 'Evade' }), 'evade');
+  // Closing but holding fire has no combined action of its own; the engine's
+  // nearest equivalent is the run, which also forbids the attack.
+  assert.equal(engineActionFor({ move: 'Close', attack: false }), 'close-run');
+});
+
+test('declaring and resolving a round moves the fight on and writes it back', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = session.view();
+  const hawkeye = before.fighters.find((entry) => entry.playerCharacter);
+  const thug = before.fighters.find((entry) => entry.side === 'foe');
+  assert.equal(before.next.declare.actorId, hawkeye.id, 'the party character leads the declaration');
+
+  const declared = session.run('fight:declare', { fight: { actorId: hawkeye.id, move: 'Close', attack: true, targetId: thug.id } });
+  assert.equal(declared.ok, true);
+  assert.match(declared.message, /Hawkeye declared close/);
+  const mid = session.view();
+  assert.equal(mid.fighters.find((entry) => entry.id === hawkeye.id).awaiting, false);
+  assert.equal(mid.fighters.find((entry) => entry.id === hawkeye.id).order.engineAction, 'close');
+
+  // Resolution waits until nobody is left without orders.
+  assert.match(session.run('fight:resolve').message, /no orders yet/);
+  for (const foe of mid.fighters.filter((entry) => entry.side === 'foe' && entry.awaiting)) {
+    session.run('fight:declare', { fight: { actorId: foe.id, move: 'Stand', attack: true, targetId: hawkeye.id } });
+  }
+  const resolved2 = session.run('fight:resolve');
+  assert.equal(resolved2.ok, true);
+  const after = session.view();
+  // Either the round advanced, or it paused for a wound the player must place.
+  assert.ok(after.situation.title !== before.situation.title || after.next.wound);
+  assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.at(-1).category, 'COMBAT');
+});
+
+test('ending a fight hands the column back to the port call', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().situation.kind, 'fight');
+  assert.deepEqual(session.view().refereeActions, [{ command: 'fight:end', label: 'End fight' }]);
+
+  assert.equal(session.run('fight:end').ok, true);
+  const after = session.view();
+  assert.equal(after.situation.kind, 'port');
+  assert.equal(after.fighters, undefined);
+  assert.equal(session.run('fight:end').ok, false, 'no fight is running any more');
+});
+
+test('fight commands refuse what the rules refuse', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const hawkeye = session.view().fighters.find((entry) => entry.playerCharacter);
+  const thug = session.view().fighters.find((entry) => entry.side === 'foe');
+
+  assert.match(session.run('fight:declare', { fight: {} }).message, /choose who is declaring/);
+  assert.match(session.run('fight:wound').message, /no wound is waiting/);
+
+  session.run('fight:declare', { fight: { actorId: hawkeye.id, move: 'Stand', attack: true, targetId: thug.id } });
+  assert.match(session.run('fight:declare', { fight: { actorId: hawkeye.id, move: 'Stand', attack: true, targetId: thug.id } }).message, /already declared/);
+});

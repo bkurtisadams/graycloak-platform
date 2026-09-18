@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.212.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.212.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.212.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.212.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.212.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.212.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.212.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.213.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.213.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.213.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.213.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.213.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.213.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -44,7 +44,10 @@ const ui = {
   fightTargetId: null,
   fightWeaponKey: null,
   fightMove: null,
-  fightRunning: null
+  fightRunning: null,
+  fightActorId: null,
+  fightAttack: true,
+  woundTargets: null
 };
 if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 
@@ -160,10 +163,20 @@ function render() {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
     onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
     onPickTarget: (id) => { ui.fightTargetId = id; render(); },
+    onPickWound: (targets) => { ui.woundTargets = targets; render(); },
     onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },
     onPickMove: (move) => { ui.fightMove = move; render(); },
     onPickRunning: (on) => { ui.fightRunning = on; render(); },
-    onCommand: (command) => { if (source.mode === 'live' && command) source.session.run(command, { selectedSystemId: ui.selectedSystemId }); },
+    onCommand: (command) => {
+      if (source.mode !== 'live' || !command) return;
+      // A fight command carries the declaration the screen is showing.
+      const fight = command.startsWith('fight:')
+        ? { actorId: ui.selectedMarker ?? viewState().next?.declare?.actorId ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }
+        : null;
+      source.session.run(command, { selectedSystemId: ui.selectedSystemId, fight });
+      if (command === 'fight:resolve' || command === 'fight:declare') { ui.fightMove = null; ui.fightRunning = null; ui.fightTargetId = null; }
+      if (command === 'fight:wound') ui.woundTargets = null;
+    },
     onSignIn: () => openSignIn()
   };
   $('mast-campaign').textContent = state.campaign.name;
