@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.213.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.213.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.213.1';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.213.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.213.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.213.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.214.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.214.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.214.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.214.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.214.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.214.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.214.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -188,7 +188,16 @@ function render() {
         ? { actorId: viewState().next?.declare?.actorId ?? ui.selectedMarker ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }
         : null;
       source.session.run(command, { selectedSystemId: ui.selectedSystemId, fight });
-      if (command === 'fight:resolve' || command === 'fight:declare') { ui.fightMove = null; ui.fightRunning = null; ui.fightTargetId = null; }
+      if (command.startsWith('fight:')) {
+        ui.fightMove = null; ui.fightRunning = null; ui.fightTargetId = null;
+        // After declaring, move to whoever still has no orders, so a round is
+        // worked through without hunting for the next name in the tracker.
+        if (command === 'fight:declare' || command === 'fight:auto') {
+          const after = viewState();
+          ui.selectedMarker = after.fighters?.find((entry) => entry.awaiting && !entry.down)?.id ?? null;
+        } else ui.selectedMarker = null;
+        render();
+      }
       if (command === 'fight:wound') ui.woundTargets = null;
     },
     onSignIn: () => openSignIn()

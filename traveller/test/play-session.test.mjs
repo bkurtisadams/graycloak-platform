@@ -672,13 +672,10 @@ test('declaring and resolving a round moves the fight on and writes it back', as
   assert.equal(mid.fighters.find((entry) => entry.id === hawkeye.id).awaiting, false);
   assert.equal(mid.fighters.find((entry) => entry.id === hawkeye.id).order.engineAction, 'close');
 
-  // Resolution waits until nobody is left without orders.
-  assert.match(session.run('fight:resolve').message, /no orders yet/);
-  for (const foe of mid.fighters.filter((entry) => entry.side === 'foe' && entry.awaiting)) {
-    session.run('fight:declare', { fight: { actorId: foe.id, move: 'Stand', attack: true, targetId: hawkeye.id } });
-  }
-  const resolved2 = session.run('fight:resolve');
-  assert.equal(resolved2.ok, true);
+  // A party character left undeclared still stops the round; the opposition
+  // does not, because the engine falls back for them.
+  assert.equal(session.run('fight:resolve').ok, true, 'the party has declared, so the round may resolve');
+
   const after = session.view();
   // Either the round advanced, or it paused for a wound the player must place.
   assert.ok(after.situation.title !== before.situation.title || after.next.wound);
@@ -709,4 +706,27 @@ test('fight commands refuse what the rules refuse', async () => {
 
   session.run('fight:declare', { fight: { actorId: hawkeye.id, move: 'Stand', attack: true, targetId: thug.id } });
   assert.match(session.run('fight:declare', { fight: { actorId: hawkeye.id, move: 'Stand', attack: true, targetId: thug.id } }).message, /already declared/);
+});
+
+test('a referee may let one NPC choose, or resolve with the rest on auto', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const view = session.view();
+  const thug = view.fighters.find((entry) => entry.side === 'foe');
+
+  // Every fighter carries what it is holding, so the tracker can show it.
+  assert.match(thug.weaponLabel, /^Automatic Pistol 3D/);
+  assert.equal(thug.armorLabel, 'jack');
+  // The target is defaulted to the nearest enemy; no click is needed to aim.
+  assert.ok(view.next.declare.targetId);
+
+  // One NPC, on the referee's say-so.
+  assert.equal(session.run('fight:auto', { fight: { actorId: thug.id } }).ok, true);
+  assert.equal(session.view().fighters.find((entry) => entry.id === thug.id).awaiting, false);
+  // A declared combatant is never overridden by the auto pass.
+  assert.equal(session.run('fight:auto', { fight: { actorId: thug.id } }).ok, false);
+
+  // The rest, at resolution.
+  assert.equal(session.run('fight:resolve-auto').ok, true);
+  assert.match(registry.resolveCampaign(campaignId).activityLogs[0].entries.map((entry) => entry.message).join(' '), /\(auto\) declares/);
 });

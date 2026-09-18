@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.213.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.213.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.213.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.214.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.214.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.214.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.213.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.214.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -228,6 +228,7 @@ function trackerRow(fighter, reader, state, handlers) {
   return h('tr', { class: `is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-reader' : ''}`,
     onclick: (event) => { if (!event.target.closest('button')) handlers.onSelectMarker(fighter.id); } },
     h('td', {}, h('div', { class: 'tr-name' }, h('span', { class: 'tr-dot', 'aria-hidden': 'true' }), h('button', { type: 'button', class: 'tr-select', text: fighter.name, onclick: () => handlers.onSelectMarker(fighter.id) }))),
+    h('td', { class: 'tr-arms', title: `${fighter.weaponLabel}, ${fighter.armorLabel}`, text: fighter.weaponLabel }),
     h('td', { class: 'tr-stats' }, stats),
     h('td', { class: 'tr-range', title: fighter === reader ? '' : rangeBetween(reader, fighter).name, text: range }),
     h('td', { class: 'tr-hit' }, canTarget
@@ -248,7 +249,7 @@ function fightColumn(state, handlers) {
     selectedPanel(reader, state, handlers),
     h('table', { class: 'tracker' },
       h('thead', {}, h('tr', {},
-        h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'S\u00b7D\u00b7E' }), h('th', { title: `Range from ${reader.name}`, text: 'Rng' }),
+        h('th', { text: 'Combatant' }), h('th', { title: 'What each carries, and its wound dice', text: 'In hand' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'S\u00b7D\u00b7E' }), h('th', { title: `Range from ${reader.name}`, text: 'Rng' }),
         h('th', { title: `What ${reader.name} must throw to hit them. Click to target.`, text: 'Hit' }), h('th', { title: `What they must throw to hit ${reader.name}`, text: 'Hit by' }), h('th', { text: 'This round' }))),
       sides.map((side) => h('tbody', {}, side.map((fighter) => trackerRow(fighter, reader, state, handlers))))),
     h('div', { class: 'lead-actions' },

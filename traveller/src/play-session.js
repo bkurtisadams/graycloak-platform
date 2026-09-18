@@ -36,6 +36,7 @@ import {
   allocateRoundWound, declareEncounterAction, endEncounterByReferee, pendingWoundAllocation,
   resolveDeclaredRound, undeclaredCombatantIds
 } from './encounter-document.js';
+import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
 const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
@@ -295,9 +296,18 @@ export function fightView(encounter, { characters = [] } = {}) {
     // character's own inventory, plus what is in hand and bare hands.
     const carried = (source?.inventory ?? []).filter((item) => item.carried && item.weaponKey).map((item) => item.weaponKey);
     const weapons = [...new Set([entry.weaponKey, ...carried, 'hands'])];
+    let weaponLabel = entry.weaponKey;
+    try {
+      const spec = getPersonalWeapon(entry.weaponKey);
+      const modifier = spec.damageModifier ?? 0;
+      weaponLabel = `${spec.name} ${spec.damageDice}D${modifier ? (modifier > 0 ? `+${modifier}` : `\u2212${Math.abs(modifier)}`) : ''}`;
+    } catch { /* an animal's natural weapon may not be in the table */ }
     return {
       id: entry.id,
       name: entry.name,
+      weaponLabel,
+      armorLabel: entry.armor === 'none' ? 'no armor' : entry.armor,
+      tactics: entry.tactics,
       side: entry.side === 'party' ? 'party' : 'foe',
       band: line ? entry.position.column : null,
       playerCharacter: Boolean(entry.playerCharacter),
@@ -708,18 +718,49 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           persist([result.encounter]);
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
           message = `${actor?.name ?? 'Combatant'} declared ${action.replace('-', ' at a ')}`;
-        } else if (verb === 'resolve') {
-          const waiting = undeclaredCombatantIds(encounter);
-          if (waiting.length) {
-            const names = waiting.map((id) => encounter.combatants.find((entry) => entry.id === id)?.name ?? id);
+        } else if (verb === 'auto') {
+          const actorId = fight?.actorId;
+          const actor = encounter.combatants.find((entry) => entry.id === actorId);
+          if (!actor) throw new Error('choose who is acting');
+          const choice = chooseNpcDeclaration(encounter, actor);
+          if (!choice) throw new Error(`${actor.name} cannot act`);
+          const result = declareEncounterAction(encounter, { action: choice.action, modifier: choice.modifier, actorId: choice.actorId, targetId: choice.targetId });
+          persist([result.encounter]);
+          message = `${actor.name} (auto) declares ${choice.action}: ${choice.reason}`;
+        } else if (verb === 'resolve' || verb === 'resolve-auto') {
+          if (verb === 'resolve-auto') {
+            // Book-keeping the referee should not have to do by hand: every
+            // NPC still on auto picks its own target and action, each with
+            // the reason it gave, before the round is resolved. A referee who
+            // wants something else declares it first; a declared combatant is
+            // never overridden here.
+            let staged = encounter;
+            for (const choice of pendingNpcDeclarations(staged)) {
+              try {
+                staged = declareEncounterAction(staged, { action: choice.action, modifier: choice.modifier, actorId: choice.actorId, targetId: choice.targetId }).encounter;
+                const actor = staged.combatants.find((entry) => entry.id === choice.actorId);
+                log('COMBAT', `${actor?.name ?? 'Combatant'} (auto) declares ${choice.action}: ${choice.reason}`);
+              } catch (error) { /* the resolver falls back for anyone left */ }
+            }
+            persist([staged]);
+          }
+          const current = liveEncounter();
+          const waiting = undeclaredCombatantIds(current);
+          // The engine falls back to the nearest enemy for anyone still
+          // without orders, so this is a caution rather than a refusal — but
+          // a party character left undeclared is almost always a mistake.
+          const party = waiting.filter((id) => current.combatants.find((entry) => entry.id === id)?.side === 'party');
+          if (party.length && verb === 'resolve') {
+            const names = party.map((id) => current.combatants.find((entry) => entry.id === id)?.name ?? id);
             throw new Error(`${names.join(', ')} ${names.length === 1 ? 'has' : 'have'} no orders yet`);
           }
           // A player character's wound after first blood is the player's to
           // place (Book 1 p.30), so the round may pause and finish later.
-          const result = resolveDeclaredRound(encounter, { dice: createDice(), date: resolved.campaign.time, playerAllocatesWounds: true });
+          const before = liveEncounter();
+          const result = resolveDeclaredRound(before, { dice: createDice(), date: resolved.campaign.time, playerAllocatesWounds: true });
           persist([result.encounter]);
-          const narration = (result.encounter.history ?? []).filter((entry) => entry.round === encounter.round && entry.text).map((entry) => entry.text);
-          message = narration.length ? narration.join('. ') : `Round ${encounter.round} resolved`;
+          const narration = (result.encounter.history ?? []).filter((entry) => entry.round === before.round && entry.text).map((entry) => entry.text);
+          message = narration.length ? narration.join('. ') : `Round ${before.round} resolved`;
         } else if (verb === 'wound') {
           const waiting = pendingWoundAllocation(encounter);
           if (!waiting) throw new Error('no wound is waiting to be allocated');
@@ -971,15 +1012,31 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             title: `Declare for ${selected.name}`,
             copy: 'A movement status and an attack, as Book 1 p.28 has it. Walking while closing or opening still permits an attack; running and evading do not.',
             cite: 'Book 1 p.28',
-            declare: { actorId: selected.id, moves: ['Close', 'Stand', 'Open', 'Evade'], move: 'Stand', running: false, targetId: null },
-            actions: writable ? [{ command: 'fight:declare', label: 'Declare', primary: true }, { command: 'fight:resolve', label: 'Resolve round', note: `${fight.awaitingIds.length} still to declare` }] : []
+            declare: (() => {
+              // Default to the nearest enemy so a single-opponent fight needs
+              // no target click; the Hit numbers remain the override.
+              const foes = fight.fighters.filter((entry) => entry.side !== selected.side && !entry.down);
+              const nearest = [...foes].sort((left, right) => Math.abs((left.band ?? 0) - (selected.band ?? 0)) - Math.abs((right.band ?? 0) - (selected.band ?? 0)))[0] ?? null;
+              return { actorId: selected.id, moves: ['Close', 'Stand', 'Open', 'Evade'], move: 'Stand', running: false, targetId: nearest?.id ?? null };
+            })(),
+            actions: writable
+              ? [
+                { command: 'fight:declare', label: 'Declare', primary: true },
+                selected.side !== 'party' ? { command: 'fight:auto', label: 'Let them choose' } : null,
+                { command: 'fight:resolve-auto', label: 'Resolve, rest on auto', note: `${fight.awaitingIds.length} still to declare` }
+              ].filter(Boolean)
+              : []
           };
         } else {
           next = {
             title: fight.awaitingIds.length ? 'Orders outstanding' : `Round ${fight.round}`,
             copy: fight.awaitingIds.length ? 'Some combatants have no orders yet. Select them to declare, or resolve and let them fall back on the nearest enemy.' : 'Everyone has orders. Resolve the round.',
             cite: 'Book 1 p.28',
-            actions: writable ? [{ command: 'fight:resolve', label: 'Resolve round', note: fight.awaitingIds.length ? `${fight.awaitingIds.length} still to declare` : 'all declared', primary: true }] : []
+            actions: writable
+              ? (fight.awaitingIds.length
+                ? [{ command: 'fight:resolve-auto', label: 'Resolve, rest on auto', note: `${fight.awaitingIds.length} still to declare`, primary: true }, { command: 'fight:resolve', label: 'Resolve as declared' }]
+                : [{ command: 'fight:resolve', label: 'Resolve round', note: 'all declared', primary: true }])
+              : []
           };
         }
         return {

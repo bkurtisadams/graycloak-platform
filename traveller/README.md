@@ -1,5 +1,44 @@
 # Graycloak Traveller
 
+## v0.214.0 a combat round in three clicks, and what the opposition is carrying
+
+The flow was sixteen-odd clicks a round: select a combatant, pick a movement
+status, click a Hit number, Declare, then do it again for every thug. Most of
+that was work the code already knew how to do.
+
+- **What each combatant is carrying now shows.** A new "In hand" column in the
+  tracker gives the weapon and its wound dice for everyone, opposition
+  included ("Automatic Pistol 3D\u22123"), with the armour on hover. The fight
+  column widened to 600 px to hold it.
+- **The target defaults to the nearest enemy.** A single-opponent fight needs
+  no targeting click at all; the Hit numbers remain the override.
+- **Declaring advances to whoever still has no orders**, so a round is worked
+  through without hunting for the next name.
+- **The opposition can act on its own, when the referee says so.** Your
+  `src/npc-tactics.js` already chose an NPC's action and target with a stated
+  reason, and the current client applied it; the play page ignored all of it.
+  Now: `fight:auto` for one combatant ("Let them choose"), and
+  `fight:resolve-auto` ("Resolve, rest on auto") for everyone still
+  undeclared. Both log the reason. Neither ever overrides a combatant the
+  referee has already declared for, and nothing happens automatically — the
+  referee presses the button.
+- **Resolve no longer refuses over an undeclared NPC.** The engine already
+  falls back to the nearest enemy for anyone without orders, so my refusal was
+  stricter than the rules. A party character left undeclared still stops the
+  round, because that is nearly always a mistake.
+
+Verified in a browser: a round of four now takes Declare, then Resolve — and
+it ended with a thug unconscious, the morale throw made, and the narration on
+screen.
+
+One test added. Suite: 612 pass, 0 fail.
+
+**Next, at your request: the referee's editing surface.** Nothing on this page
+can yet change a character's characteristics, equipment or status by hand, and
+a referee needs that — a thug with a different weapon, a wound applied out of
+band, a character patched up between fights. That is its own slice and I have
+not started it.
+
 ## v0.213.1 the fight screen's buttons work
 
 Clicking Hit or Declare did nothing. Two faults, both in the page rather than

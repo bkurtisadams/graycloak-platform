@@ -302,7 +302,7 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 
 /* A fight. The left column widens to hold the selected combatant and the
    tracker; the scene is the band board and nothing else. */
-.shell[data-situation='fight'] { --now-width: 520px; }
+.shell[data-situation='fight'] { --now-width: 600px; }
 .target-line { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 5; pointer-events: none; }
 
 .selected { display: grid; gap: 10px; padding-top: 12px; border-top: 3px solid var(--ink); }
@@ -331,11 +331,13 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .attack-need { font-size: 18px; white-space: nowrap; cursor: help; }
 
 .tracker { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
-.tracker th:nth-child(1) { width: 33%; }
-.tracker th:nth-child(2) { width: 14%; }
-.tracker th:nth-child(3) { width: 7%; }
-.tracker th:nth-child(4) { width: 10%; }
-.tracker th:nth-child(5) { width: 10%; }
+.tracker th:nth-child(1) { width: 24%; }
+.tracker th:nth-child(2) { width: 22%; }
+.tracker th:nth-child(3) { width: 13%; }
+.tracker th:nth-child(4) { width: 7%; }
+.tracker th:nth-child(5) { width: 9%; }
+.tracker th:nth-child(6) { width: 9%; }
+.tr-arms { color: var(--ink-2); font-size: 13px; }
 .lead-actions { align-items: center; }
 .tracker th { text-align: left; font-weight: 400; font-size: 13px; color: var(--ink-2); padding: 0 6px 4px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; cursor: help; }
 .tracker td { overflow: hidden; padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
