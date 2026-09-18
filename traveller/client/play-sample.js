@@ -149,39 +149,36 @@ export const SAMPLE_SITUATIONS = Object.freeze({
     character: woundedCharacter,
     place: { name: 'Cinder', detail: 'Startown, behind the freight sheds' },
     situation: { kind: 'fight', title: 'Fight, round 3', detail: 'Range bands, 25 m each' },
+    // Combatants are in the rules package's own shape, so every number on the
+    // fight cards comes from previewPersonalAttack(), not from this file.
+    fighters: [
+      { id: 'hawkeye', name: 'Hawkeye', side: 'party', band: 2, playerCharacter: true,
+        full: { STR: 10, DEX: 11, END: 5 }, characteristics: { STR: 10, DEX: 11, END: 3 },
+        armor: 'none', weaponKey: 'laser-rifle', weapons: ['laser-rifle', 'blade', 'hands'],
+        skills: { 'Laser Rifle': 1, Blade: 0 }, blowAllowance: 5, blowsUsed: 0,
+        order: 'Stand, laser rifle at Thug 2' },
+      { id: 'thug-1', name: 'Thug 1', side: 'foe', band: 4,
+        full: { STR: 9, DEX: 6, END: 8 }, characteristics: { STR: 9, DEX: 6, END: 8 },
+        armor: 'jack', weaponKey: 'club', weapons: ['club'], skills: { Club: 1 }, blowAllowance: 8, blowsUsed: 0,
+        order: 'Closing at a run' },
+      { id: 'thug-2', name: 'Thug 2', side: 'foe', band: 6,
+        full: { STR: 8, DEX: 7, END: 7 }, characteristics: { STR: 8, DEX: 7, END: 4 },
+        armor: 'jack', weaponKey: 'revolver', weapons: ['revolver'], skills: { Revolver: 1 }, blowAllowance: 7, blowsUsed: 0,
+        order: 'Stand, revolver at Hawkeye' },
+      { id: 'thug-3', name: 'Thug 3', side: 'foe', band: 5, down: true,
+        full: { STR: 7, DEX: 8, END: 6 }, characteristics: { STR: 0, DEX: 3, END: 0 },
+        armor: 'jack', weaponKey: 'dagger', weapons: ['dagger'], skills: { Dagger: 0 }, blowAllowance: 6, blowsUsed: 2,
+        order: null }
+    ],
     next: {
       title: 'Declare for Hawkeye',
-      declare: {
-        moves: ['Close', 'Stand', 'Open', 'Evade'],
-        move: 'Stand',
-        running: false,
-        weapon: 'Laser rifle',
-        weapons: ['Laser rifle', 'Blade', 'Hands'],
-        target: 'Thug 2',
-        targets: ['Thug 1', 'Thug 2', 'Thug 3'],
-        odds: 'Needs 8+. You add +2 at medium range against jack, +1 for Rifle-1.'
-      },
+      declare: { actorId: 'hawkeye', moves: ['Close', 'Stand', 'Open', 'Evade'], move: 'Stand', running: false, targetId: 'thug-2' },
       actions: [{ label: 'Resolve round', note: '1 of 1 declared, opposition on auto', primary: true }]
     },
-    roster: [
-      { name: 'Hawkeye', side: 'party', line: 'STR 10  DEX 11  END 3/5', declared: 'Stand, laser rifle at Thug 2', hurt: true },
-      { name: 'Thug 1', side: 'foe', line: 'Club, jack', declared: 'Closing at a run', hurt: false },
-      { name: 'Thug 2', side: 'foe', line: 'Revolver, jack. Wounded', declared: 'Stand, revolver at Hawkeye', hurt: true },
-      { name: 'Thug 3', side: 'foe', line: 'Down since round 2', declared: null, down: true }
-    ],
     lastRound: ['Hawkeye hit Thug 3 with the laser rifle for 14. Thug 3 is down.', 'Thug 2 hit Hawkeye with the revolver for 2, taken on END.'],
     steps: [],
     done: [],
-    scene: {
-      kind: 'bands',
-      selected: 'Hawkeye',
-      markers: [
-        { name: 'Hawkeye', side: 'party', band: 2 },
-        { name: 'Thug 1', side: 'foe', band: 4 },
-        { name: 'Thug 2', side: 'foe', band: 6 },
-        { name: 'Thug 3', side: 'foe', band: 5, down: true }
-      ]
-    }
+    scene: { kind: 'bands' }
   },
 
   shipfight: {

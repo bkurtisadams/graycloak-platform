@@ -2,8 +2,8 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.203.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.203.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.204.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.204.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -14,7 +14,9 @@ const ui = {
   drawer: null,
   talkOpen: false,
   selectedSystemId: null,
-  selectedMarker: null
+  selectedMarker: null,
+  fightTargetId: null,
+  fightWeaponKey: null
 };
 if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 
@@ -25,7 +27,11 @@ function viewState() {
   const scene = { ...sample.scene };
   if (scene.kind === 'subsector') scene.selectedId = ui.selectedSystemId;
   if (scene.kind === 'bands' && ui.selectedMarker) scene.selected = ui.selectedMarker;
-  return { ...sample, scene };
+  let next = sample.next;
+  if (next?.declare) {
+    next = { ...next, declare: { ...next.declare, targetId: ui.fightTargetId ?? next.declare.targetId, weaponKey: ui.fightWeaponKey ?? next.declare.weaponKey } };
+  }
+  return { ...sample, next, scene };
 }
 
 function openDrawer(kind) {
@@ -46,11 +52,14 @@ function render() {
   $('mast-date').textContent = state.campaign.date;
   $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer }));
 
-  $('now').replaceChildren(...renderNow(state));
-  $('scene').replaceChildren(...renderScene(state, {
+  const handlers = {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
-    onSelectMarker: (name) => { ui.selectedMarker = name; render(); }
-  }));
+    onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
+    onPickTarget: (id) => { ui.fightTargetId = id; render(); },
+    onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); }
+  };
+  $('now').replaceChildren(...renderNow(state, handlers));
+  $('scene').replaceChildren(...renderScene(state, handlers));
 
   $('drawer').hidden = !ui.drawer;
   if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, SAMPLE_REFEREE));
@@ -63,7 +72,7 @@ function render() {
 
   $('preview').replaceChildren(h('span', { text: 'Sample data' }), ...SAMPLE_ORDER.map(([key, label]) =>
     h('button', { type: 'button', 'aria-pressed': key === ui.situation, text: label,
-      onclick: () => { ui.situation = key; ui.selectedSystemId = null; ui.selectedMarker = null; render(); } })));
+      onclick: () => { ui.situation = key; ui.selectedSystemId = null; ui.selectedMarker = null; ui.fightTargetId = null; ui.fightWeaponKey = null; render(); } })));
 }
 
 function paintThemeButton() {

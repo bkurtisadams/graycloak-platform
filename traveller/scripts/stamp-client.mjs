@@ -36,7 +36,18 @@ const stamp = `v${pkg.version}`;
 // alone.
 const SPECIFIER = /(from\s*['"])(\.[^'"?]+\.(?:js|mjs))(\?v=[^'"]*)?(['"])/g;
 const DYNAMIC = /(import\(\s*['"])(\.[^'"?]+\.(?:js|mjs))(\?v=[^'"]*)?(['"]\s*\))/g;
+// v0.204.0: script tags written without a leading "./" (theme.js, shell-chat.js)
+// and stylesheet links were not matched, so every bump left them to be edited
+// by hand, along with the mastheads and the version pins in the tests.
 const SCRIPT_SRC = /(<script[^>]*src=")(\.[^"?]+\.(?:js|mjs))(\?v=[^"]*)?(")/g;
+// A tag that already carries a stamp is restamped whatever its path looks
+// like; a bare one (enter.js, player.js) is left bare, as the pins require.
+const SCRIPT_RESTAMP = /(<script[^>]*src=")([^"?:]+\.(?:js|mjs))(\?v=[^"]*)(")/g;
+const LINK_HREF = /(<link[^>]*rel="stylesheet"[^>]*href=")(\.[^"?]+\.css)(\?v=[^"]*)()(?=")/g;
+const MASTHEAD = /(class="subtitle">(?:[A-Z]+ )?)v\d+\.\d+\.\d+/g;
+
+// The version going out, read before anything is rewritten.
+const previous = /export const CLIENT_VERSION = '([^']*)'/.exec(await readFile(path.join(clientDir, 'boot.mjs'), 'utf8'))?.[1] ?? null;
 
 let changed = 0;
 const touched = [];
@@ -49,6 +60,7 @@ async function stampFile(file, patterns) {
     after = after.replace(pattern, (whole, lead, specifier, existing, tail) =>
       `${lead}${specifier}?v=${stamp}${tail}`);
   }
+  if (file.endsWith('.html')) after = after.replace(MASTHEAD, `$1${stamp}`);
   // The constant boot.mjs uses for the modules it imports dynamically.
   after = after.replace(/(export const CLIENT_VERSION = ')[^']*(';)/, `$1${stamp}$2`);
   if (after !== before) {
@@ -60,7 +72,19 @@ async function stampFile(file, patterns) {
 
 for (const file of await readdir(clientDir)) {
   if (file.endsWith('.js') || file.endsWith('.mjs')) await stampFile(file, [SPECIFIER, DYNAMIC]);
-  else if (file.endsWith('.html')) await stampFile(file, [SCRIPT_SRC]);
+  else if (file.endsWith('.html')) await stampFile(file, [SCRIPT_SRC, SCRIPT_RESTAMP, LINK_HREF]);
+}
+
+// The static pins assert the masthead version literally; move them with it.
+// Only the outgoing version on assert lines changes: other versions pinned in
+// assertions are deliberate, and version numbers in comments are history.
+if (previous && previous !== stamp) {
+  const pins = path.join(root, 'test', 'static-client.test.mjs');
+  const before = await readFile(pins, 'utf8');
+  const from = previous.replace(/\./g, '\\.');
+  const to = stamp.replace(/\./g, '\\.');
+  const after = before.split('\n').map((line) => (line.includes('assert') ? line.split(from).join(to) : line)).join('\n');
+  if (after !== before) { await writeFile(pins, after, 'utf8'); changed += 1; touched.push('../test/static-client.test.mjs'); }
 }
 
 console.log(`stamped ${stamp} into ${changed} file${changed === 1 ? '' : 's'}`);

@@ -2,35 +2,54 @@
    styles.css, on purpose: no rule written for the old client can reach this
    page, and nothing here can break the old one.
 
-   The look comes from the 1977 books themselves: a black cover, a single red
-   rule, plain type on white pages. Dark theme is the cover, light theme is
-   the page. Red is reserved for the rule and for things that need you. */
+   It looks like the rest of Graycloak Traveller: Consolas, cream paper or
+   navy, the same inks. Only the layout is new. */
 
 :root {
-  --ground: #ebebe8;
-  --panel: #f7f7f5;
-  --raise: #ffffff;
-  --line: #cdcdc7;
-  --ink: #141414;
-  --ink-2: #5c5c57;
-  --red: #b0151c;
-  --signal: #1d5d88;
-  --signal-wash: #cadeec;
-  --display: Optima, Candara, 'Gill Sans', 'Gill Sans MT', Cantarell, 'DejaVu Sans', sans-serif;
-  --code: Consolas, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace;
-  --now-width: 372px;
-  --drawer-width: 392px;
+  /* v0.84.0's readability palette, carried over from styles.css by value so
+     this page looks like Graycloak Traveller without loading that file:
+     near-black ink on cream, secondary text at about 9:1, green for the
+     button that acts, amber for what needs you. Dark is navy and amber. */
+  color-scheme: light;
+  --ground: #e2e0d6;
+  --panel: #eeece4;
+  --raise: #f7f5ee;
+  --line: #8c8d85;
+  --ink: #101210;
+  --ink-2: #33372f;
+  --brand-rule: #101210;
+  --red: #7a1f1f;
+  --signal: #1f3a4d;
+  --signal-wash: #d7e0e6;
+  --go: #cfe0cf;
+  --go-hover: #bad1ba;
+  --go-ink: #101210;
+  --go-border: #4f6a4f;
+  --attention: #eadfaa;
+  --attention-border: #7d7340;
+  --display: Consolas, 'Cascadia Mono', 'Lucida Console', 'DejaVu Sans Mono', 'Courier New', monospace;
+  --code: var(--display);
+  --now-width: 408px;
+  --drawer-width: 420px;
 }
 :root[data-theme='dark'] {
-  --ground: #090909;
-  --panel: #121212;
-  --raise: #1a1a1a;
-  --line: #2f2f2d;
-  --ink: #efefeb;
-  --ink-2: #9d9d96;
-  --red: #e2353c;
-  --signal: #8cc0e4;
-  --signal-wash: #14222c;
+  color-scheme: dark;
+  --ground: #0b0f14;
+  --panel: #0f1319;
+  --raise: #161c24;
+  --line: #3a4556;
+  --ink: #d8dee6;
+  --ink-2: #a3afbf;
+  --brand-rule: #e8a84c;
+  --red: #f0a19b;
+  --signal: #63a9c7;
+  --signal-wash: #17242e;
+  --go: #e8a84c;
+  --go-hover: #f3c274;
+  --go-ink: #10141a;
+  --go-border: #e8a84c;
+  --attention: #2e2812;
+  --attention-border: #e8a84c;
 }
 
 * { box-sizing: border-box; }
@@ -68,13 +87,13 @@ button, input, select { font: inherit; color: inherit; }
   gap: 24px;
   padding: 0 16px;
   background: var(--panel);
-  border-bottom: 3px solid var(--red);
+  border-bottom: 3px solid var(--brand-rule);
   min-width: 0;
 }
-.mast-title { font-size: 18px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); text-decoration: none; }
+.mast-title { font-size: 18px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink); text-decoration: none; }
 .mast-where { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; white-space: nowrap; overflow: hidden; }
 .mast-campaign { color: var(--ink-2); margin-left: -12px; white-space: nowrap; }
-.mast-place { font-size: 24px; line-height: 1; }
+.mast-place { font-size: 22px; font-weight: 700; line-height: 1; }
 .mast-detail { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; }
 .mast-date { font-family: var(--code); font-size: 14px; }
 .mast-chips { display: flex; gap: 8px; }
@@ -91,11 +110,13 @@ button, input, select { font: inherit; color: inherit; }
 }
 .chip:hover { border-color: var(--ink); }
 .chip[aria-pressed='true'] { background: var(--ink); color: var(--ground); border-color: var(--ink); }
-.chip-name { font-size: 15px; }
-.chip-line { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.chip-name { font-size: 15px; font-weight: 700; }
+.chip-line { font-size: 13px; color: var(--ink-2); white-space: nowrap; }
 .chip[aria-pressed='true'] .chip-line { color: inherit; opacity: 0.75; }
 .chip.is-hurt { border-color: var(--red); }
 .chip.is-hurt .chip-line { color: var(--red); }
+.chip.is-hurt .chip-line { font-weight: 700; }
+.chip.is-hurt[aria-pressed='true'] .chip-line { color: inherit; opacity: 1; }
 .mast-theme { background: none; border: 0; color: var(--ink-2); cursor: pointer; padding: 8px 4px; text-decoration: underline; text-underline-offset: 3px; }
 
 /* -------------------------------------------------------------- what now? */
@@ -109,25 +130,25 @@ button, input, select { font: inherit; color: inherit; }
   flex-direction: column;
   gap: 20px;
 }
-.now-head h1 { font-size: 13px; font-weight: 400; color: var(--ink-2); }
-.now-head p { font-size: 13px; color: var(--ink-2); }
+.now-head h1 { font-size: 14px; font-weight: 700; color: var(--ink); }
+.now-head p { font-size: 14px; color: var(--ink-2); }
 .now-head { display: flex; justify-content: space-between; gap: 12px; }
 
-.jobs { display: grid; gap: 4px; font-size: 13px; }
+.jobs { display: grid; gap: 4px; font-size: 14px; }
 .job { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding-left: 10px; border-left: 2px solid var(--line); }
-.job-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.job-title { font-weight: 700; }
 .job-due { color: var(--ink-2); }
-.job-pay { grid-column: 1 / -1; color: var(--ink-2); font-size: 12px; }
-.job.is-urgent { border-left-color: var(--red); }
-.job.is-urgent .job-due { color: var(--red); }
+.job-pay { grid-column: 1 / -1; color: var(--ink-2); font-size: 13px; }
+.job.is-urgent { border-left-color: var(--attention-border); background: var(--attention); }
+.job.is-urgent .job-due { color: var(--ink); font-weight: 700; }
 
 /* The one loud thing on the page. */
 .lead { display: grid; gap: 12px; padding-top: 14px; border-top: 3px solid var(--ink); }
-.lead h2 { font-size: 30px; line-height: 1.08; font-weight: 400; letter-spacing: -0.005em; }
-.lead p { max-width: 38ch; }
+.lead h2 { font-size: 24px; line-height: 1.15; font-weight: 700; }
+.lead p { max-width: 44ch; }
 .lead-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.cite { font-size: 12px; color: var(--ink-2); }
-.hold-note { font-size: 13px; color: var(--ink-2); }
+.cite { font-size: 13px; color: var(--ink-2); }
+.hold-note { font-size: 14px; color: var(--ink-2); }
 
 .button {
   display: inline-grid;
@@ -141,11 +162,11 @@ button, input, select { font: inherit; color: inherit; }
   cursor: pointer;
   line-height: 1.2;
 }
-.button small { font-size: 12px; opacity: 0.72; }
+.button small { font-size: 13px; opacity: 0.72; }
 .button:hover { background: var(--ink); color: var(--ground); }
-.button.is-primary { background: var(--ink); color: var(--ground); }
-.button.is-primary:hover { background: var(--red); border-color: var(--red); color: #fff; }
-.button.is-small { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+.button.is-primary { background: var(--go); color: var(--go-ink); border-color: var(--go-border); font-weight: 700; }
+.button.is-primary:hover { background: var(--go-hover); color: var(--go-ink); }
+.button.is-small { min-height: 30px; padding: 4px 10px; font-size: 14px; }
 
 .steps { border-top: 1px solid var(--line); }
 .step { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; border-bottom: 1px solid var(--line); }
@@ -162,12 +183,14 @@ button, input, select { font: inherit; color: inherit; }
 }
 .step-mark { width: 8px; height: 8px; border: 1px solid var(--ink); align-self: center; }
 .step.is-ready .step-mark { background: var(--ink); }
-.step-figure { grid-column: 2; font-size: 13px; color: var(--ink-2); }
+.step-figure { grid-column: 2; font-size: 14px; color: var(--ink-2); }
+.step-title { font-weight: 700; }
+.step.is-blocked .step-title { font-weight: 400; }
 .step.is-blocked .step-title, .step.is-blocked .step-figure { color: var(--ink-2); }
 .step.is-blocked .step-mark { border-color: var(--ink-2); background: linear-gradient(to top right, transparent 45%, var(--ink-2) 45% 55%, transparent 55%); }
-.step-more { display: none; grid-column: 1 / -1; padding: 0 0 12px 20px; font-size: 13px; color: var(--ink-2); }
+.step-more { display: none; grid-column: 1 / -1; padding: 0 0 12px 20px; font-size: 14px; color: var(--ink-2); }
 .step.is-open .step-more { display: block; }
-.done-line { font-size: 13px; color: var(--ink-2); }
+.done-line { font-size: 14px; color: var(--ink-2); }
 .done-label { color: var(--ink); }
 
 /* Fights: the declaration is the lead card; the roster is who is in it. */
@@ -176,32 +199,32 @@ button, input, select { font: inherit; color: inherit; }
 .seg-option { padding: 8px 0; background: none; border: 0; border-left: 1px solid var(--ink); cursor: pointer; }
 .seg-option:first-child { border-left: 0; }
 .seg-option[aria-pressed='true'] { background: var(--ink); color: var(--ground); }
-.check { font-size: 13px; color: var(--ink-2); }
+.check { font-size: 14px; color: var(--ink-2); }
 .field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .field { display: grid; gap: 2px; }
-.field-label { font-size: 12px; color: var(--ink-2); }
+.field-label { font-size: 13px; color: var(--ink-2); }
 select, .search { width: 100%; padding: 7px 8px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
-.odds { font-size: 13px; color: var(--ink-2); }
+.odds { font-size: 14px; color: var(--ink-2); }
 
 .roster { border-top: 1px solid var(--line); }
 .fighter { display: flex; flex-wrap: wrap; column-gap: 8px; align-items: baseline; position: relative; padding: 8px 0 8px 20px; border-bottom: 1px solid var(--line); }
 .fighter-mark { position: absolute; left: 0; top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
-.fighter-name { flex: 1 0 auto; }
+.fighter-name { flex: 1 0 auto; font-weight: 700; }
 .fighter.is-foe .fighter-mark { background: none; border: 2px solid var(--red); }
-.fighter-line { font-size: 13px; color: var(--ink-2); font-family: var(--code); }
+.fighter-line { font-size: 14px; color: var(--ink-2); font-family: var(--code); }
 .fighter.is-hurt .fighter-line { color: var(--red); }
-.fighter-declared { flex-basis: 100%; font-size: 13px; color: var(--ink-2); }
+.fighter-declared { flex-basis: 100%; font-size: 14px; color: var(--ink-2); }
 .fighter.is-down { opacity: 0.5; }
 .fighter.is-down .fighter-name { text-decoration: line-through; }
-.last-round h3 { font-size: 13px; font-weight: 400; color: var(--ink-2); margin-bottom: 4px; }
-.last-round p { font-size: 13px; }
+.last-round h3 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.last-round p { font-size: 14px; }
 
 /* ------------------------------------------------------------------ scene */
 .scene { grid-area: scene; position: relative; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; background: var(--ground); container-type: inline-size; }
 .scene > .scene-title, .scene > .phases { grid-row: 1; }
 .scene > svg { grid-row: 3; }
 .scene > .scene-foot { grid-row: 4; }
-.scene-title, .scene-foot { padding: 12px 20px 0; font-size: 13px; color: var(--ink-2); }
+.scene-title, .scene-foot { padding: 12px 20px 0; font-size: 14px; color: var(--ink-2); }
 .scene-foot { padding: 0 20px 12px; }
 .scene svg { width: 100%; height: 100%; min-height: 0; display: block; padding: 8px 20px 16px; }
 
@@ -214,23 +237,23 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
   .caption { width: auto; flex: 1; padding: 8px 10px; gap: 2px; }
   .caption h2 { font-size: 17px; }
   .caption { align-content: start; }
-  .caption .button { min-height: 30px; padding: 4px 10px; font-size: 13px; justify-self: start; }
+  .caption .button { min-height: 30px; padding: 4px 10px; font-size: 14px; justify-self: start; }
   .caption-facts, .caption-bases { display: none; }
   .scene svg.map { padding-left: 20px; }
 }
 .caption { pointer-events: auto; width: 300px; padding: 12px 14px; background: var(--raise); border: 1px solid var(--line); border-top: 3px solid var(--ink); display: grid; gap: 6px; }
 .caption-there { border-top-color: var(--signal); }
-.caption-role { font-size: 12px; color: var(--ink-2); }
-.caption h2 { font-size: 20px; font-weight: 400; line-height: 1.1; }
-.caption h2 .code { font-size: 13px; color: var(--ink-2); }
-.caption-facts, .caption-bases { font-size: 13px; color: var(--ink-2); }
+.caption-role { font-size: 13px; color: var(--ink-2); }
+.caption h2 { font-size: 19px; font-weight: 700; line-height: 1.15; }
+.caption h2 .code { font-size: 14px; color: var(--ink-2); }
+.caption-facts, .caption-bases { font-size: 14px; color: var(--ink-2); }
 .caption-bases { color: var(--ink); }
 
-.subsector-hex-shape { fill: none; stroke: var(--line); stroke-width: 1; }
+.subsector-hex-shape { fill: none; stroke: var(--line); stroke-width: 0.8; }
 .subsector-hex-coordinate { font: 6px var(--code); fill: var(--ink-2); opacity: 0.6; }
 .empty-hex .subsector-hex-coordinate { opacity: 0.3; }
 .subsector-system-marker { font-size: 9px; fill: var(--ink); }
-.subsector-system-name { font: 8.5px var(--display); fill: var(--ink-2); }
+.subsector-system-name { font: 600 8px var(--display); fill: var(--ink); }
 .system-hex[role='button'] { cursor: pointer; }
 .system-hex.reachable .subsector-hex-shape { fill: var(--signal-wash); stroke: var(--signal); }
 .system-hex.reachable .subsector-system-name { fill: var(--ink); }
@@ -245,10 +268,10 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .system-hex.current .subsector-base-icon-shape { fill: var(--ground); }
 .system-hex.current .subsector-base-icon-line { stroke: var(--ground); }
 .subsector-jump-layer { pointer-events: none; }
-.subsector-jump-line { stroke: var(--red); stroke-width: 2; stroke-dasharray: 6 4; }
-.subsector-jump-label { font: 9px var(--code); fill: var(--red); }
+.subsector-jump-line { stroke: var(--brand-rule); stroke-width: 2; stroke-dasharray: 6 4; }
+.subsector-jump-label { font: 700 9px var(--code); fill: var(--ink); }
 .destination-pending .system-hex.reachable .subsector-hex-shape { animation: beckon 1.8s ease-in-out infinite; }
-@keyframes beckon { 50% { fill: transparent; } }
+@keyframes beckon { 50% { stroke: var(--go-border); stroke-width: 3; } }
 
 .jump-clock { position: absolute; right: 20px; top: 16px; display: flex; gap: 4px; }
 .jump-clock span { width: 28px; height: 8px; border: 1px solid var(--ink); }
@@ -259,18 +282,49 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .band.is-own { fill: var(--signal-wash); }
 .band-number { font: 11px var(--code); fill: var(--ink-2); opacity: 0.7; }
 .span-rule { stroke: var(--ink); stroke-width: 1.5; }
-.span-label { font: 17px var(--display); fill: var(--ink); }
+.span-label { font: 600 15px var(--display); fill: var(--ink); }
 .marker { cursor: pointer; }
 .marker circle { fill: var(--ink); stroke: var(--ink); stroke-width: 2; }
 .marker .marker-initial { font: 11px var(--code); fill: var(--ground); }
-.marker .marker-name { font: 16px var(--display); fill: var(--ink); }
+.marker .marker-name { font: 600 15px var(--display); fill: var(--ink); }
 .marker.is-foe circle { fill: var(--ground); stroke: var(--red); }
 .marker.is-foe .marker-initial { fill: var(--red); }
 .marker.is-selected circle { stroke: var(--signal); stroke-width: 4; }
 .marker.is-down { opacity: 0.45; }
 
+/* A fight: the band strip, and beside it a card per combatant. */
+.fight { grid-row: 3; min-height: 0; display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 8px; padding: 8px 20px 16px; }
+.scene .fight svg { padding: 0; height: 100%; }
+.cards { min-height: 0; overflow-y: auto; display: grid; gap: 16px; align-content: start; }
+.card-group h2 { font-size: 14px; font-weight: 700; padding-bottom: 6px; }
+.card-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.fight-card { display: grid; gap: 8px; align-content: start; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--signal); cursor: pointer; }
+.fight-card.is-foe { border-top-color: var(--red); }
+.fight-card.is-reader { background: var(--signal-wash); border-color: var(--signal); }
+.fight-card.is-down { opacity: 0.55; }
+.fight-card header { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; align-items: center; }
+.card-badge { grid-row: span 2; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: var(--panel); font-size: 13px; font-weight: 700; }
+.is-foe .card-badge { background: var(--panel); color: var(--red); border: 2px solid var(--red); }
+.fight-card h3 { font-size: 16px; font-weight: 700; line-height: 1.2; }
+.card-condition { font-size: 13px; color: var(--ink-2); }
+.card-stats { display: flex; gap: 12px; font-size: 14px; }
+.card-stats b { font-size: 16px; }
+.card-stats .is-hurt, .card-stats .is-hurt b { color: var(--red); }
+.card-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; font-size: 14px; }
+.card-facts dt { color: var(--ink-2); }
+.card-odds { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 14px; }
+.card-odds p { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.card-odds b { font-size: 18px; }
+.button.is-chosen { background: var(--ink); color: var(--panel); }
+.need { font-size: 15px; }
+.need b { font-size: 20px; }
+@container (max-width: 700px) {
+  .fight { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .scene .fight svg { height: 420px; }
+}
+
 .phases { display: flex; gap: 0; margin: 12px 20px 0; border: 1px solid var(--ink); border-radius: 2px; counter-reset: phase; }
-.phases li { flex: 1; padding: 7px 10px; font-size: 13px; border-left: 1px solid var(--ink); counter-increment: phase; white-space: nowrap; }
+.phases li { flex: 1; padding: 7px 10px; font-size: 14px; border-left: 1px solid var(--ink); counter-increment: phase; white-space: nowrap; }
 .phases li::before { content: counter(phase, upper-alpha) '  '; font-family: var(--code); opacity: 0.6; }
 .phases li:first-child { border-left: 0; }
 .phases .is-current { background: var(--ink); color: var(--ground); }
@@ -284,7 +338,7 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .plot-vector.is-foe { stroke: var(--red); }
 .plot-future { fill: var(--ink); }
 .plot-future.is-foe { fill: var(--red); }
-.plot-name { font: 14px var(--display); fill: var(--ink); }
+.plot-name { font: 600 14px var(--display); fill: var(--ink); }
 
 /* ----------------------------------------------------------------- drawer
    Opens beside the scene and takes its width from it. It never covers the
@@ -293,16 +347,16 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .drawer[hidden] { display: none; }
 .drawer-close { position: absolute; top: 14px; right: 16px; background: none; border: 0; color: var(--ink-2); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .drawer-body { padding: 20px; display: grid; gap: 16px; }
-.drawer-head h2 { font-size: 26px; font-weight: 400; line-height: 1.1; }
-.drawer-head p { color: var(--ink-2); font-size: 13px; }
-.drawer h3 { font-size: 13px; font-weight: 400; color: var(--ink-2); padding-top: 12px; border-top: 1px solid var(--line); }
+.drawer-head h2 { font-size: 22px; font-weight: 700; line-height: 1.15; }
+.drawer-head p { color: var(--ink-2); font-size: 14px; }
+.drawer h3 { font-size: 14px; font-weight: 700; color: var(--ink); padding-top: 12px; border-top: 1px solid var(--line); }
 .stats { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--ink); }
 .stat { display: grid; justify-items: center; padding: 6px 0 8px; border-left: 1px solid var(--line); }
 .stat:first-child { border-left: 0; }
-.stat span { font-size: 11px; color: var(--ink-2); }
+.stat span { font-size: 13px; color: var(--ink-2); }
 .stat b { font: 400 20px var(--code); }
 .stat.is-hurt b, .status.is-hurt { color: var(--red); }
-.status { font-size: 13px; }
+.status { font-size: 14px; }
 .skills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pairs { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; font-size: 14px; }
 .pairs dt { color: var(--ink-2); }
@@ -314,13 +368,13 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .gauge-bar span { display: block; height: 100%; background: var(--ink); }
 .gauge-bar.is-low { border-color: var(--red); }
 .gauge-bar.is-low span { background: var(--red); }
-.gauge p { font-size: 12px; color: var(--ink-2); }
+.gauge p { font-size: 13px; color: var(--ink-2); }
 .tabs { display: flex; flex-wrap: wrap; gap: 0 14px; border-bottom: 1px solid var(--line); }
 .tabs button { padding: 6px 0; background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2); cursor: pointer; margin-bottom: -1px; }
-.tabs button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--red); }
+.tabs button[aria-selected='true'] { color: var(--ink); font-weight: 700; border-bottom-color: var(--ink); }
 .folder ul { display: grid; }
 .folder li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: grab; }
-.folder li span:last-child, .empty { color: var(--ink-2); font-size: 13px; }
+.folder li span:last-child, .empty { color: var(--ink-2); font-size: 14px; }
 
 /* ------------------------------------------------------------------- talk
    One line until you want it. Opening it lifts the bottom edge; the scene
@@ -331,18 +385,18 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .shell[data-talk='open'] .talk-last { visibility: hidden; }
 .talk-log p { padding: 2px 0; max-width: 90ch; }
 .talk-log b, .talk-last b { font-weight: 400; color: var(--ink-2); }
-.talk-log .is-roll { font-family: var(--code); font-size: 13px; }
+.talk-log .is-roll { font-family: var(--code); font-size: 14px; }
 .talk-bar { height: 48px; display: grid; grid-template-columns: auto minmax(200px, 420px) minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 0 16px; }
 .dice { display: flex; gap: 4px; }
 .die { width: 34px; height: 32px; background: none; border: 1px solid var(--ink); border-radius: 2px; font: 12px var(--code); cursor: pointer; }
 .die:hover { background: var(--ink); color: var(--ground); }
 .talk-input { height: 32px; padding: 0 10px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; min-width: 0; }
-.talk-last { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.talk-last { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .talk-toggle { background: none; border: 0; color: var(--ink-2); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ---------------------------------------------------------------- preview
    Scaffolding for the sample situations. Goes when the page reads a campaign. */
-.preview { position: fixed; bottom: 58px; right: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--raise); border: 1px dashed var(--ink-2); font-size: 12px; }
+.preview { position: fixed; bottom: 58px; right: 12px; z-index: 5; display: flex; align-items: center; gap: 2px; padding: 3px; background: var(--raise); border: 1px dashed var(--ink-2); font-size: 13px; }
 .preview span { padding: 0 8px; color: var(--ink-2); }
 .preview button { padding: 4px 8px; background: none; border: 0; cursor: pointer; }
 .preview button[aria-pressed='true'] { background: var(--ink); color: var(--ground); }

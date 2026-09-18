@@ -8,7 +8,6 @@
   <script type="module" src="theme.js?v=v0.204.0"></script>
   <script type="module" src="shell-chat.js?v=v0.204.0"></script>
   <link rel="stylesheet" href="./styles.css">
-  <link rel="stylesheet" href="./fight-view.css?v=v0.204.0">
 </head>
 <body>
   <!-- v0.95.0: Foundry's interaction model. The canvas is permanent; scene
@@ -404,10 +403,6 @@
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="players" aria-selected="false" title="PLAYERS"><span class="sidebar-tab-icon" aria-hidden="true">&#9787;</span><span class="sidebar-tab-label">PLAYERS</span></button>
         <button class="sidebar-tab" type="button" role="tab" data-sidebar-tab="settings" aria-selected="false" title="SETTINGS"><span class="sidebar-tab-icon" aria-hidden="true">&#9881;</span><span class="sidebar-tab-label">SETTINGS</span></button>
       </div>
-      <!-- v0.204.0: while a fight runs the column is the mockup's, rendered by
-           fight-view.js into this host; the strip, tracker, record and ship
-           below it step aside until the fight ends. -->
-      <section id="fight-side" class="sidebar-strip" aria-label="The fight" hidden></section>
       <details id="sidebar-character" class="sidebar-strip" open hidden>
         <summary class="sidebar-strip-summary"><span id="sidebar-character-summary">CHARACTER</span></summary>
       <section class="campaign-header-strip" aria-label="Character status">

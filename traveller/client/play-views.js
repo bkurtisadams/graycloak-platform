@@ -7,13 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.203.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.203.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.203.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.204.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.204.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.204.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
-  describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel
-} from '../vendor/classic-traveller-rules/index.js?v=v0.203.1';
+  describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
+  previewPersonalAttack, getPersonalWeapon, blowsRemaining
+} from '../vendor/classic-traveller-rules/index.js?v=v0.204.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -68,25 +69,71 @@ function jobRow(job) {
     h('span', { class: 'job-pay', text: cr(job.payCr) }));
 }
 
-function declareForm(d) {
+// ---- fights: every number here is read from the rules package -------------
+
+const RANGE_NAMES = { close: 'Close', short: 'Short', medium: 'Medium', long: 'Long', 'very-long': 'Very long' };
+
+function rangeBetween(a, b) {
+  const gap = Math.abs(a.band - b.band);
+  if (gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS) return { gap, key: null, name: 'Out of range' };
+  const key = rangeBandForBandGap(gap);
+  return { gap, key, name: RANGE_NAMES[key] };
+}
+
+// What the 2D must show for `attacker` to hit `defender` with the weapon in
+// hand, as words a player can act on.
+function hitLine(attacker, defender, weaponKey = attacker.weaponKey) {
+  const range = rangeBetween(attacker, defender);
+  if (!range.key) return { text: 'out of range', preview: null, range };
+  const preview = previewPersonalAttack({ attacker: { ...attacker, weaponKey }, defender, range: range.key });
+  if (!preview.canAttack) return { text: 'cannot reach', preview, range };
+  const need = preview.requiredRoll;
+  return { text: need <= 2 ? 'cannot miss' : need > 12 ? 'cannot hit' : `${need}+`, preview, range };
+}
+
+function woundText(preview) {
+  const modifier = preview.damageModifier ? (preview.damageModifier > 0 ? `+${preview.damageModifier}` : `\u2212${Math.abs(preview.damageModifier)}`) : '';
+  return `${preview.damageDice}D${modifier}`;
+}
+
+function dmBreakdown(preview) {
+  const parts = [`${preview.weaponName} against ${preview.armor === 'none' ? 'no armor' : preview.armor} at ${RANGE_NAMES[preview.range].toLowerCase()} range is ${preview.target}+`];
+  const dms = [['expertise', preview.skillDM], ['characteristic', preview.characteristicDM], ['untrained', preview.untrainedDM],
+    ['parry', preview.parryDM], ['evasion', preview.evasionDM], ['untrained defender', preview.defenderUntrainedDM], ['weakened blow', preview.fatigueDM]];
+  for (const [label, value] of dms) if (value) parts.push(`${label} ${value > 0 ? '+' : '\u2212'}${Math.abs(value)}`);
+  return `${parts.join(', ')}.`;
+}
+
+function declareForm(d, state, handlers) {
+  const actor = state.fighters.find((fighter) => fighter.id === d.actorId);
+  const foes = state.fighters.filter((fighter) => fighter.side !== actor.side && !fighter.down);
+  const target = foes.find((fighter) => fighter.id === d.targetId) ?? foes[0];
+  const weaponKey = d.weaponKey ?? actor.weaponKey;
   const seg = h('div', { class: 'seg', role: 'group', 'aria-label': 'Movement' },
     d.moves.map((move) => h('button', { type: 'button', class: 'seg-option', 'aria-pressed': move === d.move, text: move,
       onclick: (event) => { for (const b of event.currentTarget.parentNode.children) b.setAttribute('aria-pressed', String(b === event.currentTarget)); } })));
-  const select = (label, options, value) => h('label', { class: 'field' }, h('span', { class: 'field-label', text: label }),
-    h('select', {}, options.map((option) => h('option', { selected: option === value, text: option }))));
+  const weaponSelect = h('select', { onchange: (event) => handlers.onPickWeapon(event.target.value) },
+    actor.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: getPersonalWeapon(key).name })));
+  const targetSelect = h('select', { onchange: (event) => handlers.onPickTarget(event.target.value) },
+    foes.map((foe) => h('option', { value: foe.id, selected: foe.id === target?.id, text: `${foe.name}, ${rangeBetween(actor, foe).name.toLowerCase()}` })));
+  const line = target ? hitLine(actor, target, weaponKey) : null;
   return h('div', { class: 'declare' },
     seg,
     h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: d.running }), ' At a run (spends a blow, no attack)'),
-    h('div', { class: 'field-pair' }, select('Attack with', d.weapons, d.weapon), select('At', d.targets, d.target)),
-    h('p', { class: 'odds', text: d.odds }));
+    h('div', { class: 'field-pair' },
+      h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'Attack with' }), weaponSelect),
+      h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'At' }), targetSelect)),
+    line ? h('p', { class: 'need' }, h('b', { text: /^\d/.test(line.text) ? `Needs ${line.text}` : line.text[0].toUpperCase() + line.text.slice(1) }),
+      line.preview?.canAttack ? ` for ${woundText(line.preview)} wounds` : '') : null,
+    line?.preview?.canAttack ? h('p', { class: 'odds', text: dmBreakdown(line.preview) }) : null);
 }
 
-function leadCard(next) {
+function leadCard(next, state, handlers) {
   if (!next) return h('section', { class: 'lead' }, h('h2', { text: 'Nothing pending' }), h('p', { text: 'The port call is complete. Depart when you are ready.' }));
   return h('section', { class: 'lead', 'aria-label': 'Do this next' },
     h('h2', { text: next.title }),
     next.copy ? h('p', { text: next.copy }) : null,
-    next.declare ? declareForm(next.declare) : null,
+    next.declare ? declareForm(next.declare, state, handlers) : null,
     next.actions?.length ? h('div', { class: 'lead-actions' }, next.actions.map((action) =>
       h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button' },
         h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null))) : null,
@@ -114,7 +161,7 @@ function rosterRow(entry) {
     entry.declared ? h('span', { class: 'fighter-declared', text: entry.declared }) : null);
 }
 
-export function renderNow(state) {
+export function renderNow(state, handlers = {}) {
   const parts = [
     h('header', { class: 'now-head' },
       h('h1', { text: state.situation.title }),
@@ -124,7 +171,7 @@ export function renderNow(state) {
   if (state.lastRound?.length) {
     parts.push(h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))));
   }
-  parts.push(leadCard(state.next));
+  parts.push(leadCard(state.next, state, handlers));
   if (state.hold) parts.push(h('p', { class: 'hold-note', text: state.hold }));
   if (state.roster?.length) parts.push(h('ul', { class: 'roster', 'aria-label': 'Who is fighting' }, state.roster.map(rosterRow)));
   const open = (state.steps ?? []).filter((step) => step.state !== 'done');
@@ -188,60 +235,117 @@ function subsectorScene(scene, { onSelectSystem }) {
 }
 
 // Book 1 p.29: lined paper. Same band close, next band short, 2-5 medium,
-// 6-9 long, 10-14 very long, 15 escaped. Ranges are read from the selected
-// marker, so the gutter relabels when another marker is chosen.
-const RANGE_NAMES = { close: 'Close', short: 'Short', medium: 'Medium', long: 'Long', 'very-long': 'Very long' };
+// 6-9 long, 10-14 very long, 15 escaped. The line is one-dimensional, so it
+// is drawn as a narrow strip and the room beside it goes to the fight cards:
+// what each combatant is, and what it takes to hit or be hit by them.
+function initials(name) {
+  return name.replace(/[^A-Z0-9]/g, '').slice(0, 2) || name[0];
+}
 
-function bandsScene(scene, { onSelectMarker }) {
+function bandStrip(state, reader, handlers) {
   const bands = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
   const rowH = 40;
-  const width = 720;
-  const gutter = 150;
-  const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${bands * rowH}`, class: 'bands', preserveAspectRatio: 'xMidYMid meet', role: 'group', 'aria-label': 'Range bands' });
-  const selected = scene.markers.find((marker) => marker.name === scene.selected) ?? scene.markers[0];
-
+  const width = 300;
+  const lane = 176;
+  const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${bands * rowH}`, class: 'bands', preserveAspectRatio: 'xMidYMin meet', role: 'group', 'aria-label': 'Range bands' });
   const spans = [];
   for (let band = 0; band < bands; band += 1) {
-    const gap = Math.abs(band - selected.band);
-    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
+    const gap = Math.abs(band - reader.band);
+    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band });
-    svg.append(createSvgNode('rect', { x: 0, y: band * rowH, width: width - gutter, height: rowH, class: `band${gap === 0 ? ' is-own' : ''}` }));
-    const number = createSvgNode('text', { x: 12, y: band * rowH + 16, class: 'band-number' });
+    svg.append(createSvgNode('rect', { x: 0, y: band * rowH, width: lane, height: rowH, class: `band${gap === 0 ? ' is-own' : ''}` }));
+    const number = createSvgNode('text', { x: 8, y: band * rowH + 15, class: 'band-number' });
     number.textContent = String(band + 1);
     svg.append(number);
   }
   for (const span of spans) {
     const top = span.from * rowH + 4;
     const bottom = (span.to + 1) * rowH - 4;
-    svg.append(createSvgNode('line', { x1: width - gutter + 14, y1: top, x2: width - gutter + 14, y2: bottom, class: 'span-rule' }));
-    const label = createSvgNode('text', { x: width - gutter + 26, y: (top + bottom) / 2 + 5, class: 'span-label' });
+    svg.append(createSvgNode('line', { x1: lane + 10, y1: top, x2: lane + 10, y2: bottom, class: 'span-rule' }));
+    const label = createSvgNode('text', { x: lane + 20, y: (top + bottom) / 2 + 5, class: 'span-label' });
     label.textContent = span.name;
     svg.append(label);
   }
   const perBand = new Map();
-  for (const marker of scene.markers) {
-    const index = perBand.get(marker.band) ?? 0;
-    perBand.set(marker.band, index + 1);
-    const cx = 70 + index * 180;
-    const cy = marker.band * rowH + rowH / 2;
+  for (const fighter of state.fighters) {
+    const index = perBand.get(fighter.band) ?? 0;
+    perBand.set(fighter.band, index + 1);
+    const cx = 50 + index * 36;
+    const cy = fighter.band * rowH + rowH / 2;
     const group = createSvgNode('g', {
-      class: `marker is-${marker.side}${marker.down ? ' is-down' : ''}${marker === selected ? ' is-selected' : ''}`,
-      role: 'button', tabindex: '0', 'aria-label': `${marker.name}, band ${marker.band + 1}`
+      class: `marker is-${fighter.side}${fighter.down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
+      role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band + 1}`
     });
-    group.append(createSvgNode('circle', { cx, cy, r: 14 }));
-    const initial = createSvgNode('text', { x: cx, y: cy + 5, class: 'marker-initial', 'text-anchor': 'middle' });
-    initial.textContent = marker.name.replace(/[^A-Z0-9]/g, '').slice(0, 2) || marker.name[0];
-    const name = createSvgNode('text', { x: cx + 24, y: cy + 5, class: 'marker-name' });
-    name.textContent = marker.down ? `${marker.name} (down)` : marker.name;
-    group.append(initial, name);
-    group.addEventListener('click', () => onSelectMarker(marker.name));
-    group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelectMarker(marker.name); } });
+    const title = createSvgNode('title');
+    title.textContent = fighter.name;
+    group.append(title, createSvgNode('circle', { cx, cy, r: 14 }));
+    const initial = createSvgNode('text', { x: cx, y: cy + 4, class: 'marker-initial', 'text-anchor': 'middle' });
+    initial.textContent = initials(fighter.name);
+    group.append(initial);
+    group.addEventListener('click', () => handlers.onSelectMarker(fighter.id));
+    group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.onSelectMarker(fighter.id); } });
     svg.append(group);
   }
+  return svg;
+}
+
+function condition(fighter) {
+  const zeros = ['STR', 'DEX', 'END'].filter((key) => fighter.characteristics[key] <= 0).length;
+  if (zeros === 3) return 'Dead';
+  if (zeros === 2) return 'Out, seriously wounded';
+  if (zeros === 1) return 'Unconscious';
+  return ['STR', 'DEX', 'END'].some((key) => fighter.characteristics[key] < fighter.full[key]) ? 'Wounded' : 'Unwounded';
+}
+
+function fightCard(fighter, reader, state, handlers) {
+  const isReader = fighter === reader;
+  const weapon = getPersonalWeapon(fighter.weaponKey);
+  const targetId = state.next?.declare?.targetId;
+  const stats = h('div', { class: 'card-stats' }, ['STR', 'DEX', 'END'].map((key) => {
+    const now = fighter.characteristics[key];
+    const full = fighter.full[key];
+    return h('span', { class: now < full ? 'is-hurt' : '' }, `${key} `, h('b', { text: now < full ? `${now}/${full}` : String(now) }));
+  }));
+  const facts = h('dl', { class: 'card-facts' },
+    h('dt', { text: 'In hand' }), h('dd', { text: `${weapon.name}, ${woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 })}` }),
+    h('dt', { text: 'Armor' }), h('dd', { text: fighter.armor === 'none' ? 'None' : fighter.armor[0].toUpperCase() + fighter.armor.slice(1) }),
+    weapon.melee ? [h('dt', { text: 'Blows left' }), h('dd', { text: `${blowsRemaining(fighter)} of ${fighter.blowAllowance}` })] : null,
+    fighter.order ? [h('dt', { text: 'This round' }), h('dd', { text: fighter.order })] : null);
+  const parts = [
+    h('header', {},
+      h('span', { class: 'card-badge', text: initials(fighter.name), 'aria-hidden': 'true' }),
+      h('h3', { text: fighter.name }),
+      h('span', { class: 'card-condition', text: condition(fighter) })),
+    stats,
+    facts
+  ];
+  if (!isReader && !fighter.down && fighter.side !== reader.side) {
+    const out = hitLine(reader, fighter);
+    const back = hitLine(fighter, reader);
+    parts.push(h('div', { class: 'card-odds' },
+      h('p', {}, h('span', { text: `${out.range.name}, ${out.range.gap} band${out.range.gap === 1 ? '' : 's'}` })),
+      h('p', {}, h('span', { text: `${reader.name} hits on` }), h('b', { text: out.text })),
+      h('p', {}, h('span', { text: `Hits ${reader.name} on` }), h('b', { text: back.text }))));
+    if (reader.id === state.next?.declare?.actorId) {
+      parts.push(h('button', { type: 'button', class: fighter.id === targetId ? 'button is-small is-chosen' : 'button is-small',
+        'aria-pressed': fighter.id === targetId, text: fighter.id === targetId ? 'Target' : 'Make target', onclick: () => handlers.onPickTarget(fighter.id) }));
+    }
+  }
+  return h('article', { class: `fight-card is-${fighter.side}${fighter.down ? ' is-down' : ''}${isReader ? ' is-reader' : ''}`,
+    onclick: (event) => { if (!event.target.closest('button')) handlers.onSelectMarker(fighter.id); } }, parts);
+}
+
+function bandsScene(state, handlers) {
+  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
+  const group = (label, side) => h('section', { class: 'card-group' },
+    h('h2', { text: label }),
+    h('div', { class: 'card-row' }, state.fighters.filter((fighter) => (fighter.side === 'party') === (side === 'party')).map((fighter) => fightCard(fighter, reader, state, handlers))));
   return [
-    h('p', { class: 'scene-title', text: `Ranges read from ${selected.name}. Select another marker to read from it.` }),
-    svg
+    h('p', { class: 'scene-title', text: `Ranges and throws are read from ${reader.name}. Select a marker or a card to read from someone else.` }),
+    h('div', { class: 'fight' },
+      bandStrip(state, reader, handlers),
+      h('div', { class: 'cards' }, group('Party', 'party'), group('Opposition', 'foe')))
   ];
 }
 
@@ -278,7 +382,7 @@ function plotScene(state) {
 
 export function renderScene(state, handlers) {
   const scene = state.scene;
-  if (scene.kind === 'bands') return bandsScene(scene, handlers);
+  if (scene.kind === 'bands') return bandsScene(state, handlers);
   if (scene.kind === 'plot') return plotScene(state);
   return subsectorScene(scene, handlers);
 }

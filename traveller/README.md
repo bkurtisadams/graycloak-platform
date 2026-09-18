@@ -1,5 +1,26 @@
 # Graycloak Traveller
 
+## v0.204.0 a new play page, beside the old client
+
+`client/play.html` is a new entry page with its own stylesheet and pure view
+modules. It imports nothing from `app.js`, `ui-model.js` or `styles.css`
+(`test/play-page.test.mjs` pins that), and `index.html` is untouched. The
+screen shows the situation you are in: What now? on the left with one lead
+card, the scene in the centre, character / ship / referee as masthead chips
+opening a single drawer, chat as the bottom edge. Palette and Consolas are
+the v0.84.0 values, copied by value.
+
+A fight is a band strip (Book 1 p.29) with a card per combatant beside it.
+Every number on a card comes from `previewPersonalAttack()`: what the reader
+needs to hit each opponent, and what each opponent needs to hit back.
+
+All state is sample data behind one `viewState()` seam except the subsector
+map and the combat numbers, which are live rules. See `docs/play-page.md`.
+
+`scripts/stamp-client.mjs` now also restamps stylesheet links, script tags
+written without `./`, the mastheads, and the outgoing version on the static
+pins' assert lines — a version bump is `package.json` plus one command.
+
 ## v0.95.0 the rebuild, part two: the tracker is the combat document
 
 Your screenshot supplied the last piece — Foundry asks *"End this combat and

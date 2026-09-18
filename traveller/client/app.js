@@ -378,7 +378,6 @@ import {
 import { authorizePlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.204.0';
 import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.204.0';
 import { throwCardModel, deriveDeclaration, declarationSummary, attackCardModel, signed as signedDMText, rangeLabel, woundFormula } from './combat-view.js?v=v0.204.0';
-import { renderFightDock, renderFightSide } from './fight-view.js?v=v0.204.0';
 
 import {
   createContactDocument,
@@ -450,7 +449,6 @@ const el = {
   dockRound: document.querySelector('#dock-round'),
   dockStaging: document.querySelector('#dock-staging'),
   sidebarTracker: document.querySelector('#sidebar-tracker'),
-  fightSide: document.querySelector('#fight-side'),
   sidebarShipRail: document.querySelector('#sidebar-ship-rail'),
   combatRailSection: document.querySelector('#combat-rail-section'),
   dockFlyout: document.querySelector('#dock-flyout'),
@@ -1572,20 +1570,15 @@ function renderHeaderLoadout() {
   el.headerLoadoutLine.hidden = !active;
   if (!active) return;
   el.headerLoadout.textContent = characterLoadoutLabel();
-  el.headerReadyWeapon.hidden = false;
-  el.headerReadyWeapon.onclick = openReadyWeaponMenu;
-}
-
-function openReadyWeaponMenu(event) {
-  const choices = characterReadyWeaponChoices();
-  if (!choices.length) { setStatus('NO WEAPON TO READY', 'error'); return; }
-  const items = choices.map((key) => ({ label: weaponLabel(key).toUpperCase(), action: () => readyCharacterWeapon(key) }));
-  showChoiceMenu(event, items, 'READY');
-}
-
-function readyCharacterWeapon(key) {
   const me = encounterSelfCombatant();
-  {
+  el.headerReadyWeapon.hidden = false;
+  el.headerReadyWeapon.onclick = (event) => {
+    const choices = characterReadyWeaponChoices();
+    if (!choices.length) { setStatus('NO WEAPON TO READY', 'error'); return; }
+    const items = choices.map((key) => ({ label: weaponLabel(key).toUpperCase(), action: () => readyWeapon(key) }));
+    showChoiceMenu(event, items, 'READY');
+  };
+  function readyWeapon(key) {
     try {
       if (me) {
         const encounter = activeEncounterAtCurrentSystem() ?? latestEncounterAtCurrentSystem();
@@ -6536,21 +6529,22 @@ function renderDockRound(encounter, actor) {
     }
     slot.replaceChildren();
     slot.hidden = true;
-    if (el.fightSide) { el.fightSide.hidden = true; el.fightSide.replaceChildren(); }
     el.terminal?.classList.remove('fight-on');
     return;
   }
-  // v0.204.0: WHAT NOW? and the right column during a fight are the range
-  // band mockup, rendered by fight-view.js from the models built here.
+  // v0.203.0: WHAT NOW? during a fight is the fight — the mockup's four
+  // cards, the round controls, and the port call folded to one line.
   const byId = new Map(encounter.combatants.map((entry) => [entry.id, entry]));
   const declared = encounter.roundState?.declaredActions ?? [];
+  const live = encounter.combatants.filter((entry) => entry.status === 'active');
+  const declaredIds = new Set(declared.map((entry) => entry.actorId));
   const pausedWound = pendingWoundAllocation(encounter);
   const party = encounter.combatants.filter((entry) => entry.side === 'party');
   const foes = encounter.combatants.filter((entry) => entry.side !== 'party');
   const liveParty = party.filter((entry) => entry.status === 'active');
   const liveFoes = foes.filter((entry) => entry.status === 'active');
   const shortName = (who) => who.tokenLabel || who.name.split(' ')[0];
-  const verbFor = (who, entry) => {
+  const verbFor = (who, entry, target) => {
     if (entry.action === 'attack') {
       let melee = false;
       try { melee = getPersonalWeapon(who.weaponKey).melee; } catch { /* unknown */ }
@@ -6558,201 +6552,140 @@ function renderDockRound(encounter, actor) {
     }
     return entry.action.replace('-run', ' / run');
   };
-  const scene = encounter.sceneId ? sceneDocuments.find((entry) => entry.identity.id === encounter.sceneId) : null;
-  const system = mappedCurrentSystem();
-  const place = `${(system?.name ?? '').toUpperCase()}${scene ? ` · ${scene.identity.name.toUpperCase()}` : encounter.map?.spatialMode === 'range-line' ? ' · RANGE BANDS' : ' · GRID'}`.replace(/^ · /, '');
-  const target = selectedEncounterTarget(encounter);
-
-  // Left column model.
-  const declarations = liveParty.map((who) => {
-    const entry = declared.find((item) => item.actorId === who.id);
-    if (!entry) return { name: who.name, target: null, detail: 'waiting\u2026', state: 'waiting' };
-    const tgt = entry.targetId ? byId.get(entry.targetId) : null;
-    let detail = verbFor(who, entry);
-    if (entry.action === 'attack' && tgt) {
-      try {
-        const model = throwCardModel(encounter, who, tgt);
-        detail = `${model.weapon?.name ?? 'Attack'} · ${model.reach ? `needs ${model.needed}+` : 'no reach'}`;
-      } catch { /* the verb stands */ }
-    }
-    return { name: who.name, target: tgt ? shortName(tgt) : null, detail, state: 'declared' };
-  });
-  const tally = new Map();
-  for (const entry of declared) {
-    if (byId.get(entry.actorId)?.side !== 'party' || entry.action !== 'attack' || !entry.targetId) continue;
-    tally.set(entry.targetId, (tally.get(entry.targetId) ?? 0) + 1);
-  }
-  const partyIn = declarations.filter((line) => line.state === 'declared').length;
-  const oppositionLines = foes.map((foe) => {
-    if (foe.status !== 'active') return { name: foe.name, target: null, detail: combatantRulesStatus(foe).toLowerCase(), state: 'down' };
-    const entry = declared.find((item) => item.actorId === foe.id);
-    if (!entry) return { name: foe.name, target: null, detail: foe.tactics === 'auto' ? 'on auto' : 'waiting\u2026', state: 'waiting' };
-    const tgt = entry.targetId ? byId.get(entry.targetId) : null;
-    return { name: foe.name, target: tgt ? shortName(tgt) : null, detail: `${weaponLabel(foe.weaponKey)} · ${verbFor(foe, entry)}`, state: 'declared' };
-  });
-  let morale = null;
-  if (foes.length) {
-    const share = Math.round(((foes.length - liveFoes.length) / foes.length) * 100);
-    const lastMorale = [...encounter.history].reverse().find((entry) => entry.kind === 'morale');
-    morale = lastMorale
-      ? `${share}% down · last throw ${lastMorale.detail?.total ?? '?'} vs ${lastMorale.detail?.target ?? '?'}+ · ${lastMorale.detail?.stands ? 'stood' : 'withdrew'}`
-      : share >= 25 ? `${share}% down · throw 7+ at round end` : `${share}% down`;
-  }
-  const surprise = encounter.history.find((entry) => entry.kind === 'surprise');
-  const lighting = encounter.conditions?.lighting ?? 'normal';
-  const dms = [
-    surprise?.detail?.surpriseSideId ? `${surprise.detail.surpriseSideId} surprised the other` : 'No surprise',
-    `Met at ${String(encounter.range).replace('-', ' ')}`,
-    lighting === 'normal' ? 'Daylight' : lighting.replace(/-/g, ' '),
-    encounter.map?.spatialMode === 'range-line' ? 'Range line · band 25 m' : `${encounter.map?.metersPerSquare ?? 1} m squares`
-  ];
-  const previous = encounter.round - 1;
-  const logLines = encounter.history
-    .filter((entry) => entry.round === previous && ['attack', 'morale', 'escape', 'movement', 'wound'].includes(entry.kind))
-    .slice(-6)
-    .map((entry) => {
-      if (entry.kind !== 'attack') return entry.text || '';
-      try {
-        const model = attackCardModel(entry, encounter);
-        if (model.kind === 'note') return model.text;
-        return model.hit
-          ? `${model.attackerName} hit ${model.defenderName} (${model.total} vs ${model.needed}+)${model.wound ? ` · wound ${model.wound.total}${model.wound.allocations.length ? ` → ${model.wound.allocations.map((a) => `${a.characteristic} −${a.amount}`).join(', ')}` : ''}` : ''}${model.defenderStatus !== 'active' ? ` · ${model.defenderStatus}` : ''}.`
-          : `${model.attackerName} missed ${model.defenderName} (needed ${model.needed}+, rolled ${model.total}).`;
-      } catch { return entry.text || entry.prefix || ''; }
-    });
-  if (!logLines.length) logLines.push(previous > 0 ? 'Nothing was thrown.' : 'The fight has just begun.');
-  const cardCount = el.playProcedure?.querySelectorAll('.procedure-card').length ?? 0;
-  const dockModel = {
-    place, round: encounter.round,
-    phaseTag: pausedWound ? { text: 'ALLOCATING WOUNDS', tone: 'blocked' } : { text: `${partyIn} OF ${liveParty.length} IN`, tone: partyIn === liveParty.length && liveParty.length ? 'done' : 'ready' },
-    declarations,
-    tally: liveFoes.length ? liveFoes.map((foe) => `${shortName(foe)} ×${tally.get(foe.id) ?? 0}`).join(' · ') : '',
-    resolveLabel: pausedWound ? `Allocate ${pausedWound.defender?.name?.split(' ')[0] ?? 'the'} wound` : `Resolve round ${encounter.round}`,
-    canResolve: true,
-    opposition: { tag: { text: `${liveFoes.length} OF ${foes.length} UP` }, lines: oppositionLines, morale },
-    dms,
-    log: { tag: `R${Math.max(0, previous)}`, lines: logLines },
-    throwCard: el.encounterThrowCard,
-    suspended: { label: `Port call · ${cardCount}${slot.classList.contains('show-port') ? ' · hide' : ''}` }
+  const card = (title, tag, tone = '') => {
+    const box = document.createElement('div');
+    box.className = `procedure-card dock-fight-card${tone ? ` ${tone}` : ''}`;
+    const head = document.createElement('div');
+    head.className = 'procedure-card-title';
+    head.append(Object.assign(document.createElement('span'), { textContent: title }));
+    if (tag) head.append(Object.assign(document.createElement('span'), { className: 'procedure-card-tag', textContent: tag }));
+    box.append(head);
+    return box;
   };
-  renderFightDock(slot, dockModel, {
-    resolve: () => (pausedWound ? openWoundAllocationDialog() : resolveDeclaredEncounterRound()),
-    autoNpcs: () => updateEncounterDocument(encounter.identity.id, (doc) => {
+  const line = (box, left, right, tone = '') => {
+    const row = document.createElement('div');
+    row.className = `dock-round-line${tone ? ` ${tone}` : ''}`;
+    row.append(Object.assign(document.createElement('span'), { textContent: left }), Object.assign(document.createElement('span'), { className: 'mono', textContent: right }));
+    box.append(row);
+    return row;
+  };
+
+  // 1. Round n · declarations — the party's orders as they land, then RESOLVE.
+  const phase = pausedWound ? 'ALLOCATING WOUNDS' : `${declared.filter((entry) => byId.get(entry.actorId)?.side === 'party').length} OF ${liveParty.length} IN`;
+  const round = card(`Round ${encounter.round} \u00b7 declarations`, phase, 'required');
+  for (const who of liveParty) {
+    const entry = declared.find((item) => item.actorId === who.id);
+    if (!entry) { line(round, who.name, 'waiting\u2026', 'waiting'); continue; }
+    const target = entry.targetId ? byId.get(entry.targetId) : null;
+    let detail = verbFor(who, entry, target);
+    if (entry.action === 'attack' && target) {
+      try {
+        const model = throwCardModel(encounter, who, target);
+        detail = `${model.weapon?.name ?? 'attack'} \u00b7 ${model.reach ? `needs ${model.needed}+` : 'no reach'}`;
+      } catch { /* label falls back to the verb */ }
+    }
+    line(round, `${who.name} ${target ? `\u2192 ${shortName(target)}` : ''}`.trim(), detail, 'party');
+  }
+  if (liveFoes.length) {
+    const tally = new Map();
+    for (const entry of declared) {
+      if (byId.get(entry.actorId)?.side !== 'party' || entry.action !== 'attack' || !entry.targetId) continue;
+      tally.set(entry.targetId, (tally.get(entry.targetId) ?? 0) + 1);
+    }
+    const tallyRow = document.createElement('div');
+    tallyRow.className = 'dock-round-tally';
+    tallyRow.append(Object.assign(document.createElement('span'), { className: 'procedure-group-label', textContent: 'PARTY FIRE ON' }));
+    tallyRow.append(Object.assign(document.createElement('span'), { className: 'mono', textContent: liveFoes.map((foe) => `${shortName(foe)} \u00d7${tally.get(foe.id) ?? 0}`).join(' \u00b7 ') }));
+    round.append(tallyRow);
+  }
+  const verbs = document.createElement('div');
+  verbs.className = 'dock-round-verbs';
+  const autoAll = makePortButton('AUTO NPCS', () => {
+    updateEncounterDocument(encounter.identity.id, (doc) => {
       let next = doc;
       for (const who of doc.combatants) {
         if (who.side === 'party' || who.status !== 'active' || who.tactics === 'auto') continue;
         next = setCombatantTactics(next, { combatantId: who.id, tactics: 'auto' }).encounter;
       }
       return next;
-    }),
-    endCombat: () => {
-      if (!window.confirm(`End ${encounter.identity.title} and empty the tracker? Its record stays in the log, and wounds persist.`)) return;
-      endActiveEncounter({ thenDiscard: encounter.identity.id });
-    },
-    togglePort: () => { slot.classList.toggle('show-port'); renderDockRound(encounter, actor); }
-  });
-  slot.hidden = false;
-  // The app's own round controls stay on the COMBAT tab, unused while the
-  // mockup's buttons carry the same handlers.
-  if (el.encounterResolve && el.encounterResolve.parentElement !== home && home) home.insertBefore(el.encounterResolve, el.encounterPartyRoster);
-
-  // Right column model.
-  const me = encounterSelfCombatant();
-  const character = gameplayDocument;
-  const focus = actor && actor.side === 'party' ? actor : me;
-  const statFor = (key) => {
-    const value = focus ? focus.current[key] : characterCurrentValue(key);
-    const base = focus ? focus.characteristics[key] : character.characteristics[key];
-    return { key, value, base, hurt: value < base };
-  };
-  const mentalKeys = ['INT', 'EDU', 'SOC'];
-  const mental = mentalKeys.map((key) => `${key} ${focus ? (focus.characteristics?.[key] ?? character.characteristics[key]) : character.characteristics[key]}`).join(' · ');
-  const health = focus ? combatantRulesStatus(focus).toUpperCase() : characterHealthLabel();
-  const meleeInHand = (() => { try { return focus ? getPersonalWeapon(focus.weaponKey).melee : false; } catch { return false; } })();
-  const blows = focus && meleeInHand ? `${blowsRemaining(focus)} blows left` : '';
-  const stance = focus ? (focus.status !== 'active' ? focus.status.toUpperCase() : focus.evading ? 'EVADING' : 'STAND') : 'STAND';
-  const armor = focus?.armorKey ?? focus?.armor ?? character?.loadout?.armor ?? 'none';
-  const posture = `${stance} · ${weaponLabel(focus?.weaponKey ?? character?.loadout?.weaponKey)} · ${String(armor).replace(/-/g, ' ').toLowerCase()}`;
-  let verbs = null;
-  if (actor && actor.side === 'party' && actor.status === 'active') {
-    const declaredMine = declared.find((entry) => entry.actorId === actor.id) ?? null;
-    let fireLabel = 'Fire · pick a target';
-    let fireDisabled = true;
-    if (target) {
-      try {
-        const model = throwCardModel(encounter, actor, target);
-        fireLabel = `${meleeInHand ? 'Swing' : 'Fire'} → ${shortName(target)}${model.reach ? ` · ${model.needed}+` : ' · no reach'}`;
-        fireDisabled = !model.reach;
-      } catch { fireLabel = `Attack → ${shortName(target)}`; fireDisabled = false; }
-    }
-    verbs = {
-      fire: { label: fireLabel, disabled: fireDisabled, on: declaredMine?.action === 'attack' },
-      evade: { on: declaredMine?.action === 'evade' },
-      close: { on: declaredMine?.action?.startsWith('close') },
-      open: { on: declaredMine?.action?.startsWith('open') }
-    };
-  }
-  const trackerRows = [...party, ...foes].map((who) => {
-    const entry = declared.find((item) => item.actorId === who.id);
-    let orders = combatantRulesStatus(who).toLowerCase();
-    if (who.status === 'active') {
-      if (!entry) orders = 'undeclared';
-      else {
-        const tgt = entry.targetId ? byId.get(entry.targetId) : null;
-        orders = `${tgt ? `→ ${shortName(tgt).toUpperCase()} · ` : ''}${verbFor(who, entry)}`;
-      }
-    }
-    return {
-      id: who.id, side: who.side === 'party' ? 'party' : who.side === 'opposition' ? 'foe' : 'other',
-      name: who.name, track: ['STR', 'DEX', 'END'].map((key) => ({ value: who.current[key], hurt: who.current[key] < who.characteristics[key] })),
-      orders, state: who.status === 'active' ? 'active' : 'down', selected: actor?.id === who.id
-    };
-  });
-  const ship = shipDocument ?? null;
-  const shipLine = ship ? `${ship.identity?.name ?? 'ship'} · fuel ${ship.state?.currentFuelTons ?? '?'}/${ship.specifications?.fuel?.capacityTons ?? '?'} t` : 'no ship';
-  const sideModel = {
-    name: focus?.name ?? character.identity.name,
-    subtitle: focus && focus.id !== me?.id ? `${focus.side === 'party' ? 'party' : focus.side} · ${weaponLabel(focus.weaponKey)}` : `${serviceName(character.career.service)} · ${character.career.terms} term${character.career.terms === 1 ? '' : 's'} · age ${character.age}`,
-    upp: focus?.upp ?? character.upp,
-    stats: ['STR', 'DEX', 'END'].map(statFor), mental,
-    status: { text: health, tone: health === 'READY' || health === 'ACTIVE' ? 'ready' : health === 'WOUNDED' ? 'wounded' : 'critical' },
-    blows, posture, verbs,
-    tracker: { note: 'simultaneous · wounds at round end', rows: trackerRows },
-    ship: shipLine,
-    canAllocate: Boolean(pausedWound)
-  };
-  if (el.fightSide) {
-    renderFightSide(el.fightSide, sideModel, {
-      selectRow: (id) => { const who = byId.get(id); if (who?.status === 'active') setEncounterActor(encounter.identity.id, id); },
-      contextRow: (event, id) => { const who = byId.get(id); if (who) showEncounterTokenMenu(event, encounter, who); },
-      fire: () => resolveActiveEncounterAction('attack', 0, target?.id ?? null, actor?.id ?? null),
-      evade: () => resolveActiveEncounterAction('evade', 0, null, actor?.id ?? null),
-      close: () => resolveActiveEncounterAction('close', 0, target?.id ?? null, actor?.id ?? null),
-      open: () => resolveActiveEncounterAction('open', 0, target?.id ?? null, actor?.id ?? null),
-      ready: (event) => openReadyWeaponMenu(event),
-      roll: (key) => openCharacteristicRollDialog(key, key),
-      openSheet: () => (focus ? openCombatantSheet(focus) : revealCharacterSheet()),
-      add: (event) => openAddToCombatMenu(event, encounter),
-      allocate: () => openWoundAllocationDialog()
     });
-    el.fightSide.hidden = false;
-  }
-  el.terminal?.classList.add('fight-on');
-}
+  });
+  autoAll.className = 'text-button';
+  autoAll.title = 'Every NPC still declaring by hand goes on auto: attack the nearest enemy in reach, or close';
+  verbs.append(autoAll);
+  round.append(verbs);
 
-// v0.204.0: + ADD TO COMBAT on the fight column — party members and roster
-// NPCs not yet in, added where the fight's board puts new arrivals.
-function openAddToCombatMenu(event, encounter) {
-  const inTracker = new Set(encounter.combatants.flatMap((entry) => [entry.id, entry.sourceActorId].filter(Boolean)));
-  const items = [];
-  for (const character of currentPartyCharacters().filter((entry) => !inTracker.has(entry.identity.id))) {
-    items.push({ label: `${character.identity.name.toUpperCase()} · PARTY`, action: () => addToManualSetup(encounter, { characterId: character.identity.id }) });
+  // 2. Opposition — what they have declared, downed ones greyed, morale.
+  const opposition = card('Opposition', `${liveFoes.length} OF ${foes.length} UP`);
+  for (const foe of foes) {
+    if (foe.status !== 'active') { line(opposition, foe.name, combatantRulesStatus(foe).toLowerCase(), 'waiting'); continue; }
+    const entry = declared.find((item) => item.actorId === foe.id);
+    if (!entry) { line(opposition, foe.name, foe.tactics === 'auto' ? 'on auto' : 'waiting\u2026', 'waiting'); continue; }
+    const target = entry.targetId ? byId.get(entry.targetId) : null;
+    line(opposition, `${foe.name} ${target ? `\u2192 ${shortName(target)}` : ''}`.trim(), `${weaponLabel(foe.weaponKey)} \u00b7 ${verbFor(foe, entry, target)}`, 'foe');
   }
-  for (const actor of npcActorDocuments.filter((entry) => !entry.state.archived && !inTracker.has(entry.identity.id)).slice(0, 12)) {
-    items.push({ label: `${actor.identity.name.toUpperCase()} · OPPOSITION`, action: () => addToManualSetup(encounter, { actorId: actor.identity.id, side: 'opposition' }) });
+  if (foes.length) {
+    const down = foes.length - liveFoes.length;
+    const share = Math.round((down / foes.length) * 100);
+    const lastMorale = [...encounter.history].reverse().find((entry) => entry.kind === 'morale');
+    line(opposition, 'MORALE', lastMorale
+      ? `${share}% down \u00b7 last throw ${lastMorale.detail?.total ?? '?'} vs ${lastMorale.detail?.target ?? '?'}+ \u00b7 ${lastMorale.detail?.stands ? 'stood' : 'withdrew'}`
+      : share >= 25 ? `${share}% down \u00b7 throw 7+ at round end` : `${share}% down`, 'note');
   }
-  if (!items.length) { setStatus('EVERYONE IS ALREADY IN THE FIGHT', 'error'); return; }
-  showChoiceMenu(event, items, 'ADD TO COMBAT');
+
+  // 3. Scene DMs — the conditions the throw card prices.
+  const dms = card('Scene DMs', 'B1 p.27');
+  const chips = document.createElement('div');
+  chips.className = 'dock-round-chips';
+  const chip = (text) => chips.append(Object.assign(document.createElement('span'), { className: 'chip', textContent: text }));
+  const surprise = encounter.history.find((entry) => entry.kind === 'surprise');
+  chip(surprise?.detail?.surpriseSideId ? `${surprise.detail.surpriseSideId} surprised the other` : 'No surprise');
+  chip(`Met at ${String(encounter.range).replace('-', ' ')}`);
+  const lighting = encounter.conditions?.lighting ?? 'normal';
+  chip(lighting === 'normal' ? 'Daylight' : lighting.replace(/-/g, ' '));
+  if (encounter.map?.spatialMode === 'range-line') chip('Range line \u00b7 band 25 m');
+  else if (encounter.map?.metersPerSquare) chip(`${encounter.map.metersPerSquare} m squares`);
+  dms.append(chips);
+
+  // 4. Round log — what the last round did, in words.
+  const previous = encounter.round - 1;
+  const log = card('Round log', previous > 0 ? `R${previous}` : 'R0');
+  const entries = encounter.history.filter((entry) => entry.round === previous && ['attack', 'morale', 'escape', 'movement', 'wound'].includes(entry.kind));
+  if (!entries.length) log.append(Object.assign(document.createElement('div'), { className: 'procedure-card-copy', textContent: previous > 0 ? 'Nothing was thrown.' : 'The fight has just begun.' }));
+  for (const entry of entries.slice(-6)) {
+    const text = document.createElement('div');
+    text.className = 'procedure-card-copy';
+    if (entry.kind === 'attack') {
+      try {
+        const model = attackCardModel(entry, encounter);
+        text.textContent = model.kind === 'note'
+          ? model.text
+          : model.hit
+            ? `${model.attackerName} hit ${model.defenderName} (${model.total} vs ${model.needed}+)${model.wound ? ` \u00b7 wound ${model.wound.total}${model.wound.allocations.length ? ` \u2192 ${model.wound.allocations.map((a) => `${a.characteristic} \u2212${a.amount}`).join(', ')}` : ''}` : ''}${model.defenderStatus !== 'active' ? ` \u00b7 ${model.defenderStatus}` : ''}.`
+            : `${model.attackerName} missed ${model.defenderName} (needed ${model.needed}+, rolled ${model.total}).`;
+      } catch { text.textContent = entry.text || entry.prefix || ''; }
+    } else {
+      text.textContent = entry.text || '';
+    }
+    log.append(text);
+  }
+
+  slot.replaceChildren(round);
+  if (el.encounterThrowCard) slot.append(el.encounterThrowCard);
+  if (el.encounterResolve) slot.append(el.encounterResolve);
+  slot.append(opposition, dms, log);
+  // The port call, folded to one line while the fight runs.
+  const suspended = document.createElement('button');
+  suspended.type = 'button';
+  suspended.className = 'text-button dock-suspended';
+  const cardCount = el.playProcedure?.querySelectorAll('.procedure-card').length ?? 0;
+  const shown = slot.classList.contains('show-port');
+  suspended.textContent = `[ PORT CALL \u00b7 SUSPENDED \u00b7 ${cardCount} CARD${cardCount === 1 ? '' : 'S'} \u00b7 ${shown ? 'HIDE' : 'SHOW'} ]`;
+  suspended.title = 'Book 1 p.30: port, trade and jobs wait until the encounter is resolved';
+  suspended.addEventListener('click', () => { slot.classList.toggle('show-port'); renderDockRound(encounter, actor); });
+  slot.append(suspended);
+  slot.hidden = false;
+  el.terminal?.classList.add('fight-on');
 }
 
 function renderEncounterTracker(encounter, actor) {

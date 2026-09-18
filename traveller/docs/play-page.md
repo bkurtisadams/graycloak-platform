@@ -23,6 +23,13 @@ The screen shows the situation you are in and nothing else.
 
 A new situation adds a scene and a lead card. It never adds a panel.
 
+In a fight the scene is a narrow band strip plus one card per combatant. The
+cards carry what Book 1 makes you look up: current STR/DEX/END, weapon in hand
+and its wound dice, armor, blows left (brawling and blades only, p.32), range
+from the reader, the throw the reader needs to hit them, and the throw they
+need to hit the reader. A player seat will see only what is observable on the
+opposition's cards; the referee sees all of it.
+
 ## Files
 
 | file | job |
