@@ -2,12 +2,12 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.3';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.3';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.3';
-import { createPlaySession } from '../src/play-session.js?v=v0.207.3';
-import { createPlayCloud } from './play-cloud.js?v=v0.207.3';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.3';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.4';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.4';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.4';
+import { createPlaySession } from '../src/play-session.js?v=v0.207.4';
+import { createPlayCloud } from './play-cloud.js?v=v0.207.4';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.4';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -202,9 +202,13 @@ function openSignIn() {
     event.preventDefault();
     const email = $('signin-email').value.trim();
     const password = $('signin-password').value;
-    attempt(() => (dialog.dataset.mode === 'create'
+    const creating = dialog.dataset.mode === 'create';
+    attempt(() => (creating
       ? cloud.createAccountWithEmail(email, password, { displayName: $('signin-name').value.trim() || null })
-      : cloud.signInWithEmail(email, password)));
+      : cloud.signInWithEmail(email, password))).then(() => {
+      const status = $('signin-status');
+      if (!creating && status.classList.contains('is-error')) status.textContent += ` ${cloud.describeAttempt(email, password)}`;
+    });
   };
   $('signin-show').checked = false;
   $('signin-password').type = 'password';
@@ -234,8 +238,8 @@ function openAccount() {
     status.className = 'signin-status';
     status.textContent = 'Working\u2026';
     try {
-      const email = await cloud.setAccountPassword($('account-password').value);
-      status.textContent = `Password set for ${email}. Sign out and sign in with it to check.`;
+      const result = await cloud.setAccountPassword($('account-password').value);
+      status.textContent = `Password set and checked: Firebase accepted ${result.email} with the new ${result.length}-character password just now. Sign-in methods on this account: ${result.providers.join(', ')}.`;
       $('account-password').value = '';
     } catch (error) { status.className = 'signin-status is-error'; status.textContent = cloud.describeError(error); }
   };

@@ -5,7 +5,7 @@
 // some do not, and because Google will not let you invent an account for
 // testing. Firebase has both enabled.
 
-import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus } from './auth.js?v=v0.207.3';
+import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.207.4';
 
 const DIALOG_ID = 'signin-dialog';
 
@@ -86,9 +86,16 @@ export function openSignInDialog() {
 
   field('close').onclick = () => dialog.close();
   field('google').onclick = () => run(() => signIn());
-  field('email-in').onclick = () => run(() => (creating
-    ? createAccountWithEmail(field('email').value.trim(), field('password').value, { displayName: field('name').value.trim() || null })
-    : signInWithEmail(field('email').value.trim(), field('password').value)));
+  field('email-in').onclick = async () => {
+    const email = field('email').value.trim();
+    const password = field('password').value;
+    const user = await run(() => (creating
+      ? createAccountWithEmail(email, password, { displayName: field('name').value.trim() || null })
+      : signInWithEmail(email, password)));
+    // v0.207.4: a failure says what was sent, so a stale autofill or a typo
+    // in the address is visible instead of guessed at.
+    if (!user && !creating) setStatus(`${status.textContent} ${describeAttempt(email, password)}`, 'error');
+  };
   // v0.207.2: a Google-only account has no password, which email sign-in
   // reports as invalid-credential. The reset email puts one on it.
   field('reset').onclick = async () => {
@@ -154,9 +161,9 @@ export function openPasswordDialog() {
     try {
       status.className = 'signin-status';
       status.textContent = 'WORKING\u2026';
-      const email = await setAccountPassword(field('password').value);
+      const result = await setAccountPassword(field('password').value);
       status.className = 'signin-status ok';
-      status.textContent = `Password set for ${email}. Sign out and sign in with it to check.`;
+      status.textContent = `PASSWORD SET AND CHECKED: Firebase accepted ${result.email} with the new ${result.length}-character password just now. Sign-in methods on this account: ${result.providers.join(', ')}.`;
       field('password').value = '';
     } catch (error) {
       status.className = 'signin-status error';

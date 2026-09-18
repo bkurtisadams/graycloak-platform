@@ -11,7 +11,7 @@
 // from file:// — the client carries on signed out and entirely local, which is
 // how it has worked up to now and must keep working.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.3';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.4';
 
 const SDK_VERSION = '10.12.2';
 const SDK_SCRIPTS = Object.freeze([
@@ -163,7 +163,24 @@ export async function setAccountPassword(password) {
   if (accountProviders().includes('password')) await currentUser.updatePassword(password);
   else await currentUser.linkWithCredential(globalThis.firebase.auth.EmailAuthProvider.credential(currentUser.email, password));
   try { await currentUser.reload(); } catch (error) { console.warn(error); }
-  return currentUser.email;
+  // v0.207.4: prove it. Re-authenticate with the email and the password just
+  // set; if Firebase accepts that, email sign-in with the same two values
+  // cannot fail for any reason inside Firebase. A failure here is reported as
+  // a failure to set, not swallowed.
+  const credential = globalThis.firebase.auth.EmailAuthProvider.credential(currentUser.email, password);
+  await currentUser.reauthenticateWithCredential(credential);
+  return { email: currentUser.email, verified: true, providers: accountProviders(), length: String(password).length };
+}
+
+// What was actually sent, for the sign-in box to show beside a failure: the
+// address as Firebase received it, and the password's length and whether it
+// carried stray spaces. Never the password itself.
+export function describeAttempt(email, password) {
+  const value = String(password ?? '');
+  const notes = [`${value.length} character${value.length === 1 ? '' : 's'}`];
+  if (value !== value.trim()) notes.push('with a space at the start or end');
+  if (/[A-Z]/.test(value) && !/[a-z]/.test(value)) notes.push('all capitals, check Caps Lock');
+  return `Tried "${email}" with a password of ${notes.join(', ')}.`;
 }
 
 export function describeAuthError(error) {

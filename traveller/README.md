@@ -1,5 +1,20 @@
 # Graycloak Traveller
 
+## v0.207.4 sign-in that reports on itself
+
+Email sign-in still answered `auth/invalid-credential` after a password was
+set from inside the account, and nothing on screen said whether the set had
+worked or what the sign-in had sent.
+
+- `setAccountPassword()` now proves its result: after setting, it
+  re-authenticates with the email and the new password. If Firebase accepts
+  that, the dialog says PASSWORD SET AND CHECKED with the address, the
+  password's length and the account's sign-in methods. If Firebase refuses,
+  the dialog shows that error instead of claiming success.
+- A failed email sign-in adds what was sent: the address as typed, the
+  password's length, and whether it had a stray space or was all capitals.
+  Never the password.
+
 ## v0.207.3 set the account password while signed in
 
 The account in question has both a Google and a password sign-in, so
