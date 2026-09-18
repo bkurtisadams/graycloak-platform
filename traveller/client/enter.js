@@ -8,26 +8,26 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.207.2';
-import { openSignInDialog } from './signin-ui.js?v=v0.207.2';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.207.3';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.207.3';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome
-} from './publish.js?v=v0.207.2';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.207.2';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.207.2';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.207.2';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.207.2';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.207.2';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.207.2';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.207.2';
-import { generateCharacterName } from './generators.js?v=v0.207.2';
+} from './publish.js?v=v0.207.3';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.207.3';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.207.3';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.207.3';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.207.3';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.207.3';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.207.3';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.207.3';
+import { generateCharacterName } from './generators.js?v=v0.207.3';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
-} from '../src/character-record.js?v=v0.207.2';
+} from '../src/character-record.js?v=v0.207.3';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.207.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.207.3';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -105,8 +105,26 @@ function loadDraft() {
 
 // --- Account ---------------------------------------------------------------
 
+// v0.207.3: a [ PASSWORD ] button beside [ SIGN OUT ], made here rather than
+// in enter.html so the page markup and its pins are untouched.
+function passwordButton() {
+  let button = document.querySelector('#account-password');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'account-password';
+    button.type = 'button';
+    button.className = el.accountButton.className;
+    button.textContent = '[ PASSWORD ]';
+    button.title = 'Set or change the password for email sign-in';
+    button.onclick = () => openPasswordDialog();
+    el.accountButton.before(button);
+  }
+  return button;
+}
+
 function renderAccount() {
   const { user, status } = authStatus();
+  passwordButton().hidden = !user || !user.email;
   if (status === 'unavailable') {
     el.account.textContent = 'OFFLINE';
     el.accountButton.hidden = true;

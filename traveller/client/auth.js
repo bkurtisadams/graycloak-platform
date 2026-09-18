@@ -11,7 +11,7 @@
 // from file:// — the client carries on signed out and entirely local, which is
 // how it has worked up to now and must keep working.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.2';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.3';
 
 const SDK_VERSION = '10.12.2';
 const SDK_SCRIPTS = Object.freeze([
@@ -131,7 +131,10 @@ const AUTH_ERROR_TEXT = Object.freeze({
   'auth/unauthorized-domain': 'This address is not an authorized domain for the Firebase project.',
   'auth/popup-blocked': 'The browser blocked the Google window. Allow pop-ups for this site.',
   'auth/popup-closed-by-user': 'The Google window was closed before sign-in finished.',
-  'auth/user-disabled': 'That account has been disabled.'
+  'auth/user-disabled': 'That account has been disabled.',
+  'auth/requires-recent-login': 'For safety Firebase only changes a password just after signing in. Sign out, sign in with Google again, and set the password straight away.',
+  'auth/provider-already-linked': 'This account already has a password. Try again; it will be replaced rather than added.',
+  'auth/credential-already-in-use': 'Another account already uses that email with a password.'
 });
 
 // v0.207.2: one account per email address. Someone who first signed in with
@@ -143,6 +146,24 @@ const AUTH_ERROR_TEXT = Object.freeze({
 export async function sendPasswordReset(email) {
   if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
   await auth.sendPasswordResetEmail(email);
+}
+
+// v0.207.3: set the password from inside the account, with no email involved.
+// An account reached through Google can be given a password (link), and one
+// that already has a password can have it replaced (update). Firebase insists
+// the sign-in be recent, which it is for someone who has just used Google.
+export function accountProviders() {
+  return (currentUser?.providerData ?? []).map((entry) => entry.providerId);
+}
+
+export async function setAccountPassword(password) {
+  if (!auth || !currentUser) throw new Error('sign in first');
+  if (!currentUser.email) throw new Error('this account has no email address to sign in with');
+  if (String(password ?? '').length < 6) throw Object.assign(new Error('weak password'), { code: 'auth/weak-password' });
+  if (accountProviders().includes('password')) await currentUser.updatePassword(password);
+  else await currentUser.linkWithCredential(globalThis.firebase.auth.EmailAuthProvider.credential(currentUser.email, password));
+  try { await currentUser.reload(); } catch (error) { console.warn(error); }
+  return currentUser.email;
 }
 
 export function describeAuthError(error) {

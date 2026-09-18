@@ -2,12 +2,12 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.2';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.2';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.2';
-import { createPlaySession } from '../src/play-session.js?v=v0.207.2';
-import { createPlayCloud } from './play-cloud.js?v=v0.207.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.2';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.3';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.3';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.3';
+import { createPlaySession } from '../src/play-session.js?v=v0.207.3';
+import { createPlayCloud } from './play-cloud.js?v=v0.207.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.3';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -116,6 +116,7 @@ function render() {
     saveLine.title = state.save.detail;
     saveLine.replaceChildren(...[h('span', { text: state.save.state === 'cloud' && source.session.revision ? `${state.save.label}, revision ${source.session.revision}` : state.save.label }),
       state.save.state === 'local' ? h('button', { type: 'button', class: 'mast-signin', text: 'Sign in', onclick: handlers.onSignIn }) : null,
+      state.save.state === 'cloud' || state.save.state === 'error' ? h('button', { type: 'button', class: 'mast-signin', text: 'Account', onclick: () => openAccount() }) : null,
       state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
   }
   $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer }));
@@ -205,10 +206,40 @@ function openSignIn() {
       ? cloud.createAccountWithEmail(email, password, { displayName: $('signin-name').value.trim() || null })
       : cloud.signInWithEmail(email, password)));
   };
+  $('signin-show').checked = false;
+  $('signin-password').type = 'password';
+  $('signin-show').onchange = () => { $('signin-password').type = $('signin-show').checked ? 'text' : 'password'; };
   setMode(false);
   $('signin-password').value = '';
   dialog.showModal();
   $('signin-email').focus();
+}
+
+// Signed in: set or replace the account's password directly, and sign out.
+function openAccount() {
+  const dialog = $('account');
+  const user = cloud.account();
+  const has = cloud.accountProviders().includes('password');
+  $('account-who').textContent = user?.email
+    ? `Signed in as ${user.email}. It ${has ? 'already has a password; setting one replaces it' : 'has no password yet; setting one adds it'}. This is a Graycloak password, separate from your Google one, and it is shown as you type.`
+    : 'Not signed in.';
+  const status = $('account-status');
+  status.className = 'signin-status';
+  status.textContent = '';
+  $('account-password').value = '';
+  $('account-close').onclick = () => dialog.close();
+  $('account-signout').onclick = () => cloud.signOut().then(() => dialog.close());
+  $('account-form').onsubmit = async (event) => {
+    event.preventDefault();
+    status.className = 'signin-status';
+    status.textContent = 'Working\u2026';
+    try {
+      const email = await cloud.setAccountPassword($('account-password').value);
+      status.textContent = `Password set for ${email}. Sign out and sign in with it to check.`;
+      $('account-password').value = '';
+    } catch (error) { status.className = 'signin-status is-error'; status.textContent = cloud.describeError(error); }
+  };
+  dialog.showModal();
 }
 
 // Open the campaign, draw it at once from this browser, then ask the cloud.

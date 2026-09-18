@@ -445,6 +445,7 @@ a.button { text-decoration: none; color: inherit; }
 .signin-form input { width: 100%; padding: 8px 10px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
 .signin-form .button { justify-items: center; text-align: center; }
 [hidden] { display: none !important; }
+.signin-hint { color: var(--ink-2); }
 .signin-reset { margin-left: 0; font-size: inherit; }
 .signin-status { min-height: 1.4em; font-size: 14px; color: var(--ink-2); }
 .signin-status.is-error { color: var(--red); font-weight: 700; }

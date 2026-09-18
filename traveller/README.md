@@ -1,5 +1,25 @@
 # Graycloak Traveller
 
+## v0.207.3 set the account password while signed in
+
+The account in question has both a Google and a password sign-in, so
+`auth/invalid-credential` was simply a password that does not match the one on
+file, and the reset email was not arriving to replace it. This version stops
+depending on that email.
+
+- `client/auth.js`: `setAccountPassword(password)` replaces the password on an
+  account that has one (`updatePassword`) and adds one to an account that does
+  not (`linkWithCredential`), for whoever is signed in. `accountProviders()`
+  says which the account has. Firebase requires a recent sign-in for this; the
+  error sentence says to sign out, sign in with Google, and do it straight away.
+- Lobby (`client/enter.js`): a [ PASSWORD ] button beside [ SIGN OUT ] opens
+  `openPasswordDialog()` from `client/signin-ui.js`. The new password is shown
+  as typed, so there is no doubt what was set.
+- Play page: an Account link in the masthead when signed in, with the same
+  Set password action and Sign out.
+- Both sign-in boxes: a Show password checkbox, because a browser filling in
+  an old saved password is a common cause of this error and is invisible.
+
 ## v0.207.2 a password for an account that began with Google
 
 Email sign-in reported `auth/invalid-credential`. That code means Firebase was

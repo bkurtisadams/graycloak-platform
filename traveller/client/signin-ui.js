@@ -5,7 +5,7 @@
 // some do not, and because Google will not let you invent an account for
 // testing. Firebase has both enabled.
 
-import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset } from './auth.js?v=v0.207.2';
+import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus } from './auth.js?v=v0.207.3';
 
 const DIALOG_ID = 'signin-dialog';
 
@@ -24,6 +24,7 @@ function build() {
       <div class="signin-rule">OR</div>
       <label>EMAIL <input data-signin="email" type="email" autocomplete="username"></label>
       <label>PASSWORD <input data-signin="password" type="password" autocomplete="current-password"></label>
+      <label class="signin-show"><input data-signin="show" type="checkbox"> SHOW PASSWORD <span class="signin-hint">(browsers sometimes fill in an old one)</span></label>
       <label class="signin-name" hidden>NAME <input data-signin="name" type="text" autocomplete="nickname" placeholder="shown to your referee"></label>
       <div class="actions">
         <button data-signin="email-in" class="text-button action-button" type="button">[ SIGN IN ]</button>
@@ -79,6 +80,10 @@ export function openSignInDialog() {
     field(name).onkeydown = (event) => { if (event.key === 'Enter') { event.preventDefault(); field('email-in').click(); } };
   }
 
+  field('show').checked = false;
+  field('password').type = 'password';
+  field('show').onchange = () => { field('password').type = field('show').checked ? 'text' : 'password'; };
+
   field('close').onclick = () => dialog.close();
   field('google').onclick = () => run(() => signIn());
   field('email-in').onclick = () => run(() => (creating
@@ -105,5 +110,60 @@ export function openSignInDialog() {
 
   setStatus('');
   dialog.showModal();
+  return dialog;
+}
+
+// v0.207.3: for someone already signed in (with Google, say): give the account
+// a password, or replace the one it has, without waiting on a reset email.
+const PASSWORD_DIALOG_ID = 'traveller-password-dialog';
+
+export function openPasswordDialog() {
+  let dialog = document.querySelector(`#${PASSWORD_DIALOG_ID}`);
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = PASSWORD_DIALOG_ID;
+    dialog.className = 'roll-dialog signin-dialog';
+    dialog.innerHTML = `
+      <form class="roll-dialog-form" method="dialog">
+        <div class="roll-dialog-heading">
+          <strong>ACCOUNT PASSWORD</strong>
+          <button data-pw="close" class="text-button" type="button">[ CLOSE ]</button>
+        </div>
+        <div data-pw="basis" class="signin-basis"></div>
+        <label>NEW PASSWORD <input data-pw="password" type="text" autocomplete="new-password" minlength="6"></label>
+        <div class="actions">
+          <button data-pw="save" class="text-button action-button" type="button">[ SET PASSWORD ]</button>
+        </div>
+        <div data-pw="status" class="signin-status"></div>
+      </form>`;
+    document.body.append(dialog);
+  }
+  const field = (name) => dialog.querySelector(`[data-pw="${name}"]`);
+  const { user } = authStatus();
+  const hasPassword = accountProviders().includes('password');
+  field('basis').textContent = user?.email
+    ? `${user.email} ${hasPassword ? 'already has a password; this replaces it' : 'has no password yet; this adds one'}. It is a Graycloak password, separate from your Google one. Afterwards you can sign in with Google or with this email and password. At least six characters; it is shown as you type so there is no doubt what was set.`
+    : 'Sign in first.';
+  field('password').value = '';
+  field('status').textContent = '';
+  field('status').className = 'signin-status';
+  field('close').onclick = () => dialog.close();
+  field('password').onkeydown = (event) => { if (event.key === 'Enter') { event.preventDefault(); field('save').click(); } };
+  field('save').onclick = async () => {
+    const status = field('status');
+    try {
+      status.className = 'signin-status';
+      status.textContent = 'WORKING\u2026';
+      const email = await setAccountPassword(field('password').value);
+      status.className = 'signin-status ok';
+      status.textContent = `Password set for ${email}. Sign out and sign in with it to check.`;
+      field('password').value = '';
+    } catch (error) {
+      status.className = 'signin-status error';
+      status.textContent = describeAuthError(error);
+    }
+  };
+  dialog.showModal();
+  field('password').focus();
   return dialog;
 }
