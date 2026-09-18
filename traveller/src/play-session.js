@@ -14,10 +14,18 @@
 // client/app.js uses, through a `cloud` adapter so none of it needs a browser.
 
 import {
-  canShipMakeJump, getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, parseUniversalWorldProfile,
-  payCurrentBerthing, purchaseShipFuel, starportFuelService
+  FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, bookPassenger, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost,
+  canShipMakeJump, generateFreightOffers, generatePassengerDemand, getPersonalWeapon, getSubsectorSystem,
+  generateSpeculativeTradeOffer, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile, payCurrentBerthing,
+  purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, starportFuelService
 } from '../vendor/classic-traveller-rules/index.js';
-import { addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, refreshCampaignDocumentRefs, setCampaignOwner } from './campaign-document.js';
+// The market seeds are shared with client/app.js so both pages draw the same
+// freight lots and the same passengers for a route on a given day.
+import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
+import {
+  addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
+  setCampaignOwner, speculativeLotPurchasedQuantity
+} from './campaign-document.js';
 import { appendActivityLogEntry, createActivityLogDocument, mergeActivityLogHistory } from './activity-log-document.js';
 import { StaleCampaignHomeError, createCampaignHome, importCampaignHome, nextCampaignHome } from './campaign-home.js';
 import { buildPublishedCampaign, buildPublishedScene } from './published-view.js';
@@ -219,8 +227,84 @@ function portFacts(resolved, subsector, selectedSystemId) {
       destination = { id: target.id, name: target.name, distance, reachable, fuel: reachable ? canShipMakeJump(ship, distance) : null };
     } catch { destination = null; }
   }
+  // v0.208.3: speculation (Book 2 pp.42-47). This world's one lot for the
+  // week, and a resale quote for each speculative lot carried in from another
+  // world. Seeds, lot key and skill DM are client/app.js's, so both pages see
+  // the same lot, the same amount already bought, and the same quotes. No
+  // broker is hired from this page yet (broker DM 0).
+  let speculation = null;
+  if (ship && system && profile) {
+    const trader = (resolved.characters ?? []).find((entry) => entry.identity.id === campaign.activeCharacterId)
+      ?? (resolved.characters ?? []).find((entry) => (campaign.party?.characterIds ?? []).includes(entry.identity.id)) ?? null;
+    const skillDM = Math.max(Number(trader?.skills?.Admin ?? 0), Number(trader?.skills?.Bribery ?? 0));
+    const offer = generateSpeculativeTradeOffer(profile, { dice: seededDice(weeklyTradeSeed(campaign, system.id)) });
+    const lotKey = offer ? `${weeklyTradeSeed(campaign, system.id)}|${offer.code}` : null;
+    const free = Math.max(0, ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons);
+    let buy = null;
+    if (offer) {
+      const remaining = Math.max(0, offer.quantityAvailable - speculativeLotPurchasedQuantity(campaign, lotKey));
+      const balance = Number(ship.state.finances?.balanceCr ?? 0);
+      const affordable = offer.pricePerUnitCr > 0 ? Math.floor(balance / offer.pricePerUnitCr) : remaining;
+      let quantity = offer.unit === 'tons' ? Math.max(0, Math.min(remaining, Math.floor(free), affordable)) : 0;
+      // Taking part of a lot adds a 1% handling fee (Book 2 p.46); the quoted
+      // total includes it, and it can tip the last ton out of reach.
+      const costOf = (tons) => (tons > 0 ? calculateSpeculativePurchaseCost(offer, tons) : { totalCr: 0, handlingFeeCr: 0 });
+      while (quantity > 0 && costOf(quantity).totalCr > balance) quantity -= 1;
+      const cost = costOf(quantity);
+      const blocked = quantity > 0 ? null
+        : offer.unit !== 'tons' ? `${offer.name} is sold by the ${String(offer.unit).replace(/s$/, '')}, not the ton; buy it from the current client.`
+          : remaining < 1 ? 'This week\u2019s lot is already bought out.'
+            : Math.floor(free) < 1 ? 'The hold is full.'
+              : `${cr(offer.pricePerUnitCr)} a ton is beyond the ship\u2019s account (${cr(balance)}).`;
+      buy = { offer, lotKey, remaining, quantity, costCr: cost.totalCr, handlingFeeCr: cost.handlingFeeCr, blocked };
+    }
+    const sales = (ship.state.cargoManifest ?? []).map((cargo) => {
+      const match = /^speculative:(\d{2})$/.exec(cargo.category ?? '');
+      if (!match || cargo.originSystemId === system.id) return null;
+      const quote = quoteSpeculativeResale(Number(match[1]), cargo.tons, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM: 0 });
+      return quote ? { cargo, quote } : null;
+    }).filter(Boolean);
+    speculation = { buy, sales, skillDM };
+  }
+
+  // v0.208.0: what is on offer for the chosen destination (Book 2 pp.8-9).
+  // The same seeded generators and ids as client/app.js, so a lot loaded on
+  // one page is the same lot, already aboard, on the other.
+  const contracts = (resolved.contracts ?? []).filter((entry) => entry.status === 'accepted');
+  const exclusive = contracts.find((entry) => entry.requirements?.exclusiveShip) ?? null;
+  let route = null;
+  if (destination?.reachable) {
+    const target = getSubsectorSystem(subsector, destination.id);
+    const targetProfile = parseUniversalWorldProfile(target.mainWorld.uwp);
+    const demand = generatePassengerDemand(profile, targetProfile, { destinationTravelZone: target.travelZone,
+      dice: seededDice(routeMarketSeed(campaign, system.id, target.id, 'passengers')) });
+    const offers = generateFreightOffers(profile, targetProfile, { destinationTravelZone: target.travelZone,
+      dice: seededDice(routeMarketSeed(campaign, system.id, target.id, 'freight')),
+      idPrefix: `freight-${campaignDateKey(campaign)}-${system.id}-${target.id}` }).offers;
+    const manifest = ship.state.cargoManifest ?? [];
+    const passengers = ship.state.passengerManifest ?? [];
+    const aboard = new Set(manifest.map((entry) => entry.id));
+    const freeHold = Math.max(0, ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons);
+    const stewards = (ship.crew?.assignments ?? []).filter((entry) => String(entry.role).toLowerCase() === 'steward').length;
+    const booked = (passageClass) => passengers.filter((entry) => entry.originSystemId === system.id && entry.destinationSystemId === target.id && entry.class === passageClass).length;
+    const elsewhere = [...new Set(passengers.filter((entry) => entry.destinationSystemId !== target.id).map((entry) => {
+      try { return getSubsectorSystem(subsector, entry.destinationSystemId).name; } catch { return entry.destinationSystemId; }
+    }))];
+    route = {
+      target, freeHold,
+      freight: { remaining: offers.filter((entry) => !aboard.has(entry.id)), loaded: manifest.filter((entry) => entry.category === 'freight' && entry.destinationSystemId === target.id) },
+      classes: ['high', 'middle', 'low'].map((passageClass) => ({
+        passageClass, fareCr: PASSAGE_FARES_CR[passageClass], booked: booked(passageClass),
+        waiting: Math.max(0, (demand[passageClass] ?? 0) - booked(passageClass)),
+        berths: availablePassengerCapacity(ship, passageClass),
+        blocked: passageClass === 'high' && stewards < 1 ? 'High passage needs a steward aboard, and nobody is assigned.' : null
+      })),
+      passengersElsewhere: elsewhere,
+      lifeSupport: calculateLifeSupportCostForTrip(ship)
+    };
+  }
   return {
-    ship, system, profile, portCall, fuelService, destination,
+    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation,
     fuel: { aboard, capacity, missing: Math.max(0, capacity - aboard) },
     berthingOwed: Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0),
     fight: encounters.find((entry) => entry.status === 'active' && entry.location?.systemId === system?.id) ?? null
@@ -254,22 +338,83 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
       copy: system.gasGiant ? 'This starport sells no fuel. The system has a gas giant to skim.' : 'This starport sells no fuel and the system has no gas giant.', cite: 'Book 2 p.6' });
   }
 
+  if (facts.speculation && !facts.exclusive) {
+    for (const { cargo, quote } of facts.speculation.sales) {
+      const paid = Number(cargo.acquisitionCostCr ?? 0);
+      const result = quote.netCr - paid;
+      steps.push({ id: `sell-${cargo.id}`, title: `Sell ${cargo.tons} t ${quote.name}`, state: 'ready', command: `speculation:sell:${cargo.id}`, verb: 'Sell',
+        figure: `${cr(quote.netCr)}, ${quote.percentage}% of base${paid ? `, ${result >= 0 ? 'up' : 'down'} ${cr(Math.abs(result))}` : ''}`,
+        copy: `Today\u2019s price at ${system.name} is ${quote.percentage}% of base${quote.characterSkillDM ? `, with +${quote.characterSkillDM} for Admin or Bribery` : ''}. It cost ${cr(paid)}. The quote holds for today; it is thrown again on another day.`, cite: 'Book 2 p.47' });
+    }
+    const { buy } = facts.speculation;
+    if (buy) {
+      steps.push(buy.quantity > 0
+        ? { id: 'speculate', title: `Buy ${buy.offer.name} to resell`, state: 'ready', command: 'speculation:buy', verb: `Buy ${buy.quantity} t`,
+          figure: `${buy.quantity} t at ${cr(buy.offer.pricePerUnitCr)}, ${cr(buy.costCr)}${buy.handlingFeeCr ? ' with handling' : ''}`,
+          copy: `This week\u2019s lot at ${system.name}: ${buy.remaining} t of ${buy.offer.name} left at ${buy.offer.percentage}% of its ${cr(buy.offer.basePriceCr)} base price. One lot a week${buy.handlingFeeCr ? `; taking part of it adds 1% handling, ${cr(buy.handlingFeeCr)}` : ''}. It sells on another world, for whatever that world throws.`, cite: 'Book 2 p.46' }
+        : { id: 'speculate', title: `${buy.offer.name} to resell`, state: 'blocked', figure: `${buy.offer.percentage}% of base, ${cr(buy.offer.pricePerUnitCr)} a ${String(buy.offer.unit).replace(/s$/, '')}`, copy: buy.blocked, cite: 'Book 2 p.46' });
+    }
+  }
+
+  if (facts.route && facts.exclusive) {
+    steps.push({ id: 'commerce', title: 'Freight and passengers', figure: `Chartered to ${facts.exclusive.destination.systemName}`, state: 'blocked',
+      copy: 'An exclusive charter commits the whole ship; no other cargo or passengers may be taken.', cite: 'Book 2 p.9' });
+  } else if (facts.route) {
+    const { route } = facts;
+    const name = route.target.name;
+    const fitting = route.freight.remaining.filter((entry) => entry.tons <= route.freeHold + 1e-9);
+    for (const lot of route.freight.loaded) done.push(`Loaded ${lot.tons} t freight for ${name}`);
+    fitting.slice(0, 4).forEach((lot, index) => steps.push({
+      id: `freight-${lot.id}`, title: fitting.length > 1 ? `Freight lot ${index + 1} for ${name}` : `Freight for ${name}`,
+      figure: `${lot.tons} t, ${cr(lot.revenueCr)} on delivery`, state: 'ready', command: `freight:load:${lot.id}`, verb: 'Load',
+      copy: `A ${lot.tons} t shipment at ${cr(FREIGHT_RATE_PER_TON_CR)} a ton, paid when it is delivered. The hold has ${route.freeHold} t free.`, cite: 'Book 2 p.8' }));
+    if (fitting.length > 4) steps.push({ id: 'freight-more', title: 'More freight', figure: `${fitting.length - 4} more lots fit`, state: 'optional', copy: 'They appear as the hold allows.', cite: 'Book 2 p.8' });
+    if (!fitting.length) {
+      const smallest = route.freight.remaining.length ? Math.min(...route.freight.remaining.map((entry) => entry.tons)) : null;
+      steps.push({ id: 'freight-none', title: `Freight for ${name}`, state: 'blocked', cite: 'Book 2 p.8',
+        figure: smallest === null ? (route.freight.loaded.length ? 'All of it is aboard' : 'None offered today') : `Smallest lot is ${smallest} t`,
+        copy: smallest === null ? 'Nothing more is waiting for this destination.' : `The hold has ${route.freeHold} t free, and shipments cannot be split.` });
+    }
+    // Passengers this ship cannot carry are one quiet row, not one each.
+    const turnedAway = [];
+    for (const entry of route.classes) {
+      const label = `${entry.passageClass[0].toUpperCase()}${entry.passageClass.slice(1)} passage`;
+      if (entry.booked) done.push(`${entry.booked} ${entry.passageClass} passage booked for ${name}`);
+      if (entry.waiting < 1) continue;
+      const count = Math.min(entry.waiting, entry.berths);
+      if (entry.blocked || count < 1) {
+        turnedAway.push({ text: `${entry.waiting} ${entry.passageClass}`, why: entry.blocked ?? `No ${entry.passageClass === 'low' ? 'low berths' : 'staterooms'} free for ${entry.passageClass} passage.` });
+      } else {
+        steps.push({ id: `pass-${entry.passageClass}`, title: label, figure: `${entry.waiting} waiting, ${cr(entry.fareCr)} each`, state: 'ready',
+          command: `passengers:book:${entry.passageClass}`, verb: `Book ${count}`,
+          copy: `${entry.waiting} for ${name}; ${entry.berths} ${entry.passageClass === 'low' ? 'low berths' : 'staterooms'} free. Fares reach the ship\u2019s account when the passengers are delivered.`, cite: 'Book 2 p.8' });
+      }
+    }
+    if (turnedAway.length) {
+      steps.push({ id: 'pass-turned-away', title: 'Passengers you cannot carry', figure: `${turnedAway.map((entry) => entry.text).join(', ')} waiting`, state: 'blocked',
+        copy: turnedAway.map((entry) => entry.why).join(' '), cite: 'Book 2 p.8' });
+    }
+  }
+
   let jump;
   if (!destination) jump = { figure: 'No destination yet', copy: 'Pick a world on the map first.' };
   else if (!destination.reachable) jump = { figure: `${destination.name} is ${destination.distance} parsecs`, copy: `Beyond this ship\u2019s Jump-${ship.specifications.drives.jump.rating}.` };
   else if (destination.fuel && !destination.fuel.allowed) jump = { figure: `${destination.name}: short of fuel`, copy: `The jump needs ${destination.fuel.requirement?.totalTons ?? '?'} t; ${destination.fuel.availableTons ?? fuel.aboard} t aboard.` };
   else if (facts.berthingOwed) jump = { figure: `${destination.name}: berthing unpaid`, copy: 'Pay berthing before departure.' };
-  else jump = { figure: `${destination.name}, ${destination.distance} parsec${destination.distance === 1 ? '' : 's'}`, copy: 'Ready to go. Freight, passengers and departure are still run from the current client; they arrive on this page next.' };
+  else if (facts.route?.passengersElsewhere.length) jump = { figure: `Passengers aboard for ${facts.route.passengersElsewhere.join(', ')}`, copy: 'Passengers already booked must be carried to their own destination first.' };
+  else if (facts.exclusive && facts.exclusive.destination.systemId !== destination.id) jump = { figure: `Chartered to ${facts.exclusive.destination.systemName}`, copy: 'An exclusive charter goes to its own destination. Deliver it, or abandon it in the current client.' };
+  else jump = { figure: `${destination.name}, ${destination.distance} parsec${destination.distance === 1 ? '' : 's'}`, copy: `Ready to go${facts.route?.lifeSupport?.totalCr ? `; life support for the trip will be ${cr(facts.route.lifeSupport.totalCr)}` : ''}. Departure itself is still run from the current client; it arrives on this page next.` };
   steps.push({ id: 'jump', title: 'Depart', state: 'blocked', cite: 'Book 2 p.5', ...jump });
 
-  const first = steps.find((step) => step.state === 'ready');
+  const first = steps.find((step) => step.state === 'ready' && (step.id === 'berthing' || step.id === 'fuel'));
   const next = facts.fight
     ? { title: 'A fight is in progress', copy: 'Finish it in the current client. This page leaves the campaign alone while a fight is running.', actions: [] }
     : first
       ? { title: first.title, copy: first.copy, cite: first.cite, actions: [act(first.command, first.verb, first.figure)].filter(Boolean) }
       : !destination
         ? { title: 'Choose a destination', copy: `Worlds within Jump-${ship.specifications.drives.jump.rating} of ${system.name} are marked on the map. Freight and passengers are offered per destination.`, cite: 'Book 2 p.8', actions: [] }
-        : { title: `Bound for ${destination.name}`, copy: jump.copy, cite: 'Book 2 p.5', actions: [] };
+        : { title: `Bound for ${destination.name}`, cite: 'Book 2 p.8', actions: [],
+          copy: facts.route && !facts.exclusive ? `Take what you want of the freight and passengers waiting for ${destination.name}, below. Pick another world to see what is waiting for it instead.` : jump.copy };
   return { next, steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)), done };
 }
 
@@ -367,10 +512,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   }
 
   // Returns { ok, message }. A refused command changes nothing.
-  function run(command) {
+  function run(command, { selectedSystemId = null } = {}) {
     try {
       if (save.state === 'stale') throw new Error('this campaign was changed elsewhere; reload first');
-      const facts = portFacts(resolved, subsector, null);
+      const facts = portFacts(resolved, subsector, selectedSystemId);
       if (facts.fight) throw new Error('a fight is in progress; finish it in the current client');
       if (!facts.ship || !facts.system) throw new Error('an active ship at a mapped world is required');
       const shipName = facts.ship.identity.name || 'The ship';
@@ -389,6 +534,55 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         persist([result.ship]);
         message = `${shipName} took on ${result.addedTons} t ${facts.fuelService.quality} fuel at ${facts.system.name}, ${result.costCr ? cr(result.costCr) : 'free'}`;
         log('SHIP', message);
+      } else if (command === 'speculation:buy' || command.startsWith('speculation:sell:')) {
+        if (facts.exclusive) throw new Error(`exclusive charter active for ${facts.exclusive.destination.systemName}; commercial capacity is committed`);
+        if (command === 'speculation:buy') {
+          const buy = facts.speculation?.buy;
+          if (!buy) throw new Error('no speculative trade lot is available');
+          if (buy.quantity < 1) throw new Error(buy.blocked);
+          const result = purchaseSpeculativeCargo(facts.ship, buy.offer, buy.quantity, { originSystemId: facts.system.id, dateLabel });
+          const campaign = recordSpeculativeLotPurchase(resolved.campaign, { key: buy.lotKey, systemId: facts.system.id, tradeGoodCode: buy.offer.code, quantity: buy.quantity });
+          registry.put(campaign);
+          reload();
+          persist([result.ship]);
+          message = `${shipName} bought a speculative lot: ${buy.quantity} t ${buy.offer.name} at ${facts.system.name}, ${cr(result.costCr)}${result.handlingFeeCr ? ` including ${cr(result.handlingFeeCr)} handling` : ''}`;
+        } else {
+          const cargoId = command.slice('speculation:sell:'.length);
+          const sale = facts.speculation?.sales.find((entry) => entry.cargo.id === cargoId);
+          if (!sale) throw new Error(facts.ship.state.cargoManifest.some((entry) => entry.id === cargoId) ? 'speculative cargo must be carried to another world before resale' : 'that lot is no longer aboard');
+          const result = sellSpeculativeCargo(facts.ship, cargoId, sale.quote, { dateLabel, destinationSystemId: facts.system.id });
+          persist([result.ship]);
+          message = `${sale.cargo.tons} t ${sale.quote.name} sold at ${facts.system.name}, ${cr(result.revenueCr)} net, ${result.profitCr >= 0 ? 'up' : 'down'} ${cr(Math.abs(result.profitCr))}`;
+        }
+        log('TRADE', message);
+      } else if (command.startsWith('freight:load:') || command.startsWith('passengers:book:')) {
+        if (facts.exclusive) throw new Error(`exclusive charter active for ${facts.exclusive.destination.systemName}; commercial capacity is committed`);
+        if (!facts.route) throw new Error('choose a destination within jump range first');
+        const { route } = facts;
+        if (command.startsWith('freight:load:')) {
+          const offer = route.freight.remaining.find((entry) => entry.id === command.slice('freight:load:'.length));
+          if (!offer) throw new Error('that freight shipment is no longer on offer');
+          const ship = loadCargo(facts.ship, { id: offer.id, category: 'freight', description: `${offer.tons}t freight to ${route.target.name}`, tons: offer.tons,
+            originSystemId: facts.system.id, destinationSystemId: route.target.id, acquisitionCostCr: 0,
+            notes: `Book 2 freight / Cr${FREIGHT_RATE_PER_TON_CR.toLocaleString('en-US')} per ton on delivery.` });
+          persist([ship]);
+          message = `${shipName} accepted a ${offer.tons} t shipment, ${facts.system.name} to ${route.target.name}, ${cr(offer.revenueCr)} on delivery`;
+        } else {
+          const passageClass = command.slice('passengers:book:'.length);
+          const entry = route.classes.find((candidate) => candidate.passageClass === passageClass);
+          if (!entry) throw new Error(`unknown passage class: ${passageClass}`);
+          if (entry.blocked) throw new Error(entry.blocked);
+          const count = Math.min(entry.waiting, entry.berths);
+          if (count < 1) throw new Error(entry.waiting < 1 ? `no ${passageClass} passengers are waiting for ${route.target.name}` : `no berths free for ${passageClass} passage`);
+          let ship = facts.ship;
+          for (let index = 0; index < count; index += 1) {
+            ship = bookPassenger(ship, { id: `pass-${campaignDateKey(resolved.campaign)}-${facts.system.id}-${route.target.id}-${passageClass}-${entry.booked + index + 1}`,
+              passageClass, originSystemId: facts.system.id, destinationSystemId: route.target.id });
+          }
+          persist([ship]);
+          message = `${count} ${passageClass} passenger${count === 1 ? '' : 's'} booked, ${facts.system.name} to ${route.target.name}, fare ${cr(entry.fareCr)} each`;
+        }
+        log('TRADE', message);
       } else throw new Error(`unknown command: ${command}`);
       lastMessage = { ok: true, message };
       onChange();

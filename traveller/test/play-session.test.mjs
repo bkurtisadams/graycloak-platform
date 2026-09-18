@@ -120,7 +120,7 @@ test('the port procedure leads with what is owed and lists the rest', async () =
   const procedure = portProcedure(registry.resolveCampaign(campaignId), { subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.equal(procedure.next.title, 'Pay berthing');
   assert.deepEqual(procedure.next.actions.map((action) => action.command), ['berthing:pay']);
-  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['jump', 'blocked']]);
+  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['speculate', 'ready'], ['jump', 'blocked']]);
   assert.match(procedure.steps[0].figure, /^30 t refined, Cr 15,000$/);
 });
 
@@ -224,4 +224,153 @@ test('the page leaves a campaign alone while a fight is running there', async ()
   const procedure = portProcedure({ ...resolved, encounters: [{ status: 'active', location: { systemId: 'orison' }, identity: { id: 'e1' } }] }, { subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.equal(procedure.next.title, 'A fight is in progress');
   assert.equal(procedure.steps.every((step) => !step.command), true);
+});
+
+// ---------------------------------------------------------------- v0.208.0
+import { routeMarketSeed, seededDice, campaignDateKey } from '../client/commerce-market.js';
+import { generateFreightOffers, parseUniversalWorldProfile, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js';
+
+// A trader with room: the fixture's scout has a 3 t hold, which no freight
+// lot fits, and ship documents must match a canonical design, so swap in a
+// Type A free trader (82 t, Jump-1) under the same id, at Aster, which has Jump-1 neighbours.
+import { createShipDocument } from '../vendor/classic-traveller-rules/index.js';
+
+async function traderAtAster({ steward = false } = {}) {
+  const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+  bundle.campaign.location = { systemId: 'aster', systemName: 'Aster', worldId: 'aster-main', worldName: 'Aster' };
+  const old = bundle.documents.ships[0];
+  const crewAssignments = [{ role: 'pilot', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' }];
+  if (steward) crewAssignments.push({ role: 'steward', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' });
+  bundle.documents.ships[0] = createShipDocument({
+    designKey: 'type-a-free-trader', id: old.identity.id, name: 'Marisol', registry: 'A-1', authority: old.authority, crewAssignments,
+    state: { currentFuelTons: 30, portCall: { systemId: 'aster', arrivalDate: '106-4800', berthingDueCr: 100, berthingPaid: true } }
+  });
+  const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+  const { campaign } = registry.putBundle(bundle);
+  return { registry, campaignId: campaign.identity.id };
+}
+
+test('a chosen destination lists its freight and passengers; berthing and fuel still lead', async () => {
+  const { registry, campaignId } = await traderAtAster();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().steps.some((step) => step.id.startsWith('freight')), false, 'nothing is offered until a destination is chosen');
+  const view = session.view({ selectedSystemId: 'calder' });
+  assert.equal(view.next.title, 'Bound for Calder');
+  const freight = view.steps.filter((step) => step.command?.startsWith('freight:load:'));
+  assert.ok(freight.length >= 1 && freight.length <= 4);
+  assert.ok(view.steps.some((step) => step.command === 'passengers:book:middle'));
+  // No steward: high passage is never bookable, and any waiting are turned
+  // away in one quiet row that gives the reason.
+  assert.equal(view.steps.some((step) => step.command === 'passengers:book:high'), false);
+  const turned = view.steps.find((step) => step.id === 'pass-turned-away');
+  if (turned && /high/.test(turned.figure)) assert.match(turned.copy, /steward/);
+});
+
+test('the offers are the ones the current client generates: same seed, same ids', async () => {
+  const { registry, campaignId } = await traderAtAster();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const { campaign } = session.resolved;
+  const profile = (id) => parseUniversalWorldProfile(getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, id).mainWorld.uwp);
+  const expected = generateFreightOffers(profile('aster'), profile('calder'), {
+    destinationTravelZone: getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'calder').travelZone,
+    dice: seededDice(routeMarketSeed(campaign, 'aster', 'calder', 'freight')),
+    idPrefix: `freight-${campaignDateKey(campaign)}-aster-calder`
+  }).offers.filter((offer) => offer.tons <= 82).slice(0, 4).map((offer) => `freight:load:${offer.id}`);
+  const shown = session.view({ selectedSystemId: 'calder' }).steps.filter((step) => step.command?.startsWith('freight:load:')).map((step) => step.command);
+  assert.deepEqual(shown, expected);
+});
+
+test('loading freight and booking passengers fill the ship and leave the offer board', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const at = { selectedSystemId: 'calder' };
+  const lot = session.view(at).steps.find((step) => step.command?.startsWith('freight:load:'));
+  assert.equal(session.run(lot.command, at).ok, true);
+  const ship = () => registry.resolveCampaign(campaignId).ships[0];
+  assert.equal(ship().state.cargoManifest.length, 1);
+  assert.equal(ship().state.cargoManifest[0].destinationSystemId, 'calder');
+  assert.ok(ship().state.cargoUsedTons > 0);
+  assert.equal(session.view(at).steps.some((step) => step.command === lot.command), false, 'a loaded lot is no longer offered');
+  assert.equal(session.run(lot.command, at).ok, false, 'and cannot be loaded twice');
+
+  const before = ship().state.finances.balanceCr;
+  const middle = session.view(at).steps.find((step) => step.command === 'passengers:book:middle');
+  const count = Number(middle.verb.replace('Book ', ''));
+  assert.equal(session.run('passengers:book:middle', at).ok, true);
+  assert.equal(ship().state.passengerManifest.filter((entry) => entry.class === 'middle').length, count);
+  assert.equal(ship().state.finances.balanceCr, before, 'the engine credits fares on delivery, not at booking');
+  assert.equal(ship().state.passengerManifest[0].fareCr, 8000);
+  assert.ok(session.view(at).done.some((line) => /middle passage booked for Calder/.test(line)));
+  assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.at(-1).category, 'TRADE');
+
+  // With passengers aboard for Aster, another destination cannot be jumped to.
+  const jump = session.view({ selectedSystemId: 'port-meridian' }).steps.find((step) => step.id === 'jump');
+  assert.match(jump.figure, /Passengers aboard for Calder/);
+});
+
+test('freight and passengers need a destination in range, and an exclusive charter refuses them', async () => {
+  const { registry, campaignId } = await traderAtAster();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.deepEqual(session.run('passengers:book:middle'), { ok: false, message: 'choose a destination within jump range first' });
+  assert.equal(session.run('passengers:book:middle', { selectedSystemId: 'heliograph' }).ok, false);
+
+  const resolved = registry.resolveCampaign(campaignId);
+  const charter = { ...resolved.contracts.find((entry) => entry.status === 'accepted'), requirements: { cargoTons: 0, exclusiveShip: true, description: '' } };
+  const procedure = portProcedure({ ...resolved, contracts: [charter] }, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId: 'calder' });
+  assert.equal(procedure.steps.some((step) => step.command), false);
+  assert.match(procedure.steps.find((step) => step.id === 'commerce').figure, /^Chartered to /);
+});
+
+// ---------------------------------------------------------------- v0.208.3
+import { weeklyTradeSeed } from '../client/commerce-market.js';
+import { generateSpeculativeTradeOffer } from '../vendor/classic-traveller-rules/index.js';
+import { speculativeLotPurchasedQuantity } from '../src/campaign-document.js';
+
+test('the week\'s speculative lot is the current client\'s lot, bought as far as hold and account allow', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const { campaign } = session.resolved;
+  const expected = generateSpeculativeTradeOffer(parseUniversalWorldProfile(getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'orison').mainWorld.uwp),
+    { dice: seededDice(weeklyTradeSeed(campaign, 'orison')) });
+  const row = session.view().steps.find((step) => step.id === 'speculate');
+  assert.match(row.title, new RegExp(expected.name));
+  const before = session.resolved.ships[0];
+  const free = before.specifications.cargo.capacityTons - before.state.cargoUsedTons;
+  assert.equal(row.verb, `Buy ${Math.min(free, expected.quantityAvailable)} t`, 'a scout with 2 t free buys 2 t of it');
+
+  assert.equal(session.run('speculation:buy').ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  const lot = after.ships[0].state.cargoManifest.find((entry) => /^speculative:/.test(entry.category));
+  assert.equal(lot.tons, free);
+  assert.equal(lot.originSystemId, 'orison');
+  assert.ok(after.ships[0].state.finances.balanceCr < before.state.finances.balanceCr);
+  assert.equal(speculativeLotPurchasedQuantity(after.campaign, `${weeklyTradeSeed(campaign, 'orison')}|${expected.code}`), free, 'the campaign records how much of the lot is gone, as the current client does');
+  const again = session.view().steps.find((step) => step.id === 'speculate');
+  assert.equal(again.state, 'blocked');
+  assert.equal(again.copy, 'The hold is full.');
+  // Bought here, it cannot be sold here.
+  assert.equal(session.view().steps.some((step) => step.id.startsWith('sell-')), false);
+  assert.match(session.run(`speculation:sell:${lot.id}`).message, /another world/);
+});
+
+test('a speculative lot carried to another world is quoted there and sold', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).run('speculation:buy');
+  // Arrive at Aster without the jump machinery: move the campaign and the port call.
+  const moved = registry.resolveCampaign(campaignId);
+  registry.putAll([
+    { ...moved.campaign, location: { systemId: 'aster', systemName: 'Aster', worldId: 'aster-main', worldName: 'Aster' } },
+    { ...moved.ships[0], state: { ...moved.ships[0].state, portCall: { systemId: 'aster', arrivalDate: '113-4800', berthingDueCr: 100, berthingPaid: true } } }
+  ]);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const row = session.view().steps.find((step) => step.id.startsWith('sell-'));
+  assert.ok(row, 'the lot is offered for sale at Aster');
+  assert.match(row.figure, /^Cr [\d,]+, \d+% of base, (up|down) Cr [\d,]+$/);
+  const before = session.resolved.ships[0].state.finances.balanceCr;
+  const result = session.run(row.command);
+  assert.equal(result.ok, true);
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  assert.ok(ship.state.finances.balanceCr > before);
+  assert.equal(ship.state.cargoManifest.some((entry) => /^speculative:/.test(entry.category)), false);
+  assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.at(-1).category, 'TRADE');
 });

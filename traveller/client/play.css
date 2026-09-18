@@ -444,6 +444,8 @@ a.button { text-decoration: none; color: inherit; }
 .signin-or { text-align: center; border-top: 1px solid var(--line); padding-top: 10px; }
 .signin-form input { width: 100%; padding: 8px 10px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
 .signin-form .button { justify-items: center; text-align: center; }
+.signin-form input[type='checkbox'] { width: auto; }
+.signin-form input:not([type='checkbox']) { font-size: 16px; }
 [hidden] { display: none !important; }
 .signin-hint { color: var(--ink-2); }
 .signin-reset { margin-left: 0; font-size: inherit; }
@@ -470,6 +472,8 @@ a.button { text-decoration: none; color: inherit; }
   .shell, .shell[data-drawer='open'] { height: auto; min-height: 100vh; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: 'mast' 'now' 'scene' 'drawer' 'talk'; }
   .shell[data-drawer='open'] .scene { display: grid; }
   .mast { flex-wrap: wrap; gap: 8px 16px; padding: 8px 12px; }
+  .mast-save { order: 4; width: 100%; white-space: normal; }
+  .mast-signin { padding: 6px 0; }
   .mast-chips { order: 5; width: 100%; }
   .chip { flex: 1; min-width: 0; }
   .chip-line { display: none; }

@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.207.4';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.4';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.207.4';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.208.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.208.3';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.208.3';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.207.4';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.208.3';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -73,8 +73,8 @@ function jobRow(job) {
 
 const RANGE_NAMES = { close: 'Close', short: 'Short', medium: 'Medium', long: 'Long', 'very-long': 'Very long' };
 
-// 1981 bands (the project's edition exception): close and short share a band,
-// and close is contact — markers touching.
+// Book 1 p.29 (1977) bands: range is read from the gap alone. The contact
+// check is kept for the tactical grid, where close is contact.
 function inContact(a, b) {
   return Boolean(a.contactIds?.includes(b.id) && b.contactIds?.includes(a.id));
 }
@@ -82,7 +82,7 @@ function inContact(a, b) {
 function rangeBetween(a, b) {
   const gap = Math.abs(a.band - b.band);
   if (gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS) return { gap, key: null, name: 'Out of range' };
-  const key = rangeBandForBandGap(gap, { touching: inContact(a, b) });
+  const key = rangeBandForBandGap(gap);
   return { gap, key, name: RANGE_NAMES[key] };
 }
 
@@ -366,13 +366,14 @@ function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
   return parts;
 }
 
-// Book 1 p.29: lined paper, drawn across the whole scene. Same band close,
-// next band short, 2-5 medium, 6-9 long, 10-14 very long, 15 escaped. Ranges
+// Book 1 p.29 (1977): lined paper, drawn across the whole scene. Same band
+// close, next band short, 2-5 medium, 6-9 long, 10-14 very long, 15 escaped.
+// The bands have no size in metres; they are steps of range. Ranges
 // are read from the selected marker; its declared target gets a line.
 function bandsScene(state, handlers) {
   const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
   const bands = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
-  const rowH = 40;
+  const rowH = 46;
   const width = 1000;
   const gutter = 130;
   const lane = width - gutter;
@@ -380,7 +381,7 @@ function bandsScene(state, handlers) {
   const spans = [];
   for (let band = 0; band < bands; band += 1) {
     const gap = Math.abs(band - reader.band);
-    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : gap === 0 ? 'Short, or close' : RANGE_NAMES[rangeBandForBandGap(gap)];
+    const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band });
     svg.append(createSvgNode('rect', { x: 0, y: band * rowH, width: lane, height: rowH, class: `band${gap === 0 ? ' is-own' : ''}` }));
@@ -401,7 +402,7 @@ function bandsScene(state, handlers) {
   for (const fighter of state.fighters) {
     const index = perBand.get(fighter.band) ?? 0;
     perBand.set(fighter.band, index + 1);
-    // Markers in contact are drawn touching, as the 1981 text has it.
+    // Markers in contact (tactical grid fights) are drawn touching.
     const partner = state.fighters.find((other) => at.has(other.id) && other.band === fighter.band && inContact(fighter, other));
     at.set(fighter.id, partner ? { cx: at.get(partner.id).cx + 30, cy: at.get(partner.id).cy, tucked: true } : { cx: 80 + index * 230, cy: fighter.band * rowH + rowH / 2 });
   }
@@ -429,7 +430,7 @@ function bandsScene(state, handlers) {
     svg.append(group);
   }
   return [
-    h('p', { class: 'scene-title', text: `Ranges read from ${reader.name}. Bands are 25 m: one a round, two at a run. Touching markers are at close range.` }),
+    h('p', { class: 'scene-title', text: `Ranges read from ${reader.name}. One band a round, two at a run; fifteen bands from the nearest enemy is off the field.` }),
     svg
   ];
 }

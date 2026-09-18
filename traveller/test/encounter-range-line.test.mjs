@@ -41,23 +41,22 @@ async function fixture() {
   return { character, campaign };
 }
 
-test('rangeBandForBandGap is the 1981 band table (the project\'s one edition exception)', () => {
-  assert.equal(rangeBandForBandGap(0), 'short', 'same band, not touching');
-  assert.equal(rangeBandForBandGap(0, { touching: true }), 'close', 'same band, markers touching');
-  assert.equal(rangeBandForBandGap(1), 'medium');
+test('rangeBandForBandGap matches Book 1 p.29 exactly, including the escape edge', () => {
+  assert.equal(rangeBandForBandGap(0), 'close');
+  assert.equal(rangeBandForBandGap(1), 'short');
   assert.equal(rangeBandForBandGap(2), 'medium');
-  assert.equal(rangeBandForBandGap(3), 'long');
-  assert.equal(rangeBandForBandGap(10), 'long');
-  assert.equal(rangeBandForBandGap(11), 'very-long');
-  assert.equal(rangeBandForBandGap(20), 'very-long');
-  // Twenty-one or more is an escape, handled by resolveDeclaredRound; the
-  // table itself never says "escaped".
-  assert.equal(ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, 21);
-  assert.equal(rangeBandForBandGap(21), 'very-long');
+  assert.equal(rangeBandForBandGap(5), 'medium');
+  assert.equal(rangeBandForBandGap(6), 'long');
+  assert.equal(rangeBandForBandGap(9), 'long');
+  assert.equal(rangeBandForBandGap(10), 'very-long');
+  assert.equal(rangeBandForBandGap(14), 'very-long');
+  // Fifteen or more is Book 1's escape threshold, not a fightable range — the
+  // function still returns a band (resolveDeclaredRound handles escape
+  // separately), but it must not silently claim 'close' or throw.
+  assert.equal(rangeBandForBandGap(15), 'very-long');
+  assert.equal(rangeBandForBandGap(30), 'very-long');
   assert.throws(() => rangeBandForBandGap(-1), RangeError);
   assert.throws(() => rangeBandForBandGap(1.5), RangeError);
-  // At 25 m a band the table reproduces Book 1's stated distances.
-  assert.deepEqual(ENCOUNTER_RANGE_LINE_BAND_GAP, { close: 0, short: 0, medium: 2, long: 10, 'very-long': 20 });
 });
 
 test('a scene-less encounter defaults to a scene-shaped map unless range-line is explicitly requested', async () => {
@@ -120,63 +119,45 @@ test('closing walks one band, running closes two, matching Book 1 p.29\'s line-g
   assert.equal(afterRun.position.column, 3, 'running closes exactly two bands');
 });
 
-test('opening more than twenty bands from the nearest enemy escapes (1981)', async () => {
+test('moving fifteen bands from the nearest enemy escapes, per Book 1 p.29, not the scene\'s twenty-band/500m threshold', async () => {
   const { campaign, character } = await fixture();
-  let encounter = createEncounterDocument({
-    campaign, character, opponent: { name: 'Thug' }, spatialMode: 'range-line',
-    date: { year: 4800, dayOfYear: 141 }, range: 'close', dice: sequenceDice([6, 1])
-  });
+  const date = { year: 4800, dayOfYear: 141 };
+  let encounter = createEncounterDocument({ campaign, character, opponent: { name: 'Thug' }, spatialMode: 'range-line', date, range: 'close', dice: sequenceDice([6, 1]) });
   const party = encounter.combatants.find((entry) => entry.side === 'party');
   const thug = encounter.combatants.find((entry) => entry.side === 'opposition');
-  // Running open is two bands a round: ten rounds is twenty bands, still very
-  // long range; the eleventh puts the party more than twenty away.
-  // Declare an explicit wait for the opposition too: with tactics left on
-  // 'auto' but no declaration supplied, resolveDeclaredRound falls back to
-  // "attack, or close on the nearest foe" for whoever is undeclared — which
-  // would have Thug chase the party back and confuse the arithmetic this
-  // test is checking. An explicit wait keeps the round to party movement only.
+  // Running open is two bands a round. Seven rounds is fourteen bands, the far
+  // edge of very long and still on the field; the eighth has escaped.
   let rounds = 0;
-  for (let round = 0; round < 12; round += 1) {
+  for (let round = 0; round < 10; round += 1) {
     rounds += 1;
     encounter = declareEncounterAction(encounter, { action: 'open-run', actorId: party.id, targetId: thug.id }).encounter;
     encounter = declareEncounterAction(encounter, { action: 'wait', actorId: thug.id }).encounter;
-    encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1, 1, 1]), date: { year: 4800, dayOfYear: 141 } }).encounter;
-    if (encounter.status !== 'active') break;
+    encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1, 1, 1]), date }).encounter;
+    if (encounter.combatants.find((entry) => entry.id === party.id).status === 'escaped') break;
   }
-  const escapedParty = encounter.combatants.find((entry) => entry.id === party.id);
-  assert.equal(escapedParty.status, 'escaped');
-  assert.equal(rounds, 11, 'twenty bands is still on the field; twenty-two is not');
+  assert.equal(encounter.combatants.find((entry) => entry.id === party.id).status, 'escaped');
+  assert.equal(rounds, 8);
 });
 
-test('short to close costs a move, and opening from close reaches the next band in one (1981)', async () => {
+test('on the 1977 grid a band is a move: short to close, and close back to short', async () => {
   const { campaign, character } = await fixture();
   const date = { year: 4800, dayOfYear: 141 };
-  const start = () => {
-    const encounter = createEncounterDocument({ campaign, character, opponent: { name: 'Thug' }, spatialMode: 'range-line', date, range: 'medium', dice: sequenceDice([6, 1]) });
-    return { encounter, party: encounter.combatants.find((entry) => entry.side === 'party'), thug: encounter.combatants.find((entry) => entry.side === 'opposition') };
+  let encounter = createEncounterDocument({ campaign, character, opponent: { name: 'Thug' }, spatialMode: 'range-line', date, range: 'medium', dice: sequenceDice([6, 1]) });
+  const party = encounter.combatants.find((entry) => entry.side === 'party');
+  const thug = encounter.combatants.find((entry) => entry.side === 'opposition');
+  const pair = () => encounterPairRange(encounter.combatants.find((entry) => entry.id === party.id), encounter.combatants.find((entry) => entry.id === thug.id), 'range-line');
+  const round = (action) => {
+    encounter = declareEncounterAction(encounter, { action, actorId: party.id, targetId: thug.id }).encounter;
+    encounter = declareEncounterAction(encounter, { action: 'wait', actorId: thug.id }).encounter;
+    encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1, 1, 1]), date }).encounter;
   };
-  const round = (encounter, partyId, thugId, action) => {
-    let next = declareEncounterAction(encounter, { action, actorId: partyId, targetId: thugId }).encounter;
-    next = declareEncounterAction(next, { action: 'wait', actorId: thugId }).encounter;
-    return resolveDeclaredRound(next, { dice: sequenceDice([1, 1, 1, 1, 1, 1]), date }).encounter;
-  };
-  const pair = (encounter, a, b) => encounterPairRange(encounter.combatants.find((entry) => entry.id === a), encounter.combatants.find((entry) => entry.id === b), 'range-line');
-
-  let { encounter, party, thug } = start();
-  assert.equal(pair(encounter, party.id, thug.id), 'medium', 'medium places the sides two bands apart');
-  encounter = round(encounter, party.id, thug.id, 'close');
-  assert.equal(pair(encounter, party.id, thug.id), 'medium', 'one band apart is still medium');
-  encounter = round(encounter, party.id, thug.id, 'close');
-  assert.equal(pair(encounter, party.id, thug.id), 'short', 'walking into their band spends the move: short, not close');
-  encounter = round(encounter, party.id, thug.id, 'close');
-  assert.equal(pair(encounter, party.id, thug.id), 'close', 'a further move makes contact');
-  encounter = round(encounter, party.id, thug.id, 'open');
-  assert.equal(pair(encounter, party.id, thug.id), 'medium', 'opening from close is one band away in one move, no run needed');
-
-  ({ encounter, party, thug } = start());
-  encounter = round(encounter, party.id, thug.id, 'close');
-  encounter = round(encounter, party.id, thug.id, 'close-run');
-  assert.equal(pair(encounter, party.id, thug.id), 'close', 'a run from the next band has a move in hand for contact');
+  assert.equal(pair(), 'medium', 'medium places the sides five bands apart, its far edge');
+  // Medium is four bands deep on the grid (2-5): four walks to reach short.
+  const seen = [];
+  for (let step = 0; step < 5; step += 1) { round('close'); seen.push(pair()); }
+  assert.deepEqual(seen, ['medium', 'medium', 'medium', 'short', 'close']);
+  round('open');
+  assert.equal(pair(), 'short');
 });
 
 test('a document already marked schemaVersion 16 but missing spatialMode is repaired, not rejected', () => {
@@ -204,6 +185,8 @@ test('a document already marked schemaVersion 16 but missing spatialMode is repa
   };
   const fixed = importEncounterDocument(broken);
   assert.equal(fixed.map.spatialMode, 'scene');
+  // v0.208.3: a saved encounter carrying the old facsimile label is relabelled as it loads.
+  assert.equal(fixed.provenance.rulesBasis, 'classic-traveller-book-1-personal-combat-1977');
   const brokenLine = { ...broken, map: { ...broken.map, grid: 'line', columns: 41, rows: 1, rangeGuide: 'graycloak-book1-line-grid-v1' } };
   const fixedLine = importEncounterDocument(brokenLine);
   assert.equal(fixedLine.map.spatialMode, 'range-line', 'derives from grid rather than defaulting blindly');

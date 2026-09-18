@@ -2,12 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.4';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.4';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.4';
-import { createPlaySession } from '../src/play-session.js?v=v0.207.4';
-import { createPlayCloud } from './play-cloud.js?v=v0.207.4';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.4';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.208.3';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.208.3';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.208.3';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.208.3';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.208.3';
+import { createPlayCloud } from './play-cloud.js?v=v0.208.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.208.3';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -18,11 +19,11 @@ const params = new URLSearchParams(location.search);
 // Which campaign, if any. ?show= asks for a sample screen. Otherwise the page
 // reads the same registry index.html saves to: ?campaign=<id>, or the one last
 // opened in this browser. It only reads.
-function openCampaign() {
+function openCampaign(wanted = null) {
   if (params.has('show')) return { mode: 'sample' };
   try {
     const registry = createDocumentRegistry({ storage: window.localStorage });
-    const id = params.get('campaign') || registry.getActiveCampaignId();
+    const id = wanted || params.get('campaign') || registry.getActiveCampaignId();
     if (!id) return { mode: 'empty', reason: 'No campaign has been opened in this browser yet.' };
     const session = createPlaySession({ registry, campaignId: id, subsector: FAR_MERIDIAN_SUBSECTOR, cloud, onChange: () => render() });
     return { mode: 'live', session };
@@ -68,6 +69,44 @@ function openDrawer(kind) {
   render();
 }
 
+// v0.208.1: a browser that has never opened a campaign (a phone, say) had no
+// way in: the sign-in link lived in the save line, which only a loaded
+// campaign shows. The empty page now signs in and lists the account's cloud
+// campaigns, and opening one copies it into this browser.
+let cloudList = { state: 'idle', campaigns: [], error: null };
+
+async function refreshCloudList() {
+  if (!cloud.userId()) { cloudList = { state: 'idle', campaigns: [], error: null }; render(); return; }
+  cloudList = { state: 'loading', campaigns: [], error: null };
+  render();
+  try {
+    const campaigns = await cloud.listOwn();
+    cloudList = { state: 'ready', campaigns: campaigns.sort((a, b) => String(b.publishedAt ?? '').localeCompare(String(a.publishedAt ?? ''))), error: null };
+  } catch (error) {
+    cloudList = { state: 'error', campaigns: [], error: cloud.describeError(error) };
+  }
+  render();
+}
+
+async function openFromCloud(campaignId) {
+  cloudList = { ...cloudList, state: 'loading' };
+  render();
+  try {
+    const remote = await cloud.load(campaignId);
+    if (!remote) throw new Error('that campaign has no cloud copy to open');
+    const registry = createDocumentRegistry({ storage: window.localStorage });
+    const { campaign } = registry.putBundle(importCampaignHome(remote).bundle);
+    registry.setActiveCampaignId(campaign.identity.id);
+    source = openCampaign(campaign.identity.id);
+    render();
+    if (source.mode === 'live') await source.session.connect();
+    render();
+  } catch (error) {
+    cloudList = { ...cloudList, state: 'error', error: cloud.describeError(error) };
+    render();
+  }
+}
+
 function renderEmpty() {
   document.title = 'Traveller';
   shell.dataset.situation = 'empty';
@@ -75,16 +114,38 @@ function renderEmpty() {
   $('drawer').hidden = true;
   $('mast-place').textContent = 'No campaign';
   for (const id of ['mast-campaign', 'mast-detail', 'mast-date']) $(id).textContent = '';
+  $('mast-save').hidden = true;
   $('mast-chips').replaceChildren();
   $('scene').replaceChildren();
   $('preview').replaceChildren();
-  $('now').replaceChildren(
-    h('section', { class: 'lead' },
-      h('h2', { text: 'Nothing to show yet' }),
-      h('p', { text: `${source.reason} Open or start one from the lobby, then come back to this page.` }),
+  const account = cloud.account();
+  const parts = [];
+  if (!account) {
+    parts.push(h('section', { class: 'lead' },
+      h('h2', { text: 'Sign in to open a campaign' }),
+      h('p', { text: 'No campaign has been opened in this browser. Your campaigns are saved to your account; sign in and they are listed here.' }),
       h('div', { class: 'lead-actions' },
-        h('a', { class: 'button is-primary', href: './enter.html' }, h('span', { text: 'Go to the lobby' })),
-        h('a', { class: 'button', href: './play.html?show=port' }, h('span', { text: 'See the sample screens' })))));
+        h('button', { type: 'button', class: 'button is-primary', onclick: () => openSignIn() }, h('span', { text: 'Sign in' })))));
+  } else {
+    parts.push(h('section', { class: 'lead' },
+      h('h2', { text: 'Open a campaign' }),
+      h('p', { text: `Signed in as ${account.email ?? account.displayName ?? 'your account'}.` }),
+      cloudList.state === 'loading' ? h('p', { text: 'Looking for your campaigns\u2026' }) : null,
+      cloudList.state === 'error' ? h('p', { class: 'notice is-error', text: cloudList.error }) : null,
+      cloudList.state === 'ready' && !cloudList.campaigns.length ? h('p', { text: 'This account has no campaigns in the cloud yet. Start one from the lobby.' }) : null));
+    if (cloudList.campaigns.length) {
+      parts.push(h('ul', { class: 'steps' }, cloudList.campaigns.map((entry) => h('li', { class: 'step is-ready' },
+        h('div', { class: 'step-head' }, h('span', { class: 'step-mark', 'aria-hidden': 'true' }), h('span', { class: 'step-title', text: entry.name ?? entry.campaignId }),
+          h('span', { class: 'step-figure', text: [entry.location?.worldName ?? entry.location?.systemName, formatCampaignDate(entry.time)].filter(Boolean).join(', ') })),
+        h('button', { type: 'button', class: 'button is-small', text: 'Open', onclick: () => openFromCloud(entry.campaignId) })))));
+    }
+  }
+  if (source.reason && !/No campaign has been opened|Opening\./.test(source.reason)) parts.push(h('p', { class: 'notice is-error', text: source.reason }));
+  parts.push(h('div', { class: 'lead-actions' },
+    h('a', { class: 'button', href: './enter.html' }, h('span', { text: 'Lobby' })),
+    h('a', { class: 'button', href: './play.html?show=port' }, h('span', { text: 'Sample screens' })),
+    account ? h('button', { type: 'button', class: 'button', onclick: () => openAccount() }, h('span', { text: 'Account' })) : null));
+  $('now').replaceChildren(...parts.filter(Boolean));
 }
 
 function render() {
@@ -102,7 +163,7 @@ function render() {
     onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },
     onPickMove: (move) => { ui.fightMove = move; render(); },
     onPickRunning: (on) => { ui.fightRunning = on; render(); },
-    onCommand: (command) => { if (source.mode === 'live' && command) source.session.run(command); },
+    onCommand: (command) => { if (source.mode === 'live' && command) source.session.run(command, { selectedSystemId: ui.selectedSystemId }); },
     onSignIn: () => openSignIn()
   };
   $('mast-campaign').textContent = state.campaign.name;
@@ -252,14 +313,15 @@ function openAccount() {
 async function start() {
   source = openCampaign();
   render();
-  if (source.mode !== 'live') return;
+  if (source.mode === 'sample') return;
   await cloud.start();
   let seen;
   cloud.onAuthChange((user) => {
     const uid = user?.uid ?? null;
     if (uid === seen) return;
     seen = uid;
-    source.session.connect().then(() => render());
+    if (source.mode === 'live') source.session.connect().then(() => render());
+    else refreshCloudList();
   });
 }
 

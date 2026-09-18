@@ -13,25 +13,25 @@
 //
 // The only write is a create-only combat declaration for an assigned character.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.207.4';
-import { openSignInDialog } from './signin-ui.js?v=v0.207.4';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.208.3';
+import { openSignInDialog } from './signin-ui.js?v=v0.208.3';
 import {
   ensureFirestore, writeDeclaration, watchDeclarations, writeTokenMove,
   writeCanvasPresence, watchCanvasPresence, sendChatMessage, watchChat,
-  writeWoundAllocation } from './publish.js?v=v0.207.4';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.207.4';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.207.4';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.207.4';
-import { deriveDeclaration, declarationSummary, rangeLabel, signed as signedDM, woundFormula } from './combat-view.js?v=v0.207.4';
-import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.207.4';
-import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.207.4';
-import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.207.4';
-import { renderSubsectorMap } from './subsector-svg.js?v=v0.207.4';
-import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.207.4';
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.207.4';
-import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.207.4';
-import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.207.4';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.4';
+  writeWoundAllocation } from './publish.js?v=v0.208.3';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.208.3';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.208.3';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.208.3';
+import { deriveDeclaration, declarationSummary, rangeLabel, signed as signedDM, woundFormula } from './combat-view.js?v=v0.208.3';
+import { createPlayerTokenMove } from '../src/player-token-movement.js?v=v0.208.3';
+import { serviceName, nobleTitleLabel, buildServiceHistory, buildGenerationLog } from './ui-model.js?v=v0.208.3';
+import { PERSONAL_WEAPONS, SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js?v=v0.208.3';
+import { renderSubsectorMap } from './subsector-svg.js?v=v0.208.3';
+import { createSceneCanvas, svgNode } from './scene-canvas.js?v=v0.208.3';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.208.3';
+import { publishedVectorSceneDocument } from '../src/published-view.js?v=v0.208.3';
+import { TRAY_DICE, rollFormula, formatRoll, createChatMessage, interpretChatInput, parseRollFormula } from '../src/dice-tray.js?v=v0.208.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.208.3';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

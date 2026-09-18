@@ -27,7 +27,8 @@ The screen shows the situation you are in and nothing else.
 A new situation adds a scene and a lead card. It never adds a panel.
 
 In a fight the left column widens and becomes the selected combatant over a
-compact tracker, and the scene is the Book 1 p.29 band board at full width.
+compact tracker, and the scene is the Book 1 p.29 band board (sixteen rows) at
+full width.
 The tracker carries what Book 1 makes you look up, one line per combatant:
 current STR/DEX/END, range from the selected combatant, the throw needed to
 hit them, the throw they need to hit back, and this round's order. Click a
@@ -43,13 +44,13 @@ only what is observable about the opposition; the referee sees all of it.
   target, weapon, armor, condition in words. Not characteristics, weakened
   blows, morale, or combatants the referee has marked hidden. Auto NPCs lock
   their orders at the start of the round.
-- **Edition exception.** The 1977 printings are the authority, except
-  movement and range bands, which follow the 1981 text: 25 m bands; same band
-  is short, or close when markers touch; 1-2 medium; 3-10 long; 11-20 very
-  long; more than 20 from the nearest enemy has escaped; one band a round, two
-  at a run; short to close costs a move; opening from close reaches the next
-  band without running. The 1977 rounds-per-range movement table is unused.
-  Implemented in `src/encounter-document.js` as of v0.206.0.
+- **Bands are Book 1 p.29 (1977), as printed; there is no edition exception.**
+  Same band close, next short, 2-5 medium, 6-9 long, 10-14 very long, fifteen
+  bands from the nearest enemy escaped. The bands have no size in metres. On
+  the band board the grid governs: one band a round, two at a run, range read
+  from the gap; the rounds-per-range movement table is never consulted, which
+  is what settles its one disagreement with the grid (medium 3 against 4).
+  v0.206.0 adopted the 1981 table; v0.208.2 reversed it.
 
 ## Files
 
@@ -74,8 +75,9 @@ module under `src/`. No view code changes in any slice.
 
 1. Done, v0.205.0. Load a campaign (`document-registry.js`, `?campaign=`):
    masthead, character and ship drawers, jobs, current system on the map.
-2. In progress. v0.207.0: the session, saving, berthing and fuel. Remaining:
-   skim, freight, passengers, mail, speculation, resale, patrons, departure.
+2. In progress. v0.207.0: the session, saving, berthing and fuel. v0.208.0:
+   freight and passengers per destination. v0.208.3: speculation and resale.
+   Remaining: mail, brokers, patrons, skim, departure.
    Port call: `playProcedureSnapshot()` and its commands (berth, fuel,
    freight, passengers, speculation, resale, destination, depart) into
    `src/play-session.js`. `buildPlayProcedure` cards map to lead + rows.

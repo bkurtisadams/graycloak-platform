@@ -1,5 +1,118 @@
 # Graycloak Traveller
 
+## v0.208.3 speculation on the play page; encounters say 1977
+
+**Speculative trade (Book 2 pp.42-47).** Third part of the port-call slice.
+- The week's lot at this world is a row: what it is, its price as a
+  percentage of base, and a button that buys as much as the free hold, the
+  lot and the ship's account allow. When it cannot be bought the row says
+  why: bought out, hold full, beyond the account, or sold by the unit rather
+  than the ton (those still go through the current client).
+- Each speculative lot carried in from another world gets a Sell row with
+  today's quote, its percentage of base, and whether that is up or down on
+  what was paid. A lot cannot be sold where it was bought.
+- An exclusive charter refuses speculation, as it does freight.
+
+The lot, how much of it is already gone, and the resale quotes are the current
+client's: the same seeds (`weeklyTradeSeed`, `saleQuoteSeed`), the same lot key
+recorded on the campaign by `recordSpeculativeLotPurchase`, the same Admin or
+Bribery DM from the active character. Buying and selling go through
+`purchaseSpeculativeCargo` and `sellSpeculativeCargo` and write TRADE entries.
+No broker can be hired from this page yet, so its quotes use broker DM 0.
+
+**The rules-basis label.** Encounter documents stamped themselves
+`...personal-combat-1981-facsimile-errata`, though the combat tables have been
+the 1977 ones since the rules package replaced the facsimile port. New
+encounters say `classic-traveller-book-1-personal-combat-1977`
+(`ENCOUNTER_RULES_BASIS`), and saved ones are relabelled as they load. Nothing
+reads the label to decide how a fight resolves.
+
+Still to come on this page: mail, brokers, patrons, skimming, departure.
+
+## v0.208.2 the band grid is Book 1 p.29 (1977) again; no edition exception
+
+Graycloak ruling, reversing v0.206.0. That version swapped in the 1981 band
+table on the argument that the 1977 bands fit no single band size against
+Book 1's stated distances. They were never meant to: 1977 gives its bands no
+size. They are steps of range, finer near the action (close and short a band
+each, medium four bands), and the text says the scheme sacrifices realism for
+ease of play. The distance list (touching, 1-5 m, 6-50 m, 51-250 m,
+251-500 m) is the same in both editions and argues for neither.
+
+The one real slip on the 1977 page is that the rounds-per-range movement table
+makes medium 3 deep where the grid makes it 4. The standing ruling already
+settles it: on the band board the grid governs (one band a round, two at a
+run, range read from the gap) and that table is never consulted. So 1977 is
+the project's authority again with no exception.
+
+`src/encounter-document.js`, range-line fights:
+- `rangeBandForBandGap`: same band close, next short, 2-5 medium, 6-9 long,
+  10-14 very long, as printed. The `touching` option is gone.
+- `ENCOUNTER_RANGE_LINE_BAND_GAP` back to close 0, short 1, medium 5, long 9,
+  very long 14; `ENCOUNTER_RANGE_LINE_ESCAPE_BANDS` back to 15.
+- Contact on the line is again simply arriving in the target's band.
+- One correction kept: the line escapes at fifteen bands, not past fifteen.
+  "A character which moves 15 bands away ... has escaped", and very long ends
+  at fourteen; the code before v0.206.0 waited for sixteen.
+- Escape is still judged from the nearest enemy. The book says "any other
+  character"; allies should not pin someone to the field.
+
+Tests pin the printed table, escape in the eighth round of running from close,
+and medium being four walks deep. The old client's band board draws 0-14 plus
+the escape band with the printed zone labels, and no longer shows metres
+(`gap x 25` had no basis in 1977). The play page's fight board is sixteen rows
+again and says nothing about band size.
+
+## v0.208.1 a way in from a browser with no campaign (a phone)
+
+`client/play.html` on a phone showed no way to sign in. The sign-in link lived
+in the masthead save line, which only a loaded campaign draws, and a browser
+that has never opened a campaign has none to load, so the page stopped at
+"Nothing to show yet" with a link to the lobby.
+
+- The empty page now leads with Sign in. Signed in, it lists the account's
+  cloud campaigns (`listOwnCampaigns`) with world and date, and Open copies
+  the campaign home into this browser's registry, makes it the active
+  campaign, and starts the session on it at the cloud's revision.
+- Below 760 px the save line gets its own row in the masthead instead of
+  competing with the world name, and its links are taller to tap.
+- A campaign that fails to open says why on the empty page.
+- Sign-in fields are 16 px so a phone does not zoom the page on focus; the
+  show-password box no longer stretches to a full row.
+
+Google sign-in stays a pop-up. The redirect alternative breaks in current
+browsers when the Firebase auth domain is not the site's own domain, which is
+the case here (graycloak.net and firebaseapp.com).
+
+## v0.208.0 the play page takes freight and passengers
+
+Second part of the port-call slice. Choosing a world within jump range on
+`client/play.html` now lists what is waiting for it (Book 2 p.8):
+
+- **Freight**: up to four lots that fit the free hold, each a row with its
+  tonnage and what it pays on delivery, and a Load button. When none fit, one
+  row says the smallest lot and the free hold; shipments cannot be split.
+- **Passengers**: a row per class the ship can carry, with a button that books
+  as many as are waiting and there are berths for. Classes it cannot carry
+  (high passage with no steward, no free staterooms or low berths) fold into
+  a single quiet row that gives the reasons.
+- **Depart** adds two blocks: passengers already aboard for a different world,
+  and an exclusive charter bound elsewhere. It also states the life-support
+  bill for the trip.
+
+Berthing and fuel still lead the column when owed; freight and passengers are
+choices, so they are rows under a "Bound for ..." card rather than the lead.
+
+The offers are the current client's offers. `src/play-session.js` uses the same
+seeded generators, seeds and ids (`client/commerce-market.js`,
+`generateFreightOffers`, `generatePassengerDemand`), pinned by a test, so a lot
+loaded on one page is the same lot, already aboard, on the other. Loading and
+booking go through `loadCargo` and `bookPassenger` and write TRADE log entries.
+Passenger fares reach the ship's account on delivery, as the engine has it.
+
+Still to come on this page: mail, speculation and resale, patrons, skimming,
+and departure itself.
+
 ## v0.207.4 sign-in that reports on itself
 
 Email sign-in still answered `auth/invalid-credential` after a password was
