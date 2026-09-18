@@ -11,7 +11,7 @@
 // from file:// — the client carries on signed out and entirely local, which is
 // how it has worked up to now and must keep working.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.1';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.207.2';
 
 const SDK_VERSION = '10.12.2';
 const SDK_SCRIPTS = Object.freeze([
@@ -117,14 +117,14 @@ export async function createAccountWithEmail(email, password, { displayName = nu
 // (auth/invalid-credential).") and say nothing a person at the sign-in box can
 // act on. Say what happened, and keep the code so a report can name it.
 const AUTH_ERROR_TEXT = Object.freeze({
-  'auth/invalid-credential': 'That email and password do not match an account. Check both, or create the account first.',
+  'auth/invalid-credential': 'That email and password do not match. If you usually sign in with Google using this address, the account has no password yet: sign in with Google, or use Set or reset password to choose one.',
   'auth/wrong-password': 'That password is not right for this email.',
   'auth/user-not-found': 'No account uses that email. Create the account first.',
   'auth/invalid-email': 'That is not a complete email address.',
   'auth/missing-password': 'Enter a password.',
   'auth/missing-email': 'Enter an email address.',
   'auth/weak-password': 'Passwords need at least six characters.',
-  'auth/email-already-in-use': 'An account already uses that email. Sign in instead of creating one.',
+  'auth/email-already-in-use': 'An account already uses that email. If it is your Google sign-in, it has no password yet: use Set or reset password to choose one.',
   'auth/operation-not-allowed': 'Email sign-in is switched off for this Firebase project. Enable Email/Password under Authentication, Sign-in method.',
   'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
   'auth/network-request-failed': 'The sign-in service could not be reached. Check the connection.',
@@ -133,6 +133,17 @@ const AUTH_ERROR_TEXT = Object.freeze({
   'auth/popup-closed-by-user': 'The Google window was closed before sign-in finished.',
   'auth/user-disabled': 'That account has been disabled.'
 });
+
+// v0.207.2: one account per email address. Someone who first signed in with
+// Google has an account with no password on it, so email sign-in answers
+// invalid-credential and creating the account answers email-already-in-use.
+// Firebase's reset email is the way out: finishing it puts a password on the
+// existing account, which then accepts either sign-in. Firebase answers the
+// same whether or not the address has an account, so this never reveals one.
+export async function sendPasswordReset(email) {
+  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  await auth.sendPasswordResetEmail(email);
+}
 
 export function describeAuthError(error) {
   const code = typeof error?.code === 'string' ? error.code : null;

@@ -2,12 +2,12 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.1';
-import { createPlaySession } from '../src/play-session.js?v=v0.207.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.207.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.207.2';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.207.2';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.207.2';
+import { createPlaySession } from '../src/play-session.js?v=v0.207.2';
+import { createPlayCloud } from './play-cloud.js?v=v0.207.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.207.2';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -186,6 +186,17 @@ function openSignIn() {
   $('signin-close').onclick = () => dialog.close();
   $('signin-mode').onclick = () => setMode(dialog.dataset.mode !== 'create');
   $('signin-google').onclick = () => attempt(() => cloud.signIn());
+  $('signin-reset').onclick = async () => {
+    const status = $('signin-status');
+    const email = $('signin-email').value.trim();
+    if (!email) { status.className = 'signin-status is-error'; status.textContent = 'Enter your email address first, then press this again.'; $('signin-email').focus(); return; }
+    status.className = 'signin-status';
+    status.textContent = 'Working\u2026';
+    try {
+      await cloud.sendPasswordReset(email);
+      status.textContent = `If ${email} has a Graycloak account, an email is on its way with a link to choose a password. Check spam too. Then sign in here with that password.`;
+    } catch (error) { status.className = 'signin-status is-error'; status.textContent = cloud.describeError(error); }
+  };
   $('signin-form').onsubmit = (event) => {
     event.preventDefault();
     const email = $('signin-email').value.trim();

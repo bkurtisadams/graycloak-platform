@@ -1,5 +1,24 @@
 # Graycloak Traveller
 
+## v0.207.2 a password for an account that began with Google
+
+Email sign-in reported `auth/invalid-credential`. That code means Firebase was
+reached and Email/Password is enabled, and the address and password do not
+match a password sign-in. Firebase keeps one account per email address, so an
+account first made by signing in with Google has no password on it: email
+sign-in fails with that code, and creating the account fails with
+`email-already-in-use`. Neither message said so.
+
+- `client/auth.js`: `sendPasswordReset(email)`. Finishing Firebase's reset
+  email puts a password on the existing account, which then accepts either
+  sign-in. Both error sentences now name the Google case and point at it.
+- `client/signin-ui.js` and the play page's sign-in box: a Set or reset
+  password action. It needs the email field filled, and answers the same
+  whether or not the address has an account.
+
+The reset email uses the template under Firebase console, Authentication,
+Templates; the link opens Firebase's own page to choose the password.
+
 ## v0.207.1 email sign-in
 
 Three faults, found by reading the sign-in path; none could be run against

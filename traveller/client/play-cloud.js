@@ -3,8 +3,8 @@
 // calls src/play-session.js asks for. Sign-in is per tab (auth.js keeps a
 // session), so arriving from the lobby in the same tab arrives signed in.
 
-import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, authStatus } from './auth.js?v=v0.207.1';
-import { saveCampaignHome, loadCampaignHome } from './publish.js?v=v0.207.1';
+import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, authStatus } from './auth.js?v=v0.207.2';
+import { saveCampaignHome, loadCampaignHome } from './publish.js?v=v0.207.2';
 
 export function createPlayCloud() {
   return {
@@ -13,6 +13,7 @@ export function createPlayCloud() {
     signIn,
     signInWithEmail,
     createAccountWithEmail,
+    sendPasswordReset,
     signOut: signOutOfTraveller,
     describeError: describeAuthError,
     account: () => authStatus().user,

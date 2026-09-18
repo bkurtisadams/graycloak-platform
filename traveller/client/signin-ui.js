@@ -5,7 +5,7 @@
 // some do not, and because Google will not let you invent an account for
 // testing. Firebase has both enabled.
 
-import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError } from './auth.js?v=v0.207.1';
+import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset } from './auth.js?v=v0.207.2';
 
 const DIALOG_ID = 'signin-dialog';
 
@@ -28,6 +28,7 @@ function build() {
       <div class="actions">
         <button data-signin="email-in" class="text-button action-button" type="button">[ SIGN IN ]</button>
         <button data-signin="toggle-create" class="text-button" type="button">[ CREATE AN ACCOUNT ]</button>
+        <button data-signin="reset" class="text-button" type="button" title="Emails a link that lets you choose a password. Use it if you usually sign in with Google and want email sign-in too.">[ SET OR RESET PASSWORD ]</button>
       </div>
       <div data-signin="status" class="signin-status"></div>
     </form>`;
@@ -83,6 +84,19 @@ export function openSignInDialog() {
   field('email-in').onclick = () => run(() => (creating
     ? createAccountWithEmail(field('email').value.trim(), field('password').value, { displayName: field('name').value.trim() || null })
     : signInWithEmail(field('email').value.trim(), field('password').value)));
+  // v0.207.2: a Google-only account has no password, which email sign-in
+  // reports as invalid-credential. The reset email puts one on it.
+  field('reset').onclick = async () => {
+    const email = field('email').value.trim();
+    if (!email) { setStatus('Enter your email address first, then press this again.', 'error'); field('email').focus(); return; }
+    try {
+      setStatus('WORKING\u2026');
+      await sendPasswordReset(email);
+      setStatus(`If ${email} has a Graycloak account, an email is on its way with a link to choose a password. Check spam too. Then sign in here with that password.`, 'ok');
+    } catch (error) {
+      setStatus(describeAuthError(error), 'error');
+    }
+  };
   field('toggle-create').onclick = () => {
     creating = !creating;
     showMode();

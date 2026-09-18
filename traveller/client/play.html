@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.207.1">
+  <link rel="stylesheet" href="./play.css?v=v0.207.2">
   <script>
     // Same key the other pages use, applied before first paint.
     try {
@@ -70,6 +70,8 @@
         <button class="button is-primary" type="submit" id="signin-submit"><span>Sign in</span></button>
         <button class="button" type="button" id="signin-mode"><span>Create an account</span></button>
       </div>
+      <p class="signin-why"><button class="mast-signin signin-reset" type="button" id="signin-reset">Set or reset password</button>
+        emails a link to choose one. Use it if you usually sign in with Google and want email sign-in too.</p>
     </form>
   </dialog>
 
@@ -77,6 +79,6 @@
        reads a real campaign, along with play-sample.js. -->
   <div class="preview" id="preview" role="group" aria-label="Preview a situation (sample data)"></div>
 
-  <script type="module" src="./play.js?v=v0.207.1"></script>
+  <script type="module" src="./play.js?v=v0.207.2"></script>
 </body>
 </html>
