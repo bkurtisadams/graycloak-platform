@@ -25,7 +25,7 @@ import {
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
   createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
-  updateCharacterGameplayState,
+  updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS
 } from '../vendor/classic-traveller-rules/index.js';
@@ -1072,6 +1072,35 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     return message;
   }
 
+  // classic-traveller-rules exports no generic debit — creditShipAccount is
+  // credit-only (a non-negative amountCr, enforced), and every named charge
+  // it does export (payCurrentBerthing, chargeShipUpkeep, ...) is tied to
+  // its own specific field on the ship document, none of which fit an
+  // arbitrary one-off fee like a patrol's toll. Its own debits (in
+  // starships/operations.js) all go through a private, unexported
+  // appendLedger(); this mirrors that function exactly, using only what the
+  // package exports publicly (assertValidShipDocument), so the ledger entry
+  // this produces validates the same way a vendor-produced one would.
+  function debitShipAccount(ship, amountCr, { kind, description, dateLabel = null }) {
+    if (!Number.isInteger(amountCr) || amountCr < 1) throw new TypeError('debit amount must be a positive integer number of credits');
+    const next = JSON.parse(JSON.stringify(ship));
+    const ledger = next.state.finances.ledger;
+    const balanceCr = next.state.finances.balanceCr - amountCr;
+    if (balanceCr < 0) throw new RangeError('ship operating account has insufficient funds');
+    const compactDate = String(dateLabel ?? 'UNDATED').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'UNDATED';
+    ledger.push({
+      id: `${next.identity.id}:${compactDate}:${kind}:${ledger.length + 1}`,
+      date: dateLabel === null || dateLabel === undefined || dateLabel === '' ? null : dateLabel,
+      kind,
+      amountCr: -amountCr,
+      description,
+      balanceCr
+    });
+    next.state.finances.balanceCr = balanceCr;
+    assertValidShipDocument(next);
+    return next;
+  }
+
   // Shared by 'arrival:fight' and a patrol inspection that turns hostile
   // (Book 2 p.36's "may be a form of pirate, exacting tolls or penalties"):
   // build and auto-advance the abbreviated ship fight against whichever
@@ -1469,12 +1498,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         // throw decides friendly; the reward here is a broker's tip (a DM)
         // on the next speculative resale made at this same system, your
         // own call on what "information" is worth in play terms.
+        //
+        // rollReaction() returns no category field, only a numeric total
+        // (2-12) and its REACTION_TABLE description — 9+ (Intrigued and up)
+        // is the friendly half of that table, so that's the threshold here.
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
         if (!['free-trader', 'subsidized-merchant'].includes(pendingArrivalEncounter.key)) throw new Error('this ship has nothing to hail for');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|hail`;
         const hailReaction = rollReaction(seededDice(seed));
-        if (/friendly/i.test(hailReaction.reaction)) {
+        if (hailReaction.tableTotal >= 9) {
           pendingBrokerTip = { systemId: pendingArrivalEncounter.systemId, dm: 1 };
           message = `${encounterLabel} shares word of a buyer here \u2014 ${hailReaction.description} (a broker's tip on your next resale quote at ${facts.system?.name ?? 'this system'}).`;
         } else {
@@ -1489,16 +1522,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       } else if (command === 'arrival:inspect') {
         // Book 2 p.36: "Patrols may be simple border pickets, or may be a
         // form of pirate, exacting tolls or penalties." A Book 3 reaction
-        // throw decides which: hostile turns it into a fight outright;
-        // friendly waves the ship through; anything in between wants
-        // something first (arrival:pay-toll / arrival:refuse-toll).
+        // throw decides which: REACTION_TABLE's own 2-5 is Violent/Hostile,
+        // 9+ is Intrigued and up (the friendly half), and 6-8 (Unreceptive,
+        // Non-committal, Interested) is neither — it wants something first
+        // (arrival:pay-toll / arrival:refuse-toll).
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
         if (pendingArrivalEncounter.key !== 'patrol') throw new Error('only a patrol conducts an inspection');
         if (pendingShipFight) throw new Error('a ship fight is already under way');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|inspect`;
         const inspectReaction = rollReaction(seededDice(seed));
-        if (/hostile/i.test(inspectReaction.reaction)) {
+        if (inspectReaction.tableTotal <= 5) {
           const playerShip = facts.ship;
           pendingShipFight = beginArrivalShipFight({
             opponentIsIntruder: true, playerShip,
@@ -1507,7 +1541,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           message = `${encounterLabel} turns hostile during the inspection \u2014 ${inspectReaction.description}`;
           pendingArrivalEncounter = null;
           log('SHIP', message);
-        } else if (/friendly/i.test(inspectReaction.reaction)) {
+        } else if (inspectReaction.tableTotal >= 9) {
           message = `${encounterLabel} waves ${shipName} through \u2014 ${inspectReaction.description}`;
           pendingArrivalEncounter = null;
           log('NAV', message);
@@ -1528,7 +1562,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (!pendingArrivalEncounter?.tollDemandCr) throw new Error('no toll is being demanded');
         const tollCr = pendingArrivalEncounter.tollDemandCr;
         const encounterLabel = pendingArrivalEncounter.label;
-        const ship = creditShipAccount(facts.ship, -tollCr, { kind: 'toll', description: `${encounterLabel} inspection toll at ${facts.system?.name ?? 'the port'}`, dateLabel });
+        const ship = debitShipAccount(facts.ship, tollCr, { kind: 'toll', description: `${encounterLabel} inspection toll at ${facts.system?.name ?? 'the port'}`, dateLabel });
         persist([ship]);
         message = `${shipName} paid ${cr(tollCr)} to ${encounterLabel} and is waved through.`;
         pendingArrivalEncounter = null;
