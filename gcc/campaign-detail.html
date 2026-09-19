@@ -666,7 +666,9 @@ function resolveChar(savedChar,systemId,storageKey){
 }
 
 const campId=new URLSearchParams(window.location.search).get('id');
-let currentTab='overview',sessionFilter='all',loreFilter='all';
+const VALID_TABS=['overview','party','vehicles','sessions','lore','hq','players','notes'];
+const _tabParam=new URLSearchParams(window.location.search).get('tab');
+let currentTab=VALID_TABS.includes(_tabParam)?_tabParam:'overview',sessionFilter='all',loreFilter='all';
 let sessionScope='all',sessionQuery='',sessionView='cards',sessionOrder='newest',lastImgMap={};
 const sesCollapsed=new Set(); // session ids collapsed in card view (in-memory)
 function recapUrlFor(s,idx){return`recap.html?id=${encodeURIComponent(campId)}&${s&&s._id?'ses='+encodeURIComponent(s._id):'idx='+idx}`}
