@@ -1,5 +1,47 @@
 # Graycloak Traveller
 
+## v0.225.1 a stub that had not kept up, and a check that needs no jsdom
+
+`test-all` failed on `enter.js loads`:
+
+    SyntaxError: The requested module './signin-ui.js' does not provide an
+    export named 'openPasswordDialog'
+
+Your `signin-ui.js` is fine and does export it. `pages-load.test.mjs` stages a
+copy of the client with the two Firebase-facing modules replaced by stubs, so
+the pages load without a network, and its stub was one line:
+
+    const STUB_SIGNIN = `export function openSignInDialog() {}`;
+
+v0.219.0 added `openPasswordDialog` to `signin-ui.js` and imported it in
+`enter.js`, and did not add it to the stub. The failure was in the test's own
+scaffolding, not in the client — which is the same class of fault this test
+exists to catch. The auth stub had the same gap for eight later additions
+(`signIn`, `signInWithEmail`, `createAccountWithEmail`, `sendPasswordReset`,
+`setAccountPassword`, `accountProviders`, `describeAuthError`,
+`describeAttempt`); both stubs are now complete.
+
+**Why I did not see it.** `pages-load.test.mjs` needs jsdom, and jsdom is not
+installed in my sandbox, so that test has been *skipping* for me the whole
+time — it has never once run. A whole class of "does this module even load"
+failure has been invisible to me while appearing on your machine. That is
+worth naming rather than filing under bad luck.
+
+So `test/imports-resolve.test.mjs` is new, and reads source rather than
+executing it: no jsdom, nothing to install.
+
+- Every named import in `client/*.js` resolves to a real export in the file it
+  names.
+- Every name the pages import from `auth.js` or `signin-ui.js` is provided by
+  the stub that replaces it.
+
+I re-broke the stub to be sure: it reports
+`enter.js imports openPasswordDialog from ./signin-ui.js; the stub does not
+provide it`, which is your failure, caught without a browser.
+
+Suite: 625 pass, 0 fail here. Yours runs 687, so your tree carries tests mine
+does not; if any of them skip on your machine, I would like to know which.
+
 ## v0.225.0 Vehicles and Tables, and a pistol cannot fend off a blow
 
 **Graycloak ruling, folded in.** A pistol is too short to block or swing with,

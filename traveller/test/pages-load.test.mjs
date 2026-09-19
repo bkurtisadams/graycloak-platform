@@ -23,8 +23,23 @@ export function currentUserId() { return null; }
 export function onAuthChange() {}
 export async function initAuth() {}
 export async function signOutOfTraveller() {}
+export async function signIn() {}
+export async function signInWithEmail() {}
+export async function createAccountWithEmail() {}
+export async function sendPasswordReset() {}
+export async function setAccountPassword() { return { email: '', providers: [], length: 0 }; }
+export function accountProviders() { return []; }
+export function describeAuthError(error) { return error?.message ?? String(error); }
+export function describeAttempt() { return ''; }
 `;
-const STUB_SIGNIN = `export function openSignInDialog() {}`;
+// v0.225.1: every name the pages import from signin-ui, or the stub satisfies
+// the import and the page still fails to load. v0.219.0 added
+// openPasswordDialog to enter.js and did not add it here, which is exactly the
+// failure this test exists to catch — in its own scaffolding.
+const STUB_SIGNIN = `
+export function openSignInDialog() {}
+export function openPasswordDialog() {}
+`;
 
 // A copy of the client tree with the two Firebase-facing modules replaced, so
 // the pages load without a network and without a project.
