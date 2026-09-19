@@ -14,6 +14,7 @@ import { addSceneToCampaign, setActiveCampaignScene } from '../src/campaign-docu
 import { createShipDocument, armShipTurret } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { renderVectorFight } from '../client/vector-fight-view.js';
+import { renderScene } from '../client/play-views.js';
 
 let JSDOM; try { ({ JSDOM } = await import('jsdom')); } catch { /* layout tests skip, this one needs the DOM only */ }
 
@@ -161,8 +162,53 @@ test('renderVectorFight offers Fire lasers when awaiting the player\u2019s fire 
   delete globalThis.document;
 });
 
+test('a vector fight with no log yet renders nothing literal for the empty log \u2014 not the text "null"', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const state = { ...session.view(), live: true };
+  assert.equal(state.shipFight.log.length, 0, 'a freshly started fight has nothing logged yet \u2014 the exact case that exposed this');
+
+  const nodes = renderScene(state, {});
+  const main = document.querySelector('main');
+  main.replaceChildren(...nodes);
+  assert.doesNotMatch(main.textContent, /\bnull\b/, 'no array entry reached replaceChildren as a bare null, which the DOM stringifies to "null"');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+});
+
+test('ship labels get an explicit font-size scaled to the plot, not the SVG default', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const shipFight = session.view().shipFight;
+  const root = renderVectorFight(shipFight, {});
+  document.querySelector('main').append(root);
+
+  const labels = [...document.querySelectorAll('.vfv-label')];
+  assert.equal(labels.length, 2);
+  for (const label of labels) {
+    const size = Number(label.getAttribute('font-size'));
+    assert.ok(Number.isFinite(size) && size > 0, 'font-size is set and a real number, not left to the SVG default');
+    // The plot here spans 40 units (ships 40" apart, per stagedVectorFight's
+    // own fixture); a label anywhere near the SVG default of 16 would be
+    // almost half the width of the entire plot, which is the bug a real
+    // screenshot caught (two overlapping default-sized labels reading as
+    // one mangled word). A real label should be a small fraction of that.
+    assert.ok(size < 5, `font-size ${size} is not scaled down from the SVG default for this plot`);
+  }
+
+  dom.window.close();
+  delete globalThis.document;
+});
+
 test('a full round of vector combat, through the real session: move, fire, the opponent\u2019s own shot resolves on Advance, return fire is available', async () => {
   const session = await stagedVectorFight({ intruder: 'party' });
+
+  // Movement phase: coast (no maneuver program loaded on this fixture ship).
   let result = session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
   assert.equal(result.ok, true, result.message);
 

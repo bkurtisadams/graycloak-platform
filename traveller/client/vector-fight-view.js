@@ -113,15 +113,25 @@ export function renderVectorFight(shipFight, handlers = {}) {
   const plot = svg('svg', { class: 'vfv-plot', viewBox: `${box.minX} ${box.minY} ${box.w} ${box.h}`, role: 'img', 'aria-label': 'Ship vector plot' });
 
   const drawShip = (pos, vel, side, label, isPlayer) => {
-    const g2 = svg('g', { class: `vfv-ship ${SIDE_CLASS(side)}${isPlayer ? ' is-player' : ''}` });
+    const group = svg('g', { class: `vfv-ship ${SIDE_CLASS(side)}${isPlayer ? ' is-player' : ''}` });
     if (vel.x || vel.y) {
-      g2.append(svg('line', { x1: pos.x, y1: pos.y, x2: pos.x + vel.x, y2: pos.y + vel.y, class: 'vfv-vector' }));
+      group.append(svg('line', { x1: pos.x, y1: pos.y, x2: pos.x + vel.x, y2: pos.y + vel.y, class: 'vfv-vector' }));
     }
-    g2.append(svg('circle', { cx: pos.x, cy: pos.y, r: Math.max(box.w, box.h) * 0.012, class: 'vfv-token' }));
-    const t = svg('text', { x: pos.x, y: pos.y - Math.max(box.w, box.h) * 0.02, class: 'vfv-label' });
+    const r = Math.max(box.w, box.h) * 0.012;
+    group.append(svg('circle', { cx: pos.x, cy: pos.y, r, class: 'vfv-token' }));
+    // font-size is explicit and scaled to the plot for a reason: an SVG
+    // <text> with none falls back to the browser's default (16 user units),
+    // and this plot's whole coordinate space is typically only a few dozen
+    // units across — the default renders each label several times the width
+    // of the entire plot. (Caught from a real screenshot, not a test: jsdom
+    // has no layout engine, so a missing font-size draws nothing wrong in
+    // any assertion here — only measuring a real render catches it, the
+    // same reason test/support/layout-browser.mjs exists for the old UI.)
+    const fontSize = Math.max(box.w, box.h) * 0.028;
+    const t = svg('text', { x: pos.x, y: pos.y - r * 1.6, class: 'vfv-label', 'font-size': fontSize, 'text-anchor': 'middle' });
     t.textContent = label;
-    g2.append(t);
-    return g2;
+    group.append(t);
+    return group;
   };
   plot.append(drawShip(playerPos, playerVel, v.playerSide, 'YOU', true));
   if (v.opponent) plot.append(drawShip(oppPos, v.opponent.velocity, v.opponent.side, v.opponent.name.toUpperCase(), false));

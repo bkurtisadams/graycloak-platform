@@ -784,9 +784,17 @@ function shipFightScene(fight, handlers) {
       ship.damage?.length ? h('span', { class: 'entry-damage', text: `Damage: ${ship.damage.join(', ')}` }) : null,
       ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
       ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null))),
+    // v0.242.0: this array used to reach Node.replaceChildren(...array) with
+    // a bare `null` sitting in it whenever fight.log was empty — the DOM
+    // spec stringifies a non-Node argument there, so replaceChildren(null)
+    // literally inserts the text "null". The abbreviated flow never showed
+    // it (its log is never empty by the time a referee sees it), but a
+    // vector fight's log starts empty at turn 1, movement — exactly the
+    // screenshot that caught this. .filter(Boolean) guards every entry here
+    // the same way renderNow already guards its own returned array.
     fight.log.length ? h('div', { class: 'fight-log' }, h('ul', { class: 'entries' }, fight.log.map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line }))))) : null,
     centre
-  ];
+  ].filter(Boolean);
 }
 
 // ----------------------------------------------------------------- drawers
