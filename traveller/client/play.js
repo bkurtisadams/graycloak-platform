@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.219.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.219.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.219.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.219.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.219.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.219.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.219.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.219.1';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.219.1';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.219.1';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.219.1';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.219.1';
+import { createPlayCloud } from './play-cloud.js?v=v0.219.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.219.1';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -25,10 +25,15 @@ function openCampaign(wanted = null) {
     const registry = createDocumentRegistry({ storage: window.localStorage });
     const id = wanted || params.get('campaign') || registry.getActiveCampaignId();
     if (!id) return { mode: 'empty', reason: 'No campaign has been opened in this browser yet.' };
+    if (!registry.get(id)) return { mode: 'empty', reason: 'That campaign is not in this browser yet.', wantedId: id };
     const session = createPlaySession({ registry, campaignId: id, subsector: FAR_MERIDIAN_SUBSECTOR, cloud, onChange: () => render() });
     return { mode: 'live', session };
   } catch (error) {
-    return { mode: 'empty', reason: error?.message ?? String(error) };
+    // v0.219.1: [ PLAY ] in the lobby names a campaign that may live only in
+    // the cloud — a campaign opened on another machine, or never opened in
+    // this browser. Remember which one was asked for so start() can fetch it
+    // rather than stopping at "nothing to show".
+    return { mode: 'empty', reason: error?.message ?? String(error), wantedId: wanted || params.get('campaign') || null };
   }
 }
 const cloud = createPlayCloud();
@@ -151,7 +156,7 @@ function renderEmpty() {
   if (!account) {
     parts.push(h('section', { class: 'lead' },
       h('h2', { text: 'Sign in to open a campaign' }),
-      h('p', { text: 'No campaign has been opened in this browser. Your campaigns are saved to your account; sign in and they are listed here.' }),
+      h('p', { text: source.wantedId ? 'That campaign is not in this browser yet. Sign in and it will be fetched from your account.' : 'No campaign has been opened in this browser. Your campaigns are saved to your account; sign in and they are listed here.' }),
       h('div', { class: 'lead-actions' },
         h('button', { type: 'button', class: 'button is-primary', onclick: () => openSignIn() }, h('span', { text: 'Sign in' })))));
   } else {
@@ -401,12 +406,15 @@ async function start() {
   render();
   if (source.mode === 'sample') return;
   await cloud.start();
+  // A campaign named in the address but absent here is fetched once signed in.
+  if (source.mode === 'empty' && source.wantedId && cloud.userId()) await openFromCloud(source.wantedId);
   let seen;
   cloud.onAuthChange((user) => {
     const uid = user?.uid ?? null;
     if (uid === seen) return;
     seen = uid;
     if (source.mode === 'live') source.session.connect().then(() => render());
+    else if (source.wantedId && uid) openFromCloud(source.wantedId);
     else refreshCloudList();
   });
 }

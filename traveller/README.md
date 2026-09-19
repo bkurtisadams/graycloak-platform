@@ -1,5 +1,41 @@
 # Graycloak Traveller
 
+## v0.219.1 the lobby can reach the new page
+
+The new page could only be reached by typing its address. The lobby's
+[ RUN ] went to `index.html`, and so did starting a campaign, so nothing in
+the normal path ever arrived at `play.html`.
+
+Each campaign row now carries two doors:
+
+- **[ PLAY ]** opens `play.html` on that campaign: port call, trade, jump,
+  arrival, the character drawer with the referee's editor, and fights.
+- **[ REFEREE TOOLS ]** (was [ RUN ]) opens the older client for what has not
+  moved across yet — scenes, the tactical grid, campaign settings and export.
+
+Renaming it is the honest description: that client is no longer where play
+happens, only where the remaining tools live.
+
+`play.html?campaign=<id>` is now robust to a campaign that is not in this
+browser — opened on another machine, or never opened here. It remembers which
+campaign the address asked for and fetches it from the account as soon as the
+page is signed in, rather than stopping at "nothing to show", and says so
+while it waits.
+
+Verified: `play.html?campaign=<id>` opens Sea of Suns at Aster Prime with the
+lobby link, Start a fight and the character chips all present; an unknown id
+gives the empty page rather than an error.
+
+I could not render the lobby itself here — it requires Firebase, which this
+sandbox cannot reach — so the [ PLAY ] link is verified by the code path and
+by the URL it builds, not by clicking it.
+
+Suite: 617 pass, 0 fail.
+
+**Still only in the old client**: scenes, the tactical grid, actors and
+vehicles, campaign settings, export, and starting a campaign. Campaign delete
+exists nowhere.
+
 ## v0.219.0 the referee changes what a character is
 
 Nothing on this page could alter a character, which is why the unnamed member

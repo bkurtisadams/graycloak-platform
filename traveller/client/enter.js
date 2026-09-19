@@ -8,26 +8,26 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.219.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.219.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.219.1';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.219.1';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome
-} from './publish.js?v=v0.219.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.219.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.219.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.219.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.219.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.219.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.219.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.219.0';
-import { generateCharacterName } from './generators.js?v=v0.219.0';
+} from './publish.js?v=v0.219.1';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.219.1';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.219.1';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.219.1';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.219.1';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.219.1';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.219.1';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.219.1';
+import { generateCharacterName } from './generators.js?v=v0.219.1';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
-} from '../src/character-record.js?v=v0.219.0';
+} from '../src/character-record.js?v=v0.219.1';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.219.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.219.1';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -248,10 +248,22 @@ function renderCampaigns() {
     const state = document.createElement('span'); state.className = 'enter-character-state';
     state.textContent = campaign.savedAt ? `LAST SAVED ${new Date(campaign.savedAt).toLocaleString()}` : 'PUBLISHED, NO CLOUD COPY YET';
     const tools = document.createElement('div'); tools.className = 'enter-character-tools';
+    // v0.219.1: the lobby only ever opened the old client, so the new play
+    // page could be reached by typing its address and nothing else. [ PLAY ]
+    // opens it on this campaign; [ RUN ] still opens the referee client for
+    // the tools that have not moved across yet (scenes, the tactical grid,
+    // campaign settings and export).
+    const play = document.createElement('a');
+    play.className = 'text-button action-button campaign-transition-action';
+    play.href = `play.html?campaign=${encodeURIComponent(campaign.campaignId)}`;
+    play.textContent = '[ PLAY ]';
+    play.title = 'Port call, trade, jump and fights on the new page';
+    tools.append(play);
     const run = document.createElement('a');
-    run.className = 'text-button action-button campaign-transition-action';
+    run.className = 'text-button action-button';
     run.href = `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`;
-    run.textContent = '[ RUN ]';
+    run.textContent = '[ REFEREE TOOLS ]';
+    run.title = 'The older client: scenes, the tactical grid, campaign settings and export';
     tools.append(run);
     row.append(name, summary, state, tools);
     return row;
