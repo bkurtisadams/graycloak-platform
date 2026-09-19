@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.215.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.215.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.215.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.216.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.216.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.216.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.215.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.216.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -94,12 +94,29 @@ function hitLine(attacker, defender, weaponKey = attacker.weaponKey) {
   const preview = previewPersonalAttack({ attacker: { ...attacker, weaponKey }, defender, range: range.key });
   if (!preview.canAttack) return { text: 'cannot reach', preview, range };
   const need = preview.requiredRoll;
-  return { text: need <= 2 ? 'cannot miss' : need > 12 ? 'cannot hit' : `${need}+`, preview, range };
+  return { text: need <= 2 ? 'cannot miss' : need > 12 ? `${need}+` : `${need}+`, preview, range };
 }
 
 function woundText(preview) {
   const modifier = preview.damageModifier ? (preview.damageModifier > 0 ? `+${preview.damageModifier}` : `\u2212${Math.abs(preview.damageModifier)}`) : '';
   return `${preview.damageDice}D${modifier}`;
+}
+
+// The throw as a sum: 8+ base, then each DM that is not zero, then the result.
+function dmSum(preview) {
+  const parts = [];
+  const add = (label, value) => { if (value) parts.push(`${value > 0 ? '+' : '\u2212'}${Math.abs(value)} ${label}`); };
+  // The weapon matrix and the range matrix arrive combined in `target`.
+  add(`${preview.weaponName} vs ${preview.armor === 'none' ? 'no armor' : preview.armor} at ${preview.range.replace('-', ' ')} range`, 8 - preview.target);
+  add('expertise', preview.skillDM);
+  add('characteristic', preview.characteristicDM);
+  add('untrained', preview.untrainedDM);
+  add('their parry', preview.parryDM);
+  add('their evasion', preview.evasionDM);
+  add('they are untrained', preview.defenderUntrainedDM);
+  add('weakened blow', preview.fatigueDM);
+  add('situation', preview.situationalDM);
+  return `8+ base ${parts.length ? parts.join(', ') : 'with no modifiers'} \u2192 ${preview.requiredRoll}+`;
 }
 
 function dmBreakdown(preview) {
@@ -128,8 +145,13 @@ function shortName(fighter) {
 
 // The declaration in force for a combatant: the player's live choice for the
 // one being declared, the stored order for everyone else.
+// v0.216.0: the tracker shows orders that have actually been GIVEN. It used
+// to overlay the selected combatant's in-progress choice here, which made a
+// combatant look declared while they were selected and undeclared as soon as
+// selection moved on. The choice being built belongs in the panel above, not
+// in the record of what has been declared.
 function orderOf(fighter, state) {
-  const d = state.next?.declare;
+  const d = state.live ? null : state.next?.declare;
   if (d && fighter.id === d.actorId) {
     const evading = d.move === 'Evade';
     const verb = getPersonalWeapon(d.weaponKey ?? fighter.weaponKey).melee ? 'swing' : 'fire';
@@ -166,7 +188,7 @@ function gearRow(reader, state, handlers) {
           reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: label(key) })))
         : h('b', { text: `${weapon.name}  ${dice}` })),
     h('span', { class: 'sel-stat is-gear' }, h('small', { text: 'Armor' }), h('b', { text: reader.armor === 'none' ? 'None' : reader.armor[0].toUpperCase() + reader.armor.slice(1) })),
-    weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: 'Combat blows before every swing is weakened (Book 1 p.31)' },
+    weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: 'Combat blows before every swing is weakened. The allowance is unwounded endurance and does not fall as wounds land (Book 1 p.32).' },
       h('small', { text: 'Blows' }), h('b', { text: `${left}/${reader.blowAllowance}` })) : null);
 }
 
@@ -205,7 +227,12 @@ function selectedPanel(reader, state, handlers) {
         ? h('p', { class: 'attack-line is-off', text: d.move === 'Evade' ? 'Evading: no attack this round.' : 'Running: no attack this round.' })
         : h('div', { class: 'attack-line' },
           h('span', { class: 'attack-at' }, target ? `\u2192 ${target.name}` : 'pick a target below'),
-          line ? h('b', { class: 'attack-need', title: line.preview?.canAttack ? dmBreakdown(line.preview) : '', text: /^\d/.test(line.text) ? `needs ${line.text}` : line.text }) : null));
+          line ? h('b', { class: 'attack-need', text: /^\d/.test(line.text) ? `needs ${line.text}` : line.text }) : null),
+      // Book 1 p.29: every throw is 2D against 8+; the number shown is 8 less
+      // the DMs. Showing the sum is the difference between a figure to obey
+      // and a figure to reason about.
+      line?.preview?.canAttack ? h('p', { class: 'odds', text: dmSum(line.preview) }) : null,
+      line && !line.preview?.canAttack ? h('p', { class: 'odds', text: `${getPersonalWeapon(weaponKey).name} cannot reach at ${line.range.name.toLowerCase()} range.` }) : null);
   } else if (!isDown(reader)) {
     parts.push(h('p', { class: 'attack-line is-off', text: `This round: ${orderText(reader, state)}` }));
   }
@@ -220,7 +247,16 @@ function trackerRow(fighter, reader, state, handlers) {
   const targeted = canTarget && d.targetId === fighter.id;
   const out = opposing && !down ? hitLine(reader, fighter, d && d.actorId === reader.id ? (d.weaponKey ?? reader.weaponKey) : reader.weaponKey) : null;
   const back = opposing && !down ? hitLine(fighter, reader) : null;
-  const short = (line) => (line ? (/^\d/.test(line.text) ? line.text : line.text === 'cannot miss' ? 'auto' : '\u2014') : '');
+  // Two different impossibilities looked identical before: a weapon that
+  // cannot reach at this range at all, and a throw so modified it can never
+  // come up. The first is a dash, the second is the number it would need.
+  const short = (line) => {
+    if (!line) return '';
+    if (/^\d/.test(line.text)) return line.text;
+    if (line.text === 'cannot miss') return 'auto';
+    if (line.preview && !line.preview.canAttack) return '\u2014';
+    return line.preview && Number.isFinite(line.preview.requiredRoll) ? `${line.preview.requiredRoll}+` : '\u2014';
+  };
   const range = fighter === reader ? '' : { Close: 'C', Short: 'S', Medium: 'M', Long: 'L', 'Very long': 'VL', 'Out of range': 'out' }[rangeBetween(reader, fighter).name];
   const stats = ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
     h('span', { class: fighter.characteristics[key] < fighter.full[key] ? 'is-hurt' : '', text: String(fighter.characteristics[key]) })]);
@@ -234,7 +270,7 @@ function trackerRow(fighter, reader, state, handlers) {
     h('td', { class: 'tr-hit' }, canTarget
       ? h('button', { type: 'button', class: 'tr-target', 'aria-pressed': targeted, title: out.preview?.canAttack ? `Target ${fighter.name}. ${dmBreakdown(out.preview)}` : `${fighter.name}: ${out.text}`, text: short(out), onclick: () => handlers.onPickTarget(fighter.id) })
       : short(out)),
-    h('td', { class: 'tr-hit', title: back?.preview?.canAttack ? dmBreakdown(back.preview) : (back?.text ?? ''), text: short(back) }),
+    h('td', { class: 'tr-target-name', text: fighter.order?.targetId ? (state.fighters.find((entry) => entry.id === fighter.order.targetId)?.name ?? '') : '' }),
     h('td', { class: `tr-order${order === 'undeclared' ? ' is-undeclared' : ''}`, title: order, text: order }));
 }
 
@@ -250,7 +286,7 @@ function fightColumn(state, handlers) {
     h('table', { class: 'tracker' },
       h('thead', {}, h('tr', {},
         h('th', { text: 'Combatant' }), h('th', { title: 'What each carries, and its wound dice', text: 'In hand' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'S\u00b7D\u00b7E' }), h('th', { title: `Range from ${reader.name}`, text: 'Rng' }),
-        h('th', { title: `What ${reader.name} must throw to hit them. Click to target.`, text: 'Hit' }), h('th', { title: `What they must throw to hit ${reader.name}`, text: 'Hit by' }), h('th', { text: 'This round' }))),
+        h('th', { title: `2D against 8+, adjusted. What ${reader.name} must throw to hit them; click to give the order.`, text: 'Hit' }), h('th', { text: 'Target' }), h('th', { text: 'This round' }))),
       sides.map((side) => h('tbody', {}, side.map((fighter) => trackerRow(fighter, reader, state, handlers))))),
     (state.declaredList ?? []).length
       ? h('section', { class: 'declared' },

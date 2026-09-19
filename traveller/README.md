@@ -1,5 +1,49 @@
 # Graycloak Traveller
 
+## v0.216.0 the tracker stops lying about who has declared
+
+**The bug you found.** Clicking Thug showed everyone declared; clicking Thug 2
+showed Thug undeclared again. `orderOf()` in `client/play-views.js` overlaid
+the *selected* combatant's in-progress choice onto their tracker row as though
+it were an order given. So whoever was selected always looked declared, and
+looked undeclared the moment selection moved on. It was written for the sample
+screens, where the selected character was the only one ever declaring, and I
+carried it into live play without noticing. The tracker now shows only orders
+actually given; the choice being built lives in the panel above it.
+
+**The throw, shown as a sum.** Every attack is 2D against 8+ (Book 1 p.29);
+the number shown is 8 less the cumulative DMs. "needs 3+" said nothing about
+why, so under the attack line it now reads:
+
+    8+ base +3 Rifle vs jack at medium range, +2 characteristic → 3+
+
+including the defender's contribution — parry, evasion, untrained — which was
+invisible before and is exactly what your question about negative DMs was
+pointing at.
+
+**"Hit by" removed, target named.** It was the opponent's throw against you,
+which a player would not know, and it cost a column. In its place the target
+is spelled out rather than abbreviated inside "This round".
+
+**The dash now means one thing.** Two impossibilities looked identical: a club
+at medium *cannot reach*, while a body pistol at medium needs 14+, which is
+legal but cannot come up. A weapon that cannot reach shows a dash and says so
+in words under the attack line; a hopeless throw shows the number it would
+need.
+
+**On the blow allowance.** Your Thug showed Blows 1/1 with END 1/7, which
+looked like the allowance falling with wounds — against Book 1 p.32, where it
+is fixed at unwounded endurance for the fight. I traced every assignment:
+`blowAllowance` is set only by `withCurrentState`, which runs at creation and
+nowhere else, so the engine does not reduce it mid-fight. A combatant that
+joined the fight already at END 1 would show 1/1 correctly. I could not
+reproduce it from the code, so if it recurs, tell me when that Thug entered
+the fight and I will look again.
+
+Suite: 612 pass, 0 fail.
+
+Still to come: the referee's editing surface.
+
 ## v0.215.0 the target click is the order, and a Declared panel
 
 The Declare button was a third step that decided nothing: by the time it was
