@@ -849,8 +849,9 @@ test('the directory shows one folder at a time, and a search looks everywhere', 
   session.run('fight:end');
   assert.ok(session.view({ referee: { tab: 'Journal' } }).referee.total >= 1);
   assert.ok(session.view({ referee: { tab: 'Journal' } }).referee.tree.some((entry) => /^\d{3}-\d+$/.test(entry.path)));
-  // Tabs with nothing behind them yet say so rather than showing an empty folder.
-  assert.match(session.view({ referee: { tab: 'Scenes' } }).referee.unbuilt, /referee client/);
+  // Scenes used to say it was still referee-client-only; it has its own
+  // directory now, so nothing is reported as unbuilt.
+  assert.equal(session.view({ referee: { tab: 'Scenes' } }).referee.unbuilt, null);
 
   // The repository fixture carries no roster actors, so the directory's
   // folder behaviour is exercised against actors built here.
@@ -876,6 +877,60 @@ test('the directory shows one folder at a time, and a search looks everywhere', 
   // A search ignores the open folder.
   const found = refereeView(resolved, { tab: 'Actors', folder: 'Highport', query: 'thug' });
   assert.deepEqual(found.shown.map((entry) => entry.name), ['Dock thug', 'Second thug']);
+});
+
+// ---------------------------------------------------------------- v0.229.0
+test('the Scenes tab creates, files, activates and deletes a scene', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+
+  // The first scene created has no active scene to compete with, so it
+  // becomes the active one automatically — the same rule addScene() in the
+  // referee client applies.
+  assert.equal(session.run('scene:create', { fight: { value: { name: 'Alley' } } }).ok, true);
+  let view = session.view({ referee: { tab: 'Scenes' } });
+  assert.equal(view.referee.total, 1);
+  let alley = view.referee.shown.find((entry) => entry.name === 'Alley');
+  assert.ok(alley, 'the new scene is shown');
+  assert.equal(alley.active, true);
+  assert.match(alley.thumbnail, /<svg/, 'a colour-and-grid preview, not a photo');
+  assert.equal(alley.folder, 'Scenes', 'the default folder');
+
+  // A second scene in a named folder does not steal activation.
+  assert.equal(session.run('scene:create', { fight: { value: { name: 'Dock gangs', folder: 'Startown' } } }).ok, true);
+  view = session.view({ referee: { tab: 'Scenes' } });
+  assert.equal(view.referee.total, 2);
+  assert.deepEqual(view.referee.tree.map((entry) => entry.path).sort(), ['Scenes', 'Startown']);
+  const dock = refereeView(registry.resolveCampaign(campaignId), { tab: 'Scenes', folder: 'Startown' }).shown[0];
+  assert.equal(dock.active, false);
+
+  // Filing moves it, and the campaign's own cached ref (used for the folder
+  // tree without reading every scene document) moves with it.
+  assert.equal(session.run('scene:file', { fight: { id: dock.id, value: 'Ports/Aster' } }).ok, true);
+  assert.deepEqual(registry.resolveCampaign(campaignId).campaign.documentRefs.scenes.find((ref) => ref.id === dock.id).folder, 'Ports/Aster');
+
+  // Activating the second scene deactivates the first; activating it again
+  // (the same id) is a toggle back to none active.
+  assert.equal(session.run('scene:activate', { fight: { id: dock.id } }).ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.activeSceneId, dock.id);
+  assert.equal(session.run('scene:activate', { fight: { id: dock.id } }).ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.activeSceneId, null);
+
+  // A scene with a fight on it cannot be deleted...
+  const encounter = createEncounterDocument({
+    campaign: registry.resolveCampaign(campaignId).campaign, characters: [registry.resolveCampaign(campaignId).characters[0]],
+    opponents: [{ name: 'Thug' }], scene: registry.get(alley.id), date: { year: 4800, dayOfYear: 106 }, range: 'medium', dice: fixedDice
+  });
+  registry.put(encounter);
+  registry.put(addEncounterToCampaign(registry.resolveCampaign(campaignId).campaign, encounter));
+  session.reload(); // these two writes went straight to the registry, bypassing session.run()'s own reload
+  assert.equal(session.run('scene:delete', { fight: { id: alley.id } }).ok, false);
+  // ...but an unreferenced one goes, and clears activation and the ref.
+  assert.equal(session.run('scene:delete', { fight: { id: dock.id } }).ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(after.scenes.some((entry) => entry.identity.id === dock.id), false);
+  assert.equal(after.campaign.documentRefs.scenes.some((ref) => ref.id === dock.id), false);
+  assert.equal(registry.get(dock.id), null, 'the scene document itself is gone, not just the ref');
 });
 
 test('filing an actor moves it, and an unfiled actor keeps an empty path', () => {

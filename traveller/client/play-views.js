@@ -7,15 +7,15 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.228.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.228.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.228.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.229.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.229.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.229.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.228.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.229.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -36,6 +36,18 @@ export function h(tag, attributes = {}, ...children) {
 }
 
 const cr = (amount) => `Cr ${Number(amount).toLocaleString('en-US')}`;
+
+// v0.229.0: a directory entry's small preview — currently only the Scenes tab
+// sets entry.thumbnail, and it is always a plain SVG string (colour and a
+// grid, the same token colours the combat board uses; never a photo — see
+// the scene-document.js thumbnail comment). h() has no markup attribute, so
+// this is the one place in the file that sets innerHTML.
+function entryThumb(markup) {
+  const wrap = document.createElement('span');
+  wrap.className = 'entry-thumb';
+  wrap.innerHTML = markup;
+  return wrap;
+}
 
 // ---------------------------------------------------------------- masthead
 
@@ -873,6 +885,10 @@ function refereeDrawer(referee, state, handlers) {
     referee.seats?.loading ? h('p', { class: 'empty', text: 'Reading seats\u2026' }) : null,
     referee.tab === 'Players' && state.live && referee.seats ? h('div', { class: 'lead-actions' },
       h('button', { type: 'button', class: 'button is-small', text: 'Open an invite', title: 'Mint a code a player can redeem to ask for a seat', onclick: () => handlers.onSeat?.('invite', {}) })) : null,
+    // v0.229.0: Foundry's directory shape for Scenes — a create button above
+    // the folders, same place the Players tab puts its own lead action.
+    referee.tab === 'Scenes' && state.live ? h('div', { class: 'lead-actions' },
+      h('button', { type: 'button', class: 'button is-small', text: 'New scene', onclick: () => handlers.onSceneAction?.('create', null, referee.folder) })) : null,
     h('div', { class: 'directory' },
       h('nav', { class: 'folders', 'aria-label': 'Folders' }, tree.length
         ? tree.map((folder) => h('button', {
@@ -884,9 +900,11 @@ function refereeDrawer(referee, state, handlers) {
         }, h('span', { class: 'folder-name', text: folder.name }), h('span', { class: 'folder-count', text: String(folder.count) })))
         : h('p', { class: 'empty', text: 'No folders yet.' })),
       h('ul', { class: 'entries' }, entries.length
-        ? entries.map((entry) => h('li', { class: 'entry' },
+        ? entries.map((entry) => h('li', { class: `entry${entry.active ? ' is-active' : ''}` },
+          entry.thumbnail ? entryThumb(entry.thumbnail) : null,
           h('span', { class: 'entry-name', title: entry.name, text: entry.name }),
           entry.note ? h('span', { class: 'entry-note', title: entry.note, text: entry.note }) : null,
+          entry.active ? h('span', { class: 'entry-flag', text: 'ACTIVE' }) : null,
           entry.editable && state.live ? h('button', {
             type: 'button', class: 'button is-small', text: 'File',
             title: 'Move this actor to another folder',
@@ -900,6 +918,25 @@ function refereeDrawer(referee, state, handlers) {
             ] : null,
             entry.seat.kind === 'seat' ? h('button', { type: 'button', class: 'button is-small', text: 'Take back', onclick: () => handlers.onSeat?.('unseat', entry.seat) }) : null,
             entry.seat.kind === 'invite' ? h('button', { type: 'button', class: 'button is-small', text: 'Revoke', onclick: () => handlers.onSeat?.('revoke', entry.seat) }) : null
+          ) : null,
+          // v0.229.0: a scene's own actions — Foundry's ACTIVATE, plus filing
+          // and deleting. Rename, resize and duplicate stay in the referee
+          // client; this tab is for organising and activating during play.
+          entry.scene && state.live ? h('span', { class: 'scene-actions' },
+            h('button', {
+              type: 'button', class: 'button is-small', text: entry.active ? 'Deactivate' : 'Activate',
+              title: entry.active ? 'Stop showing this scene to players' : 'Show this scene to every player',
+              onclick: () => handlers.onSceneAction?.('activate', entry.id)
+            }),
+            h('button', {
+              type: 'button', class: 'button is-small', text: 'File',
+              title: 'Move this scene to another folder',
+              onclick: () => handlers.onSceneAction?.('file', entry.id, entry.folder)
+            }),
+            h('button', {
+              type: 'button', class: 'button is-small is-danger', text: 'Delete',
+              onclick: () => handlers.onSceneAction?.('delete', entry.id)
+            })
           ) : null))
         : [h('li', { class: 'entry' }, h('span', { class: 'empty', text: referee.query ? 'Nothing matches.' : 'This folder is empty.' }))])),
     referee.truncated ? h('p', { class: 'cite', text: `${referee.truncated} more here; narrow the search to see them.` }) : null

@@ -2,14 +2,14 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.228.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.228.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.228.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.228.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.228.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.228.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.228.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.228.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.229.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.229.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.229.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.229.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.229.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.229.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.229.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.229.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -226,6 +226,26 @@ function render() {
       const wanted = window.prompt('File this actor under (use / for sub-folders)', folder ?? '');
       if (wanted === null) return;
       source.session.run('edit:actor:folder', { fight: { id, value: wanted } });
+    },
+    // v0.229.0: the Scenes tab's own fiat. Board authoring (size, planets)
+    // stays in the referee client — this is create, file, activate, delete.
+    onSceneAction: (action, id, folder) => {
+      if (source.mode !== 'live') return;
+      if (action === 'create') {
+        const name = window.prompt('New scene name:', '');
+        if (name === null || !name.trim()) return;
+        const wantedFolder = folder && folder !== 'Unfiled' ? folder : undefined;
+        source.session.run('scene:create', { fight: { value: { name: name.trim(), folder: wantedFolder } } });
+      } else if (action === 'file') {
+        const wanted = window.prompt('File this scene under (use / for sub-folders)', folder ?? '');
+        if (wanted === null || !wanted.trim()) return;
+        source.session.run('scene:file', { fight: { id, value: wanted.trim() } });
+      } else if (action === 'activate') {
+        source.session.run('scene:activate', { fight: { id } });
+      } else if (action === 'delete') {
+        if (!window.confirm('Delete this scene?')) return;
+        source.session.run('scene:delete', { fight: { id } });
+      }
     },
     onEditCharacter: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:character:${field}`, { fight: { id, value } }); },
     onEditCombatant: (id, value) => { if (source.mode === 'live') source.session.run('edit:combatant:current', { fight: { id, value } }); },

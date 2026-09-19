@@ -32,8 +32,12 @@ import {
 import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
-  setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays
+  setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays,
+  addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
 } from './campaign-document.js';
+import {
+  createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER
+} from './scene-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
@@ -389,6 +393,26 @@ function vehicleEntries(resolved) {
   });
 }
 
+// v0.229.0: the Scenes tab, Foundry's directory shape — a folder, a name, and
+// a small colour-and-shape preview rather than a photo. sceneThumbnailSvg
+// already draws nothing but the grid and each staged token as a coloured dot
+// (the same party/opposition colours the range-line board and the tactical
+// canvas use), so it needs no image behind it to read at a glance.
+function sceneEntries(resolved) {
+  const activeId = resolved.campaign.activeSceneId;
+  return (resolved.scenes ?? []).map((scene) => ({
+    id: scene.identity.id,
+    name: scene.identity.name,
+    note: sceneIsVectorBoard(scene)
+      ? `space, ${scene.board.spanThousandMiles}" across${scene.tokens.length ? ` \u00b7 ${scene.tokens.length} staged` : ''}`
+      : `${scene.board.squares} sq \u00b7 ${scene.board.metersPerSquare} m${scene.tokens.length ? ` \u00b7 ${scene.tokens.length} staged` : ''}`,
+    folder: scene.folder,
+    thumbnail: sceneThumbnailSvg(scene, { size: 56 }),
+    active: scene.identity.id === activeId,
+    scene: true
+  }));
+}
+
 export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null } = {}) {
   const sets = {
     Journal: journalEntries,
@@ -396,7 +420,7 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     Players: (input) => (players ? seatEntries(input, players) : characterEntries(input)),
     Vehicles: vehicleEntries,
     Tables: () => tableEntries(),
-    Scenes: () => (resolved.scenes ?? []).map((scene) => ({ id: scene.identity.id, name: scene.identity.name ?? 'Scene', note: '', folder: '' }))
+    Scenes: sceneEntries
   };
   const entries = (sets[tab] ?? sets.Journal)(resolved);
   const tree = folderTree(entries);
@@ -413,11 +437,9 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     total: entries.length,
     shown: shown.slice(0, LIMIT),
     truncated: Math.max(0, shown.length - LIMIT),
-    // Scenes and Tables have nothing behind them on this page yet; say so
-    // rather than showing an empty folder as though it were the answer.
-    unbuilt: tab === 'Scenes'
-      ? 'Scenes are still only in the referee client.'
-      : tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
+    // Tables has nothing behind it but the printed pages; Players' seats live
+    // in the cloud and need a signed-in referee to fetch them.
+    unbuilt: tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
     // The Players tab acts on the cloud, not on campaign documents.
     seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null
   };
@@ -1099,6 +1121,66 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           message = result.entry?.text ?? `${result.combatant.name}: unchanged`;
         } else throw new Error(`unknown edit: ${command}`);
         log('REFEREE', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      // v0.229.0: the Scenes tab's own fiat — creating, filing, activating and
+      // deleting a scene. Board authoring (size, planets) stays in the referee
+      // client; this is the browsing-and-organising slice.
+      //
+      // None of these route through the generic persist() helper: it rebuilds
+      // the campaign's document-ref lists from resolved.* (the pre-command
+      // snapshot), so a ref field that the very same command just changed —
+      // activeSceneId, or a scene's folder in its own cached ref — would be
+      // overwritten straight back to its stale value. 'file' reuses
+      // addSceneToCampaign instead: its ref dedup keeps the newest write for
+      // a given id, so handing it the already-updated scene document is what
+      // actually keeps the cached ref in sync with it.
+      if (command.startsWith('scene:')) {
+        const action = command.slice('scene:'.length);
+        const id = fight?.id;
+        const value = fight?.value;
+        let message;
+        if (action === 'create') {
+          const name = String(value?.name ?? '').trim();
+          if (!name) throw new Error('a scene needs a name');
+          const folder = typeof value?.folder === 'string' && value.folder.trim() ? value.folder.trim() : DEFAULT_SCENE_FOLDER;
+          const scene = createSceneDocument({ campaignId: resolved.campaign.identity.id, name, folder });
+          const campaign = addSceneToCampaign(resolved.campaign, scene, { makeActive: !resolved.campaign.activeSceneId });
+          registry.putAll([scene, campaign]);
+          reload();
+          message = `Scene ${scene.identity.name} created in ${scene.folder}.`;
+        } else if (action === 'file') {
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to file');
+          const folder = String(value ?? '').trim();
+          if (!folder) throw new Error('a folder name is required');
+          const next = updateSceneDocument(scene, { folder });
+          const campaign = addSceneToCampaign(resolved.campaign, next);
+          registry.putAll([next, campaign]);
+          reload();
+          message = `${scene.identity.name} filed under ${next.folder}.`;
+        } else if (action === 'activate') {
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to activate');
+          const activating = resolved.campaign.activeSceneId !== id;
+          const campaign = setActiveCampaignScene(resolved.campaign, activating ? id : null);
+          registry.put(campaign);
+          reload();
+          message = activating ? `${scene.identity.name} is now active.` : `${scene.identity.name} deactivated.`;
+        } else if (action === 'delete') {
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to delete');
+          if ((resolved.encounters ?? []).some((entry) => entry.sceneId === id)) throw new Error(`${scene.identity.name} has a fight on it and cannot be deleted`);
+          const campaign = removeSceneFromCampaign(resolved.campaign, id);
+          registry.put(campaign);
+          registry.remove(id);
+          reload();
+          message = `${scene.identity.name} deleted.`;
+        } else throw new Error(`unknown scene command: ${command}`);
+        log('SYSTEM', message);
         lastMessage = { ok: true, message };
         onChange();
         saveToCloud();

@@ -577,6 +577,17 @@ a.button { text-decoration: none; color: inherit; }
 .sheet-why .editor-row { padding-top: 4px; border-top: 1px solid var(--line); }
 .seat-actions { display: flex; gap: 4px; }
 
+/* v0.229.0: the Scenes tab's own bits in the referee directory — a small
+   colour-and-grid preview (never a photo, see scene-document.js), an active
+   highlight matching the tab-selected convention above, and a danger button
+   for Delete, matching the context-menu's own danger colour. */
+.entry-thumb { display: inline-flex; flex: 0 0 auto; width: 28px; height: 28px; overflow: hidden; border: 1px solid var(--line); }
+.entry-thumb svg { display: block; width: 100%; height: 100%; }
+.entry.is-active { background: var(--signal-wash); }
+.entry-flag { font-size: 10px; letter-spacing: .08em; color: var(--signal); font-weight: 700; }
+.scene-actions { display: flex; gap: 4px; }
+.button.is-danger { color: var(--red); border-color: var(--red); }
+
 /* Book 3's PLANETARY CHARACTERISTICS: the eight rows, each with the UWP digit
    it is read from, so the profile on the caption and the code above it agree. */
 .uwp { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px; font-size: 13px; }
