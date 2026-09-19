@@ -583,3 +583,11 @@ a.button { text-decoration: none; color: inherit; }
 .uwp dt { color: var(--ink-2); white-space: nowrap; }
 .uwp dd { overflow: hidden; text-overflow: ellipsis; }
 .uwp-digit { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; color: var(--signal); }
+
+/* Book 3 facts that change what the party does here, so they do not hide in a
+   tooltip: what the port can do for the ship, what to wear outside, and the
+   weapons this world forbids the party to carry beyond the starport. */
+.caption-facility { font-size: 13px; color: var(--ink-2); }
+.caption-gear { font-size: 13px; font-weight: 700; }
+.caption-law { font-size: 13px; font-weight: 700; color: var(--red); padding: 4px 6px; border-left: 3px solid var(--red); background: var(--raise); }
+.uwp dt[title], .uwp dd[title] { cursor: help; }

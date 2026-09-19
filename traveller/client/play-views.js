@@ -7,15 +7,15 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.227.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.227.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.227.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.228.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.228.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.228.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.227.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.228.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -501,7 +501,7 @@ export function renderNow(state, handlers = {}) {
 
 // ------------------------------------------------------------------ scenes
 
-function worldCaption(system, { role, label, onChoose = null } = {}) {
+function worldCaption(system, { role, label, onChoose = null, world = null } = {}) {
   const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
   // v0.227.0: Book 3's PLANETARY CHARACTERISTICS, in the order and under the
   // names the book prints them, with the UWP digit each is read from. The
@@ -529,28 +529,38 @@ function worldCaption(system, { role, label, onChoose = null } = {}) {
   };
 
   const rows = [
-    ['Starport', profile.starport, describeStarport(profile.starport)],
-    ['Size', profile.size, describeWorldSize(profile.size)],
-    ['Atmosphere', profile.atmosphere, describeAtmosphere(profile.atmosphere)],
-    ['Hydrographics', profile.hydrographics, describeHydrographics(profile.hydrographics)],
-    ['Population', profile.population, describePopulation(profile.population)],
-    ['Government', profile.government, describeGovernment(profile.government)],
-    ['Law level', profile.lawLevel, describeLawLevel(profile.lawLevel)],
+    ['Starport', profile.starport, describeStarport(profile.starport), 'starport'],
+    ['Size', profile.size, describeWorldSize(profile.size), 'size'],
+    ['Atmosphere', profile.atmosphere, describeAtmosphere(profile.atmosphere), 'atmosphere'],
+    ['Hydrographics', profile.hydrographics, describeHydrographics(profile.hydrographics), 'hydrographics'],
+    ['Population', profile.population, describePopulation(profile.population), 'population'],
+    ['Government', profile.government, describeGovernment(profile.government), 'government'],
+    ['Law level', profile.lawLevel, describeLawLevel(profile.lawLevel), 'lawLevel'],
     // Book 3 gives the technological index no wording of its own; the digit
     // is the whole of it, so nothing is printed beside it.
-    ['Tech level', profile.techLevel, null]
+    ['Tech level', profile.techLevel, null, 'techLevel']
   ];
   const bases = [system.bases?.naval ? 'Naval base' : null, system.bases?.scout ? 'Scout base' : null, system.gasGiant ? 'Gas giant' : null].filter(Boolean);
   return h('div', { class: `caption caption-${role}` },
     h('p', { class: 'caption-role', text: label }),
     h('h2', {}, system.name, ' ', h('span', { class: 'code', text: system.mainWorld.uwp })),
-    h('dl', { class: 'uwp' }, rows.flatMap(([label, digit, text]) => {
+    h('dl', { class: 'uwp' }, rows.flatMap(([label, digit, text, key]) => {
       const detail = trim(text);
+      // Book 3's fuller reading sits on the row rather than in the line, for
+      // the five characteristics whose detail is reference rather than a
+      // decision. Starport and atmosphere carry theirs in plain sight below.
+      const title = world?.detail?.[key] ?? null;
       return [
-        h('dt', { text: label }),
-        h('dd', {}, h('span', { class: 'uwp-digit code', text: String(digit) }), detail ? ` ${detail}` : null)
+        h('dt', { title, text: label }),
+        h('dd', { title }, h('span', { class: 'uwp-digit code', text: String(digit) }), detail ? ` ${detail}` : null)
       ];
     })),
+    // What this port can do for the ship, and what a character must wear to
+    // step outside: both change what the party does here, so neither hides.
+    world?.starport ? h('p', { class: 'caption-facility', text: world.starport }) : null,
+    world?.gear ? h('p', { class: 'caption-gear', text: world.gear }) : null,
+    // Book 3 p.8, against what the party is actually carrying.
+    world?.law?.text ? h('p', { class: 'caption-law', text: world.law.text }) : null,
     (() => {
       // Book 3 pp.21-22: the classifications a world's own profile earns it.
       let trade = [];
@@ -576,7 +586,7 @@ function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
   svg.classList.add('map');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   const inJump = scene.kind === 'jump';
-  const captions = inJump ? [] : [worldCaption(current, { role: 'here', label: 'You are here' })];
+  const captions = inJump ? [] : [worldCaption(current, { role: 'here', label: 'You are here', world: scene.world })];
   if (selected && selected.id !== current.id) {
     const distance = reachable.get(selected.id);
     const away = `${distance} parsec${distance === 1 ? '' : 's'} away`;

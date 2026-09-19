@@ -1,5 +1,49 @@
 # Graycloak Traveller
 
+## v0.228.0 what Book 3 says beyond the one-line description
+
+The caption gave each characteristic a line. Book 3 pp.5-11 give each of them
+rather more, and some of it changes what the party does here. New module
+`src/world-notes.js` holds it, split three ways by when it is read.
+
+**On hover**, for the five whose detail is reference rather than a decision:
+the figure behind the population digit (an exponent of ten: 8 is about
+100,000,000, read as a range between the levels either side); that size is the
+digit Book 1 reads gravity from, which is why a lighter world lets a character
+carry more; that on a corrosive or exotic world the hydrographic liquid may
+not be water; for Balkanization, that the law level is that of the government
+nearest the starport; and that local industry can make goods to the
+technological index, though police and military may carry several levels
+above it. Each cites its page.
+
+**In plain sight**, for the two that are decisions:
+
+- **What the port can do**: "refined fuel, annual overhaul, shipyard:
+  non-starships" for a B; "no fuel, facilities or bases" for an E. Whether an
+  annual overhaul can be had here is not a tooltip matter.
+- **What to wear outside**: vacc suit, respirator, filter mask, oxygen tanks
+  or protective suit, per the p.6 atmosphere notes. Shown only when something
+  is needed, so a standard atmosphere says nothing.
+
+**And the law level against what the party is actually carrying.** This is the
+one I thought worth more than a tooltip, and it found something at once in
+your campaign. At Aster, law level 5:
+
+    Hawkeye's Laser Carbine, Alina Voss's Body Pistol are prohibited
+    outside the starport. Throw 5+ to avoid arrest if stopped.
+
+The laser carbine is caught by level 2 and the body pistol by level 1, both
+carried up by p.8's rule that each level includes every prohibition below it.
+The line says "outside the starport" because p.8 also says local law does not
+reach into it, and the throw is the law level itself, as the same page has it.
+Bare hands are never listed; a level of 9 or more prohibits carrying anything
+rather than naming more weapons.
+
+Four tests added, covering the cumulative levels at 2, 5, 6, 7, 8 and 9, the
+check against a party, every starport class, and the atmosphere notes.
+
+Suite: 629 pass, 0 fail.
+
 ## v0.227.1 the label says what it is; the description need not repeat it
 
 The chart repeated itself. "Tech level 9 / Technological index 9" said one

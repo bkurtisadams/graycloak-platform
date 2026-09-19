@@ -42,6 +42,7 @@ import {
 } from './encounter-document.js';
 import { addEncounterToCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
+import { lawCheck, starportLine, atmosphereGear, worldDetail } from './world-notes.js';
 import { updateNpcActorDocument } from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
@@ -751,8 +752,23 @@ function portFacts(resolved, subsector, selectedSystemId) {
       lifeSupport: calculateLifeSupportCostForTrip(ship)
     };
   }
+  // v0.228.0: what Book 3 says beyond the one-line descriptions, and the one
+  // reading that is about this party rather than this world — what they are
+  // carrying against what the world forbids.
+  const carriers = (resolved.characters ?? [])
+    .filter((entry) => (campaign.party?.characterIds ?? []).includes(entry.identity.id))
+    .map((entry) => {
+      const weaponKey = entry.loadout?.weaponKey ?? 'hands';
+      let weaponName = weaponKey;
+      try { weaponName = getPersonalWeapon(weaponKey).name; } catch { /* an unknown key reads as itself */ }
+      return { id: entry.identity.id, name: entry.identity.name || '(unnamed)', weaponKey, weaponName };
+    });
+  const world = profile
+    ? { detail: worldDetail(profile), starport: starportLine(profile.starport), gear: atmosphereGear(profile.atmosphere), law: lawCheck(profile, carriers) }
+    : null;
+
   return {
-    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation,
+    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation, world,
     fuel: { aboard, capacity, missing: Math.max(0, capacity - aboard) },
     berthingOwed: Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0),
     fight: encounters.find((entry) => entry.status === 'active' && entry.location?.systemId === system?.id) ?? null
@@ -864,7 +880,7 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
         ? { title: 'Choose a destination', copy: `Worlds within Jump-${ship.specifications.drives.jump.rating} of ${system.name} are marked on the map. Freight and passengers are offered per destination.`, cite: 'Book 2 p.8', actions: [] }
         : { title: `Bound for ${destination.name}`, cite: 'Book 2 p.5', actions: [act('depart', 'Depart', jump.figure)].filter(Boolean),
           copy: facts.route && !facts.exclusive ? `Take what you want of the freight and passengers waiting for ${destination.name}, below, then Depart. ${jump.copy}` : jump.copy };
-  return { next, steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)), done };
+  return { next, steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)), done, world: facts.world };
 }
 
 // cloud, when given, is { userId(), load(campaignId), save(home, envelope, { expectedRevision }) }
@@ -1523,7 +1539,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           actions: [{ command: 'arrival:dismiss', label: 'Let it pass', primary: true }]
         }
         : procedure.next;
-      return { ...state, ...procedure, next, arrivalEncounter: encounter, scene: { ...state.scene, selectedId: selectedSystemId }, save, notice: lastMessage };
+      return { ...state, ...procedure, next, arrivalEncounter: encounter, scene: { ...state.scene, selectedId: selectedSystemId, world: procedure.world }, save, notice: lastMessage };
     }
   };
 }
