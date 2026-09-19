@@ -1,5 +1,45 @@
 # Graycloak Traveller
 
+## v0.221.0 the referee's directory, with folders
+
+Your old toolbar's tabs, behind the Referee chip rather than as eight
+permanent buttons: **Journal, Actors, Players, Vehicles, Tables, Scenes**. A
+campaign can hold thousands of actors, so nothing here is a flat list.
+
+- **Folders.** NPC actors gain `profile.folder`, a slash-separated path the
+  referee files them under ("Startown/Dock gangs"). Schema 2, with a migration
+  that leaves every existing actor unfiled rather than guessing. The tree is
+  built from the paths that actually exist, each folder showing how many it
+  holds including everything deeper, and a parent holds nothing of its own.
+  **File** on any actor row moves it.
+- **One folder at a time is drawn**, so the cost of showing the directory does
+  not grow with the campaign. Past 200 entries in a folder it says how many
+  more there are rather than rendering them.
+- **Search ignores folders**, because that is what searching is for, and
+  matches name, note and path.
+- **Journal** is the activity log, newest first, filed by the campaign date
+  each entry happened on — the thing I have been telling you to read in the
+  other client. **Players** files characters as Party or Other; **Vehicles**
+  as In service or Other.
+- **Scenes and Tables** say plainly that they are still only in the referee
+  client rather than showing an empty folder as though it were the answer.
+
+Against your exported campaign: Journal shows 214 entries in two date folders
+(166 and 48), Actors shows the four roster actors unfiled, and searching
+"harp" narrows to Harp alone.
+
+Three tests added. Suite: 620 pass, 0 fail.
+
+**Not built:** Scenes and Tables have no content behind them — Scenes is the
+large one and the real reason the referee client cannot retire. Filing uses a
+prompt rather than a proper move dialog, and folders cannot yet be renamed or
+emptied.
+
+**A mistake worth recording:** replacing `refereeView` I cut too wide and
+deleted `buildPlayViewState`, `fightView` and the sheet mapping along with it.
+The tests caught it at once and the previous package restored it. Cutting by
+"from here to the next section comment" is not safe in a file this size.
+
 ## v0.220.0 rename and delete a campaign from the lobby
 
 A campaign could be made but never named or removed, so the lobby filled with

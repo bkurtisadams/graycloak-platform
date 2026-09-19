@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.220.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.220.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.220.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.221.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.221.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.221.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.220.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.221.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -783,18 +783,50 @@ function shipDrawer(s, state) {
   ];
 }
 
-function refereeDrawer(referee, state) {
-  const live = Boolean(state.live);
+// v0.221.0: the referee's directory. Your old toolbar's tabs, behind one chip:
+// a folder tree on the left of the panel, the open folder's entries on the
+// right, and a search that ignores folders because that is what searching is
+// for. Only the open folder is drawn, so a campaign with thousands of actors
+// costs no more to show than one with ten.
+function refereeDrawer(referee, state, handlers) {
+  const go = (patch) => handlers.onReferee?.(patch);
+  const tree = referee.tree ?? [];
+  const entries = referee.shown ?? [];
   return [
-    h('header', { class: 'drawer-head' }, h('h2', { text: 'Referee' }), h('p', { text: 'Drag an actor onto the scene to place it.' })),
-    h('div', { class: 'tabs', role: 'tablist' }, referee.tabs.map((tab, index) => h('button', { type: 'button', role: 'tab', 'aria-selected': index === 0, text: tab }))),
-    h('input', { type: 'search', class: 'search', placeholder: 'Find an actor', 'aria-label': 'Find an actor' }),
-    referee.groups.map((group) => h('section', { class: 'folder' },
-      h('h3', { text: `${group.label} (${group.rows.length})` }),
-      group.rows.length
-        ? h('ul', {}, group.rows.map(([name, note]) => h('li', { draggable: 'true' }, h('span', { text: name }), h('span', { text: note }))))
-        : h('p', { class: 'empty', text: 'Nothing here yet.' }))),
-    live ? null : h('div', { class: 'lead-actions' }, h('button', { type: 'button', class: 'button', text: 'Create an actor' }), h('button', { type: 'button', class: 'button', text: 'Roll an NPC' }))
+    h('header', { class: 'drawer-head' },
+      h('h2', { text: 'Referee' }),
+      h('p', { text: `${referee.total} ${referee.tab.toLowerCase()}${referee.total === 1 ? '' : ''} in this campaign` })),
+    h('div', { class: 'tabs', role: 'tablist' }, (referee.tabs ?? []).map((tab) => h('button', {
+      type: 'button', role: 'tab', 'aria-selected': tab === referee.tab, text: tab,
+      onclick: () => go({ tab, folder: '', query: '' })
+    }))),
+    h('input', {
+      type: 'search', class: 'search', placeholder: `Search ${referee.tab.toLowerCase()}`, value: referee.query ?? '',
+      'aria-label': `Search ${referee.tab.toLowerCase()}`,
+      oninput: (event) => go({ query: event.target.value })
+    }),
+    referee.unbuilt ? h('p', { class: 'empty', text: referee.unbuilt }) : null,
+    h('div', { class: 'directory' },
+      h('nav', { class: 'folders', 'aria-label': 'Folders' }, tree.length
+        ? tree.map((folder) => h('button', {
+          type: 'button',
+          class: `folder-row${folder.path === referee.folder ? ' is-open' : ''}`,
+          style: `padding-left:${8 + folder.depth * 12}px`,
+          'aria-pressed': folder.path === referee.folder,
+          onclick: () => go({ folder: folder.path, query: '' })
+        }, h('span', { class: 'folder-name', text: folder.name }), h('span', { class: 'folder-count', text: String(folder.count) })))
+        : h('p', { class: 'empty', text: 'No folders yet.' })),
+      h('ul', { class: 'entries' }, entries.length
+        ? entries.map((entry) => h('li', { class: 'entry' },
+          h('span', { class: 'entry-name', title: entry.name, text: entry.name }),
+          entry.note ? h('span', { class: 'entry-note', title: entry.note, text: entry.note }) : null,
+          entry.editable && state.live ? h('button', {
+            type: 'button', class: 'button is-small', text: 'File',
+            title: 'Move this actor to another folder',
+            onclick: () => handlers.onFileActor?.(entry.id, entry.folder)
+          }) : null))
+        : [h('li', { class: 'entry' }, h('span', { class: 'empty', text: referee.query ? 'Nothing matches.' : 'This folder is empty.' }))])),
+    referee.truncated ? h('p', { class: 'cite', text: `${referee.truncated} more here; narrow the search to see them.` }) : null
   ];
 }
 
@@ -802,7 +834,7 @@ export function renderDrawer(kind, state, referee, handlers = {}) {
   const tidy = (parts) => parts.flat(Infinity).filter(Boolean);
   if (kind === 'character' && state.character) return tidy(characterDrawer(state.character, state, handlers));
   if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state));
-  if (kind === 'referee') return tidy(refereeDrawer(referee, state));
+  if (kind === 'referee') return tidy(refereeDrawer(referee, state, handlers));
   return [];
 }
 

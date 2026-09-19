@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.220.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.220.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.220.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.220.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.220.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.220.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.220.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.221.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.221.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.221.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.221.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.221.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.221.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.221.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -53,6 +53,8 @@ const ui = {
   fightActorId: null,
   fightAttack: true,
   woundTargets: null,
+  // Which referee tab, folder and search the directory is showing.
+  referee: { tab: 'Journal', folder: '', query: '' },
   // The declaration sheet: what the referee has chosen per combatant this
   // round, and which row's throw is spelled out beneath it.
   sheet: {},
@@ -65,7 +67,7 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // the rest of the page follows.
 function viewState() {
   if (source.mode === 'live') {
-    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker });
+    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker, referee: ui.referee });
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
@@ -209,6 +211,13 @@ function render() {
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
     onSheetFocus: (id) => { ui.sheetFocus = id; ui.selectedMarker = id; render(); },
+    onReferee: (patch) => { ui.referee = { ...ui.referee, ...patch }; render(); },
+    onFileActor: (id, folder) => {
+      if (source.mode !== 'live') return;
+      const wanted = window.prompt('File this actor under (use / for sub-folders)', folder ?? '');
+      if (wanted === null) return;
+      source.session.run('edit:actor:folder', { fight: { id, value: wanted } });
+    },
     onEditCharacter: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:character:${field}`, { fight: { id, value } }); },
     onEditCombatant: (id, value) => { if (source.mode === 'live') source.session.run('edit:combatant:current', { fight: { id, value } }); },
     onStartFight: (opponentIds, range, characterIds) => {

@@ -211,22 +211,116 @@ function placeView(campaign, subsector) {
   return { name: location.worldName ?? location.systemName ?? 'Unknown', detail };
 }
 
-export function refereeView(resolved) {
-  const { campaign, characters = [], npcActors = [] } = resolved;
-  const partyIds = new Set(campaign.party?.characterIds ?? []);
-  const row = (character) => [character.identity.name, characterView(character).service];
-  const live = npcActors.filter((actor) => !actor.archived);
+// v0.221.0: the referee's directory. A campaign can hold thousands of actors,
+// so nothing here is a flat list: entries carry a folder path, the tree is
+// built from those paths, and a query filters before anything is drawn. Only
+// the open folder's entries are returned, so the size of the campaign does not
+// decide the size of the render.
+export const REFEREE_TABS = Object.freeze(['Journal', 'Actors', 'Players', 'Vehicles', 'Tables', 'Scenes']);
+const UNFILED = 'Unfiled';
+
+// Every folder that appears in the entries, with how many each holds
+// (including everything filed deeper). Sorted, so the tree is stable.
+export function folderTree(entries) {
+  const counts = new Map();
+  for (const entry of entries) {
+    const path = entry.folder || UNFILED;
+    const parts = path.split('/');
+    for (let depth = 1; depth <= parts.length; depth += 1) {
+      const key = parts.slice(0, depth).join('/');
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([path, count]) => ({ path, name: path.split('/').at(-1), depth: path.split('/').length - 1, count }))
+    .sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function matches(entry, query) {
+  if (!query) return true;
+  const needle = query.toLowerCase();
+  return [entry.name, entry.note, entry.folder].filter(Boolean).some((field) => String(field).toLowerCase().includes(needle));
+}
+
+// A folder shows what is filed directly in it; a search ignores folders and
+// looks everywhere, because that is what searching is for.
+function inFolder(entries, folder, query) {
+  if (query) return entries.filter((entry) => matches(entry, query));
+  const wanted = folder || UNFILED;
+  return entries.filter((entry) => (entry.folder || UNFILED) === wanted);
+}
+
+function journalEntries(resolved) {
+  const log = (resolved.activityLogs ?? [])[0];
+  // Newest first, and filed by the campaign date they happened on.
+  return [...(log?.entries ?? [])].reverse().map((entry, index) => ({
+    id: `${entry.dateLabel ?? 'undated'}-${index}`,
+    name: entry.message,
+    note: entry.category,
+    folder: entry.dateLabel ? `${entry.dateLabel}` : UNFILED
+  }));
+}
+
+function actorEntries(resolved) {
+  return (resolved.npcActors ?? []).filter((actor) => !actor.archived).map((actor) => ({
+    id: actor.identity.id,
+    name: actor.identity.name,
+    note: [actor.profile?.role, actor.loadout?.weaponKey, actor.profile?.faction].filter(Boolean).join(', '),
+    folder: actor.profile?.folder ?? '',
+    editable: true
+  }));
+}
+
+function characterEntries(resolved) {
+  const party = new Set(resolved.campaign.party?.characterIds ?? []);
+  return (resolved.characters ?? []).map((character) => ({
+    id: character.identity.id,
+    name: character.identity.name || '(unnamed)',
+    note: characterView(character).service,
+    folder: party.has(character.identity.id) ? 'Party' : 'Other characters'
+  }));
+}
+
+function vehicleEntries(resolved) {
+  return (resolved.ships ?? []).map((ship) => ({
+    id: ship.identity.id,
+    name: ship.identity.name || ship.identity.registry || 'Unnamed ship',
+    note: [ship.design?.name, ship.identity.registry].filter(Boolean).join(', '),
+    folder: ship.identity.id === resolved.campaign.activeShipId ? 'In service' : 'Other vehicles'
+  }));
+}
+
+export function refereeView(resolved, { tab = 'Journal', folder = '', query = '' } = {}) {
+  const sets = {
+    Journal: journalEntries,
+    Actors: actorEntries,
+    Players: characterEntries,
+    Vehicles: vehicleEntries,
+    Tables: () => [],
+    Scenes: () => (resolved.scenes ?? []).map((scene) => ({ id: scene.identity.id, name: scene.identity.name ?? 'Scene', note: '', folder: '' }))
+  };
+  const entries = (sets[tab] ?? sets.Journal)(resolved);
+  const tree = folderTree(entries);
+  const open = folder || tree[0]?.path || UNFILED;
+  const shown = inFolder(entries, open, query);
+  const LIMIT = 200;
   return {
-    tabs: ['Actors', 'Scenes', 'Vehicles', 'Players', 'Journal', 'Tables'],
-    groups: [
-      { label: 'Party', rows: characters.filter((character) => partyIds.has(character.identity.id)).map(row) },
-      { label: 'Other characters', rows: characters.filter((character) => !partyIds.has(character.identity.id)).map(row) },
-      { label: 'Actors', rows: live.map((actor) => [actor.identity.name, sentenceCase(actor.role ?? actor.actorType ?? '')]) }
-    ].filter((group, index) => index === 0 || group.rows.length)
+    tabs: [...REFEREE_TABS],
+    tab,
+    query,
+    folder: open,
+    tree,
+    total: entries.length,
+    shown: shown.slice(0, LIMIT),
+    truncated: Math.max(0, shown.length - LIMIT),
+    // Scenes and Tables have nothing behind them on this page yet; say so
+    // rather than showing an empty folder as though it were the answer.
+    unbuilt: tab === 'Scenes' || tab === 'Tables'
+      ? `${tab} are still only in the referee client.`
+      : null
   };
 }
 
-// resolved: what documentRegistry.resolveCampaign() returns.
 export function buildPlayViewState(resolved, { subsector, seat = 'referee', characterId = null } = {}) {
   const { campaign, characters = [], ships = [], contracts = [] } = resolved;
   const party = (campaign.party?.characterIds ?? []).map((id) => characters.find((entry) => entry.identity.id === id)).filter(Boolean);
@@ -267,7 +361,7 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     done: [],
     scene: { kind: 'subsector', currentId: campaign.location?.systemId ?? null, selectedId: null, jump: ship?.jump ?? 0 },
     chat: [],
-    referee: refereeView(resolved),
+
     // v0.218.1: a fight has to be startable from this page. These are the
     // roster actors that can be put on the board against the party.
     // Who could take the field. A character with no name cannot become a
@@ -1247,8 +1341,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     get revision() { return revision; },
     get save() { return save; },
     get lastMessage() { return lastMessage; },
-    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null } = {}) {
+    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {} } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
+      state.referee = refereeView(resolved, referee);
       // A fight in progress is what is happening; nothing else is offered.
       const live = (resolved.encounters ?? []).find((entry) => entry.status === 'active');
       const fight = fightView(live, { characters: resolved.characters ?? [] });

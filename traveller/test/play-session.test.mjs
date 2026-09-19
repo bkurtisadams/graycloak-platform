@@ -821,3 +821,67 @@ test('the referee may set a combatant mid-fight without touching the actor behin
   assert.equal(after.characteristics.END, 1);
   assert.equal(JSON.stringify(registry.resolveCampaign(campaignId).npcActors), actorBefore, 'the roster actor is untouched');
 });
+
+// ---------------------------------------------------------------- v0.221.0
+import { folderTree, refereeView, REFEREE_TABS } from '../src/play-session.js';
+import { createNpcActorDocument, updateNpcActorDocument } from '../src/npc-actor-document.js';
+
+test('folders are built from the paths on the entries, with counts that include what is deeper', () => {
+  const tree = folderTree([
+    { folder: 'Startown/Dock gangs' }, { folder: 'Startown/Dock gangs' },
+    { folder: 'Startown/Port authority' }, { folder: 'Highport' }, { folder: '' }
+  ]);
+  assert.deepEqual(tree.map((entry) => [entry.path, entry.count, entry.depth]), [
+    ['Highport', 1, 0],
+    ['Startown', 3, 0],
+    ['Startown/Dock gangs', 2, 1],
+    ['Startown/Port authority', 1, 1],
+    ['Unfiled', 1, 0]
+  ]);
+});
+
+test('the directory shows one folder at a time, and a search looks everywhere', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.deepEqual(session.view().referee.tabs, [...REFEREE_TABS]);
+  // Journal is filed by the campaign date each entry happened on. A campaign
+  // with no log yet simply has none.
+  session.run('fight:end');
+  assert.ok(session.view({ referee: { tab: 'Journal' } }).referee.total >= 1);
+  assert.ok(session.view({ referee: { tab: 'Journal' } }).referee.tree.some((entry) => /^\d{3}-\d+$/.test(entry.path)));
+  // Tabs with nothing behind them yet say so rather than showing an empty folder.
+  assert.match(session.view({ referee: { tab: 'Scenes' } }).referee.unbuilt, /referee client/);
+
+  // The repository fixture carries no roster actors, so the directory's
+  // folder behaviour is exercised against actors built here.
+  const actors = [
+    createNpcActorDocument({ name: 'Dock thug', folder: 'Startown/Dock gangs', weaponKey: 'club' }),
+    createNpcActorDocument({ name: 'Second thug', folder: 'Startown/Dock gangs', weaponKey: 'club' }),
+    createNpcActorDocument({ name: 'Customs officer', folder: 'Highport', weaponKey: 'automatic-pistol' }),
+    createNpcActorDocument({ name: 'Nobody in particular' })
+  ];
+  const resolved = { ...registry.resolveCampaign(campaignId), npcActors: actors };
+
+  const all = refereeView(resolved, { tab: 'Actors' });
+  assert.equal(all.total, 4);
+  assert.deepEqual(all.tree.map((entry) => [entry.path, entry.count]), [
+    ['Highport', 1], ['Startown', 2], ['Startown/Dock gangs', 2], ['Unfiled', 1]
+  ]);
+
+  const gang = refereeView(resolved, { tab: 'Actors', folder: 'Startown/Dock gangs' });
+  assert.deepEqual(gang.shown.map((entry) => entry.name), ['Dock thug', 'Second thug']);
+  // A parent folder holds nothing itself; its count is what lies deeper.
+  assert.deepEqual(refereeView(resolved, { tab: 'Actors', folder: 'Startown' }).shown, []);
+
+  // A search ignores the open folder.
+  const found = refereeView(resolved, { tab: 'Actors', folder: 'Highport', query: 'thug' });
+  assert.deepEqual(found.shown.map((entry) => entry.name), ['Dock thug', 'Second thug']);
+});
+
+test('filing an actor moves it, and an unfiled actor keeps an empty path', () => {
+  const actor = createNpcActorDocument({ name: 'Dock thug' });
+  assert.equal(actor.profile.folder, '');
+  const filed = updateNpcActorDocument(actor, { folder: ' Startown / Dock gangs ' });
+  assert.equal(filed.profile.folder, 'Startown/Dock gangs');
+  assert.equal(filed.identity.id, actor.identity.id, 'filing does not make a new actor');
+});

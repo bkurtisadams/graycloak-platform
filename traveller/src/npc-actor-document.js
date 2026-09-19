@@ -5,7 +5,21 @@ import {
 } from '../vendor/classic-traveller-rules/index.js';
 
 export const NPC_ACTOR_DOCUMENT_TYPE = 'graycloak-traveller-npc-actor';
-export const CURRENT_NPC_ACTOR_SCHEMA_VERSION = 1;
+// v0.221.0: schema 2 adds `profile.folder`, a slash-separated path the referee
+// files an actor under. A campaign with thousands of actors is a directory,
+// not a list, and nothing in schema 1 could group them. An actor filed nowhere
+// keeps an empty path and shows under "Unfiled".
+export const CURRENT_NPC_ACTOR_SCHEMA_VERSION = 2;
+export const SUPPORTED_NPC_ACTOR_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+
+// A path is trimmed segments joined by "/": "Startown/Dock gangs".
+export function normalizeFolderPath(value) {
+  return String(value ?? '')
+    .split('/')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join('/');
+}
 export const NPC_ACTOR_TYPES = Object.freeze(['npc', 'robot', 'creature']);
 export const NPC_BODY_MODELS = Object.freeze(['biological', 'robotic', 'hybrid']);
 export const NPC_CONDITIONS = Object.freeze({
@@ -50,6 +64,7 @@ export function createNpcActorDocument({
   species = 'Human',
   bodyModel = actorType === 'robot' ? 'robotic' : 'biological',
   role = '',
+  folder = '',
   faction = '',
   homeworld = '',
   age = null,
@@ -79,7 +94,7 @@ export function createNpcActorDocument({
     schemaVersion: CURRENT_NPC_ACTOR_SCHEMA_VERSION,
     identity: { id: id ?? stableDocumentId('actor', seed), name: String(name), aliases: [...aliases] },
     presentation: { description: String(description), portraitAssetId, tokenLabel: String(tokenLabel) },
-    profile: { actorType, species: String(species), bodyModel, role: String(role), faction: String(faction), homeworld: String(homeworld), age },
+    profile: { actorType, species: String(species), bodyModel, role: String(role), folder: normalizeFolderPath(folder), faction: String(faction), homeworld: String(homeworld), age },
     characteristics: scores,
     upp: ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC'].map((key) => hex(scores[key])).join(''),
     current: current ? { STR: current.STR, DEX: current.DEX, END: current.END } : { STR: scores.STR, DEX: scores.DEX, END: scores.END },
@@ -162,7 +177,16 @@ export function assertValidNpcActorDocument(document) {
   return document;
 }
 
-export function importNpcActorDocument(input) { const document = clone(parse(input)); assertValidNpcActorDocument(document); return document; }
+// Schema 1 knew no folders; everything it holds is filed nowhere.
+function migrateNpcActorDocument(document) {
+  if (document?.schemaVersion === 1) {
+    document.profile = { ...document.profile, folder: normalizeFolderPath(document.profile?.folder) };
+    document.schemaVersion = 2;
+  }
+  return document;
+}
+
+export function importNpcActorDocument(input) { const document = migrateNpcActorDocument(clone(parse(input))); assertValidNpcActorDocument(document); return document; }
 export function exportNpcActorDocument(document, { space = 2 } = {}) { return JSON.stringify(importNpcActorDocument(document), null, space); }
 
 export function updateNpcActorDocument(document, patch = {}) {
@@ -178,6 +202,7 @@ export function updateNpcActorDocument(document, patch = {}) {
     species: patch.species ?? current.profile.species,
     bodyModel: patch.bodyModel ?? current.profile.bodyModel,
     role: patch.role ?? current.profile.role,
+    folder: patch.folder === undefined ? current.profile.folder : patch.folder,
     faction: patch.faction ?? current.profile.faction,
     homeworld: patch.homeworld ?? current.profile.homeworld,
     age: patch.age === undefined ? current.profile.age : patch.age,
