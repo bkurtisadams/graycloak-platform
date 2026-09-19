@@ -338,6 +338,12 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .tracker th:nth-child(5) { width: 9%; }
 .tracker th:nth-child(6) { width: 9%; }
 .tr-arms { color: var(--ink-2); font-size: 13px; }
+.declared { display: grid; gap: 4px; }
+.declared h3 { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.declared-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.declared-name { font-weight: 700; }
+.declared-row.is-foe .declared-name { color: var(--red); }
+.declared-what { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lead-actions { align-items: center; }
 .tracker th { text-align: left; font-weight: 400; font-size: 13px; color: var(--ink-2); padding: 0 6px 4px 0; border-bottom: 1px solid var(--ink); white-space: nowrap; cursor: help; }
 .tracker td { overflow: hidden; padding: 6px 6px 6px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }

@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.214.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.214.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.214.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.214.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.214.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.214.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.214.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.215.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.215.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.215.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.215.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.215.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.215.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.215.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -176,10 +176,24 @@ function render() {
   const handlers = {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
     onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
-    onPickTarget: (id) => { ui.fightTargetId = id; render(); },
+    onPickTarget: (id) => {
+      const state = viewState();
+      // In a fight, choosing the target is the order (Book 1 p.28 step 4B):
+      // the movement status is already chosen, so there is nothing left to
+      // confirm. Outside a fight this is still just a selection.
+      if (state.next?.declare) { ui.fightTargetId = id; handlers.onCommand('fight:declare'); return; }
+      ui.fightTargetId = id;
+      render();
+    },
+    onUndeclare: (id) => { if (source.mode === 'live') { source.session.run('fight:undeclare', { fight: { actorId: id } }); ui.selectedMarker = id; render(); } },
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
     onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },
-    onPickMove: (move) => { ui.fightMove = move; render(); },
+    onPickMove: (move) => {
+      ui.fightMove = move;
+      // Evading forbids an attack, so it needs no target and is the whole order.
+      if (move === 'Evade' && viewState().next?.declare) { handlers.onCommand('fight:declare'); return; }
+      render();
+    },
     onPickRunning: (on) => { ui.fightRunning = on; render(); },
     onCommand: (command) => {
       if (source.mode !== 'live' || !command) return;

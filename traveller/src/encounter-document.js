@@ -1077,6 +1077,21 @@ export function declareEncounterAction(document, { action = 'attack', modifier =
 }
 
 // Who is active, allowed to act, and has no orders yet.
+// v0.215.0: take back an order given this round. Declaring is a click on the
+// fight screen now, so a misclick has to be recoverable; the round has not
+// been resolved, so nothing has happened yet and removing the entry restores
+// exactly the state before it was made.
+export function undeclareEncounterAction(document, { actorId } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('encounter is already resolved');
+  if (next.roundState.resolution) throw new Error('a wound is waiting to be allocated before orders can change');
+  const before = next.roundState.declaredActions.length;
+  next.roundState.declaredActions = next.roundState.declaredActions.filter((entry) => entry.actorId !== actorId);
+  if (next.roundState.declaredActions.length === before) throw new Error('that combatant has no orders this round');
+  assertValidEncounterDocument(next);
+  return { encounter: next };
+}
+
 export function undeclaredCombatantIds(document) {
   const surpriseRound = document.round === 1 ? document.surprise.surpriseSideId : null;
   const declared = new Set((document.roundState?.declaredActions ?? []).map((entry) => entry.actorId));

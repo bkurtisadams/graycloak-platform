@@ -34,7 +34,7 @@ import {
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   allocateRoundWound, declareEncounterAction, endEncounterByReferee, pendingWoundAllocation,
-  resolveDeclaredRound, undeclaredCombatantIds
+  resolveDeclaredRound, undeclareEncounterAction, undeclaredCombatantIds
 } from './encounter-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 
@@ -334,9 +334,18 @@ export function fightView(encounter, { characters = [] } = {}) {
     .filter((entry) => entry.round === encounter.round - 1 && entry.text)
     .map((entry) => entry.text);
 
+  const named = new Map(fighters.map((entry) => [entry.id, entry.name]));
+  const declaredList = fighters.filter((entry) => entry.order).map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    side: entry.side,
+    text: `${entry.order.move}${entry.order.targetId ? ` \u2192 ${named.get(entry.order.targetId) ?? 'target'}` : ''}`
+  }));
+
   return {
     encounterId: encounter.identity.id,
     fighters,
+    declaredList,
     round: encounter.round,
     lastRound,
     awaitingIds: [...awaiting],
@@ -718,6 +727,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           persist([result.encounter]);
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
           message = `${actor?.name ?? 'Combatant'} declared ${action.replace('-', ' at a ')}`;
+        } else if (verb === 'undeclare') {
+          const actorId = fight?.actorId;
+          const actor = encounter.combatants.find((entry) => entry.id === actorId);
+          if (!actor) throw new Error('choose whose orders to take back');
+          persist([undeclareEncounterAction(encounter, { actorId }).encounter]);
+          message = `${actor.name}'s orders taken back`;
         } else if (verb === 'auto') {
           const actorId = fight?.actorId;
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
@@ -1010,7 +1025,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         } else if (selected && !selected.down && selected.awaiting) {
           next = {
             title: `Declare for ${selected.name}`,
-            copy: 'A movement status and an attack, as Book 1 p.28 has it. Walking while closing or opening still permits an attack; running and evading do not.',
+            copy: 'Book 1 p.28: a movement status, then an attack and its target. Pick the movement, then click a Hit number to attack that combatant \u2014 that is the order. Evade needs no target and is given at once.',
             cite: 'Book 1 p.28',
             declare: (() => {
               // Default to the nearest enemy so a single-opponent fight needs
@@ -1021,7 +1036,6 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             })(),
             actions: writable
               ? [
-                { command: 'fight:declare', label: 'Declare', primary: true },
                 selected.side !== 'party' ? { command: 'fight:auto', label: 'Let them choose' } : null,
                 { command: 'fight:resolve-auto', label: 'Resolve, rest on auto', note: `${fight.awaitingIds.length} still to declare` }
               ].filter(Boolean)
@@ -1042,6 +1056,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         return {
           ...state,
           fighters: fight.fighters,
+          declaredList: fight.declaredList,
           situation: fight.situation,
           lastRound: fight.lastRound,
           scene: { ...fight.scene, selected: selectedFighterId ?? fight.scene.selected },

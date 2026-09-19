@@ -1,5 +1,46 @@
 # Graycloak Traveller
 
+## v0.215.0 the target click is the order, and a Declared panel
+
+The Declare button was a third step that decided nothing: by the time it was
+pressed, the movement status and the target had both been chosen. Book 1 p.28
+step 4B is "each character indicates his attack and his target", so the target
+IS the order.
+
+- **Clicking a Hit number gives the order.** Movement first, then click the
+  opponent's Hit number in the tracker; that declares. Evading forbids an
+  attack, so it needs no target and is the whole order the moment it is
+  picked. The Declare button is gone.
+- **A "Declared this round" panel** lists every order given, with the
+  combatant, what they will do and their target.
+- **Orders can be taken back.** Committing on a click needs to be forgiving,
+  and the engine had no way to undo a declaration, so
+  `undeclareEncounterAction()` is new in `src/encounter-document.js`. Nothing
+  has been resolved when it runs, so removing the entry restores exactly the
+  state before the order. Each row in the panel has a take-back button.
+- Selection still advances to whoever has no orders yet, so a round is a
+  movement click and a target click per combatant, then Resolve.
+
+**Opening range**: yes, the engine handles it. `open` and `open-run` move away
+from the named enemy, and a combatant more than fifteen bands from the nearest
+enemy has left the field.
+
+**The Hit dash.** It is correct, and the screenshot shows why rather than a
+bug. The Hit column is read from the *selected* combatant, and in that
+screenshot the selected combatant is the Thug, whose club is a melee weapon.
+The Thug is four bands from Alina Voss, which is medium range, and a club
+cannot reach at medium — so there is no number to show, and the attack line
+above says "cannot reach" for the same reason. With Hawkeye selected and a
+rifle in hand the same column reads 3+, as it does in this version's
+screenshot. Nothing is broken; the dash is simply terser than it should be,
+and its tooltip is the only thing that explains it. Worth making plainer, and
+I have not done that yet.
+
+Suite: 612 pass, 0 fail.
+
+**Still to come, as you asked:** the referee's editing surface — changing a
+combatant's characteristics, weapon, armour, status or equipment by hand.
+
 ## v0.214.0 a combat round in three clicks, and what the opposition is carrying
 
 The flow was sixteen-odd clicks a round: select a combatant, pick a movement
