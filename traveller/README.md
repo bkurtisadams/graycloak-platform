@@ -1,5 +1,45 @@
 # Graycloak Traveller
 
+## v0.224.0 the last three rules-package failures: all three were bad tests
+
+The rules package has carried three failures since before this work. Read
+against the 1977 text, the code was right in every case and the tests were
+asserting the 1981 facsimile or a misreading. The package is now green:
+343 pass, 0 fail.
+
+**Reaction DM (Book 3 p.27).** The test expected a key named
+`planetaryPopulation9Plus`. The book prints "If planetary population is 11 or
+greater, DM -1", which is what the package encodes. The test now names the
+printed threshold.
+
+**Wound recovery (Book 1 p.31).** The test was called "minor wounds receive
+the facsimile halfway reset when combat ends" and expected a conscious,
+wounded character to be restored at the end of a fight. 1977 gives no such
+rule: the halfway recovery belongs to an UNCONSCIOUS character after ten
+minutes, and otherwise "return to full strength requires medical attention, or
+three days of rest". Replaced with two tests — one that a conscious wounded
+character keeps their wounds (the blow allowance does come back), and one for
+the halfway rule, checked against the book's own worked example of strength 8
+wounded to 4 becoming 6.
+
+**Defensive expertise (Book 1 p.32).** The test was titled "a long gun parries
+as a cudgel, a pistol not at all (B1 p.36)". Two things were wrong with it.
+The rule is on p.32, not p.36, and the word "parry" appears nowhere in Book 1
+— 1977 calls it defending with expertise. And the text says only that a
+gun-armed character "does not receive a protective DM for his gun expertise;
+but may receive such a protective DM if he actually uses the gun as a brawling
+weapon (as a club, for example)". It does not distinguish a pistol from a long
+gun.
+
+**One thing for you to rule on.** The package lets any gun defend at -2 if its
+holder has club expertise, pistols included. The old test claimed a pistol
+could not, which the 1977 text does not say. I have left the package's
+behaviour alone and written the question into the test rather than quietly
+picking a side. If you want a pistol excluded, say so and it is a small change.
+
+Rules package 0.62.3, synced to traveller/vendor. Traveller suite: 621 pass,
+0 fail.
+
 ## v0.223.0 every cell of Book 1 pp.43-44, checked against the printed tables
 
 The fight screen is arithmetic on two tables, so a single wrong cell would be

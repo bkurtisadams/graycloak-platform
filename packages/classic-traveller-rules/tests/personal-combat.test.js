@@ -140,11 +140,30 @@ test('Book 1 p.32 walking and running have distinct movement and attack conseque
   assert.equal(personalMovementConsequences({ status: 'evade' }).mayAttack, false);
 });
 
-test('minor wounds receive the facsimile halfway reset when combat ends', () => {
+test('Book 1 p.31: a conscious wounded character is not restored when combat ends', () => {
+  // The halfway recovery belongs to UNCONSCIOUS characters after ten minutes.
+  // 1977 gives a character who merely took wounds nothing at the end of a
+  // fight: "Return to full strength requires medical attention, or three days
+  // of rest." The blow allowance does come back.
   const character = hawkeye();
   character.current.STR = 6;
+  character.blowsUsed = 3;
   const recovered = endPersonalCombatRecovery(character);
-  assert.equal(recovered.current.STR, 9);
+  assert.equal(recovered.current.STR, 6);
+  assert.equal(recovered.blowsUsed, 0);
+});
+
+test('Book 1 p.31: one characteristic at zero wakes halfway, fractions against the character', () => {
+  const character = hawkeye();
+  character.current.STR = 4;
+  character.current.END = 0;
+  character.status = 'unconscious';
+  const recovered = endPersonalCombatRecovery(character);
+  // The book's own example: strength 8 wounded to 4 becomes 6.
+  assert.equal(recovered.current.STR, Math.floor((4 + character.characteristics.STR) / 2));
+  // "all characteristics temporarily placed at a value half way between full
+  // strength and the wounded level" — the zeroed one recovers too.
+  assert.equal(recovered.current.END, Math.floor(character.characteristics.END / 2));
 });
 
 test('an untrained defender grants the printed +3 attack DM', () => {
@@ -323,19 +342,27 @@ test('the blow and swing allowance follows Book 1 p.36', () => {
   assert.equal(endPersonalCombatRecovery(attacker).blowsUsed, 0);
 });
 
-test('a long gun parries as a cudgel, a pistol not at all (B1 p.36)', () => {
+test('gun expertise never defends; club expertise does, with a gun in hand (B1 p.32)', () => {
   const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 9, DEX: 7, END: 7, INT: 7 }, skills: { Blade: 1 }, armor: 'none', weaponKey: 'blade' });
   const make = (weaponKey, skills) => createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills, armor: 'none', weaponKey });
 
   // A blade defender parries with blade expertise.
   assert.equal(previewPersonalAttack({ attacker, defender: make('sword', { Sword: 2 }), range: 'short' }).parryDM, -2);
 
-  // A rifleman parries as a cudgel: club expertise counts, rifle skill does not.
+  // Book 1 p.32: "a gun armed character does not receive a protective DM for
+  // his gun expertise; but may receive such a protective DM if he actually
+  // uses the gun as a brawling weapon (as a club, for example)." Gun expertise
+  // never defends; club expertise does, for a gun that can serve as a club.
   assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Rifle: 3 }), range: 'short' }).parryDM, 0);
   assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Club: 2 }), range: 'short' }).parryDM, -2);
 
-  // A pistol cannot parry.
-  assert.equal(previewPersonalAttack({ attacker, defender: make('automatic-pistol', { Club: 2 }), range: 'short' }).parryDM, 0);
+  // OPEN QUESTION for the referee. 1977 says only that a gun-armed character
+  // "may receive such a protective DM if he actually uses the gun as a
+  // brawling weapon (as a club, for example)" — it does not distinguish a
+  // pistol from a long gun. The package currently allows either, so a pistol
+  // with club expertise defends at -2. The older test name claimed a pistol
+  // could not, which is a reading the 1977 text does not state.
+  assert.equal(previewPersonalAttack({ attacker, defender: make('automatic-pistol', { Club: 2 }), range: 'short' }).parryDM, -2);
 
   // Shots are never parried.
   const shooter = createPersonalCombatant({ id: 's', name: 's', side: 'party', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { Rifle: 1 }, armor: 'none', weaponKey: 'rifle' });
