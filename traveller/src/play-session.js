@@ -1501,20 +1501,38 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         //
         // rollReaction() returns no category field, only a numeric total
         // (2-12) and its REACTION_TABLE description — 9+ (Intrigued and up)
-        // is the friendly half of that table, so that's the threshold here.
+        // is the friendly half of that table, 2-5 (Violent/Hostile) the
+        // other end, matching arrival:inspect's own thresholds. Free
+        // Trader/Subsidized Merchant is not hostile by default (only the
+        // pirate is, per p.36), but this particular crew's own reaction to
+        // being hailed can still land there — and buildEncounteredShip arms
+        // every encountered ship's first two turrets regardless of type, so
+        // "it opens fire" is a real, not just narrated, possibility here.
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
         if (!['free-trader', 'subsidized-merchant'].includes(pendingArrivalEncounter.key)) throw new Error('this ship has nothing to hail for');
+        if (pendingShipFight) throw new Error('a ship fight is already under way');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|hail`;
         const hailReaction = rollReaction(seededDice(seed));
-        if (hailReaction.tableTotal >= 9) {
+        if (hailReaction.tableTotal <= 5) {
+          const playerShip = facts.ship;
+          pendingShipFight = beginArrivalShipFight({
+            opponentIsIntruder: true, playerShip,
+            intruderNote: `${encounterLabel} takes the hail as a threat and opens fire.`
+          });
+          message = `${encounterLabel} takes the hail badly and opens fire \u2014 ${hailReaction.description}`;
+          pendingArrivalEncounter = null;
+          log('SHIP', message);
+        } else if (hailReaction.tableTotal >= 9) {
           pendingBrokerTip = { systemId: pendingArrivalEncounter.systemId, dm: 1 };
           message = `${encounterLabel} shares word of a buyer here \u2014 ${hailReaction.description} (a broker's tip on your next resale quote at ${facts.system?.name ?? 'this system'}).`;
+          pendingArrivalEncounter = null;
+          log('NAV', message);
         } else {
           message = `${encounterLabel} trades pleasantries but nothing useful \u2014 ${hailReaction.description}`;
+          pendingArrivalEncounter = null;
+          log('NAV', message);
         }
-        pendingArrivalEncounter = null;
-        log('NAV', message);
         lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
