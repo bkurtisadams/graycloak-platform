@@ -271,6 +271,43 @@ function actorEntries(resolved) {
   }));
 }
 
+// v0.222.0: the Players tab is the only one whose subject lives in the cloud
+// rather than in the campaign documents, so the page hands in what it has
+// fetched (seats, invites, join requests) and this arranges it.
+function seatEntries(resolved, players) {
+  const characters = resolved.characters ?? [];
+  const nameOf = (id) => characters.find((entry) => entry.identity.id === id)?.identity.name || null;
+  const entries = [];
+  for (const join of players.joins ?? []) {
+    entries.push({
+      id: `join:${join.uid}`,
+      name: nameOf(join.characterId) || join.name || join.uid,
+      note: `asking to sit down${join.code ? ` with invite ${join.code}` : ''}`,
+      folder: 'Asking to join',
+      seat: { kind: 'join', uid: join.uid, characterId: join.characterId ?? null }
+    });
+  }
+  for (const seated of players.seats ?? []) {
+    entries.push({
+      id: `seat:${seated.uid}`,
+      name: seated.name || seated.uid,
+      note: seated.seatedAt ? `seated ${new Date(seated.seatedAt).toLocaleDateString()}` : 'seated',
+      folder: 'Seated',
+      seat: { kind: 'seat', uid: seated.uid }
+    });
+  }
+  for (const invite of players.invites ?? []) {
+    entries.push({
+      id: `invite:${invite.code}`,
+      name: invite.code,
+      note: 'an open invite; anyone with this code may ask to sit down',
+      folder: 'Open invites',
+      seat: { kind: 'invite', code: invite.code }
+    });
+  }
+  return entries;
+}
+
 function characterEntries(resolved) {
   const party = new Set(resolved.campaign.party?.characterIds ?? []);
   return (resolved.characters ?? []).map((character) => ({
@@ -290,11 +327,11 @@ function vehicleEntries(resolved) {
   }));
 }
 
-export function refereeView(resolved, { tab = 'Journal', folder = '', query = '' } = {}) {
+export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null } = {}) {
   const sets = {
     Journal: journalEntries,
     Actors: actorEntries,
-    Players: characterEntries,
+    Players: (input) => (players ? seatEntries(input, players) : characterEntries(input)),
     Vehicles: vehicleEntries,
     Tables: () => [],
     Scenes: () => (resolved.scenes ?? []).map((scene) => ({ id: scene.identity.id, name: scene.identity.name ?? 'Scene', note: '', folder: '' }))
@@ -317,7 +354,9 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     // rather than showing an empty folder as though it were the answer.
     unbuilt: tab === 'Scenes' || tab === 'Tables'
       ? `${tab} are still only in the referee client.`
-      : null
+      : tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
+    // The Players tab acts on the cloud, not on campaign documents.
+    seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null
   };
 }
 

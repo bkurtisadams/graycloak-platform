@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.221.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.221.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.221.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.223.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.223.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.223.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.221.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.223.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -806,6 +806,10 @@ function refereeDrawer(referee, state, handlers) {
       oninput: (event) => go({ query: event.target.value })
     }),
     referee.unbuilt ? h('p', { class: 'empty', text: referee.unbuilt }) : null,
+    referee.seats?.error ? h('p', { class: 'notice is-error', text: referee.seats.error }) : null,
+    referee.seats?.loading ? h('p', { class: 'empty', text: 'Reading seats\u2026' }) : null,
+    referee.tab === 'Players' && state.live && referee.seats ? h('div', { class: 'lead-actions' },
+      h('button', { type: 'button', class: 'button is-small', text: 'Open an invite', title: 'Mint a code a player can redeem to ask for a seat', onclick: () => handlers.onSeat?.('invite', {}) })) : null,
     h('div', { class: 'directory' },
       h('nav', { class: 'folders', 'aria-label': 'Folders' }, tree.length
         ? tree.map((folder) => h('button', {
@@ -824,7 +828,16 @@ function refereeDrawer(referee, state, handlers) {
             type: 'button', class: 'button is-small', text: 'File',
             title: 'Move this actor to another folder',
             onclick: () => handlers.onFileActor?.(entry.id, entry.folder)
-          }) : null))
+          }) : null,
+          // A seat, an invite or a request to join: what can be done to it.
+          entry.seat && state.live ? h('span', { class: 'seat-actions' },
+            entry.seat.kind === 'join' ? [
+              h('button', { type: 'button', class: 'button is-small', text: 'Admit', onclick: () => handlers.onSeat?.('admit', { ...entry.seat, name: entry.name }) }),
+              h('button', { type: 'button', class: 'button is-small', text: 'Decline', onclick: () => handlers.onSeat?.('decline', entry.seat) })
+            ] : null,
+            entry.seat.kind === 'seat' ? h('button', { type: 'button', class: 'button is-small', text: 'Take back', onclick: () => handlers.onSeat?.('unseat', entry.seat) }) : null,
+            entry.seat.kind === 'invite' ? h('button', { type: 'button', class: 'button is-small', text: 'Revoke', onclick: () => handlers.onSeat?.('revoke', entry.seat) }) : null
+          ) : null))
         : [h('li', { class: 'entry' }, h('span', { class: 'empty', text: referee.query ? 'Nothing matches.' : 'This folder is empty.' }))])),
     referee.truncated ? h('p', { class: 'cite', text: `${referee.truncated} more here; narrow the search to see them.` }) : null
   ];

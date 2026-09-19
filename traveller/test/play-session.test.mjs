@@ -885,3 +885,29 @@ test('filing an actor moves it, and an unfiled actor keeps an empty path', () =>
   assert.equal(filed.profile.folder, 'Startown/Dock gangs');
   assert.equal(filed.identity.id, actor.identity.id, 'filing does not make a new actor');
 });
+
+// ---------------------------------------------------------------- v0.222.0
+test('the Players tab files seats, open invites and requests to join', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const resolved = registry.resolveCampaign(campaignId);
+  const players = {
+    seats: [{ uid: 'player-1', name: 'Rae', seatedAt: Date.UTC(4800, 0, 1) }],
+    invites: [{ code: 'HJ42QP' }],
+    joins: [{ uid: 'player-2', name: 'Tam', code: 'HJ42QP', characterId: resolved.characters[0].identity.id }]
+  };
+  const view = refereeView(resolved, { tab: 'Players', players });
+  assert.deepEqual(view.tree.map((entry) => [entry.path, entry.count]), [
+    ['Asking to join', 1], ['Open invites', 1], ['Seated', 1]
+  ]);
+
+  // A request shows the character it is asking to sit down with, not its uid.
+  const asking = refereeView(resolved, { tab: 'Players', folder: 'Asking to join', players }).shown[0];
+  assert.equal(asking.name, resolved.characters[0].identity.name);
+  assert.deepEqual(asking.seat, { kind: 'join', uid: 'player-2', characterId: resolved.characters[0].identity.id });
+
+  assert.equal(refereeView(resolved, { tab: 'Players', folder: 'Seated', players }).shown[0].seat.kind, 'seat');
+  assert.equal(refereeView(resolved, { tab: 'Players', folder: 'Open invites', players }).shown[0].seat.code, 'HJ42QP');
+
+  // Signed out there is nothing to show, and it says so rather than looking empty.
+  assert.match(refereeView(resolved, { tab: 'Players' }).unbuilt, /Sign in/);
+});

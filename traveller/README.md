@@ -1,5 +1,72 @@
 # Graycloak Traveller
 
+## v0.223.0 every cell of Book 1 pp.43-44, checked against the printed tables
+
+The fight screen is arithmetic on two tables, so a single wrong cell would be
+a wrong throw in every fight with that weapon — and the package's own audit
+note says its tables were ported from the 1981 facsimile, which is one place
+the printings could differ.
+
+I transcribed both pages out of `docs/rules-1977` and compared every cell:
+
+- **p.43 RANGE MATRIX** — 29 weapons x 5 ranges, plus the wound inflicted.
+- **p.44 WEAPONS TABLE** — 23 weapons x required level, required DM,
+  advantageous level, advantageous DM, and the weakened blow DM.
+
+**Everything matches.** No corrections were needed.
+
+One apparent discrepancy turned out to be a reading, not an error: every
+`lowMax` sits one below the printed "Required Level". The book says the
+penalty applies to a character who does NOT have at least that level, so the
+highest score still penalised is one lower — which is what the package stores,
+and what its own comment says it stores. My first transcription mapped the
+printed level straight onto `lowMax` and produced 23 false differences.
+
+The comparison is now a test rather than something I ran once:
+`tests/book1-pp43-44-matrices.test.js` in the rules package (0.62.2). It also
+pins that the package encodes exactly the weapons the two pages print —
+nothing extra, nothing missing — and that the animal rows correctly have no
+required or advantageous characteristic.
+
+Not on these pages and still absent: ammunition, cost and availability, which
+belong to Book 3 equipment rather than to combat. Weapon weights come from the
+descriptions on pp.33-38 and were added in v0.209.0.
+
+## v0.222.0 Players: seats, invites and requests to join
+
+The Players tab now does what the referee client's players panel does, through
+the same calls in `client/publish.js` — nothing new was written to talk to
+Firestore. Three folders:
+
+- **Asking to join** — a player who redeemed an invite. The row names the
+  character they want to sit down with rather than their account id, and
+  carries **Admit** and **Decline**. Admitting seats them and clears the
+  request.
+- **Seated** — who is at the campaign, with **Take back**, which removes the
+  seat and their published sheet and log with it (that is `unseatPlayer`'s own
+  behaviour, and it is right: an unseated account should not keep reading a
+  sheet the referee has withdrawn).
+- **Open invites** — codes that can still be redeemed, with **Revoke**. **Open
+  an invite** mints one and shows it for copying; it stays open until revoked.
+
+Requests arrive while the referee is looking elsewhere, so they are watched
+rather than polled and appear as they land.
+
+This is the one tab whose subject is not in the campaign documents: seats and
+invites are cloud records, so the page fetches them when the tab is opened and
+re-reads after every change. Signed out it says so rather than showing an
+empty folder, and the invite button is hidden.
+
+One test added. Suite: 621 pass, 0 fail.
+
+**Verified signed out only** — the tab reports that it needs a sign-in, and the
+other tabs are unaffected (Vehicles files the Marisol under "In service").
+The seat and invite calls themselves need Firebase, which this sandbox cannot
+reach, so they are verified against your rules and the referee client's own
+use of them rather than by running them. Your rules already allow all of it:
+`players/{uid}` is the referee's to create and delete, and `invites/{code}` is
+the owner's.
+
 ## v0.221.0 the referee's directory, with folders
 
 Your old toolbar's tabs, behind the Referee chip rather than as eight

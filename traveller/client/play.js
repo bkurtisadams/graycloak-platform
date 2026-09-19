@@ -2,13 +2,14 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.221.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.221.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.221.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.221.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.221.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.221.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.221.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.223.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.223.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.223.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.223.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.223.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.223.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.223.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.223.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -55,6 +56,9 @@ const ui = {
   woundTargets: null,
   // Which referee tab, folder and search the directory is showing.
   referee: { tab: 'Journal', folder: '', query: '' },
+  // Seats, invites and join requests live in the cloud, so they are fetched
+  // when the Players tab is opened rather than carried in the campaign.
+  players: null,
   // The declaration sheet: what the referee has chosen per combatant this
   // round, and which row's throw is spelled out beneath it.
   sheet: {},
@@ -67,7 +71,7 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // the rest of the page follows.
 function viewState() {
   if (source.mode === 'live') {
-    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker, referee: ui.referee });
+    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker, referee: { ...ui.referee, players: ui.referee.tab === 'Players' ? ui.players : null } });
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
@@ -211,7 +215,12 @@ function render() {
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
     onSheetFocus: (id) => { ui.sheetFocus = id; ui.selectedMarker = id; render(); },
-    onReferee: (patch) => { ui.referee = { ...ui.referee, ...patch }; render(); },
+    onReferee: (patch) => {
+      ui.referee = { ...ui.referee, ...patch };
+      if (ui.referee.tab === 'Players') refreshPlayers();
+      render();
+    },
+    onSeat: (action, seat) => runSeat(action, seat),
     onFileActor: (id, folder) => {
       if (source.mode !== 'live') return;
       const wanted = window.prompt('File this actor under (use / for sub-folders)', folder ?? '');
@@ -325,6 +334,52 @@ window.addEventListener('storage', (event) => {
   render();
 });
 
+// v0.222.0: the Players tab. Seats, invites and join requests are cloud
+// documents, so they are fetched on demand and re-read after every change.
+async function refreshPlayers() {
+  if (source.mode !== 'live' || !cloud.userId()) { ui.players = null; render(); return; }
+  const campaignId = source.session.resolved.campaign.identity.id;
+  ui.players = { ...(ui.players ?? {}), loading: true, error: null };
+  render();
+  try {
+    const [seats, invites] = await Promise.all([cloud.listSeats(campaignId), cloud.listInvites(campaignId)]);
+    ui.players = { seats, invites, joins: ui.players?.joins ?? [], loading: false, error: null };
+  } catch (error) {
+    ui.players = { seats: [], invites: [], joins: [], loading: false, error: cloud.describeError(error) };
+  }
+  render();
+}
+
+async function runSeat(action, seat) {
+  if (source.mode !== 'live') return;
+  const campaignId = source.session.resolved.campaign.identity.id;
+  try {
+    if (action === 'invite') {
+      const invite = createTravellerInvite({
+        code: generateInviteCode(), ownerUid: cloud.userId(),
+        campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null
+      });
+      await cloud.createInvite(invite);
+      window.prompt('Give this code to the player. It stays open until revoked.', invite.code);
+    } else if (action === 'revoke') {
+      if (!window.confirm(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`)) return;
+      await cloud.revokeInvite(seat.code);
+    } else if (action === 'admit') {
+      await cloud.seat(campaignId, seat.uid, seat.name ?? null);
+      await cloud.dismissJoin(campaignId, seat.uid);
+    } else if (action === 'decline') {
+      await cloud.dismissJoin(campaignId, seat.uid);
+    } else if (action === 'unseat') {
+      if (!window.confirm('Take back this seat? Their character sheet and log go with it.')) return;
+      await cloud.unseat(campaignId, seat.uid);
+    }
+    await refreshPlayers();
+  } catch (error) {
+    ui.players = { ...(ui.players ?? { seats: [], invites: [], joins: [] }), loading: false, error: cloud.describeError(error) };
+    render();
+  }
+}
+
 // Sign-in: Google or email, in the page's own dialog. The mode lives on the
 // dialog's data attribute, so what the button says is always what it does.
 function openSignIn() {
@@ -417,6 +472,16 @@ async function start() {
   await cloud.start();
   // A campaign named in the address but absent here is fetched once signed in.
   if (source.mode === 'empty' && source.wantedId && cloud.userId()) await openFromCloud(source.wantedId);
+  // Requests to join arrive while the referee is looking elsewhere, so they
+  // are watched rather than polled; the Players tab shows them as they land.
+  if (source.mode === 'live' && cloud.userId()) {
+    try {
+      cloud.watchJoins(source.session.resolved.campaign.identity.id, (joins) => {
+        ui.players = { seats: [], invites: [], ...(ui.players ?? {}), joins };
+        if (ui.drawer === 'referee' && ui.referee.tab === 'Players') render();
+      });
+    } catch (error) { console.warn('[traveller] join requests:', error); }
+  }
   let seen;
   cloud.onAuthChange((user) => {
     const uid = user?.uid ?? null;

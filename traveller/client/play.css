@@ -570,3 +570,4 @@ a.button { text-decoration: none; color: inherit; }
 .editor-score small { color: var(--ink-2); }
 .editor-label { font-size: 13px; color: var(--ink-2); }
 .sheet-why .editor-row { padding-top: 4px; border-top: 1px solid var(--line); }
+.seat-actions { display: flex; gap: 4px; }
