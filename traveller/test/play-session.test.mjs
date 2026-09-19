@@ -120,8 +120,7 @@ test('the port procedure leads with what is owed and lists the rest', async () =
   const procedure = portProcedure(registry.resolveCampaign(campaignId), { subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.equal(procedure.next.title, 'Pay berthing');
   assert.deepEqual(procedure.next.actions.map((action) => action.command), ['berthing:pay']);
-  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['speculate', 'ready'], ['jump', 'blocked']]);
-  assert.match(procedure.steps[0].figure, /^30 t refined, Cr 15,000$/);
+  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['jump', 'blocked']]);  assert.match(procedure.steps[0].figure, /^30 t refined, Cr 15,000$/);
 });
 
 test('paying berthing and filling the tanks change the ship, the ledger and the log', async () => {

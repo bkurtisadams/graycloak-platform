@@ -11,7 +11,7 @@
 // from file:// — the client carries on signed out and entirely local, which is
 // how it has worked up to now and must keep working.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.232.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.230.0';
 
 const SDK_VERSION = '10.12.2';
 const SDK_SCRIPTS = Object.freeze([
@@ -48,6 +48,15 @@ export function authStatus() {
   return { user: currentUser, status, error: lastError };
 }
 
+// v0.240.0: "sign-in is unavailable; the client is running local-only" said
+// nothing about *why* — the actual reason (the SDK script failed to load,
+// blocked by a network or a content policy; a bad Firebase config; offline)
+// was captured in lastError and then never shown to anyone. Every place that
+// refuses to act because auth never came up now says the real reason too.
+function localOnlyError() {
+  return new Error(`sign-in is unavailable; the client is running local-only${lastError ? ` \u2014 ${lastError}` : ''}`);
+}
+
 export function currentUserId() {
   return currentUser?.uid ?? null;
 }
@@ -58,7 +67,14 @@ export function onAuthChange(listener) {
 }
 
 export async function initAuth() {
-  if (status !== 'idle') return authStatus();
+  // v0.240.0: was `status !== 'idle'`, which made this a one-shot: a single
+  // transient failure at page load (a network blip while the SDK scripts
+  // were fetching, say) left status at 'unavailable' forever, and every
+  // sign-in action failed for the rest of the page's life even once
+  // whatever caused it had passed — the person had no way to know a reload
+  // was the fix. 'unavailable' now retries; only an attempt already under
+  // way, or one that already succeeded, is skipped.
+  if (status === 'loading' || status === 'ready') return authStatus();
   status = 'loading';
   notify();
   try {
@@ -89,8 +105,18 @@ export async function initAuth() {
   return authStatus();
 }
 
+// A sign-in action calls this instead of checking `auth` itself, so a
+// status of 'unavailable' gets one fresh attempt right when someone is
+// actually trying to sign in, rather than failing on the strength of
+// whatever happened once, unattended, back at page load.
+async function ensureAuth() {
+  if (!auth) await initAuth();
+  if (!auth) throw localOnlyError();
+  return auth;
+}
+
 export async function signIn() {
-  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  await ensureAuth();
   const provider = new globalThis.firebase.auth.GoogleAuthProvider();
   const credential = await auth.signInWithPopup(provider);
   return credential.user;
@@ -99,13 +125,13 @@ export async function signIn() {
 // Email and password, for players without a Google account — and for making
 // test accounts, which Google will not let you invent.
 export async function signInWithEmail(email, password) {
-  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  await ensureAuth();
   const credential = await auth.signInWithEmailAndPassword(email, password);
   return credential.user;
 }
 
 export async function createAccountWithEmail(email, password, { displayName = null } = {}) {
-  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  await ensureAuth();
   const credential = await auth.createUserWithEmailAndPassword(email, password);
   if (displayName) {
     try { await credential.user.updateProfile({ displayName }); } catch (error) { console.warn(error); }
@@ -144,7 +170,7 @@ const AUTH_ERROR_TEXT = Object.freeze({
 // existing account, which then accepts either sign-in. Firebase answers the
 // same whether or not the address has an account, so this never reveals one.
 export async function sendPasswordReset(email) {
-  if (!auth) throw new Error('sign-in is unavailable; the client is running local-only');
+  await ensureAuth();
   await auth.sendPasswordResetEmail(email);
 }
 
