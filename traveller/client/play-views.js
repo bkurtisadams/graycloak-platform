@@ -7,15 +7,15 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.229.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.229.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.229.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.230.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.230.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.230.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.229.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.230.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -491,6 +491,19 @@ function startFight(state, handlers, { open = false } = {}) {
 
 export function renderNow(state, handlers = {}) {
   if (state.fighters?.length) return fightColumn(state, handlers).filter(Boolean);
+  // v0.230.0: a ship fight takes the centre scene (shipFightScene in
+  // renderScene) with the roster, phase and actions already on it — this
+  // column just needs to stop showing the port procedure underneath it,
+  // the same way fightColumn's early return does for a personal fight.
+  if (state.shipFight) {
+    const fight = state.shipFight;
+    return [
+      h('header', { class: 'now-head' },
+        h('h1', { text: 'Ship fight' }),
+        h('p', { text: `${fight.opponentLabel} \u2014 ${fight.outcome === 'in-progress' ? `turn ${fight.gameTurn}, ${fight.phase}` : 'over'}` })),
+      state.notice ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null
+    ].filter(Boolean);
+  }
   const parts = [
     h('header', { class: 'now-head' },
       h('h1', { text: state.situation.title }),
@@ -732,10 +745,31 @@ function plotScene(state) {
 }
 
 export function renderScene(state, handlers) {
+  if (state.shipFight) return shipFightScene(state.shipFight, handlers);
   const scene = state.scene;
   if (scene.kind === 'bands') return bandsScene(state, handlers);
   if (scene.kind === 'plot') return plotScene(state);
   return subsectorScene(scene, handlers, Boolean(state.live));
+}
+
+// v0.230.0: a lasers-only, abbreviated (Book 2 p.37) ship fight. No vector
+// plot yet — that is a later slice — so this is a roster and a phase, the
+// same shape a referee reads off the driver script's own console output.
+function shipFightScene(fight, handlers) {
+  return [
+    h('header', { class: 'lead' },
+      h('h2', { text: fight.outcome === 'in-progress' ? `Ship fight \u2014 turn ${fight.gameTurn}, ${fight.phase}` : 'Ship fight \u2014 over' }),
+      h('p', { text: fight.outcome === 'in-progress'
+        ? 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.'
+        : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` })),
+    h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
+      h('span', { class: 'entry-name', text: ship.name }),
+      h('span', { class: 'entry-note', text: `${ship.armedTurrets} armed turret${ship.armedTurrets === 1 ? '' : 's'}${ship.adrift ? ', adrift' : ''}${ship.decompressed ? ', hull breached' : ''}${ship.escaped ? ', escaped' : ''}${ship.surrendered ? ', surrendered' : ''}` }),
+      ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null))),
+    fight.log.length ? h('ul', { class: 'entries' }, fight.log.slice(-6).map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line })))) : null,
+    h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
+      h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
+  ];
 }
 
 // ----------------------------------------------------------------- drawers

@@ -25,8 +25,14 @@ import {
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
   createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
-  updateCharacterGameplayState
+  updateCharacterGameplayState,
+  createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
+  PRESSURE_SECTIONS
 } from '../vendor/classic-traveller-rules/index.js';
+import {
+  opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
+  autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe
+} from './ship-arrival-combat.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
 import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
@@ -678,6 +684,18 @@ export function fightView(encounter, { characters = [] } = {}) {
 
 const cr = (amount) => `Cr ${Number(amount).toLocaleString('en-US')}`;
 
+// v0.230.0: a shot log entry from resolveLaserFire, in one sentence — enough
+// to narrate a laser exchange without repeating the whole shot object.
+function narrateShots(shots, encounter) {
+  const nameOf = (id) => encounter.participants.find((entry) => entry.id === id)?.name ?? id;
+  return shots.map((shot) => {
+    if (!shot.fired) return `${nameOf(shot.shipId)} holds fire on ${nameOf(shot.targetId)} \u2014 ${shot.reason}.`;
+    return shot.hit
+      ? `${nameOf(shot.shipId)} hits ${nameOf(shot.targetId)} (${shot.location}).`
+      : `${nameOf(shot.shipId)} fires on ${nameOf(shot.targetId)} and misses.`;
+  });
+}
+
 function portFacts(resolved, subsector, selectedSystemId) {
   const { campaign, ships = [], encounters = [] } = resolved;
   const ship = ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? ships[0] ?? null;
@@ -919,6 +937,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // document: a reload forgets it, which is the same as the referee letting
   // the ship pass.
   let pendingArrivalEncounter = null;
+  // v0.230.0: an arrival encounter the referee chose to fight rather than
+  // dismiss. Lasers only, abbreviated (p.37) — see ship-arrival-combat.js.
+  // Not persisted, same as pendingArrivalEncounter: a reload forgets an
+  // in-progress fight, which is a known limit of this first cut.
+  let pendingShipFight = null;
   const liveEncounter = () => (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
 
   const reload = () => { resolved = registry.resolveCampaign(campaignId); };
@@ -1360,6 +1383,104 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         saveToCloud();
         return lastMessage;
+      } else if (command === 'arrival:fight') {
+        if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
+        if (pendingShipFight) throw new Error('a ship fight is already under way');
+        const dice = createDice();
+        const designKey = opposingShipDesignKey(pendingArrivalEncounter);
+        const disposition = opposingShipDisposition(pendingArrivalEncounter);
+        const { ship: opponentShip } = buildEncounteredShip({ designKey, name: pendingArrivalEncounter.label, key: pendingArrivalEncounter.key });
+        const playerShip = facts.ship;
+        // Book 2 p.22 never says which side is which; your own ruling is that
+        // whoever initiated intrudes. Only the pirate is hostile by the p.36
+        // roll itself; a referee choosing to fight anything else initiated it.
+        const opponentIsIntruder = Boolean(pendingArrivalEncounter.hostileByDefault);
+        const opponentLoadout = shipCombatLoadout(opponentShip);
+        const playerLoadout = shipCombatLoadout(playerShip);
+        let combat = createShipCombatEncounter({
+          id: `ship-fight-${Date.now()}`,
+          campaignId: resolved.campaign.identity.id,
+          intruderSide: 'intruder',
+          intruderAssignmentNote: opponentIsIntruder
+            ? `${pendingArrivalEncounter.label} initiated on arrival.`
+            : `${playerShip.identity.name || 'The party'} chose to engage ${pendingArrivalEncounter.label}.`,
+          participants: [
+            {
+              shipId: 'opponent', name: opponentShip.identity.name, side: opponentIsIntruder ? 'intruder' : 'native',
+              disposition, ship: opponentShip,
+              carriedPrograms: opponentLoadout.carried, loadedPrograms: opponentLoadout.loaded,
+              stations: { pilot: 'npc-captain' }, skills: { pilot: 1, computer: 0 },
+              pressurisedSections: []
+            },
+            {
+              shipId: 'player', name: playerShip.identity.name || 'The ship', side: opponentIsIntruder ? 'native' : 'intruder',
+              disposition: 'merchant', ship: playerShip,
+              carriedPrograms: playerLoadout.carried, loadedPrograms: playerLoadout.loaded,
+              stations: { pilot: playerShip.authority?.assignedCharacterId ?? null }, skills: { pilot: 1, computer: 0 },
+              // Book 2 p.34: ships depressurise before combat "whenever
+              // possible" — which assumes warning. A random arrival
+              // encounter is exactly the case with none, so this starts
+              // pressurised rather than the referee client's own
+              // planned-engagement default of depressurised.
+              pressurisedSections: [...PRESSURE_SECTIONS]
+            }
+          ]
+        });
+        const step = autoAdvanceShipFight(combat, dice, { playerSide: opponentIsIntruder ? 'native' : 'intruder' });
+        pendingShipFight = {
+          encounter: step.encounter, playerSide: opponentIsIntruder ? 'native' : 'intruder',
+          opponentLabel: pendingArrivalEncounter.label, systemId: pendingArrivalEncounter.systemId,
+          log: narrateShots(step.shots, step.encounter)
+        };
+        message = `${playerShip.identity.name || 'The ship'} engages ${pendingArrivalEncounter.label} at ${facts.system?.name ?? 'the port'}.`;
+        pendingArrivalEncounter = null;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:fire' || command === 'shipfight:hold') {
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        const dice = createDice();
+        let fight = pendingShipFight.encounter;
+        const foe = fight.participants.find((entry) => entry.side !== pendingShipFight.playerSide && !entry.escaped);
+        let shots = [];
+        if (command === 'shipfight:fire' && foe) {
+          const allocations = laserAllocationAgainstSingleFoe(fight, 'player', foe.id);
+          if (allocations.length) {
+            fight = allocateLaserFire(fight, allocations);
+            const resolved2 = resolveLaserFire(fight, dice);
+            fight = resolved2.encounter;
+            shots = resolved2.shots;
+          }
+        }
+        if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
+        const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
+        const narrated = [...narrateShots(shots, step.encounter), ...narrateShots(step.shots, step.encounter)];
+        pendingShipFight = { ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) };
+        message = narrated.join(' ') || 'No shots fired this round.';
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:end') {
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        if (pendingShipFight.encounter.outcome === 'in-progress') throw new Error('the fight has not ended yet');
+        const finalPlayerShip = pendingShipFight.encounter.participants.find((entry) => entry.side === pendingShipFight.playerSide)?.ship;
+        const outcomeText = {
+          disabled: `${pendingShipFight.opponentLabel} is disabled and adrift — a boarding is uncontested.`,
+          disarmed: `${pendingShipFight.opponentLabel} has no working weapon left but can still run.`,
+          disengaged: `${pendingShipFight.opponentLabel} broke off.`
+        }[pendingShipFight.encounter.outcome] ?? `The fight with ${pendingShipFight.opponentLabel} is over (${pendingShipFight.encounter.outcome}).`;
+        if (finalPlayerShip) persist([finalPlayerShip]);
+        message = outcomeText;
+        pendingShipFight = null;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
       } else if (command === 'depart') {
         pendingArrivalEncounter = null;
         if (!facts.destination) throw new Error('choose a destination within jump range first');
@@ -1442,6 +1563,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const reaction = rollReaction(seededDice(`${arrivalSeed}|reaction`));
           arrival = {
             type: shipEncounter.type,
+            // Two more fields alongside the display ones already here: `key`
+            // is the encounter category itself (drives the fight's Book 3
+            // p.29-shaped disposition); `hullKey` is the one design-
+            // determining key regardless of which roll it came from — the
+            // type itself for a free trader/subsidized merchant/yacht, or
+            // the separate p.36 hull throw's own key for a patrol or pirate.
+            key: shipEncounter.type,
+            hullKey: shipEncounter.hull?.hull ?? shipEncounter.type,
             label: shipEncounter.label,
             hull: shipEncounter.hull?.label ?? null,
             hostileByDefault: Boolean(shipEncounter.hostileByDefault),
@@ -1543,6 +1672,35 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {} } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.referee = refereeView(resolved, referee);
+      // v0.230.0: a ship fight in progress is what is happening, the same
+      // way a personal fight already takes over the screen below. The two
+      // cannot currently arise together (nothing starts a ship fight during
+      // a personal one or vice versa), so this simply takes the same
+      // precedence.
+      if (pendingShipFight) {
+        const encounter = pendingShipFight.encounter;
+        const phase = currentPhase(encounter);
+        const writable = save.state !== 'stale';
+        const ended = encounter.outcome !== 'in-progress';
+        return {
+          ...state,
+          situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
+          shipFight: {
+            roster: shipFightRoster(encounter),
+            gameTurn: encounter.gameTurn,
+            phase: phase.label,
+            outcome: encounter.outcome,
+            awaitingPlayer: !ended && actingSide(encounter) === pendingShipFight.playerSide
+              && (phase.key === 'laser-fire' || phase.key === 'return-fire'),
+            opponentLabel: pendingShipFight.opponentLabel,
+            log: pendingShipFight.log,
+            actions: !writable ? [] : ended
+              ? [{ command: 'shipfight:end', label: 'End fight', primary: true }]
+              : [{ command: 'shipfight:fire', label: 'Fire lasers', primary: true }, { command: 'shipfight:hold', label: 'Hold fire' }]
+          },
+          save, notice: lastMessage
+        };
+      }
       // A fight in progress is what is happening; nothing else is offered.
       const live = (resolved.encounters ?? []).find((entry) => entry.status === 'active');
       const fight = fightView(live, { characters: resolved.characters ?? [] });
@@ -1618,7 +1776,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           title: `${encounter.label} at ${resolved.campaign.location.worldName ?? resolved.campaign.location.systemName}`,
           copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${encounter.reaction}${encounter.hostileByDefault ? ' This kind of ship is hostile by default.' : ''} Book 2 p.38. Fights are still run in the current client; dismissing this leaves the port call as it was.`,
           cite: 'Book 2 p.38',
-          actions: [{ command: 'arrival:dismiss', label: 'Let it pass', primary: true }]
+          actions: [
+            { command: 'arrival:dismiss', label: 'Let it pass', primary: true },
+            { command: 'arrival:fight', label: 'Fight' }
+          ]
         }
         : procedure.next;
       return { ...state, ...procedure, next, arrivalEncounter: encounter, scene: { ...state.scene, selectedId: selectedSystemId, world: procedure.world }, save, notice: lastMessage };

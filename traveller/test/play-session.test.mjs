@@ -233,7 +233,7 @@ import { generateFreightOffers, parseUniversalWorldProfile, getSubsectorSystem }
 // A trader with room: the fixture's scout has a 3 t hold, which no freight
 // lot fits, and ship documents must match a canonical design, so swap in a
 // Type A free trader (82 t, Jump-1) under the same id, at Aster, which has Jump-1 neighbours.
-import { createShipDocument } from '../vendor/classic-traveller-rules/index.js';
+import { createShipDocument, armShipTurret } from '../vendor/classic-traveller-rules/index.js';
 
 async function traderAtAster({ steward = false } = {}) {
   const bundle = JSON.parse(await readFile(fixture, 'utf8'));
@@ -575,6 +575,65 @@ test('the arrival encounter is seeded on the arrival, so it does not reroll', as
   const first = await roll();
   const second = await roll();
   assert.deepEqual(first, second, 'the same arrival always yields the same encounter');
+});
+
+// ---------------------------------------------------------------- v0.230.0
+test('an arrival encounter can be fought — lasers only, abbreviated, to a real outcome', async () => {
+  // Aster -> Calder is seeded to a Free Trader with a hostile reaction (a
+  // fixed fact of this fixture, checked by hand before writing this test —
+  // see the "does not reroll" test above for why that is safe to rely on).
+  //
+  // The fixture ship is a Type A Free Trader, whose own design ships with
+  // armament: { hardpoints: 2, turrets: [] } — the hardpoints are a number,
+  // not turret records, and nothing in the rules package fits a NEW turret
+  // into one (armShipTurret only arms a turret mount the design already
+  // specifies). So a Free Trader cannot be armed at all yet, by anyone, in
+  // this engine — a real gap, unrelated to this slice, worth its own look.
+  // Swapped in a Type S Scout/Courier here purely so this test can arm a
+  // ship and actually exercise a fight.
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const resolved = registry.resolveCampaign(campaignId);
+  const oldShip = resolved.ships[0];
+  let ship = createShipDocument({ designKey: 'type-s-scout-courier', id: oldShip.identity.id, name: oldShip.identity.name, authority: oldShip.authority, crewAssignments: oldShip.crew.assignments, state: { ...oldShip.state, currentFuelTons: 40 } });
+  ship = armShipTurret(ship, { turretId: ship.specifications.armament.turrets[0].id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  registry.put(ship);
+
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.run('depart', { selectedSystemId: 'calder' }).ok, true);
+  assert.ok(session.arrivalEncounter, 'this route is seeded to an encounter');
+  assert.equal(session.view().shipFight, undefined, 'nothing is fighting yet');
+
+  assert.equal(session.run('shipfight:fire').ok, false, 'no fight to fire in yet');
+
+  const started = session.run('arrival:fight');
+  assert.equal(started.ok, true);
+  assert.equal(session.arrivalEncounter, null, 'the encounter is consumed into the fight, not left standing behind it');
+  assert.equal(session.run('arrival:fight').ok, false, 'a second fight cannot start over the first');
+
+  let view = session.view();
+  assert.ok(view.shipFight, 'the fight takes the screen');
+  assert.equal(view.shipFight.roster.length, 2);
+  assert.ok(view.shipFight.roster.some((entry) => entry.name === ship.identity.name));
+
+  // Fire every round until it resolves one way or another — real dice, so the
+  // number of rounds is not fixed, but Book 2 combat with an armed party ship
+  // against an unarmed-by-default encounter resolves quickly.
+  let guard = 0;
+  while (session.view().shipFight.outcome === 'in-progress' && guard < 40) {
+    guard += 1;
+    const result = session.run('shipfight:fire');
+    assert.equal(result.ok, true);
+  }
+  view = session.view();
+  assert.notEqual(view.shipFight.outcome, 'in-progress', 'the fight reached a real conclusion within a sane number of rounds');
+  assert.ok(view.shipFight.log.length > 0, 'shots were narrated');
+  assert.deepEqual(view.shipFight.actions, [{ command: 'shipfight:end', label: 'End fight', primary: true }]);
+
+  const ended = session.run('shipfight:end');
+  assert.equal(ended.ok, true);
+  assert.equal(session.view().shipFight, undefined, 'the fight is over and off the screen');
+  assert.equal(session.run('shipfight:end').ok, false, 'nothing left to end');
+  assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.some((entry) => entry.category === 'SHIP'), true);
 });
 
 // ---------------------------------------------------------------- v0.212.0
