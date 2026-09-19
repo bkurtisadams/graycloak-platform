@@ -182,6 +182,9 @@ function migrateSectionLayout(sec) { return GCCSections.migrate(sec); }
 
 // ── Real session number (skips timeline entries) ──
 function realSessionNum(sessions, idx) {
+  const s = sessions[idx];
+  const stored = parseInt(s && s.number);
+  if (stored > 0) return stored;
   let n = 0;
   for (let i = sessions.length - 1; i >= 0; i--) {
     if (sessions[i].type !== 'timeline') n++;
