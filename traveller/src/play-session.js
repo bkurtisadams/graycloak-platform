@@ -330,7 +330,18 @@ export function fightView(encounter, { characters = [] } = {}) {
       service: source ? characterView(source).service : null,
       awaiting: awaiting.has(entry.id),
       order: order
-        ? { move: ENGINE_ORDER_WORDS[order.action] ?? order.action, attack: order.action === 'attack' ? null : null, targetId: order.targetId ?? null, engineAction: order.action }
+        ? {
+          move: ENGINE_ORDER_WORDS[order.action] ?? order.action,
+          // Book 1 p.28 step 4B. The engine's action carries both halves:
+          // attack/close/open attack as well as move, close-run/open-run and
+          // evade do not. This was hard-coded to null, so every order on the
+          // tracker read as movement only and an attack never showed.
+          attack: ['attack', 'close', 'open'].includes(order.action)
+            ? (() => { try { return getPersonalWeapon(entry.weaponKey).melee ? 'swing' : 'fire'; } catch { return 'attack'; } })()
+            : null,
+          targetId: order.targetId ?? null,
+          engineAction: order.action
+        }
         : null
     };
   });

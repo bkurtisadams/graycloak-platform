@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.217.1 the attack half of every order was never shown
+
+You were right that the attack was not being recorded — on the screen, though
+not in the engine.
+
+`fightView()` built each order as
+`attack: order.action === 'attack' ? null : null` — a leftover of mine that is
+null whichever way it goes. So the tracker only ever showed the movement half.
+Alina Voss firing read "stand", and a Thug closing and swinging read "close".
+The engine had both halves all along: its action carries movement AND attack
+together (attack, close and open all attack; close-run, open-run and evade do
+not). The tracker now reads "→ T fire" and "→ AV close+swing".
+
+**On the declared-then-undeclared report.** I stepped through it against your
+exported campaign at round 7 and could not reproduce it. Declaring for the
+Thug, then selecting each of the three combatants in turn, the orders held
+every time, and the stored document kept all three declarations. Resolving
+cleared them and advanced to round 8, which is correct — the engine empties
+`declaredActions` at the end of a round.
+
+Two things that could look like the bug and are not:
+- Resolving starts a fresh round, so everyone shows undeclared again.
+- Before v0.216.0 the tracker overlaid the selected combatant's in-progress
+  choice as though it were an order, so who appeared declared changed with
+  selection. That one was real and is fixed.
+
+If it is still happening, the sequence matters: whether it follows a Resolve,
+a "Let them choose", or a take-back, and which combatant was selected when it
+appeared. With that I can reproduce it.
+
+Suite: 612 pass, 0 fail.
+
 ## v0.217.0 three findings from the Sea of Suns fight
 
 Worked against the exported campaign rather than my own fixture, which is what
