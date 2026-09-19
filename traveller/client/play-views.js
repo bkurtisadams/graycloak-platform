@@ -769,8 +769,18 @@ function shipFightScene(fight, handlers) {
       ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
       ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null))),
     fight.log.length ? h('div', { class: 'fight-log' }, h('ul', { class: 'entries' }, fight.log.map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line }))))) : null,
-    h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
-      h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
+    h('div', { class: 'ship-fight-actions' },
+      h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
+        h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
+      // Kept visually apart from the row above: repair is a standing
+      // declaration for the game turn, not a phase-ending action like
+      // Fire/Hold/Flee, and clicking one of these alone advances nothing.
+      (fight.repairActions?.length || fight.cancelRepairAction?.length) ? h('div', { class: 'repair-actions' },
+        h('p', { class: 'cite', text: fight.repairNote }),
+        h('div', { class: 'lead-actions' }, [...(fight.repairActions ?? []), ...(fight.cancelRepairAction ?? [])].map((action) =>
+          h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
+      ) : null
+    )
   ];
 }
 

@@ -1118,6 +1118,44 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     return next;
   }
 
+  // Book 2 p.16's crew positions and the expertise each wants
+  // (CREW_ROLE_SKILLS), read against the ship's real crew and their real
+  // character skill levels — was hardcoded (pilot:1, computer:0) regardless
+  // of who was actually assigned. "The computer operator defaults to the
+  // pilot" is your own ruling, so the pilot holds both stations and the
+  // computer skill DM reads the pilot's own Computer skill. One gunner per
+  // turret, in crew-assignment order; a turret beyond the number of
+  // gunner-role crew is left unassigned (fires, but with no skill DM and no
+  // one whose turn it costs).
+  function shipCombatCrew(ship) {
+    const assignments = ship.crew?.assignments ?? [];
+    const skillLevel = (characterId, skillName) => {
+      if (!characterId) return 0;
+      const character = resolved.characters.find((entry) => entry.identity.id === characterId);
+      return Number(character?.skills?.[skillName] ?? 0);
+    };
+    const pilotId = assignments.find((entry) => entry.role === 'pilot')?.characterId ?? null;
+    const engineerId = assignments.find((entry) => entry.role === 'engineer')?.characterId ?? null;
+    const gunnerIds = assignments.filter((entry) => entry.role === 'gunner').map((entry) => entry.characterId);
+    const gunners = {};
+    const gunnery = {};
+    (ship.specifications?.armament?.turrets ?? []).forEach((turret, index) => {
+      const gunnerId = gunnerIds[index];
+      if (!gunnerId) return;
+      gunners[turret.id] = gunnerId;
+      gunnery[turret.id] = skillLevel(gunnerId, 'Gunnery');
+    });
+    return {
+      stations: { pilot: pilotId, computerOperator: pilotId, engineer: engineerId, gunners },
+      skills: {
+        pilot: skillLevel(pilotId, 'Pilot'),
+        computer: skillLevel(pilotId, 'Computer'),
+        engineering: skillLevel(engineerId, 'Engineering'),
+        gunnery
+      }
+    };
+  }
+
   // Shared by 'arrival:fight' and a patrol inspection that turns hostile
   // (Book 2 p.36's "may be a form of pirate, exacting tolls or penalties"):
   // build and auto-advance the abbreviated ship fight against whichever
@@ -1147,7 +1185,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           shipId: 'player', name: playerShip.identity.name || 'The ship', side: opponentIsIntruder ? 'native' : 'intruder',
           disposition: 'merchant', ship: playerShip,
           carriedPrograms: playerLoadout.carried, loadedPrograms: playerLoadout.loaded,
-          stations: { pilot: playerShip.authority?.assignedCharacterId ?? null }, skills: { pilot: 1, computer: 0 },
+          ...shipCombatCrew(playerShip),
           // Book 2 p.34: ships depressurise before combat "whenever
           // possible" — which assumes warning. An arrival encounter, or a
           // patrol stop that turns hostile, is exactly the case with none,
@@ -1692,10 +1730,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         } else {
           const rest = command.slice('shipfight:repair:'.length);
           const [location, turretId] = rest.startsWith('turret:') ? ['turret', rest.slice('turret:'.length)] : [rest, null];
-          const pilotAssignment = (facts.ship.crew?.assignments ?? []).find((entry) => entry.characterId === facts.ship.authority?.assignedCharacterId)
-            ?? (facts.ship.crew?.assignments ?? []).find((entry) => entry.role === 'pilot');
-          const crewId = facts.ship.authority?.assignedCharacterId ?? pilotAssignment?.characterId ?? null;
-          const crewName = pilotAssignment?.characterName || 'The pilot';
+          // Whoever damageControlOptions actually priced the DM against:
+          // engineering for a drive or the power plant (falling back to the
+          // pilot if no engineer is crewed), the pilot for the computer
+          // (p.16: the computer operator defaults to the pilot), and the
+          // engineer — the general fix-it station — for anything else
+          // (hull, hold, fuel, a turret) if one is crewed.
+          const isComputer = location === 'computer';
+          const crewId = isComputer ? player.stations.pilot : (player.stations.engineer ?? player.stations.pilot);
+          if (!crewId) throw new Error('no crew is assigned to attempt a repair');
+          const crewName = (facts.ship.crew?.assignments ?? []).find((entry) => entry.characterId === crewId)?.characterName || 'The crew';
           const fight = declareDamageControl(pendingShipFight.encounter, { shipId: 'player', location, turretId, crewId, crewName });
           pendingShipFight = { ...pendingShipFight, encounter: fight };
           message = `${crewName} will attempt to repair ${damageLocationLabel({ location, turretId })} this turn (Book 2 p.35: resolves as the game turn ends, throw ${DAMAGE_CONTROL_THROW}+).`;
@@ -1939,6 +1983,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const ended = encounter.outcome !== 'in-progress';
         const player = encounter.participants.find((entry) => entry.id === 'player');
         const canFlee = Boolean(player) && !player.fled && !player.escaped && !player.surrendered;
+        const roster = shipFightRoster(encounter);
+        // A toothless ship offering "Fire lasers" is misleading — the
+        // command already no-ops (laserAllocationAgainstSingleFoe finds
+        // nothing to allocate), but the button shouldn't be there to click
+        // in the first place. Hold fire (relabelled) becomes the one way
+        // to let the turn pass instead.
+        const canFire = !roster.find((entry) => entry.shipId === 'player')?.toothless;
         // Book 2 p.35/p.37: damage control is available in abbreviated combat
         // too (p.37 only ever abbreviates movement/range, nothing else) — one
         // repair option per repairable location, always offered even while
@@ -1954,7 +2005,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           ...state,
           situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
           shipFight: {
-            roster: shipFightRoster(encounter),
+            roster,
             gameTurn: encounter.gameTurn,
             phase: phase.label,
             outcome: encounter.outcome,
@@ -1962,15 +2013,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               && (phase.key === 'laser-fire' || phase.key === 'return-fire'),
             opponentLabel: pendingShipFight.opponentLabel,
             log: pendingShipFight.log,
+            // Two different kinds of thing, kept separate rather than one
+            // flat row: 'actions' ends the current phase and advances play
+            // (possibly through several phases); the repair actions below
+            // are a standing declaration for the game turn that does not
+            // by itself advance anything — one of 'actions' still has to
+            // happen for the turn to end and the repair to resolve.
             actions: !writable ? [] : ended
               ? [{ command: 'shipfight:end', label: 'End fight', primary: true }]
               : [
-                  { command: 'shipfight:fire', label: 'Fire lasers', primary: true },
-                  { command: 'shipfight:hold', label: 'Hold fire' },
-                  ...(canFlee ? [{ command: 'shipfight:flee', label: 'Flee' }] : []),
-                  ...repairActions,
-                  ...cancelRepairAction
-                ]
+                  ...(canFire ? [{ command: 'shipfight:fire', label: 'Fire lasers', primary: true }] : []),
+                  { command: 'shipfight:hold', label: canFire ? 'Hold fire' : 'Continue', primary: !canFire },
+                  ...(canFlee ? [{ command: 'shipfight:flee', label: 'Flee' }] : [])
+                ],
+            repairActions: !writable || ended ? [] : repairActions,
+            cancelRepairAction: !writable || ended ? [] : cancelRepairAction,
+            repairNote: 'Book 2 p.35: declaring a repair doesn\u2019t use your turn by itself \u2014 Fire, Hold/Continue, or Flee still needs to happen for the turn to end and the repair to resolve.'
           },
           save, notice: lastMessage
         };

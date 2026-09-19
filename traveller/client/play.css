@@ -612,6 +612,11 @@ a.button { text-decoration: none; color: inherit; }
    the entry's flex row; the red matches .button.is-danger's own warning
    colour. */
 .entry-damage { flex-basis: 100%; color: var(--red); }
+/* v0.235.0: a repair declaration doesn't end the ship-fight turn by
+   itself the way Fire/Hold/Flee do — set visually apart, with the note
+   explaining why, rather than in the same row as those. */
+.repair-actions { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.repair-actions > .cite { margin-bottom: 8px; }
 .entry > .button.is-small { margin-left: auto; }
 
 /* v0.229.0: the Scenes tab's own bits in the referee directory — a small
