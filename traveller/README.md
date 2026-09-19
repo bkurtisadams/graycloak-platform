@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.216.1 a sidebar tab that opened nothing
+
+The SETTINGS tab appeared dead, so the campaign could not be exported.
+
+Your console probe settled it: the tab was found, the click landed, and the
+panel was *not* hidden — but its height was 0. The tab was working; what it
+opened had no room to appear.
+
+`.shell-sidebar` is a grid whose panel row is `minmax(0, 1fr)`, so the panel
+shares the column with WHAT NOW?, the character strip and the campaign header.
+When those are tall and the window is short, the row resolves to a few pixels
+and every sidebar panel renders at nothing. The row now has a floor of 220 px
+and the sidebar scrolls instead. Measured across window shapes from 1600x950
+down to 900x380: the panel was collapsing to 17 px and now holds 184 px at
+every one of them.
+
+The rule sits at the end of `client/styles.css` because an earlier
+`.shell-sidebar` declaration would otherwise override it — my first two
+attempts were placed above it and did nothing, which is worth remembering.
+
+This is not a regression from my recent work: the only change I had made to
+`app.js` was a text label on the band board. The layout has presumably always
+done this at short window heights.
+
+**Also, for the record**: `index.html` opened without a campaign redirects to
+the lobby by design (v0.68.0, "the referee client is no longer a front door").
+Use [ RUN ] on a campaign card to reach the client.
+
+**Still missing**: there is no way to delete a campaign. The lobby is
+accumulating UNNAMED CAMPAIGN entries from the failed cloud saves before
+v0.211.1. Not built yet.
+
 ## v0.216.0 the tracker stops lying about who has declared
 
 **The bug you found.** Clicking Thug showed everyone declared; clicking Thug 2

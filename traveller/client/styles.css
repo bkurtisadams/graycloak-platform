@@ -3641,6 +3641,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .sidebar-tab.is-active { color: var(--ink); background: var(--tab-selected); }
 .sidebar-tab.attention .sidebar-tab-icon { color: var(--failure-border); }
 .sidebar-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px 10px; }
+/* v0.216.1: the sidebar body shares the column with WHAT NOW?, the character
+   strip and the campaign header. When those are tall and the window is short,
+   flex gives the body nothing and the selected panel renders at zero height —
+   the tab looks dead, because what it opened has no room to appear. A floor
+   keeps the panel reachable; it scrolls inside that floor. */
+
 .sidebar-panel > .context-panel { display: block; }
 .sidebar-panel .section-heading { margin-top: 0; }
 .sidebar-group-title { font-size: 10px; letter-spacing: .1em; color: var(--muted); font-weight: 700; padding: 8px 0 3px; }
@@ -5802,16 +5808,14 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 #shell.shell-v2.fight-on .encounter-tracker-row.inactive .encounter-tracker-name, #shell.shell-v2.fight-on .encounter-tracker-row.inactive .encounter-tracker-wounds { color: var(--disabled); }
 #shell.shell-v2.fight-on .encounter-tracker-row.selected > summary { background: var(--paper-selected); }
 
-/* v0.204.0: while a fight runs the right column is fight-view.js's drawing;
-   the strip, tracker, record, ship and tabbed body step aside. */
-#shell.shell-v2 > .shell-sidebar > #fight-side { grid-column: 1; grid-row: 1 / -1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--paper); }
-#shell.shell-v2 > .shell-sidebar > #fight-side[hidden] { display: none; }
-#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-character,
-#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-tracker,
-#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-ship-rail,
-#shell.shell-v2.fight-on > .shell-sidebar > #sidebar-sheet,
-#shell.shell-v2.fight-on > .shell-sidebar > #ship-strip,
-#shell.shell-v2.fight-on > .shell-sidebar > .sidebar-body { display: none; }
-#shell.shell-v2.fight-on > .shell-dock { padding: 12px; }
-#shell.shell-v2.fight-on > .shell-dock > .dock-round { flex: 1 1 auto; min-height: 0; }
-#shell.shell-v2.fight-on > .shell-dock > .dock-round:not(.show-port) ~ * { display: none; }
+
+/* v0.216.1: a sidebar tab that opened nothing.
+   The sidebar is a grid whose panel row is minmax(0, 1fr), so it shares the
+   column with WHAT NOW?, the character strip and the campaign header. On a
+   short window those take the space and the row resolves to a few pixels:
+   the tab is selected, the panel is not hidden, and it renders at zero
+   height, so the click looks dead. Give the row a floor and let the sidebar
+   scroll instead. Placed last so it wins over the earlier grid declaration. */
+.shell-sidebar { grid-template-rows: auto auto minmax(220px, 1fr); overflow-y: auto; }
+.sidebar-body { min-height: 200px; }
+.sidebar-body:empty { min-height: 0; }
