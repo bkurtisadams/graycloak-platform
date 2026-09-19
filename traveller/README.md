@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.227.1 the label says what it is; the description need not repeat it
+
+The chart repeated itself. "Tech level 9 / Technological index 9" said one
+fact twice; "Starport A / Excellent quality installation" and "Population 9 /
+Billions of inhabitants" each carried a word the row header had already given;
+"Hydrographics 5 / 50% water" said water under a heading that means water.
+
+    Starport        B  Good quality
+    Size            7  7000 miles diameter
+    Atmosphere      6  Standard
+    Hydrographics   5  50%
+    Population      8  Hundreds of millions
+    Government      4  Representative democracy
+    Law level       5  Personal concealable firearms prohibited
+    Tech level      9
+
+The technological index has no wording of its own in Book 3, so nothing is
+printed beside the digit.
+
+The package's strings are untouched — other callers read them as sentences, so
+"Excellent quality installation" is right where it stands alone. The trimming
+happens in the caption, where the label supplies the context.
+
+Checked against every digit each characteristic can take, because a blunt
+strip would have broken the edges: starport X reads "None" rather than a bare
+"No"; hydrographics 0 and 10 keep "Desert" and "Water world" rather than
+losing the word that carries their meaning. The source is also inconsistent —
+population says "of inhabitants" at some digits and not others, and 0 is "No
+inhabitants" — so 0 now reads "None" like the rest.
+
+Suite: 625 pass, 0 fail.
+
 ## v0.227.0 the world caption is Book 3's PLANETARY CHARACTERISTICS
 
 The caption ran five facts together as a paragraph and left out three of the

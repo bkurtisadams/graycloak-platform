@@ -7,15 +7,15 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.227.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.227.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.227.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.227.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.227.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.227.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.227.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.227.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -507,6 +507,27 @@ function worldCaption(system, { role, label, onChoose = null } = {}) {
   // names the book prints them, with the UWP digit each is read from. The
   // caption used to run five of the eight together as prose and leave out
   // size, government and technological index entirely.
+  // v0.227.1: the label already says what the thing is, so the description
+  // must not repeat it. "Tech level 9 / Technological index 9" said one fact
+  // twice; "Starport A / Excellent quality installation" and "Population 9 /
+  // Billions of inhabitants" each carried a word the row header had already
+  // given. The package's strings are left alone — other callers read them as
+  // sentences — and trimmed here, where the label supplies the context.
+  const trim = (text) => {
+    let out = String(text ?? '');
+    if (/^no starport$/i.test(out)) return 'None';           // stripping the noun would leave "No"
+    if (/desert/i.test(out)) return 'Desert';                 // "No free-standing water / desert"
+    if (/water world/i.test(out)) return 'Water world';       // "No land masses / water world"
+    out = out
+      .replace(/\s*installation\b/i, '')                     // Starport: "Good quality installation"
+      .replace(/^No inhabitants$/i, 'None')                 // Population 0, to match the rest
+      .replace(/\s*of inhabitants\b/i, '')                   // Population: inconsistent in the source
+      .replace(/(\d+%)\s*water\b/i, '$1')                    // Hydrographics: the label says water
+      .replace(/\s*\(approx\.\)\s*$/, '')
+      .trim();
+    return out ? out.replace(/^./, (first) => first.toUpperCase()) : null;
+  };
+
   const rows = [
     ['Starport', profile.starport, describeStarport(profile.starport)],
     ['Size', profile.size, describeWorldSize(profile.size)],
@@ -515,16 +536,21 @@ function worldCaption(system, { role, label, onChoose = null } = {}) {
     ['Population', profile.population, describePopulation(profile.population)],
     ['Government', profile.government, describeGovernment(profile.government)],
     ['Law level', profile.lawLevel, describeLawLevel(profile.lawLevel)],
-    ['Tech level', profile.techLevel, `Technological index ${profile.techLevel}`]
+    // Book 3 gives the technological index no wording of its own; the digit
+    // is the whole of it, so nothing is printed beside it.
+    ['Tech level', profile.techLevel, null]
   ];
   const bases = [system.bases?.naval ? 'Naval base' : null, system.bases?.scout ? 'Scout base' : null, system.gasGiant ? 'Gas giant' : null].filter(Boolean);
   return h('div', { class: `caption caption-${role}` },
     h('p', { class: 'caption-role', text: label }),
     h('h2', {}, system.name, ' ', h('span', { class: 'code', text: system.mainWorld.uwp })),
-    h('dl', { class: 'uwp' }, rows.flatMap(([label, digit, text]) => [
-      h('dt', { text: label }),
-      h('dd', {}, h('span', { class: 'uwp-digit code', text: String(digit) }), ' ', text)
-    ])),
+    h('dl', { class: 'uwp' }, rows.flatMap(([label, digit, text]) => {
+      const detail = trim(text);
+      return [
+        h('dt', { text: label }),
+        h('dd', {}, h('span', { class: 'uwp-digit code', text: String(digit) }), detail ? ` ${detail}` : null)
+      ];
+    })),
     (() => {
       // Book 3 pp.21-22: the classifications a world's own profile earns it.
       let trade = [];
