@@ -44,7 +44,7 @@ import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTrad
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
   setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays,
-  addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene
+  addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter
 } from './campaign-document.js';
 import {
   createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER
@@ -1261,6 +1261,27 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       if (command.startsWith('inventory:')) {
         if (resolved.encounters.some((entry) => entry.status === 'active')) throw new Error('a fight is in progress; finish it in the current client');
         lastMessage = { ok: true, message: runInventory(command, { characterId, item }) };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      // v0.239.0: which character this page shows used to be purely local to
+      // the browser tab (ui.characterId) and never survived a reload — the
+      // campaign's own activeCharacterId (set once, usually by whoever was
+      // added to the party last, per addCharacterToCampaign's own
+      // makeActive default) is what actually won on every fresh page load,
+      // however many times a different character had been clicked since.
+      // This makes a click stick by writing it back to the campaign too.
+      if (command === 'character:activate') {
+        if (!characterId) throw new Error('choose a character to make active');
+        const character = (resolved.characters ?? []).find((entry) => entry.identity.id === characterId);
+        if (!character) throw new Error('that character is not in this campaign\u2019s party');
+        const campaign = setActiveCampaignCharacter(resolved.campaign, characterId);
+        registry.put(campaign);
+        reload();
+        const message = `${character.identity.name || '(unnamed)'} is now the active character.`;
+        log('REFEREE', message);
+        lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
         return lastMessage;

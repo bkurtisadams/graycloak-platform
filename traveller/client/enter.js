@@ -323,14 +323,19 @@ function renderCampaigns() {
     remove.addEventListener('click', async () => {
       const label = campaign.name || campaign.campaignId;
       // A campaign with history deserves a typed confirmation; an untouched
-      // one only needs a yes. The typed name is trimmed before comparing —
-      // an incidental leading/trailing space from the prompt shouldn't read
-      // as "didn't match" and silently cancel.
+      // one only needs a yes. Trimmed and case-insensitive — the point is
+      // making sure the referee reads and means the name, not a spelling
+      // test — and the cancellation message echoes what was typed, so a
+      // mismatch is diagnosable instead of just "it didn't work".
       const played = Number(campaign.revision ?? 0) > 2;
+      let typed = null;
       const ok = played
-        ? String(window.prompt(`Deleting ${label} cannot be undone. Type the campaign name to confirm.`) ?? '').trim() === label
+        ? (() => {
+          typed = String(window.prompt(`Deleting ${label} cannot be undone. Type the campaign name to confirm.`) ?? '').trim();
+          return typed.toLowerCase() === label.toLowerCase();
+        })()
         : window.confirm(`Delete ${label}? This cannot be undone.`);
-      if (!ok) { if (played) setStatus('DELETE CANCELLED: the name did not match.', 'error'); return; }
+      if (!ok) { if (played) setStatus(`DELETE CANCELLED: typed "${typed}", needed "${label}".`, 'error'); return; }
       try {
         setStatus('DELETING\u2026');
         await deleteCampaignHome(campaign.campaignId);

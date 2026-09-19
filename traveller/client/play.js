@@ -314,7 +314,13 @@ function render() {
   // nothing when clicked. It gets the whole set now.
   if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, state.referee ?? SAMPLE_REFEREE, {
     ...handlers,
-    onPickCharacter: (id) => { ui.characterId = id; render(); },
+    onPickCharacter: (id) => {
+      ui.characterId = id;
+      render();
+      // Make it stick past a reload, not just this tab's session — see the
+      // comment on character:activate in play-session.js.
+      if (source.mode === 'live') source.session.run('character:activate', { characterId: id });
+    },
     onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); }
   }));
 
