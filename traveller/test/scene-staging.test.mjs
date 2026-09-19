@@ -10,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { createPlaySession } from '../src/play-session.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
+import { renderDrawer } from '../client/play-views.js';
+
+let JSDOM; try { ({ JSDOM } = await import('jsdom')); } catch { /* skip the render test if unavailable */ }
 
 const fixture = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'Sea-of-Suns-v0.11.2-buggy.campaign.json');
 
@@ -64,7 +67,12 @@ test('stage-ship places a ship; the own ship drops off the list, a design stays 
 
   let staging = scenesTab(session, sceneId).staging;
   assert.equal(staging.tokens.length, 1);
-  assert.deepEqual(staging.tokens[0], { id: staging.tokens[0].id, label: 'Marisol', side: 'party', position: { x: -20, y: 0 }, velocity: staging.tokens[0].velocity });
+  const marisol = staging.tokens[0];
+  assert.equal(marisol.label, 'Marisol');
+  assert.equal(marisol.side, 'party');
+  assert.deepEqual(marisol.position, { x: -20, y: 0 });
+  assert.match(marisol.hull, /your ship/);
+  assert.equal(typeof marisol.controller, 'string');
   assert.equal(staging.choices.some((choice) => choice.actorId === ownShipId), false, 'the own ship is a single hull and leaves the list once staged');
   assert.ok(staging.choices.some((choice) => choice.actorId === 'design:type-s-scout-courier'), 'a design reference stays offered for a second hull of the same type');
   assert.match(staging.blockedReason, /no opposition ship is staged/);
@@ -85,6 +93,27 @@ test('stage-ship places a ship; the own ship drops off the list, a design stays 
   assert.equal(staging.canStart, false);
 });
 
+test('update-ship moves a staged token and changes its side, live', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
+  const sceneId = scenesTab(session).shown.find((entry) => entry.name === 'Space').id;
+  const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
+  session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -20, y: 0, label: 'Marisol' } } });
+  const tokenId = scenesTab(session, sceneId).staging.tokens[0].id;
+
+  const moved = session.run('scene:update-ship', { fight: { id: sceneId, value: { tokenId, x: -100, y: 40 } } });
+  assert.equal(moved.ok, true, moved.message);
+  let staging = scenesTab(session, sceneId).staging;
+  assert.deepEqual(staging.tokens[0].position, { x: -100, y: 40 });
+  assert.equal(staging.tokens[0].side, 'party', 'moving does not touch the side');
+
+  const resided = session.run('scene:update-ship', { fight: { id: sceneId, value: { tokenId, side: 'opposition' } } });
+  assert.equal(resided.ok, true, resided.message);
+  staging = scenesTab(session, sceneId).staging;
+  assert.equal(staging.tokens[0].side, 'opposition');
+  assert.deepEqual(staging.tokens[0].position, { x: -100, y: 40 }, 'changing side does not touch position');
+});
+
 test('the full flow: create, stage both sides, start combat, and the fight is real vector combat', async () => {
   const { session, registry, campaignId } = await freshSession();
   session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
@@ -103,4 +132,40 @@ test('the full flow: create, stage both sides, start combat, and the fight is re
   const shipFight = session.view().shipFight;
   assert.equal(shipFight.spatialMode, 'vector');
   assert.equal(shipFight.vector.awaitingMovement, true, 'the party staged as intruder, so the player\u2019s ship moves first');
+});
+
+test('the staging panel renders a combatant row per staged ship, live-editable via the real handlers', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+
+  const { session, registry, campaignId } = await freshSession();
+  session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
+  const sceneId = scenesTab(session).shown.find((entry) => entry.name === 'Space').id;
+  const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
+  session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -20, y: 0, label: 'Marisol' } } });
+
+  const view = session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId } });
+  const nodes = renderDrawer('referee', { ...view, live: true }, view.referee, {
+    onUpdateStagedShip: (tokenId, patch) => session.run('scene:update-ship', { fight: { id: sceneId, value: { tokenId, ...patch } } }),
+    onUnstageShip: (tokenId) => session.run('scene:unstage-ship', { fight: { id: sceneId, value: tokenId } })
+  });
+  document.querySelector('main').replaceChildren(...nodes);
+
+  const combatant = document.querySelector('.combatant');
+  assert.ok(combatant, 'one combatant row is drawn');
+  assert.equal(combatant.querySelector('.combatant-name').textContent, 'Marisol');
+  assert.match(combatant.querySelector('.combatant-hull').textContent, /your ship/);
+  assert.equal(combatant.querySelectorAll('.combatant-row').length, 3, 'side, controlled-by, and position rows');
+
+  // The X input is genuinely wired to the real update command, through the
+  // same handler play.js itself would pass \u2014 not a decorative field.
+  const xInput = combatant.querySelector('input[aria-label$="X position"]');
+  xInput.value = '-150';
+  xInput.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId } }).referee.staging.tokens[0].position.x, -150);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
 });

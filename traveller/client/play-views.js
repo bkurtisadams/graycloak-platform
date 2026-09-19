@@ -1041,12 +1041,33 @@ function refereeDrawer(referee, state, handlers) {
 // The ship picker and staged-token list for one vector-board scene, and the
 // Start Combat control once both a party and an opposition ship are staged.
 function stagingPanel(staging, handlers) {
+  const SIDE_COLOR = { party: 'var(--signal)', opposition: 'var(--red)', neutral: 'var(--ink-2)' };
+  const combatantRow = (token) => {
+    const head = h('div', { class: 'combatant-head' },
+      h('span', { class: 'combatant-dot', style: `background:${SIDE_COLOR[token.side] ?? SIDE_COLOR.neutral}` }),
+      h('span', { class: 'combatant-name', text: token.label }),
+      h('span', { class: 'combatant-hull', text: token.hull }),
+      h('button', { type: 'button', class: 'combatant-remove', 'aria-label': `Remove ${token.label}`, text: '\u00d7', onclick: () => handlers.onUnstageShip?.(token.id) }));
+    const sideRow = h('div', { class: 'combatant-row' },
+      h('label', { text: 'SIDE' }),
+      h('select', { 'aria-label': `${token.label}'s side`, onchange: (event) => handlers.onUpdateStagedShip?.(token.id, { side: event.currentTarget.value }) },
+        ['party', 'opposition', 'neutral'].map((side) => h('option', { value: side, selected: side === token.side, text: side[0].toUpperCase() + side.slice(1) }))));
+    const controllerRow = h('div', { class: 'combatant-row' },
+      h('label', { text: 'CONTROLLED BY' }),
+      h('span', { text: token.controller }));
+    const positionRow = h('div', { class: 'combatant-row' },
+      h('label', { text: 'POSITION' }),
+      h('span', { class: 'combatant-coord-label', text: 'X' }),
+      h('input', { type: 'number', step: '1', value: String(token.position.x), 'aria-label': `${token.label}'s X position`, onchange: (event) => handlers.onUpdateStagedShip?.(token.id, { x: Number(event.currentTarget.value) || 0 }) }),
+      h('span', { class: 'combatant-coord-label', text: 'Y' }),
+      h('input', { type: 'number', step: '1', value: String(token.position.y), 'aria-label': `${token.label}'s Y position`, onchange: (event) => handlers.onUpdateStagedShip?.(token.id, { y: Number(event.currentTarget.value) || 0 }) }),
+      h('span', { class: 'combatant-note', text: `(${Math.hypot(token.position.x, token.position.y).toFixed(0)}" from center)` }));
+    const fields = h('div', { class: 'combatant-fields' }, sideRow, controllerRow, positionRow);
+    return h('div', { class: 'combatant' }, head, fields);
+  };
   return h('div', { class: 'staging-panel' },
     h('p', { class: 'cite', text: `${staging.spanThousandMiles}" across.` }),
-    staging.tokens.length ? h('ul', { class: 'entries' }, staging.tokens.map((token) => h('li', { class: 'entry' },
-      h('span', { class: 'entry-name', text: `${token.label} (${token.side})` }),
-      h('button', { type: 'button', class: 'button is-small is-danger', text: 'Remove', onclick: () => handlers.onUnstageShip?.(token.id) })
-    ))) : h('p', { class: 'empty', text: 'Nothing staged yet.' }),
+    staging.tokens.length ? h('div', { class: 'staged-combatants' }, staging.tokens.map(combatantRow)) : h('p', { class: 'empty', text: 'Nothing staged yet.' }),
     h('form', { class: 'staging-add', onsubmit: (event) => {
       event.preventDefault();
       const data = new FormData(event.currentTarget);

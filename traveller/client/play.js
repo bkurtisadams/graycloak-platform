@@ -276,6 +276,10 @@ function render() {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;
       source.session.run('scene:unstage-ship', { fight: { id: ui.stagingSceneId, value: tokenId } });
     },
+    onUpdateStagedShip: (tokenId, patch) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      source.session.run('scene:update-ship', { fight: { id: ui.stagingSceneId, value: { tokenId, ...patch } } });
+    },
     onStartVectorCombat: (intruder, pressurised) => {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;
       const result = source.session.run('shipfight:vector-start', { fight: { sceneId: ui.stagingSceneId, intruder, pressurised } });

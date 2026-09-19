@@ -630,6 +630,32 @@ a.button { text-decoration: none; color: inherit; }
 .scene-actions { display: flex; gap: 4px; margin-left: auto; }
 .button.is-danger { color: var(--red); border-color: var(--red); }
 
+/* v0.244.0: staging a vector-board scene. The drawer is only --drawer-width
+   (420px, minus 20px padding each side) wide, so every row here is built to
+   actually fit ~380px, not just to look right at a mockup's own size — a
+   combatant's fields are indented under its name (a thin left rule, not a
+   box) rather than laid out as a wide row, since a row wide enough to hold
+   Side/Controlled-by/Position side by side does not fit this panel. */
+.staging-panel { display: flex; flex-direction: column; gap: 10px; }
+.staged-combatants { display: flex; flex-direction: column; gap: 10px; }
+.combatant-head { display: flex; align-items: center; gap: 8px; }
+.combatant-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; }
+.combatant-name { font-weight: 700; }
+.combatant-hull { color: var(--ink-2); font-size: 11px; }
+.combatant-head > .combatant-remove { margin-left: auto; }
+.combatant-remove { flex: 0 0 auto; width: 18px; height: 18px; line-height: 1; padding: 0; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.combatant-fields { margin: 6px 0 0 3px; padding-left: 12px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 5px; }
+.combatant-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.combatant-row > label { flex: 0 0 auto; width: 84px; font-size: 10px; letter-spacing: .06em; color: var(--ink-2); }
+.combatant-row select, .combatant-row input[type="number"] { font-family: var(--code); font-size: 12px; border: 1px solid var(--line); background: var(--raise); padding: 3px 5px; }
+.combatant-row input[type="number"] { width: 52px; }
+.combatant-coord-label { color: var(--ink-2); font-size: 10px; }
+.combatant-note { color: var(--ink-2); font-size: 10px; flex-basis: 100%; }
+.staging-add, .staging-start { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.staging-add select, .staging-add input, .staging-start select { font-family: var(--code); font-size: 12px; border: 1px solid var(--line); background: var(--raise); padding: 4px 6px; }
+.staging-add input[type="number"] { width: 52px; }
+.staging-start label.check { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
 /* Book 3's PLANETARY CHARACTERISTICS: the eight rows, each with the UWP digit
    it is read from, so the profile on the caption and the code above it agree. */
 .uwp { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px; font-size: 13px; }

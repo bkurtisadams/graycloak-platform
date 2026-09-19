@@ -59,7 +59,8 @@ import {
 } from './campaign-document.js';
 import {
   createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER,
-  sceneActorIsDesignReference, SCENE_DESIGN_REFERENCE_PREFIX, removeSceneToken, placeSceneShip
+  sceneActorIsDesignReference, SCENE_DESIGN_REFERENCE_PREFIX, removeSceneToken, placeSceneShip,
+  moveSceneShip, setSceneTokenSide
 } from './scene-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
@@ -457,13 +458,20 @@ function buildStagingView(resolved, sceneId) {
     const design = getStandardShipDesign(key);
     choices.push({ actorId: `${SCENE_DESIGN_REFERENCE_PREFIX}${key}`, label: design.name, note: `Type ${design.typeCode}` });
   }
-  const tokens = scene.tokens.map((token) => ({
-    id: token.id,
-    label: token.label || (sceneActorIsDesignReference(token.actorId)
-      ? getStandardShipDesign(token.actorId.slice(SCENE_DESIGN_REFERENCE_PREFIX.length)).name
-      : token.actorId),
-    side: token.side, position: token.position, velocity: token.velocity
-  }));
+  const tokens = scene.tokens.map((token) => {
+    const isOwn = ownShip && token.actorId === ownShip.identity.id;
+    const design = isOwn ? null : getStandardShipDesign(token.actorId.slice(SCENE_DESIGN_REFERENCE_PREFIX.length));
+    const pilotName = isOwn
+      ? (ownShip.crew?.assignments ?? []).find((entry) => entry.role === 'pilot')?.characterName ?? 'Unassigned'
+      : null;
+    return {
+      id: token.id,
+      label: token.label || (isOwn ? ownShip.identity.name : design?.name) || token.actorId,
+      hull: isOwn ? `${ownShip.design.typeCode} \u00b7 your ship` : `${design?.typeCode ?? '?'} \u00b7 design`,
+      controller: isOwn ? pilotName : 'Referee (NPC)',
+      side: token.side, position: token.position, velocity: token.velocity
+    };
+  });
   const plan = spaceSceneCombatPlan(scene, { ownShipId: ownShip?.identity?.id ?? null });
   return {
     sceneId, sceneName: scene.identity.name, spanThousandMiles: scene.board.spanThousandMiles,
@@ -1491,6 +1499,26 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           registry.putAll([next, campaign]);
           reload();
           message = 'Ship removed from staging.';
+        } else if (action === 'update-ship') {
+          // One command for both fields a staged token's row can edit
+          // (side, position) rather than two near-identical ones — each
+          // fires independently from the UI (a select's onchange, an
+          // input's oninput), so this just applies whichever the payload
+          // actually carries.
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to update');
+          const tokenId = value?.tokenId;
+          let next = scene;
+          if (value?.side !== undefined) next = setSceneTokenSide(next, { tokenId, side: value.side });
+          if (value?.x !== undefined || value?.y !== undefined) {
+            const token = next.tokens.find((entry) => entry.id === tokenId);
+            if (!token) throw new Error('token is not on this scene');
+            next = moveSceneShip(next, { tokenId, x: value.x ?? token.position.x, y: value.y ?? token.position.y });
+          }
+          const campaign = addSceneToCampaign(resolved.campaign, next);
+          registry.putAll([next, campaign]);
+          reload();
+          message = 'Staged ship updated.';
         } else if (action === 'file') {
           const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
           if (!scene) throw new Error('choose a scene to file');
