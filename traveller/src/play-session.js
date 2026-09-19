@@ -22,6 +22,7 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
+  skimGasGiantToCapacity,
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
   createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
@@ -871,7 +872,26 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
       copy: fuelService.freeScoutFuel ? `The scout base at ${system.name} fuels this ship free.` : `${sentenceCase(fuelService.quality)} fuel at ${cr(fuelService.pricePerTonCr)} a ton. ${fuel.aboard} of ${fuel.capacity} t aboard.`, cite: 'Book 2 p.6' });
   } else {
     steps.push({ id: 'fuel', title: 'Fuel', figure: `${fuel.aboard} of ${fuel.capacity} t, none sold here`, state: 'blocked',
-      copy: system.gasGiant ? 'This starport sells no fuel. The system has a gas giant to skim.' : 'This starport sells no fuel and the system has no gas giant.', cite: 'Book 2 p.6' });
+      copy: system.gasGiant ? 'This starport sells no fuel; skim the gas giant instead.' : 'This starport sells no fuel and the system has no gas giant.', cite: 'Book 2 p.6' });
+  }
+
+  // Book 2 p.34 Wilderness Refuelling: free unrefined fuel from a gas
+  // giant's atmosphere — offered alongside starport fuel, not only when
+  // starport fuel is unavailable, since a captain might prefer it free even
+  // where refined fuel is for sale. p.15: only a streamlined hull can enter
+  // an atmosphere at all, so an unstreamlined ship is shown why it can't.
+  // p.4: unrefined fuel raises the drive-failure throw (Contaminated Fuel)
+  // until flushed, about a week at any starport — that risk isn't hidden.
+  if (fuel.missing >= 1 && system.gasGiant) {
+    if (ship.specifications?.hull?.streamlined) {
+      steps.push({ id: 'fuel-skim', title: 'Skim the gas giant', figure: `${fuel.missing} t unrefined, free \u2014 about a week`, state: 'ready', command: 'fuel:skim', verb: 'Skim',
+        copy: 'Unrefined fuel from the gas giant\u2019s atmosphere, no charge. Raises the drive-failure throw (Book 2 p.4, Contaminated Fuel) while any of it is aboard, until the drives are flushed \u2014 about a week at any starport. The skim itself takes about a week.',
+        cite: 'Book 2 p.34' });
+    } else {
+      steps.push({ id: 'fuel-skim', title: 'Skim the gas giant', state: 'blocked',
+        copy: 'Skimming means entering the gas giant\u2019s atmosphere, which only a streamlined hull (Book 2 p.15) can do. This ship isn\u2019t streamlined.',
+        cite: 'Book 2 p.34' });
+    }
   }
 
   // Book 2 p.18 Repair Parts. Crew self-repair (from the ship's own Stores)
@@ -1546,6 +1566,23 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const result = purchaseShipFuel(facts.ship, { tons: facts.fuel.missing, quality: facts.fuelService.quality, pricePerTonCr: facts.fuelService.pricePerTonCr, source, dateLabel });
         persist([result.ship]);
         message = `${shipName} took on ${result.addedTons} t ${facts.fuelService.quality} fuel at ${facts.system.name}, ${result.costCr ? cr(result.costCr) : 'free'}`;
+        log('SHIP', message);
+      } else if (command === 'fuel:skim') {
+        // Book 2 p.34: free, but it costs about a week (skimGasGiantToCapacity's
+        // own elapsedDays) and leaves the tanks unrefined until flushed (p.4).
+        if (!facts.system?.gasGiant) throw new Error('no gas giant in this system to skim');
+        if (facts.fuel.missing < 1) throw new Error('fuel tanks are already full');
+        const result = skimGasGiantToCapacity(facts.ship);
+        if (result.elapsedDays > 0) {
+          let campaign = advanceCampaignDays(resolved.campaign, result.elapsedDays);
+          registry.put(campaign);
+          // persist() below rebuilds document refs from resolved.campaign, so
+          // the new date must be in resolved before it runs (same order the
+          // departure handler uses).
+          reload();
+        }
+        persist([result.ship]);
+        message = `${shipName} skims ${result.addedTons} t of unrefined fuel from the gas giant at ${facts.system.name} \u2014 free, ${result.elapsedDays} day${result.elapsedDays === 1 ? '' : 's'} spent skimming.`;
         log('SHIP', message);
       } else if (command.startsWith('repair:crew:') || command.startsWith('repair:shipyard:')) {
         // Book 2 p.18: "the cost of the repair is based on the cost of the
