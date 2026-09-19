@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.217.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.217.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.217.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.218.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.218.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.217.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.218.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -287,30 +287,109 @@ function trackerRow(fighter, reader, state, handlers) {
     h('td', { class: `tr-order${order === 'undeclared' ? ' is-undeclared' : ''}`, title: order, text: order }));
 }
 
+// ---- the round as a declaration sheet ---------------------------------------
+// Book 1 p.26 step 4: "A. Each character indicates his movement status. B. Each
+// character indicates his attack and his target." Two passes over everyone, so
+// the screen is one row per combatant, filled in and resolved together. There
+// is no selected combatant to declare for and nothing hidden behind one.
+
+const SHEET_MOVES = ['Stand', 'Close', 'Close (run)', 'Open', 'Open (run)', 'Evade'];
+const NO_ATTACK_MOVES = new Set(['Close (run)', 'Open (run)', 'Evade', 'Escape']);
+
+// Each row's order: what the referee has chosen on the sheet, else what the
+// engine already holds, else what an NPC would do left to itself, else the
+// plain default — attack the nearest enemy, closing if the weapon cannot reach.
+export function sheetRows(state, chosen = {}) {
+  const fighters = state.fighters ?? [];
+  return fighters.map((fighter) => {
+    const down = isDown(fighter);
+    const foes = fighters.filter((other) => other.side !== fighter.side && !isDown(other));
+    const nearest = [...foes].sort((a, b) => Math.abs(a.band - fighter.band) - Math.abs(b.band - fighter.band))[0] ?? null;
+    const pick = chosen[fighter.id] ?? null;
+    const held = fighter.order ? { move: ({ attack: 'Stand', wait: 'Stand', close: 'Close', 'close-run': 'Close (run)', open: 'Open', 'open-run': 'Open (run)', evade: 'Evade', escape: 'Escape' })[fighter.order.engineAction] ?? 'Stand', targetId: fighter.order.targetId } : null;
+    const reachNearest = nearest ? hitLine(fighter, nearest).preview?.canAttack : false;
+    const fallback = { move: nearest && !reachNearest ? 'Close' : 'Stand', targetId: nearest?.id ?? null };
+    const base = pick ?? held ?? fighter.suggestion ?? fallback;
+    const source = pick ? 'chosen' : held ? 'declared' : fighter.suggestion ? 'suggested' : 'default';
+    const move = base.move ?? 'Stand';
+    let targetId = base.targetId ?? null;
+    if (targetId && !foes.some((foe) => foe.id === targetId)) targetId = nearest?.id ?? null;
+    if (move === 'Evade' || move === 'Escape') targetId = null;
+    const target = foes.find((foe) => foe.id === targetId) ?? null;
+    const attacks = Boolean(target) && !NO_ATTACK_MOVES.has(move);
+    const line = target ? hitLine(fighter, target) : null;
+    let needs = '';
+    let tone = '';
+    if (down) needs = '';
+    else if (state.setup?.surprisedSide && (fighter.side === 'party' ? 'party' : 'opposition') === state.setup.surprisedSide) { needs = 'surprised: cannot act'; tone = 'muted'; }
+    else if (move === 'Evade') { needs = 'evading: no attack'; tone = 'muted'; }
+    else if (move === 'Escape') { needs = 'escape on 9+'; tone = 'muted'; }
+    else if (!target) { needs = 'holds fire'; tone = 'muted'; }
+    else if (NO_ATTACK_MOVES.has(move)) { needs = 'running: no attack'; tone = 'muted'; }
+    else if (line && !line.preview?.canAttack) {
+      needs = move === 'Close' ? "can't reach \u2014 closing" : "can't reach";
+      tone = move === 'Close' ? 'muted' : 'warn';
+    } else if (line) {
+      const need = line.preview.requiredRoll;
+      needs = need <= 2 ? 'cannot miss' : `${need}+`;
+      tone = need > 12 ? 'warn' : 'go';
+    }
+    return { fighter, down, foes, move, targetId, target, attacks, line, needs, tone, source, reason: source === 'suggested' ? fighter.suggestion.reason : null };
+  });
+}
+
+function sheetRow(row, state, handlers, focusId) {
+  const { fighter } = row;
+  const stats = ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
+    h('span', { class: fighter.characteristics[key] < fighter.full[key] ? 'is-hurt' : '', text: String(fighter.characteristics[key]) })]);
+  // One characteristic at zero is unconscious (p.30), so the figure that
+  // matters is how close the lowest one is.
+  const lowest = Math.min(...['STR', 'DEX', 'END'].map((key) => fighter.characteristics[key]));
+  const brink = !row.down && lowest > 0 && lowest <= 2;
+  const live = Boolean(state.live) && !row.down;
+  const weapon = getPersonalWeapon(fighter.weaponKey);
+  return h('tr', { class: `is-${fighter.side}${row.down ? ' is-down' : ''}${fighter.id === focusId ? ' is-focus' : ''}`, onclick: (event) => { if (!event.target.closest('select')) handlers.onSheetFocus?.(fighter.id); } },
+    h('td', {}, h('div', { class: 'tr-name' }, h('span', { class: 'tr-dot', 'aria-hidden': 'true' }), h('span', { class: 'tr-select', text: fighter.name }))),
+    h('td', { class: 'tr-stats', title: row.down ? condition(fighter) : brink ? 'One more wound may put a characteristic to zero: unconscious (Book 1 p.30)' : condition(fighter) },
+      row.down ? condition(fighter).toLowerCase() : [stats, brink ? h('span', { class: 'brink', text: ' \u26a0' }) : null]),
+    h('td', {}, row.down ? '' : h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: movement`, disabled: !live, onchange: (event) => handlers.onSheetChange?.(fighter.id, { move: event.target.value, targetId: row.targetId }) },
+      [...SHEET_MOVES, ...(state.round === 1 ? ['Escape'] : [])].map((move) => h('option', { value: move, selected: move === row.move, text: move })))),
+    h('td', { class: 'tr-arms', title: `${fighter.weaponLabel}, ${fighter.armorLabel}${weapon.melee ? `, ${blowsRemaining(fighter)} of ${fighter.blowAllowance} combat blows left` : ''}` },
+      fighter.weaponLabel, weapon.melee && !row.down ? h('span', { class: 'blows', text: ` \u00b7 ${blowsRemaining(fighter)} blows` }) : null),
+    h('td', {}, row.down || row.move === 'Evade' || row.move === 'Escape' ? '' : h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: target`, disabled: !live, onchange: (event) => handlers.onSheetChange?.(fighter.id, { move: row.move, targetId: event.target.value || null }) },
+      row.move === 'Stand' ? h('option', { value: '', selected: !row.targetId, text: '\u2014 hold fire \u2014' }) : null,
+      row.foes.map((foe) => h('option', { value: foe.id, selected: foe.id === row.targetId, text: `${foe.name} (${rangeBetween(fighter, foe).name.toLowerCase()})` })))),
+    h('td', { class: `sheet-needs is-${row.tone || 'plain'}`, text: row.needs }));
+}
+
 function fightColumn(state, handlers) {
-  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
-  const sides = [state.fighters.filter((fighter) => fighter.side === 'party'), state.fighters.filter((fighter) => fighter.side !== 'party')];
+  const rows = state.sheetRows ?? sheetRows(state, {});
+  const focus = rows.find((row) => row.fighter.id === state.sheetFocus) ?? rows.find((row) => !row.down) ?? null;
   const referee = state.seat !== 'player';
+  const sides = [rows.filter((row) => row.fighter.side === 'party'), rows.filter((row) => row.fighter.side !== 'party')];
+  const wound = state.next?.wound ?? null;
+  const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) =>
+    `${entry.side === 'party' ? 'The party' : 'The opposition'} has ${entry.out} of ${entry.of} down (${Math.round(entry.share * 100)}%): morale is thrown each round, 7+ to stand${entry.share > 0.5 ? ', at \u22122' : ''}.`);
   return [
-    h('header', { class: 'now-head' }, h('h1', { text: state.situation.title }), h('p', { text: state.situation.detail })),
-    // What the last command said: during a fight this is the round's narration.
+    h('header', { class: 'now-head' }, h('h1', { text: state.situation.title }), h('p', { text: [state.setup?.range, state.setup?.surprise].filter(Boolean).join('. ') })),
     state.notice ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null,
-    selectedPanel(reader, state, handlers),
-    h('table', { class: 'tracker' },
+    morale.length ? h('p', { class: 'hold-note is-morale', text: morale.join(' ') }) : null,
+    wound ? h('section', { class: 'lead' }, h('h2', { text: state.next.title }), h('p', { text: state.next.copy }), h('p', { class: 'cite', text: state.next.cite })) : null,
+    h('table', { class: 'tracker sheet' },
       h('thead', {}, h('tr', {},
-        h('th', { text: 'Combatant' }), h('th', { title: 'What each carries, and its wound dice', text: 'In hand' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'S\u00b7D\u00b7E' }), h('th', { title: `Range from ${reader.name}`, text: 'Rng' }),
-        h('th', { title: `2D against 8+, adjusted. What ${reader.name} must throw to hit them; click to give the order.`, text: 'Hit' }), h('th', { text: 'Target' }), h('th', { text: 'This round' }))),
-      sides.map((side) => h('tbody', {}, side.map((fighter) => trackerRow(fighter, reader, state, handlers))))),
-    (state.declaredList ?? []).length
-      ? h('section', { class: 'declared' },
-        h('h3', { text: 'Declared this round' }),
-        h('ul', {}, state.declaredList.map((entry) => h('li', { class: `declared-row is-${entry.side}` },
-          h('span', { class: 'declared-name', text: entry.name }),
-          h('span', { class: 'declared-what', text: entry.text }),
-          h('button', { type: 'button', class: 'inv-remove', title: `Take back ${entry.name}'s orders`, 'aria-label': `Take back ${entry.name}'s orders`, text: '\u00d7', onclick: () => handlers.onUndeclare?.(entry.id) })))))
-      : null,
+        h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'Status' }),
+        h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }),
+        h('th', { title: 'Book 1 p.28 step 4B', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
+      sides.map((side) => h('tbody', {}, side.map((row) => sheetRow(row, state, handlers, focus?.fighter.id))))),
+    // The throw behind the focused row, as a sum, and an NPC's own reasoning.
+    focus && !focus.down ? h('section', { class: 'sheet-why' },
+      h('h3', { text: focus.fighter.name }),
+      focus.attacks && focus.line?.preview?.canAttack ? h('p', { class: 'odds', text: `${dmSum(focus.line.preview)} for ${woundText(focus.line.preview)} wounds.` }) : null,
+      focus.target && focus.line && !focus.line.preview?.canAttack ? h('p', { class: `odds${focus.move === 'Close' ? '' : ' is-warning'}`, text: `${getPersonalWeapon(focus.fighter.weaponKey).name} cannot reach ${focus.target.name} at ${focus.line.range.name.toLowerCase()} range${focus.move === 'Close' ? '; closing one band this round.' : '. Close the range, or this order does nothing.'}` }) : null,
+      focus.reason ? h('p', { class: 'odds', text: `Suggested: ${focus.reason}. Change the row to overrule it.` }) : null,
+      focus.source === 'declared' ? h('p', { class: 'odds', text: 'Already declared this round; changing the row replaces it.' }) : null) : null,
     h('div', { class: 'lead-actions' },
-      (state.next?.actions ?? []).map((action) => h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button', onclick: action.command ? () => handlers.onCommand?.(action.command) : null }, h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null)),
+      state.live && !wound ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() }, h('span', { text: 'Resolve round' }), h('small', { text: `${rows.filter((row) => !row.down).length} orders, as shown` })) : null,
       referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
       (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
     state.lastRound?.length ? h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))) : null
@@ -466,11 +545,23 @@ function bandsScene(state, handlers) {
     const partner = state.fighters.find((other) => at.has(other.id) && other.band === fighter.band && inContact(fighter, other));
     at.set(fighter.id, partner ? { cx: at.get(partner.id).cx + 30, cy: at.get(partner.id).cy, tucked: true } : { cx: 80 + index * 230, cy: fighter.band * rowH + rowH / 2 });
   }
-  const order = orderOf(reader, state);
-  if (order?.targetId && at.has(order.targetId) && !isDown(reader)) {
-    const from = at.get(reader.id);
-    const to = at.get(order.targetId);
-    svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: 'target-line' }));
+  // Every order on the sheet is drawn, so the board and the sheet say the same
+  // thing: a solid line for an attack, a dashed one for movement without one.
+  const drawn = state.sheetRows ?? [];
+  if (drawn.length) {
+    for (const row of drawn) {
+      if (row.down || !row.targetId || !at.has(row.targetId)) continue;
+      const from = at.get(row.fighter.id);
+      const to = at.get(row.targetId);
+      svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: `target-line is-${row.fighter.side}${row.attacks ? '' : ' is-move'}` }));
+    }
+  } else {
+    const order = orderOf(reader, state);
+    if (order?.targetId && at.has(order.targetId) && !isDown(reader)) {
+      const from = at.get(reader.id);
+      const to = at.get(order.targetId);
+      svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: 'target-line' }));
+    }
   }
   for (const fighter of state.fighters) {
     const { cx, cy } = at.get(fighter.id);

@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.217.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.217.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.217.1';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.217.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.217.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.217.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.217.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.218.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.218.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.218.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.218.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.218.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.218.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -47,7 +47,12 @@ const ui = {
   fightRunning: null,
   fightActorId: null,
   fightAttack: true,
-  woundTargets: null
+  woundTargets: null,
+  // The declaration sheet: what the referee has chosen per combatant this
+  // round, and which row's throw is spelled out beneath it.
+  sheet: {},
+  sheetRound: null,
+  sheetFocus: null
 };
 if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 
@@ -59,6 +64,12 @@ function viewState() {
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
+    if (state.fighters?.length) {
+      // A new round starts from a clean sheet.
+      if (ui.sheetRound !== state.round) { ui.sheet = {}; ui.sheetRound = state.round; }
+      const focus = ui.sheetFocus ?? ui.selectedMarker;
+      return { ...state, sheetRows: sheetRows(state, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
+    }
     if (!state.next?.declare) return state;
     const declare = {
       ...state.next.declare,
@@ -175,7 +186,7 @@ function render() {
 
   const handlers = {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
-    onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
+    onSelectMarker: (id) => { ui.selectedMarker = id; ui.sheetFocus = id; render(); },
     onPickTarget: (id, { reachable = true } = {}) => {
       const state = viewState();
       // Book 1 p.28: a weapon that cannot reach cannot attack. Ordering an
@@ -191,6 +202,15 @@ function render() {
     },
     onUndeclare: (id) => { if (source.mode === 'live') { source.session.run('fight:undeclare', { fight: { actorId: id } }); ui.selectedMarker = id; render(); } },
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
+    onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
+    onSheetFocus: (id) => { ui.sheetFocus = id; ui.selectedMarker = id; render(); },
+    onResolveSheet: () => {
+      if (source.mode !== 'live') return;
+      const rows = (viewState().sheetRows ?? []).filter((row) => !row.down).map((row) => ({ actorId: row.fighter.id, move: row.move, targetId: row.targetId }));
+      source.session.run('fight:sheet', { fight: { rows } });
+      ui.sheet = {};
+      render();
+    },
     onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },
     onPickMove: (move) => {
       ui.fightMove = move;

@@ -302,7 +302,7 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 
 /* A fight. The left column widens to hold the selected combatant and the
    tracker; the scene is the band board and nothing else. */
-.shell[data-situation='fight'] { --now-width: 600px; }
+.shell[data-situation='fight'] { --now-width: 720px; }
 .target-line { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 5; pointer-events: none; }
 
 .selected { display: grid; gap: 10px; padding-top: 12px; border-top: 3px solid var(--ink); }
@@ -517,3 +517,28 @@ a.button { text-decoration: none; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .destination-pending .system-hex.reachable .subsector-hex-shape { animation: none; }
 }
+
+/* ------------------------------------------------------ the declaration sheet
+   One row per combatant, filled in and resolved together (Book 1 p.26 step 4). */
+.tracker.sheet th:nth-child(1) { width: 20%; }
+.tracker.sheet th:nth-child(2) { width: 12%; }
+.tracker.sheet th:nth-child(3) { width: 17%; }
+.tracker.sheet th:nth-child(4) { width: 19%; }
+.tracker.sheet th:nth-child(5) { width: 19%; }
+.tracker.sheet th:nth-child(6) { width: 13%; }
+.tracker.sheet td { padding: 5px 6px 5px 0; white-space: normal; vertical-align: middle; }
+.tracker.sheet tr.is-focus td { background: var(--signal-wash); }
+.sheet-select { width: 100%; padding: 4px 4px; font-size: 13px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
+.sheet-select:disabled { opacity: 0.6; }
+.sheet-needs { font-weight: 700; font-size: 14px; line-height: 1.2; }
+.sheet-needs.is-go { font-size: 17px; }
+.sheet-needs.is-warn { color: var(--red); }
+.sheet-needs.is-muted { font-weight: 400; color: var(--ink-2); font-size: 13px; }
+.brink { color: var(--red); }
+.blows { color: var(--ink-2); }
+.sheet-why { display: grid; gap: 4px; padding: 8px 10px; border-left: 3px solid var(--signal); background: var(--raise); }
+.sheet-why h3 { font-size: 14px; font-weight: 700; }
+.hold-note.is-morale { color: var(--ink); font-weight: 700; padding: 6px 10px; border-left: 3px solid var(--attention-border); background: var(--attention); }
+.target-line.is-foe { stroke: var(--red); }
+.target-line.is-move { stroke-dasharray: 2 6; opacity: 0.7; }
+.target-line:not(.is-move) { stroke-dasharray: none; }

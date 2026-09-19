@@ -282,6 +282,26 @@ export function engineActionFor({ move = 'Stand', running = false, attack = true
   return attack ? 'attack' : 'wait';
 }
 
+// v0.218.0: the round as a declaration sheet. Book 1 p.26 step 4 is two passes
+// over everyone — A, movement status; B, attack and target — so the screen is
+// one row per combatant, filled in and resolved together. These are the
+// sheet's movement words and how they meet the engine's combined action.
+export const SHEET_MOVES = Object.freeze(['Stand', 'Close', 'Close (run)', 'Open', 'Open (run)', 'Evade']);
+
+export function sheetRowToEngine({ move = 'Stand', targetId = null } = {}) {
+  if (move === 'Evade') return { action: 'evade', targetId: null };
+  if (move === 'Escape') return { action: 'escape', targetId: null };
+  if (move === 'Close') return { action: 'close', targetId };
+  if (move === 'Close (run)') return { action: 'close-run', targetId };
+  if (move === 'Open') return { action: 'open', targetId };
+  if (move === 'Open (run)') return { action: 'open-run', targetId };
+  return targetId ? { action: 'attack', targetId } : { action: 'wait', targetId: null };
+}
+
+export function engineToSheetMove(action) {
+  return { attack: 'Stand', wait: 'Stand', close: 'Close', 'close-run': 'Close (run)', open: 'Open', 'open-run': 'Open (run)', evade: 'Evade', escape: 'Escape' }[action] ?? 'Stand';
+}
+
 export function fightView(encounter, { characters = [] } = {}) {
   if (!encounter || encounter.status !== 'active') return null;
   const byId = new Map(characters.map((entry) => [entry.identity.id, entry]));
@@ -329,6 +349,15 @@ export function fightView(encounter, { characters = [] } = {}) {
       upp: source?.upp ?? null,
       service: source ? characterView(source).service : null,
       awaiting: awaiting.has(entry.id),
+      // What this combatant would do left to itself, and why. The sheet
+      // pre-fills an NPC's row with it; the referee may change any of it.
+      suggestion: (() => {
+        if (entry.status !== 'active' || entry.side === 'party') return null;
+        try {
+          const choice = chooseNpcDeclaration(encounter, entry);
+          return choice ? { move: engineToSheetMove(choice.action), targetId: choice.targetId ?? null, reason: choice.reason } : null;
+        } catch { return null; }
+      })(),
       order: order
         ? {
           move: ENGINE_ORDER_WORDS[order.action] ?? order.action,
@@ -358,9 +387,30 @@ export function fightView(encounter, { characters = [] } = {}) {
     text: `${entry.order.move}${entry.order.targetId ? ` \u2192 ${named.get(entry.order.targetId) ?? 'target'}` : ''}`
   }));
 
+  // Steps 1-3 of the procedure happen once; say how they came out.
+  const surprise = encounter.surprise ?? {};
+  const sideName = (id) => (id === 'party' ? 'The party' : 'The opposition');
+  const setup = {
+    surprise: surprise.surpriseSideId
+      ? `${sideName(surprise.surpriseSideId)} has surprise${encounter.round === 1 ? ': the other side cannot act this round' : ' (spent)'}`
+      : 'Neither side has surprise',
+    range: `Met at ${String(encounter.range ?? '').replace('-', ' ')} range`,
+    surprisedSide: encounter.round === 1 ? (surprise.surprisedSideId ?? null) : null
+  };
+  // Book 1 p.33: at 25% of a party unconscious or killed, it throws morale
+  // each round, 7+ to stand; -2 once casualties pass 50%.
+  const casualties = ['party', 'foe'].map((side) => {
+    const members = fighters.filter((entry) => entry.side === side);
+    const out = members.filter((entry) => entry.down).length;
+    const share = members.length ? out / members.length : 0;
+    return { side, out, of: members.length, share, throwing: share >= 0.25 && out < members.length };
+  });
+
   return {
     encounterId: encounter.identity.id,
     fighters,
+    setup,
+    casualties,
     declaredList,
     round: encounter.round,
     lastRound,
@@ -743,6 +793,31 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           persist([result.encounter]);
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
           message = `${actor?.name ?? 'Combatant'} declared ${action.replace('-', ' at a ')}`;
+        } else if (verb === 'sheet') {
+          // The sheet is the declaration: whatever rows it carries replace any
+          // orders already standing for those combatants, then the round is
+          // resolved. A row the engine refuses (a surprised combatant, say) is
+          // reported and the rest still go through.
+          const rows = Array.isArray(fight?.rows) ? fight.rows : [];
+          let staged = encounter;
+          const refused = [];
+          for (const row of rows) {
+            const actor = staged.combatants.find((entry) => entry.id === row.actorId);
+            if (!actor || actor.status !== 'active') continue;
+            if (staged.roundState.declaredActions.some((entry) => entry.actorId === row.actorId)) {
+              staged = undeclareEncounterAction(staged, { actorId: row.actorId }).encounter;
+            }
+            const order = sheetRowToEngine(row);
+            try {
+              staged = declareEncounterAction(staged, { action: order.action, actorId: row.actorId, targetId: order.targetId }).encounter;
+            } catch (error) {
+              refused.push(`${actor.name}: ${error?.message ?? error}`);
+            }
+          }
+          const result = resolveDeclaredRound(staged, { dice: createDice(), date: resolved.campaign.time, playerAllocatesWounds: true });
+          persist([result.encounter]);
+          const narration = (result.encounter.history ?? []).filter((entry) => entry.round === staged.round && entry.text).map((entry) => entry.text);
+          message = [...refused.map((line) => `Refused \u2014 ${line}`), ...narration].join('. ') || `Round ${staged.round} resolved`;
         } else if (verb === 'undeclare') {
           const actorId = fight?.actorId;
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
@@ -1073,6 +1148,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           ...state,
           fighters: fight.fighters,
           declaredList: fight.declaredList,
+          setup: fight.setup,
+          casualties: fight.casualties,
+          round: fight.round,
           situation: fight.situation,
           lastRound: fight.lastRound,
           scene: { ...fight.scene, selected: selectedFighterId ?? fight.scene.selected },

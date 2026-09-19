@@ -37,7 +37,14 @@ export function rankNpcTargets(encounter, combatant) {
   const enemies = encounter.combatants.filter((entry) => entry.side !== combatant.side && entry.status === 'active');
   return enemies
     .map((enemy) => {
-      const band = encounterPairRange(combatant, enemy);
+      // v0.218.0: the board decides what a gap means. encounterPairRange
+      // defaults to 'scene', where the gap is metres; on the range-band line it
+      // is bands, so four bands (medium) was being read as four metres (short).
+      // An NPC with a club then believed it could swing, declared an attack,
+      // and the resolver — which does pass the mode — refused it as out of
+      // reach. Round after round, nobody closed. Found in the Sea of Suns
+      // fight, where two club-armed Thugs stood four bands off for six rounds.
+      const band = encounterPairRange(combatant, enemy, encounter.map?.spatialMode);
       const reachable = weaponTargetNumber(combatant.weaponKey, enemy.armor, band) !== null;
       const preview = reachable
         ? previewPersonalAttack({

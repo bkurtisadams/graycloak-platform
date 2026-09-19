@@ -1,5 +1,69 @@
 # Graycloak Traveller
 
+## v0.218.0 the round as a declaration sheet, and why your Thugs never closed
+
+**The fight screen is rebuilt.** Book 1 p.26 step 4 is two passes over
+everyone — "A. Each character indicates his movement status. B. Each character
+indicates his attack and his target." That is a sheet to fill in, not a
+character to inspect, and every combat bug reported so far came from pushing a
+round-shaped procedure through a character-shaped screen: orders that seemed
+to vanish with selection, a dash nobody could read, a button that declared the
+impossible.
+
+The column is now one row per combatant, all visible at once:
+
+    Combatant | Status | Movement | Weapon | Target | Needs
+
+Fill it in, press Resolve round. There is no selecting, no Declare button and
+no separate "declared" panel, because the sheet IS the declaration. An order
+already standing in the engine shows in its row and is replaced by whatever
+the row says when the round resolves.
+
+- **Needs** is the one number that matters: what this combatant must throw at
+  its chosen target, after every DM. Click a row and the sum is spelled out
+  beneath the sheet, with the wound dice:
+  `8+ base -6 Body Pistol vs no armor at medium range, -3 characteristic, +3
+  they are untrained -> 14+ for 3D-8 wounds.`
+- **An order that cannot work says so in red before the round**, not in the log
+  afterwards: "can't reach", or "can't reach — closing" when the movement
+  already answers it.
+- **The opposition's rows come pre-filled** from `chooseNpcDeclaration`, with
+  the reason shown when the row is clicked. Nothing is committed for them; the
+  referee changes any row and resolves. Auto is always there and never imposed.
+- **Status** shows S-D-E with wounded figures in red and a warning mark when
+  any characteristic is at 2 or less — one wound from unconscious (p.30).
+  Blows show beside a melee weapon only; guns ignore endurance (p.32).
+- **The header states steps 1-3**, which the page ignored entirely before:
+  the range the parties met at, and who, if anyone, has surprise. A surprised
+  side's rows say they cannot act. Round 1 offers Escape.
+- **Morale is announced** when a side reaches 25% down (p.33), with the -2
+  past 50%.
+- **The board draws every order**: solid for an attack, dotted for movement
+  without one, the opposition's in red.
+
+**The real cause of the Sea of Suns stalemate.** Not only my Hit button.
+`rankNpcTargets` in `src/npc-tactics.js` called
+`encounterPairRange(combatant, enemy)` with no board mode, and that function
+defaults to 'scene', where a gap is METRES. On the range-band line the gap is
+BANDS. So four bands — medium — was read as four metres — short. A Thug with a
+club concluded "short range, needs 11+", declared an attack, and the resolver,
+which does pass the mode, refused it as out of reach. Every round, in either
+client. With the mode passed, the same Thug now answers
+`close: "Club cannot reach at medium range"`. The same omission was in two
+places in `client/app.js` (the token menu's throw preview and a combat log
+heading) and is fixed there too.
+
+With both fixes your exported fight, stuck since round 1, ran to its end in
+two rounds.
+
+`fight:sheet` is the new command. Three tests added. Suite: 615 pass, 0 fail.
+
+**Not in this version:** changing weapon from the sheet (the engine has no
+call to re-arm a combatant mid-fight, and the old dropdown only ever changed
+the preview, never the fight); the wound-placement step still uses the plain
+card; the player's seat. The referee's editing surface and campaign delete are
+still to come.
+
 ## v0.217.1 the attack half of every order was never shown
 
 You were right that the attack was not being recorded — on the screen, though

@@ -730,3 +730,51 @@ test('a referee may let one NPC choose, or resolve with the rest on auto', async
   assert.equal(session.run('fight:resolve-auto').ok, true);
   assert.match(registry.resolveCampaign(campaignId).activityLogs[0].entries.map((entry) => entry.message).join(' '), /\(auto\) declares/);
 });
+
+// ---------------------------------------------------------------- v0.218.0
+import { chooseNpcDeclaration } from '../src/npc-tactics.js';
+import { sheetRowToEngine, engineToSheetMove } from '../src/play-session.js';
+
+test('NPC tactics read range from the board in use: four bands is medium, not four metres', async () => {
+  // The Sea of Suns stalemate: club-armed opposition four bands from the party.
+  const { registry, campaignId } = await campaignInAFight();
+  const encounter = registry.resolveCampaign(campaignId).encounters[0];
+  const thug = { ...encounter.combatants.find((entry) => entry.side === 'opposition'), weaponKey: 'club', skills: { Club: 1 } };
+  const party = encounter.combatants.find((entry) => entry.side === 'party');
+  const staged = { ...encounter, combatants: [{ ...party, position: { column: 0, row: 0 } }, { ...thug, position: { column: 4, row: 0 } }] };
+  const choice = chooseNpcDeclaration(staged, staged.combatants[1]);
+  assert.equal(choice.action, 'close', 'a club cannot reach at medium, so it closes');
+  assert.match(choice.reason, /cannot reach at medium range/);
+});
+
+test('the sheet\'s rows meet the engine\'s combined action both ways', () => {
+  assert.deepEqual(sheetRowToEngine({ move: 'Stand', targetId: 't' }), { action: 'attack', targetId: 't' });
+  assert.deepEqual(sheetRowToEngine({ move: 'Stand', targetId: null }), { action: 'wait', targetId: null });
+  assert.deepEqual(sheetRowToEngine({ move: 'Close', targetId: 't' }), { action: 'close', targetId: 't' });
+  assert.deepEqual(sheetRowToEngine({ move: 'Close (run)', targetId: 't' }), { action: 'close-run', targetId: 't' });
+  assert.deepEqual(sheetRowToEngine({ move: 'Evade', targetId: 't' }), { action: 'evade', targetId: null });
+  for (const action of ['attack', 'close', 'close-run', 'open', 'open-run', 'evade']) {
+    assert.equal(sheetRowToEngine({ move: engineToSheetMove(action), targetId: 't' }).action, action);
+  }
+});
+
+test('fight:sheet declares every row, replaces standing orders, and resolves the round', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const view = session.view();
+  assert.equal(view.round, 1);
+  assert.match(view.setup.range, /^Met at medium range$/);
+  assert.ok(view.fighters.filter((entry) => entry.side === 'foe').every((entry) => entry.suggestion), 'each NPC row comes pre-filled with a suggestion and its reason');
+  const hawkeye = view.fighters.find((entry) => entry.playerCharacter);
+  const foes = view.fighters.filter((entry) => entry.side === 'foe');
+
+  // An order already standing is replaced by what the sheet says.
+  session.run('fight:declare', { fight: { actorId: hawkeye.id, move: 'Stand', attack: true, targetId: foes[0].id } });
+  const rows = [{ actorId: hawkeye.id, move: 'Evade', targetId: null }, ...foes.map((foe) => ({ actorId: foe.id, move: 'Stand', targetId: hawkeye.id }))];
+  const result = session.run('fight:sheet', { fight: { rows } });
+  assert.equal(result.ok, true);
+  const after = registry.resolveCampaign(campaignId).encounters[0];
+  assert.equal(after.round, 2);
+  assert.ok(after.history.some((entry) => entry.round === 1 && entry.kind === 'attack' && entry.actorId === foes[0].id), 'the opposition attacked');
+  assert.equal(after.history.some((entry) => entry.round === 1 && entry.kind === 'attack' && entry.actorId === hawkeye.id), false, 'the evader did not');
+});
