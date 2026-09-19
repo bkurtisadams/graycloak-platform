@@ -1,5 +1,45 @@
 # Graycloak Traveller
 
+## v0.219.0 the referee changes what a character is
+
+Nothing on this page could alter a character, which is why the unnamed member
+of the Sea of Suns party could not even be given a name, let alone fight.
+
+**In the character drawer**, under "Change this character" (referee only):
+- **Rename.** An empty name is refused; a character needs one to become a
+  combatant.
+- **Set STR, DEX and END.** Wounding and healing both, in one place. A
+  characteristic cannot rise above its original, one at zero makes the
+  character unconscious and three makes it dead — and the status follows
+  automatically, so healing someone back above zero wakes them.
+- **Arm.** Weapon in hand from the Book 1 table, armour from the armour types.
+
+**Mid-fight**, the focused row on the declaration sheet carries the same three
+scores. That writes to the combatant, not to the roster actor behind it, so
+the change lasts for the encounter only — a thug wounded on the board does not
+quietly become a wounded thug forever.
+
+Every change is logged under REFEREE and saved like any other command.
+
+Three faults found while building it, all mine:
+- An unnamed character's drawer tab rendered with no text, collapsed to zero
+  width, and could not be clicked. It reads "(unnamed)" now.
+- The drawer was handed a hand-built pair of callbacks rather than the whole
+  handler set, so the editor's buttons did nothing at all when clicked. That
+  pattern would have broken anything else added to the drawer later, so the
+  drawer now gets the full set.
+- Naming is still not possible in the old client, which is where these
+  characters were made.
+
+Tested against your exported campaign: the unnamed party member was renamed to
+"Dov Marek" and immediately became eligible to take the field.
+
+Two tests added. Suite: 617 pass, 0 fail.
+
+**Not in this slice**: skills, inventory beyond what v0.209.0 already allows,
+and editing a roster actor from the referee drawer (the command exists —
+`edit:actor:*` — but nothing calls it yet). Campaign delete is still open.
+
 ## v0.218.2 choosing who fights, and a sheet that lines up
 
 **Setting up a fight.** Starting one put the whole party on the board, which is

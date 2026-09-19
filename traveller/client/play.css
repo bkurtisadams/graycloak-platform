@@ -556,3 +556,17 @@ a.button { text-decoration: none; color: inherit; }
 .check.is-blocked { color: var(--ink-2); }
 .start-fight label.check { font-size: 13px; }
 .start-fight .row { display: flex; gap: 8px; align-items: center; }
+
+/* ------------------------------------------------------- the referee's fiat */
+.editor { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid var(--attention-border); background: var(--raise); }
+.editor h3 { font-size: 14px; font-weight: 700; display: inline; }
+.editor summary { cursor: pointer; }
+.editor-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.editor-row input[type='text'] { flex: 1 1 140px; min-width: 0; }
+.editor-row input, .editor-row select { padding: 4px 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; }
+.editor-row select { flex: 1 1 120px; min-width: 0; }
+.editor-score { display: flex; align-items: baseline; gap: 3px; font-size: 13px; }
+.editor-score input { width: 52px; }
+.editor-score small { color: var(--ink-2); }
+.editor-label { font-size: 13px; color: var(--ink-2); }
+.sheet-why .editor-row { padding-top: 4px; border-top: 1px solid var(--line); }

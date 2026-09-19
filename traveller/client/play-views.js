@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.218.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.2';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.218.2';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.219.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.219.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.219.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.218.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.219.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -390,7 +390,16 @@ function fightColumn(state, handlers) {
       focus.attacks && focus.line?.preview?.canAttack ? h('p', { class: 'odds', text: `${dmSum(focus.line.preview)} for ${woundText(focus.line.preview)} wounds.` }) : null,
       focus.target && focus.line && !focus.line.preview?.canAttack ? h('p', { class: `odds${focus.move === 'Close' ? '' : ' is-warning'}`, text: `${getPersonalWeapon(focus.fighter.weaponKey).name} cannot reach ${focus.target.name} at ${focus.line.range.name.toLowerCase()} range${focus.move === 'Close' ? '; closing one band this round.' : '. Close the range, or this order does nothing.'}` }) : null,
       focus.reason ? h('p', { class: 'odds', text: `Suggested: ${focus.reason}. Change the row to overrule it.` }) : null,
-      focus.source === 'declared' ? h('p', { class: 'odds', text: 'Already declared this round; changing the row replaces it.' }) : null) : null,
+      focus.source === 'declared' ? h('p', { class: 'odds', text: 'Already declared this round; changing the row replaces it.' }) : null,
+      state.live && state.seat !== 'player' ? h('form', { class: 'editor-row', onsubmit: (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        handlers.onEditCombatant?.(focus.fighter.id, Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, data.get(key)])));
+      } },
+        h('span', { class: 'editor-label', text: 'Set' }),
+        ['STR', 'DEX', 'END'].map((key) => h('label', { class: 'editor-score' }, h('span', { text: key }),
+          h('input', { name: key, type: 'number', min: '0', max: String(focus.fighter.full[key]), value: String(focus.fighter.characteristics[key]), 'aria-label': `${focus.fighter.name} ${key}` }))),
+        h('button', { type: 'submit', class: 'button is-small', text: 'Apply' })) : null) : null,
     h('div', { class: 'lead-actions' },
       state.live && !wound ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() }, h('span', { text: 'Resolve round' }), h('small', { text: `${rows.filter((row) => !row.down).length} orders, as shown` })) : null,
       referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
@@ -701,11 +710,45 @@ function inventorySection(c, state, handlers) {
   ];
 }
 
+// v0.219.0: the referee changes what a character is. Book 1 leaves the last
+// word with the referee, and until now nothing here could exercise it — an
+// unnamed party member could not even be named.
+function refereeEditor(c, state, handlers) {
+  if (!state.live || state.seat === 'player' || !c.editable) return null;
+  const send = (field, value) => handlers.onEditCharacter?.(c.id, field, value);
+  const scores = ['STR', 'DEX', 'END'];
+  return h('details', { class: 'editor' },
+    h('summary', {}, h('h3', { text: 'Change this character' })),
+    h('p', { class: 'cite', text: 'Referee only. A characteristic cannot go above its original; at zero the character is unconscious, at three zeros dead.' }),
+    h('form', { class: 'editor-row', onsubmit: (event) => { event.preventDefault(); send('name', new FormData(event.currentTarget).get('name')); } },
+      h('input', { name: 'name', type: 'text', value: c.name, 'aria-label': 'Name' }),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Rename' })),
+    h('form', { class: 'editor-row', onsubmit: (event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      send('current', Object.fromEntries(scores.map((key) => [key, data.get(key)])));
+    } },
+      scores.map((key) => h('label', { class: 'editor-score' }, h('span', { text: key }),
+        h('input', { name: key, type: 'number', min: '0', max: String(c.editable.full[key]), value: String(c.editable.current[key] ?? c.editable.full[key]), 'aria-label': `${key} now, of ${c.editable.full[key]}` }),
+        h('small', { text: `/${c.editable.full[key]}` }))),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Set' })),
+    h('form', { class: 'editor-row', onsubmit: (event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      send('loadout', { weaponKey: data.get('weaponKey'), armor: data.get('armor') });
+    } },
+      h('select', { name: 'weaponKey', 'aria-label': 'Weapon in hand' },
+        (state.weaponCatalog ?? []).map((weapon) => h('option', { value: weapon.key, selected: weapon.key === c.editable.weaponKey, text: weapon.name }))),
+      h('select', { name: 'armor', 'aria-label': 'Armor worn' },
+        (state.armorCatalog ?? []).map((armor) => h('option', { value: armor, selected: armor === c.editable.armorKey, text: armor === 'none' ? 'No armor' : armor }))),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Arm' })));
+}
+
 function characterDrawer(c, state, handlers) {
   const live = Boolean(state.live);
   return [
-    state.party?.length > 1 ? h('div', { class: 'tabs', role: 'tablist' }, state.party.map((member) => h('button', { type: 'button', role: 'tab', 'aria-selected': member.id === c.id, text: member.name, onclick: () => handlers.onPickCharacter(member.id) }))) : null,
-    h('header', { class: 'drawer-head' }, h('h2', { text: c.name }), h('p', {}, h('span', { class: 'code', text: c.upp }), ` ${c.service}`)),
+    state.party?.length > 1 ? h('div', { class: 'tabs', role: 'tablist' }, state.party.map((member) => h('button', { type: 'button', role: 'tab', 'aria-selected': member.id === c.id, text: member.name || '(unnamed)', onclick: () => handlers.onPickCharacter(member.id) }))) : null,
+    h('header', { class: 'drawer-head' }, h('h2', { text: c.name || '(unnamed character)' }), h('p', {}, h('span', { class: 'code', text: c.upp }), ` ${c.service}`)),
     h('div', { class: 'stats' }, c.characteristics.map((entry) =>
       h('div', { class: `stat${entry.now < entry.full ? ' is-hurt' : ''}` },
         h('span', { text: entry.key }), h('b', { text: entry.now < entry.full ? `${entry.now}/${entry.full}` : String(entry.now) })))),
@@ -718,6 +761,7 @@ function characterDrawer(c, state, handlers) {
       h('dt', { text: 'Armor' }), h('dd', { text: c.armor }),
       h('dt', { text: 'Cash' }), h('dd', { text: cr(c.cashCr) })),
     inventorySection(c, state, handlers),
+    refereeEditor(c, state, handlers),
     live ? null : h('button', { type: 'button', class: 'button', text: 'Open the full personnel record' })
   ];
 }

@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.218.2';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.218.2';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.218.2';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.218.2';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.218.2';
-import { createPlayCloud } from './play-cloud.js?v=v0.218.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.2';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.219.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.219.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.219.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.219.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.219.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.219.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.219.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -204,6 +204,8 @@ function render() {
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
     onSheetFocus: (id) => { ui.sheetFocus = id; ui.selectedMarker = id; render(); },
+    onEditCharacter: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:character:${field}`, { fight: { id, value } }); },
+    onEditCombatant: (id, value) => { if (source.mode === 'live') source.session.run('edit:combatant:current', { fight: { id, value } }); },
     onStartFight: (opponentIds, range, characterIds) => {
       if (source.mode === 'live') source.session.run('fight:start', { fight: { opponentIds, range, characterIds } });
     },
@@ -263,8 +265,14 @@ function render() {
   $('scene').replaceChildren(...renderScene(state, handlers));
 
   $('drawer').hidden = !ui.drawer;
-  if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, state.referee ?? SAMPLE_REFEREE, { onPickCharacter: (id) => { ui.characterId = id; render(); },
-    onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); } }));
+  // v0.219.0: the drawer used to get a hand-built pair of callbacks, so
+  // anything added to `handlers` later (the referee's editor) silently did
+  // nothing when clicked. It gets the whole set now.
+  if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, state.referee ?? SAMPLE_REFEREE, {
+    ...handlers,
+    onPickCharacter: (id) => { ui.characterId = id; render(); },
+    onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); }
+  }));
 
   const last = state.chat[state.chat.length - 1];
   $('talk-last').replaceChildren(...(last ? [h('b', { text: `${last.who} ` }), last.text] : []));

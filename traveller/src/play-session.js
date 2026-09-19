@@ -14,7 +14,7 @@
 // client/app.js uses, through a `cloud` adapter so none of it needs a browser.
 
 import {
-  PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
+  PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
   setCharacterMilitaryLoad, updateCharacterInventoryItem,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, beginPortCall, bookPassenger,
   calculateBerthingCost, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost, canShipMakeJump,
@@ -22,7 +22,8 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
-  createDice, rollReaction, rollShipEncounter, starportFuelService, unloadCargo
+  createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
+  updateCharacterGameplayState
 } from '../vendor/classic-traveller-rules/index.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
@@ -39,6 +40,8 @@ import {
 } from './encounter-document.js';
 import { addEncounterToCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
+import { updateNpcActorDocument } from './npc-actor-document.js';
+import { setCombatantCurrent } from './encounter-document.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
 const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
@@ -118,7 +121,14 @@ export function characterView(document, { gravityFactor = null } = {}) {
     armor: sentenceCase(document.loadout?.armor ?? 'none'),
     carrying: null,
     blows: null,
-    ...loadView(document, gravityFactor)
+    ...loadView(document, gravityFactor),
+    // v0.219.0: what the referee may change, alongside what is shown.
+    editable: {
+      weaponKey: document.loadout?.weaponKey ?? 'hands',
+      armorKey: document.loadout?.armor ?? 'none',
+      current: { ...(document.current ?? {}) },
+      full: Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, document.characteristics?.[key] ?? 0]))
+    }
   };
 }
 
@@ -281,7 +291,8 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
       name: actor.identity.name,
       note: [actor.loadout?.weaponKey, actor.loadout?.armor === 'none' ? null : actor.loadout?.armor].filter(Boolean).join(', ')
     })),
-    weaponCatalog: weaponCatalog()
+    weaponCatalog: weaponCatalog(),
+    armorCatalog: [...PERSONAL_ARMOR_TYPES]
   };
 }
 
@@ -801,6 +812,83 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       if (command.startsWith('inventory:')) {
         if (resolved.encounters.some((entry) => entry.status === 'active')) throw new Error('a fight is in progress; finish it in the current client');
         lastMessage = { ok: true, message: runInventory(command, { characterId, item }) };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      // v0.219.0: the referee's fiat. Nothing on this page could change a
+      // character, so an unnamed party member could not even be named.
+      if (command.startsWith('edit:')) {
+        const [, subject, field] = command.split(':');
+        const value = fight?.value;
+        let message;
+        if (subject === 'character') {
+          const character = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id);
+          if (!character) throw new Error('choose a character to change');
+          const was = character.identity.name || '(unnamed)';
+          let next;
+          if (field === 'name') {
+            const name = String(value ?? '').trim();
+            if (!name) throw new Error('a character needs a name');
+            next = importCharacterDocument({ ...character, identity: { ...character.identity, name } });
+            message = `${was} is now ${name}`;
+          } else if (field === 'current') {
+            const scores = { ...character.current };
+            for (const key of ['STR', 'DEX', 'END']) {
+              if (value?.[key] === undefined || value[key] === '') continue;
+              const number = Number(value[key]);
+              if (!Number.isInteger(number) || number < 0) throw new RangeError(`${key} must be a whole number of 0 or more`);
+              // The original is the ceiling; healing restores towards it.
+              scores[key] = Math.min(number, character.characteristics[key]);
+            }
+            const zeros = ['STR', 'DEX', 'END'].filter((key) => scores[key] <= 0).length;
+            next = updateCharacterGameplayState(character, {
+              current: scores,
+              alive: zeros < 3,
+              consciousness: zeros >= 3 ? 'not-applicable' : zeros === 0 ? 'conscious' : 'unconscious'
+            });
+            message = `${was}: ${['STR', 'DEX', 'END'].map((key) => `${key} ${next.current[key]}/${next.characteristics[key]}`).join(', ')}`;
+          } else if (field === 'loadout') {
+            next = updateCharacterGameplayState(character, {
+              weaponKey: value?.weaponKey ?? character.loadout.weaponKey,
+              armor: value?.armor ?? character.loadout.armor
+            });
+            message = `${was} now carries ${getPersonalWeapon(next.loadout.weaponKey).name}, ${next.loadout.armor === 'none' ? 'no armor' : next.loadout.armor}`;
+          } else throw new Error(`unknown edit: ${command}`);
+          persist([next]);
+        } else if (subject === 'actor') {
+          const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === fight?.id);
+          if (!actor) throw new Error('choose an actor to change');
+          const patch = {};
+          if (field === 'name') {
+            const name = String(value ?? '').trim();
+            if (!name) throw new Error('an actor needs a name');
+            patch.name = name;
+          } else if (field === 'current') {
+            patch.current = { ...actor.current };
+            for (const key of ['STR', 'DEX', 'END']) {
+              if (value?.[key] === undefined || value[key] === '') continue;
+              const number = Number(value[key]);
+              if (!Number.isInteger(number) || number < 0) throw new RangeError(`${key} must be a whole number of 0 or more`);
+              patch.current[key] = Math.min(number, actor.characteristics[key]);
+            }
+          } else if (field === 'loadout') {
+            patch.weaponKey = value?.weaponKey ?? actor.loadout?.weaponKey;
+            patch.armor = value?.armor ?? actor.loadout?.armor;
+          } else throw new Error(`unknown edit: ${command}`);
+          persist([updateNpcActorDocument(actor, patch)]);
+          message = `${actor.identity.name}: changed`;
+        } else if (subject === 'combatant') {
+          // Mid-fight the combatant is the live record; the actor behind it is
+          // untouched, so a change here lasts only for this encounter.
+          const encounter = liveEncounter();
+          if (!encounter) throw new Error('no fight is running');
+          const result = setCombatantCurrent(encounter, { combatantId: fight?.id, scores: value ?? {} });
+          persist([result.encounter]);
+          message = result.entry?.text ?? `${result.combatant.name}: unchanged`;
+        } else throw new Error(`unknown edit: ${command}`);
+        log('REFEREE', message);
+        lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
         return lastMessage;

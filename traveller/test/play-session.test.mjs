@@ -778,3 +778,46 @@ test('fight:sheet declares every row, replaces standing orders, and resolves the
   assert.ok(after.history.some((entry) => entry.round === 1 && entry.kind === 'attack' && entry.actorId === foes[0].id), 'the opposition attacked');
   assert.equal(after.history.some((entry) => entry.round === 1 && entry.kind === 'attack' && entry.actorId === hawkeye.id), false, 'the evader did not');
 });
+
+// ---------------------------------------------------------------- v0.219.0
+test('the referee may name, wound, heal and re-arm a character', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const id = session.view().character.id;
+  const character = () => registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === id);
+
+  assert.equal(session.run('edit:character:name', { fight: { id, value: 'Hawk' } }).ok, true);
+  assert.equal(character().identity.name, 'Hawk');
+  assert.match(session.run('edit:character:name', { fight: { id, value: '  ' } }).message, /needs a name/);
+
+  // Wounding: a characteristic at zero is unconscious, three zeros is dead.
+  assert.equal(session.run('edit:character:current', { fight: { id, value: { END: 0 } } }).ok, true);
+  assert.equal(character().current.END, 0);
+  assert.equal(character().status.consciousness, 'unconscious');
+  assert.equal(session.run('edit:character:current', { fight: { id, value: { STR: 0, DEX: 0 } } }).ok, true);
+  assert.equal(character().status.alive, false);
+
+  // Healing restores towards the original and cannot pass it.
+  const full = character().characteristics;
+  assert.equal(session.run('edit:character:current', { fight: { id, value: { STR: 99, DEX: 99, END: 99 } } }).ok, true);
+  assert.deepEqual(['STR', 'DEX', 'END'].map((key) => character().current[key]), ['STR', 'DEX', 'END'].map((key) => full[key]));
+  assert.equal(character().status.alive, true);
+  assert.equal(session.run('edit:character:current', { fight: { id, value: { STR: -1 } } }).ok, false);
+
+  assert.equal(session.run('edit:character:loadout', { fight: { id, value: { weaponKey: 'blade', armor: 'jack' } } }).ok, true);
+  assert.equal(character().loadout.weaponKey, 'blade');
+  assert.equal(character().loadout.armor, 'jack');
+  assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.at(-1).category, 'REFEREE');
+});
+
+test('the referee may set a combatant mid-fight without touching the actor behind it', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const thug = session.view().fighters.find((entry) => entry.side === 'foe');
+  const actorBefore = JSON.stringify(registry.resolveCampaign(campaignId).npcActors);
+
+  assert.equal(session.run('edit:combatant:current', { fight: { id: thug.id, value: { END: 1 } } }).ok, true);
+  const after = session.view().fighters.find((entry) => entry.id === thug.id);
+  assert.equal(after.characteristics.END, 1);
+  assert.equal(JSON.stringify(registry.resolveCampaign(campaignId).npcActors), actorBefore, 'the roster actor is untouched');
+});
