@@ -133,6 +133,89 @@ test('renderVectorFight offers Advance, not a thrust form, when the player canno
   delete globalThis.document;
 });
 
+test('renderVectorFight offers Fire lasers when awaiting the player\u2019s fire decision, wired to onFire', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  const session = await stagedVectorFight({ intruder: 'party' });
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance'); // -> laser-fire, player's turn
+  const shipFight = session.view().shipFight;
+  assert.equal(shipFight.vector.awaitingFireDecision, true);
+
+  const events = { fired: false, advanced: false };
+  const root = renderVectorFight(shipFight, { onFire: () => { events.fired = true; }, onAdvance: () => { events.advanced = true; } });
+  document.querySelector('main').append(root);
+
+  const fireButton = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Fire lasers');
+  assert.ok(fireButton, 'a Fire lasers button is offered');
+  fireButton.click();
+  assert.equal(events.fired, true);
+
+  // Advance is still offered alongside it \u2014 firing doesn't end the phase.
+  const advanceButton = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Advance');
+  assert.ok(advanceButton);
+  advanceButton.click();
+  assert.equal(events.advanced, true);
+
+  dom.window.close();
+  delete globalThis.document;
+});
+
+test('a full round of vector combat, through the real session: move, fire, the opponent\u2019s own shot resolves on Advance, return fire is available', async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  let result = session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  assert.equal(result.ok, true, result.message);
+
+  // Laser-fire phase (intruder = player): the player may fire.
+  result = session.run('shipfight:vector-advance');
+  assert.equal(result.ok, true, result.message);
+  let view = session.view();
+  assert.equal(view.shipFight.vector.phaseKey, 'laser-fire');
+  assert.equal(view.shipFight.vector.awaitingFireDecision, true);
+  assert.equal(view.shipFight.vector.canFire, true, 'the fixture ship carries an armed turret');
+
+  const fired = session.run('shipfight:vector-fire');
+  assert.equal(fired.ok, true, fired.message);
+  assert.ok(fired.message.length > 0, 'a real shot is narrated one way or another');
+
+  // A second shot this same phase isn't refused — the engine narrates it as
+  // a no-op instead (the turret already fired), matching how resolveLaserFire
+  // handles this generally rather than a check this command adds itself.
+  const secondShot = session.run('shipfight:vector-fire');
+  assert.equal(secondShot.ok, true, secondShot.message);
+  assert.match(secondShot.message, /already fired this phase/);
+
+  // Return-fire phase (opposing = native = the opponent): advancing resolves
+  // the opponent's own shot automatically, without a player command for it.
+  result = session.run('shipfight:vector-advance');
+  assert.equal(result.ok, true, result.message);
+  view = session.view();
+  if (view.shipFight.outcome === 'in-progress') {
+    assert.equal(view.shipFight.vector.phaseKey, 'return-fire');
+  }
+});
+
+test('firing outside laser-fire/return-fire, or on the wrong side\u2019s phase, is refused by name', async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  // Still in the movement phase.
+  const duringMovement = session.run('shipfight:vector-fire');
+  assert.equal(duringMovement.ok, false);
+  assert.match(duringMovement.message, /weapons do not fire during Movement/);
+
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance'); // -> laser-fire, player's turn to fire
+  session.run('shipfight:vector-advance'); // -> return-fire, opponent's own shot auto-resolves
+  session.run('shipfight:vector-advance'); // -> ordnance-launch (phasing side, player)
+  // Now it should be ordnance-launch — not a fire phase.
+  const view = session.view();
+  if (view.shipFight.outcome === 'in-progress') {
+    assert.equal(view.shipFight.vector.phaseKey, 'ordnance-launch');
+    const duringOrdnance = session.run('shipfight:vector-fire');
+    assert.equal(duringOrdnance.ok, false);
+    assert.match(duringOrdnance.message, /weapons do not fire during Ordnance Launch/);
+  }
+});
+
 test('a full movement phase, through the real session and the real render, moves the ship and unblocks Advance', async () => {
   const session = await stagedVectorFight({ intruder: 'party' });
   let shipFight = session.view().shipFight;

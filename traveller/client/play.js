@@ -321,6 +321,11 @@ function render() {
       source.session.run('shipfight:vector-advance');
       render();
     },
+    onFire: () => {
+      if (source.mode !== 'live') return;
+      source.session.run('shipfight:vector-fire');
+      render();
+    },
     onCommand: (command) => {
       if (source.mode !== 'live' || !command) return;
       // A fight command carries the declaration the screen is showing.

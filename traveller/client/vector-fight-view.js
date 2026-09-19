@@ -15,9 +15,13 @@
 //
 // Scope of this slice, stated plainly rather than left to be discovered:
 //   - One ship per side (matches shipfight:vector-move's own limit).
-//   - Movement only. Laser fire, ordnance and reprogramming have no UI here
-//     yet — shipfight:vector-advance steps past them without firing
-//     anything, same as the abbreviated flow's Hold does; a note says so.
+//   - Movement and the player's own laser fire/return fire. The opponent's
+//     own shot resolves automatically on Advance (shipfight:vector-advance),
+//     the same way an unmoved ship auto-coasts leaving the movement phase.
+//   - Ordnance and computer reprogramming still have no UI here — Advance
+//     steps past those phases without doing anything in them. A note only
+//     appears for the phases that matter (fire); silence for these two is
+//     deliberate, not an oversight, and worth its own slice.
 //   - A fixed-fit camera sized to whatever is on the plot each render. No
 //     interactive zoom/pan yet — ship-vector-map.js's is tested and could be
 //     adapted, but it keeps that state in module closures, which is exactly
@@ -160,8 +164,16 @@ export function renderVectorFight(shipFight, handlers = {}) {
       parts.push(h('p', { class: 'vfv-note is-error', text: `Exceeds the functioning ${v.player.maxG} G drive.` }));
     }
   } else if (shipFight.outcome === 'in-progress') {
-    if (v.phaseKey === 'laser-fire' || v.phaseKey === 'return-fire') {
-      parts.push(h('p', { class: 'vfv-note', text: 'Weapons fire has no vector-mode UI yet \u2014 Advance steps past this phase without firing.' }));
+    if (v.awaitingFireDecision) {
+      // Fire and Advance are separate on purpose: firing doesn't end the
+      // phase by itself (you could Hold and still need to Advance), so
+      // there's one control for "take the shot" and one for "move on",
+      // rather than folding them together the way the abbreviated flow's
+      // single Fire/Hold button does.
+      parts.push(h('p', { class: 'vfv-note', text: v.canFire ? 'Your turrets may fire.' : 'No operational turret can fire.' }));
+      if (v.canFire) parts.push(h('button', { type: 'button', class: 'button is-primary', text: 'Fire lasers', onclick: () => handlers.onFire?.() }));
+    } else if (v.phaseKey === 'laser-fire' || v.phaseKey === 'return-fire') {
+      parts.push(h('p', { class: 'vfv-note', text: 'Advancing will resolve the opponent\u2019s own shot automatically, if it has one to take.' }));
     } else if (v.phasingSide !== v.playerSide) {
       parts.push(h('p', { class: 'vfv-note', text: `${v.phasingSide === 'intruder' ? 'The intruder' : 'The native'} side is phasing; nothing for you to plot this turn.` }));
     }

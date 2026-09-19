@@ -29,7 +29,7 @@ import {
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
-  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign
+  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
@@ -2047,6 +2047,34 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         saveToCloud();
         return lastMessage;
+      } else if (command === 'shipfight:vector-fire') {
+        // The player's own shot, one explicit step — not autoAdvanceShipFight,
+        // for the same reason shipfight:vector-advance below avoids it: that
+        // loop has no idea this is a vector fight and would run straight
+        // through phases this command deliberately leaves the referee to
+        // step through by hand.
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        const encounter = pendingShipFight.encounter;
+        if (encounter.spatialMode !== 'vector') throw new Error('this fight has no vector plot');
+        const phaseKey = currentPhase(encounter).key;
+        if (phaseKey !== 'laser-fire' && phaseKey !== 'return-fire') throw new Error(`weapons do not fire during ${currentPhase(encounter).label}`);
+        if (actingSide(encounter) !== pendingShipFight.playerSide) throw new Error("it is not your side's turn to fire this phase");
+        const foe = encounter.participants.find((entry) => entry.id !== 'player' && !entry.escaped);
+        if (!foe) throw new Error('no target to fire at');
+        const allocations = laserAllocationAgainstSingleFoe(encounter, 'player', foe.id);
+        if (!allocations.length) throw new Error('no operational laser turret can fire');
+        const dice = createDice();
+        let combat = allocateLaserFire(encounter, allocations);
+        const resolved = resolveLaserFire(combat, dice);
+        combat = creditEscapeShots(resolved.encounter, resolved.shots);
+        const narrated = narrateShots(resolved.shots, combat);
+        pendingShipFight = { ...pendingShipFight, encounter: combat, log: [...pendingShipFight.log, ...narrated].slice(-40) };
+        message = narrated.join(' ') || 'No shots landed.';
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
       } else if (command === 'shipfight:vector-advance') {
         // A single explicit phase step, not the abbreviated flow's
         // autoAdvanceShipFight loop. That loop has no idea vector movement
@@ -2065,22 +2093,48 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         // require a surface ruling first) — so nothing here has to re-check
         // that a ship moved before allowing the step.
         //
-        // Weapons fire, ordnance and reprogramming have no UI of their own
-        // for a vector fight yet: this command steps past those phases too,
-        // exactly as shipfight:hold does for the abbreviated flow, without
-        // firing anything. That is a real, deliberate gap for the next slice,
-        // not an oversight — flagged in the view state (canFire is not
-        // computed for a vector fight at all right now) so the UI can say so
-        // rather than pretend the row is just empty.
+        // The player's own shot is shipfight:vector-fire, a separate explicit
+        // step — this command never fires it for them. But with only one
+        // ship per side and no player on the other one, the opponent has no
+        // way to take its own laser-fire/return-fire turn at all unless
+        // something resolves it. So: leaving a laser-fire or return-fire
+        // phase where the OPPONENT was the one entitled to act auto-resolves
+        // their shot first, one single-ship allocation against the one foe,
+        // using the same shipCombatIntent Book 3 p.29 shape the abbreviated
+        // flow's own NPC branch already uses (autoAdvanceShipFight, ship-
+        // arrival-combat.js) — copied inline rather than reached into,
+        // since that whole function is exactly the loop this command exists
+        // to avoid. The player's own phase is never touched here; only
+        // stepping past it unfired is (still) on them via Fire vs. Advance.
         if (!pendingShipFight) throw new Error('no ship fight is under way');
         if (pendingShipFight.encounter.spatialMode !== 'vector') throw new Error('this fight has no vector plot');
         if (pendingShipFight.encounter.outcome !== 'in-progress') throw new Error('the fight has already ended');
         const dice = createDice();
-        const combat = advanceShipCombatPhase(pendingShipFight.encounter, { dice });
-        pendingShipFight = { ...pendingShipFight, encounter: combat };
-        message = combat.outcome !== 'in-progress'
-          ? `The fight is over (${combat.outcome}).`
-          : `Advancing to ${currentPhase(combat).label}, turn ${combat.gameTurn}.`;
+        let combat = pendingShipFight.encounter;
+        const narrated = [];
+        const phaseKey = currentPhase(combat).key;
+        if ((phaseKey === 'laser-fire' || phaseKey === 'return-fire') && actingSide(combat) !== pendingShipFight.playerSide) {
+          const shooter = combat.participants.find((entry) => entry.side === actingSide(combat) && !entry.escaped && !entry.surrendered);
+          const foe = shooter ? combat.participants.find((entry) => entry.side !== shooter.side && !entry.escaped) : null;
+          if (shooter && foe) {
+            const intent = shipCombatIntent(combat, shooter.id, dice);
+            if (['press-attack', 'disable-drives'].includes(intent.intent)) {
+              const allocations = laserAllocationAgainstSingleFoe(combat, shooter.id, foe.id);
+              if (allocations.length) {
+                combat = allocateLaserFire(combat, allocations);
+                const resolved = resolveLaserFire(combat, dice);
+                combat = creditEscapeShots(resolved.encounter, resolved.shots);
+                narrated.push(...narrateShots(resolved.shots, combat));
+              }
+            }
+          }
+        }
+        if (combat.outcome === 'in-progress') combat = advanceShipCombatPhase(combat, { dice });
+        pendingShipFight = { ...pendingShipFight, encounter: combat, log: [...pendingShipFight.log, ...narrated].slice(-40) };
+        message = [
+          ...narrated,
+          combat.outcome !== 'in-progress' ? `The fight is over (${combat.outcome}).` : `Advancing to ${currentPhase(combat).label}, turn ${combat.gameTurn}.`
+        ].join(' ');
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
@@ -2373,6 +2427,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const opponent = encounter.participants.find((entry) => entry.id !== 'player');
           const mySpatial = encounter.spatial.ships.player;
           const oppSpatial = opponent ? encounter.spatial.ships[opponent.id] : null;
+          const awaitingFireDecision = !ended && (phase.key === 'laser-fire' || phase.key === 'return-fire')
+            && actingSide(encounter) === pendingShipFight.playerSide;
           vector = {
             phaseKey: phase.key,
             phasingSide: encounter.phasingSide,
@@ -2383,6 +2439,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             awaitingMovement: !ended && phase.key === 'movement'
               && encounter.phasingSide === pendingShipFight.playerSide
               && mySpatial.movedTurn !== encounter.gameTurn,
+            // Same idea for shipfight:vector-fire: true exactly when it
+            // would accept a shot right now. A toothless ship still "awaits"
+            // the decision (there's a phase to get past) but canFire is false,
+            // the same distinction the abbreviated flow's canFire/Hold
+            // relabelling already makes.
+            awaitingFireDecision,
+            canFire: awaitingFireDecision && !roster.find((entry) => entry.shipId === 'player')?.toothless,
             player: { position: mySpatial.position, velocity: mySpatial.velocity, maxG: previewShipVector(encounter, 'player', { x: 0, y: 0 }).maximumG },
             opponent: oppSpatial ? { name: opponent.name, side: opponent.side, position: oppSpatial.position, velocity: oppSpatial.velocity } : null,
             range: opponent ? vectorRangeDM(encounter, 'player', opponent.id) : null
