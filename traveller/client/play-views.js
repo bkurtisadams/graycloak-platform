@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.218.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.218.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.218.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.2';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.218.2';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.218.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.218.2';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -116,7 +116,10 @@ function dmSum(preview) {
   add('they are untrained', preview.defenderUntrainedDM);
   add('weakened blow', preview.fatigueDM);
   add('situation', preview.situationalDM);
-  return `8+ base ${parts.length ? parts.join(', ') : 'with no modifiers'} \u2192 ${preview.requiredRoll}+`;
+  // 2D cannot roll under 2, so a required throw at or below 2 is a certainty
+  // and printing it ("-1+") is meaningless.
+  const need = preview.requiredRoll <= 2 ? 'hits on any throw' : `${preview.requiredRoll}+`;
+  return `8+ base ${parts.length ? parts.join(', ') : 'with no modifiers'} \u2192 ${need}`;
 }
 
 function dmBreakdown(preview) {
@@ -331,7 +334,7 @@ export function sheetRows(state, chosen = {}) {
       tone = move === 'Close' ? 'muted' : 'warn';
     } else if (line) {
       const need = line.preview.requiredRoll;
-      needs = need <= 2 ? 'cannot miss' : `${need}+`;
+      needs = need <= 2 ? 'auto' : `${need}+`;
       tone = need > 12 ? 'warn' : 'go';
     }
     return { fighter, down, foes, move, targetId, target, attacks, line, needs, tone, source, reason: source === 'suggested' ? fighter.suggestion.reason : null };
@@ -359,7 +362,7 @@ function sheetRow(row, state, handlers, focusId) {
     h('td', {}, row.down || row.move === 'Evade' || row.move === 'Escape' ? '' : h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: target`, disabled: !live, onchange: (event) => handlers.onSheetChange?.(fighter.id, { move: row.move, targetId: event.target.value || null }) },
       row.move === 'Stand' ? h('option', { value: '', selected: !row.targetId, text: '\u2014 hold fire \u2014' }) : null,
       row.foes.map((foe) => h('option', { value: foe.id, selected: foe.id === row.targetId, text: `${foe.name} (${rangeBetween(fighter, foe).name.toLowerCase()})` })))),
-    h('td', { class: `sheet-needs is-${row.tone || 'plain'}`, text: row.needs }));
+    h('td', { class: `sheet-needs is-${row.tone || 'plain'}`, title: row.needs, text: row.needs }));
 }
 
 function fightColumn(state, handlers) {
@@ -433,10 +436,14 @@ function rosterRow(entry) {
 function startFight(state, handlers) {
   const foes = state.opponents ?? [];
   if (!state.live || !foes.length) return null;
+  const party = state.partyChoices ?? [];
   return h('details', { class: 'start-fight' },
     h('summary', {}, h('h3', { text: 'Start a fight' })),
-    h('p', { class: 'cite', text: 'Everyone in the party takes the field. Choose who they meet, and at what range.' }),
-    h('div', { class: 'foes' }, foes.map((foe) => h('label', { class: 'check' },
+    h('p', { class: 'cite', text: 'Who takes the field, who they meet, and the range they meet at (Book 1 p.27).' }),
+    party.length ? h('div', { class: 'foes' }, h('span', { class: 'foes-label', text: 'Party' }), party.map((member) => h('label', { class: `check${member.eligible ? '' : ' is-blocked'}` },
+      h('input', { type: 'checkbox', value: member.id, 'data-party': member.id, checked: member.eligible, disabled: !member.eligible }),
+      ` ${member.name}${member.note ? ` (${member.note})` : ''}`))) : null,
+    h('div', { class: 'foes' }, h('span', { class: 'foes-label', text: 'Against' }), foes.map((foe) => h('label', { class: 'check' },
       h('input', { type: 'checkbox', value: foe.id, 'data-foe': foe.id }), ` ${foe.name}${foe.note ? ` (${foe.note})` : ''}`))),
     h('div', { class: 'row' },
       h('select', { 'data-range': true, 'aria-label': 'Range they meet at' },
@@ -444,7 +451,8 @@ function startFight(state, handlers) {
       h('button', { type: 'button', class: 'button', text: 'Begin', onclick: (event) => {
         const box = event.currentTarget.closest('.start-fight');
         const opponentIds = [...box.querySelectorAll('[data-foe]')].filter((entry) => entry.checked).map((entry) => entry.value);
-        handlers.onStartFight?.(opponentIds, box.querySelector('[data-range]').value);
+        const characterIds = [...box.querySelectorAll('[data-party]')].filter((entry) => entry.checked).map((entry) => entry.value);
+        handlers.onStartFight?.(opponentIds, box.querySelector('[data-range]').value, characterIds);
       } })));
 }
 

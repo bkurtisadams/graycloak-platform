@@ -260,6 +260,22 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     referee: refereeView(resolved),
     // v0.218.1: a fight has to be startable from this page. These are the
     // roster actors that can be put on the board against the party.
+    // Who could take the field. A character with no name cannot become a
+    // combatant (the engine refuses it), and one already down should not be
+    // put back on the board by accident, so both are offered but flagged.
+    partyChoices: (resolved.campaign.party?.characterIds ?? [])
+      .map((id) => (resolved.characters ?? []).find((entry) => entry.identity.id === id))
+      .filter(Boolean)
+      .map((entry) => {
+        const view = characterView(entry);
+        const named = Boolean(String(entry.identity.name ?? '').trim());
+        return {
+          id: entry.identity.id,
+          name: named ? entry.identity.name : '(unnamed character)',
+          note: named ? `${view.weapons[0]?.name ?? 'hands'}, ${view.status.toLowerCase()}` : 'needs a name before it can fight',
+          eligible: named && view.status !== 'Dead'
+        };
+      }),
     opponents: (resolved.npcActors ?? []).filter((actor) => !actor.archived).map((actor) => ({
       id: actor.identity.id,
       name: actor.identity.name,
@@ -791,7 +807,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       }
       if (command === 'fight:start') {
         if (liveEncounter()) throw new Error('a fight is already running');
-        const party = (resolved.campaign.party?.characterIds ?? [])
+        const wantedParty = Array.isArray(fight?.characterIds) && fight.characterIds.length
+          ? fight.characterIds
+          : (resolved.campaign.party?.characterIds ?? []);
+        const party = wantedParty
           .map((id) => resolved.characters.find((entry) => entry.identity.id === id))
           .filter(Boolean);
         // A character with no name cannot become a combatant (the engine

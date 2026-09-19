@@ -338,6 +338,8 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .tracker th:nth-child(5) { width: 9%; }
 .tracker th:nth-child(6) { width: 9%; }
 .tr-arms { color: var(--ink-2); font-size: 13px; }
+.tracker.sheet .tr-arms { white-space: nowrap; }
+.tracker.sheet .blows { font-size: 12px; }
 .tr-target.is-unreachable { border-style: dashed; color: var(--ink-2); }
 .odds.is-warning { color: var(--red); font-weight: 700; }
 .declared { display: grid; gap: 4px; }
@@ -526,11 +528,13 @@ a.button { text-decoration: none; color: inherit; }
 .tracker.sheet th:nth-child(4) { width: 19%; }
 .tracker.sheet th:nth-child(5) { width: 19%; }
 .tracker.sheet th:nth-child(6) { width: 13%; }
-.tracker.sheet td { padding: 5px 6px 5px 0; white-space: normal; vertical-align: middle; }
+.tracker.sheet { table-layout: fixed; }
+.tracker.sheet td { padding: 3px 6px 3px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.tracker.sheet th { padding-bottom: 3px; }
 .tracker.sheet tr.is-focus td { background: var(--signal-wash); }
-.sheet-select { width: 100%; padding: 4px 4px; font-size: 13px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
+.sheet-select { width: 100%; padding: 2px 4px; font-size: 13px; background: var(--raise); border: 1px solid var(--line); border-radius: 2px; }
 .sheet-select:disabled { opacity: 0.6; }
-.sheet-needs { font-weight: 700; font-size: 14px; line-height: 1.2; }
+.sheet-needs { font-weight: 700; font-size: 15px; line-height: 1.2; text-align: right; }
 .sheet-needs.is-go { font-size: 17px; }
 .sheet-needs.is-warn { color: var(--red); }
 .sheet-needs.is-muted { font-weight: 400; color: var(--ink-2); font-size: 13px; }
@@ -547,6 +551,8 @@ a.button { text-decoration: none; color: inherit; }
 .mast-lobby:hover { color: var(--ink); }
 .start-fight { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid var(--red); background: var(--raise); }
 .start-fight h3 { font-size: 14px; font-weight: 700; }
-.start-fight .foes { display: flex; flex-wrap: wrap; gap: 6px; }
+.start-fight .foes { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.foes-label { font-size: 12px; font-weight: 700; color: var(--ink-2); width: 100%; }
+.check.is-blocked { color: var(--ink-2); }
 .start-fight label.check { font-size: 13px; }
 .start-fight .row { display: flex; gap: 8px; align-items: center; }

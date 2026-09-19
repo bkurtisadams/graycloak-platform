@@ -1,5 +1,38 @@
 # Graycloak Traveller
 
+## v0.218.2 choosing who fights, and a sheet that lines up
+
+**Setting up a fight.** Starting one put the whole party on the board, which is
+not a decision the code should make. The referee now ticks which characters
+take the field as well as who they meet:
+
+    Party    [x] Hawkeye (Laser Carbine, unwounded)
+             [x] Alina Voss (Body Pistol, unwounded)
+             [x] Elias Esteban (Dagger, unwounded)
+             [ ] (unnamed character) — needs a name before it can fight
+    Against  [ ] Thug (club)  [ ] Thug 2 (club)  [ ] Thug 3  [ ] Harp (automatic-pistol)
+
+Each name carries the weapon in hand and the state it is in, so the choice can
+be made without opening anything. A character the engine cannot accept — no
+name, or dead — is shown with the reason and cannot be ticked.
+
+**A throw below 2 was being printed.** Hawkeye's rifle at short range against
+an untrained, unarmoured opponent reached a required throw of -1, and the sum
+line ended "-> -1+", which means nothing: 2D cannot roll under 2. The sheet now
+reads "auto" and the sum ends "hits on any throw".
+
+**The sheet lines up.** Rows were ragged — a wrapped "cannot miss" made one row
+twice the height of its neighbours. The table is fixed-layout, every cell is
+one line with the full text on hover, and the Needs column is right-aligned.
+Measured after the change: rows at 30, 30.5, 30.5, 30 px against a spread that
+was much wider before.
+
+Suite: 615 pass, 0 fail.
+
+**One thing worth your attention in the data**: the unnamed party character
+(`char-21173eb24c1840fe`) still cannot fight, and nothing on either page can
+name it yet. That is the first thing the referee's editing surface should do.
+
 ## v0.218.1 starting a fight, and a way out of the page
 
 `play.html` was a dead end. It showed the port call with no lobby link and no
