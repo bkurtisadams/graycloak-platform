@@ -2,14 +2,14 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.232.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.232.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.232.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.232.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.232.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.232.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.232.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.232.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.230.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.230.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.230.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.230.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.230.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.230.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.230.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.230.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -248,6 +248,7 @@ function render() {
       }
     },
     onEditCharacter: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:character:${field}`, { fight: { id, value } }); },
+    onEditShip: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:ship:${field}`, { fight: { id, value } }); },
     onEditCombatant: (id, value) => { if (source.mode === 'live') source.session.run('edit:combatant:current', { fight: { id, value } }); },
     onStartFight: (opponentIds, range, characterIds) => {
       if (source.mode === 'live') source.session.run('fight:start', { fight: { opponentIds, range, characterIds } });

@@ -8,27 +8,27 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.232.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.232.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.230.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.230.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome
-} from './publish.js?v=v0.232.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.232.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.232.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.232.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.232.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.232.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.232.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.232.0';
-import { generateCharacterName } from './generators.js?v=v0.232.0';
+} from './publish.js?v=v0.230.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.230.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.230.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.230.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.230.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.230.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.230.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.230.0';
+import { generateCharacterName } from './generators.js?v=v0.230.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
-} from '../src/character-record.js?v=v0.232.0';
+} from '../src/character-record.js?v=v0.230.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.232.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.230.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -323,10 +323,12 @@ function renderCampaigns() {
     remove.addEventListener('click', async () => {
       const label = campaign.name || campaign.campaignId;
       // A campaign with history deserves a typed confirmation; an untouched
-      // one only needs a yes.
+      // one only needs a yes. The typed name is trimmed before comparing —
+      // an incidental leading/trailing space from the prompt shouldn't read
+      // as "didn't match" and silently cancel.
       const played = Number(campaign.revision ?? 0) > 2;
       const ok = played
-        ? window.prompt(`Deleting ${label} cannot be undone. Type the campaign name to confirm.`) === label
+        ? String(window.prompt(`Deleting ${label} cannot be undone. Type the campaign name to confirm.`) ?? '').trim() === label
         : window.confirm(`Delete ${label}? This cannot be undone.`);
       if (!ok) { if (played) setStatus('DELETE CANCELLED: the name did not match.', 'error'); return; }
       try {

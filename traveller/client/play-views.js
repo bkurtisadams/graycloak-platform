@@ -7,15 +7,15 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.232.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.232.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.232.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.230.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.230.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.230.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.232.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.230.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -887,7 +887,7 @@ function characterDrawer(c, state, handlers) {
   ];
 }
 
-function shipDrawer(s, state) {
+function shipDrawer(s, state, handlers) {
   const live = Boolean(state.live);
   return [
     h('header', { class: 'drawer-head' }, h('h2', { text: s.name }), h('p', { text: `${s.kind}, ${s.registry}` })),
@@ -900,8 +900,37 @@ function shipDrawer(s, state) {
     h('h3', { text: 'Armament' }),
     h('p', { text: s.armament }),
     s.damage ? [h('h3', { text: 'Damage' }), h('p', { class: 'status is-hurt', text: s.damage })] : null,
+    refereeShipEditor(s, state, handlers),
     live ? null : h('button', { type: 'button', class: 'button', text: 'Fit armament' })
   ];
+}
+
+// v0.238.0: the referee's fiat for a ship stuck with no way to reach fuel or
+// funds through ordinary play (an empty tank at a starport with none to buy
+// and no gas giant, say) — the same override refereeEditor already gives a
+// character, applied to the two numbers most likely to strand a game: fuel
+// aboard and the ship's own account.
+function refereeShipEditor(s, state, handlers) {
+  if (!state.live || state.seat === 'player') return null;
+  const send = (field, value) => handlers.onEditShip?.(s.id, field, value);
+  return h('details', { class: 'editor' },
+    h('summary', {}, h('h3', { text: 'Change this ship' })),
+    h('p', { class: 'cite', text: 'Referee only — sets state directly, no cost and no time passing.' }),
+    h('form', { class: 'editor-row', onsubmit: (event) => {
+      event.preventDefault();
+      send('fuel', new FormData(event.currentTarget).get('fuel'));
+    } },
+      h('label', { class: 'editor-score' }, h('span', { text: 'Fuel' }),
+        h('input', { name: 'fuel', type: 'number', min: '0', max: String(s.fuel.full), value: String(s.fuel.now), 'aria-label': `Fuel now, of ${s.fuel.full}` }),
+        h('small', { text: `/${s.fuel.full} t` })),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Set' })),
+    h('form', { class: 'editor-row', onsubmit: (event) => {
+      event.preventDefault();
+      send('account', new FormData(event.currentTarget).get('account'));
+    } },
+      h('label', { class: 'editor-score' }, h('span', { text: 'Account' }),
+        h('input', { name: 'account', type: 'number', min: '0', step: '1', value: String(s.accountCr), 'aria-label': 'Ship’s account, in credits' })),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Set' })));
 }
 
 // v0.221.0: the referee's directory. Your old toolbar's tabs, behind one chip:
@@ -1008,7 +1037,7 @@ function combatDrawer(state, handlers) {
 export function renderDrawer(kind, state, referee, handlers = {}) {
   const tidy = (parts) => parts.flat(Infinity).filter(Boolean);
   if (kind === 'character' && state.character) return tidy(characterDrawer(state.character, state, handlers));
-  if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state));
+  if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state, handlers));
   if (kind === 'combat') return tidy(combatDrawer(state, handlers));
   if (kind === 'referee') return tidy(refereeDrawer(referee, state, handlers));
   return [];

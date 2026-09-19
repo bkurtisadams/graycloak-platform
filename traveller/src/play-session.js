@@ -1327,6 +1327,39 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           } else throw new Error(`unknown edit: ${command}`);
           persist([updateNpcActorDocument(actor, patch)]);
           message = `${actor.identity.name}: changed`;
+        } else if (subject === 'ship') {
+          // v0.238.0: a ship can be stranded with no way to reach fuel or
+          // funds through ordinary play (an empty tank at a starport that
+          // sells none, no gas giant to skim) — the same override the
+          // character branch above already has, for the two numbers most
+          // likely to do that: fuel aboard and the ship's own account.
+          const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === fight?.id);
+          if (!ship) throw new Error('choose a ship to change');
+          const shipLabel = ship.identity.name || 'The ship';
+          let next;
+          if (field === 'fuel') {
+            const capacity = Number(ship.specifications?.fuel?.capacityTons ?? 0);
+            const requested = Number(value);
+            if (!Number.isFinite(requested) || requested < 0) throw new RangeError('fuel must be zero or more tons');
+            const tons = Math.min(capacity, Math.round(requested));
+            next = JSON.parse(JSON.stringify(ship));
+            next.state.currentFuelTons = tons;
+            if (tons === 0) next.state.fuelQuality = 'unknown';
+            else if (next.state.fuelQuality === 'unknown') next.state.fuelQuality = 'refined';
+            assertValidShipDocument(next);
+            message = `${shipLabel}: fuel set to ${tons} of ${capacity} t`;
+          } else if (field === 'account') {
+            const target = Math.round(Number(value));
+            if (!Number.isFinite(target) || target < 0) throw new RangeError('the account must be zero or more credits');
+            const editDateLabel = formatCampaignDate(resolved.campaign.time);
+            const current = Number(ship.state.finances?.balanceCr ?? 0);
+            const delta = target - current;
+            if (delta > 0) next = creditShipAccount(ship, delta, { kind: 'referee', description: 'Referee adjustment', dateLabel: editDateLabel });
+            else if (delta < 0) next = debitShipAccount(ship, -delta, { kind: 'referee', description: 'Referee adjustment', dateLabel: editDateLabel });
+            else next = ship;
+            message = `${shipLabel}: account set to ${cr(target)}`;
+          } else throw new Error(`unknown edit: ${command}`);
+          persist([next]);
         } else if (subject === 'combatant') {
           // Mid-fight the combatant is the live record; the actor behind it is
           // untouched, so a change here lasts only for this encounter.
