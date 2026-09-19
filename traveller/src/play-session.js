@@ -40,8 +40,11 @@ import {
 // the same thing. It becomes the right tool once a side can carry more than
 // one ship and the rest need to coast at once.
 import {
-  commitShipVector, adjudicateVectorSurface
+  enableVectorMovement, commitShipVector, adjudicateVectorSurface
 } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
+// Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
+// documents. See its own header: built to be shared by any client.
+import { spaceSceneCombatPlan, spaceSceneLink, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
 import {
   shipDamagedLocations, assemblyCostCr, rollRepairCost, fullyRepairLocation, SHIPYARD_STARPORTS, REPAIR_PARTS_CREW_DM
 } from './ship-repair.js';
@@ -1860,6 +1863,79 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         message = step.encounter.outcome !== 'in-progress'
           ? `${before.name} breaks off and gets clear.`
           : `${before.name} breaks off \u2014 ${after?.shotsRemainingBeforeEscape ?? STANDARD_SHOTS_BEFORE_ESCAPE} more shot(s) allowed before it is out of range (Book 2 p.37).`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:vector-start') {
+        // Book 2 p.22-23, staged from a Space scene rather than sprung by an
+        // arrival roll — client/app.js's startSpaceSceneCombat already does
+        // this; spaceSceneCombatPlan (src/space-scene-combat.js) is the pure
+        // half of it, shared rather than reimplemented here.
+        if (pendingShipFight) throw new Error('a ship fight is already under way');
+        const sceneId = fight?.sceneId || resolved.campaign.activeSceneId;
+        const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === sceneId);
+        if (!scene) throw new Error('no scene to start the fight from');
+        const intruder = fight?.intruder === 'party' ? 'party' : 'opposition';
+        const pressurised = Boolean(fight?.pressurised);
+        const plan = spaceSceneCombatPlan(scene, { ownShipId: facts.ship?.identity?.id ?? null, intruder });
+        if (plan.problems.length) throw new Error(`cannot start: ${plan.problems.join('; ')}`);
+        // Kurt 2026-09-19: single ship per side for now. spaceSceneCombatPlan
+        // and the vector engine both already support more than one — this is
+        // a validation gate here, not a limit in either of them, and comes
+        // out once shipfight:vector-move can address more than 'player'.
+        for (const side of SPACE_COMBAT_SIDES) {
+          const onSide = plan.ships.filter((entry) => entry.stagedSide === side);
+          if (onSide.length > 1) throw new Error(`only one ship per side is supported right now (${onSide.length} staged on ${side})`);
+        }
+        const participants = plan.ships.map((staged) => {
+          if (staged.own) {
+            const mine = shipCombatLoadout(facts.ship);
+            return {
+              shipId: staged.participantId, disposition: 'merchant',
+              name: facts.ship.identity.name || staged.label || 'The ship', side: staged.side, ship: facts.ship,
+              carriedPrograms: mine.carried, loadedPrograms: mine.loaded,
+              ...shipCombatCrew(facts.ship),
+              pressurisedSections: pressurised ? [...PRESSURE_SECTIONS] : []
+            };
+          }
+          const name = staged.label || staged.designKey;
+          const { ship: opponentShip } = buildEncounteredShip({ designKey: staged.designKey, name, key: staged.designKey });
+          const loadout = shipCombatLoadout(opponentShip);
+          return {
+            shipId: staged.participantId,
+            // Same Graycloak dispositions the p.36 arrival-encounter path
+            // assigns: a staged opposition ship is hostile, a party one is not.
+            disposition: staged.stagedSide === 'opposition' ? 'pirate' : 'merchant',
+            name, side: staged.side, ship: opponentShip,
+            carriedPrograms: loadout.carried, loadedPrograms: loadout.loaded,
+            stations: { pilot: 'npc-captain' }, skills: { pilot: 1, computer: 0 },
+            pressurisedSections: []
+          };
+        });
+        const playerParticipant = participants.find((entry) => entry.shipId === OWN_SHIP_PARTICIPANT_ID);
+        if (!playerParticipant) throw new Error("the campaign's own ship must be staged to start a fight");
+        let combat = createShipCombatEncounter({
+          id: `ship-fight-${Date.now()}`, campaignId: resolved.campaign.identity.id,
+          intruderSide: 'intruder',
+          intruderAssignmentNote: `Referee assigned the intruder turn to ${intruder} staged on ${scene.identity.name}`,
+          participants
+        });
+        combat = enableVectorMovement(combat,
+          Object.fromEntries(plan.ships.map((staged) => [staged.participantId, { position: staged.position, velocity: staged.velocity }])),
+          plan.planet ? { planet: plan.planet, atmosphere: plan.atmosphere } : {});
+        pendingShipFight = {
+          encounter: combat, playerSide: playerParticipant.side,
+          opponentLabel: participants.find((entry) => entry.shipId !== OWN_SHIP_PARTICIPANT_ID)?.name ?? 'Opponent',
+          systemId: facts.system?.id ?? null,
+          // Where each ship came from, so closing the fight can write its
+          // last position and vector back onto the scene (writeSpaceCombatToScene,
+          // space-scene-combat.js) — not yet wired to shipfight:end below.
+          sceneLink: spaceSceneLink(plan),
+          log: []
+        };
+        message = `Ship combat engaged on ${scene.identity.name}: ${participants.map((entry) => `${entry.name} (${entry.side})`).join(', ')}`;
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
