@@ -194,7 +194,8 @@ function realSessionNum(sessions, idx) {
 function adjacentSessions(sessions, idx, isPlayer) {
   const navigable = sessions
     .map((s, i) => ({ s, i }))
-    .filter(({ s }) => s.type !== 'timeline' && !(isPlayer && s.visible === false));
+    .filter(({ s }) => s.type !== 'timeline' && !(isPlayer && s.visible === false))
+    .sort((a, b) => realSessionNum(sessions, a.i) - realSessionNum(sessions, b.i));
 
   const pos = navigable.findIndex(({ i }) => i === idx);
   return {
