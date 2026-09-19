@@ -265,16 +265,21 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .system-hex[role='button'] { cursor: pointer; }
 .system-hex.reachable .subsector-hex-shape { fill: var(--signal-wash); stroke: var(--signal); }
 .system-hex.reachable .subsector-system-name { fill: var(--ink); }
-.system-hex.current .subsector-hex-shape { fill: var(--ink); stroke: var(--ink); }
-.system-hex.current .subsector-system-marker, .system-hex.current .subsector-system-name { fill: var(--ground); }
-.system-hex.current .subsector-hex-coordinate { fill: var(--ground); }
+/* v0.226.0: the world the ship is at was filled solid ink — a blot on the
+   map that swallowed its own name and outweighed every other hex. It is a
+   pin, not a hole: the paper stays, a heavy ring marks it, and the name is
+   read in the same colour. Red is used nowhere else on the map, so it cannot
+   be mistaken for a world in jump range (pale blue) or an ordinary one. */
+.system-hex.current .subsector-hex-shape { fill: var(--paper-tint, transparent); stroke: var(--red); stroke-width: 3; }
+.system-hex.current .subsector-system-marker, .system-hex.current .subsector-system-name { fill: var(--red); font-weight: 700; }
+.system-hex.current .subsector-hex-coordinate { fill: var(--red); opacity: 0.8; }
 .system-hex.selected .subsector-hex-shape { stroke: var(--signal); stroke-width: 2; }
 .system-hex:hover .subsector-hex-shape { stroke: var(--ink); }
 .subsector-destination-ring { fill: none; stroke: var(--signal); stroke-width: 1.5; stroke-dasharray: 3 3; }
 .subsector-base-icon-shape { fill: var(--ink-2); }
 .subsector-base-icon-line { stroke: var(--ink-2); stroke-width: 1; }
-.system-hex.current .subsector-base-icon-shape { fill: var(--ground); }
-.system-hex.current .subsector-base-icon-line { stroke: var(--ground); }
+.system-hex.current .subsector-base-icon-shape { fill: var(--red); }
+.system-hex.current .subsector-base-icon-line { stroke: var(--red); }
 .subsector-jump-layer { pointer-events: none; }
 .subsector-jump-line { stroke: var(--brand-rule); stroke-width: 2; stroke-dasharray: 6 4; }
 .subsector-jump-label { font: 700 9px var(--code); fill: var(--ink); }

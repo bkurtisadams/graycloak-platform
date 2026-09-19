@@ -1,5 +1,33 @@
 # Graycloak Traveller
 
+## v0.226.0 the current world is a pin, and Combat is a chip
+
+**The map.** The world the ship is at was filled solid ink — a blot that
+swallowed its own name and outweighed every other hex, including the pale blue
+ones that say where you can actually go. It is now the paper it sits on, with
+a heavy red ring and its name in the same red: a pin, not a hole. Red appears
+nowhere else on the map, so "here" cannot be confused with "in range". Checked
+in both themes; the dark one uses the lighter red of the palette and reads
+just as clearly.
+
+If you want it filled rather than ringed, the amber attention colour is the
+other candidate — but amber elsewhere means "this needs you", and where the
+ship is standing does not.
+
+**Combat is a masthead chip**, beside the character, the ship and Referee, and
+"Start a fight" has left the foot of the port column. The chip reads "No
+fight", or the round when one is running, and turns red then. Clicking it
+opens the drawer: with no fight, the setup that used to be buried below the
+Done line; with one running, a reminder that the fight has the screen and the
+End fight button. That matches what the other chips do — a piece of state you
+can see at a glance, and one panel behind it.
+
+Your screenshot also showed a chip reading "799593 Cr 0": the party's unnamed
+character, selected first because it sorts first. It now reads "(unnamed)"
+like the drawer tab does, and v0.219.0's editor will name it.
+
+Suite: 625 pass, 0 fail.
+
 ## v0.225.1 a stub that had not kept up, and a check that needs no jsdom
 
 `test-all` failed on `enter.js loads`:

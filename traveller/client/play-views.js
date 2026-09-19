@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.225.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.225.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.225.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.226.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.226.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.226.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.225.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.226.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -43,7 +43,7 @@ export function renderMastChips(state, { openDrawer, drawer }) {
   const c = state.character;
   if (c) {
     chips.push(h('button', { class: `chip${c.hurt ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'character', onclick: () => openDrawer('character') },
-      h('span', { class: 'chip-name', text: c.name }),
+      h('span', { class: 'chip-name', text: c.name || '(unnamed)' }),
       h('span', { class: 'chip-line' }, h('span', { class: 'code', text: c.upp }), ` ${c.hurt ? c.status : cr(c.cashCr)}`)));
   }
   const s = state.ship;
@@ -52,7 +52,18 @@ export function renderMastChips(state, { openDrawer, drawer }) {
       h('span', { class: 'chip-name', text: s.name }),
       h('span', { class: 'chip-line', text: `Fuel ${s.fuel.now}/${s.fuel.full}  Hold ${s.hold.full - s.hold.now} t free` })));
   }
+  // v0.226.0: Combat belongs beside the character and the ship, not buried at
+  // the foot of the port column. A running fight already owns the screen, so
+  // the chip reports the round; with none, it opens the drawer that starts one.
   if (state.seat === 'referee') {
+    const fighting = Boolean(state.fighters?.length);
+    chips.push(h('button', {
+      class: `chip${fighting ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'combat',
+      title: fighting ? 'A fight is running; it has the screen' : 'Put the party on the board against someone',
+      onclick: () => openDrawer('combat')
+    },
+    h('span', { class: 'chip-name', text: 'Combat' }),
+    h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '') : 'No fight' })));
     chips.push(h('button', { class: 'chip chip-plain', type: 'button', 'aria-pressed': drawer === 'referee', onclick: () => openDrawer('referee') },
       h('span', { class: 'chip-name', text: 'Referee' }),
       h('span', { class: 'chip-line', text: 'Actors, scenes, players' })));
@@ -442,11 +453,11 @@ function rosterRow(entry) {
 
 // A fight has to be startable from here, or the page is a dead end: pick who
 // the party is up against and the range they meet at (Book 1 p.27).
-function startFight(state, handlers) {
+function startFight(state, handlers, { open = false } = {}) {
   const foes = state.opponents ?? [];
   if (!state.live || !foes.length) return null;
   const party = state.partyChoices ?? [];
-  return h('details', { class: 'start-fight' },
+  return h('details', { class: 'start-fight', open },
     h('summary', {}, h('h3', { text: 'Start a fight' })),
     h('p', { class: 'cite', text: 'Who takes the field, who they meet, and the range they meet at (Book 1 p.27).' }),
     party.length ? h('div', { class: 'foes' }, h('span', { class: 'foes-label', text: 'Party' }), party.map((member) => h('label', { class: `check${member.eligible ? '' : ' is-blocked'}` },
@@ -484,8 +495,6 @@ export function renderNow(state, handlers = {}) {
   const finished = [...(state.done ?? []), ...(state.steps ?? []).filter((step) => step.state === 'done').map((step) => `${step.title}, ${step.figure}`)];
   if (open.length) parts.push(h('ul', { class: 'steps', 'aria-label': 'Also possible now' }, open.map((step) => stepRow(step, handlers))));
   if (finished.length) parts.push(h('p', { class: 'done-line' }, h('span', { class: 'done-label', text: 'Done ' }), finished.join('. ') + '.'));
-  const fight = startFight(state, handlers);
-  if (fight) parts.push(fight);
   return parts;
 }
 
@@ -843,10 +852,27 @@ function refereeDrawer(referee, state, handlers) {
   ];
 }
 
+function combatDrawer(state, handlers) {
+  if (state.fighters?.length) {
+    return [
+      h('header', { class: 'drawer-head' }, h('h2', { text: state.situation.title }), h('p', { text: state.situation.detail })),
+      h('p', { class: 'empty', text: 'The fight has the screen: declare on the sheet and resolve the round there. Close this to get back to it.' }),
+      h('div', { class: 'lead-actions' }, (state.refereeActions ?? []).map((action) =>
+        h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
+    ];
+  }
+  return [
+    h('header', { class: 'drawer-head' }, h('h2', { text: 'Combat' }), h('p', { text: 'Nothing is running.' })),
+    startFight(state, handlers, { open: true })
+      ?? h('p', { class: 'empty', text: 'This campaign has no roster actors to fight yet; make one in the referee client.' })
+  ];
+}
+
 export function renderDrawer(kind, state, referee, handlers = {}) {
   const tidy = (parts) => parts.flat(Infinity).filter(Boolean);
   if (kind === 'character' && state.character) return tidy(characterDrawer(state.character, state, handlers));
   if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state));
+  if (kind === 'combat') return tidy(combatDrawer(state, handlers));
   if (kind === 'referee') return tidy(refereeDrawer(referee, state, handlers));
   return [];
 }
