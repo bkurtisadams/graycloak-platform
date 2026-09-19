@@ -16,7 +16,8 @@
 import {
   createShipDocument, armShipTurret, createShipCombatEncounter, COMPUTER_MODELS, COMPUTER_PROGRAMS,
   actingSide, currentPhase, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
-  turretOperational, turretWeapons, getTurretWeapon, shipCombatIntent, participantStatus
+  turretOperational, turretWeapons, getTurretWeapon, shipCombatIntent, participantStatus,
+  declareFlight, creditShotAgainstEscape
 } from '../vendor/classic-traveller-rules/index.js';
 
 // Book 2 p.36 names the hull; these are the standard designs it resolves to.
@@ -173,6 +174,7 @@ export function autoAdvanceShipFight(encounter, dice, { playerSide }) {
           fight = allocateLaserFire(fight, allocations);
           const resolved = resolveLaserFire(fight, dice);
           fight = resolved.encounter;
+          fight = creditEscapeShots(fight, resolved.shots);
           shots.push(...resolved.shots);
         }
       }
@@ -199,7 +201,59 @@ export function shipFightRoster(encounter) {
       disabled: status.disabled,
       decompressed: status.decompressed,
       escaped: Boolean(participant.escaped),
-      surrendered: Boolean(participant.surrendered)
+      surrendered: Boolean(participant.surrendered),
+      fled: Boolean(participant.fled),
+      shotsRemainingBeforeEscape: participant.fled && !participant.escaped ? participant.shotsRemainingBeforeEscape : null
     };
   });
+}
+
+// Book 2 p.37: shots fired at a ship that has broken off count against the
+// number of shots the referee allowed it before it is out of range — nothing
+// else reduces that count, so every resolved volley has to apply this or a
+// fled ship would sit at "fleeing" forever. Ported from client/app.js's own
+// loop after resolveShipCombatFire, run here for both the player's own fire
+// and the auto-resolved side's.
+export function creditEscapeShots(encounter, shots) {
+  let next = encounter;
+  for (const shot of shots) {
+    if (!shot.fired) continue;
+    const target = next.participants.find((entry) => entry.id === shot.targetId);
+    if (!target?.fled || target.escaped) continue;
+    next = creditShotAgainstEscape(next, shot.targetId);
+  }
+  return next;
+}
+
+// Book 2 p.37 supplies no formula for how many shots a referee should allow
+// before a fleeing ship is out of range — client/app.js's referee client
+// asks with a prompt each time. This client has no referee-input widget, so
+// it fixes the number instead of asking; 2 is the standard ruling until a
+// case turns up that wants otherwise.
+export const STANDARD_SHOTS_BEFORE_ESCAPE = 2;
+
+export function fleeShipFight(encounter, shipId) {
+  return declareFlight(encounter, {
+    shipId, shotsBeforeEscape: STANDARD_SHOTS_BEFORE_ESCAPE,
+    note: `Standard ruling: ${STANDARD_SHOTS_BEFORE_ESCAPE} shots before out of range (Book 2 p.37 sets no formula)`
+  });
+}
+
+// A running per-ship record of where it has been hit, for a damage display
+// beside the roster. resolveLaserFire already tells the caller a hit's
+// location; this just keeps what narrateShots otherwise uses once and
+// discards.
+export function recordShipDamage(existing, shots) {
+  const next = { ...existing };
+  for (const shot of shots) {
+    if (!shot.fired || !shot.hit) continue;
+    next[shot.targetId] = [...(next[shot.targetId] ?? []), shot.location];
+  }
+  return next;
+}
+
+export function summarizeShipDamage(locations = []) {
+  const counts = new Map();
+  for (const location of locations) counts.set(location, (counts.get(location) ?? 0) + 1);
+  return [...counts.entries()].map(([location, count]) => (count > 1 ? `${location} \u00d7${count}` : location));
 }

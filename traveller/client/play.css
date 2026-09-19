@@ -592,6 +592,12 @@ a.button { text-decoration: none; color: inherit; }
 .folder-name { font-weight: 700; }
 .folder-count { color: var(--ink-2); font-size: 11px; }
 .entries { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; padding: 0; }
+/* v0.231.0: a ship-fight's log used to show only its last 6 lines, static.
+   Now the whole log (capped at 40 rounds upstream) scrolls in place, the
+   same pattern .talk-log already uses. */
+.fight-log { max-height: 22vh; overflow-y: auto; padding-right: 2px; }
+.fight-log .entries { gap: 4px; }
+.fight-log .entry { padding: 4px 8px; }
 .entry { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 6px 8px; border: 1px solid var(--line); background: var(--raise); }
 .entry-name { font-weight: 700; }
 .entry-note { color: var(--ink-2); font-size: 12px; }

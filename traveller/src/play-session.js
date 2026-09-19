@@ -31,7 +31,8 @@ import {
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
-  autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe
+  autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe,
+  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, recordShipDamage, summarizeShipDamage
 } from './ship-arrival-combat.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
@@ -1430,7 +1431,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         pendingShipFight = {
           encounter: step.encounter, playerSide: opponentIsIntruder ? 'native' : 'intruder',
           opponentLabel: pendingArrivalEncounter.label, systemId: pendingArrivalEncounter.systemId,
-          log: narrateShots(step.shots, step.encounter)
+          log: narrateShots(step.shots, step.encounter),
+          damage: recordShipDamage({}, step.shots)
         };
         message = `${playerShip.identity.name || 'The ship'} engages ${pendingArrivalEncounter.label} at ${facts.system?.name ?? 'the port'}.`;
         pendingArrivalEncounter = null;
@@ -1451,14 +1453,30 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             fight = allocateLaserFire(fight, allocations);
             const resolved2 = resolveLaserFire(fight, dice);
             fight = resolved2.encounter;
+            fight = creditEscapeShots(fight, resolved2.shots);
             shots = resolved2.shots;
           }
         }
         if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
         const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
         const narrated = [...narrateShots(shots, step.encounter), ...narrateShots(step.shots, step.encounter)];
-        pendingShipFight = { ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) };
+        pendingShipFight = {
+          ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40),
+          damage: recordShipDamage(pendingShipFight.damage ?? {}, [...shots, ...step.shots])
+        };
         message = narrated.join(' ') || 'No shots fired this round.';
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:flee') {
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        const player = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player');
+        if (!player || player.fled) throw new Error('already breaking off');
+        const fight = fleeShipFight(pendingShipFight.encounter, 'player');
+        pendingShipFight = { ...pendingShipFight, encounter: fight };
+        message = `${player.name} breaks off \u2014 ${STANDARD_SHOTS_BEFORE_ESCAPE} more shot(s) allowed before it is out of range (Book 2 p.37).`;
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
@@ -1682,11 +1700,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const phase = currentPhase(encounter);
         const writable = save.state !== 'stale';
         const ended = encounter.outcome !== 'in-progress';
+        const player = encounter.participants.find((entry) => entry.id === 'player');
+        const canFlee = Boolean(player) && !player.fled && !player.escaped && !player.surrendered;
+        const damageLog = pendingShipFight.damage ?? {};
         return {
           ...state,
           situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
           shipFight: {
-            roster: shipFightRoster(encounter),
+            roster: shipFightRoster(encounter).map((entry) => ({ ...entry, damage: summarizeShipDamage(damageLog[entry.shipId]) })),
             gameTurn: encounter.gameTurn,
             phase: phase.label,
             outcome: encounter.outcome,
@@ -1696,7 +1717,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             log: pendingShipFight.log,
             actions: !writable ? [] : ended
               ? [{ command: 'shipfight:end', label: 'End fight', primary: true }]
-              : [{ command: 'shipfight:fire', label: 'Fire lasers', primary: true }, { command: 'shipfight:hold', label: 'Hold fire' }]
+              : [
+                  { command: 'shipfight:fire', label: 'Fire lasers', primary: true },
+                  { command: 'shipfight:hold', label: 'Hold fire' },
+                  ...(canFlee ? [{ command: 'shipfight:flee', label: 'Flee' }] : [])
+                ]
           },
           save, notice: lastMessage
         };
