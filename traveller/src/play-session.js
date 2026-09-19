@@ -33,9 +33,11 @@ import {
 } from './campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
-  allocateRoundWound, declareEncounterAction, endEncounterByReferee, pendingWoundAllocation,
-  resolveDeclaredRound, undeclareEncounterAction, undeclaredCombatantIds
+  allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
+  opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
+  undeclaredCombatantIds
 } from './encounter-document.js';
+import { addEncounterToCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
@@ -256,6 +258,13 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     scene: { kind: 'subsector', currentId: campaign.location?.systemId ?? null, selectedId: null, jump: ship?.jump ?? 0 },
     chat: [],
     referee: refereeView(resolved),
+    // v0.218.1: a fight has to be startable from this page. These are the
+    // roster actors that can be put on the board against the party.
+    opponents: (resolved.npcActors ?? []).filter((actor) => !actor.archived).map((actor) => ({
+      id: actor.identity.id,
+      name: actor.identity.name,
+      note: [actor.loadout?.weaponKey, actor.loadout?.armor === 'none' ? null : actor.loadout?.armor].filter(Boolean).join(', ')
+    })),
     weaponCatalog: weaponCatalog()
   };
 }
@@ -776,6 +785,43 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       if (command.startsWith('inventory:')) {
         if (resolved.encounters.some((entry) => entry.status === 'active')) throw new Error('a fight is in progress; finish it in the current client');
         lastMessage = { ok: true, message: runInventory(command, { characterId, item }) };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command === 'fight:start') {
+        if (liveEncounter()) throw new Error('a fight is already running');
+        const party = (resolved.campaign.party?.characterIds ?? [])
+          .map((id) => resolved.characters.find((entry) => entry.identity.id === id))
+          .filter(Boolean);
+        // A character with no name cannot become a combatant (the engine
+        // refuses it) and there is one in the Sea of Suns party, so say which
+        // rather than failing the whole fight with a validation message.
+        const nameless = party.filter((entry) => !String(entry.identity.name ?? '').trim());
+        const named = party.filter((entry) => String(entry.identity.name ?? '').trim());
+        if (!named.length) throw new Error('the party has no named characters to fight with');
+        const wanted = Array.isArray(fight?.opponentIds) ? fight.opponentIds : [];
+        const actors = (resolved.npcActors ?? []).filter((actor) => wanted.includes(actor.identity.id));
+        if (!actors.length) throw new Error('choose who the party is fighting');
+        const encounter = createEncounterDocument({
+          campaign: resolved.campaign,
+          characters: named,
+          opponents: actors.map(opponentSpecFromNpcActor),
+          spatialMode: 'range-line',
+          range: fight?.range ?? 'medium',
+          date: resolved.campaign.time,
+          dice: createDice()
+        });
+        registry.put(encounter);
+        registry.put(addEncounterToCampaign(resolved.campaign, encounter));
+        reload();
+        persist([]);
+        const message = [
+          `Fight begins: ${named.map((entry) => entry.identity.name).join(', ')} against ${actors.map((actor) => actor.identity.name).join(', ')}, at ${fight?.range ?? 'medium'} range`,
+          nameless.length ? `${nameless.length} unnamed character${nameless.length === 1 ? '' : 's'} left out; a combatant needs a name` : null
+        ].filter(Boolean).join('. ');
+        log('COMBAT', message);
+        lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
         return lastMessage;

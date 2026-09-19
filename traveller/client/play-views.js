@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.218.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.218.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.218.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.218.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.218.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.218.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.218.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -428,6 +428,26 @@ function rosterRow(entry) {
     entry.declared ? h('span', { class: 'fighter-declared', text: entry.declared }) : null);
 }
 
+// A fight has to be startable from here, or the page is a dead end: pick who
+// the party is up against and the range they meet at (Book 1 p.27).
+function startFight(state, handlers) {
+  const foes = state.opponents ?? [];
+  if (!state.live || !foes.length) return null;
+  return h('details', { class: 'start-fight' },
+    h('summary', {}, h('h3', { text: 'Start a fight' })),
+    h('p', { class: 'cite', text: 'Everyone in the party takes the field. Choose who they meet, and at what range.' }),
+    h('div', { class: 'foes' }, foes.map((foe) => h('label', { class: 'check' },
+      h('input', { type: 'checkbox', value: foe.id, 'data-foe': foe.id }), ` ${foe.name}${foe.note ? ` (${foe.note})` : ''}`))),
+    h('div', { class: 'row' },
+      h('select', { 'data-range': true, 'aria-label': 'Range they meet at' },
+        ['close', 'short', 'medium', 'long', 'very-long'].map((range) => h('option', { value: range, selected: range === 'medium', text: range.replace('-', ' ') }))),
+      h('button', { type: 'button', class: 'button', text: 'Begin', onclick: (event) => {
+        const box = event.currentTarget.closest('.start-fight');
+        const opponentIds = [...box.querySelectorAll('[data-foe]')].filter((entry) => entry.checked).map((entry) => entry.value);
+        handlers.onStartFight?.(opponentIds, box.querySelector('[data-range]').value);
+      } })));
+}
+
 export function renderNow(state, handlers = {}) {
   if (state.fighters?.length) return fightColumn(state, handlers).filter(Boolean);
   const parts = [
@@ -447,6 +467,8 @@ export function renderNow(state, handlers = {}) {
   const finished = [...(state.done ?? []), ...(state.steps ?? []).filter((step) => step.state === 'done').map((step) => `${step.title}, ${step.figure}`)];
   if (open.length) parts.push(h('ul', { class: 'steps', 'aria-label': 'Also possible now' }, open.map((step) => stepRow(step, handlers))));
   if (finished.length) parts.push(h('p', { class: 'done-line' }, h('span', { class: 'done-label', text: 'Done ' }), finished.join('. ') + '.'));
+  const fight = startFight(state, handlers);
+  if (fight) parts.push(fight);
   return parts;
 }
 

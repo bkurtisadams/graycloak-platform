@@ -542,3 +542,11 @@ a.button { text-decoration: none; color: inherit; }
 .target-line.is-foe { stroke: var(--red); }
 .target-line.is-move { stroke-dasharray: 2 6; opacity: 0.7; }
 .target-line:not(.is-move) { stroke-dasharray: none; }
+
+.mast-lobby { font-size: 13px; color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.mast-lobby:hover { color: var(--ink); }
+.start-fight { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid var(--red); background: var(--raise); }
+.start-fight h3 { font-size: 14px; font-weight: 700; }
+.start-fight .foes { display: flex; flex-wrap: wrap; gap: 6px; }
+.start-fight label.check { font-size: 13px; }
+.start-fight .row { display: flex; gap: 8px; align-items: center; }

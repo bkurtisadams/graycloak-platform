@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.218.1 starting a fight, and a way out of the page
+
+`play.html` was a dead end. It showed the port call with no lobby link and no
+way to reach the band board — a fight could only be started in the old client,
+which meant the lobby, [ RUN ], and the settings-panel scramble to get back.
+
+- **Start a fight** sits on the port call, for the referee: tick who the party
+  is up against from the roster, choose the range they meet at (Book 1 p.27
+  gives close through very long), press Begin. The whole party takes the field
+  against the chosen actors on the range-band board, and the declaration sheet
+  takes over the column.
+- **A Lobby link** in the masthead, so the page is no longer one-way.
+
+**A real data problem this turned up.** One character in the Sea of Suns party,
+`char-21173eb24c1840fe`, has an empty name. The engine refuses a combatant
+without one, so the first attempt failed with "combatant name must be a
+nonblank string" and no fight started. Starting a fight now leaves unnamed
+characters out and says so — "1 unnamed character left out; a combatant needs
+a name" — rather than refusing the whole fight. The character itself still
+wants fixing, which the referee's editing surface will allow.
+
+Tested against your exported campaign: the fight ended, the port call offered
+the four roster actors (Thug, Thug 2, Thug 3, Harp with their weapons), and
+beginning one at short range produced a five-row sheet at round 1.
+
+Suite: 615 pass, 0 fail.
+
+**Still clunky, and not fixed here:** the two clients remain separate, so
+scenes, actors and the tactical grid are still only in the old one. Nothing on
+`play.html` yet edits a character, and there is still no way to delete a
+campaign.
+
 ## v0.218.0 the round as a declaration sheet, and why your Thugs never closed
 
 **The fight screen is rebuilt.** Book 1 p.26 step 4 is two passes over
