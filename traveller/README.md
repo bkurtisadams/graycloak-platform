@@ -1,5 +1,37 @@
 # Graycloak Traveller
 
+## v0.220.0 rename and delete a campaign from the lobby
+
+A campaign could be made but never named or removed, so the lobby filled with
+UNNAMED CAMPAIGN rows — four of them in your screenshot, three of them empty
+leftovers from the failed cloud saves before v0.211.1 — and nothing could
+clear them.
+
+Each campaign row now carries [ RENAME ] and [ DELETE ] beside [ PLAY ] and
+[ REFEREE TOOLS ].
+
+- **Rename** writes the name in both places it lives: the bundle inside
+  `state/current`, which is what the campaign itself carries, and the envelope
+  the lobby lists from. Writing only one leaves the list showing the old name.
+- **Delete** removes the home and the envelope. It asks differently depending
+  on what is at stake: an untouched campaign takes a yes, while one that has
+  been played (past revision 2) requires the campaign's name typed back, and
+  says so if it does not match.
+- Both also update this browser's own registry, so the page `play.html` reads
+  does not disagree with the lobby — a renamed campaign shows its new name
+  there, and a deleted one stops being the active campaign.
+
+Your Firestore rules already allow this: `travellerCampaigns/{id}` and its
+`state/current` are the referee's to write and delete. No rules change.
+
+Verified: the local half operates on the real stored shape (renamed, then
+removed, from your exported registry). The cloud half needs Firebase, which
+this sandbox cannot reach, so it is verified by code against the rules rather
+than by running it. If [ DELETE ] reports a permission error, tell me the
+message.
+
+Suite: 617 pass, 0 fail.
+
 ## v0.219.1 the lobby can reach the new page
 
 The new page could only be reached by typing its address. The lobby's

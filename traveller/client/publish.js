@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.219.1';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.219.1';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.220.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.220.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -430,6 +430,33 @@ export async function loadCampaignHome(campaignId) {
 
 // The campaigns this account referees: the envelopes, which name the home's
 // revision and last save. A campaign saved only in a browser is not here.
+// v0.220.0: renaming and removing a campaign from the lobby. The rules let the
+// referee write and delete travellerCampaigns/{id} and its state document, so
+// both are the owner's to make. A campaign's name lives in two places — the
+// bundle inside state/current, and the envelope the lobby lists — so a rename
+// has to touch both or the list keeps showing the old one.
+export async function renameCampaignHome(campaignId, name) {
+  const db = await ensureFirestore();
+  const ref = homeRef(db, campaignId);
+  const snapshot = await ref.get();
+  if (!snapshot.exists) throw new Error('that campaign has no cloud copy to rename');
+  const home = snapshot.data();
+  const bundle = JSON.parse(home.bundle);
+  bundle.campaign.identity.name = name;
+  await ref.set({ ...home, bundle: JSON.stringify(bundle) });
+  await db.collection('travellerCampaigns').doc(campaignId).set({ name }, { merge: true });
+  return name;
+}
+
+// The whole campaign: its home and the envelope. Subcollections a referee
+// cannot enumerate (a player's own documents) are left to Firestore; the
+// envelope going means nothing can reach them.
+export async function deleteCampaignHome(campaignId) {
+  const db = await ensureFirestore();
+  try { await homeRef(db, campaignId).delete(); } catch (error) { if (error?.code !== 'permission-denied') throw error; }
+  await db.collection('travellerCampaigns').doc(campaignId).delete();
+}
+
 export async function listOwnCampaigns(uid) {
   const db = await ensureFirestore();
   const snapshot = await db.collection('travellerCampaigns').where('ownership.ownerUid', '==', uid).get();

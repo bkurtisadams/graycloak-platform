@@ -30,7 +30,7 @@
 // only fix that removes the question.
 //
 // This constant is rewritten by the version bump alongside the mastheads.
-export const CLIENT_VERSION = 'v0.219.1';
+export const CLIENT_VERSION = 'v0.220.0';
 
 const RULES = `../vendor/classic-traveller-rules/index.js?v=${CLIENT_VERSION}`;
 

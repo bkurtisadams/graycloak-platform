@@ -8,26 +8,27 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.219.1';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.219.1';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.220.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.220.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
-  readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome
-} from './publish.js?v=v0.219.1';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.219.1';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.219.1';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.219.1';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.219.1';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.219.1';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.219.1';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.219.1';
-import { generateCharacterName } from './generators.js?v=v0.219.1';
+  readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
+  renameCampaignHome, deleteCampaignHome
+} from './publish.js?v=v0.220.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.220.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.220.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.220.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.220.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.220.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.220.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.220.0';
+import { generateCharacterName } from './generators.js?v=v0.220.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
-} from '../src/character-record.js?v=v0.219.1';
+} from '../src/character-record.js?v=v0.220.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.219.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.220.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -204,6 +205,48 @@ async function loadCampaigns() {
   render();
 }
 
+// v0.220.0: after a rename or a delete the list has to be read again, and
+// loadCampaigns() will not repeat itself for the same account.
+async function refreshCampaigns() {
+  campaignsLoadedFor = null;
+  await loadCampaigns();
+}
+
+// The lobby lists the cloud, but a campaign is also kept in this browser's
+// registry, and play.html reads that. Keep the two from disagreeing.
+const REGISTRY_KEY = 'graycloak-traveller-document-registry-v1';
+const ACTIVE_KEY = 'graycloak-traveller-active-campaign-id-v1';
+
+function withLocalRegistry(change) {
+  try {
+    const raw = window.localStorage.getItem(REGISTRY_KEY);
+    if (!raw) return;
+    const store = JSON.parse(raw);
+    if (change(store) === false) return;
+    window.localStorage.setItem(REGISTRY_KEY, JSON.stringify(store));
+  } catch (error) { console.warn('[traveller] local registry:', error); }
+}
+
+function renameLocalCampaign(campaignId, name) {
+  withLocalRegistry((store) => {
+    const campaign = store.documents?.[campaignId];
+    if (!campaign?.identity) return false;
+    campaign.identity.name = name;
+    return true;
+  });
+}
+
+function forgetLocalCampaign(campaignId) {
+  withLocalRegistry((store) => {
+    if (!store.documents?.[campaignId]) return false;
+    delete store.documents[campaignId];
+    return true;
+  });
+  try {
+    if (window.localStorage.getItem(ACTIVE_KEY) === campaignId) window.localStorage.removeItem(ACTIVE_KEY);
+  } catch (error) { console.warn('[traveller] active campaign:', error); }
+}
+
 // A campaign file loaded here gets its home at once, under this account.
 async function loadCampaignFile(file) {
   try {
@@ -253,6 +296,48 @@ function renderCampaigns() {
     // opens it on this campaign; [ RUN ] still opens the referee client for
     // the tools that have not moved across yet (scenes, the tactical grid,
     // campaign settings and export).
+    // v0.220.0: a campaign could be made but never named or removed, so the
+    // lobby filled with UNNAMED CAMPAIGN rows nobody could clear. Both write
+    // the cloud copy and this browser's own, so the two do not disagree.
+    const rename = document.createElement('button');
+    rename.type = 'button'; rename.className = 'text-button action-button';
+    rename.textContent = '[ RENAME ]';
+    rename.addEventListener('click', async () => {
+      const name = window.prompt('Name for this campaign', campaign.name && campaign.name !== 'Unnamed Campaign' ? campaign.name : '');
+      if (name === null) return;
+      const wanted = name.trim();
+      if (!wanted) { setStatus('A campaign needs a name.', 'error'); return; }
+      try {
+        setStatus('RENAMING\u2026');
+        await renameCampaignHome(campaign.campaignId, wanted);
+        renameLocalCampaign(campaign.campaignId, wanted);
+        setStatus(`RENAMED TO ${wanted.toUpperCase()}`, 'ok');
+        await refreshCampaigns();
+      } catch (error) { setStatus(error?.message ?? String(error), 'error'); }
+    });
+
+    const remove = document.createElement('button');
+    remove.type = 'button'; remove.className = 'text-button action-button';
+    remove.textContent = '[ DELETE ]';
+    remove.title = 'Remove this campaign from the cloud and this browser';
+    remove.addEventListener('click', async () => {
+      const label = campaign.name || campaign.campaignId;
+      // A campaign with history deserves a typed confirmation; an untouched
+      // one only needs a yes.
+      const played = Number(campaign.revision ?? 0) > 2;
+      const ok = played
+        ? window.prompt(`Deleting ${label} cannot be undone. Type the campaign name to confirm.`) === label
+        : window.confirm(`Delete ${label}? This cannot be undone.`);
+      if (!ok) { if (played) setStatus('DELETE CANCELLED: the name did not match.', 'error'); return; }
+      try {
+        setStatus('DELETING\u2026');
+        await deleteCampaignHome(campaign.campaignId);
+        forgetLocalCampaign(campaign.campaignId);
+        setStatus(`${String(label).toUpperCase()} DELETED`, 'ok');
+        await refreshCampaigns();
+      } catch (error) { setStatus(error?.message ?? String(error), 'error'); }
+    });
+
     const play = document.createElement('a');
     play.className = 'text-button action-button campaign-transition-action';
     play.href = `play.html?campaign=${encodeURIComponent(campaign.campaignId)}`;
@@ -264,7 +349,7 @@ function renderCampaigns() {
     run.href = `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`;
     run.textContent = '[ REFEREE TOOLS ]';
     run.title = 'The older client: scenes, the tactical grid, campaign settings and export';
-    tools.append(run);
+    tools.append(run, rename, remove);
     row.append(name, summary, state, tools);
     return row;
   }));
