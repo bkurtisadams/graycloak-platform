@@ -1472,11 +1472,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         return lastMessage;
       } else if (command === 'shipfight:flee') {
         if (!pendingShipFight) throw new Error('no ship fight is under way');
-        const player = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player');
-        if (!player || player.fled) throw new Error('already breaking off');
-        const fight = fleeShipFight(pendingShipFight.encounter, 'player');
-        pendingShipFight = { ...pendingShipFight, encounter: fight };
-        message = `${player.name} breaks off \u2014 ${STANDARD_SHOTS_BEFORE_ESCAPE} more shot(s) allowed before it is out of range (Book 2 p.37).`;
+        const dice = createDice();
+        const before = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player');
+        if (!before) throw new Error('no ship to flee with');
+        if (before.fled) throw new Error('already breaking off');
+        let fight = fleeShipFight(pendingShipFight.encounter, 'player');
+        if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
+        const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
+        const narrated = narrateShots(step.shots, step.encounter);
+        pendingShipFight = {
+          ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40),
+          damage: recordShipDamage(pendingShipFight.damage ?? {}, step.shots)
+        };
+        const after = step.encounter.participants.find((entry) => entry.id === 'player');
+        message = step.encounter.outcome !== 'in-progress'
+          ? `${before.name} breaks off and gets clear.`
+          : `${before.name} breaks off \u2014 ${after?.shotsRemainingBeforeEscape ?? STANDARD_SHOTS_BEFORE_ESCAPE} more shot(s) allowed before it is out of range (Book 2 p.37).`;
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();

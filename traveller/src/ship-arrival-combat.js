@@ -232,11 +232,28 @@ export function creditEscapeShots(encounter, shots) {
 // case turns up that wants otherwise.
 export const STANDARD_SHOTS_BEFORE_ESCAPE = 2;
 
+// Whether any foe still has a working weapon that could hit shipId. Book 2
+// p.37's shot count is for a foe that can still take a parting shot; a
+// toothless foe (no operational turret at all) cannot, so there is nothing
+// to count down.
+function anyOperationalThreatTo(encounter, shipId) {
+  return encounter.participants.some((entry) =>
+    entry.id !== shipId && !entry.escaped && !entry.surrendered && !participantStatus(entry).toothless);
+}
+
 export function fleeShipFight(encounter, shipId) {
-  return declareFlight(encounter, {
-    shipId, shotsBeforeEscape: STANDARD_SHOTS_BEFORE_ESCAPE,
-    note: `Standard ruling: ${STANDARD_SHOTS_BEFORE_ESCAPE} shots before out of range (Book 2 p.37 sets no formula)`
+  const threatened = anyOperationalThreatTo(encounter, shipId);
+  let next = declareFlight(encounter, {
+    shipId, shotsBeforeEscape: threatened ? STANDARD_SHOTS_BEFORE_ESCAPE : 0,
+    note: threatened
+      ? `Standard ruling: ${STANDARD_SHOTS_BEFORE_ESCAPE} shots before out of range (Book 2 p.37 sets no formula)`
+      : 'No foe left with an operational weapon \u2014 nothing left to take a parting shot'
   });
+  // Whatever a shotsBeforeEscape of 0 does on its own, this should never
+  // depend on a shot being fired to notice that nothing CAN be fired — with
+  // no threat left, the ship is simply gone.
+  if (!threatened && next.outcome === 'in-progress') next = { ...next, outcome: 'disengaged' };
+  return next;
 }
 
 // A running per-ship record of where it has been hit, for a damage display
