@@ -34,6 +34,9 @@ import {
   autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe,
   creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel
 } from './ship-arrival-combat.js';
+import {
+  shipDamagedLocations, assemblyCostCr, rollRepairCost, fullyRepairLocation, SHIPYARD_STARPORTS, REPAIR_PARTS_CREW_DM
+} from './ship-repair.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
 import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
@@ -827,9 +830,17 @@ function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
   const world = profile
     ? { detail: worldDetail(profile), starport: starportLine(profile.starport), gear: atmosphereGear(profile.atmosphere), law: lawCheck(profile, carriers) }
     : null;
+  // Book 2 p.18 Repair Parts: what's damaged, what the assembly for each
+  // location is actually worth on this ship, and whether the starport here
+  // has a shipyard for it (Book 3 p.5: only Class A and — "reasonable
+  // repair facilities" — Class C, your own ruling; see ship-repair.js).
+  const repair = ship ? {
+    locations: shipDamagedLocations(ship).map((loc) => ({ ...loc, assemblyCr: assemblyCostCr(ship, loc) })),
+    shipyardHere: Boolean(profile && SHIPYARD_STARPORTS.includes(profile.starport))
+  } : null;
 
   return {
-    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation, world,
+    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation, world, repair,
     fuel: { aboard, capacity, missing: Math.max(0, capacity - aboard) },
     berthingOwed: Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0),
     fight: encounters.find((entry) => entry.status === 'active' && entry.location?.systemId === system?.id) ?? null
@@ -861,6 +872,27 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
   } else {
     steps.push({ id: 'fuel', title: 'Fuel', figure: `${fuel.aboard} of ${fuel.capacity} t, none sold here`, state: 'blocked',
       copy: system.gasGiant ? 'This starport sells no fuel. The system has a gas giant to skim.' : 'This starport sells no fuel and the system has no gas giant.', cite: 'Book 2 p.6' });
+  }
+
+  // Book 2 p.18 Repair Parts. Crew self-repair (from the ship's own Stores)
+  // is offered anywhere; shipyard repair only where facts.repair.shipyardHere
+  // says the starport has one (Book 3 p.5: Class A, or Class C's "reasonable
+  // repair facilities" — your own ruling, ship-repair.js).
+  for (const loc of facts.repair?.locations ?? []) {
+    const label = damageLocationLabel(loc);
+    const idSuffix = loc.turretId ? `-${loc.turretId}` : '';
+    steps.push({ id: `repair-crew-${loc.location}${idSuffix}`, title: `Repair ${label} (crew)`, state: 'ready',
+      command: `repair:crew:${loc.location}${loc.turretId ? `:${loc.turretId}` : ''}`, verb: 'Repair',
+      figure: `${cr(loc.assemblyCr)} assembly, 0\u2013100% of it`,
+      copy: `Uses the ship's own stock of emergency materials: 2D${signed(REPAIR_PARTS_CREW_DM)}, read as a percentage of the ${label.toLowerCase()}'s own value (${cr(loc.assemblyCr)}); 0% or less costs nothing.`,
+      cite: 'Book 2 p.18' });
+    if (facts.repair.shipyardHere) {
+      steps.push({ id: `repair-shipyard-${loc.location}${idSuffix}`, title: `Repair ${label} (shipyard)`, state: 'ready',
+        command: `repair:shipyard:${loc.location}${loc.turretId ? `:${loc.turretId}` : ''}`, verb: 'Repair',
+        figure: `${cr(loc.assemblyCr)} assembly, 20\u2013120% of it`,
+        copy: `Professional replacement at ${system.name}'s shipyard: 2D, read as a percentage of the ${label.toLowerCase()}'s own value (${cr(loc.assemblyCr)}).`,
+        cite: 'Book 2 p.18' });
+    }
   }
 
   if (facts.speculation && !facts.exclusive) {
@@ -1515,6 +1547,33 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         persist([result.ship]);
         message = `${shipName} took on ${result.addedTons} t ${facts.fuelService.quality} fuel at ${facts.system.name}, ${result.costCr ? cr(result.costCr) : 'free'}`;
         log('SHIP', message);
+      } else if (command.startsWith('repair:crew:') || command.startsWith('repair:shipyard:')) {
+        // Book 2 p.18: "the cost of the repair is based on the cost of the
+        // original assembly... roll two dice: this indicates the cost of
+        // replacement of the item in 10% increments; DMs: -2 if the repair
+        // installation will be made by ship's crew rather than a shipyard."
+        const byCrew = command.startsWith('repair:crew:');
+        const rest = command.slice((byCrew ? 'repair:crew:' : 'repair:shipyard:').length);
+        const [location, turretId = null] = rest.split(':');
+        if (!(facts.repair?.locations ?? []).some((entry) => entry.location === location && entry.turretId === turretId)) {
+          throw new Error(`${damageLocationLabel({ location, turretId })} is not damaged`);
+        }
+        if (!byCrew && !facts.repair?.shipyardHere) throw new Error('no shipyard here (Book 3 p.5: Class A, or Class C\u2019s repair facilities, only)');
+        const assemblyCr = assemblyCostCr(facts.ship, { location, turretId });
+        const dice = createDice();
+        const result = rollRepairCost(dice, assemblyCr, { byCrew });
+        const label = damageLocationLabel({ location, turretId });
+        let ship = facts.ship;
+        const engineerAssignment = (facts.ship.crew?.assignments ?? []).find((entry) => entry.role === 'engineer');
+        const pilotAssignment = (facts.ship.crew?.assignments ?? []).find((entry) => entry.role === 'pilot');
+        const who = byCrew ? ((engineerAssignment ?? pilotAssignment)?.characterName || 'The crew') : `${facts.system.name}\u2019s shipyard`;
+        if (result.costCr > 0) {
+          ship = debitShipAccount(ship, result.costCr, { kind: 'repair', description: `${label} repair (${byCrew ? 'crew' : 'shipyard'}) at ${facts.system.name}`, dateLabel });
+        }
+        ship = fullyRepairLocation(ship, { location, turretId });
+        persist([ship]);
+        message = `${who} repairs ${label} \u2014 2D${result.dm ? signed(result.dm) : ''} = ${result.total}, ${result.percent}% of ${cr(assemblyCr)}${result.costCr > 0 ? `, ${cr(result.costCr)} paid.` : ', free.'}`;
+        log('PORT', message);
       } else if (command === 'arrival:dismiss') {
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
         message = `${pendingArrivalEncounter.label} let pass at ${facts.system?.name ?? 'the port'}`;
