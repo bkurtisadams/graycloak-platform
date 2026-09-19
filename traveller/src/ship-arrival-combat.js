@@ -147,12 +147,15 @@ function playerHasFireChoice(encounter, playerSide) {
 // exercises; the other phases have nothing to declare in abbreviated,
 // lasers-only play, so advancing through them is not a simplification of
 // anything the engine currently asks for.
-//
 // A shot log entry per resolved exchange comes back too, so a caller can
-// narrate what just happened.
+// narrate what just happened. newLogEntries carries anything else the engine
+// logged during this call that a shot list doesn't cover — currently just a
+// declared repair resolving at the game-turn interphase (advanceShipCombatPhase
+// calls resolveDamageControl there internally); the caller narrates those too.
 export function autoAdvanceShipFight(encounter, dice, { playerSide }) {
   let fight = encounter;
   const shots = [];
+  const startingLogLength = encounter.log.length;
   let guard = 0;
   while (fight.outcome === 'in-progress' && guard < 200) {
     guard += 1;
@@ -160,7 +163,9 @@ export function autoAdvanceShipFight(encounter, dice, { playerSide }) {
     const acting = actingSide(fight);
     if (phase === 'laser-fire' || phase === 'return-fire') {
       if (acting === playerSide) {
-        if (playerHasFireChoice(fight, playerSide)) return { encounter: fight, shots, awaitingPlayer: true };
+        if (playerHasFireChoice(fight, playerSide)) {
+          return { encounter: fight, shots, awaitingPlayer: true, newLogEntries: fight.log.slice(startingLogLength) };
+        }
       } else {
         const allocations = [];
         for (const shooter of fight.participants.filter((entry) => entry.side === acting && !entry.escaped && !entry.surrendered)) {
@@ -180,9 +185,9 @@ export function autoAdvanceShipFight(encounter, dice, { playerSide }) {
       }
     }
     if (fight.outcome !== 'in-progress') break;
-    fight = advanceShipCombatPhase(fight);
+    fight = advanceShipCombatPhase(fight, { dice });
   }
-  return { encounter: fight, shots, awaitingPlayer: false };
+  return { encounter: fight, shots, awaitingPlayer: false, newLogEntries: fight.log.slice(startingLogLength) };
 }
 
 // The roster line a referee actually needs: name, side, whether it can still
@@ -204,9 +209,22 @@ export function shipFightRoster(encounter) {
       surrendered: Boolean(participant.surrendered),
       fled: Boolean(participant.fled),
       shotsRemainingBeforeEscape: participant.fled && !participant.escaped ? participant.shotsRemainingBeforeEscape : null,
-      damage: shipStateDamageSummary(participant.ship)
+      damage: shipStateDamageSummary(participant.ship),
+      repairing: participant.damageControl ? damageLocationLabel(participant.damageControl) : null
     };
   });
+}
+
+// 'power-plant' -> 'Power Plant'; a turret carries its id ('turret', 'T-1' ->
+// 'Turret T-1'). Shared between the roster's "Repairing: …" line and the
+// repair-action button labels, so both always agree — and title-cased word
+// by word (not just the first letter) so it also reads identically to
+// shipStateDamageSummary's "Damage: …" line, whose labels come from
+// state.damage's camelCase keys (space-inserted, so each word already
+// carries its own capital) rather than this function's kebab-case input.
+export function damageLocationLabel({ location, turretId }) {
+  if (location === 'turret') return `Turret ${turretId}`;
+  return String(location).split('-').filter(Boolean).map((word) => word[0].toUpperCase() + word.slice(1)).join(' ');
 }
 
 // resolveLaserFire already writes every hit onto the ship document's own

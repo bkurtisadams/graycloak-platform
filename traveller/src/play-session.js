@@ -27,12 +27,12 @@ import {
   createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
-  PRESSURE_SECTIONS
+  PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
   autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe,
-  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE
+  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel
 } from './ship-arrival-combat.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
@@ -694,6 +694,23 @@ function narrateShots(shots, encounter) {
     return shot.hit
       ? `${nameOf(shot.shipId)} hits ${nameOf(shot.targetId)} (${shot.location}).`
       : `${nameOf(shot.shipId)} fires on ${nameOf(shot.targetId)} and misses.`;
+  });
+}
+
+// v0.234.0: a declared repair (Book 2 p.35) resolves silently, inside
+// advanceShipCombatPhase, at the end of the game turn it was declared in —
+// autoAdvanceShipFight surfaces whatever the engine logged during a call as
+// newLogEntries; this picks the 'damage-control' entries out of that and
+// narrates them the same way narrateShots narrates a shot.
+function narrateDamageControl(logEntries, encounter) {
+  const nameOf = (id) => encounter.participants.find((entry) => entry.id === id)?.name ?? id;
+  return logEntries.filter((entry) => entry.kind === 'damage-control').map((entry) => {
+    const where = damageLocationLabel(entry);
+    const who = entry.crewName || nameOf(entry.shipId);
+    if (!entry.attempted) return `${who}'s repair on ${where} aboard ${nameOf(entry.shipId)} is no longer possible (${entry.reason}).`;
+    return entry.repaired
+      ? `${who} repairs ${where} aboard ${nameOf(entry.shipId)} (${entry.total} vs ${entry.target}).`
+      : `${who}'s repair attempt on ${where} aboard ${nameOf(entry.shipId)} fails (${entry.total} vs ${entry.target}).`;
   });
 }
 
@@ -1620,9 +1637,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             shots = resolved2.shots;
           }
         }
-        if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
+        if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight, { dice });
         const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
-        const narrated = [...narrateShots(shots, step.encounter), ...narrateShots(step.shots, step.encounter)];
+        const narrated = [
+          ...narrateShots(shots, step.encounter), ...narrateShots(step.shots, step.encounter),
+          ...narrateDamageControl(step.newLogEntries, step.encounter)
+        ];
         pendingShipFight = { ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) };
         message = narrated.join(' ') || 'No shots fired this round.';
         log('SHIP', message);
@@ -1637,14 +1657,49 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (!before) throw new Error('no ship to flee with');
         if (before.fled) throw new Error('already breaking off');
         let fight = fleeShipFight(pendingShipFight.encounter, 'player');
-        if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
+        if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight, { dice });
         const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
-        const narrated = narrateShots(step.shots, step.encounter);
+        const narrated = [...narrateShots(step.shots, step.encounter), ...narrateDamageControl(step.newLogEntries, step.encounter)];
         pendingShipFight = { ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) };
         const after = step.encounter.participants.find((entry) => entry.id === 'player');
         message = step.encounter.outcome !== 'in-progress'
           ? `${before.name} breaks off and gets clear.`
           : `${before.name} breaks off \u2014 ${after?.shotsRemainingBeforeEscape ?? STANDARD_SHOTS_BEFORE_ESCAPE} more shot(s) allowed before it is out of range (Book 2 p.37).`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:cancel-repair' || command.startsWith('shipfight:repair:')) {
+        // Book 2 p.35: "Damage inflicted on starships in combat can be
+        // repaired or controlled by crew members during the battle... a
+        // throw of 9+ will repair one hit of damage." Nothing in that rule
+        // or in p.37's abbreviated-combat rule (which only ever abbreviates
+        // movement/range) restricts it to the vector-plot mode, so it
+        // applies here too. Your own ruling (ship-combat.js): one
+        // declaration per ship per game turn, resolved as the turn ends —
+        // declaring or cancelling here doesn't itself do anything but set
+        // or clear that declaration; the throw happens automatically once
+        // the game turn's phases run out, and shows up narrated in the log
+        // (narrateDamageControl) whenever that occurs.
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        const player = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player');
+        if (!player) throw new Error('no ship to repair');
+        if (command === 'shipfight:cancel-repair') {
+          const fight = cancelDamageControl(pendingShipFight.encounter, { shipId: 'player' });
+          pendingShipFight = { ...pendingShipFight, encounter: fight };
+          message = 'Repair declaration withdrawn.';
+        } else {
+          const rest = command.slice('shipfight:repair:'.length);
+          const [location, turretId] = rest.startsWith('turret:') ? ['turret', rest.slice('turret:'.length)] : [rest, null];
+          const pilotAssignment = (facts.ship.crew?.assignments ?? []).find((entry) => entry.characterId === facts.ship.authority?.assignedCharacterId)
+            ?? (facts.ship.crew?.assignments ?? []).find((entry) => entry.role === 'pilot');
+          const crewId = facts.ship.authority?.assignedCharacterId ?? pilotAssignment?.characterId ?? null;
+          const crewName = pilotAssignment?.characterName || 'The pilot';
+          const fight = declareDamageControl(pendingShipFight.encounter, { shipId: 'player', location, turretId, crewId, crewName });
+          pendingShipFight = { ...pendingShipFight, encounter: fight };
+          message = `${crewName} will attempt to repair ${damageLocationLabel({ location, turretId })} this turn (Book 2 p.35: resolves as the game turn ends, throw ${DAMAGE_CONTROL_THROW}+).`;
+        }
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
@@ -1884,6 +1939,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const ended = encounter.outcome !== 'in-progress';
         const player = encounter.participants.find((entry) => entry.id === 'player');
         const canFlee = Boolean(player) && !player.fled && !player.escaped && !player.surrendered;
+        // Book 2 p.35/p.37: damage control is available in abbreviated combat
+        // too (p.37 only ever abbreviates movement/range, nothing else) — one
+        // repair option per repairable location, always offered even while
+        // one is already declared, since RAW lets a declaration "be changed
+        // or withdrawn until the turn ends".
+        const canRepair = writable && !ended && player && !player.escaped && !player.surrendered;
+        const repairActions = canRepair ? damageControlOptions(player).map((entry) => ({
+          command: entry.location === 'turret' ? `shipfight:repair:turret:${entry.turretId}` : `shipfight:repair:${entry.location}`,
+          label: `Repair ${damageLocationLabel(entry)}`
+        })) : [];
+        const cancelRepairAction = canRepair && player.damageControl ? [{ command: 'shipfight:cancel-repair', label: 'Cancel repair' }] : [];
         return {
           ...state,
           situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
@@ -1901,7 +1967,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               : [
                   { command: 'shipfight:fire', label: 'Fire lasers', primary: true },
                   { command: 'shipfight:hold', label: 'Hold fire' },
-                  ...(canFlee ? [{ command: 'shipfight:flee', label: 'Flee' }] : [])
+                  ...(canFlee ? [{ command: 'shipfight:flee', label: 'Flee' }] : []),
+                  ...repairActions,
+                  ...cancelRepairAction
                 ]
           },
           save, notice: lastMessage

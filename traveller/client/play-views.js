@@ -766,6 +766,7 @@ function shipFightScene(fight, handlers) {
       h('span', { class: 'entry-name', text: ship.name }),
       h('span', { class: 'entry-note', text: `${ship.armedTurrets} armed turret${ship.armedTurrets === 1 ? '' : 's'}${ship.adrift ? ', adrift' : ''}${ship.decompressed ? ', hull breached' : ''}${ship.fled && !ship.escaped ? `, fleeing (${ship.shotsRemainingBeforeEscape} shot${ship.shotsRemainingBeforeEscape === 1 ? '' : 's'} left)` : ''}${ship.escaped ? ', escaped' : ''}${ship.surrendered ? ', surrendered' : ''}` }),
       ship.damage?.length ? h('span', { class: 'entry-damage', text: `Damage: ${ship.damage.join(', ')}` }) : null,
+      ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
       ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null))),
     fight.log.length ? h('div', { class: 'fight-log' }, h('ul', { class: 'entries' }, fight.log.map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line }))))) : null,
     h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
