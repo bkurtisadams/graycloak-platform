@@ -968,7 +968,8 @@ function refereeDrawer(referee, state, handlers) {
     // v0.229.0: Foundry's directory shape for Scenes — a create button above
     // the folders, same place the Players tab puts its own lead action.
     referee.tab === 'Scenes' && state.live ? h('div', { class: 'lead-actions' },
-      h('button', { type: 'button', class: 'button is-small', text: 'New scene', onclick: () => handlers.onSceneAction?.('create', null, referee.folder) })) : null,
+      h('button', { type: 'button', class: 'button is-small', text: 'New scene', onclick: () => handlers.onSceneAction?.('create', null, referee.folder) }),
+      h('button', { type: 'button', class: 'button is-small', text: 'New space scene', title: 'A vector board for Book 2 pp.22-31 ship combat', onclick: () => handlers.onSceneAction?.('create-space', null, referee.folder) })) : null,
     h('div', { class: 'directory' },
       h('nav', { class: 'folders', 'aria-label': 'Folders' }, tree.length
         ? tree.map((folder) => h('button', {
@@ -1008,6 +1009,11 @@ function refereeDrawer(referee, state, handlers) {
               title: entry.active ? 'Stop showing this scene to players' : 'Show this scene to every player',
               onclick: () => handlers.onSceneAction?.('activate', entry.id)
             }),
+            entry.isVectorBoard ? h('button', {
+              type: 'button', class: 'button is-small', text: referee.staging?.sceneId === entry.id ? 'Close staging' : 'Stage',
+              title: 'Place ships on this board and start a vector fight',
+              onclick: () => handlers.onSceneAction?.('stage', entry.id)
+            }) : null,
             h('button', {
               type: 'button', class: 'button is-small', text: 'File',
               title: 'Move this scene to another folder',
@@ -1017,10 +1023,50 @@ function refereeDrawer(referee, state, handlers) {
               type: 'button', class: 'button is-small is-danger', text: 'Delete',
               onclick: () => handlers.onSceneAction?.('delete', entry.id)
             })
-          ) : null))
+          ) : null,
+          referee.staging?.sceneId === entry.id ? stagingPanel(referee.staging, handlers) : null))
         : [h('li', { class: 'entry' }, h('span', { class: 'empty', text: referee.query ? 'Nothing matches.' : 'This folder is empty.' }))])),
     referee.truncated ? h('p', { class: 'cite', text: `${referee.truncated} more here; narrow the search to see them.` }) : null
   ];
+}
+
+// The ship picker and staged-token list for one vector-board scene, and the
+// Start Combat control once both a party and an opposition ship are staged.
+function stagingPanel(staging, handlers) {
+  return h('div', { class: 'staging-panel' },
+    h('p', { class: 'cite', text: `${staging.spanThousandMiles}" across.` }),
+    staging.tokens.length ? h('ul', { class: 'entries' }, staging.tokens.map((token) => h('li', { class: 'entry' },
+      h('span', { class: 'entry-name', text: `${token.label} (${token.side})` }),
+      h('button', { type: 'button', class: 'button is-small is-danger', text: 'Remove', onclick: () => handlers.onUnstageShip?.(token.id) })
+    ))) : h('p', { class: 'empty', text: 'Nothing staged yet.' }),
+    h('form', { class: 'staging-add', onsubmit: (event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      const choice = staging.choices.find((entry) => entry.actorId === data.get('actorId'));
+      if (!choice) return;
+      handlers.onStageShip?.(choice, data.get('side'), Number(data.get('x')) || 0, Number(data.get('y')) || 0);
+      event.currentTarget.reset();
+    } },
+      h('select', { name: 'actorId', 'aria-label': 'Ship to stage' },
+        staging.choices.map((choice) => h('option', { value: choice.actorId, text: `${choice.label} \u2014 ${choice.note}` }))),
+      h('select', { name: 'side', 'aria-label': 'Side' },
+        h('option', { value: 'party', text: 'Party' }),
+        h('option', { value: 'opposition', text: 'Opposition' })),
+      h('input', { name: 'x', type: 'number', step: '1', value: '0', 'aria-label': 'Starting X (thousands of miles)', placeholder: 'X' }),
+      h('input', { name: 'y', type: 'number', step: '1', value: '0', 'aria-label': 'Starting Y (thousands of miles)', placeholder: 'Y' }),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Place' })),
+    h('form', { class: 'staging-start', onsubmit: (event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget);
+      handlers.onStartVectorCombat?.(data.get('intruder'), data.get('pressurised') === 'on');
+    } },
+      h('label', {}, 'Intruder',
+        h('select', { name: 'intruder', 'aria-label': 'Which staged side is the intruder' },
+          h('option', { value: 'party', text: 'Party' }),
+          h('option', { value: 'opposition', text: 'Opposition', selected: true }))),
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'pressurised' }), ' Pressurised (caught off guard)'),
+      h('button', { type: 'submit', class: 'button is-primary is-small', text: 'Start combat', disabled: !staging.canStart }),
+      !staging.canStart ? h('p', { class: 'cite', text: staging.blockedReason }) : null));
 }
 
 function combatDrawer(state, handlers) {

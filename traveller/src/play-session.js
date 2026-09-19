@@ -28,7 +28,8 @@ import {
   createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
-  PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW
+  PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
+  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
@@ -57,7 +58,8 @@ import {
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter
 } from './campaign-document.js';
 import {
-  createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER
+  createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER,
+  sceneActorIsDesignReference, SCENE_DESIGN_REFERENCE_PREFIX, removeSceneToken, placeSceneShip
 } from './scene-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
@@ -430,11 +432,48 @@ function sceneEntries(resolved) {
     folder: scene.folder,
     thumbnail: sceneThumbnailSvg(scene, { size: 56 }),
     active: scene.identity.id === activeId,
-    scene: true
+    scene: true,
+    isVectorBoard: sceneIsVectorBoard(scene)
   }));
 }
 
-export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null } = {}) {
+// The staging picker and staged-token list for one vector-board scene —
+// separate from sceneEntries (which stays a lightweight list row for all
+// scenes) since only one scene is ever being staged onto at a time.
+function buildStagingView(resolved, sceneId) {
+  const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === sceneId);
+  if (!scene || !sceneIsVectorBoard(scene)) return null;
+  const ownShip = resolved.ships.find((entry) => entry.identity.id === resolved.campaign.activeShipId) ?? resolved.ships[0] ?? null;
+  // v0.164.2 in the old referee client had this same rule: only the
+  // campaign's own ship leaves the list once staged (it is one hull and can
+  // only be in one place); a standard design is plans, not a hull, so it
+  // stays offered for a second staged ship of the same type.
+  const taken = new Set(scene.tokens.map((token) => token.actorId).filter((actorId) => !sceneActorIsDesignReference(actorId)));
+  const choices = [];
+  if (ownShip && !taken.has(ownShip.identity.id)) {
+    choices.push({ actorId: ownShip.identity.id, label: ownShip.identity.name || 'Ship', note: `${ownShip.design.typeCode} \u00b7 your ship` });
+  }
+  for (const key of STANDARD_SHIP_DESIGN_KEYS) {
+    const design = getStandardShipDesign(key);
+    choices.push({ actorId: `${SCENE_DESIGN_REFERENCE_PREFIX}${key}`, label: design.name, note: `Type ${design.typeCode}` });
+  }
+  const tokens = scene.tokens.map((token) => ({
+    id: token.id,
+    label: token.label || (sceneActorIsDesignReference(token.actorId)
+      ? getStandardShipDesign(token.actorId.slice(SCENE_DESIGN_REFERENCE_PREFIX.length)).name
+      : token.actorId),
+    side: token.side, position: token.position, velocity: token.velocity
+  }));
+  const plan = spaceSceneCombatPlan(scene, { ownShipId: ownShip?.identity?.id ?? null });
+  return {
+    sceneId, sceneName: scene.identity.name, spanThousandMiles: scene.board.spanThousandMiles,
+    choices, tokens,
+    canStart: plan.problems.length === 0,
+    blockedReason: plan.problems.length ? plan.problems.join('; ') : null
+  };
+}
+
+export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null } = {}) {
   const sets = {
     Journal: journalEntries,
     Actors: actorEntries,
@@ -462,7 +501,10 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     // in the cloud and need a signed-in referee to fetch them.
     unbuilt: tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
     // The Players tab acts on the cloud, not on campaign documents.
-    seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null
+    seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null,
+    // Staging a vector-board scene: who's on it and what can be added,
+    // built fresh only for the one scene currently being staged.
+    staging: tab === 'Scenes' && stagingSceneId ? buildStagingView(resolved, stagingSceneId) : null
   };
 }
 
@@ -1427,11 +1469,28 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const name = String(value?.name ?? '').trim();
           if (!name) throw new Error('a scene needs a name');
           const folder = typeof value?.folder === 'string' && value.folder.trim() ? value.folder.trim() : DEFAULT_SCENE_FOLDER;
-          const scene = createSceneDocument({ campaignId: resolved.campaign.identity.id, name, folder });
+          const boardKind = value?.boardKind === 'vector' ? 'vector' : 'grid';
+          const scene = createSceneDocument({ campaignId: resolved.campaign.identity.id, name, folder, boardKind });
           const campaign = addSceneToCampaign(resolved.campaign, scene, { makeActive: !resolved.campaign.activeSceneId });
           registry.putAll([scene, campaign]);
           reload();
           message = `Scene ${scene.identity.name} created in ${scene.folder}.`;
+        } else if (action === 'stage-ship') {
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to stage on');
+          const { token, scene: staged } = placeSceneShip(scene, value ?? {});
+          const campaign = addSceneToCampaign(resolved.campaign, staged);
+          registry.putAll([staged, campaign]);
+          reload();
+          message = `${token.label || token.actorId} staged on ${scene.identity.name}.`;
+        } else if (action === 'unstage-ship') {
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to unstage from');
+          const next = removeSceneToken(scene, value);
+          const campaign = addSceneToCampaign(resolved.campaign, next);
+          registry.putAll([next, campaign]);
+          reload();
+          message = 'Ship removed from staging.';
         } else if (action === 'file') {
           const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
           if (!scene) throw new Error('choose a scene to file');

@@ -61,6 +61,10 @@ const ui = {
   vectorThrust: null,
   // Which referee tab, folder and search the directory is showing.
   referee: { tab: 'Journal', folder: '', query: '' },
+  // The vector-board scene currently expanded for staging (Scenes tab).
+  // The picker itself is an uncontrolled form (like inventorySection's own
+  // add-item form) — read via FormData on submit, no per-keystroke ui state.
+  stagingSceneId: null,
   // Seats, invites and join requests live in the cloud, so they are fetched
   // when the Players tab is opened rather than carried in the campaign.
   players: null,
@@ -76,7 +80,7 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // the rest of the page follows.
 function viewState() {
   if (source.mode === 'live') {
-    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker, referee: { ...ui.referee, players: ui.referee.tab === 'Players' ? ui.players : null } });
+    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker, referee: { ...ui.referee, players: ui.referee.tab === 'Players' ? ui.players : null, stagingSceneId: ui.referee.tab === 'Scenes' ? ui.stagingSceneId : null } });
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
@@ -244,11 +248,11 @@ function render() {
     // stays in the referee client — this is create, file, activate, delete.
     onSceneAction: (action, id, folder) => {
       if (source.mode !== 'live') return;
-      if (action === 'create') {
-        const name = window.prompt('New scene name:', '');
+      if (action === 'create' || action === 'create-space') {
+        const name = window.prompt(action === 'create-space' ? 'New space scene name:' : 'New scene name:', '');
         if (name === null || !name.trim()) return;
         const wantedFolder = folder && folder !== 'Unfiled' ? folder : undefined;
-        source.session.run('scene:create', { fight: { value: { name: name.trim(), folder: wantedFolder } } });
+        source.session.run('scene:create', { fight: { value: { name: name.trim(), folder: wantedFolder, boardKind: action === 'create-space' ? 'vector' : 'grid' } } });
       } else if (action === 'file') {
         const wanted = window.prompt('File this scene under (use / for sub-folders)', folder ?? '');
         if (wanted === null || !wanted.trim()) return;
@@ -258,7 +262,25 @@ function render() {
       } else if (action === 'delete') {
         if (!window.confirm('Delete this scene?')) return;
         source.session.run('scene:delete', { fight: { id } });
+      } else if (action === 'stage') {
+        ui.stagingSceneId = ui.stagingSceneId === id ? null : id;
+        ui.stagingChoice = null;
+        render();
       }
+    },
+    onStageShip: (choice, side, x, y) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      source.session.run('scene:stage-ship', { fight: { id: ui.stagingSceneId, value: { actorId: choice.actorId, side, x, y, label: choice.label } } });
+    },
+    onUnstageShip: (tokenId) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      source.session.run('scene:unstage-ship', { fight: { id: ui.stagingSceneId, value: tokenId } });
+    },
+    onStartVectorCombat: (intruder, pressurised) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      const result = source.session.run('shipfight:vector-start', { fight: { sceneId: ui.stagingSceneId, intruder, pressurised } });
+      if (result.ok) { ui.stagingSceneId = null; ui.drawer = null; }
+      render();
     },
     onEditCharacter: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:character:${field}`, { fight: { id, value } }); },
     onEditShip: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:ship:${field}`, { fight: { id, value } }); },
