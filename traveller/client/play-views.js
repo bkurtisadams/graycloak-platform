@@ -16,6 +16,7 @@ import {
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=v0.232.0';
+import { renderVectorFight } from './vector-fight-view.js?v=v0.232.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -752,15 +753,30 @@ export function renderScene(state, handlers) {
   return subsectorScene(scene, handlers, Boolean(state.live));
 }
 
-// v0.230.0: a lasers-only, abbreviated (Book 2 p.37) ship fight. No vector
-// plot yet — that is a later slice — so this is a roster and a phase, the
-// same shape a referee reads off the driver script's own console output.
+// v0.230.0: a lasers-only, abbreviated (Book 2 p.37) ship fight. v0.241.0
+// adds the vector-mode branch (Book 2 pp.22-31) — client/vector-fight-view.js
+// draws the plot itself; this function stays the roster/phase shell either
+// way and only decides which centre panel goes under it.
 function shipFightScene(fight, handlers) {
+  const repairBlock = (fight.repairActions?.length || fight.cancelRepairAction?.length) ? h('div', { class: 'repair-actions' },
+    h('p', { class: 'cite', text: fight.repairNote }),
+    h('div', { class: 'lead-actions' }, [...(fight.repairActions ?? []), ...(fight.cancelRepairAction ?? [])].map((action) =>
+      h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
+  ) : null;
+  const centre = fight.spatialMode === 'vector'
+    ? h('div', {}, renderVectorFight(fight, handlers), repairBlock)
+    : h('div', { class: 'ship-fight-actions' },
+        h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
+          h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
+        // Kept visually apart from the row above: repair is a standing
+        // declaration for the game turn, not a phase-ending action like
+        // Fire/Hold/Flee, and clicking one of these alone advances nothing.
+        repairBlock);
   return [
     h('header', { class: 'lead' },
       h('h2', { text: fight.outcome === 'in-progress' ? `Ship fight \u2014 turn ${fight.gameTurn}, ${fight.phase}` : 'Ship fight \u2014 over' }),
       h('p', { text: fight.outcome === 'in-progress'
-        ? 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.'
+        ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
         : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` })),
     h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
       h('span', { class: 'entry-name', text: ship.name }),
@@ -769,18 +785,7 @@ function shipFightScene(fight, handlers) {
       ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
       ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null))),
     fight.log.length ? h('div', { class: 'fight-log' }, h('ul', { class: 'entries' }, fight.log.map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line }))))) : null,
-    h('div', { class: 'ship-fight-actions' },
-      h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
-        h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
-      // Kept visually apart from the row above: repair is a standing
-      // declaration for the game turn, not a phase-ending action like
-      // Fire/Hold/Flee, and clicking one of these alone advances nothing.
-      (fight.repairActions?.length || fight.cancelRepairAction?.length) ? h('div', { class: 'repair-actions' },
-        h('p', { class: 'cite', text: fight.repairNote }),
-        h('div', { class: 'lead-actions' }, [...(fight.repairActions ?? []), ...(fight.cancelRepairAction ?? [])].map((action) =>
-          h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
-      ) : null
-    )
+    centre
   ];
 }
 

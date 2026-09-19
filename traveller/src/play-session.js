@@ -40,7 +40,7 @@ import {
 // the same thing. It becomes the right tool once a side can carry more than
 // one ship and the rest need to coast at once.
 import {
-  enableVectorMovement, commitShipVector, adjudicateVectorSurface
+  enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM
 } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
@@ -1988,6 +1988,45 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         saveToCloud();
         return lastMessage;
+      } else if (command === 'shipfight:vector-advance') {
+        // A single explicit phase step, not the abbreviated flow's
+        // autoAdvanceShipFight loop. That loop has no idea vector movement
+        // exists — it would blow straight through every future movement
+        // phase, including the player's own, silently defaulting them to a
+        // forced coast every time their side comes back around as phasing.
+        // client/app.js's own vector UI already avoids this the same way
+        // (an explicit next-phase control, not an auto-resolve-until-a-
+        // choice loop), so this matches established practice rather than
+        // improvising a new one.
+        //
+        // advanceShipCombatPhase itself still guarantees Book 2 p.26's rule
+        // that a vector carries a ship whether or not it thrusts: leaving the
+        // movement phase auto-coasts any phasing-side ship that did not
+        // explicitly move (or throws, naming who, if a coasting course would
+        // require a surface ruling first) — so nothing here has to re-check
+        // that a ship moved before allowing the step.
+        //
+        // Weapons fire, ordnance and reprogramming have no UI of their own
+        // for a vector fight yet: this command steps past those phases too,
+        // exactly as shipfight:hold does for the abbreviated flow, without
+        // firing anything. That is a real, deliberate gap for the next slice,
+        // not an oversight — flagged in the view state (canFire is not
+        // computed for a vector fight at all right now) so the UI can say so
+        // rather than pretend the row is just empty.
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        if (pendingShipFight.encounter.spatialMode !== 'vector') throw new Error('this fight has no vector plot');
+        if (pendingShipFight.encounter.outcome !== 'in-progress') throw new Error('the fight has already ended');
+        const dice = createDice();
+        const combat = advanceShipCombatPhase(pendingShipFight.encounter, { dice });
+        pendingShipFight = { ...pendingShipFight, encounter: combat };
+        message = combat.outcome !== 'in-progress'
+          ? `The fight is over (${combat.outcome}).`
+          : `Advancing to ${currentPhase(combat).label}, turn ${combat.gameTurn}.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
       } else if (command === 'shipfight:cancel-repair' || command.startsWith('shipfight:repair:')) {
         // Book 2 p.35: "Damage inflicted on starships in combat can be
         // repaired or controlled by crew members during the battle... a
@@ -2264,12 +2303,38 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const player = encounter.participants.find((entry) => entry.id === 'player');
         const canFlee = Boolean(player) && !player.fled && !player.escaped && !player.surrendered;
         const roster = shipFightRoster(encounter);
+        const isVector = encounter.spatialMode === 'vector';
+        // The vector view's own plot: positions, velocities, range, and
+        // whether the player's ship is the one waiting to move this
+        // movement phase. Built here (not left to the view layer to derive)
+        // because previewShipVector and vectorRangeDM both need the raw
+        // encounter, which nothing outside play-session.js touches.
+        let vector = null;
+        if (isVector && player) {
+          const opponent = encounter.participants.find((entry) => entry.id !== 'player');
+          const mySpatial = encounter.spatial.ships.player;
+          const oppSpatial = opponent ? encounter.spatial.ships[opponent.id] : null;
+          vector = {
+            phaseKey: phase.key,
+            phasingSide: encounter.phasingSide,
+            playerSide: pendingShipFight.playerSide,
+            // True exactly when commitShipVector would accept a move for
+            // 'player' right now — the same condition the command itself
+            // checks, read here instead of duplicated.
+            awaitingMovement: !ended && phase.key === 'movement'
+              && encounter.phasingSide === pendingShipFight.playerSide
+              && mySpatial.movedTurn !== encounter.gameTurn,
+            player: { position: mySpatial.position, velocity: mySpatial.velocity, maxG: previewShipVector(encounter, 'player', { x: 0, y: 0 }).maximumG },
+            opponent: oppSpatial ? { name: opponent.name, side: opponent.side, position: oppSpatial.position, velocity: oppSpatial.velocity } : null,
+            range: opponent ? vectorRangeDM(encounter, 'player', opponent.id) : null
+          };
+        }
         // A toothless ship offering "Fire lasers" is misleading — the
         // command already no-ops (laserAllocationAgainstSingleFoe finds
         // nothing to allocate), but the button shouldn't be there to click
         // in the first place. Hold fire (relabelled) becomes the one way
         // to let the turn pass instead.
-        const canFire = !roster.find((entry) => entry.shipId === 'player')?.toothless;
+        const canFire = !isVector && !roster.find((entry) => entry.shipId === 'player')?.toothless;
         // Book 2 p.35/p.37: damage control is available in abbreviated combat
         // too (p.37 only ever abbreviates movement/range, nothing else) — one
         // repair option per repairable location, always offered even while
@@ -2286,6 +2351,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
           shipFight: {
             roster,
+            spatialMode: encounter.spatialMode,
+            vector,
             gameTurn: encounter.gameTurn,
             phase: phase.label,
             outcome: encounter.outcome,
@@ -2299,8 +2366,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             // are a standing declaration for the game turn that does not
             // by itself advance anything — one of 'actions' still has to
             // happen for the turn to end and the repair to resolve.
+            //
+            // A vector fight gets no actions row at all outside 'ended':
+            // client/vector-fight-view.js draws its own Commit/Coast form
+            // during the movement phase, and its own single Advance button
+            // everywhere else (shipfight:vector-advance) — Fire/Hold/Flee
+            // have no vector-mode UI yet (see that command's own comment),
+            // so offering them here would be a button with no real weapons
+            // behaviour behind it.
             actions: !writable ? [] : ended
               ? [{ command: 'shipfight:end', label: 'End fight', primary: true }]
+              : isVector ? []
               : [
                   ...(canFire ? [{ command: 'shipfight:fire', label: 'Fire lasers', primary: true }] : []),
                   { command: 'shipfight:hold', label: canFire ? 'Hold fire' : 'Continue', primary: !canFire },

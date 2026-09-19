@@ -54,6 +54,11 @@ const ui = {
   fightActorId: null,
   fightAttack: true,
   woundTargets: null,
+  // Vector-mode ship combat: the thrust the referee has typed for the
+  // player's ship this movement phase but not yet committed. Reset to null
+  // whenever it's committed/coasted or a new movement phase starts, the
+  // same lifecycle ui.sheet already has for a personal fight's round.
+  vectorThrust: null,
   // Which referee tab, folder and search the directory is showing.
   referee: { tab: 'Journal', folder: '', query: '' },
   // Seats, invites and join requests live in the cloud, so they are fetched
@@ -81,7 +86,15 @@ function viewState() {
       const focus = ui.sheetFocus ?? ui.selectedMarker;
       return { ...state, sheetRows: sheetRows(state, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
     }
-    if (!state.next?.declare) return state;
+    if (!state.next?.declare) {
+      // Vector-mode ship combat: the thrust typed but not yet committed
+      // lives here (ui.vectorThrust), same reasoning as the declare overlay
+      // above — the session only knows what has actually been committed.
+      if (state.shipFight?.vector) {
+        return { ...state, shipFight: { ...state.shipFight, vector: { ...state.shipFight.vector, pendingThrust: ui.vectorThrust ?? { x: 0, y: 0 } } } };
+      }
+      return state;
+    }
     const declare = {
       ...state.next.declare,
       move: ui.fightMove ?? state.next.declare.move,
@@ -268,6 +281,24 @@ function render() {
       render();
     },
     onPickRunning: (on) => { ui.fightRunning = on; render(); },
+    onThrustChange: (next) => { ui.vectorThrust = next; render(); },
+    onCommit: (acceleration) => {
+      if (source.mode !== 'live') return;
+      source.session.run('shipfight:vector-move', { fight: { shipId: 'player', acceleration } });
+      ui.vectorThrust = null;
+      render();
+    },
+    onCoast: () => {
+      if (source.mode !== 'live') return;
+      source.session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+      ui.vectorThrust = null;
+      render();
+    },
+    onAdvance: () => {
+      if (source.mode !== 'live') return;
+      source.session.run('shipfight:vector-advance');
+      render();
+    },
     onCommand: (command) => {
       if (source.mode !== 'live' || !command) return;
       // A fight command carries the declaration the screen is showing.
