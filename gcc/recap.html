@@ -193,6 +193,23 @@ function realSessionNum(sessions, idx) {
   return n;
 }
 
+function ensureSessionNumbers(sessions) {
+  const real = (Array.isArray(sessions) ? sessions : []).map((s, i) => ({ s, i })).filter(x => x.s && x.s.type !== 'timeline');
+  const used = new Set(real.map(x => parseInt(x.s.number)).filter(n => n > 0));
+  const missing = real.filter(x => !(parseInt(x.s.number) > 0));
+  missing.sort((a, b) => {
+    const ad = a.s.date || '', bd = b.s.date || '';
+    if (ad && bd && ad !== bd) return ad.localeCompare(bd);
+    if (ad && !bd) return -1; if (!ad && bd) return 1;
+    const ac = a.s._created || '', bc = b.s._created || '';
+    if (ac && bc && ac !== bc) return ac.localeCompare(bc);
+    return a.i - b.i;
+  });
+  let next = 1, changed = false;
+  missing.forEach(x => { while (used.has(next)) next++; x.s.number = next; used.add(next); next++; changed = true; });
+  return changed;
+}
+
 // ── Adjacent navigable session indices (skip dm-only for players, skip timeline) ──
 function adjacentSessions(sessions, idx, isPlayer) {
   const navigable = sessions
@@ -220,6 +237,7 @@ function buildRecapNav(campId, nav, label, title) {
 async function render(camp, isPlayer) {
   const root = document.getElementById('recap-root');
   const sessions = camp.sessions || [];
+  if (ensureSessionNumbers(sessions)) GCC.updateCampaign(campId, { sessions });
   sesIdx = resolveSesIdx(sessions);
   const session = sessions[sesIdx];
   if (session && !sesRef && session._id) history.replaceState(null, '', recapUrlFor(campId, session, sesIdx));
@@ -227,7 +245,7 @@ async function render(camp, isPlayer) {
   if (!session) {
     root.innerHTML = `<div class="recap-error">
       <div class="recap-error-title">SESSION NOT FOUND</div>
-      <p><a href="campaign-detail.html?id=${encodeURIComponent(campId)}">← Back to campaign</a></p>
+      <p><a href="campaign-detail.html?id=${encodeURIComponent(campId)}&tab=sessions">← Back to campaign</a></p>
     </div>`;
     return;
   }
@@ -237,7 +255,7 @@ async function render(camp, isPlayer) {
     root.innerHTML = `<div class="recap-error">
       <div class="recap-error-title">NOT AVAILABLE</div>
       <p style="margin-bottom:10px;font-size:13px">This entry isn't visible yet.</p>
-      <p><a href="campaign-detail.html?id=${encodeURIComponent(campId)}">← Back to campaign</a></p>
+      <p><a href="campaign-detail.html?id=${encodeURIComponent(campId)}&tab=sessions">← Back to campaign</a></p>
     </div>`;
     return;
   }

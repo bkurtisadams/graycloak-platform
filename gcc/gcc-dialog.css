@@ -339,7 +339,7 @@
   transition: all 0.12s; background: var(--bg2, #f4f4f4);
 }
 .gcc-dlg-char-check:hover { border-color: var(--brd-lt, #aaa); }
-.gcc-dlg-char-check.checked { border-color: #7ec98f; color: #4a9d5c; background: rgba(126,201,143,0.12); }
+.gcc-dlg-char-check.checked { border-color: var(--green, #7ec98f); color: var(--green, #4a9d5c); background: color-mix(in srgb, var(--green, #7ec98f) 12%, transparent); }
 .gcc-dlg-char-check input { display: none; }
 .gcc-dlg-char-check img { width: 16px; height: 16px; border-radius: 50%; object-fit: contain; }
 .gcc-dlg-char-check .char-ph {
