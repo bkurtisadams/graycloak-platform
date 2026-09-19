@@ -594,13 +594,24 @@ a.button { text-decoration: none; color: inherit; }
 .entries { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; padding: 0; }
 /* v0.231.0: a ship-fight's log used to show only its last 6 lines, static.
    Now the whole log (capped at 40 rounds upstream) scrolls in place, the
-   same pattern .talk-log already uses. */
-.fight-log { max-height: 22vh; overflow-y: auto; padding-right: 2px; }
+   same pattern .talk-log already uses.
+   v0.233.0: was capped at a flat 22vh, wasting most of .scene's own
+   minmax(0, 1fr) row underneath it (shipFightScene's third of four
+   top-level children, which that row template exists for). Filling the
+   row instead of a fixed viewport fraction means it uses whatever room
+   the roster and action buttons actually leave it. */
+.fight-log { height: 100%; min-height: 0; overflow-y: auto; padding-right: 2px; }
 .fight-log .entries { gap: 4px; }
 .fight-log .entry { padding: 4px 8px; }
 .entry { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 6px 8px; border: 1px solid var(--line); background: var(--raise); }
 .entry-name { font-weight: 700; }
 .entry-note { color: var(--ink-2); font-size: 12px; }
+/* v0.233.0: a hit line used to run on the same wrapped row as the armed-
+   turret/adrift note, in the same color, so it was easy to miss it had
+   rendered at all. flex-basis: 100% forces it onto its own line within
+   the entry's flex row; the red matches .button.is-danger's own warning
+   colour. */
+.entry-damage { flex-basis: 100%; color: var(--red); }
 .entry > .button.is-small { margin-left: auto; }
 
 /* v0.229.0: the Scenes tab's own bits in the referee directory — a small

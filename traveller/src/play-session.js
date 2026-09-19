@@ -32,7 +32,7 @@ import {
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
   autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe,
-  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, recordShipDamage, summarizeShipDamage
+  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE
 } from './ship-arrival-combat.js';
 // The market seeds are shared with client/app.js so both pages draw the same
 // freight lots and the same passengers for a route on a given day.
@@ -1144,8 +1144,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     return {
       encounter: step.encounter, playerSide: opponentIsIntruder ? 'native' : 'intruder',
       opponentLabel: pendingArrivalEncounter.label, systemId: pendingArrivalEncounter.systemId,
-      log: narrateShots(step.shots, step.encounter),
-      damage: recordShipDamage({}, step.shots)
+      log: narrateShots(step.shots, step.encounter)
     };
   }
 
@@ -1624,10 +1623,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
         const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
         const narrated = [...narrateShots(shots, step.encounter), ...narrateShots(step.shots, step.encounter)];
-        pendingShipFight = {
-          ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40),
-          damage: recordShipDamage(pendingShipFight.damage ?? {}, [...shots, ...step.shots])
-        };
+        pendingShipFight = { ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) };
         message = narrated.join(' ') || 'No shots fired this round.';
         log('SHIP', message);
         lastMessage = { ok: true, message };
@@ -1644,10 +1640,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight);
         const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
         const narrated = narrateShots(step.shots, step.encounter);
-        pendingShipFight = {
-          ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40),
-          damage: recordShipDamage(pendingShipFight.damage ?? {}, step.shots)
-        };
+        pendingShipFight = { ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) };
         const after = step.encounter.participants.find((entry) => entry.id === 'player');
         message = step.encounter.outcome !== 'in-progress'
           ? `${before.name} breaks off and gets clear.`
@@ -1868,6 +1861,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {} } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.referee = refereeView(resolved, referee);
+      // v0.233.0: state.ship (the masthead chip and the ship drawer both
+      // read it) otherwise always reflects the persisted document, which a
+      // ship fight in progress hasn't touched yet — resolveLaserFire writes
+      // damage onto the participant's own in-memory ship copy, not the
+      // document, until shipfight:end persists it. Swap in the live copy
+      // while a fight is under way so damage shows up as it happens rather
+      // than only once the fight is over.
+      if (pendingShipFight && state.ship) {
+        const liveShip = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player')?.ship;
+        if (liveShip && liveShip.identity.id === state.ship.id) state.ship = shipView(liveShip);
+      }
       // v0.230.0: a ship fight in progress is what is happening, the same
       // way a personal fight already takes over the screen below. The two
       // cannot currently arise together (nothing starts a ship fight during
@@ -1880,12 +1884,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const ended = encounter.outcome !== 'in-progress';
         const player = encounter.participants.find((entry) => entry.id === 'player');
         const canFlee = Boolean(player) && !player.fled && !player.escaped && !player.surrendered;
-        const damageLog = pendingShipFight.damage ?? {};
         return {
           ...state,
           situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
           shipFight: {
-            roster: shipFightRoster(encounter).map((entry) => ({ ...entry, damage: summarizeShipDamage(damageLog[entry.shipId]) })),
+            roster: shipFightRoster(encounter),
             gameTurn: encounter.gameTurn,
             phase: phase.label,
             outcome: encounter.outcome,

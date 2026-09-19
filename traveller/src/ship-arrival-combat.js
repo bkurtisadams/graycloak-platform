@@ -203,9 +203,26 @@ export function shipFightRoster(encounter) {
       escaped: Boolean(participant.escaped),
       surrendered: Boolean(participant.surrendered),
       fled: Boolean(participant.fled),
-      shotsRemainingBeforeEscape: participant.fled && !participant.escaped ? participant.shotsRemainingBeforeEscape : null
+      shotsRemainingBeforeEscape: participant.fled && !participant.escaped ? participant.shotsRemainingBeforeEscape : null,
+      damage: shipStateDamageSummary(participant.ship)
     };
   });
+}
+
+// resolveLaserFire already writes every hit onto the ship document's own
+// state.damage (starships/damage.js) — the same field client/play-views.js's
+// shipDrawer and the Vehicles directory already read. Reusing it here (with
+// the same key-to-label logic play-session.js's shipView applies) means the
+// roster's damage line and this ship's own info panel never disagree.
+export function shipStateDamageSummary(ship) {
+  const damage = ship?.state?.damage ?? {};
+  return Object.entries(damage)
+    .filter(([, value]) => (Array.isArray(value) ? value.length : Number(value) > 0))
+    .map(([key]) => {
+      const spaced = String(key).replace(/([A-Z])/g, ' $1').replace(/[-_]/g, ' ').trim();
+      return spaced ? spaced[0].toUpperCase() + spaced.slice(1) : '';
+    })
+    .filter(Boolean);
 }
 
 // Book 2 p.37: shots fired at a ship that has broken off count against the
@@ -254,23 +271,4 @@ export function fleeShipFight(encounter, shipId) {
   // no threat left, the ship is simply gone.
   if (!threatened && next.outcome === 'in-progress') next = { ...next, outcome: 'disengaged' };
   return next;
-}
-
-// A running per-ship record of where it has been hit, for a damage display
-// beside the roster. resolveLaserFire already tells the caller a hit's
-// location; this just keeps what narrateShots otherwise uses once and
-// discards.
-export function recordShipDamage(existing, shots) {
-  const next = { ...existing };
-  for (const shot of shots) {
-    if (!shot.fired || !shot.hit) continue;
-    next[shot.targetId] = [...(next[shot.targetId] ?? []), shot.location];
-  }
-  return next;
-}
-
-export function summarizeShipDamage(locations = []) {
-  const counts = new Map();
-  for (const location of locations) counts.set(location, (counts.get(location) ?? 0) + 1);
-  return [...counts.entries()].map(([location, count]) => (count > 1 ? `${location} \u00d7${count}` : location));
 }
