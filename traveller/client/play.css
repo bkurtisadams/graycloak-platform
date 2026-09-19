@@ -575,17 +575,37 @@ a.button { text-decoration: none; color: inherit; }
 .editor-score small { color: var(--ink-2); }
 .editor-label { font-size: 13px; color: var(--ink-2); }
 .sheet-why .editor-row { padding-top: 4px; border-top: 1px solid var(--line); }
-.seat-actions { display: flex; gap: 4px; }
+.seat-actions { display: flex; gap: 4px; margin-left: auto; }
+
+/* v0.229.1: the referee directory's shared shell (every tab — Actors,
+   Players, Vehicles, Journal, Tables, Scenes) never had layout rules of its
+   own: a folder's name and count, and an entry's name/note/flag/actions, are
+   plain sibling spans with nothing between them, so on an unstyled <button>
+   and <li> they ran together with no gap at all — "Scenes2",
+   "Starting scene40 sq \u00b7 1 m \u00b7 4 stagedACTIVE". Pre-existing on every
+   tab; fixed here because Scenes was the first one actually rendered and
+   screenshotted. */
+.directory { display: flex; flex-direction: column; gap: 10px; }
+.folders { display: flex; flex-direction: column; gap: 2px; }
+.folder-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; box-sizing: border-box; padding: 5px 8px; font: inherit; text-align: left; background: none; border: 1px solid transparent; color: var(--ink); cursor: pointer; }
+.folder-row.is-open { background: var(--signal-wash); border-color: var(--line); }
+.folder-name { font-weight: 700; }
+.folder-count { color: var(--ink-2); font-size: 11px; }
+.entries { display: flex; flex-direction: column; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.entry { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding: 6px 8px; border: 1px solid var(--line); background: var(--raise); }
+.entry-name { font-weight: 700; }
+.entry-note { color: var(--ink-2); font-size: 12px; }
+.entry > .button.is-small { margin-left: auto; }
 
 /* v0.229.0: the Scenes tab's own bits in the referee directory — a small
    colour-and-grid preview (never a photo, see scene-document.js), an active
    highlight matching the tab-selected convention above, and a danger button
    for Delete, matching the context-menu's own danger colour. */
-.entry-thumb { display: inline-flex; flex: 0 0 auto; width: 28px; height: 28px; overflow: hidden; border: 1px solid var(--line); }
+.entry-thumb { display: inline-flex; flex: 0 0 auto; width: 36px; height: 36px; overflow: hidden; border: 1px solid var(--line); }
 .entry-thumb svg { display: block; width: 100%; height: 100%; }
 .entry.is-active { background: var(--signal-wash); }
 .entry-flag { font-size: 10px; letter-spacing: .08em; color: var(--signal); font-weight: 700; }
-.scene-actions { display: flex; gap: 4px; }
+.scene-actions { display: flex; gap: 4px; margin-left: auto; }
 .button.is-danger { color: var(--red); border-color: var(--red); }
 
 /* Book 3's PLANETARY CHARACTERISTICS: the eight rows, each with the UWP digit
