@@ -60,9 +60,15 @@ test('Book 1 p.33: a present leader is +1 on morale', () => {
   assert.equal(result.stands, true);
 });
 
-test('Book 1 p.33: a pistol used as a club parries on club expertise', () => {
-  const defender = combatant({ weaponKey: 'revolver', skills: { Brawling: 1, Club: 1 } });
-  assert.equal(parryExpertise(defender), 1);
+test('Graycloak ruling: a pistol cannot fend off a blow; a long gun can', () => {
+  // Book 1 p.32 says a gun-armed character "may receive such a protective DM
+  // if he actually uses the gun as a brawling weapon (as a club, for
+  // example)" without distinguishing pistols. Ruled (Sep 2026): a pistol is
+  // too short to block or swing with, so club expertise buys nothing with one
+  // in hand; a long gun still defends as a club.
+  assert.equal(parryExpertise(combatant({ weaponKey: 'revolver', skills: { Brawling: 1, Club: 1 } })), 0);
+  assert.equal(parryExpertise(combatant({ weaponKey: 'body-pistol', skills: { Club: 2 } })), 0);
+  assert.equal(parryExpertise(combatant({ weaponKey: 'rifle', skills: { Club: 1 } })), 1);
 });
 
 test('Book 1 p.27: 1977 terrain rows present, 1981 situation DMs flagged', () => {

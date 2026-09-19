@@ -356,13 +356,12 @@ test('gun expertise never defends; club expertise does, with a gun in hand (B1 p
   assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Rifle: 3 }), range: 'short' }).parryDM, 0);
   assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Club: 2 }), range: 'short' }).parryDM, -2);
 
-  // OPEN QUESTION for the referee. 1977 says only that a gun-armed character
-  // "may receive such a protective DM if he actually uses the gun as a
-  // brawling weapon (as a club, for example)" — it does not distinguish a
-  // pistol from a long gun. The package currently allows either, so a pistol
-  // with club expertise defends at -2. The older test name claimed a pistol
-  // could not, which is a reading the 1977 text does not state.
-  assert.equal(previewPersonalAttack({ attacker, defender: make('automatic-pistol', { Club: 2 }), range: 'short' }).parryDM, -2);
+  // Graycloak ruling: a pistol cannot fend off a blow, so club expertise buys
+  // nothing with one in hand. A long gun can be swung or blocked with.
+  assert.equal(previewPersonalAttack({ attacker, defender: make('automatic-pistol', { Club: 2 }), range: 'short' }).parryDM, 0);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('body-pistol', { Club: 2 }), range: 'short' }).parryDM, 0);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('revolver', { Club: 2 }), range: 'short' }).parryDM, 0);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('shotgun', { Club: 2 }), range: 'short' }).parryDM, -2);
 
   // Shots are never parried.
   const shooter = createPersonalCombatant({ id: 's', name: 's', side: 'party', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { Rifle: 1 }, armor: 'none', weaponKey: 'rifle' });

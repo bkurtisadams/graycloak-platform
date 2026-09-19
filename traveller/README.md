@@ -1,5 +1,42 @@
 # Graycloak Traveller
 
+## v0.225.0 Vehicles and Tables, and a pistol cannot fend off a blow
+
+**Graycloak ruling, folded in.** A pistol is too short to block or swing with,
+so club expertise buys nothing with one in hand. `LONG_GUN_PARRY_KEYS` now
+holds only the long guns (rifle, carbine, automatic rifle, shotgun, submachine
+gun, laser rifle, laser carbine); pistols are out. Book 1 p.32 says only that a
+gun-armed character "may receive such a protective DM if he actually uses the
+gun as a brawling weapon (as a club, for example)" without distinguishing
+them, so this is your call written into the code. Two tests carried the old
+behaviour and now carry the ruling. Rules package 0.62.4.
+
+**Tables** is the printed reference, filed by the book and page it comes from:
+
+    Book 1 p.27 / Encounter range     Book 1 p.43 / Range matrix
+    Book 1 p.27 / Terrain DMs         Book 1 p.44 / Weapons table
+    Book 1 p.33 / Morale              Book 2 p.38 / Shipping
+    Book 1 p.42 / Weapons vs armor    Book 3 p.27 / Reactions
+
+158 rows, every value read from the rules package itself rather than typed
+again, so a table shown here cannot drift from the one the engine throws
+against. Searching "broadsword" finds it in all three weapon tables at once —
+its ranges and wounds, its strength requirements, and its DMs against each
+armour.
+
+**Vehicles** now says what a ship is and where: "100 t Scout/Courier · Jump-2 ·
+fuel 0/40 t · hold 3 t free · berthed at aster", and files it under In
+service, On loan, or Other vehicles. A damaged ship says which systems.
+
+Two faults found while testing this, both mine: the directory opened on a
+parent folder that holds nothing directly and looked empty, and the weapons-vs-
+armour column read every DM as "no" because `armorDMs` is an array in armour
+order rather than a map. Both fixed.
+
+Two tests added. Traveller: 623 pass, 0 fail. Rules package: 343 pass, 0 fail.
+
+**Scenes is the last tab**, and the last thing keeping the referee client.
+
 ## v0.224.0 the last three rules-package failures: all three were bad tests
 
 The rules package has carried three failures since before this work. Read

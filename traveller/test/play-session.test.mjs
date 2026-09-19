@@ -911,3 +911,38 @@ test('the Players tab files seats, open invites and requests to join', async () 
   // Signed out there is nothing to show, and it says so rather than looking empty.
   assert.match(refereeView(resolved, { tab: 'Players' }).unbuilt, /Sign in/);
 });
+
+// ---------------------------------------------------------------- v0.225.0
+test('Tables files the printed reference by book and page, from the package itself', async () => {
+  const { registry, campaignId } = await campaignInAFight();
+  const view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables' });
+  assert.ok(view.total > 100);
+  const folders = view.tree.map((entry) => entry.path);
+  for (const wanted of [
+    'Book 1 p.27 / Encounter range', 'Book 1 p.27 / Terrain DMs',
+    'Book 1 p.42 / Weapons vs armor', 'Book 1 p.43 / Range matrix', 'Book 1 p.44 / Weapons table',
+    'Book 1 p.33 / Morale', 'Book 2 p.38 / Shipping', 'Book 3 p.27 / Reactions'
+  ]) assert.ok(folders.includes(wanted), `missing ${wanted}`);
+
+  // The values are the package's own, so a table cannot drift from the engine.
+  const weapons = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables', folder: 'Book 1 p.44 / Weapons table' });
+  const revolver = weapons.shown.find((entry) => entry.name === 'Revolver');
+  assert.equal(revolver.note, 'DEX 7+ to avoid -2, 9+ gives +1');
+
+  const ranges = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables', folder: 'Book 1 p.43 / Range matrix' });
+  assert.match(ranges.shown.find((entry) => entry.name === 'Club').note, /medium no/);
+
+  // Searching the reference is the point of having it here.
+  const found = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables', query: 'broadsword' });
+  assert.ok(found.shown.length >= 2, 'a weapon appears in more than one table');
+});
+
+test('Vehicles says where a ship is and what it can do', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 22, berthingPaid: true });
+  const view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder: 'In service' });
+  const ship = view.shown[0];
+  assert.equal(ship.name, 'Marisol');
+  assert.match(ship.note, /Jump-2/);
+  assert.match(ship.note, /fuel 22\/40 t/);
+  assert.match(ship.note, /berthed at orison/);
+});

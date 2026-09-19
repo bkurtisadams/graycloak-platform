@@ -519,16 +519,23 @@ export const BLOW_CLASSES = Object.freeze(['surprise', 'combat', 'weakened', 'sp
 // may be classed as clubs when used in brawling." So any gun parries as a
 // club, on the club's expertise, not the gun's. The old long-gun-only name is
 // kept as an alias.
-export const GUN_PARRY_KEYS = Object.freeze(['body-pistol', 'revolver', 'automatic-pistol', 'rifle', 'carbine', 'automatic-rifle', 'shotgun', 'laser-rifle', 'laser-carbine', 'submachine-gun']);
-export const LONG_GUN_PARRY_KEYS = GUN_PARRY_KEYS;
+// Graycloak ruling (Sep 2026): a pistol cannot be used to fend off a blow, so
+// pistols are not on this list. Book 1 p.32 says only that a gun-armed
+// character "may receive such a protective DM if he actually uses the gun as a
+// brawling weapon (as a club, for example)"; a long gun can be held two-handed
+// and swung or blocked with, a pistol cannot.
+export const LONG_GUN_PARRY_KEYS = Object.freeze(['rifle', 'carbine', 'automatic-rifle', 'shotgun', 'submachine-gun', 'laser-rifle', 'laser-carbine']);
+// Kept for callers that predate the ruling; it is now the long-gun list.
+export const GUN_PARRY_KEYS = LONG_GUN_PARRY_KEYS;
 
 // Book 1 p.32: expertise in a brawling or blade weapon is a negative DM
-// against a brawling or blade attack. A gun parries as a club.
+// against a brawling or blade attack. A long gun defends as a club; a pistol
+// does not (see the ruling above).
 export function parryExpertise(defender) {
   if (!defender?.weaponKey) return 0;
   const weapon = getPersonalWeapon(defender.weaponKey);
   if (weapon.parry) return personalWeaponSkillLevel(defender, defender.weaponKey);
-  if (GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'club');
+  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'club');
   return 0;
 }
 

@@ -22,6 +22,8 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
+  ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
+  REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
   createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
   updateCharacterGameplayState
 } from '../vendor/classic-traveller-rules/index.js';
@@ -308,6 +310,48 @@ function seatEntries(resolved, players) {
   return entries;
 }
 
+// v0.225.0: the printed tables, filed by the book and page they come from, so
+// a referee can read a throw off the page rather than remembering it. Values
+// come from the rules package, so a table here cannot drift from the one the
+// engine uses.
+const RANGE_NAMES_ORDER = ['close', 'short', 'medium', 'long', 'very long'];
+
+function signed(value) {
+  if (value === null || value === undefined) return 'no';
+  return value > 0 ? `+${value}` : String(value);
+}
+
+function tableEntries() {
+  const entries = [];
+  const push = (folder, name, note) => entries.push({ id: `${folder}/${name}`, name, note, folder });
+
+  for (const [key, dms] of Object.entries(RANGE_MATRIX)) {
+    const weapon = getPersonalWeapon(key);
+    push('Book 1 p.43 / Range matrix', weapon.name,
+      `${RANGE_NAMES_ORDER.map((range, index) => `${range} ${signed(dms[index])}`).join(', ')} \u00b7 wounds ${weapon.damageDice}D${weapon.damageModifier ? signed(weapon.damageModifier) : ''}`);
+  }
+  for (const key of Object.keys(RANGE_MATRIX)) {
+    const weapon = getPersonalWeapon(key);
+    if (weapon.lowMax === null || weapon.lowMax === undefined) continue;
+    push('Book 1 p.44 / Weapons table', weapon.name,
+      `${weapon.characteristic} ${weapon.lowMax + 1}+ to avoid ${signed(weapon.lowDM)}, ${weapon.highMin}+ gives ${signed(weapon.highDM)}${weapon.fatigueDM ? `, weakened ${signed(weapon.fatigueDM)}` : ''}`);
+  }
+  for (const [key, dms] of Object.entries(RANGE_MATRIX)) {
+    const weapon = getPersonalWeapon(key);
+    push('Book 1 p.42 / Weapons vs armor', weapon.name,
+      ARMOR_TYPES.map((armor, index) => `${armor} ${signed(weapon.armorDMs?.[index])}`).join(', '));
+    void dms;
+  }
+  for (const [total, reaction] of Object.entries(REACTION_TABLE)) push('Book 3 p.27 / Reactions', `2D ${total}`, reaction);
+  for (const [name, dm] of Object.entries(REACTION_DMS)) push('Book 3 p.27 / Reactions', name, `DM ${signed(dm)}`);
+  for (const [total, range] of Object.entries(ENCOUNTER_RANGE_TABLE)) push('Book 1 p.27 / Encounter range', `2D ${total}`, String(range).replace('-', ' '));
+  for (const [terrain, dm] of Object.entries(TERRAIN_DMS)) push('Book 1 p.27 / Terrain DMs', sentenceCase(terrain), `DM ${signed(dm)}`);
+  for (const [name, dm] of Object.entries(MORALE_DMS)) push('Book 1 p.33 / Morale', sentenceCase(name.replace(/([A-Z])/g, ' $1')), `DM ${signed(dm)}`);
+  for (const [total, ship] of Object.entries(SHIP_ENCOUNTER_TABLE)) push('Book 2 p.38 / Shipping', `2D+DM ${total}`, sentenceCase(String(ship)));
+  for (const [starport, dm] of Object.entries(SHIP_ENCOUNTER_STARPORT_DMS)) push('Book 2 p.38 / Shipping', `Starport ${starport}`, `DM ${signed(dm)}`);
+  return entries;
+}
+
 function characterEntries(resolved) {
   const party = new Set(resolved.campaign.party?.characterIds ?? []);
   return (resolved.characters ?? []).map((character) => ({
@@ -318,13 +362,30 @@ function characterEntries(resolved) {
   }));
 }
 
+// v0.225.0: a ship is worth more than its name in a directory — where it is,
+// what it can jump, and whether it can lift at all.
 function vehicleEntries(resolved) {
-  return (resolved.ships ?? []).map((ship) => ({
-    id: ship.identity.id,
-    name: ship.identity.name || ship.identity.registry || 'Unnamed ship',
-    note: [ship.design?.name, ship.identity.registry].filter(Boolean).join(', '),
-    folder: ship.identity.id === resolved.campaign.activeShipId ? 'In service' : 'Other vehicles'
-  }));
+  return (resolved.ships ?? []).map((ship) => {
+    const view = shipView(ship);
+    const damage = ship.state?.damage ?? {};
+    const hurt = Object.entries(damage).filter(([, value]) => (Array.isArray(value) ? value.length : Number(value) > 0)).map(([key]) => key);
+    const berthed = ship.state?.portCall?.systemId ?? null;
+    return {
+      id: ship.identity.id,
+      name: view.name || ship.identity.registry || 'Unnamed ship',
+      note: [
+        view.kind,
+        view.jump ? `Jump-${view.jump}` : null,
+        `fuel ${view.fuel.now}/${view.fuel.full} t`,
+        `hold ${view.hold.full - view.hold.now} t free`,
+        berthed ? `berthed at ${berthed}` : ship.state?.operationalStatus === 'in-jump' ? 'in jump' : null,
+        hurt.length ? `damaged: ${hurt.join(', ')}` : null
+      ].filter(Boolean).join(' \u00b7 '),
+      folder: ship.identity.id === resolved.campaign.activeShipId ? 'In service'
+        : ship.authority?.assignmentType === 'reserve' ? 'On loan'
+          : 'Other vehicles'
+    };
+  });
 }
 
 export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null } = {}) {
@@ -333,12 +394,13 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     Actors: actorEntries,
     Players: (input) => (players ? seatEntries(input, players) : characterEntries(input)),
     Vehicles: vehicleEntries,
-    Tables: () => [],
+    Tables: () => tableEntries(),
     Scenes: () => (resolved.scenes ?? []).map((scene) => ({ id: scene.identity.id, name: scene.identity.name ?? 'Scene', note: '', folder: '' }))
   };
   const entries = (sets[tab] ?? sets.Journal)(resolved);
   const tree = folderTree(entries);
-  const open = folder || tree[0]?.path || UNFILED;
+  const holds = (path) => entries.some((entry) => (entry.folder || UNFILED) === path);
+  const open = folder || tree.find((node) => holds(node.path))?.path || tree[0]?.path || UNFILED;
   const shown = inFolder(entries, open, query);
   const LIMIT = 200;
   return {
@@ -352,8 +414,8 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     truncated: Math.max(0, shown.length - LIMIT),
     // Scenes and Tables have nothing behind them on this page yet; say so
     // rather than showing an empty folder as though it were the answer.
-    unbuilt: tab === 'Scenes' || tab === 'Tables'
-      ? `${tab} are still only in the referee client.`
+    unbuilt: tab === 'Scenes'
+      ? 'Scenes are still only in the referee client.'
       : tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
     // The Players tab acts on the cloud, not on campaign documents.
     seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null
