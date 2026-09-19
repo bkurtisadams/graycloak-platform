@@ -35,6 +35,13 @@ import {
   autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe,
   creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel
 } from './ship-arrival-combat.js';
+// coastVectorShips (bulk-coast every unmoved ship on a side) is not imported
+// yet: with one ship per side, commitShipVector(shipId, {x:0,y:0}) below does
+// the same thing. It becomes the right tool once a side can carry more than
+// one ship and the rest need to coast at once.
+import {
+  commitShipVector, adjudicateVectorSurface
+} from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
 import {
   shipDamagedLocations, assemblyCostCr, rollRepairCost, fullyRepairLocation, SHIPYARD_STARPORTS, REPAIR_PARTS_CREW_DM
 } from './ship-repair.js';
@@ -1853,6 +1860,53 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         message = step.encounter.outcome !== 'in-progress'
           ? `${before.name} breaks off and gets clear.`
           : `${before.name} breaks off \u2014 ${after?.shotsRemainingBeforeEscape ?? STANDARD_SHOTS_BEFORE_ESCAPE} more shot(s) allowed before it is out of range (Book 2 p.37).`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:vector-move' || command === 'shipfight:vector-coast') {
+        // Book 2 pp.22-31: full vector movement, as an alternative to the
+        // abbreviated fight's auto-resolved range. shipId is read from the
+        // payload rather than assumed to be 'player' — a side moving more
+        // than one ship in its movement phase (p.23) is a validation change
+        // here and a ship-picker in the UI, not a new command. Only the
+        // player ship is accepted for now; the NPC side moving itself is a
+        // separate piece (auto-coast, or real intent) not yet built.
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        if (pendingShipFight.encounter.spatialMode !== 'vector') throw new Error('this fight has no vector plot');
+        const shipId = fight?.shipId || 'player';
+        if (shipId !== 'player') throw new Error('only the player ship can be moved (multi-ship sides are not yet supported)');
+        const acceleration = command === 'shipfight:vector-coast' ? { x: 0, y: 0 } : fight?.acceleration;
+        if (!acceleration || !Number.isFinite(acceleration.x) || !Number.isFinite(acceleration.y)) {
+          throw new Error('finite acceleration required');
+        }
+        const dice = createDice();
+        // commitShipVector throws its own clear, specific refusals (wrong
+        // phase, wrong side's turn, already moved, exceeds the drive, a
+        // computer/CPU shortfall, a course into the world) — surfaced as-is
+        // rather than re-wrapped, matching every other command here.
+        const combat = commitShipVector(pendingShipFight.encounter, shipId, acceleration, dice);
+        pendingShipFight = { ...pendingShipFight, encounter: combat };
+        const moved = combat.log[combat.log.length - 1];
+        message = command === 'shipfight:vector-coast'
+          ? `${pendingShipFight.encounter.participants.find((p) => p.id === shipId)?.name ?? 'The ship'} coasts on its existing vector.`
+          : `${pendingShipFight.encounter.participants.find((p) => p.id === shipId)?.name ?? 'The ship'} plots ${moved?.g?.toFixed(2) ?? '0.00'} G of thrust.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'shipfight:vector-adjudicate') {
+        // Book 2 has no rule for a course that meets a world's surface — the
+        // engine refuses the commit and offers this instead: a referee's
+        // explicit ruling on where the ship (or a round of ordnance) ends up.
+        if (!pendingShipFight) throw new Error('no ship fight is under way');
+        if (pendingShipFight.encounter.spatialMode !== 'vector') throw new Error('this fight has no vector plot');
+        const { id, position, velocity, note } = fight ?? {};
+        const combat = adjudicateVectorSurface(pendingShipFight.encounter, { id, position, velocity, note });
+        pendingShipFight = { ...pendingShipFight, encounter: combat };
+        message = `Surface ruling recorded for ${combat.participants.find((p) => p.id === id)?.name ?? id}: ${note}`;
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
