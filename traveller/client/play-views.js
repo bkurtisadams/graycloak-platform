@@ -7,14 +7,15 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.226.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.226.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.226.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.227.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.227.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.227.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
+  describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.226.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.227.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -502,19 +503,36 @@ export function renderNow(state, handlers = {}) {
 
 function worldCaption(system, { role, label, onChoose = null } = {}) {
   const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
-  const facts = [
-    describeStarport(profile.starport),
-    /atmosphere/i.test(describeAtmosphere(profile.atmosphere)) ? describeAtmosphere(profile.atmosphere) : `${describeAtmosphere(profile.atmosphere)} atmosphere`,
-    describeHydrographics(profile.hydrographics),
-    describePopulation(profile.population),
-    `Law ${profile.lawLevel}: ${describeLawLevel(profile.lawLevel).toLowerCase()}`
+  // v0.227.0: Book 3's PLANETARY CHARACTERISTICS, in the order and under the
+  // names the book prints them, with the UWP digit each is read from. The
+  // caption used to run five of the eight together as prose and leave out
+  // size, government and technological index entirely.
+  const rows = [
+    ['Starport', profile.starport, describeStarport(profile.starport)],
+    ['Size', profile.size, describeWorldSize(profile.size)],
+    ['Atmosphere', profile.atmosphere, describeAtmosphere(profile.atmosphere)],
+    ['Hydrographics', profile.hydrographics, describeHydrographics(profile.hydrographics)],
+    ['Population', profile.population, describePopulation(profile.population)],
+    ['Government', profile.government, describeGovernment(profile.government)],
+    ['Law level', profile.lawLevel, describeLawLevel(profile.lawLevel)],
+    ['Tech level', profile.techLevel, `Technological index ${profile.techLevel}`]
   ];
   const bases = [system.bases?.naval ? 'Naval base' : null, system.bases?.scout ? 'Scout base' : null, system.gasGiant ? 'Gas giant' : null].filter(Boolean);
   return h('div', { class: `caption caption-${role}` },
     h('p', { class: 'caption-role', text: label }),
     h('h2', {}, system.name, ' ', h('span', { class: 'code', text: system.mainWorld.uwp })),
-    h('p', { class: 'caption-facts', text: `${facts.join('. ')}.` }),
-    bases.length ? h('p', { class: 'caption-bases', text: bases.join(', ') }) : null,
+    h('dl', { class: 'uwp' }, rows.flatMap(([label, digit, text]) => [
+      h('dt', { text: label }),
+      h('dd', {}, h('span', { class: 'uwp-digit code', text: String(digit) }), ' ', text)
+    ])),
+    (() => {
+      // Book 3 pp.21-22: the classifications a world's own profile earns it.
+      let trade = [];
+      try { trade = describeTradeClassifications(profile); } catch { trade = []; }
+      const labels = (Array.isArray(trade) ? trade : []).map((entry) => entry?.label ?? String(entry)).filter(Boolean);
+      const notes = [...labels, ...bases];
+      return notes.length ? h('p', { class: 'caption-bases', text: notes.join(' \u00b7 ') }) : null;
+    })(),
     onChoose ? h('button', { type: 'button', class: 'button is-primary', onclick: onChoose }, h('span', { text: `Set course for ${system.name}` })) : null);
 }
 

@@ -576,3 +576,10 @@ a.button { text-decoration: none; color: inherit; }
 .editor-label { font-size: 13px; color: var(--ink-2); }
 .sheet-why .editor-row { padding-top: 4px; border-top: 1px solid var(--line); }
 .seat-actions { display: flex; gap: 4px; }
+
+/* Book 3's PLANETARY CHARACTERISTICS: the eight rows, each with the UWP digit
+   it is read from, so the profile on the caption and the code above it agree. */
+.uwp { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 8px; font-size: 13px; }
+.uwp dt { color: var(--ink-2); white-space: nowrap; }
+.uwp dd { overflow: hidden; text-overflow: ellipsis; }
+.uwp-digit { display: inline-block; min-width: 1.1em; text-align: center; font-weight: 700; color: var(--signal); }

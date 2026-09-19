@@ -1,5 +1,41 @@
 # Graycloak Traveller
 
+## v0.227.0 the world caption is Book 3's PLANETARY CHARACTERISTICS
+
+The caption ran five facts together as a paragraph and left out three of the
+eight the book lists. It is now the chart, in the book's order and under the
+book's names, each row carrying the UWP digit it is read from:
+
+    Aster  B765845-9
+    Starport        B  Good quality installation
+    Size            7  7000 miles diameter (approx.)
+    Atmosphere      6  Standard
+    Hydrographics   5  50% water
+    Population      8  Hundreds of millions
+    Government      4  Representative democracy
+    Law level       5  Personal concealable firearms prohibited
+    Tech level      9  Technological index 9
+
+    Rich - Scout base - Gas giant
+
+**Size, Government and Technological Index were missing entirely.** Government
+in particular matters at a port call — a representative democracy and a
+captive government are different places to do business — and the code was
+never showing it.
+
+Putting the digit beside each row means the profile above and the description
+below can be checked against each other at a glance, which is the whole point
+of a UWP.
+
+The trade classifications a world's profile earns it (Book 3 pp.21-22) now sit
+with the bases: Aster is Rich. They were computed and never shown.
+
+One defect found while building it: `describeTradeClassifications` returns
+`{ label }` objects rather than strings, so the first render read
+"[object Object] - Scout base". Fixed.
+
+Suite: 625 pass, 0 fail.
+
 ## v0.226.0 the current world is a pin, and Combat is a chip
 
 **The map.** The world the ship is at was filled solid ink — a blot that
