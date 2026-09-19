@@ -318,6 +318,11 @@ export function fightView(encounter, { characters = [] } = {}) {
       weapons,
       skills: { ...entry.skills },
       blowAllowance: entry.blowAllowance,
+      // Book 1 p.32: wounds do not reduce the blow allowance during a fight,
+      // but they do in subsequent combats — the allowance is the endurance the
+      // combatant arrived with. A thug who walked in already hurt therefore has
+      // fewer swings than its characteristic suggests, which is worth saying.
+      blowsFromWounds: entry.blowAllowance < entry.characteristics.END,
       blowsUsed: entry.blowsUsed,
       down: entry.status !== 'active',
       contactIds: [...(entry.contactIds ?? [])],

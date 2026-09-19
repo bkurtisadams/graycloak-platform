@@ -2,13 +2,13 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.216.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.216.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.216.1';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.216.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.216.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.216.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.216.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog } from './play-views.js?v=v0.217.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.217.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.217.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.217.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.217.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.217.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.217.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -176,8 +176,12 @@ function render() {
   const handlers = {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
     onSelectMarker: (id) => { ui.selectedMarker = id; render(); },
-    onPickTarget: (id) => {
+    onPickTarget: (id, { reachable = true } = {}) => {
       const state = viewState();
+      // Book 1 p.28: a weapon that cannot reach cannot attack. Ordering an
+      // attack anyway is the stalemate that ran six rounds in the Sea of Suns
+      // fight, so choosing an unreachable opponent orders a close on them.
+      if (state.next?.declare && !reachable) { ui.fightMove = 'Close'; ui.fightTargetId = id; handlers.onCommand('fight:declare'); return; }
       // In a fight, choosing the target is the order (Book 1 p.28 step 4B):
       // the movement status is already chosen, so there is nothing left to
       // confirm. Outside a fight this is still just a selection.

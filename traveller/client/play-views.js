@@ -7,14 +7,14 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.216.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.216.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.216.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.217.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.217.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.217.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.216.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.217.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -188,8 +188,10 @@ function gearRow(reader, state, handlers) {
           reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: label(key) })))
         : h('b', { text: `${weapon.name}  ${dice}` })),
     h('span', { class: 'sel-stat is-gear' }, h('small', { text: 'Armor' }), h('b', { text: reader.armor === 'none' ? 'None' : reader.armor[0].toUpperCase() + reader.armor.slice(1) })),
-    weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: 'Combat blows before every swing is weakened. The allowance is unwounded endurance and does not fall as wounds land (Book 1 p.32).' },
-      h('small', { text: 'Blows' }), h('b', { text: `${left}/${reader.blowAllowance}` })) : null);
+    weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: reader.blowsFromWounds
+        ? `Combat blows before every swing is weakened. ${reader.name} entered this fight already wounded, so the allowance is the endurance carried in (${reader.blowAllowance}), not the full ${reader.full.END} (Book 1 p.32).`
+        : 'Combat blows before every swing is weakened. The allowance is the endurance the fight began with and does not fall as wounds land (Book 1 p.32).' },
+      h('small', { text: reader.blowsFromWounds ? 'Blows (hurt)' : 'Blows' }), h('b', { text: `${left}/${reader.blowAllowance}` })) : null);
 }
 
 // The selected combatant: who they are, what state they are in, and — when
@@ -232,7 +234,9 @@ function selectedPanel(reader, state, handlers) {
       // the DMs. Showing the sum is the difference between a figure to obey
       // and a figure to reason about.
       line?.preview?.canAttack ? h('p', { class: 'odds', text: dmSum(line.preview) }) : null,
-      line && !line.preview?.canAttack ? h('p', { class: 'odds', text: `${getPersonalWeapon(weaponKey).name} cannot reach at ${line.range.name.toLowerCase()} range.` }) : null);
+      line && !line.preview?.canAttack
+        ? h('p', { class: 'odds is-warning', text: `${getPersonalWeapon(weaponKey).name} cannot reach at ${line.range.name.toLowerCase()} range. Close the range, or change weapon \u2014 an attack declared now would do nothing.` })
+        : null);
   } else if (!isDown(reader)) {
     parts.push(h('p', { class: 'attack-line is-off', text: `This round: ${orderText(reader, state)}` }));
   }
@@ -268,7 +272,16 @@ function trackerRow(fighter, reader, state, handlers) {
     h('td', { class: 'tr-stats' }, stats),
     h('td', { class: 'tr-range', title: fighter === reader ? '' : rangeBetween(reader, fighter).name, text: range }),
     h('td', { class: 'tr-hit' }, canTarget
-      ? h('button', { type: 'button', class: 'tr-target', 'aria-pressed': targeted, title: out.preview?.canAttack ? `Target ${fighter.name}. ${dmBreakdown(out.preview)}` : `${fighter.name}: ${out.text}`, text: short(out), onclick: () => handlers.onPickTarget(fighter.id) })
+      ? h('button', {
+        type: 'button',
+        class: `tr-target${out.preview?.canAttack ? '' : ' is-unreachable'}`,
+        'aria-pressed': targeted,
+        title: out.preview?.canAttack
+          ? `Target ${fighter.name}. ${dmBreakdown(out.preview)}`
+          : `${getPersonalWeapon(reader.weaponKey).name} cannot reach ${fighter.name} at ${out.range.name.toLowerCase()} range. This orders ${reader.name} to close instead.`,
+        text: short(out),
+        onclick: () => handlers.onPickTarget(fighter.id, { reachable: Boolean(out.preview?.canAttack) })
+      })
       : short(out)),
     h('td', { class: 'tr-target-name', text: fighter.order?.targetId ? (state.fighters.find((entry) => entry.id === fighter.order.targetId)?.name ?? '') : '' }),
     h('td', { class: `tr-order${order === 'undeclared' ? ' is-undeclared' : ''}`, title: order, text: order }));

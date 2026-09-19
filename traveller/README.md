@@ -1,5 +1,43 @@
 # Graycloak Traveller
 
+## v0.217.0 three findings from the Sea of Suns fight
+
+Worked against the exported campaign rather than my own fixture, which is what
+finally made these visible.
+
+**1. Six rounds in which the opposition could not act, and nothing said so.**
+Both Thugs carry clubs; Alina Voss stood four bands away. Every round the log
+read "Thug cannot engage Alina Voss at medium range with Club" — rounds 1
+through 6 — and the fight could not progress. The cause was mine: the Hit cell
+is a button even when it shows no number, so an attack was declared that could
+never happen, and `chooseNpcDeclaration` (which correctly returns `close` when
+a weapon cannot reach) never got the chance to run.
+
+Now: choosing a target the weapon cannot reach orders a **close** on them
+instead, and says so. The attack line warns before the round rather than the
+log explaining afterwards: "Club cannot reach at medium range. Close the
+range, or change weapon — an attack declared now would do nothing." The Hit
+cell for an unreachable opponent is drawn dashed.
+
+**2. The blow allowance is correct, and I was wrong about it twice.** Your
+Thug shows Blows 1/1 with a full END of 7. I first said the engine handled
+this properly without checking, then said your data proved it broken. The NPC
+actors settle it: Thug is stored at current END 1 and Thug 2 at END 2 — they
+carry wounds from earlier fighting. Book 1 p.32 says wounds do not reduce the
+allowance *during* a fight but do "afterwards, in subsequent combats", so a
+thug arriving hurt correctly brings fewer swings. What was wrong is that
+nothing said why. The box now reads "Blows (hurt)" with the reason on hover.
+
+**3. Alina Voss can barely hit anything, and the screen never explained it.**
+Her DEX is 5, so the body pistol carries CHAR −3 every round, plus DEF +3 from
+the Thugs' defensive expertise: 14+ at medium range. The DM sum added in
+v0.216.0 now shows this, and an unreachable throw shows the number it would
+need rather than a bare dash.
+
+Suite: 612 pass, 0 fail.
+
+Still not built: deleting a campaign, and the referee's editing surface.
+
 ## v0.216.1 a sidebar tab that opened nothing
 
 The SETTINGS tab appeared dead, so the campaign could not be exported.

@@ -338,6 +338,8 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .tracker th:nth-child(5) { width: 9%; }
 .tracker th:nth-child(6) { width: 9%; }
 .tr-arms { color: var(--ink-2); font-size: 13px; }
+.tr-target.is-unreachable { border-style: dashed; color: var(--ink-2); }
+.odds.is-warning { color: var(--red); font-weight: 700; }
 .declared { display: grid; gap: 4px; }
 .declared h3 { font-size: 13px; font-weight: 700; color: var(--ink-2); }
 .declared-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
