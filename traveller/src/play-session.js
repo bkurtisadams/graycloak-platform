@@ -697,7 +697,7 @@ function narrateShots(shots, encounter) {
   });
 }
 
-function portFacts(resolved, subsector, selectedSystemId) {
+function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
   const { campaign, ships = [], encounters = [] } = resolved;
   const ship = ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? ships[0] ?? null;
   let system = null;
@@ -720,13 +720,16 @@ function portFacts(resolved, subsector, selectedSystemId) {
   // v0.208.3: speculation (Book 2 pp.42-47). This world's one lot for the
   // week, and a resale quote for each speculative lot carried in from another
   // world. Seeds, lot key and skill DM are client/app.js's, so both pages see
-  // the same lot, the same amount already bought, and the same quotes. No
-  // broker is hired from this page yet (broker DM 0).
+  // the same lot, the same amount already bought, and the same quotes.
+  // v0.232.0: a broker DM is no longer always 0 — a successful merchant
+  // hail on arrival (Book 2 p.36) earns a one-time tip on the next resale
+  // quote made at that same system.
   let speculation = null;
   if (ship && system && profile) {
     const trader = (resolved.characters ?? []).find((entry) => entry.identity.id === campaign.activeCharacterId)
       ?? (resolved.characters ?? []).find((entry) => (campaign.party?.characterIds ?? []).includes(entry.identity.id)) ?? null;
     const skillDM = Math.max(Number(trader?.skills?.Admin ?? 0), Number(trader?.skills?.Bribery ?? 0));
+    const brokerDM = brokerTip && brokerTip.systemId === system.id ? Number(brokerTip.dm ?? 0) : 0;
     const offer = generateSpeculativeTradeOffer(profile, { dice: seededDice(weeklyTradeSeed(campaign, system.id)) });
     const lotKey = offer ? `${weeklyTradeSeed(campaign, system.id)}|${offer.code}` : null;
     const free = Math.max(0, ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons);
@@ -751,10 +754,10 @@ function portFacts(resolved, subsector, selectedSystemId) {
     const sales = (ship.state.cargoManifest ?? []).map((cargo) => {
       const match = /^speculative:(\d{2})$/.exec(cargo.category ?? '');
       if (!match || cargo.originSystemId === system.id) return null;
-      const quote = quoteSpeculativeResale(Number(match[1]), cargo.tons, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM: 0 });
+      const quote = quoteSpeculativeResale(Number(match[1]), cargo.tons, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM });
       return quote ? { cargo, quote } : null;
     }).filter(Boolean);
-    speculation = { buy, sales, skillDM };
+    speculation = { buy, sales, skillDM, brokerDM };
   }
 
   // v0.208.0: what is on offer for the chosen destination (Book 2 pp.8-9).
@@ -818,8 +821,8 @@ function portFacts(resolved, subsector, selectedSystemId) {
 
 // The port call as one lead card and a list of rows, in the order Book 2 has
 // a ship do them. Only what this version can act on carries a command.
-export function portProcedure(resolved, { subsector, selectedSystemId = null, writable = true } = {}) {
-  const facts = portFacts(resolved, subsector, selectedSystemId);
+export function portProcedure(resolved, { subsector, selectedSystemId = null, writable = true, brokerTip = null } = {}) {
+  const facts = portFacts(resolved, subsector, selectedSystemId, brokerTip);
   const { ship, system, portCall, fuelService, fuel, destination } = facts;
   if (!ship || !system) return { next: { title: 'No ship in port', copy: 'This campaign has no active ship at a mapped world.', actions: [] }, steps: [], done: [] };
   const steps = [];
@@ -943,6 +946,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // Not persisted, same as pendingArrivalEncounter: a reload forgets an
   // in-progress fight, which is a known limit of this first cut.
   let pendingShipFight = null;
+  // v0.232.0: a successful merchant hail on arrival (Book 2 p.36) earns a
+  // one-time broker's tip on the next speculative resale quote made at that
+  // same system. Not persisted, same as the arrival encounter and ship
+  // fight above: a reload forgets it, the same as the referee letting the
+  // moment pass.
+  let pendingBrokerTip = null;
   const liveEncounter = () => (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
 
   const reload = () => { resolved = registry.resolveCampaign(campaignId); };
@@ -1061,6 +1070,54 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     } else throw new Error(`unknown command: ${command}`);
     persist([next]);
     return message;
+  }
+
+  // Shared by 'arrival:fight' and a patrol inspection that turns hostile
+  // (Book 2 p.36's "may be a form of pirate, exacting tolls or penalties"):
+  // build and auto-advance the abbreviated ship fight against whichever
+  // ship is standing as pendingArrivalEncounter, given who is doing the
+  // intruding.
+  function beginArrivalShipFight({ opponentIsIntruder, intruderNote, playerShip }) {
+    const dice = createDice();
+    const designKey = opposingShipDesignKey(pendingArrivalEncounter);
+    const disposition = opposingShipDisposition(pendingArrivalEncounter);
+    const { ship: opponentShip } = buildEncounteredShip({ designKey, name: pendingArrivalEncounter.label, key: pendingArrivalEncounter.key });
+    const opponentLoadout = shipCombatLoadout(opponentShip);
+    const playerLoadout = shipCombatLoadout(playerShip);
+    const combat = createShipCombatEncounter({
+      id: `ship-fight-${Date.now()}`,
+      campaignId: resolved.campaign.identity.id,
+      intruderSide: 'intruder',
+      intruderAssignmentNote: intruderNote,
+      participants: [
+        {
+          shipId: 'opponent', name: opponentShip.identity.name, side: opponentIsIntruder ? 'intruder' : 'native',
+          disposition, ship: opponentShip,
+          carriedPrograms: opponentLoadout.carried, loadedPrograms: opponentLoadout.loaded,
+          stations: { pilot: 'npc-captain' }, skills: { pilot: 1, computer: 0 },
+          pressurisedSections: []
+        },
+        {
+          shipId: 'player', name: playerShip.identity.name || 'The ship', side: opponentIsIntruder ? 'native' : 'intruder',
+          disposition: 'merchant', ship: playerShip,
+          carriedPrograms: playerLoadout.carried, loadedPrograms: playerLoadout.loaded,
+          stations: { pilot: playerShip.authority?.assignedCharacterId ?? null }, skills: { pilot: 1, computer: 0 },
+          // Book 2 p.34: ships depressurise before combat "whenever
+          // possible" — which assumes warning. An arrival encounter, or a
+          // patrol stop that turns hostile, is exactly the case with none,
+          // so this starts pressurised rather than the referee client's own
+          // planned-engagement default of depressurised.
+          pressurisedSections: [...PRESSURE_SECTIONS]
+        }
+      ]
+    });
+    const step = autoAdvanceShipFight(combat, dice, { playerSide: opponentIsIntruder ? 'native' : 'intruder' });
+    return {
+      encounter: step.encounter, playerSide: opponentIsIntruder ? 'native' : 'intruder',
+      opponentLabel: pendingArrivalEncounter.label, systemId: pendingArrivalEncounter.systemId,
+      log: narrateShots(step.shots, step.encounter),
+      damage: recordShipDamage({}, step.shots)
+    };
   }
 
   function run(command, { selectedSystemId = null, characterId = null, item = null, fight = null } = {}) {
@@ -1356,7 +1413,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
-      const facts = portFacts(resolved, subsector, selectedSystemId);
+      const facts = portFacts(resolved, subsector, selectedSystemId, pendingBrokerTip);
       if (facts.fight) throw new Error('a fight is in progress; finish it in the current client');
       if (!facts.ship || !facts.system) throw new Error('an active ship at a mapped world is required');
       const shipName = facts.ship.identity.name || 'The ship';
@@ -1387,54 +1444,109 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       } else if (command === 'arrival:fight') {
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
         if (pendingShipFight) throw new Error('a ship fight is already under way');
-        const dice = createDice();
-        const designKey = opposingShipDesignKey(pendingArrivalEncounter);
-        const disposition = opposingShipDisposition(pendingArrivalEncounter);
-        const { ship: opponentShip } = buildEncounteredShip({ designKey, name: pendingArrivalEncounter.label, key: pendingArrivalEncounter.key });
         const playerShip = facts.ship;
         // Book 2 p.22 never says which side is which; your own ruling is that
         // whoever initiated intrudes. Only the pirate is hostile by the p.36
         // roll itself; a referee choosing to fight anything else initiated it.
         const opponentIsIntruder = Boolean(pendingArrivalEncounter.hostileByDefault);
-        const opponentLoadout = shipCombatLoadout(opponentShip);
-        const playerLoadout = shipCombatLoadout(playerShip);
-        let combat = createShipCombatEncounter({
-          id: `ship-fight-${Date.now()}`,
-          campaignId: resolved.campaign.identity.id,
-          intruderSide: 'intruder',
-          intruderAssignmentNote: opponentIsIntruder
+        pendingShipFight = beginArrivalShipFight({
+          opponentIsIntruder, playerShip,
+          intruderNote: opponentIsIntruder
             ? `${pendingArrivalEncounter.label} initiated on arrival.`
-            : `${playerShip.identity.name || 'The party'} chose to engage ${pendingArrivalEncounter.label}.`,
-          participants: [
-            {
-              shipId: 'opponent', name: opponentShip.identity.name, side: opponentIsIntruder ? 'intruder' : 'native',
-              disposition, ship: opponentShip,
-              carriedPrograms: opponentLoadout.carried, loadedPrograms: opponentLoadout.loaded,
-              stations: { pilot: 'npc-captain' }, skills: { pilot: 1, computer: 0 },
-              pressurisedSections: []
-            },
-            {
-              shipId: 'player', name: playerShip.identity.name || 'The ship', side: opponentIsIntruder ? 'native' : 'intruder',
-              disposition: 'merchant', ship: playerShip,
-              carriedPrograms: playerLoadout.carried, loadedPrograms: playerLoadout.loaded,
-              stations: { pilot: playerShip.authority?.assignedCharacterId ?? null }, skills: { pilot: 1, computer: 0 },
-              // Book 2 p.34: ships depressurise before combat "whenever
-              // possible" — which assumes warning. A random arrival
-              // encounter is exactly the case with none, so this starts
-              // pressurised rather than the referee client's own
-              // planned-engagement default of depressurised.
-              pressurisedSections: [...PRESSURE_SECTIONS]
-            }
-          ]
+            : `${playerShip.identity.name || 'The party'} chose to engage ${pendingArrivalEncounter.label}.`
         });
-        const step = autoAdvanceShipFight(combat, dice, { playerSide: opponentIsIntruder ? 'native' : 'intruder' });
-        pendingShipFight = {
-          encounter: step.encounter, playerSide: opponentIsIntruder ? 'native' : 'intruder',
-          opponentLabel: pendingArrivalEncounter.label, systemId: pendingArrivalEncounter.systemId,
-          log: narrateShots(step.shots, step.encounter),
-          damage: recordShipDamage({}, step.shots)
-        };
         message = `${playerShip.identity.name || 'The ship'} engages ${pendingArrivalEncounter.label} at ${facts.system?.name ?? 'the port'}.`;
+        pendingArrivalEncounter = null;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'arrival:hail') {
+        // Book 2 p.36: "Free Traders, if friendly, may serve as a source of
+        // information about other circumstances in the system; Subsidized
+        // Merchants may also provide such information." A Book 3 reaction
+        // throw decides friendly; the reward here is a broker's tip (a DM)
+        // on the next speculative resale made at this same system, your
+        // own call on what "information" is worth in play terms.
+        if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
+        if (!['free-trader', 'subsidized-merchant'].includes(pendingArrivalEncounter.key)) throw new Error('this ship has nothing to hail for');
+        const encounterLabel = pendingArrivalEncounter.label;
+        const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|hail`;
+        const hailReaction = rollReaction(seededDice(seed));
+        if (/friendly/i.test(hailReaction.reaction)) {
+          pendingBrokerTip = { systemId: pendingArrivalEncounter.systemId, dm: 1 };
+          message = `${encounterLabel} shares word of a buyer here \u2014 ${hailReaction.description} (a broker's tip on your next resale quote at ${facts.system?.name ?? 'this system'}).`;
+        } else {
+          message = `${encounterLabel} trades pleasantries but nothing useful \u2014 ${hailReaction.description}`;
+        }
+        pendingArrivalEncounter = null;
+        log('NAV', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'arrival:inspect') {
+        // Book 2 p.36: "Patrols may be simple border pickets, or may be a
+        // form of pirate, exacting tolls or penalties." A Book 3 reaction
+        // throw decides which: hostile turns it into a fight outright;
+        // friendly waves the ship through; anything in between wants
+        // something first (arrival:pay-toll / arrival:refuse-toll).
+        if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
+        if (pendingArrivalEncounter.key !== 'patrol') throw new Error('only a patrol conducts an inspection');
+        if (pendingShipFight) throw new Error('a ship fight is already under way');
+        const encounterLabel = pendingArrivalEncounter.label;
+        const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|inspect`;
+        const inspectReaction = rollReaction(seededDice(seed));
+        if (/hostile/i.test(inspectReaction.reaction)) {
+          const playerShip = facts.ship;
+          pendingShipFight = beginArrivalShipFight({
+            opponentIsIntruder: true, playerShip,
+            intruderNote: `${encounterLabel} turns hostile during inspection.`
+          });
+          message = `${encounterLabel} turns hostile during the inspection \u2014 ${inspectReaction.description}`;
+          pendingArrivalEncounter = null;
+          log('SHIP', message);
+        } else if (/friendly/i.test(inspectReaction.reaction)) {
+          message = `${encounterLabel} waves ${shipName} through \u2014 ${inspectReaction.description}`;
+          pendingArrivalEncounter = null;
+          log('NAV', message);
+        } else {
+          // No formula is given for a toll's size, so this borrows the one
+          // standard fee already in the rules rather than inventing a
+          // number: a day's berthing.
+          const tollCr = calculateBerthingCost(1);
+          pendingArrivalEncounter = { ...pendingArrivalEncounter, tollDemandCr: tollCr };
+          message = `${encounterLabel} demands ${cr(tollCr)} before waving ${shipName} through \u2014 ${inspectReaction.description}`;
+          log('NAV', message);
+        }
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'arrival:pay-toll') {
+        if (!pendingArrivalEncounter?.tollDemandCr) throw new Error('no toll is being demanded');
+        const tollCr = pendingArrivalEncounter.tollDemandCr;
+        const encounterLabel = pendingArrivalEncounter.label;
+        const ship = creditShipAccount(facts.ship, -tollCr, { kind: 'toll', description: `${encounterLabel} inspection toll at ${facts.system?.name ?? 'the port'}`, dateLabel });
+        persist([ship]);
+        message = `${shipName} paid ${cr(tollCr)} to ${encounterLabel} and is waved through.`;
+        pendingArrivalEncounter = null;
+        log('TRADE', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      } else if (command === 'arrival:refuse-toll') {
+        if (!pendingArrivalEncounter?.tollDemandCr) throw new Error('no toll is being demanded');
+        if (pendingShipFight) throw new Error('a ship fight is already under way');
+        const encounterLabel = pendingArrivalEncounter.label;
+        const playerShip = facts.ship;
+        pendingShipFight = beginArrivalShipFight({
+          opponentIsIntruder: true, playerShip,
+          intruderNote: `${encounterLabel} attacks after its toll is refused.`
+        });
+        message = `${shipName} refuses the toll \u2014 ${encounterLabel} opens fire.`;
         pendingArrivalEncounter = null;
         log('SHIP', message);
         lastMessage = { ok: true, message };
@@ -1648,6 +1760,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const result = sellSpeculativeCargo(facts.ship, cargoId, sale.quote, { dateLabel, destinationSystemId: facts.system.id });
           persist([result.ship]);
           message = `${sale.cargo.tons} t ${sale.quote.name} sold at ${facts.system.name}, ${cr(result.revenueCr)} net, ${result.profitCr >= 0 ? 'up' : 'down'} ${cr(Math.abs(result.profitCr))}`;
+          // A hail's broker tip (Book 2 p.36) is good for one resale, not
+          // the whole port stay.
+          if (pendingBrokerTip && pendingBrokerTip.systemId === facts.system.id) pendingBrokerTip = null;
         }
         log('TRADE', message);
       } else if (command.startsWith('freight:load:') || command.startsWith('passengers:book:')) {
@@ -1802,21 +1917,36 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         };
       }
       if (state.situation.kind !== 'port') return { ...state, save, notice: lastMessage };
-      const procedure = portProcedure(resolved, { subsector, selectedSystemId, writable: save.state !== 'stale' });
+      const procedure = portProcedure(resolved, { subsector, selectedSystemId, writable: save.state !== 'stale', brokerTip: pendingBrokerTip });
       // The arrival encounter leads the column while it stands: it is what is
       // happening, and the port business waits behind it.
       const encounter = pendingArrivalEncounter && pendingArrivalEncounter.systemId === resolved.campaign.location?.systemId
         ? pendingArrivalEncounter : null;
       const next = encounter
-        ? {
-          title: `${encounter.label} at ${resolved.campaign.location.worldName ?? resolved.campaign.location.systemName}`,
-          copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${encounter.reaction}${encounter.hostileByDefault ? ' This kind of ship is hostile by default.' : ''} Book 2 p.38. Fights are still run in the current client; dismissing this leaves the port call as it was.`,
-          cite: 'Book 2 p.38',
-          actions: [
-            { command: 'arrival:dismiss', label: 'Let it pass', primary: true },
-            { command: 'arrival:fight', label: 'Fight' }
-          ]
-        }
+        ? encounter.tollDemandCr
+          ? {
+            title: `${encounter.label} demands a toll`,
+            copy: `${cr(encounter.tollDemandCr)}, or it becomes a fight. Book 2 p.36: "Patrols may be simple border pickets, or may be a form of pirate, exacting tolls or penalties."`,
+            cite: 'Book 2 p.36',
+            actions: [
+              { command: 'arrival:pay-toll', label: `Pay ${cr(encounter.tollDemandCr)}`, primary: true },
+              { command: 'arrival:refuse-toll', label: 'Refuse' }
+            ]
+          }
+          : {
+            title: `${encounter.label} at ${resolved.campaign.location.worldName ?? resolved.campaign.location.systemName}`,
+            copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${encounter.reaction}${encounter.hostileByDefault ? ' This kind of ship is hostile by default.' : ''} Book 2 p.38. Fights are still run in the current client; dismissing this leaves the port call as it was.`,
+            cite: 'Book 2 p.38',
+            actions: [
+              { command: 'arrival:dismiss', label: 'Let it pass', primary: true },
+              { command: 'arrival:fight', label: 'Fight' },
+              // Book 2 p.36's own comment: friendly Free Traders and
+              // Subsidized Merchants trade in information; a Patrol may
+              // instead want to look the ship over.
+              ...(['free-trader', 'subsidized-merchant'].includes(encounter.key) ? [{ command: 'arrival:hail', label: 'Hail' }] : []),
+              ...(encounter.key === 'patrol' ? [{ command: 'arrival:inspect', label: 'Submit to inspection' }] : [])
+            ]
+          }
         : procedure.next;
       return { ...state, ...procedure, next, arrivalEncounter: encounter, scene: { ...state.scene, selectedId: selectedSystemId, world: procedure.world }, save, notice: lastMessage };
     }
