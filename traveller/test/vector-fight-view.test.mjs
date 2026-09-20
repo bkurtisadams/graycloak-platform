@@ -104,7 +104,8 @@ test('renderVectorFight draws the plotting form when awaiting the player\u2019s 
 
   // Commit passes the exact thrust object typed, not a re-derived one.
   document.querySelector('.vfv-thrust-actions button.is-primary').click();
-  assert.deepEqual(events.committed, { x: 0, y: 0 }, 'the render was not re-run after onThrustChange, so the form still shows the original {x:0,y:0} it was given');
+  assert.deepEqual(events.committed, { x: 1.5, y: 0 }, 'v0.246.0: the form holds what was typed without waiting on a re-render');
+  assert.match(document.querySelector('.vfv-g-readout').textContent, /0\.75 G of 2 G/, 'the readout repaints in place');
 
   // Coast is offered as a separate, always-available action.
   document.querySelector('.vfv-thrust-actions button:not(.is-primary)').click();
@@ -277,4 +278,52 @@ test('a full movement phase, through the real session and the real render, moves
   const advance = session.run('shipfight:vector-advance');
   assert.equal(advance.ok, true, advance.message);
   assert.match(advance.message, /Laser Fire/);
+});
+
+
+// ---------------------------------------------------------------------------
+// v0.246.0: what a real browser showed and jsdom could not.
+// ---------------------------------------------------------------------------
+
+test('v0.246.0 every vfv- class the plot draws with has a rule in play.css', async () => {
+  const view = await readFile(new URL('../client/vector-fight-view.js', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
+  const used = new Set([...view.matchAll(/vfv-[a-z-]+[a-z]/g)].map((match) => match[0]).filter((name) => !name.endsWith('-side')));
+  const unstyled = [...used].filter((name) => !['vfv-side-intruder', 'vfv-side-native', 'vfv-side-third', 'vfv-empty', 'vfv-ship'].includes(name) && !css.includes(`.${name}`));
+  assert.deepEqual(unstyled, [], 'an SVG line with no stroke is invisible; v0.241-v0.245 shipped with no vfv- rule at all');
+  assert.match(css, /\.vfv-vector \{[^}]*stroke:/, 'the velocity vector has a stroke');
+});
+
+test('v0.246.0 the plot is y-up, like the staging board and its own bearing readout', { skip: !JSDOM }, async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const dom = new JSDOM('<!doctype html><body></body>');
+  globalThis.document = dom.window.document;
+  const shipFight = session.view().shipFight;
+  shipFight.vector.opponent.position = { x: 20, y: 10 };
+  const root = renderVectorFight(shipFight, {});
+  const tokens = [...root.querySelectorAll('.vfv-token')];
+  assert.equal(Number(tokens[1].getAttribute('cy')), -10, 'a ship at +10 is drawn above the origin, not below it');
+});
+
+test('v0.246.0 the default combat loadout is p.31\u2019s own six, Maneuver included, so a vector fight can thrust', async () => {
+  const { shipCombatLoadout } = await import('../src/ship-arrival-combat.js');
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const loadout = shipCombatLoadout(session.resolved.ships[0]);
+  assert.ok(loadout.loaded.includes('maneuver'), 'Book 2 p.32: Maneuver is required to allow the use of Maneuver drive');
+  assert.ok(loadout.carried.includes('launch'));
+  const moved = session.run('shipfight:vector-move', { fight: { shipId: 'player', acceleration: { x: 2, y: 2 } } });
+  assert.equal(moved.ok, true, moved.message);
+});
+
+test('v0.246.0 Fire lasers is offered once: the view asks the engine, and a spent turret is not offered again', async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance');
+  assert.equal(session.view().shipFight.vector.canFire, true);
+  session.run('shipfight:vector-fire');
+  const after = session.view().shipFight.vector;
+  if (session.view().shipFight.outcome === 'in-progress') {
+    assert.equal(after.canFire, false);
+    assert.equal(after.hasFired, true);
+  }
 });

@@ -85,22 +85,28 @@ export function buildEncounteredShip({ designKey, name, key = null } = {}) {
   return { ship, captainId };
 }
 
-// A Model/1 holds six points: CPU 2 plus storage 4 (Book 2 p.14) in the
-// sample design. Book 2 p.31's own worked example, loaded where there is
-// room. Ported from client/app.js's shipCombatLoadout.
-const DEFAULT_COMBAT_LOADOUT = ['target', 'return-fire', 'predict-1', 'gunner-interact', 'auto-evade'];
+// A Model/1 holds six points: CPU 2 plus storage 4 (Book 2 p.14), and p.31's
+// own worked example fills it with exactly these six. Launch is carried and
+// goes in where there is room (p.23 phase E swaps it in otherwise).
+//
+// v0.246.0: the port from client/app.js dropped Maneuver and Launch. The
+// abbreviated fight never noticed, since it never thrusts; a vector fight
+// could not thrust at all (p.32: Maneuver is "required to allow the use of
+// Maneuver drive"), for either side.
+const DEFAULT_COMBAT_LOADOUT = ['target', 'return-fire', 'predict-1', 'gunner-interact', 'auto-evade', 'maneuver'];
+const DEFAULT_COMBAT_STORAGE = ['launch'];
 export function shipCombatLoadout(ship) {
   const model = COMPUTER_MODELS?.[ship.specifications.computer.model];
   const room = (model?.cpu ?? 2) + (model?.storage ?? 0);
   const loaded = [];
   let used = 0;
-  for (const key of DEFAULT_COMBAT_LOADOUT) {
+  for (const key of [...DEFAULT_COMBAT_LOADOUT, ...DEFAULT_COMBAT_STORAGE]) {
     const space = COMPUTER_PROGRAMS[key].space;
     if (used + space > room) continue;
     loaded.push(key);
     used += space;
   }
-  return { carried: [...DEFAULT_COMBAT_LOADOUT], loaded };
+  return { carried: [...DEFAULT_COMBAT_LOADOUT, ...DEFAULT_COMBAT_STORAGE], loaded };
 }
 
 // Every operational turret carrying a laser fires at the one foe. A 1-v-1

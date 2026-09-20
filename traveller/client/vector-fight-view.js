@@ -23,10 +23,9 @@
 //     appears for the phases that matter (fire); silence for these two is
 //     deliberate, not an oversight, and worth its own slice.
 //   - A fixed-fit camera sized to whatever is on the plot each render. No
-//     interactive zoom/pan yet — ship-vector-map.js's is tested and could be
-//     adapted, but it keeps that state in module closures, which is exactly
-//     what rule 1 above rules out here; giving this a real camera later
-//     means a vectorUi field on play.js's `ui`, not importing that module.
+//     interactive zoom/pan yet.
+//   - v0.246.0: the plot is y-up like the staging board; a typed or clicked
+//     thrust repaints its own preview instead of asking play.js to re-render.
 //   - No gravity, no planet, no ordnance drawing. shipfight:vector-start has
 //     nothing that stages a planet yet either, so there is nothing to test
 //     this against in the UI even if it were built.
@@ -67,28 +66,37 @@ function speedOf(vx, vy) { return Math.hypot(vx, vy); }
 
 const SIDE_CLASS = (side) => `vfv-side-${side === 'intruder' ? 'intruder' : side === 'native' ? 'native' : 'third'}`;
 
-// A fixed viewBox sized to fit both ships (and, once thrust is being typed,
-// the plotted endpoint) with a margin — recomputed fresh every render, since
-// nothing here remembers a camera between renders (see the header).
+// Plot space is Book 2's own: +y is 000 degrees, up the table, the same way
+// the staging board draws it. SVG's y runs down, so every y is negated once,
+// here, on its way to the drawing.
+const sy = (y) => -y;
+
 function fitViewBox(points) {
-  const xs = points.map((p) => p.x), ys = points.map((p) => p.y);
+  const xs = points.map((p) => p.x), ys = points.map((p) => sy(p.y));
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const spanX = Math.max(maxX - minX, 4), spanY = Math.max(maxY - minY, 4);
-  const margin = Math.max(spanX, spanY) * 0.25 + 2;
-  const w = spanX + margin * 2, h2 = spanY + margin * 2;
-  const size = Math.max(w, h2 / (430 / 800)); // keep the 800x430 aspect, fit the wider dimension
-  return { minX: minX - margin, minY: minY - margin, w: size, h: size * (430 / 800), cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  const margin = Math.max(spanX, spanY) * 0.2 + 2;
+  const ASPECT = 430 / 800;
+  const w = Math.max(spanX + margin * 2, (spanY + margin * 2) / ASPECT), h2 = w * ASPECT;
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  return { minX: cx - w / 2, minY: cy - h2 / 2, w, h: h2 };
+}
+
+function gridStep(width) {
+  for (const step of [1, 5, 10, 50, 100, 500]) if (width / step <= 24) return step;
+  return 1000;
 }
 
 /**
  * shipFight: the whole view-state object play-session.js builds (roster,
  * spatialMode, vector, phase, outcome, log, actions, ...). vector.pendingThrust
- * is play.js's own ui.vectorThrust, merged in by viewState() the same way
- * ui.fightMove/ui.fightTargetId already overlay onto state.next.declare —
- * not a separate parameter here, to match that existing convention.
- * handlers: { onThrustChange({x,y}), onCommit(), onCoast(), onAdvance(),
- *             onCommand(command) } — onCommand covers End fight / repair,
- * the same generic dispatch play-views.js already uses elsewhere.
+ * is play.js's own ui.vectorThrust, merged in by viewState().
+ * handlers: { onThrustChange({x,y}), onCommit({x,y}), onCoast(), onAdvance(),
+ *             onFire(), onCommand(command) }.
+ *
+ * Typing or clicking a thrust repaints the preview in place and reports it
+ * through onThrustChange; it does not ask for a re-render, because a re-render
+ * rebuilds the field being typed in and the caret is lost after one digit.
  */
 export function renderVectorFight(shipFight, handlers = {}) {
   const v = shipFight.vector;
@@ -98,37 +106,41 @@ export function renderVectorFight(shipFight, handlers = {}) {
     return root;
   }
 
-  const thrust = v.pendingThrust ?? { x: 0, y: 0 };
+  let thrust = { x: Number(v.pendingThrust?.x) || 0, y: Number(v.pendingThrust?.y) || 0 };
   const playerPos = v.player.position, playerVel = v.player.velocity;
   const oppPos = v.opponent?.position ?? null;
+  const coast = { x: playerPos.x + playerVel.x, y: playerPos.y + playerVel.y };
+  // Book 2 p.26: no more inches of thrust per turn than twice the drive's Gs.
+  const reach = v.player.maxG * 2;
 
-  // p.26: a preview endpoint one turn of thrust ahead, drawn dashed — pure
-  // arithmetic (position + velocity + thrust), not the engine's own gravity-
-  // and-braking preview, since this slice has no planet to preview against.
-  const previewEndpoint = { x: playerPos.x + playerVel.x + thrust.x, y: playerPos.y + playerVel.y + thrust.y };
-  const g = Math.hypot(thrust.x, thrust.y) / 2;
-
-  const points = [playerPos, oppPos, v.awaitingMovement ? previewEndpoint : null].filter(Boolean);
+  const points = [playerPos, oppPos, coast, v.opponent ? { x: oppPos.x + v.opponent.velocity.x, y: oppPos.y + v.opponent.velocity.y } : null].filter(Boolean);
+  if (v.awaitingMovement) points.push({ x: coast.x - reach, y: coast.y - reach }, { x: coast.x + reach, y: coast.y + reach });
   const box = fitViewBox(points);
+  const unit = Math.max(box.w, box.h);
   const plot = svg('svg', { class: 'vfv-plot', viewBox: `${box.minX} ${box.minY} ${box.w} ${box.h}`, role: 'img', 'aria-label': 'Ship vector plot' });
+
+  const step = gridStep(box.w);
+  const grid = svg('g', { class: 'vfv-grid' });
+  // Drawn a full view past every edge: the element is rarely the viewBox's
+  // own shape, and the letterboxed margin would otherwise show no grid.
+  const gx0 = box.minX - box.w, gx1 = box.minX + box.w * 2, gy0 = box.minY - box.h * 2, gy1 = box.minY + box.h * 3;
+  for (let x = Math.ceil(gx0 / step) * step; x <= gx1; x += step) grid.append(svg('line', { x1: x, y1: gy0, x2: x, y2: gy1 }));
+  for (let y = Math.ceil(gy0 / step) * step; y <= gy1; y += step) grid.append(svg('line', { x1: gx0, y1: y, x2: gx1, y2: y }));
+  plot.append(grid);
+
+  if (oppPos) plot.append(svg('line', { x1: playerPos.x, y1: sy(playerPos.y), x2: oppPos.x, y2: sy(oppPos.y), class: 'vfv-range' }));
 
   const drawShip = (pos, vel, side, label, isPlayer) => {
     const group = svg('g', { class: `vfv-ship ${SIDE_CLASS(side)}${isPlayer ? ' is-player' : ''}` });
     if (vel.x || vel.y) {
-      group.append(svg('line', { x1: pos.x, y1: pos.y, x2: pos.x + vel.x, y2: pos.y + vel.y, class: 'vfv-vector' }));
+      group.append(svg('line', { x1: pos.x, y1: sy(pos.y), x2: pos.x + vel.x, y2: sy(pos.y + vel.y), class: 'vfv-vector' }));
+      group.append(svg('circle', { cx: pos.x + vel.x, cy: sy(pos.y + vel.y), r: unit * 0.004, class: 'vfv-vector-head' }));
     }
-    const r = Math.max(box.w, box.h) * 0.012;
-    group.append(svg('circle', { cx: pos.x, cy: pos.y, r, class: 'vfv-token' }));
-    // font-size is explicit and scaled to the plot for a reason: an SVG
-    // <text> with none falls back to the browser's default (16 user units),
-    // and this plot's whole coordinate space is typically only a few dozen
-    // units across — the default renders each label several times the width
-    // of the entire plot. (Caught from a real screenshot, not a test: jsdom
-    // has no layout engine, so a missing font-size draws nothing wrong in
-    // any assertion here — only measuring a real render catches it, the
-    // same reason test/support/layout-browser.mjs exists for the old UI.)
-    const fontSize = Math.max(box.w, box.h) * 0.028;
-    const t = svg('text', { x: pos.x, y: pos.y - r * 1.6, class: 'vfv-label', 'font-size': fontSize, 'text-anchor': 'middle' });
+    const r = unit * 0.009;
+    group.append(svg('circle', { cx: pos.x, cy: sy(pos.y), r, class: 'vfv-token' }));
+    // An SVG <text> with no font-size falls back to 16 user units, several
+    // times the width of a plot only a few dozen units across.
+    const t = svg('text', { x: pos.x, y: sy(pos.y) - r * 1.8, class: 'vfv-label', 'font-size': unit * 0.02, 'text-anchor': 'middle' });
     t.textContent = label;
     group.append(t);
     return group;
@@ -136,58 +148,87 @@ export function renderVectorFight(shipFight, handlers = {}) {
   plot.append(drawShip(playerPos, playerVel, v.playerSide, 'YOU', true));
   if (v.opponent) plot.append(drawShip(oppPos, v.opponent.velocity, v.opponent.side, v.opponent.name.toUpperCase(), false));
 
+  let paint = () => {};
   if (v.awaitingMovement) {
-    plot.append(svg('line', {
-      x1: playerPos.x + playerVel.x, y1: playerPos.y + playerVel.y, x2: previewEndpoint.x, y2: previewEndpoint.y,
-      class: 'vfv-preview'
-    }));
-    plot.append(svg('circle', { cx: previewEndpoint.x, cy: previewEndpoint.y, r: Math.max(box.w, box.h) * 0.008, class: 'vfv-preview-point' }));
+    // p.25's own figure: the thrust vector laid head to tail on the present
+    // one, and the new vector drawn from the tail of the first to the head of
+    // the last. The ring is every endpoint the drive can reach this turn.
+    const ring = svg('circle', { cx: coast.x, cy: sy(coast.y), r: Math.max(reach, 0.001), class: 'vfv-reach' });
+    const thrustLine = svg('line', { x1: coast.x, y1: sy(coast.y), x2: coast.x, y2: sy(coast.y), class: 'vfv-preview' });
+    const resultLine = svg('line', { x1: playerPos.x, y1: sy(playerPos.y), x2: coast.x, y2: sy(coast.y), class: 'vfv-result' });
+    const endpoint = svg('circle', { cx: coast.x, cy: sy(coast.y), r: unit * 0.006, class: 'vfv-preview-point' });
+    plot.append(ring, resultLine, thrustLine, endpoint);
+    plot.classList.add('is-plotting');
+    paint = () => {
+      const end = { x: coast.x + thrust.x, y: coast.y + thrust.y };
+      for (const node of [thrustLine, resultLine]) { node.setAttribute('x2', end.x); node.setAttribute('y2', sy(end.y)); }
+      endpoint.setAttribute('cx', end.x); endpoint.setAttribute('cy', sy(end.y));
+    };
+    paint();
   }
 
   const status = h('p', { class: 'vfv-status' },
     `VEL ${speedOf(playerVel.x, playerVel.y).toFixed(1)}" @ ${String(bearingOf(playerVel.x, playerVel.y)).padStart(3, '0')}\u00b0`,
     v.range ? ` \u00b7 RANGE ${v.range.distance.toFixed(1)}"${v.range.dm ? ` (DM ${v.range.dm})` : ''}` : '',
-    ` \u00b7 TURN ${shipFight.gameTurn}, ${shipFight.phase}`);
+    ` \u00b7 TURN ${shipFight.gameTurn}, ${shipFight.phase} \u00b7 GRID ${step}"`);
 
   const parts = [plot, status];
 
   if (v.awaitingMovement) {
-    const setThrust = (axis, value) => handlers.onThrustChange?.({ ...thrust, [axis]: Number(value) || 0 });
-    parts.push(h('form', { class: 'vfv-thrust', onsubmit: (event) => event.preventDefault() },
-      h('label', {}, 'Thrust X', h('input', {
-        type: 'number', step: '0.1', value: String(thrust.x), 'aria-label': 'Thrust X',
-        oninput: (event) => setThrust('x', event.currentTarget.value)
-      })),
-      h('label', {}, 'Thrust Y', h('input', {
-        type: 'number', step: '0.1', value: String(thrust.y), 'aria-label': 'Thrust Y',
-        oninput: (event) => setThrust('y', event.currentTarget.value)
-      })),
-      h('span', { class: 'vfv-g-readout', text: `${g.toFixed(2)} G / max ${v.player.maxG} G` }),
+    const over = () => Math.hypot(thrust.x, thrust.y) / 2 > v.player.maxG + 1e-9;
+    const readout = h('span', { class: 'vfv-g-readout' });
+    const commit = h('button', { type: 'button', class: 'button is-primary', text: 'Commit maneuver', onclick: () => handlers.onCommit?.({ ...thrust }) });
+    const warning = h('p', { class: 'vfv-note is-error', text: `Exceeds the functioning ${v.player.maxG} G drive.`, hidden: true });
+    const field = (axis) => h('input', {
+      type: 'number', step: '0.1', value: String(thrust[axis]), 'aria-label': `Thrust ${axis.toUpperCase()}`,
+      oninput: (event) => { thrust = { ...thrust, [axis]: Number(event.currentTarget.value) || 0 }; refresh(); handlers.onThrustChange?.({ ...thrust }); }
+    });
+    const xField = field('x'), yField = field('y');
+    const refresh = () => {
+      const end = { x: playerVel.x + thrust.x, y: playerVel.y + thrust.y };
+      readout.textContent = `${(Math.hypot(thrust.x, thrust.y) / 2).toFixed(2)} G of ${v.player.maxG} G \u00b7 new vector ${speedOf(end.x, end.y).toFixed(1)}" @ ${String(bearingOf(end.x, end.y)).padStart(3, '0')}\u00b0`;
+      commit.disabled = over();
+      warning.hidden = !over();
+      paint();
+    };
+    // A click on the plot is the endpoint wanted; the thrust is whatever
+    // reaches it, held to the ring (p.26) and to a tenth of an inch.
+    plot.addEventListener('click', (event) => {
+      const matrix = plot.getScreenCTM?.();
+      if (!matrix) return;
+      const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+      let dx = at.x - coast.x, dy = -at.y - coast.y;
+      const length = Math.hypot(dx, dy);
+      if (length > reach && length > 0) { dx *= reach / length; dy *= reach / length; }
+      const tenth = (n) => Math.trunc(n * 10) / 10;
+      thrust = { x: tenth(dx), y: tenth(dy) };
+      xField.value = String(thrust.x); yField.value = String(thrust.y);
+      refresh();
+      handlers.onThrustChange?.({ ...thrust });
+    });
+    refresh();
+    parts.push(h('form', { class: 'vfv-thrust', onsubmit: (event) => { event.preventDefault(); if (!over()) handlers.onCommit?.({ ...thrust }); } },
+      h('label', {}, 'Thrust X', xField),
+      h('label', {}, 'Thrust Y', yField),
+      readout,
       h('div', { class: 'vfv-thrust-actions' },
-        h('button', {
-          type: 'button', class: 'button is-primary', text: 'Commit maneuver',
-          disabled: g > v.player.maxG + 1e-9,
-          onclick: () => handlers.onCommit?.(thrust)
-        }),
-        h('button', { type: 'button', class: 'button', text: 'Coast (no thrust)', onclick: () => handlers.onCoast?.() }))));
-    if (g > v.player.maxG + 1e-9) {
-      parts.push(h('p', { class: 'vfv-note is-error', text: `Exceeds the functioning ${v.player.maxG} G drive.` }));
-    }
+        commit,
+        h('button', { type: 'button', class: 'button', text: 'Coast (no thrust)', onclick: () => handlers.onCoast?.() }))),
+      h('p', { class: 'vfv-note', text: 'Click inside the ring to plot an endpoint, or type the thrust in inches (2" is 1 G). +Y is 000\u00b0.' }),
+      warning);
   } else if (shipFight.outcome === 'in-progress') {
+    // Fire and Advance are separate: firing does not end the phase.
+    const row = [];
     if (v.awaitingFireDecision) {
-      // Fire and Advance are separate on purpose: firing doesn't end the
-      // phase by itself (you could Hold and still need to Advance), so
-      // there's one control for "take the shot" and one for "move on",
-      // rather than folding them together the way the abbreviated flow's
-      // single Fire/Hold button does.
-      parts.push(h('p', { class: 'vfv-note', text: v.canFire ? 'Your turrets may fire.' : 'No operational turret can fire.' }));
-      if (v.canFire) parts.push(h('button', { type: 'button', class: 'button is-primary', text: 'Fire lasers', onclick: () => handlers.onFire?.() }));
+      parts.push(h('p', { class: 'vfv-note', text: v.canFire ? 'Your turrets may fire.' : (v.hasFired ? 'Your turrets have fired this phase.' : 'No operational turret can fire.') }));
+      if (v.canFire) row.push(h('button', { type: 'button', class: 'button is-primary', text: 'Fire lasers', onclick: () => handlers.onFire?.() }));
     } else if (v.phaseKey === 'laser-fire' || v.phaseKey === 'return-fire') {
       parts.push(h('p', { class: 'vfv-note', text: 'Advancing will resolve the opponent\u2019s own shot automatically, if it has one to take.' }));
     } else if (v.phasingSide !== v.playerSide) {
       parts.push(h('p', { class: 'vfv-note', text: `${v.phasingSide === 'intruder' ? 'The intruder' : 'The native'} side is phasing; nothing for you to plot this turn.` }));
     }
-    parts.push(h('button', { type: 'button', class: 'button is-primary', text: 'Advance', onclick: () => handlers.onAdvance?.() }));
+    row.push(h('button', { type: 'button', class: `button${v.canFire ? '' : ' is-primary'}`, text: 'Advance', onclick: () => handlers.onAdvance?.() }));
+    parts.push(h('div', { class: 'vfv-actions' }, row));
   }
 
   if ((shipFight.actions ?? []).length) {

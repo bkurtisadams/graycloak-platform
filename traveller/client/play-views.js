@@ -7,16 +7,16 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.245.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.245.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.245.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.246.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.246.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.246.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.245.0';
-import { renderVectorFight } from './vector-fight-view.js?v=v0.245.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.246.0';
+import { renderVectorFight } from './vector-fight-view.js?v=v0.246.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -31,7 +31,7 @@ import { renderVectorFight } from './vector-fight-view.js?v=v0.245.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.245.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.246.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -85,14 +85,14 @@ export function renderMastChips(state, { openDrawer, drawer }) {
   // the foot of the port column. A running fight already owns the screen, so
   // the chip reports the round; with none, it opens the drawer that starts one.
   if (state.seat === 'referee') {
-    const fighting = Boolean(state.fighters?.length);
+    const fighting = Boolean(state.fighters?.length) || Boolean(state.shipFight);
     chips.push(h('button', {
       class: `chip${fighting ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'combat',
       title: fighting ? 'A fight is running; it has the screen' : 'Put the party on the board against someone',
       onclick: () => openDrawer('combat')
     },
     h('span', { class: 'chip-name', text: 'Combat' }),
-    h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '') : 'No fight' })));
+    h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '').replace('Ship fight, ', 'Ship, ') : 'No fight' })));
     chips.push(h('button', { class: 'chip chip-plain', type: 'button', 'aria-pressed': drawer === 'referee', onclick: () => openDrawer('referee') },
       h('span', { class: 'chip-name', text: 'Referee' }),
       h('span', { class: 'chip-line', text: 'Actors, scenes, players' })));
@@ -779,7 +779,7 @@ function shipFightScene(fight, handlers) {
       h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))
   ) : null;
   const centre = fight.spatialMode === 'vector'
-    ? h('div', {}, renderVectorFight(fight, handlers), repairBlock)
+    ? [renderVectorFight(fight, handlers), repairBlock].filter(Boolean)
     : h('div', { class: 'ship-fight-actions' },
         h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
           h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
@@ -787,29 +787,30 @@ function shipFightScene(fight, handlers) {
         // declaration for the game turn, not a phase-ending action like
         // Fire/Hold/Flee, and clicking one of these alone advances nothing.
         repairBlock);
-  return [
-    h('header', { class: 'lead' },
-      h('h2', { text: fight.outcome === 'in-progress' ? `Ship fight \u2014 turn ${fight.gameTurn}, ${fight.phase}` : 'Ship fight \u2014 over' }),
-      h('p', { text: fight.outcome === 'in-progress'
-        ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
-        : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` })),
-    h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
-      h('span', { class: 'entry-name', text: ship.name }),
-      h('span', { class: 'entry-note', text: `${ship.armedTurrets} armed turret${ship.armedTurrets === 1 ? '' : 's'}${ship.adrift ? ', adrift' : ''}${ship.decompressed ? ', hull breached' : ''}${ship.fled && !ship.escaped ? `, fleeing (${ship.shotsRemainingBeforeEscape} shot${ship.shotsRemainingBeforeEscape === 1 ? '' : 's'} left)` : ''}${ship.escaped ? ', escaped' : ''}${ship.surrendered ? ', surrendered' : ''}` }),
-      ship.damage?.length ? h('span', { class: 'entry-damage', text: `Damage: ${ship.damage.join(', ')}` }) : null,
-      ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
-      ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null))),
-    // v0.242.0: this array used to reach Node.replaceChildren(...array) with
-    // a bare `null` sitting in it whenever fight.log was empty — the DOM
-    // spec stringifies a non-Node argument there, so replaceChildren(null)
-    // literally inserts the text "null". The abbreviated flow never showed
-    // it (its log is never empty by the time a referee sees it), but a
-    // vector fight's log starts empty at turn 1, movement — exactly the
-    // screenshot that caught this. .filter(Boolean) guards every entry here
-    // the same way renderNow already guards its own returned array.
-    fight.log.length ? h('div', { class: 'fight-log' }, h('ul', { class: 'entries' }, fight.log.map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line }))))) : null,
-    centre
-  ].filter(Boolean);
+  const lead = h('header', { class: 'lead' },
+    h('h2', { text: fight.outcome === 'in-progress' ? `Ship fight \u2014 turn ${fight.gameTurn}, ${fight.phase}` : 'Ship fight \u2014 over' }),
+    h('p', { text: fight.outcome === 'in-progress'
+      ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
+      : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` }));
+  const roster = h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
+    h('span', { class: 'entry-name', text: ship.name }),
+    h('span', { class: 'entry-note', text: `${ship.armedTurrets} armed turret${ship.armedTurrets === 1 ? '' : 's'}${ship.adrift ? ', adrift' : ''}${ship.decompressed ? ', hull breached' : ''}${ship.fled && !ship.escaped ? `, fleeing (${ship.shotsRemainingBeforeEscape} shot${ship.shotsRemainingBeforeEscape === 1 ? '' : 's'} left)` : ''}${ship.escaped ? ', escaped' : ''}${ship.surrendered ? ', surrendered' : ''}` }),
+    ship.damage?.length ? h('span', { class: 'entry-damage', text: `Damage: ${ship.damage.join(', ')}` }) : null,
+    ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
+    ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null)));
+  // An empty log renders nothing: a bare null handed to replaceChildren is
+  // stringified by the DOM into the text "null" (v0.242.0).
+  const log = fight.log.length ? h('div', { class: 'fight-log' }, h('ul', { class: 'entries' }, fight.log.map((line) => h('li', { class: 'entry' }, h('span', { class: 'entry-note', text: line }))))) : null;
+  // v0.246.0: the vector plot needs the scene's one stretching row to itself.
+  // Stacked under the roster and the log it got whatever height was left,
+  // which was none, so the fight has its own two-column shell instead.
+  if (fight.spatialMode === 'vector') {
+    return [h('div', { class: 'ship-fight is-vector' },
+      lead,
+      h('div', { class: 'ship-fight-main' }, centre),
+      h('aside', { class: 'ship-fight-side', 'aria-label': 'Ships and log' }, roster, log))];
+  }
+  return [lead, roster, log, centre].filter(Boolean);
 }
 
 // ----------------------------------------------------------------- drawers

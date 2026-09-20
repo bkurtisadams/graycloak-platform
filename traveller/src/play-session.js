@@ -29,7 +29,7 @@ import {
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
-  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent
+  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
@@ -45,7 +45,7 @@ import {
 } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
-import { spaceSceneCombatPlan, spaceSceneLink, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
+import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
 import {
   shipDamagedLocations, assemblyCostCr, rollRepairCost, fullyRepairLocation, SHIPYARD_STARPORTS, REPAIR_PARTS_CREW_DM
 } from './ship-repair.js';
@@ -2066,9 +2066,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           encounter: combat, playerSide: playerParticipant.side,
           opponentLabel: participants.find((entry) => entry.shipId !== OWN_SHIP_PARTICIPANT_ID)?.name ?? 'Opponent',
           systemId: facts.system?.id ?? null,
-          // Where each ship came from, so closing the fight can write its
-          // last position and vector back onto the scene (writeSpaceCombatToScene,
-          // space-scene-combat.js) — not yet wired to shipfight:end below.
+          // Where each ship came from, so shipfight:end can write its last
+          // position and vector back onto the scene.
           sceneLink: spaceSceneLink(plan),
           log: []
         };
@@ -2268,7 +2267,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           disarmed: `${pendingShipFight.opponentLabel} has no working weapon left but can still run.`,
           disengaged: `${pendingShipFight.opponentLabel} broke off.`
         }[pendingShipFight.encounter.outcome] ?? `The fight with ${pendingShipFight.opponentLabel} is over (${pendingShipFight.encounter.outcome}).`;
-        if (finalPlayerShip) persist([finalPlayerShip]);
+        // v0.246.0: the ships go back on the scene where the fight left them
+        // (space-scene-combat.js, v0.166.0). A scene deleted mid-fight, or a
+        // fight sprung by an arrival roll with no scene, writes nothing.
+        const changed = finalPlayerShip ? [finalPlayerShip] : [];
+        const link = pendingShipFight.sceneLink;
+        const stagedOn = link ? (resolved.scenes ?? []).find((entry) => entry.identity.id === link.sceneId) : null;
+        if (stagedOn && pendingShipFight.encounter.spatialMode === 'vector') {
+          changed.push(writeSpaceCombatToScene(stagedOn, pendingShipFight.encounter, link).scene);
+        }
+        if (changed.length) persist(changed);
         message = outcomeText;
         pendingShipFight = null;
         log('SHIP', message);
@@ -2507,6 +2515,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const oppSpatial = opponent ? encounter.spatial.ships[opponent.id] : null;
           const awaitingFireDecision = !ended && (phase.key === 'laser-fire' || phase.key === 'return-fire')
             && actingSide(encounter) === pendingShipFight.playerSide;
+          const playerFireActions = awaitingFireDecision
+            ? shipCombatPhaseActions(encounter).actions.filter((entry) => entry.shipId === 'player' && (entry.kind === 'fire' || entry.kind === 'return-fire'))
+            : [];
           vector = {
             phaseKey: phase.key,
             phasingSide: encounter.phasingSide,
@@ -2523,7 +2534,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             // the same distinction the abbreviated flow's canFire/Hold
             // relabelling already makes.
             awaitingFireDecision,
-            canFire: awaitingFireDecision && !roster.find((entry) => entry.shipId === 'player')?.toothless,
+            // v0.246.0: asked of the engine, not guessed from the roster —
+            // shipCombatPhaseActions knows a turret that has fired this
+            // phase is spent, so the button goes once the shot is taken.
+            canFire: awaitingFireDecision && playerFireActions.length > 0,
+            hasFired: awaitingFireDecision && (player.spentThisPhase?.weapons?.length ?? 0) > 0,
             player: { position: mySpatial.position, velocity: mySpatial.velocity, maxG: previewShipVector(encounter, 'player', { x: 0, y: 0 }).maximumG },
             opponent: oppSpatial ? { name: opponent.name, side: opponent.side, position: oppSpatial.position, velocity: oppSpatial.velocity } : null,
             range: opponent ? vectorRangeDM(encounter, 'player', opponent.id) : null

@@ -670,3 +670,44 @@ a.button { text-decoration: none; color: inherit; }
 .caption-gear { font-size: 13px; font-weight: 700; }
 .caption-law { font-size: 13px; font-weight: 700; color: var(--red); padding: 4px 6px; border-left: 3px solid var(--red); background: var(--raise); }
 .uwp dt[title], .uwp dd[title] { cursor: help; }
+
+/* v0.246.0: the vector ship fight (client/vector-fight-view.js). Until now
+   no stylesheet held a single vfv- rule, and an SVG line with no stroke is
+   invisible: every vector and the thrust preview were drawn and never seen.
+   Stroke widths are in plot inches, so they use non-scaling-stroke to stay a
+   pixel width whatever the camera fits. */
+.scene > .ship-fight { grid-row: 1 / -1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); gap: 0 16px; padding: 12px 20px 16px; }
+.ship-fight > .lead { grid-column: 1 / -1; padding: 0 0 10px; }
+.ship-fight-main { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.ship-fight-side { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.ship-fight-side .fight-log { flex: 1 1 0; height: auto; }
+.vfv-root { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.scene svg.vfv-plot { flex: 1 1 0; min-height: 220px; width: 100%; height: auto; padding: 0; border: 1px solid var(--line); background: var(--raise); }
+.vfv-plot.is-plotting { cursor: crosshair; }
+.vfv-plot line, .vfv-plot circle { vector-effect: non-scaling-stroke; }
+.vfv-grid line { stroke: var(--line); stroke-width: 1; opacity: .28; }
+.vfv-range { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 5; }
+.vfv-ship { --side: var(--red); }
+.vfv-ship.is-player { --side: var(--signal); }
+.vfv-token { fill: var(--side); stroke: var(--raise); stroke-width: 2; }
+.vfv-vector { stroke: var(--side); stroke-width: 2; }
+.vfv-vector-head { fill: var(--side); }
+.vfv-label { fill: var(--ink); font-family: var(--code); font-weight: 700; }
+.vfv-reach { fill: var(--signal-wash); fill-opacity: .55; stroke: var(--signal); stroke-width: 1; stroke-dasharray: 4 4; }
+.vfv-preview { stroke: var(--go-border); stroke-width: 2; stroke-dasharray: 6 4; }
+.vfv-result { stroke: var(--go-border); stroke-width: 2; }
+.vfv-preview-point { fill: var(--go-border); }
+.vfv-status { margin: 0; font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
+.vfv-thrust { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+.vfv-thrust label { display: flex; flex-direction: column; gap: 3px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.vfv-thrust input[type="number"] { width: 76px; font-family: var(--code); font-size: 14px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); padding: 5px 6px; }
+.vfv-g-readout { font-size: 13px; padding-bottom: 6px; }
+.vfv-thrust-actions { display: flex; gap: 8px; margin-left: auto; }
+.vfv-note { margin: 0; font-size: 12px; color: var(--ink-2); }
+.vfv-note.is-error { color: var(--red); }
+.vfv-actions, .vfv-root > .button { align-self: flex-start; }
+.vfv-root > .button + .button { margin-left: 0; }
+@container (max-width: 760px) {
+  .scene > .ship-fight { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .ship-fight-side { max-height: 30vh; }
+}
