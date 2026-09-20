@@ -220,7 +220,11 @@ export function renderVectorFight(shipFight, handlers = {}) {
     // Fire and Advance are separate: firing does not end the phase.
     const row = [];
     if (v.awaitingFireDecision) {
-      parts.push(h('p', { class: 'vfv-note', text: v.canFire ? 'Your turrets may fire.' : (v.hasFired ? 'Your turrets have fired this phase.' : 'No operational turret can fire.') }));
+      const why = v.canFire ? 'Your turrets may fire.'
+        : v.hasFired ? 'Your turrets have fired this phase.'
+        : v.fireBlockedReason ? `Nothing to fire: ${v.fireBlockedReason}.`
+        : 'No operational turret can fire.';
+      parts.push(h('p', { class: 'vfv-note', text: why }));
       if (v.canFire) row.push(h('button', { type: 'button', class: 'button is-primary', text: 'Fire lasers', onclick: () => handlers.onFire?.() }));
     } else if (v.phaseKey === 'laser-fire' || v.phaseKey === 'return-fire') {
       parts.push(h('p', { class: 'vfv-note', text: 'Advancing will resolve the opponent\u2019s own shot automatically, if it has one to take.' }));
@@ -237,5 +241,74 @@ export function renderVectorFight(shipFight, handlers = {}) {
   }
 
   root.append(...parts);
+  return root;
+}
+
+
+/**
+ * Book 2 p.23's own game turn sequence, as a track: two player turns of five
+ * phases, the intruder's first, with the phase play is in lit and the side
+ * entitled to act in each one named. v0.247.0 — before it, the screen said
+ * only the current phase's name, which gave no sense of where in the turn
+ * play was or what was coming.
+ */
+export function renderPhaseTrack(shipFight) {
+  const v = shipFight.vector;
+  const root = h('nav', { class: 'vfv-track', 'aria-label': 'Game turn sequence, Book 2 p.23' });
+  if (!v?.track) return root;
+  root.append(h('div', { class: 'vfv-track-turn' },
+    h('span', { class: 'vfv-track-label', text: 'GAME TURN' }),
+    h('b', { text: String(shipFight.gameTurn) })));
+  for (const side of ['intruder', 'native']) {
+    const mine = side === v.playerSide;
+    const phasing = v.phasingSide === side;
+    // Both player turns run the same five phases (p.23), so both rows list
+    // all five; only the side that is phasing has one of them lit. Return
+    // fire (C) is the other side's shot inside this side's turn, which the
+    // title on each phase says.
+    root.append(h('div', { class: `vfv-track-side${mine ? ' is-mine' : ''}` },
+      h('span', { class: 'vfv-track-label', text: `${side === 'intruder' ? 'INTRUDER' : 'NATIVE'}${mine ? ' \u00b7 YOURS' : ''}${phasing ? ' \u00b7 PHASING' : ''}` }),
+      h('div', { class: 'vfv-track-phases' }, v.track.map((entry) => h('span', {
+        class: `vfv-phase${entry.current && phasing ? ' is-current' : ''}`,
+        title: `${entry.label} \u2014 ${(entry.key === 'return-fire' ? side !== v.playerSide : side === v.playerSide) ? 'yours' : 'theirs'}`,
+        text: `${entry.letter} ${entry.label.replace(/^(Laser |Computer |Ordnance )/, '')}`
+      })))));
+  }
+  return root;
+}
+
+/** Book 2 p.24's data card, for each ship in the fight. */
+export function renderDataCards(shipFight) {
+  const cards = shipFight.vector?.dataCards ?? [];
+  const root = h('div', { class: 'vfv-cards' });
+  for (const entry of cards) {
+    const card = h('div', { class: `vfv-card${entry.own ? ' is-own' : ''}` },
+      h('div', { class: 'vfv-card-head' },
+        h('b', { text: entry.card ? `${entry.name} (Type ${entry.card.typeCode})` : entry.name }),
+        h('span', { class: 'vfv-card-tag', text: entry.own ? 'YOURS' : 'OBSERVED' })));
+    if (entry.card) {
+      const c = entry.card;
+      const lines = [
+        ...c.sections.map((section, index) => `${index + 1}. ${section.label} (${section.reading})`),
+        `4. Fuel (${c.fuel.aboardTons} of ${c.fuel.capacityTons}${c.fuel.hits ? `, ${c.fuel.hits} hit` : ''})`,
+        `5. Hold (${c.hold.capacityTons} tons${c.hold.hits ? `, ${c.hold.hits} hit` : ''})`,
+        `6. Bridge (Pilot-${c.bridge.pilotSkill})`,
+        ...c.turrets.map((turret) => `${turret.id} (${turret.code || 'empty'}) Gunner-${turret.gunnerSkill}${turret.operational ? '' : ' OUT'}`)
+      ];
+      card.append(h('div', { class: 'vfv-card-body' }, lines.map((line) => h('div', { text: line }))));
+      card.append(h('div', { class: 'vfv-card-computer' },
+        h('div', { text: `Model/${c.computer.model} \u00b7 CPU ${c.computer.cpu} \u00b7 storage ${c.computer.storage}${c.computer.hits ? ` \u00b7 ${c.computer.hits} hit (DM ${c.computer.operationDM})` : ''}` }),
+        h('div', { class: 'vfv-programs' }, (c.computer.carried ?? []).map((key) => h('span', {
+          class: `vfv-program${(c.computer.loaded ?? []).includes(key) ? ' is-loaded' : ''}`,
+          text: key.replace(/-/g, ' ')
+        })))));
+      if (c.decompressed) card.append(h('div', { class: 'vfv-card-note', text: 'Hull breached' }));
+    } else if (entry.observed) {
+      card.append(h('div', { class: 'vfv-card-body' },
+        h('div', { text: `${entry.observed.armedTurrets} armed turret${entry.observed.armedTurrets === 1 ? '' : 's'} seen` }),
+        h('div', { text: entry.observed.damage?.length ? `Damage seen: ${entry.observed.damage.join(', ')}` : 'Damage seen: none' })));
+    }
+    root.append(card);
+  }
   return root;
 }

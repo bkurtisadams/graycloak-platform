@@ -676,8 +676,9 @@ a.button { text-decoration: none; color: inherit; }
    invisible: every vector and the thrust preview were drawn and never seen.
    Stroke widths are in plot inches, so they use non-scaling-stroke to stay a
    pixel width whatever the camera fits. */
-.scene > .ship-fight { grid-row: 1 / -1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr); gap: 0 16px; padding: 12px 20px 16px; }
-.ship-fight > .lead { grid-column: 1 / -1; padding: 0 0 10px; }
+.scene > .ship-fight { grid-row: 1 / -1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto auto minmax(0, 1fr); gap: 0 16px; padding: 12px 20px 16px; }
+.ship-fight > .lead { grid-column: 1 / -1; padding: 0 0 8px; }
+.ship-fight > .vfv-track { grid-column: 1 / -1; }
 .ship-fight-main { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .ship-fight-side { min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .ship-fight-side .fight-log { flex: 1 1 0; height: auto; }
@@ -762,3 +763,26 @@ a.button { text-decoration: none; color: inherit; }
 .staging-add { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .staging-add > select:first-child { flex-grow: 1; min-width: 0; }
 .staging-add input[type="number"] { width: 60px; }
+
+/* v0.247.0: Book 2 p.23's turn track and p.24's data cards. */
+.vfv-track { display: flex; align-items: stretch; gap: 14px; padding: 6px 0 10px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+.vfv-track-turn { display: flex; flex-direction: column; justify-content: center; padding-right: 14px; border-right: 1px solid var(--line); }
+.vfv-track-turn b { font-size: 20px; line-height: 1; }
+.vfv-track-label { font-size: 10px; letter-spacing: .08em; color: var(--ink-2); }
+.vfv-track-side { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
+.vfv-track-side.is-mine .vfv-track-label { color: var(--signal); font-weight: 700; }
+.vfv-track-phases { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.vfv-phase { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 6px; font-size: 12px; border: 1px solid var(--line); background: var(--raise); color: var(--ink-2); }
+.vfv-phase.is-current { border-color: var(--ink); background: var(--ink); color: var(--raise); font-weight: 700; }
+
+.vfv-cards { display: flex; flex-direction: column; gap: 8px; }
+.vfv-card { padding: 8px 10px; background: var(--raise); border: 1px solid var(--line); font-size: 12px; }
+.vfv-card.is-own { border-color: var(--ink); }
+.vfv-card-head { display: flex; align-items: baseline; gap: 8px; padding-bottom: 4px; margin-bottom: 5px; border-bottom: 1px solid var(--line); }
+.vfv-card-tag { margin-left: auto; font-size: 10px; letter-spacing: .06em; color: var(--ink-2); }
+.vfv-card-body { display: flex; flex-direction: column; gap: 1px; }
+.vfv-card-computer { margin-top: 5px; padding-top: 5px; border-top: 1px dashed var(--line); display: flex; flex-direction: column; gap: 4px; }
+.vfv-programs { display: flex; flex-wrap: wrap; gap: 3px; }
+.vfv-program { padding: 0 4px; font-size: 11px; border: 1px solid var(--line); color: var(--ink-2); }
+.vfv-program.is-loaded { border-color: var(--ink); background: var(--ink); color: var(--raise); }
+.vfv-card-note { margin-top: 4px; color: var(--red); }

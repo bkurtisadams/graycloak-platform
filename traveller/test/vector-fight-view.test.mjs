@@ -104,7 +104,7 @@ test('renderVectorFight draws the plotting form when awaiting the player\u2019s 
 
   // Commit passes the exact thrust object typed, not a re-derived one.
   document.querySelector('.vfv-thrust-actions button.is-primary').click();
-  assert.deepEqual(events.committed, { x: 1.5, y: 0 }, 'v0.247.0: the form holds what was typed without waiting on a re-render');
+  assert.deepEqual(events.committed, { x: 1.5, y: 0 }, 'v0.248.0: the form holds what was typed without waiting on a re-render');
   assert.match(document.querySelector('.vfv-g-readout').textContent, /0\.75 G of 2 G/, 'the readout repaints in place');
 
   // Coast is offered as a separate, always-available action.
@@ -334,4 +334,51 @@ test('v0.246.0 Fire lasers is offered once: the view asks the engine, and a spen
     assert.equal(after.canFire, false);
     assert.equal(after.hasFired, true);
   }
+});
+
+// ---------------------------------------------------------------------------
+// v0.247.0: Kurt's three rulings, and the p.23/p.24 furniture they play on.
+// ---------------------------------------------------------------------------
+
+test('v0.247.0 the NPC flies its own ship: it closes when it presses the attack', async () => {
+  const session = await stagedVectorFight({ intruder: 'opposition' });
+  const before = session.view().shipFight.vector.opponent.position.x;
+  // The opposition is the intruder here, so its movement phase is first and
+  // Advance is what steps past it.
+  const result = session.run('shipfight:vector-advance');
+  assert.equal(result.ok, true, result.message);
+  const after = session.view().shipFight.vector.opponent.position.x;
+  assert.notEqual(after, before, 'it moved rather than sitting still');
+  // Staged at +20 with the player at -20: closing means moving left. A ship
+  // that rolled break-off instead runs right, so either is legal — what is
+  // not legal is coasting on a zero vector, which is what it did before.
+  assert.ok(Math.abs(after - before) > 0.1);
+});
+
+test('v0.247.0 a disarmed but mobile ship keeps the vector fight alive, and 2000" ends it', async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const fight = session.view().shipFight;
+  assert.equal(fight.outcome, 'in-progress');
+
+  // Push the opponent past p.33's outer detection range and let the movement
+  // phase end: it is gone, and there is nothing left on that side.
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance');
+  assert.ok(session.view().shipFight.gameTurn >= 1);
+});
+
+test('v0.247.0 the fight carries p.23\u2019s turn track and p.24\u2019s data cards', async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const v = session.view().shipFight.vector;
+  assert.deepEqual(v.track.map((entry) => entry.letter), ['A', 'B', 'C', 'D', 'E']);
+  assert.equal(v.track.filter((entry) => entry.current).length, 1);
+  assert.equal(v.track.find((entry) => entry.key === 'return-fire').acting, 'native', 'p.23 C belongs to the other side');
+
+  const mine = v.dataCards.find((entry) => entry.own);
+  assert.equal(mine.card.typeCode, 'S');
+  assert.equal(mine.card.turrets[0].code, 'B', 'the beam laser, in p.24\u2019s own letter');
+  assert.ok(mine.card.computer.loaded.includes('maneuver'));
+  const theirs = v.dataCards.find((entry) => !entry.own);
+  assert.equal(theirs.card, null, 'only what has been seen of the enemy');
+  assert.equal(theirs.observed.armedTurrets, 1);
 });

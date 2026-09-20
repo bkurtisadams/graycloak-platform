@@ -1,7 +1,7 @@
 // Book 2 (1977), pp.22,25-26: 1 unit = 1000 miles; 1 turn = 10 minutes.
 // Clear space only. No gravity or ordnance trajectories in this first slice.
 import { currentDriveState, damageReport } from './damage.js';
-import { currentPhase, checkShipComputer, cycleIntoCpu } from './ship-combat.js';
+import { currentPhase, checkShipComputer, cycleIntoCpu, shipCombatIntent, participantStatus } from './ship-combat.js';
 import { createPlanet, moveWithGravity, applyAtmosphericBraking } from './planetary-gravity.js';
 import { previewVectorOrdnance } from './vector-ordnance.js';
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -208,4 +208,107 @@ export function adjudicateVectorSurface(encounter, { id, position, velocity, not
     note: String(note), refereeRuling: true, raw: false
   });
   return next;
+}
+
+
+// ---------------------------------------------------------------------------
+// Running away, and the NPC that chases.
+//
+// Book 2 gives no rule for either on the vector plot. p.37's shot count is the
+// abbreviated mode's answer, and p.33's detection paragraph is the only
+// distance in the chapter at which ships stop being aware of one another.
+// Both of the following are GRAYCLOAK EXTENSIONS, flagged raw: false.
+// ---------------------------------------------------------------------------
+
+/**
+ * Ruling (Kurt, Sep 2026): a ship is away once it is 2000" from every enemy —
+ * p.33's outer detection range, the one a military vessel or scout has, used
+ * flat rather than varying it by who is chasing.
+ */
+export const VECTOR_ESCAPE_RANGE = 2000;
+export const VECTOR_ESCAPE_RANGE_IS_RAW = false;
+
+/**
+ * Marks every ship now beyond VECTOR_ESCAPE_RANGE of all its enemies as
+ * escaped. Called as the movement phase ends, so a ship escapes on the move
+ * that takes it out rather than a phase later.
+ */
+export function applyVectorEscapes(encounter) {
+  if (encounter.spatialMode !== 'vector') return encounter;
+  const away = [];
+  for (const participant of encounter.participants) {
+    if (participant.escaped || participant.surrendered) continue;
+    const mine = encounter.spatial.ships[participant.id];
+    if (!mine) continue;
+    const foes = encounter.participants.filter((entry) => entry.side !== participant.side
+      && !entry.escaped && !entry.surrendered && encounter.spatial.ships[entry.id]);
+    if (!foes.length) continue;
+    const nearest = Math.min(...foes.map((foe) => {
+      const theirs = encounter.spatial.ships[foe.id].position;
+      return Math.hypot(mine.position.x - theirs.x, mine.position.y - theirs.y);
+    }));
+    if (nearest > VECTOR_ESCAPE_RANGE) away.push({ participant, nearest });
+  }
+  if (!away.length) return encounter;
+  const next = copy(encounter);
+  for (const { participant, nearest } of away) {
+    next.participants.find((entry) => entry.id === participant.id).escaped = true;
+    next.log.push({
+      gameTurn: next.gameTurn, phasingSide: next.phasingSide, phase: 'movement',
+      kind: 'vector-escape', shipId: participant.id,
+      description: `${participant.name} is ${Math.round(nearest)}" out and beyond detection (Book 2 p.33)`,
+      raw: false
+    });
+  }
+  return next;
+}
+
+/**
+ * What thrust an NPC ship plots this movement phase, from the intent
+ * shipCombatIntent already decides (Book 3 p.29's shape). A ship pressing an
+ * attack closes on its nearest enemy; one breaking off opens the range; one
+ * holding coasts. The thrust is the ship's full drive along that line, held
+ * to the p.26 limit, and is only ever a suggestion — commitShipVector still
+ * checks the drive, the computer and the course.
+ */
+export function shipVectorManeuver(encounter, shipId, dice) {
+  if (encounter.spatialMode !== 'vector') throw new Error('vector mode required');
+  const participant = encounter.participants.find((entry) => entry.id === shipId);
+  if (!participant) throw new Error('unknown ship');
+  const mine = encounter.spatial.ships[shipId];
+  const maximumG = previewShipVector(encounter, shipId, { x: 0, y: 0 }).maximumG;
+  const hold = (reason, intent = 'hold') => ({ acceleration: { x: 0, y: 0 }, intent, reason, raw: false });
+  if (!maximumG) return hold('no drive to thrust with', 'hold');
+  const foes = encounter.participants.filter((entry) => entry.side !== participant.side
+    && !entry.escaped && !entry.surrendered && encounter.spatial.ships[entry.id]);
+  if (!foes.length) return hold('nothing to close on or run from');
+  const nearest = foes
+    .map((foe) => ({ foe, state: encounter.spatial.ships[foe.id] }))
+    .map((entry) => ({ ...entry, distance: Math.hypot(entry.state.position.x - mine.position.x, entry.state.position.y - mine.position.y) }))
+    .sort((a, b) => a.distance - b.distance)[0];
+  const intent = shipCombatIntent(encounter, shipId, dice);
+  const closing = ['press-attack', 'disable-drives', 'board'].includes(intent.intent);
+  const running = intent.intent === 'break-off';
+  if (!closing && !running) return hold(intent.reason, intent.intent);
+  // Where the enemy will be after its own vector carries it, not where it is:
+  // thrusting at a ship's present position is chasing its wake.
+  const lead = closing
+    ? { x: nearest.state.position.x + nearest.state.velocity.x, y: nearest.state.position.y + nearest.state.velocity.y }
+    : nearest.state.position;
+  const here = { x: mine.position.x + mine.velocity.x, y: mine.position.y + mine.velocity.y };
+  let dx = lead.x - here.x, dy = lead.y - here.y;
+  if (running) { dx = -dx; dy = -dy; }
+  const length = Math.hypot(dx, dy);
+  if (!length) return hold('already where it wants to be', intent.intent);
+  // p.26: at most the drive's own rating in inches, 2" to the G.
+  const reach = maximumG * 2;
+  const round = (value) => Math.round(value * 100) / 100;
+  // Closing never overshoots: thrust only as far as the gap asks for.
+  const factor = (closing ? Math.min(reach, length) : reach) / length;
+  return {
+    acceleration: { x: round(dx * factor), y: round(dy * factor) },
+    intent: intent.intent,
+    reason: intent.reason,
+    raw: false
+  };
 }

@@ -287,7 +287,11 @@ export {
   coastVectorShips,
   vectorRangeDM,
   configureVectorPlanet,
-  adjudicateVectorSurface
+  adjudicateVectorSurface,
+  applyVectorEscapes,
+  shipVectorManeuver,
+  VECTOR_ESCAPE_RANGE,
+  VECTOR_ESCAPE_RANGE_IS_RAW
 } from './src/starships/vector-movement.js';
 
 export {

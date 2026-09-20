@@ -605,3 +605,100 @@ test('a gunner who reloads has acted, and one who fired or is repairing cannot r
   assert.deepEqual(fired.log.at(-1).launcherIds, ['T-1:1']);
   assert.throws(() => reloadLauncher(fired, { shipId: 'a', launcherId: 'T-1:1' }), /already fired or launched from T-1 this turn/);
 });
+
+// ---------------------------------------------------------------------------
+// v0.247.0 Graycloak rulings (Kurt, Sep 2026), none of them RAW:
+//   - a disarmed but mobile ship keeps playing on the vector plot
+//   - 2000" (p.33's outer detection range) is away
+//   - an NPC flies its ship on its Book 3 p.29 intent
+// ---------------------------------------------------------------------------
+
+import { applyVectorEscapes, shipVectorManeuver, VECTOR_ESCAPE_RANGE, VECTOR_ESCAPE_RANGE_IS_RAW } from '../src/starships/vector-movement.js';
+import { shipDisposition, allocateLaserFire, resolveLaserFire } from '../index.js';
+
+function armedFixture({ intruderDisposition = 'pirate', nativeDisposition = 'merchant' } = {}) {
+  const character = importCharacterDocument(JSON.parse(readFileSync(new URL('./fixtures/Hawkeye-v0.6.character.json', import.meta.url))));
+  let ship = createTypeSScoutReserveShipForCharacter(character).ship;
+  ship = armShipTurret(ship, { turretId: ship.specifications.armament.turrets[0].id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  const programs = ['target', 'maneuver'];
+  return enableVectorMovement(createShipCombatEncounter({
+    id: 'rulings',
+    participants: [
+      { shipId: 'intruder', side: 'intruder', name: 'Corsair', disposition: intruderDisposition, ship, carriedPrograms: programs, loadedPrograms: programs },
+      { shipId: 'native', side: 'native', name: 'Marisol', disposition: nativeDisposition, ship, carriedPrograms: programs, loadedPrograms: programs }
+    ]
+  }), { intruder: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } }, native: { position: { x: 40, y: 0 }, velocity: { x: 0, y: 0 } } });
+}
+
+test('v0.247.0 a disarmed but mobile ship keeps a vector fight running; adrift and disarmed still ends it', () => {
+  const encounter = armedFixture();
+  // Strip the native's one turret: it cannot shoot back, but its drive works.
+  encounter.participants[1].ship.state.damage.turrets = ['T-1'];
+  const moved = advanceShipCombatPhase(encounter);
+  assert.equal(moved.outcome, 'in-progress', 'p.22\u2019s own example is a trader outrunning a pirate');
+
+  // The abbreviated mode keeps the original ending: it has no movement to
+  // run with, so the next shot that lands finishes it.
+  let abbreviated = createShipCombatEncounter({
+    id: 'abbrev',
+    participants: encounter.participants.map((entry) => ({
+      shipId: entry.id, side: entry.side, name: entry.name, disposition: entry.disposition,
+      ship: entry.ship, carriedPrograms: ['target'], loadedPrograms: ['target']
+    }))
+  });
+  abbreviated = advanceShipCombatPhase(abbreviated);
+  abbreviated = allocateLaserFire(abbreviated, [{ shipId: 'intruder', turretId: 'T-1', targetId: 'native' }]);
+  assert.equal(resolveLaserFire(abbreviated, createSequenceDice([6, 6, 3, 3])).encounter.outcome, 'disarmed');
+
+  // No guns and no drive is still over, on either board: the carve-out is
+  // for a ship that can still run, and this one cannot.
+  let wrecked = JSON.parse(JSON.stringify(encounter));
+  wrecked.participants[1].ship.state.damage.maneuverDrive = 26;
+  wrecked = advanceShipCombatPhase(wrecked);
+  wrecked = allocateLaserFire(wrecked, [{ shipId: 'intruder', turretId: 'T-1', targetId: 'native' }]);
+  assert.equal(resolveLaserFire(wrecked, createSequenceDice([6, 6, 3, 3])).encounter.outcome, 'disabled');
+});
+
+test('v0.247.0 a ship past 2000" is away, and the fight ends when a side has gone', () => {
+  assert.equal(VECTOR_ESCAPE_RANGE, 2000, 'p.33: a military vessel or scout detects out to two million miles');
+  assert.equal(VECTOR_ESCAPE_RANGE_IS_RAW, false, 'Book 2 gives no pursuit rule; this is a ruling');
+
+  const encounter = armedFixture();
+  encounter.spatial.ships.native.position = { x: 2000, y: 0 };
+  assert.equal(applyVectorEscapes(encounter).participants[1].escaped, false, 'exactly 2000" is still in contact');
+
+  encounter.spatial.ships.native.position = { x: 2000.5, y: 0 };
+  const away = applyVectorEscapes(encounter);
+  assert.equal(away.participants[1].escaped, true);
+  assert.ok(away.log.some((entry) => entry.kind === 'vector-escape'), 'the escape is logged, and flagged non-RAW');
+  assert.equal(away.log.at(-1).raw, false);
+
+  // And the movement phase ending is where it is noticed: the fight is over
+  // on the move that took the ship out, not whenever somebody next fires.
+  assert.equal(advanceShipCombatPhase(encounter).outcome, 'disengaged', 'nothing left on that side to fight');
+});
+
+test('v0.247.0 an NPC closes when it presses the attack and opens the range when it breaks off', () => {
+  const encounter = armedFixture();
+  // A pirate that wants a prize presses: press 2D 12, break off 2D 2.
+  const pressing = shipVectorManeuver(encounter, 'intruder', createSequenceDice([6, 6, 1, 1]));
+  assert.equal(pressing.intent, 'press-attack');
+  assert.ok(pressing.acceleration.x > 0, 'it thrusts toward the foe at +40"');
+  assert.equal(Math.round(Math.hypot(pressing.acceleration.x, pressing.acceleration.y) / 2), 2, 'the Type S\u2019s whole 2 G');
+  assert.equal(pressing.raw, false);
+
+  // Reversed: 2D 2 to press, 2D 12 to break off.
+  const running = shipVectorManeuver(encounter, 'intruder', createSequenceDice([1, 1, 6, 6]));
+  assert.equal(running.intent, 'break-off');
+  assert.ok(running.acceleration.x < 0, 'it thrusts away');
+
+  // And the thrust it plots is one commitShipVector actually accepts.
+  const committed = commitShipVector(encounter, 'intruder', pressing.acceleration, createSequenceDice([6, 6]));
+  assert.ok(committed.spatial.ships.intruder.position.x > 0);
+
+  // A toothless ship has nothing to press with: p.29's own first branch.
+  const disarmed = armedFixture();
+  disarmed.participants[0].ship.state.damage.turrets = ['T-1'];
+  assert.equal(shipVectorManeuver(disarmed, 'intruder', createSequenceDice([6, 6, 6, 6])).intent, 'break-off');
+  assert.ok(shipDisposition('pirate').label);
+});

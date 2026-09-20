@@ -56,7 +56,7 @@ import {
   activateVectorSand,
   obscuringSand
 } from './vector-ordnance.js';
-import { coastVectorShips, previewShipVector } from './vector-movement.js';
+import { coastVectorShips, previewShipVector, applyVectorEscapes } from './vector-movement.js';
 
 export const SHIP_COMBAT_SIDES = Object.freeze(['intruder', 'native']);
 
@@ -580,7 +580,19 @@ export function advanceShipCombatPhase(encounter, { dice = null } = {}) {
     if (coast.awaitingRuling.length) {
       throw new Error(`surface ruling required before movement ends: ${coast.awaitingRuling.map((entry) => entry.name).join(', ')}`);
     }
-    encounter = coast.encounter;
+    // Ruling (Kurt, Sep 2026): beyond p.33's 2000" detection range a ship is
+    // away. Applied as the movement phase ends, so it escapes on the move
+    // that takes it out rather than a phase later.
+    // v0.247.0: and the ending is judged here when a ship has just gone out
+    // of detection range, so the fight ends on the move that took it out
+    // rather than whenever somebody next fires (applyDisabledOutcomes is
+    // otherwise only reached from laser fire and detonation). Only then:
+    // every other ending still falls where it always did, including p.37's
+    // own escape-by-shot-count, which the ordnance rules resolve around.
+    const away = applyVectorEscapes(coast.encounter);
+    const escapedByRange = away.log.length !== coast.encounter.log.length;
+    encounter = escapedByRange ? applyDisabledOutcomes(away) : away;
+    if (encounter.outcome !== 'in-progress') return encounter;
   }
   const next = freeze(encounter);
   next.log = encounter.log.map((entry) => ({ ...entry }));
@@ -1733,7 +1745,16 @@ function applyDisabledOutcomes(encounter) {
     }
     const statuses = present.map(participantStatus);
     if (statuses.every((status) => status.toothless)) {
-      encounter.outcome = statuses.every((status) => status.adrift) ? 'disabled' : 'disarmed';
+      const adrift = statuses.every((status) => status.adrift);
+      // Ruling (Graycloak, Sep 2026): on a vector plot a disarmed ship that
+      // can still move is still playing. p.22's own opening example is a free
+      // trader trying to outrun a pirate, and ending the fight the moment a
+      // side cannot shoot made that unplayable. The abbreviated mode keeps
+      // the original ending, because it abbreviates away the movement that
+      // running requires. 'disabled' — no guns and no drive — still ends it
+      // either way, and VECTOR_ESCAPE_RANGE below is how a runner gets out.
+      if (encounter.spatialMode === 'vector' && !adrift) continue;
+      encounter.outcome = adrift ? 'disabled' : 'disarmed';
       return encounter;
     }
   }

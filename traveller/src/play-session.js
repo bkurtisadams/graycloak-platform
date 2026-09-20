@@ -29,19 +29,21 @@ import {
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
-  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions
+  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions,
+  SHIP_COMBAT_PHASES, opposingSide, shipDataCard
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
   autoAdvanceShipFight, shipFightRoster, laserAllocationAgainstSingleFoe,
-  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel
+  creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel, shipStateDamageSummary
 } from './ship-arrival-combat.js';
 // coastVectorShips (bulk-coast every unmoved ship on a side) is not imported
 // yet: with one ship per side, commitShipVector(shipId, {x:0,y:0}) below does
 // the same thing. It becomes the right tool once a side can carry more than
 // one ship and the rest need to coast at once.
 import {
-  enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM
+  enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM,
+  shipVectorManeuver, VECTOR_ESCAPE_RANGE
 } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
@@ -2236,6 +2238,27 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         let combat = pendingShipFight.encounter;
         const narrated = [];
         const phaseKey = currentPhase(combat).key;
+        // Kurt, Sep 2026: an NPC flies its ship rather than drifting. Before
+        // the movement phase ends (advanceShipCombatPhase would auto-coast
+        // every unmoved ship), each phasing ship the player does not control
+        // plots the thrust shipVectorManeuver works out from its Book 3 p.29
+        // intent — closing to attack, or opening the range to run. A refusal
+        // (no maneuver program, a course into the world) is not an error: the
+        // ship coasts, exactly as it did before.
+        if (phaseKey === 'movement' && actingSide(combat) !== pendingShipFight.playerSide) {
+          for (const entry of combat.participants) {
+            if (entry.id === 'player' || entry.side !== combat.phasingSide) continue;
+            if (entry.escaped || entry.surrendered) continue;
+            if (combat.spatial.ships[entry.id]?.movedTurn === combat.gameTurn) continue;
+            try {
+              const plotted = shipVectorManeuver(combat, entry.id, dice);
+              if (!plotted.acceleration.x && !plotted.acceleration.y) continue;
+              combat = commitShipVector(combat, entry.id, plotted.acceleration, dice);
+              const g = (Math.hypot(plotted.acceleration.x, plotted.acceleration.y) / 2).toFixed(1);
+              narrated.push(`${entry.name} thrusts ${g} G (${plotted.intent.replace('-', ' ')}).`);
+            } catch { /* it coasts, as it always did */ }
+          }
+        }
         if ((phaseKey === 'laser-fire' || phaseKey === 'return-fire') && actingSide(combat) !== pendingShipFight.playerSide) {
           const shooter = combat.participants.find((entry) => entry.side === actingSide(combat) && !entry.escaped && !entry.surrendered);
           const foe = shooter ? combat.participants.find((entry) => entry.side !== shooter.side && !entry.escaped) : null;
@@ -2311,7 +2334,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const outcomeText = {
           disabled: `${pendingShipFight.opponentLabel} is disabled and adrift — a boarding is uncontested.`,
           disarmed: `${pendingShipFight.opponentLabel} has no working weapon left but can still run.`,
-          disengaged: `${pendingShipFight.opponentLabel} broke off.`
+          disengaged: `${pendingShipFight.opponentLabel} broke off.`,
+          escaped: `${pendingShipFight.opponentLabel} is out of detection range and gone.`
         }[pendingShipFight.encounter.outcome] ?? `The fight with ${pendingShipFight.opponentLabel} is over (${pendingShipFight.encounter.outcome}).`;
         // v0.246.0: the ships go back on the scene where the fight left them
         // (space-scene-combat.js, v0.166.0). A scene deleted mid-fight, or a
@@ -2577,11 +2601,30 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const oppSpatial = opponent ? encounter.spatial.ships[opponent.id] : null;
           const awaitingFireDecision = !ended && (phase.key === 'laser-fire' || phase.key === 'return-fire')
             && actingSide(encounter) === pendingShipFight.playerSide;
-          const playerFireActions = awaitingFireDecision
-            ? shipCombatPhaseActions(encounter).actions.filter((entry) => entry.shipId === 'player' && (entry.kind === 'fire' || entry.kind === 'return-fire'))
-            : [];
+          const phaseActions = awaitingFireDecision ? shipCombatPhaseActions(encounter) : null;
+          const playerFireActions = (phaseActions?.actions ?? []).filter((entry) => entry.shipId === 'player' && (entry.kind === 'fire' || entry.kind === 'return-fire'));
+          // v0.247.0: the p.23 turn track, so the screen shows where in the
+          // sequence play is rather than one phase name. Five phases per
+          // player turn, the intruder's first.
+          const track = SHIP_COMBAT_PHASES.map((entry, index) => ({
+            key: entry.key, label: entry.label, letter: 'ABCDE'[index],
+            acting: entry.actor === 'phasing' ? encounter.phasingSide : opposingSide(encounter.phasingSide),
+            current: index === encounter.phaseIndex
+          }));
           vector = {
             phaseKey: phase.key,
+            intruderSide: encounter.intruderSide ?? 'intruder',
+            track,
+            // The ships as p.24 data cards, with the enemy's reduced to what
+            // has actually been seen.
+            dataCards: encounter.participants.map((entry) => ({
+              shipId: entry.id, name: entry.name, side: entry.side, own: entry.id === 'player',
+              card: entry.id === 'player' ? shipDataCard(entry) : null,
+              observed: entry.id === 'player' ? null : {
+                armedTurrets: shipFightRoster(encounter).find((row) => row.shipId === entry.id)?.armedTurrets ?? 0,
+                damage: shipStateDamageSummary(entry.ship)
+              }
+            })),
             phasingSide: encounter.phasingSide,
             playerSide: pendingShipFight.playerSide,
             // True exactly when commitShipVector would accept a move for
@@ -2601,6 +2644,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             // phase is spent, so the button goes once the shot is taken.
             canFire: awaitingFireDecision && playerFireActions.length > 0,
             hasFired: awaitingFireDecision && (player.spentThisPhase?.weapons?.length ?? 0) > 0,
+            // Why not, in the engine's own words — "no operational turret
+            // can fire" was shown even in the return-fire phase, where the
+            // real reason is usually that nobody fired at you (p.30).
+            fireBlockedReason: playerFireActions.length ? null : phaseActions?.reason ?? null,
             player: { position: mySpatial.position, velocity: mySpatial.velocity, maxG: previewShipVector(encounter, 'player', { x: 0, y: 0 }).maximumG },
             opponent: oppSpatial ? { name: opponent.name, side: opponent.side, position: oppSpatial.position, velocity: oppSpatial.velocity } : null,
             range: opponent ? vectorRangeDM(encounter, 'player', opponent.id) : null
