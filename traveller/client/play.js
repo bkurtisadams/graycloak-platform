@@ -2,14 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.248.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.248.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.248.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.248.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.248.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.248.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.248.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.248.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, sheetRows } from './play-views.js?v=v0.249.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.249.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.249.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.249.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.249.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.249.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.249.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.249.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.249.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -65,6 +66,10 @@ const ui = {
   // The picker itself is an uncontrolled form (like inventorySection's own
   // add-item form) — read via FormData on submit, no per-keystroke ui state.
   stagingSceneId: null,
+  // v0.249.0: the open sheets, in the order they were opened, and the
+  // right-click menu's target. Both are view state: nothing here is saved.
+  openSheets: [],
+  rowMenu: null,
   stagingIntruder: 'opposition',
   stagingPressurised: false,
   // Seats, invites and join requests live in the cloud, so they are fetched
@@ -88,7 +93,8 @@ function viewState() {
       // v0.246.0: staging takes the screen, so it is no longer a tab's
       // business. Intruder and pressure are choices being made here, not
       // facts in the campaign, so they live in ui until Start combat.
-      staging: ui.stagingSceneId ? { sceneId: ui.stagingSceneId, intruder: ui.stagingIntruder, pressurised: ui.stagingPressurised } : null
+      staging: ui.stagingSceneId ? { sceneId: ui.stagingSceneId, intruder: ui.stagingIntruder, pressurised: ui.stagingPressurised } : null,
+      sheets: ui.openSheets
     });
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
@@ -247,6 +253,68 @@ function render() {
       render();
     },
     onSeat: (action, seat) => runSeat(action, seat),
+    // v0.249.0 --------------------------------------------- sheets
+    onOpenSheet: (kind, id) => {
+      if (!kind || !id) return;
+      const already = ui.openSheets.find((entry) => entry.kind === kind && entry.id === id);
+      // Opening one already open brings it to the front rather than stacking
+      // a second copy of the same document.
+      ui.openSheets = [...ui.openSheets.filter((entry) => entry !== already), already ?? { kind, id, compact: false }];
+      ui.rowMenu = null;
+      render();
+    },
+    onCloseSheet: (kind, id) => {
+      ui.openSheets = ui.openSheets.filter((entry) => !(entry.kind === kind && entry.id === id));
+      forgetSheetPosition(kind, id);
+      render();
+    },
+    onCompactSheet: (kind, id, compact) => {
+      ui.openSheets = ui.openSheets.map((entry) => (entry.kind === kind && entry.id === id ? { ...entry, compact } : entry));
+      render();
+    },
+    onRowMenu: (entry, at) => { ui.rowMenu = { entry, at }; render(); },
+    onCloseRowMenu: () => { ui.rowMenu = null; render(); },
+    onCreateActor: (kind, folder) => {
+      if (source.mode !== 'live') return;
+      const name = window.prompt(kind === 'statblock' ? 'New statblock name:' : 'New actor name:', '');
+      if (name === null || !name.trim()) return;
+      const result = source.session.run('actor:create', { fight: { value: { kind, name: name.trim(), folder: folder && folder !== 'Unfiled' ? folder : '' } } });
+      if (result.ok && result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'actor', id: result.createdId, compact: kind === 'statblock' }];
+      render();
+    },
+    onCopyDocument: (kind, id) => {
+      if (source.mode !== 'live' || kind !== 'actor') return;
+      const result = source.session.run('actor:copy', { fight: { id } });
+      if (result.ok && result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'actor', id: result.createdId, compact: false }];
+      render();
+    },
+    onDeleteActor: (id, name) => {
+      if (source.mode !== 'live') return;
+      if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+      const result = source.session.run('actor:delete', { fight: { id } });
+      if (result.ok) ui.openSheets = ui.openSheets.filter((entry) => entry.id !== id);
+      render();
+    },
+    onRenameActor: (id, was) => {
+      if (source.mode !== 'live') return;
+      const name = window.prompt('Rename to:', was ?? '');
+      if (name === null || !name.trim()) return;
+      source.session.run('edit:actor:name', { fight: { id, value: name.trim() } });
+    },
+    onActorKind: (id, kind) => { if (source.mode === 'live') source.session.run('actor:kind', { fight: { id, value: kind } }); },
+    onNumberTokens: (id, on) => { if (source.mode === 'live') source.session.run('actor:numbering', { fight: { id, value: on } }); },
+    onEditActor: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:actor:${field}`, { fight: { id, value } }); },
+    onEditSkills: (id, text) => { if (source.mode === 'live') source.session.run('edit:actor:skills', { fight: { id, value: text } }); },
+    onEditShip: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:ship:${field}`, { fight: { id, value } }); },
+    onStageDocument: (kind, id, count = 1) => {
+      // Staging a ship needs a board to stage it onto, which is the Space
+      // canvas; an actor has no board of its own yet, so it says so rather
+      // than failing silently.
+      if (kind === 'ship' && ui.stagingSceneId) { handlers.onStageShip?.({ actorId: id }, 'opposition', 0, 0); return; }
+      window.alert(kind === 'ship'
+        ? 'Open a space scene first: Referee \u2192 Scenes \u2192 Stage.'
+        : `Placing ${count > 1 ? `${count} of them` : 'an actor'} on a board comes with the combat tracker.`);
+    },
     onFileActor: (id, folder) => {
       if (source.mode !== 'live') return;
       const wanted = window.prompt('File this actor under (use / for sub-folders)', folder ?? '');
@@ -419,6 +487,17 @@ function render() {
     },
     onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); }
   }));
+
+  // v0.249.0: sheets and the row menu float over everything, so they are
+  // drawn last into their own layer rather than inside any column.
+  const layer = $('overlay');
+  if (layer) {
+    layer.replaceChildren(...[
+      (state.sheets ?? []).length ? renderSheets(state.sheets, handlers) : null,
+      ui.rowMenu ? renderRowMenu(ui.rowMenu, handlers) : null
+    ].filter(Boolean));
+    layer.hidden = !(state.sheets ?? []).length && !ui.rowMenu;
+  }
 
   const last = state.chat[state.chat.length - 1];
   $('talk-last').replaceChildren(...(last ? [h('b', { text: `${last.who} ` }), last.text] : []));

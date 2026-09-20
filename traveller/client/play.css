@@ -786,3 +786,72 @@ a.button { text-decoration: none; color: inherit; }
 .vfv-program { padding: 0 4px; font-size: 11px; border: 1px solid var(--line); color: var(--ink-2); }
 .vfv-program.is-loaded { border-color: var(--ink); background: var(--ink); color: var(--raise); }
 .vfv-card-note { margin-top: 4px; color: var(--red); }
+
+/* v0.249.0: sheets (client/sheets.js) and the directory row menu. Both float
+   over the page, so they live in #overlay rather than in any column: a panel
+   inside .drawer would be clipped by it and could not be dragged out. */
+.overlay { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+.overlay > * { pointer-events: auto; }
+.sheet-layer { position: absolute; inset: 0; pointer-events: none; }
+.sheet {
+  position: absolute; pointer-events: auto;
+  left: var(--sheet-x, 180px); top: var(--sheet-y, 90px);
+  width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 120px);
+  display: flex; flex-direction: column;
+  background: var(--raise); border: 1px solid var(--ink); box-shadow: 6px 6px 0 rgba(16, 18, 16, 0.18);
+}
+.sheet.is-compact { width: min(380px, calc(100vw - 32px)); }
+.sheet-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--ink); color: var(--raise); cursor: grab; touch-action: none; }
+.sheet-bar:active { cursor: grabbing; }
+.sheet-back { display: none; }
+.sheet-title { font-weight: 700; }
+.sheet-subtitle { font-size: 11px; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-bar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.sheet-toggle { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid var(--raise); background: none; color: var(--raise); cursor: pointer; }
+.sheet-close, .sheet-back { font: inherit; font-size: 15px; line-height: 1; border: none; background: none; color: var(--raise); cursor: pointer; }
+.sheet-body { overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.sheet-section-label { font-size: 10px; letter-spacing: .08em; color: var(--ink-2); }
+.sheet-card { margin: 0; font: inherit; font-size: 13px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+.sheet-rows { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.sheet-field { display: flex; flex-direction: column; gap: 3px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.sheet-field select, .sheet-field input, .sheet-upp-cell input { font: inherit; font-size: 13px; text-transform: none; letter-spacing: 0; padding: 4px 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.sheet-field input.is-locked, .sheet-upp-cell input.is-locked { background: var(--ground); color: var(--ink-2); }
+.sheet-upp { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.sheet-upp-cell { display: flex; flex-direction: column; gap: 2px; text-align: center; font-size: 10px; color: var(--ink-2); }
+.sheet-upp-cell input { text-align: center; font-size: 15px; font-weight: 700; }
+.sheet-upp-line { font-size: 16px; font-weight: 700; letter-spacing: .1em; }
+.sheet-compact-head { display: flex; align-items: center; gap: 10px; }
+.sheet-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.sheet-chip { padding: 1px 6px; font-size: 12px; background: var(--ground); border: 1px solid var(--line); }
+.sheet-check { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.sheet-list { margin: 0; padding-left: 18px; font-size: 12px; }
+.sheet-note { margin: 0; font-size: 12px; color: var(--ink-2); }
+.sheet-note.is-error { color: var(--red); }
+.sheet-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sheet-actions .button { white-space: nowrap; }
+.sheet-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-2); }
+.sheet-inline input { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.sheet-actions > .button { margin-left: auto; }
+.sheet-actions > .button + .button { margin-left: 0; }
+.sheet-badge { flex: 0 0 auto; border: 1px solid var(--line); background: var(--ground); }
+
+.row-menu { position: absolute; min-width: 190px; background: var(--raise); border: 1px solid var(--ink); box-shadow: 4px 4px 0 rgba(16, 18, 16, 0.18); display: flex; flex-direction: column; }
+.row-menu-head { padding: 4px 10px; font-size: 10px; letter-spacing: .06em; color: var(--ink-2); border-bottom: 1px solid var(--line); }
+.row-menu-item { font: inherit; font-size: 13px; text-align: left; padding: 5px 10px; border: none; background: none; color: var(--ink); cursor: pointer; }
+.row-menu-item:hover { background: var(--signal-wash); }
+.row-menu-item.is-danger { color: var(--red); border-top: 1px solid var(--line); }
+
+.entry.is-openable { cursor: pointer; }
+.entry.is-openable:hover { background: var(--signal-wash); }
+.entry-flag.is-quiet { color: var(--ink-2); font-weight: 400; }
+.directory-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+
+/* Phones: nowhere to drag to, and a title-bar drag fights the browser's own
+   scrolling, so the same sheet body fills the screen with a back arrow. */
+@media (max-width: 760px) {
+  .sheet, .sheet.is-compact { position: fixed; inset: 0; width: 100%; max-height: none; box-shadow: none; }
+  .sheet-bar { cursor: default; padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
+  .sheet-back { display: inline; }
+  .sheet-close { display: none; }
+  .sheet-layer > .sheet:not(:last-child) { display: none; }
+}

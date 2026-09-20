@@ -9,8 +9,17 @@ export const NPC_ACTOR_DOCUMENT_TYPE = 'graycloak-traveller-npc-actor';
 // files an actor under. A campaign with thousands of actors is a directory,
 // not a list, and nothing in schema 1 could group them. An actor filed nowhere
 // keeps an empty path and shows under "Unfiled".
-export const CURRENT_NPC_ACTOR_SCHEMA_VERSION = 2;
-export const SUPPORTED_NPC_ACTOR_SCHEMA_VERSIONS = Object.freeze([1, 2]);
+// v0.249.0: schema 3 adds `profile.kind`, Foundry's linked/unlinked token
+// split made a property of the directory entry rather than of each placed
+// token. An 'actor' is one person: one sheet, one set of wounds, and placing
+// it twice is a mistake. A 'statblock' is a pattern — Bandit, Thug — and every
+// token placed from it copies the stats and then owns its copy, so shooting
+// Bandit 2 leaves Bandit 1 alone. Nothing in schema 2 could tell the two
+// apart, so a migrated actor becomes an 'actor' and the referee reclassifies
+// the mooks by hand.
+export const CURRENT_NPC_ACTOR_SCHEMA_VERSION = 3;
+export const SUPPORTED_NPC_ACTOR_SCHEMA_VERSIONS = Object.freeze([1, 2, 3]);
+export const NPC_ACTOR_KINDS = Object.freeze(['actor', 'statblock']);
 
 // A path is trimmed segments joined by "/": "Startown/Dock gangs".
 export function normalizeFolderPath(value) {
@@ -61,6 +70,11 @@ export function createNpcActorDocument({
   portraitAssetId = null,
   tokenLabel = '',
   actorType = 'npc',
+  kind = 'actor',
+  // Kurt, Sep 2026: numbering the tokens placed from a statblock (Bandit 1,
+  // Bandit 2) is an option that defaults to on — a combat tracker of five
+  // identical "Bandit" rows is unreadable.
+  numberTokens = true,
   species = 'Human',
   bodyModel = actorType === 'robot' ? 'robotic' : 'biological',
   role = '',
@@ -94,7 +108,11 @@ export function createNpcActorDocument({
     schemaVersion: CURRENT_NPC_ACTOR_SCHEMA_VERSION,
     identity: { id: id ?? stableDocumentId('actor', seed), name: String(name), aliases: [...aliases] },
     presentation: { description: String(description), portraitAssetId, tokenLabel: String(tokenLabel) },
-    profile: { actorType, species: String(species), bodyModel, role: String(role), folder: normalizeFolderPath(folder), faction: String(faction), homeworld: String(homeworld), age },
+    profile: {
+      actorType, kind: NPC_ACTOR_KINDS.includes(kind) ? kind : 'actor', numberTokens: Boolean(numberTokens),
+      species: String(species), bodyModel, role: String(role), folder: normalizeFolderPath(folder),
+      faction: String(faction), homeworld: String(homeworld), age
+    },
     characteristics: scores,
     upp: ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC'].map((key) => hex(scores[key])).join(''),
     current: current ? { STR: current.STR, DEX: current.DEX, END: current.END } : { STR: scores.STR, DEX: scores.DEX, END: scores.END },
@@ -140,6 +158,8 @@ export function validateNpcActorDocument(document) {
   add(errors, nonblank(document.identity?.id) && nonblank(document.identity?.name) && Array.isArray(document.identity?.aliases), 'identity must contain id, name, and aliases');
   add(errors, plain(document.presentation) && typeof document.presentation.description === 'string' && (document.presentation.portraitAssetId === null || nonblank(document.presentation.portraitAssetId)) && typeof document.presentation.tokenLabel === 'string', 'presentation is invalid');
   add(errors, NPC_ACTOR_TYPES.includes(document.profile?.actorType), 'profile.actorType is invalid');
+  add(errors, NPC_ACTOR_KINDS.includes(document.profile?.kind), 'profile.kind must be actor or statblock');
+  add(errors, typeof document.profile?.numberTokens === 'boolean', 'profile.numberTokens must be boolean');
   add(errors, NPC_BODY_MODELS.includes(document.profile?.bodyModel), 'profile.bodyModel is invalid');
   for (const key of ['species', 'role', 'faction', 'homeworld']) add(errors, typeof document.profile?.[key] === 'string', `profile.${key} must be a string`);
   add(errors, document.profile?.age === null || (Number.isInteger(document.profile.age) && document.profile.age >= 0), 'profile.age must be null or a non-negative integer');
@@ -183,6 +203,10 @@ function migrateNpcActorDocument(document) {
     document.profile = { ...document.profile, folder: normalizeFolderPath(document.profile?.folder) };
     document.schemaVersion = 2;
   }
+  if (document?.schemaVersion === 2) {
+    document.profile = { ...document.profile, kind: 'actor', numberTokens: true };
+    document.schemaVersion = 3;
+  }
   return document;
 }
 
@@ -199,6 +223,8 @@ export function updateNpcActorDocument(document, patch = {}) {
     portraitAssetId: patch.portraitAssetId === undefined ? current.presentation.portraitAssetId : patch.portraitAssetId,
     tokenLabel: patch.tokenLabel ?? current.presentation.tokenLabel,
     actorType: patch.actorType ?? current.profile.actorType,
+    kind: patch.kind ?? current.profile.kind,
+    numberTokens: patch.numberTokens === undefined ? current.profile.numberTokens : patch.numberTokens,
     species: patch.species ?? current.profile.species,
     bodyModel: patch.bodyModel ?? current.profile.bodyModel,
     role: patch.role ?? current.profile.role,
@@ -267,6 +293,11 @@ export function duplicateNpcActorDocument(document, { name = null } = {}) {
     name: name ?? `${source.identity.name} (copy)`, aliases: source.identity.aliases,
     description: source.presentation.description, portraitAssetId: source.presentation.portraitAssetId, tokenLabel: source.presentation.tokenLabel,
     actorType: source.profile.actorType, species: source.profile.species, bodyModel: source.profile.bodyModel,
+    // v0.249.0: the kind, the numbering option and the folder come along
+    // too. A copy that landed in Unfiled as a plain actor was not the copy
+    // anybody asked for — copying a statblock is how you build "Bandit with
+    // a shotgun" from the plain one, and it belongs beside its original.
+    kind: source.profile.kind, numberTokens: source.profile.numberTokens, folder: source.profile.folder,
     role: source.profile.role, faction: source.profile.faction, homeworld: source.profile.homeworld, age: source.profile.age,
     characteristics: source.characteristics, current: source.current, career: source.career, benefits: source.benefits,
     skills: source.skills, weaponKey: source.loadout?.weaponKey, armor: source.loadout?.armor, inventory: source.loadout?.inventory ?? [],

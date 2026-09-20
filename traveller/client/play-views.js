@@ -7,16 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.248.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.248.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.248.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.249.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.249.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.249.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.248.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.248.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.249.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.249.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.249.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -31,7 +32,7 @@ import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-f
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.248.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.249.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1002,6 +1003,9 @@ function refereeDrawer(referee, state, handlers) {
       h('button', { type: 'button', class: 'button is-small', text: 'New scene', onclick: () => handlers.onSceneAction?.('create', null, referee.folder) }),
       h('button', { type: 'button', class: 'button is-small', text: 'New space scene', title: 'A vector board for Book 2 pp.22-31 ship combat', onclick: () => handlers.onSceneAction?.('create-space', null, referee.folder) })) : null,
     h('div', { class: 'directory' },
+      referee.tab === 'Actors' && state.live ? h('div', { class: 'directory-actions' },
+        h('button', { type: 'button', class: 'button is-small', text: 'Create actor', onclick: () => handlers.onCreateActor?.('actor', referee.folder) }),
+        h('button', { type: 'button', class: 'button is-small', text: 'Create statblock', onclick: () => handlers.onCreateActor?.('statblock', referee.folder) })) : null,
       h('nav', { class: 'folders', 'aria-label': 'Folders' }, tree.length
         ? tree.map((folder) => h('button', {
           type: 'button',
@@ -1012,16 +1016,22 @@ function refereeDrawer(referee, state, handlers) {
         }, h('span', { class: 'folder-name', text: folder.name }), h('span', { class: 'folder-count', text: String(folder.count) })))
         : h('p', { class: 'empty', text: 'No folders yet.' })),
       h('ul', { class: 'entries' }, entries.length
-        ? entries.map((entry) => h('li', { class: `entry${entry.active ? ' is-active' : ''}` },
+        ? entries.map((entry) => h('li', {
+          // v0.249.0: the row itself opens the document, Foundry's own
+          // gesture. Right-click gives the same verbs as a menu, so the row
+          // no longer has to carry a button for each of them.
+          class: `entry${entry.active ? ' is-active' : ''}${entry.sheet ? ' is-openable' : ''}`,
+          onclick: entry.sheet ? (event) => { if (!event.target.closest('button')) handlers.onOpenSheet?.(entry.sheet.kind, entry.sheet.id); } : null,
+          oncontextmenu: entry.sheet ? (event) => { event.preventDefault(); handlers.onRowMenu?.(entry, { x: event.clientX, y: event.clientY }); } : null
+        },
+          entry.badge ? (entry.badge.kind === 'ship' ? shipBadge(entry.badge.typeCode, { side: entry.badge.side }) : actorBadge(entry.badge.kind, { side: entry.badge.side })) : null,
           entry.thumbnail ? entryThumb(entry.thumbnail) : null,
           h('span', { class: 'entry-name', title: entry.name, text: entry.name }),
           entry.note ? h('span', { class: 'entry-note', title: entry.note, text: entry.note }) : null,
           entry.active ? h('span', { class: 'entry-flag', text: 'ACTIVE' }) : null,
-          entry.editable && state.live ? h('button', {
-            type: 'button', class: 'button is-small', text: 'File',
-            title: 'Move this actor to another folder',
-            onclick: () => handlers.onFileActor?.(entry.id, entry.folder)
-          }) : null,
+          entry.actorKind === 'statblock' ? h('span', { class: 'entry-flag is-quiet', text: 'STATBLOCK' }) : null,
+          // v0.249.0: filing, renaming and deleting moved to the row's own
+          // context menu, so the row itself carries no buttons.
           // A seat, an invite or a request to join: what can be done to it.
           entry.seat && state.live ? h('span', { class: 'seat-actions' },
             entry.seat.kind === 'join' ? [
@@ -1034,6 +1044,9 @@ function refereeDrawer(referee, state, handlers) {
           // v0.229.0: a scene's own actions — Foundry's ACTIVATE, plus filing
           // and deleting. Rename, resize and duplicate stay in the referee
           // client; this tab is for organising and activating during play.
+          // Scene rows keep Activate on the row itself: it is the one verb
+          // used mid-session, and hunting for it in a menu costs a click
+          // every time. The rest is on the menu with everything else.
           entry.scene && state.live ? h('span', { class: 'scene-actions' },
             h('button', {
               type: 'button', class: 'button is-small', text: entry.active ? 'Deactivate' : 'Activate',
@@ -1045,15 +1058,6 @@ function refereeDrawer(referee, state, handlers) {
               title: 'Place ships on this board and start a vector fight',
               onclick: () => handlers.onSceneAction?.('stage', entry.id)
             }) : null,
-            h('button', {
-              type: 'button', class: 'button is-small', text: 'File',
-              title: 'Move this scene to another folder',
-              onclick: () => handlers.onSceneAction?.('file', entry.id, entry.folder)
-            }),
-            h('button', {
-              type: 'button', class: 'button is-small is-danger', text: 'Delete',
-              onclick: () => handlers.onSceneAction?.('delete', entry.id)
-            })
           ) : null,
           null))
         : [h('li', { class: 'entry' }, h('span', { class: 'empty', text: referee.query ? 'Nothing matches.' : 'This folder is empty.' }))])),
@@ -1239,6 +1243,41 @@ function combatDrawer(state, handlers) {
     startFight(state, handlers, { open: true })
       ?? h('p', { class: 'empty', text: 'This campaign has no roster actors to fight yet; make one in the referee client.' })
   ];
+}
+
+// v0.249.0: one context menu shape for every directory, with the verbs that
+// make sense for that row's kind. play.js positions and dismisses it.
+export function renderRowMenu(menu, handlers = {}) {
+  if (!menu?.entry) return null;
+  const entry = menu.entry;
+  const kind = entry.sheet?.kind;
+  const item = (text, onclick, { danger = false } = {}) => h('button', {
+    type: 'button', class: `row-menu-item${danger ? ' is-danger' : ''}`, text,
+    onclick: () => { handlers.onCloseRowMenu?.(); onclick(); }
+  });
+  const items = [item('Open sheet', () => handlers.onOpenSheet?.(kind, entry.id))];
+  if (kind === 'scene') {
+    items.push(item(entry.active ? 'Deactivate' : 'Activate', () => handlers.onSceneAction?.('activate', entry.id)));
+    if (entry.isVectorBoard) items.push(item('Open on the canvas', () => handlers.onSceneAction?.('stage', entry.id)));
+    items.push(item('Move to folder\u2026', () => handlers.onSceneAction?.('file', entry.id, entry.folder)));
+    items.push(item('Delete', () => handlers.onSceneAction?.('delete', entry.id), { danger: true }));
+  } else if (kind === 'actor') {
+    items.push(item(entry.actorKind === 'statblock' ? 'Place on scene' : 'Put on the board', () => handlers.onStageDocument?.('actor', entry.id)));
+    if (entry.editable) {
+      items.push(item('Rename\u2026', () => handlers.onRenameActor?.(entry.id, entry.name)));
+      items.push(item('Copy', () => handlers.onCopyDocument?.('actor', entry.id)));
+      items.push(item(entry.actorKind === 'statblock' ? 'Make an actor' : 'Make a statblock', () => handlers.onActorKind?.(entry.id, entry.actorKind === 'statblock' ? 'actor' : 'statblock')));
+      items.push(item('Move to folder\u2026', () => handlers.onFileActor?.(entry.id, entry.folder)));
+      items.push(item('Delete', () => handlers.onDeleteActor?.(entry.id, entry.name), { danger: true }));
+    }
+  } else if (kind === 'ship') {
+    items.push(item('Stage on a scene', () => handlers.onStageDocument?.('ship', entry.id)));
+  }
+  const node = h('div', { class: 'row-menu', role: 'menu', 'aria-label': `${entry.name} actions` },
+    h('div', { class: 'row-menu-head', text: entry.name }), items);
+  node.style.left = `${Math.min(menu.at.x, 1e4)}px`;
+  node.style.top = `${menu.at.y}px`;
+  return node;
 }
 
 export function renderDrawer(kind, state, referee, handlers = {}) {

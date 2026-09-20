@@ -30,7 +30,7 @@ import {
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions,
-  SHIP_COMBAT_PHASES, opposingSide, shipDataCard
+  SHIP_COMBAT_PHASES, opposingSide, shipDataCard, COMPUTER_PROGRAMS
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
@@ -47,6 +47,7 @@ import {
 } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
+import { dataCardLines } from './ship-data-card-text.js';
 import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
 import {
   shipDamagedLocations, assemblyCostCr, rollRepairCost, fullyRepairLocation, SHIPYARD_STARPORTS, REPAIR_PARTS_CREW_DM
@@ -72,10 +73,10 @@ import {
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
 } from './encounter-document.js';
-import { addEncounterToCampaign } from './campaign-document.js';
+import { addEncounterToCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 import { lawCheck, starportLine, atmosphereGear, worldDetail } from './world-notes.js';
-import { updateNpcActorDocument } from './npc-actor-document.js';
+import { createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS } from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
@@ -251,7 +252,10 @@ function placeView(campaign, subsector) {
 // built from those paths, and a query filters before anything is drawn. Only
 // the open folder's entries are returned, so the size of the campaign does not
 // decide the size of the render.
-export const REFEREE_TABS = Object.freeze(['Journal', 'Actors', 'Players', 'Vehicles', 'Tables', 'Scenes']);
+// v0.249.0: Tables goes; its generated reference (Book 1 p.43's range matrix
+// and the rest) belongs in the Journal as read-only documents, not in a
+// directory of things you can open, file and delete.
+export const REFEREE_TABS = Object.freeze(['Journal', 'Actors', 'Players', 'Vehicles', 'Scenes']);
 const UNFILED = 'Unfiled';
 
 // Every folder that appears in the entries, with how many each holds
@@ -297,13 +301,32 @@ function journalEntries(resolved) {
 }
 
 function actorEntries(resolved) {
-  return (resolved.npcActors ?? []).filter((actor) => !actor.archived).map((actor) => ({
+  // v0.249.0: player characters belong in the same directory as everyone
+  // else — they are actors. The Players tab is about accounts, not people
+  // in the campaign.
+  const characters = (resolved.characters ?? []).map((character) => ({
+    id: character.identity.id,
+    name: character.identity.name || '(unnamed)',
+    note: [character.career?.service, character.upp].filter(Boolean).join(' \u00b7 '),
+    folder: 'Player characters',
+    sheet: { kind: 'actor', id: character.identity.id },
+    badge: { kind: 'actor', side: 'party' }
+  }));
+  const actors = (resolved.npcActors ?? []).filter((actor) => !actor.state?.archived).map((actor) => ({
     id: actor.identity.id,
     name: actor.identity.name,
-    note: [actor.profile?.role, actor.loadout?.weaponKey, actor.profile?.faction].filter(Boolean).join(', '),
+    note: [
+      actor.profile?.kind === 'statblock' ? actor.upp : actor.profile?.role,
+      actor.loadout?.weaponKey ? getPersonalWeapon(actor.loadout.weaponKey)?.name ?? actor.loadout.weaponKey : null,
+      actor.profile?.faction
+    ].filter(Boolean).join(', '),
     folder: actor.profile?.folder ?? '',
-    editable: true
+    editable: true,
+    sheet: { kind: 'actor', id: actor.identity.id },
+    actorKind: actor.profile?.kind ?? 'actor',
+    badge: { kind: actor.profile?.kind ?? 'actor', side: actor.profile?.kind === 'statblock' ? 'opposition' : 'neutral' }
   }));
+  return [...characters, ...actors];
 }
 
 // v0.222.0: the Players tab is the only one whose subject lives in the cloud
@@ -416,7 +439,9 @@ function vehicleEntries(resolved) {
       ].filter(Boolean).join(' \u00b7 '),
       folder: ship.identity.id === resolved.campaign.activeShipId ? 'In service'
         : ship.authority?.assignmentType === 'reserve' ? 'On loan'
-          : 'Other vehicles'
+          : 'Other vehicles',
+      sheet: { kind: 'ship', id: ship.identity.id },
+      badge: { kind: 'ship', typeCode: ship.design?.typeCode ?? '?', side: 'party' }
     };
   });
 }
@@ -438,7 +463,8 @@ function sceneEntries(resolved) {
     thumbnail: sceneThumbnailSvg(scene, { size: 56 }),
     active: scene.identity.id === activeId,
     scene: true,
-    isVectorBoard: sceneIsVectorBoard(scene)
+    isVectorBoard: sceneIsVectorBoard(scene),
+    sheet: { kind: 'scene', id: scene.identity.id }
   }));
 }
 
@@ -528,13 +554,129 @@ export function vectorFromSpeedBearing(speed, bearingDegrees) {
   return { x: round(speed * Math.sin(radians)), y: round(speed * Math.cos(radians)) };
 }
 
+// ---------------------------------------------------------------- sheets
+// v0.249.0: a sheet is Foundry's own idea — click a directory row and the
+// document opens in a panel of its own, over whatever is on screen, several
+// at once. Everything here is the MODEL of one; client/sheets.js draws it and
+// decides between a floating frame and a full-screen panel by viewport.
+
+export const SHEET_KINDS = Object.freeze(['ship', 'actor', 'scene']);
+
+function shipSheet(resolved, id) {
+  const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === id);
+  if (!ship) return null;
+  const view = shipView(ship);
+  // Book 2 p.24's card, from the rules package's own shipDataCard, through
+  // the participant shape it expects. A ship sitting in the directory is not
+  // in a fight, so it has no stations, skills or loaded programs beyond what
+  // the document itself carries.
+  const participant = {
+    id: ship.identity.id, name: ship.identity.name, ship,
+    stations: { pilot: null, gunners: {} }, skills: { pilot: 0, gunnery: {} },
+    pressurisedSections: [], disposition: 'neutral', escaped: false, surrendered: false, fled: false,
+    computer: { carried: [], loaded: [] }
+  };
+  let card = null;
+  try { card = shipDataCard(participant); } catch { card = null; }
+  return {
+    kind: 'ship', id, title: ship.identity.name || 'Ship',
+    subtitle: [ship.design?.name, `Type ${ship.design?.typeCode}`].filter(Boolean).join(' \u00b7 '),
+    tabs: ['Data card', 'Cargo & crew', 'Finances'],
+    card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.name ?? key }) : [],
+    ship: view,
+    // Kurt, Sep 2026: editable, because mistakes are made and the referee
+    // needs a way to correct them. Not while a fight is writing to the same
+    // document, though: the fight's own copy would be overwritten underneath
+    // it, so the sheet says why instead.
+    editable: true
+  };
+}
+
+function actorSheet(resolved, id) {
+  const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === id);
+  if (actor) {
+    const statblock = actor.profile.kind === 'statblock';
+    return {
+      kind: 'actor', id, statblock,
+      title: actor.identity.name,
+      subtitle: statblock ? 'Statblock' : [actor.profile.role, actor.profile.faction].filter(Boolean).join(' \u00b7 ') || 'Actor',
+      upp: actor.upp,
+      characteristics: { ...actor.characteristics },
+      current: { ...actor.current },
+      skills: Object.entries(actor.skills ?? {}).map(([name, level]) => `${name}-${level}`),
+      weaponKey: actor.loadout?.weaponKey ?? null,
+      weaponName: actor.loadout?.weaponKey ? getPersonalWeapon(actor.loadout.weaponKey)?.name ?? actor.loadout.weaponKey : null,
+      armor: actor.loadout?.armor ?? 'none',
+      folder: actor.profile.folder,
+      numberTokens: actor.profile.numberTokens,
+      notes: actor.notes?.referee ?? '',
+      // A statblock has no "full" form to switch to: its compact sheet is
+      // the whole of it, and every field on it is editable.
+      compactOnly: statblock,
+      // Book 1's carried weapons only: claws, teeth and hooves are an
+      // animal's own and belong to Book 3's encounter tables, not to a
+      // dropdown a referee arms a bandit from.
+      weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
+      armorChoices: [...PERSONAL_ARMOR_TYPES],
+      editable: true
+    };
+  }
+  const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+  if (!character) return null;
+  return {
+    kind: 'actor', id, statblock: false, character: true,
+    title: character.identity.name || '(unnamed)',
+    subtitle: [character.career?.service, character.career?.terms ? `${character.career.terms} terms` : null].filter(Boolean).join(' \u00b7 ') || 'Player character',
+    upp: character.upp,
+    characteristics: { ...character.characteristics },
+    current: { ...character.current },
+    skills: Object.entries(character.skills ?? {}).map(([name, level]) => `${name}-${level}`),
+    weaponKey: character.loadout?.weaponKey ?? null,
+    weaponName: character.loadout?.weaponKey ? getPersonalWeapon(character.loadout.weaponKey)?.name ?? character.loadout.weaponKey : null,
+    armor: character.loadout?.armor ?? 'none',
+    age: character.profile?.age ?? null,
+    cashCr: character.finances?.credits ?? 0,
+    weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
+    armorChoices: [...PERSONAL_ARMOR_TYPES],
+    notes: '',
+    compactOnly: false,
+    editable: true
+  };
+}
+
+function sceneSheet(resolved, id) {
+  const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+  if (!scene) return null;
+  const vector = sceneIsVectorBoard(scene);
+  return {
+    kind: 'scene', id, title: scene.identity.name,
+    subtitle: vector ? `Space \u00b7 ${scene.board.spanThousandMiles}" across` : `Grid \u00b7 ${scene.board.squares} squares \u00b7 ${scene.board.metersPerSquare} m`,
+    vector,
+    active: resolved.campaign.activeSceneId === scene.identity.id,
+    folder: scene.folder,
+    tokens: scene.tokens.map((token) => ({ id: token.id, label: token.label, side: token.side })),
+    bodies: sceneBodies(scene).map((body) => ({ id: body.id, kind: body.kind, name: body.name })),
+    editable: true
+  };
+}
+
+/** The open sheets, in the order the referee opened them. */
+export function sheetViews(resolved, open = []) {
+  const build = { ship: shipSheet, actor: actorSheet, scene: sceneSheet };
+  return open
+    .map((entry) => {
+      const sheet = build[entry.kind]?.(resolved, entry.id) ?? null;
+      return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null } : null;
+    })
+    .filter(Boolean);
+}
+
 export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null } = {}) {
   const sets = {
     Journal: journalEntries,
     Actors: actorEntries,
     Players: (input) => (players ? seatEntries(input, players) : characterEntries(input)),
     Vehicles: vehicleEntries,
-    Tables: () => tableEntries(),
     Scenes: sceneEntries
   };
   const entries = (sets[tab] ?? sets.Journal)(resolved);
@@ -1396,6 +1538,64 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       }
       // v0.219.0: the referee's fiat. Nothing on this page could change a
       // character, so an unnamed party member could not even be named.
+      if (command.startsWith('actor:')) {
+        // v0.249.0: the directory's own verbs — create, copy, delete, file —
+        // so a row can be managed without a separate screen. Editing a field
+        // is edit:actor:* below; this group is about the document itself.
+        const [, action] = command.split(':');
+        const value = fight?.value;
+        const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === fight?.id) ?? null;
+        let message;
+        if (action === 'create') {
+          const kind = NPC_ACTOR_KINDS.includes(value?.kind) ? value.kind : 'actor';
+          const name = String(value?.name ?? '').trim() || (kind === 'statblock' ? 'New statblock' : 'New actor');
+          const created = createNpcActorDocument({ name, kind, folder: value?.folder ?? '', role: value?.role ?? '' });
+          // The document alone is not in the campaign: an actor is reached
+          // through the campaign's own refs and roster, so both are written.
+          registry.putAll([created, addNpcActorToCampaign(resolved.campaign, created)]);
+          reload();
+          message = `${created.identity.name} created.`;
+          lastMessage = { ok: true, message, createdId: created.identity.id };
+          return lastMessage;
+        }
+        if (!actor) throw new Error('choose an actor');
+        if (action === 'copy') {
+          // A statblock copied is a second pattern to edit ("Bandit with a
+          // shotgun"); an actor copied is a second person. Same verb, and
+          // the result follows the kind, the way placement does.
+          const copy = duplicateNpcActorDocument(actor);
+          registry.putAll([copy, addNpcActorToCampaign(resolved.campaign, copy)]);
+          reload();
+          message = `${copy.identity.name} created.`;
+          lastMessage = { ok: true, message, createdId: copy.identity.id };
+          return lastMessage;
+        } else if (action === 'delete') {
+          const staged = (resolved.scenes ?? []).filter((scene) => scene.tokens.some((token) => token.actorId === actor.identity.id));
+          if (staged.length && !value?.force) {
+            throw new Error(`${actor.identity.name} is on ${staged.map((scene) => scene.identity.name).join(', ')}`);
+          }
+          // Removed from the registry outright, not archived: the referee
+          // asked to delete it, and an archived actor that still turns up in
+          // a search is the thing they were trying to get rid of.
+          registry.put(removeNpcActorFromCampaign(resolved.campaign, actor.identity.id));
+          registry.remove(actor.identity.id);
+          reload();
+          message = `${actor.identity.name} deleted.`;
+        } else if (action === 'kind') {
+          const kind = NPC_ACTOR_KINDS.includes(value) ? value : null;
+          if (!kind) throw new Error('an actor is either an actor or a statblock');
+          persist([updateNpcActorDocument(actor, { kind })]);
+          message = `${actor.identity.name} is now ${kind === 'statblock' ? 'a statblock' : 'an actor'}.`;
+        } else if (action === 'numbering') {
+          persist([updateNpcActorDocument(actor, { numberTokens: Boolean(value) })]);
+          message = `${actor.identity.name}: tokens ${value ? 'numbered' : 'unnumbered'}.`;
+        } else if (action === 'folder') {
+          persist([updateNpcActorDocument(actor, { folder: String(value ?? '') })]);
+          message = `${actor.identity.name} filed.`;
+        } else throw new Error(`unknown actor command: ${command}`);
+        lastMessage = { ok: true, message };
+        return lastMessage;
+      }
       if (command.startsWith('edit:')) {
         const [, subject, field] = command.split(':');
         const value = fight?.value;
@@ -1453,6 +1653,30 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           } else if (field === 'loadout') {
             patch.weaponKey = value?.weaponKey ?? actor.loadout?.weaponKey;
             patch.armor = value?.armor ?? actor.loadout?.armor;
+          } else if (field === 'characteristics') {
+            // v0.249.0: a statblock's whole sheet is editable — it is a
+            // pattern the referee writes, not a record play produced. The
+            // current scores follow the new ceilings, since an unplaced
+            // pattern has taken no wounds.
+            const scores = {};
+            for (const key of ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC']) {
+              const number = Number(value?.[key] ?? actor.characteristics[key]);
+              if (!Number.isInteger(number) || number < 0 || number > 15) throw new RangeError(`${key} must be a whole number from 0 to 15`);
+              scores[key] = number;
+            }
+            patch.characteristics = scores;
+            patch.current = { STR: scores.STR, DEX: scores.DEX, END: scores.END };
+          } else if (field === 'skills') {
+            // "Rifle-1, Brawling-1" as the referee types it.
+            const skills = {};
+            for (const part of String(value ?? '').split(',').map((entry) => entry.trim()).filter(Boolean)) {
+              const match = /^(.*?)[-\s]+(\d+)$/.exec(part);
+              if (!match) throw new Error(`"${part}" is not a skill and a level, like Rifle-1`);
+              skills[match[1].trim()] = Number(match[2]);
+            }
+            patch.skills = skills;
+          } else if (field === 'folder') {
+            patch.folder = String(value ?? '');
           } else throw new Error(`unknown edit: ${command}`);
           persist([updateNpcActorDocument(actor, patch)]);
           message = `${actor.identity.name}: changed`;
@@ -2545,9 +2769,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     get revision() { return revision; },
     get save() { return save; },
     get lastMessage() { return lastMessage; },
-    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {}, staging = null } = {}) {
+    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {}, staging = null, sheets = [] } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.referee = refereeView(resolved, referee);
+      // v0.249.0: open sheets ride alongside whatever the screen is showing —
+      // a fight, staging or the port — because that is what a panel floating
+      // over the page means. A sheet whose document has been deleted drops out.
+      state.sheets = sheetViews(resolved, sheets);
       // v0.233.0: state.ship (the masthead chip and the ship drawer both
       // read it) otherwise always reflects the persisted document, which a
       // ship fight in progress hasn't touched yet — resolveLaserFire writes

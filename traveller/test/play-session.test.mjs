@@ -922,9 +922,11 @@ test('the directory shows one folder at a time, and a search looks everywhere', 
   const resolved = { ...registry.resolveCampaign(campaignId), npcActors: actors };
 
   const all = refereeView(resolved, { tab: 'Actors' });
-  assert.equal(all.total, 4);
+  // v0.249.0: the campaign's player characters are actors too, and file
+  // themselves under one folder of their own.
+  assert.equal(all.total, 4 + (resolved.characters ?? []).length);
   assert.deepEqual(all.tree.map((entry) => [entry.path, entry.count]), [
-    ['Highport', 1], ['Startown', 2], ['Startown/Dock gangs', 2], ['Unfiled', 1]
+    ['Highport', 1], ['Player characters', (resolved.characters ?? []).length], ['Startown', 2], ['Startown/Dock gangs', 2], ['Unfiled', 1]
   ]);
 
   const gang = refereeView(resolved, { tab: 'Actors', folder: 'Startown/Dock gangs' });
@@ -1026,28 +1028,15 @@ test('the Players tab files seats, open invites and requests to join', async () 
 });
 
 // ---------------------------------------------------------------- v0.225.0
-test('Tables files the printed reference by book and page, from the package itself', async () => {
+test('v0.249.0 the Tables tab is gone; its reference is Journal material, not a directory', async () => {
   const { registry, campaignId } = await campaignInAFight();
+  assert.equal(REFEREE_TABS.includes('Tables'), false);
+  assert.deepEqual([...REFEREE_TABS], ['Journal', 'Actors', 'Players', 'Vehicles', 'Scenes']);
+  // An unknown tab still falls back rather than throwing, so a stale link
+  // or a saved tab name from before the change opens the Journal.
   const view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables' });
-  assert.ok(view.total > 100);
-  const folders = view.tree.map((entry) => entry.path);
-  for (const wanted of [
-    'Book 1 p.27 / Encounter range', 'Book 1 p.27 / Terrain DMs',
-    'Book 1 p.42 / Weapons vs armor', 'Book 1 p.43 / Range matrix', 'Book 1 p.44 / Weapons table',
-    'Book 1 p.33 / Morale', 'Book 2 p.38 / Shipping', 'Book 3 p.27 / Reactions'
-  ]) assert.ok(folders.includes(wanted), `missing ${wanted}`);
-
-  // The values are the package's own, so a table cannot drift from the engine.
-  const weapons = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables', folder: 'Book 1 p.44 / Weapons table' });
-  const revolver = weapons.shown.find((entry) => entry.name === 'Revolver');
-  assert.equal(revolver.note, 'DEX 7+ to avoid -2, 9+ gives +1');
-
-  const ranges = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables', folder: 'Book 1 p.43 / Range matrix' });
-  assert.match(ranges.shown.find((entry) => entry.name === 'Club').note, /medium no/);
-
-  // Searching the reference is the point of having it here.
-  const found = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables', query: 'broadsword' });
-  assert.ok(found.shown.length >= 2, 'a weapon appears in more than one table');
+  assert.equal(view.tab, 'Tables');
+  assert.ok(Array.isArray(view.shown));
 });
 
 test('Vehicles says where a ship is and what it can do', async () => {

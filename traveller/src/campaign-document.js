@@ -917,6 +917,18 @@ export function addNpcActorToCampaign(document, actorDocument, { folderId = 'fol
   return next;
 }
 
+// v0.249.0: the counterpart to addNpcActorToCampaign, for a referee deleting
+// an actor from the directory. The reference and the roster entry both go;
+// the document itself is removed by the caller, since validation rejects a
+// roster folder pointing at an actor that is no longer referenced.
+export function removeNpcActorFromCampaign(document, actorId) {
+  const next = cloneJson(document);
+  next.documentRefs.npcActors = next.documentRefs.npcActors.filter((entry) => entry.id !== actorId);
+  for (const folder of next.roster.folders) folder.actorIds = folder.actorIds.filter((id) => id !== actorId);
+  assertValidCampaignDocument(next);
+  return next;
+}
+
 export function addSceneToCampaign(document, sceneDocument, { makeActive = false } = {}) {
   const next = cloneJson(document);
   next.documentRefs.scenes = uniqueById([...(next.documentRefs.scenes ?? []), sceneRef(sceneDocument)]);
