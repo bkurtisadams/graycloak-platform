@@ -60,7 +60,7 @@ import {
 import {
   createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER,
   sceneActorIsDesignReference, SCENE_DESIGN_REFERENCE_PREFIX, removeSceneToken, placeSceneShip,
-  moveSceneShip, setSceneTokenSide, setSceneShipVector, sceneBodies,
+  moveSceneShip, setSceneTokenSide, setSceneShipVector, sceneBodies, sceneGravityWorld,
   placeSceneBody, moveSceneBody, removeSceneBody, setSceneGravityBody,
   worldBody, asteroidFieldBody, emplacementBody
 } from './scene-document.js';
@@ -443,7 +443,7 @@ function sceneEntries(resolved) {
 // The staging picker and staged-token list for one vector-board scene —
 // separate from sceneEntries (which stays a lightweight list row for all
 // scenes) since only one scene is ever being staged onto at a time.
-function buildStagingView(resolved, sceneId) {
+function buildStagingView(resolved, sceneId, { intruder = 'opposition' } = {}) {
   const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === sceneId);
   if (!scene || !sceneIsVectorBoard(scene)) return null;
   const ownShip = resolved.ships.find((entry) => entry.identity.id === resolved.campaign.activeShipId) ?? resolved.ships[0] ?? null;
@@ -466,15 +466,31 @@ function buildStagingView(resolved, sceneId) {
     const pilotName = isOwn
       ? (ownShip.crew?.assignments ?? []).find((entry) => entry.role === 'pilot')?.characterName ?? 'Unassigned'
       : null;
+    const velocity = { x: Number(token.velocity?.x) || 0, y: Number(token.velocity?.y) || 0 };
     return {
       id: token.id,
       label: token.label || (isOwn ? ownShip.identity.name : design?.name) || token.actorId,
+      own: Boolean(isOwn),
       hull: isOwn ? `${ownShip.design.typeCode} \u00b7 your ship` : `${design?.typeCode ?? '?'} \u00b7 design`,
       controller: isOwn ? pilotName : 'Referee (NPC)',
-      side: token.side, position: token.position, velocity: token.velocity
+      side: token.side, position: token.position, velocity,
+      // Book 2 p.25 states a vector as a length and a direction, which is how
+      // the referee thinks about one; x/y stays underneath for the engine.
+      speed: Math.hypot(velocity.x, velocity.y),
+      bearing: bearingOfVector(velocity)
     };
   });
-  const plan = spaceSceneCombatPlan(scene, { ownShipId: ownShip?.identity?.id ?? null });
+  const bodies = sceneBodies(scene);
+  const gravityWorld = sceneGravityWorld(scene);
+  const plan = spaceSceneCombatPlan(scene, { ownShipId: ownShip?.identity?.id ?? null, intruder });
+  // The range the fight would open at, and its p.30 DM — the one number that
+  // decides whether a staged position is a fight or a long stern chase.
+  const sides = SPACE_COMBAT_SIDES.map((side) => tokens.filter((token) => token.side === side));
+  let opening = null;
+  if (sides[0].length && sides[1].length) {
+    const distance = Math.min(...sides[0].flatMap((a) => sides[1].map((b) => Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y))));
+    opening = { distance, dm: distance > 300 ? -5 : distance > 150 ? -2 : 0 };
+  }
   return {
     sceneId, sceneName: scene.identity.name, spanThousandMiles: scene.board.spanThousandMiles,
     // The scene document itself, and its bodies, for client/ship-vector-map.js's
@@ -483,11 +499,31 @@ function buildStagingView(resolved, sceneId) {
     // pan, minimap). It reads a real scene document, so it gets one rather
     // than a reshaped copy; `tokens`/`choices` below stay for the numeric
     // list beside it, which shows the same data as text.
-    scene, bodies: sceneBodies(scene),
+    scene, bodies,
+    world: gravityWorld
+      ? { id: gravityWorld.id, name: gravityWorld.name, diameter: gravityWorld.template.diameter ?? gravityWorld.template.radius * 2, radius: gravityWorld.template.radius, surfaceG: gravityWorld.template.surfaceG ?? null }
+      : null,
+    atmosphere: scene.space?.atmosphere ?? null,
     choices, tokens,
+    intruder,
+    opening,
     canStart: plan.problems.length === 0,
     blockedReason: plan.problems.length ? plan.problems.join('; ') : null
   };
+}
+
+// p.25's bearing notation: 000\u00b0 is +y, clockwise. The same convention
+// client/vector-fight-view.js draws with.
+function bearingOfVector({ x, y }) {
+  if (!x && !y) return 0;
+  return Math.round(((Math.atan2(x, y) * 180) / Math.PI + 360) % 360);
+}
+
+/** A speed and a bearing (p.25) as the x/y pair the engine and the scene keep. */
+export function vectorFromSpeedBearing(speed, bearingDegrees) {
+  const radians = (bearingDegrees * Math.PI) / 180;
+  const round = (value) => Math.round(value * 1000) / 1000;
+  return { x: round(speed * Math.sin(radians)), y: round(speed * Math.cos(radians)) };
 }
 
 export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null } = {}) {
@@ -519,9 +555,10 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     unbuilt: tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
     // The Players tab acts on the cloud, not on campaign documents.
     seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null,
-    // Staging a vector-board scene: who's on it and what can be added,
-    // built fresh only for the one scene currently being staged.
-    staging: tab === 'Scenes' && stagingSceneId ? buildStagingView(resolved, stagingSceneId) : null
+    // v0.246.0: staging took over the screen (see view() below), so the
+    // directory only needs to know which scene is being staged, to label
+    // its own button.
+    stagingSceneId
   };
 }
 
@@ -1569,6 +1606,15 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const campaign = addSceneToCampaign(resolved.campaign, next);
           registry.putAll([next, campaign]);
           reload();
+        } else if (action === 'atmosphere') {
+          // Book 3's atmosphere digit, which Book 2 p.35's braking reads.
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to update');
+          const next = updateSceneDocument(scene, { atmosphere: value === null || value === '' ? null : Number(value) });
+          const campaign = addSceneToCampaign(resolved.campaign, next);
+          registry.putAll([next, campaign]);
+          reload();
+          message = value === null ? 'Atmosphere cleared.' : `Atmosphere set to ${value}.`;
         } else if (action === 'file') {
           const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
           if (!scene) throw new Error('choose a scene to file');
@@ -2475,7 +2521,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     get revision() { return revision; },
     get save() { return save; },
     get lastMessage() { return lastMessage; },
-    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {} } = {}) {
+    view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {}, staging = null } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.referee = refereeView(resolved, referee);
       // v0.233.0: state.ship (the masthead chip and the ship drawer both
@@ -2488,6 +2534,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       if (pendingShipFight && state.ship) {
         const liveShip = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player')?.ship;
         if (liveShip && liveShip.identity.id === state.ship.id) state.ship = shipView(liveShip);
+      }
+      // v0.246.0: staging a scene is what is happening, the same way a fight
+      // is. It was a row inside the 420px referee drawer, where a 400" board
+      // got 361px and every control appeared twice (the imported board draws
+      // its own). A fight in progress outranks it: you cannot stage the scene
+      // you are already fighting on.
+      if (staging?.sceneId && !pendingShipFight) {
+        const view = buildStagingView(resolved, staging.sceneId, { intruder: staging.intruder ?? 'opposition' });
+        if (view) {
+          return {
+            ...state,
+            situation: { kind: 'staging', title: 'Staging', detail: view.sceneName },
+            staging: { ...view, pressurised: Boolean(staging.pressurised), writable: save.state !== 'stale' },
+            save, notice: lastMessage
+          };
+        }
       }
       // v0.230.0: a ship fight in progress is what is happening, the same
       // way a personal fight already takes over the screen below. The two

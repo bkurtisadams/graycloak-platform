@@ -711,3 +711,54 @@ a.button { text-decoration: none; color: inherit; }
   .scene > .ship-fight { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
   .ship-fight-side { max-height: 30vh; }
 }
+
+/* v0.246.0: staging a space scene takes the screen. The board itself is
+   client/ship-vector-map.js's, written for the old client, so the handful
+   of tokens and layout rules it expects from styles.css are given here
+   rather than loading that whole sheet: play.html carries play.css alone,
+   which is why the board arrived unstyled (a solid black minimap and a
+   column of raw selects). */
+.shell[data-situation='staging'] { --now-width: 440px; }
+.staging-board { position: relative; flex: 1 1 0; min-height: 0; display: flex; --paper: var(--raise); --paper-deep: var(--ground); --rule: var(--line); --ink-soft: var(--ink-2); }
+.scene > .staging-board { grid-row: 3; margin: 0 20px 16px; }
+.staging-board #ship-vector-workspace { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.staging-board .vector-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-bottom: 6px; font-size: 12px; letter-spacing: .04em; color: var(--ink-2); }
+.staging-board .vector-zoom-tools { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.staging-board .text-button { font: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); cursor: pointer; }
+.staging-board .text-button:hover { background: var(--signal-wash); }
+.staging-board .vector-stage-board { position: relative; flex: 1 1 0; min-height: 260px; display: flex; border: 1px solid var(--line); background: var(--raise); }
+.staging-board .ship-vector-svg { flex: 1 1 auto; width: 100%; height: auto; min-height: 0; padding: 0; }
+.staging-board .vector-minimap { position: absolute; top: 6px; right: 6px; z-index: 2; width: 120px; height: 120px; border: 1px solid var(--line); background: var(--raise); }
+
+.staging-step { display: flex; flex-direction: column; gap: 6px; border-top: 2px solid var(--ink); padding-top: 8px; }
+.staging-step > h2 { margin: 0; font-size: 12px; letter-spacing: .08em; }
+.staging-step.is-last {
+  /* Start combat is the point of the screen, so it stays reachable rather
+     than sitting below the fold of a four-step checklist. */
+  position: sticky; bottom: -28px; margin-top: 4px;
+  padding-bottom: 20px; background: var(--panel);
+}
+.staging-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.staging-choice { display: flex; }
+.staging-choice > .button { flex-grow: 1; }
+.button.is-chosen { background: var(--ink); border-color: var(--ink); color: var(--raise); font-weight: 700; }
+.staging-range { margin: 0; font-size: 12px; }
+.staged-ships { display: flex; flex-direction: column; gap: 6px; }
+.staged-ship { padding: 6px 9px; background: var(--raise); border: 1px solid var(--line); }
+.staged-ship-head { display: flex; align-items: center; gap: 8px; }
+.staged-ship-head > .button { margin-left: auto; }
+.staged-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; }
+.staged-name { font-weight: 700; }
+.staged-hull { color: var(--ink-2); font-size: 11px; }
+.staged-fields { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+.staged-row { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.staged-row > span:first-child { flex: 0 0 auto; width: 76px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.staged-pair { display: inline-flex; align-items: center; gap: 6px; }
+.staged-axis { font-size: 10px; color: var(--ink-2); }
+.staged-world { display: flex; flex-direction: column; gap: 5px; padding: 6px 9px; background: var(--raise); border: 1px solid var(--line); }
+.staged-world > .button, .staged-world > .empty { align-self: flex-start; margin: 0; }
+.staged-ship input[type="number"], .staged-row select, .staged-world select,
+.staging-add select, .staging-add input { font: inherit; font-size: 12px; padding: 3px 5px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.staging-add { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.staging-add > select:first-child { flex-grow: 1; min-width: 0; }
+.staging-add input[type="number"] { width: 60px; }

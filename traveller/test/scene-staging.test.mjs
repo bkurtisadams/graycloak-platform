@@ -8,9 +8,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
-import { createPlaySession } from '../src/play-session.js';
+import { createPlaySession, vectorFromSpeedBearing } from '../src/play-session.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
-import { renderDrawer } from '../client/play-views.js';
+import { renderDrawer, renderNow, renderScene } from '../client/play-views.js';
 
 let JSDOM; try { ({ JSDOM } = await import('jsdom')); } catch { /* skip the render test if unavailable */ }
 
@@ -24,7 +24,11 @@ async function freshSession() {
 }
 
 function scenesTab(session, stagingSceneId = null) {
-  return session.view({ referee: { tab: 'Scenes', stagingSceneId } }).referee;
+  // v0.246.0: staging took over the screen, so the staging view arrives at
+  // the top of the view state rather than inside the Scenes tab. The tab
+  // itself still says which scene is being staged, for its own button.
+  const state = session.view({ referee: { tab: 'Scenes', stagingSceneId }, staging: stagingSceneId ? { sceneId: stagingSceneId } : null });
+  return { ...state.referee, staging: state.staging ?? null };
 }
 
 test('scene:create with boardKind vector makes a space scene; without it, a grid scene', async () => {
@@ -163,8 +167,9 @@ test('the real staging board mounts into the panel and its callbacks reach the r
   const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
   session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -20, y: 0, label: 'Marisol' } } });
 
-  const view = session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId } });
-  const nodes = renderDrawer('referee', { ...view, live: true }, view.referee, {
+  // v0.246.0: the board is the scene column now, not a drawer row.
+  const view = session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId }, staging: { sceneId } });
+  const nodes = renderScene({ ...view, live: true }, {
     onUpdateStagedShip: (tokenId, patch) => session.run('scene:update-ship', { fight: { id: sceneId, value: { tokenId, ...patch } } }),
     onSetShipVector: (tokenId, velocity) => session.run('scene:set-ship-vector', { fight: { id: sceneId, value: { tokenId, velocity } } }),
     onSceneBody: (action, value) => session.run(`scene:${action}-body`, { fight: { id: sceneId, value } })
@@ -205,7 +210,7 @@ test('the full flow: create, stage both sides, start combat, and the fight is re
   assert.equal(shipFight.vector.awaitingMovement, true, 'the party staged as intruder, so the player\u2019s ship moves first');
 });
 
-test('the staging panel renders a combatant row per staged ship, live-editable via the real handlers', { skip: !JSDOM }, async () => {
+test('v0.246.0 the staging column draws a card per staged ship, live-editable through the real handlers', { skip: !JSDOM }, async () => {
   const dom = new JSDOM('<main></main>');
   globalThis.document = dom.window.document;
   globalThis.Node = dom.window.Node;
@@ -216,27 +221,93 @@ test('the staging panel renders a combatant row per staged ship, live-editable v
   const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
   session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -20, y: 0, label: 'Marisol' } } });
 
-  const view = session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId } });
-  const nodes = renderDrawer('referee', { ...view, live: true }, view.referee, {
+  const stateOf = () => session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId }, staging: { sceneId } });
+  const nodes = renderNow({ ...stateOf(), live: true }, {
     onUpdateStagedShip: (tokenId, patch) => session.run('scene:update-ship', { fight: { id: sceneId, value: { tokenId, ...patch } } }),
+    onSetShipVector: (tokenId, velocity) => session.run('scene:set-ship-vector', { fight: { id: sceneId, value: { tokenId, velocity: vectorFromSpeedBearing(velocity.speed, velocity.bearing) } } }),
     onUnstageShip: (tokenId) => session.run('scene:unstage-ship', { fight: { id: sceneId, value: tokenId } })
   });
   document.querySelector('main').replaceChildren(...nodes);
 
-  const combatant = document.querySelector('.combatant');
-  assert.ok(combatant, 'one combatant row is drawn');
-  assert.equal(combatant.querySelector('.combatant-name').textContent, 'Marisol');
-  assert.match(combatant.querySelector('.combatant-hull').textContent, /your ship/);
-  assert.equal(combatant.querySelectorAll('.combatant-row').length, 3, 'side, controlled-by, and position rows');
+  const card = document.querySelector('.staged-ship');
+  assert.ok(card, 'one card is drawn');
+  assert.equal(card.querySelector('.staged-name').textContent, 'Marisol');
+  assert.match(card.querySelector('.staged-hull').textContent, /your ship/);
+  assert.equal(card.querySelectorAll('.staged-row').length, 4, 'side, flown-by, position and vector rows');
 
-  // The X input is genuinely wired to the real update command, through the
-  // same handler play.js itself would pass \u2014 not a decorative field.
-  const xInput = combatant.querySelector('input[aria-label$="X position"]');
+  const xInput = card.querySelector('input[aria-label$="X position"]');
   xInput.value = '-150';
   xInput.dispatchEvent(new dom.window.Event('change'));
-  assert.equal(session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId } }).referee.staging.tokens[0].position.x, -150);
+  assert.equal(stateOf().staging.tokens[0].position.x, -150);
+
+  // Book 2 p.25: the referee states a vector as a length and a direction,
+  // and it reaches the scene as the x/y pair the engine keeps.
+  const speed = document.querySelector('input[aria-label$="speed in inches per turn"]');
+  speed.value = '6';
+  speed.dispatchEvent(new dom.window.Event('change'));
+  const bearing = document.querySelector('input[aria-label$="bearing in degrees"]');
+  bearing.value = '90';
+  bearing.dispatchEvent(new dom.window.Event('change'));
+  const staged = stateOf().staging.tokens[0];
+  assert.equal(Math.round(staged.velocity.x), 6, '090\u00b0 is +x');
+  assert.equal(Math.round(staged.velocity.y), 0);
+  assert.equal(staged.bearing, 90);
 
   dom.window.close();
   delete globalThis.document;
   delete globalThis.Node;
+});
+
+
+test('v0.246.1 staging takes the screen: the board is the scene, the checklist is the now column, and the drawer is not involved', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+
+  const { session, registry, campaignId } = await freshSession();
+  session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
+  const sceneId = scenesTab(session).shown.find((entry) => entry.name === 'Space').id;
+  const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
+  session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -30, y: 0, label: 'Marisol' } } });
+  session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: 'design:type-s-scout-courier', side: 'opposition', x: 30, y: 0, label: 'Corsair' } } });
+
+  const state = { ...session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId }, staging: { sceneId, intruder: 'party', pressurised: true } }), live: true };
+  assert.equal(state.situation.kind, 'staging', 'staging is the situation, so the shell gives it the screen');
+  assert.equal(state.staging.intruder, 'party');
+  assert.equal(state.staging.pressurised, true);
+  // Book 2 p.30's own bands, so a staged position can be judged before the
+  // first shot rather than after it.
+  assert.equal(Math.round(state.staging.opening.distance), 60);
+  assert.equal(state.staging.opening.dm, 0);
+
+  document.querySelector('main').replaceChildren(...renderNow(state, {}));
+  const headings = [...document.querySelectorAll('.staging-step h2')].map((node) => node.textContent);
+  assert.deepEqual(headings, ['1. Ships', '2. World', '3. Intruder', '4. Pressure'], 'the whole of p.24 setup is one checklist');
+  assert.equal(document.querySelectorAll('.staged-ship').length, 2);
+  const start = [...document.querySelectorAll('button')].filter((node) => node.textContent === 'Start combat');
+  assert.equal(start.length, 1, 'one Start combat, not the board\u2019s copy as well');
+  assert.equal(start[0].disabled, false, 'both sides are staged');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+});
+
+test('v0.246.1 a world placed on the scene is described by the checklist, with the atmosphere p.35 braking reads', async () => {
+  const { session } = await freshSession();
+  session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
+  const sceneId = scenesTab(session).shown.find((entry) => entry.name === 'Space').id;
+  const stagingOf = () => session.view({ staging: { sceneId } }).staging;
+  assert.equal(stagingOf().world, null, 'clear space until a world is placed');
+
+  session.run('scene:place-body', { fight: { id: sceneId, value: { kind: 'world', name: 'Cinder', diameter: 8, densityEarth: 1, center: { x: 0, y: 0 } } } });
+  assert.equal(stagingOf().world.name, 'Cinder');
+
+  const set = session.run('scene:atmosphere', { fight: { id: sceneId, value: 6 } });
+  assert.equal(set.ok, true, set.message);
+  assert.equal(stagingOf().atmosphere, 6);
+  session.run('scene:atmosphere', { fight: { id: sceneId, value: null } });
+  assert.equal(stagingOf().atmosphere, null);
 });

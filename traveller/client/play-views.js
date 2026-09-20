@@ -7,16 +7,16 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.246.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.246.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.246.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.247.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.247.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.247.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.246.0';
-import { renderVectorFight } from './vector-fight-view.js?v=v0.246.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.247.0';
+import { renderVectorFight } from './vector-fight-view.js?v=v0.247.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -31,7 +31,7 @@ import { renderVectorFight } from './vector-fight-view.js?v=v0.246.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.246.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.247.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -511,6 +511,7 @@ export function renderNow(state, handlers = {}) {
   // renderScene) with the roster, phase and actions already on it — this
   // column just needs to stop showing the port procedure underneath it,
   // the same way fightColumn's early return does for a personal fight.
+  if (state.staging) return stagingColumn(state.staging, handlers);
   if (state.shipFight) {
     const fight = state.shipFight;
     return [
@@ -761,6 +762,7 @@ function plotScene(state) {
 }
 
 export function renderScene(state, handlers) {
+  if (state.staging) return stagingScene(state.staging, handlers);
   if (state.shipFight) return shipFightScene(state.shipFight, handlers);
   const scene = state.scene;
   if (scene.kind === 'bands') return bandsScene(state, handlers);
@@ -1034,7 +1036,7 @@ function refereeDrawer(referee, state, handlers) {
               onclick: () => handlers.onSceneAction?.('activate', entry.id)
             }),
             entry.isVectorBoard ? h('button', {
-              type: 'button', class: 'button is-small', text: referee.staging?.sceneId === entry.id ? 'Close staging' : 'Stage',
+              type: 'button', class: 'button is-small', text: referee.stagingSceneId === entry.id ? 'Close staging' : 'Stage',
               title: 'Place ships on this board and start a vector fight',
               onclick: () => handlers.onSceneAction?.('stage', entry.id)
             }) : null,
@@ -1048,28 +1050,31 @@ function refereeDrawer(referee, state, handlers) {
               onclick: () => handlers.onSceneAction?.('delete', entry.id)
             })
           ) : null,
-          referee.staging?.sceneId === entry.id ? stagingPanel(referee.staging, handlers) : null))
+          null))
         : [h('li', { class: 'entry' }, h('span', { class: 'empty', text: referee.query ? 'Nothing matches.' : 'This folder is empty.' }))])),
     referee.truncated ? h('p', { class: 'cite', text: `${referee.truncated} more here; narrow the search to see them.` }) : null
   ];
 }
 
-// The ship picker and staged-token list for one vector-board scene, and the
-// Start Combat control once both a party and an opposition ship are staged.
-// v0.245.0: renderVectorSceneStage writes into a host element rather than
-// returning one, and reads getBoundingClientRect for its own scale maths —
-// so it needs its host to be in the document. This file's functions return
-// detached DOM, so the call is deferred to a microtask, by which point
-// play.js's replaceChildren has attached it. The callbacks map one-to-one
-// onto the scene: commands play-session.js already owns; nothing here
-// touches the rules engine directly.
+// ------------------------------------------------------------ staging
+// v0.246.0: staging a space scene takes the screen, the way a fight does.
+// The board (client/ship-vector-map.js's renderVectorSceneStage, built for
+// the old client and still the only thing that can drag a ship or its
+// velocity arrow) fills the scene column; the checklist below is the left
+// column. The board draws its own copy of the three staging rows: they are
+// sent to a detached host so only one of each appears, here.
+
 function stageHost(staging, handlers) {
   const host = h('div', { class: 'staging-board' });
+  // renderVectorSceneStage writes into its host and reads
+  // getBoundingClientRect for its own scale maths, so it is called after
+  // play.js's replaceChildren has attached this node.
   queueMicrotask(() => {
     if (!host.isConnected) return;
     renderVectorSceneStage(host, staging.scene, {
       bodies: staging.bodies,
       shipChoices: staging.choices,
+      controlsHost: document.createElement('div'),
       moveShip: (tokenId, point) => handlers.onUpdateStagedShip?.(tokenId, { x: point.x, y: point.y }),
       setVector: (tokenId, velocity) => handlers.onSetShipVector?.(tokenId, velocity),
       stageShip: (choice, side) => handlers.onStageShip?.(choice, side, 0, 0),
@@ -1077,75 +1082,142 @@ function stageHost(staging, handlers) {
       placeBody: (spec) => handlers.onSceneBody?.('place', spec),
       moveBody: (bodyId, point) => handlers.onSceneBody?.('move', { bodyId, x: point.x, y: point.y }),
       removeBody: (bodyId) => handlers.onSceneBody?.('remove', bodyId),
-      startCombat: (options) => handlers.onStartVectorCombat?.(options.intruder, options.pressurised),
       combatBlocked: staging.blockedReason
     });
   });
   return host;
 }
 
-function stagingPanel(staging, handlers) {
-  const SIDE_COLOR = { party: 'var(--signal)', opposition: 'var(--red)', neutral: 'var(--ink-2)' };
-  const combatantRow = (token) => {
-    const head = h('div', { class: 'combatant-head' },
-      h('span', { class: 'combatant-dot', style: `background:${SIDE_COLOR[token.side] ?? SIDE_COLOR.neutral}` }),
-      h('span', { class: 'combatant-name', text: token.label }),
-      h('span', { class: 'combatant-hull', text: token.hull }),
-      h('button', { type: 'button', class: 'combatant-remove', 'aria-label': `Remove ${token.label}`, text: '\u00d7', onclick: () => handlers.onUnstageShip?.(token.id) }));
-    const sideRow = h('div', { class: 'combatant-row' },
-      h('label', { text: 'SIDE' }),
-      h('select', { 'aria-label': `${token.label}'s side`, onchange: (event) => handlers.onUpdateStagedShip?.(token.id, { side: event.currentTarget.value }) },
-        ['party', 'opposition', 'neutral'].map((side) => h('option', { value: side, selected: side === token.side, text: side[0].toUpperCase() + side.slice(1) }))));
-    const controllerRow = h('div', { class: 'combatant-row' },
-      h('label', { text: 'CONTROLLED BY' }),
-      h('span', { text: token.controller }));
-    const positionRow = h('div', { class: 'combatant-row' },
-      h('label', { text: 'POSITION' }),
-      h('span', { class: 'combatant-coord-label', text: 'X' }),
-      h('input', { type: 'number', step: '1', value: String(token.position.x), 'aria-label': `${token.label}'s X position`, onchange: (event) => handlers.onUpdateStagedShip?.(token.id, { x: Number(event.currentTarget.value) || 0 }) }),
-      h('span', { class: 'combatant-coord-label', text: 'Y' }),
-      h('input', { type: 'number', step: '1', value: String(token.position.y), 'aria-label': `${token.label}'s Y position`, onchange: (event) => handlers.onUpdateStagedShip?.(token.id, { y: Number(event.currentTarget.value) || 0 }) }),
-      h('span', { class: 'combatant-note', text: `(${Math.hypot(token.position.x, token.position.y).toFixed(0)}" from center)` }));
-    const fields = h('div', { class: 'combatant-fields' }, sideRow, controllerRow, positionRow);
-    return h('div', { class: 'combatant' }, head, fields);
-  };
-  return h('div', { class: 'staging-panel' },
-    h('p', { class: 'cite', text: `${staging.spanThousandMiles}" across.` }),
-    // The real staging board. renderVectorSceneStage writes into a host
-    // element rather than returning one, so it gets a container to fill; it
-    // is called after this function returns, when the node is in the
-    // document (a queueMicrotask, below) because its own layout maths reads
-    // getBoundingClientRect.
-    stageHost(staging, handlers),
-    staging.tokens.length ? h('div', { class: 'staged-combatants' }, staging.tokens.map(combatantRow)) : h('p', { class: 'empty', text: 'Nothing staged yet.' }),
-    h('form', { class: 'staging-add', onsubmit: (event) => {
+function stagingScene(staging, handlers) {
+  return [
+    // The board draws its own footer with the scale and the drag help, so
+    // this line says only what that one leaves out.
+    h('p', { class: 'scene-title', text: `${staging.sceneName} \u00b7 ${staging.spanThousandMiles}" board \u00b7 000\u00b0 is up` }),
+    stageHost(staging, handlers)
+  ];
+}
+
+const SIDE_COLOR = { party: 'var(--signal)', opposition: 'var(--red)', neutral: 'var(--ink-2)' };
+
+function stagedShipCard(token, handlers, writable) {
+  const set = (patch) => handlers.onUpdateStagedShip?.(token.id, patch);
+  const setVector = (patch) => handlers.onSetShipVector?.(token.id, {
+    speed: patch.speed ?? token.speed, bearing: patch.bearing ?? token.bearing
+  });
+  const number = (value, label, onchange, width) => h('input', {
+    type: 'number', step: label.includes('bearing') ? '5' : '1', value: String(value), 'aria-label': label,
+    disabled: !writable, style: `width:${width}px`,
+    onchange: (event) => onchange(Number(event.currentTarget.value) || 0)
+  });
+  return h('div', { class: 'staged-ship' },
+    h('div', { class: 'staged-ship-head' },
+      h('span', { class: 'staged-dot', style: `background:${SIDE_COLOR[token.side] ?? SIDE_COLOR.neutral}` }),
+      h('span', { class: 'staged-name', text: token.label }),
+      h('span', { class: 'staged-hull', text: token.hull }),
+      writable ? h('button', { type: 'button', class: 'button is-small', text: 'Remove', 'aria-label': `Remove ${token.label} from the scene`, onclick: () => handlers.onUnstageShip?.(token.id) }) : null),
+    h('div', { class: 'staged-fields' },
+      h('label', { class: 'staged-row' }, h('span', { text: 'Side' }),
+        h('select', { 'aria-label': `${token.label}'s side`, disabled: !writable, onchange: (event) => set({ side: event.currentTarget.value }) },
+          ['party', 'opposition', 'neutral'].map((side) => h('option', { value: side, selected: side === token.side, text: side[0].toUpperCase() + side.slice(1) })))),
+      h('div', { class: 'staged-row' }, h('span', { text: 'Flown by' }), h('span', { class: 'staged-value', text: token.controller })),
+      h('div', { class: 'staged-row' }, h('span', { text: 'Position' }),
+        h('span', { class: 'staged-pair' },
+          h('span', { class: 'staged-axis', text: 'X' }), number(Math.round(token.position.x), `${token.label}'s X position`, (value) => set({ x: value }), 56),
+          h('span', { class: 'staged-axis', text: 'Y' }), number(Math.round(token.position.y), `${token.label}'s Y position`, (value) => set({ y: value }), 56))),
+      // Book 2 p.25 states a vector as a length and a direction.
+      h('div', { class: 'staged-row' }, h('span', { text: 'Vector' }),
+        h('span', { class: 'staged-pair' },
+          number(Math.round(token.speed * 10) / 10, `${token.label}'s speed in inches per turn`, (value) => setVector({ speed: value }), 56),
+          h('span', { class: 'staged-axis', text: '" at' }),
+          number(token.bearing, `${token.label}'s bearing in degrees`, (value) => setVector({ bearing: value }), 56),
+          h('span', { class: 'staged-axis', text: '\u00b0' })))));
+}
+
+function stagingColumn(staging, handlers) {
+  const writable = staging.writable !== false;
+  const parts = [
+    h('header', { class: 'now-head' },
+      h('h1', { text: 'Staging' }),
+      h('p', { text: `${staging.sceneName} \u00b7 Book 2 p.24, preparation for play` }))
+  ];
+  if (staging.notice) parts.push(h('p', { class: `notice${staging.notice.ok ? '' : ' is-error'}`, role: 'status', text: staging.notice.message }));
+
+  parts.push(h('section', { class: 'staging-step' },
+    h('h2', { text: '1. Ships' }),
+    staging.tokens.length
+      ? h('div', { class: 'staged-ships' }, staging.tokens.map((token) => stagedShipCard(token, handlers, writable)))
+      : h('p', { class: 'empty', text: 'Nothing staged yet. Add a ship below, or drag one onto the board.' }),
+    writable ? h('form', { class: 'staging-add', onsubmit: (event) => {
       event.preventDefault();
       const data = new FormData(event.currentTarget);
       const choice = staging.choices.find((entry) => entry.actorId === data.get('actorId'));
       if (!choice) return;
-      handlers.onStageShip?.(choice, data.get('side'), Number(data.get('x')) || 0, Number(data.get('y')) || 0);
+      handlers.onStageShip?.(choice, data.get('side'), 0, 0);
       event.currentTarget.reset();
     } },
-      h('select', { name: 'actorId', 'aria-label': 'Ship to stage' },
+      h('select', { name: 'actorId', 'aria-label': 'Ship to add' },
         staging.choices.map((choice) => h('option', { value: choice.actorId, text: `${choice.label} \u2014 ${choice.note}` }))),
-      h('select', { name: 'side', 'aria-label': 'Side' },
-        h('option', { value: 'party', text: 'Party' }),
-        h('option', { value: 'opposition', text: 'Opposition' })),
-      h('input', { name: 'x', type: 'number', step: '1', value: '0', 'aria-label': 'Starting X (thousands of miles)', placeholder: 'X' }),
-      h('input', { name: 'y', type: 'number', step: '1', value: '0', 'aria-label': 'Starting Y (thousands of miles)', placeholder: 'Y' }),
-      h('button', { type: 'submit', class: 'button is-small', text: 'Place' })),
-    h('form', { class: 'staging-start', onsubmit: (event) => {
-      event.preventDefault();
-      const data = new FormData(event.currentTarget);
-      handlers.onStartVectorCombat?.(data.get('intruder'), data.get('pressurised') === 'on');
-    } },
-      h('label', {}, 'Intruder',
-        h('select', { name: 'intruder', 'aria-label': 'Which staged side is the intruder' },
-          h('option', { value: 'party', text: 'Party' }),
-          h('option', { value: 'opposition', text: 'Opposition', selected: true }))),
-      h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'pressurised' }), ' Pressurised (caught off guard)'),
-      h('button', { type: 'submit', class: 'button is-primary is-small', text: 'Start combat', disabled: !staging.canStart }),
-      !staging.canStart ? h('p', { class: 'cite', text: staging.blockedReason }) : null));
+      h('select', { name: 'side', 'aria-label': 'Side for the added ship' },
+        h('option', { value: 'opposition', text: 'Opposition' }),
+        h('option', { value: 'party', text: 'Party' })),
+      h('button', { type: 'submit', class: 'button is-small', text: 'Add' })) : null));
+
+  // Book 2 pp.26-28: one world on the table, and the atmosphere digit p.35's
+  // braking reads. Placed here rather than only by the board's own row so
+  // the checklist is the whole of setup.
+  parts.push(h('section', { class: 'staging-step' },
+    h('h2', { text: '2. World' }),
+    staging.world
+      ? h('div', { class: 'staged-world' },
+        h('div', { class: 'staged-row' }, h('span', { text: 'On the board' }), h('span', { class: 'staged-value', text: `${staging.world.name}, ${staging.world.diameter}" across` })),
+        h('div', { class: 'staged-row' }, h('span', { text: 'Atmosphere' }),
+          h('select', { 'aria-label': 'Atmosphere digit', disabled: !writable, onchange: (event) => handlers.onSceneAtmosphere?.(event.currentTarget.value === '' ? null : Number(event.currentTarget.value)) },
+            [['', 'None recorded'], ['6', '6, standard \u2014 brakes'], ['8', '8, dense \u2014 brakes'], ['0', '0, vacuum'], ['3', '3, thin']].map(([value, label]) =>
+              h('option', { value, selected: String(staging.atmosphere ?? '') === value, text: label })))),
+        h('p', { class: 'cite', text: 'p.29: gravity is sampled at the midpoint of a course. p.35: a vector passing within \u00bc" of a standard or dense atmosphere is shortened \u00bc".' }),
+        writable ? h('button', { type: 'button', class: 'button is-small', text: 'Remove world', onclick: () => handlers.onSceneBody?.('remove', staging.world.id) }) : null)
+      : h('div', { class: 'staged-world' },
+        h('p', { class: 'empty', text: 'Clear space. Nothing bends a course.' }),
+        writable ? h('form', { class: 'staging-add', onsubmit: (event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          handlers.onSceneBody?.('place', { kind: 'world', name: String(data.get('name') || 'World'), diameter: Number(data.get('diameter')) || 8, densityEarth: 1, center: { x: 0, y: 0 } });
+          event.currentTarget.reset();
+        } },
+          h('input', { name: 'name', type: 'text', placeholder: 'World name', 'aria-label': 'World name' }),
+          h('input', { name: 'diameter', type: 'number', step: '1', value: '8', 'aria-label': 'Diameter in thousands of miles' }),
+          h('button', { type: 'submit', class: 'button is-small', text: 'Place' })) : null)));
+
+  parts.push(h('div', { class: 'staging-pair' },
+    h('section', { class: 'staging-step' },
+      h('h2', { text: '3. Intruder' }),
+      h('div', { class: 'staging-choice' }, ['party', 'opposition'].map((side) => h('button', {
+        type: 'button', 'aria-pressed': staging.intruder === side, disabled: !writable,
+        class: `button is-small${staging.intruder === side ? ' is-chosen' : ''}`,
+        text: side[0].toUpperCase() + side.slice(1),
+        onclick: () => handlers.onStagingChange?.({ intruder: side })
+      }))),
+      h('p', { class: 'cite', text: 'p.22: moves and fires first each turn. Whoever forced the encounter.' })),
+    h('section', { class: 'staging-step' },
+      h('h2', { text: '4. Pressure' }),
+      h('div', { class: 'staging-choice' }, [[false, 'Suited up'], [true, 'Caught']].map(([value, label]) => h('button', {
+        type: 'button', 'aria-pressed': Boolean(staging.pressurised) === value, disabled: !writable,
+        class: `button is-small${Boolean(staging.pressurised) === value ? ' is-chosen' : ''}`,
+        text: label,
+        onclick: () => handlers.onStagingChange?.({ pressurised: value })
+      }))),
+      h('p', { class: 'cite', text: 'p.34: ships depressurise before combat where they can.' }))));
+
+  parts.push(h('section', { class: 'staging-step is-last' },
+    staging.opening
+      ? h('p', { class: 'staging-range', text: `Opening range ${staging.opening.distance.toFixed(1)}"${staging.opening.dm ? `, DM ${staging.opening.dm}` : ', no range DM'}. Beyond 150" is \u22122, beyond 300" is \u22125 (p.30).` })
+      : null,
+    h('div', { class: 'lead-actions' },
+      h('button', { type: 'button', class: 'button is-primary', text: 'Start combat', disabled: !writable || !staging.canStart, onclick: () => handlers.onStartVectorCombat?.(staging.intruder, Boolean(staging.pressurised)) }),
+      h('button', { type: 'button', class: 'button', text: 'Back to scenes', onclick: () => handlers.onSceneAction?.('stage', staging.sceneId) })),
+    !staging.canStart ? h('p', { class: 'cite', text: staging.blockedReason }) : null));
+
+  return parts.filter(Boolean);
 }
 
 function combatDrawer(state, handlers) {

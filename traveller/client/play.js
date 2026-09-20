@@ -2,14 +2,14 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.246.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.246.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.246.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.246.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.246.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.246.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.246.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.246.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.247.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.247.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.247.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.247.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.247.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.247.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.247.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.247.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -65,6 +65,8 @@ const ui = {
   // The picker itself is an uncontrolled form (like inventorySection's own
   // add-item form) — read via FormData on submit, no per-keystroke ui state.
   stagingSceneId: null,
+  stagingIntruder: 'opposition',
+  stagingPressurised: false,
   // Seats, invites and join requests live in the cloud, so they are fetched
   // when the Players tab is opened rather than carried in the campaign.
   players: null,
@@ -80,7 +82,14 @@ if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
 // the rest of the page follows.
 function viewState() {
   if (source.mode === 'live') {
-    const state = source.session.view({ characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker, referee: { ...ui.referee, players: ui.referee.tab === 'Players' ? ui.players : null, stagingSceneId: ui.referee.tab === 'Scenes' ? ui.stagingSceneId : null } });
+    const state = source.session.view({
+      characterId: ui.characterId, selectedSystemId: ui.selectedSystemId, selectedFighterId: ui.selectedMarker,
+      referee: { ...ui.referee, players: ui.referee.tab === 'Players' ? ui.players : null, stagingSceneId: ui.stagingSceneId },
+      // v0.246.0: staging takes the screen, so it is no longer a tab's
+      // business. Intruder and pressure are choices being made here, not
+      // facts in the campaign, so they live in ui until Start combat.
+      staging: ui.stagingSceneId ? { sceneId: ui.stagingSceneId, intruder: ui.stagingIntruder, pressurised: ui.stagingPressurised } : null
+    });
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
@@ -264,7 +273,9 @@ function render() {
         source.session.run('scene:delete', { fight: { id } });
       } else if (action === 'stage') {
         ui.stagingSceneId = ui.stagingSceneId === id ? null : id;
-        ui.stagingChoice = null;
+        // Staging owns the screen now, so the drawer it was started from
+        // gets out of the way.
+        if (ui.stagingSceneId) ui.drawer = null;
         render();
       }
     },
@@ -280,9 +291,21 @@ function render() {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;
       source.session.run('scene:update-ship', { fight: { id: ui.stagingSceneId, value: { tokenId, ...patch } } });
     },
+    // Either an x/y pair (the board's own velocity-arrow drag) or the
+    // speed-and-bearing the checklist states it in (Book 2 p.25).
     onSetShipVector: (tokenId, velocity) => {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;
-      source.session.run('scene:set-ship-vector', { fight: { id: ui.stagingSceneId, value: { tokenId, velocity } } });
+      const value = Number.isFinite(velocity?.x) ? velocity : vectorFromSpeedBearing(velocity.speed, velocity.bearing);
+      source.session.run('scene:set-ship-vector', { fight: { id: ui.stagingSceneId, value: { tokenId, velocity: value } } });
+    },
+    onStagingChange: (patch) => {
+      if (patch.intruder) ui.stagingIntruder = patch.intruder;
+      if ('pressurised' in patch) ui.stagingPressurised = Boolean(patch.pressurised);
+      render();
+    },
+    onSceneAtmosphere: (atmosphere) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      source.session.run('scene:atmosphere', { fight: { id: ui.stagingSceneId, value: atmosphere } });
     },
     onSceneBody: (action, value) => {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;

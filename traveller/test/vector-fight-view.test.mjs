@@ -104,7 +104,7 @@ test('renderVectorFight draws the plotting form when awaiting the player\u2019s 
 
   // Commit passes the exact thrust object typed, not a re-derived one.
   document.querySelector('.vfv-thrust-actions button.is-primary').click();
-  assert.deepEqual(events.committed, { x: 1.5, y: 0 }, 'v0.246.0: the form holds what was typed without waiting on a re-render');
+  assert.deepEqual(events.committed, { x: 1.5, y: 0 }, 'v0.247.0: the form holds what was typed without waiting on a re-render');
   assert.match(document.querySelector('.vfv-g-readout').textContent, /0\.75 G of 2 G/, 'the readout repaints in place');
 
   // Coast is offered as a separate, always-available action.
@@ -228,12 +228,20 @@ test('a full round of vector combat, through the real session: move, fire, the o
   // A second shot this same phase isn't refused — the engine narrates it as
   // a no-op instead (the turret already fired), matching how resolveLaserFire
   // handles this generally rather than a check this command adds itself.
-  const secondShot = session.run('shipfight:vector-fire');
-  assert.equal(secondShot.ok, true, secondShot.message);
-  assert.match(secondShot.message, /already fired this phase/);
+  //
+  // Only when there is still a fight: the shot above is a real 2D throw, and
+  // a hit that disables the foe ends it, at which point firing again is
+  // rightly refused. Asserting through that was a real flake, roughly one
+  // run in ten.
+  if (session.view().shipFight.outcome === 'in-progress') {
+    const secondShot = session.run('shipfight:vector-fire');
+    assert.equal(secondShot.ok, true, secondShot.message);
+    assert.match(secondShot.message, /already fired this phase/);
+  }
 
   // Return-fire phase (opposing = native = the opponent): advancing resolves
   // the opponent's own shot automatically, without a player command for it.
+  if (session.view().shipFight.outcome !== 'in-progress') return;
   result = session.run('shipfight:vector-advance');
   assert.equal(result.ok, true, result.message);
   view = session.view();
