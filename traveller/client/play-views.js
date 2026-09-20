@@ -7,16 +7,31 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.232.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.232.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.232.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.245.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.245.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.245.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.232.0';
-import { renderVectorFight } from './vector-fight-view.js?v=v0.232.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.245.0';
+import { renderVectorFight } from './vector-fight-view.js?v=v0.245.0';
+// v0.245.0: the original working staging board (client/ship-vector-map.js,
+// built v0.161-v0.198 for the old referee client) rather than a reimple-
+// mentation. Drag a ship to place it, drag its velocity arrow to set its
+// starting vector, place and drag a world, zoom, pan, minimap — all already
+// built and tested (test/ship-vector-map.test.mjs), including the drag-
+// previews-locally-commits-on-release fix that this page's own rebuild-
+// everything render would otherwise break.
+//
+// It is the one module this file reaches that keeps state of its own (zoom,
+// pan, drag-in-progress), against rule 2 at the top of this file. That is a
+// deliberate, documented carve-out, not an oversight: the state is purely
+// presentational (no game state — every write goes out through the callbacks
+// below to play-session.js commands), and it is precisely what lets a drag
+// survive the re-render. See the same note in ship-vector-map.js.
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.245.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1040,6 +1055,34 @@ function refereeDrawer(referee, state, handlers) {
 
 // The ship picker and staged-token list for one vector-board scene, and the
 // Start Combat control once both a party and an opposition ship are staged.
+// v0.245.0: renderVectorSceneStage writes into a host element rather than
+// returning one, and reads getBoundingClientRect for its own scale maths —
+// so it needs its host to be in the document. This file's functions return
+// detached DOM, so the call is deferred to a microtask, by which point
+// play.js's replaceChildren has attached it. The callbacks map one-to-one
+// onto the scene: commands play-session.js already owns; nothing here
+// touches the rules engine directly.
+function stageHost(staging, handlers) {
+  const host = h('div', { class: 'staging-board' });
+  queueMicrotask(() => {
+    if (!host.isConnected) return;
+    renderVectorSceneStage(host, staging.scene, {
+      bodies: staging.bodies,
+      shipChoices: staging.choices,
+      moveShip: (tokenId, point) => handlers.onUpdateStagedShip?.(tokenId, { x: point.x, y: point.y }),
+      setVector: (tokenId, velocity) => handlers.onSetShipVector?.(tokenId, velocity),
+      stageShip: (choice, side) => handlers.onStageShip?.(choice, side, 0, 0),
+      removeShip: (tokenId) => handlers.onUnstageShip?.(tokenId),
+      placeBody: (spec) => handlers.onSceneBody?.('place', spec),
+      moveBody: (bodyId, point) => handlers.onSceneBody?.('move', { bodyId, x: point.x, y: point.y }),
+      removeBody: (bodyId) => handlers.onSceneBody?.('remove', bodyId),
+      startCombat: (options) => handlers.onStartVectorCombat?.(options.intruder, options.pressurised),
+      combatBlocked: staging.blockedReason
+    });
+  });
+  return host;
+}
+
 function stagingPanel(staging, handlers) {
   const SIDE_COLOR = { party: 'var(--signal)', opposition: 'var(--red)', neutral: 'var(--ink-2)' };
   const combatantRow = (token) => {
@@ -1067,6 +1110,12 @@ function stagingPanel(staging, handlers) {
   };
   return h('div', { class: 'staging-panel' },
     h('p', { class: 'cite', text: `${staging.spanThousandMiles}" across.` }),
+    // The real staging board. renderVectorSceneStage writes into a host
+    // element rather than returning one, so it gets a container to fill; it
+    // is called after this function returns, when the node is in the
+    // document (a queueMicrotask, below) because its own layout maths reads
+    // getBoundingClientRect.
+    stageHost(staging, handlers),
     staging.tokens.length ? h('div', { class: 'staged-combatants' }, staging.tokens.map(combatantRow)) : h('p', { class: 'empty', text: 'Nothing staged yet.' }),
     h('form', { class: 'staging-add', onsubmit: (event) => {
       event.preventDefault();

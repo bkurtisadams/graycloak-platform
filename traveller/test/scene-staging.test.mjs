@@ -114,6 +114,77 @@ test('update-ship moves a staged token and changes its side, live', async () => 
   assert.deepEqual(staging.tokens[0].position, { x: -100, y: 40 }, 'changing side does not touch position');
 });
 
+test('set-ship-vector and the body commands back the staging board\u2019s drag callbacks', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
+  const sceneId = scenesTab(session).shown.find((entry) => entry.name === 'Space').id;
+  const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
+  session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -20, y: 0, label: 'Marisol' } } });
+  const tokenId = scenesTab(session, sceneId).staging.tokens[0].id;
+
+  // Dragging the velocity arrow.
+  const vector = session.run('scene:set-ship-vector', { fight: { id: sceneId, value: { tokenId, velocity: { x: 4, y: -3 } } } });
+  assert.equal(vector.ok, true, vector.message);
+  assert.deepEqual(scenesTab(session, sceneId).staging.tokens[0].velocity, { x: 4, y: -3 });
+
+  // Placing a world, dragging it, removing it.
+  const placed = session.run('scene:place-body', { fight: { id: sceneId, value: { kind: 'world', name: 'San Telmo', diameter: 8, densityEarth: 1, center: { x: 0, y: 0 } } } });
+  assert.equal(placed.ok, true, placed.message);
+  let staging = scenesTab(session, sceneId).staging;
+  assert.equal(staging.bodies.length, 1);
+  assert.equal(staging.bodies[0].name, 'San Telmo');
+  // Book 2 p.28: one world samples gravity — the first placed takes that role.
+  assert.equal(staging.scene.space.gravityBodyId, staging.bodies[0].id);
+  // Book 2 p.27: the template's quarter-G bands are computed, not supplied.
+  assert.ok(staging.bodies[0].template.bands.length > 0, 'the p.27 band template was built for it');
+
+  const bodyId = staging.bodies[0].id;
+  const moved = session.run('scene:move-body', { fight: { id: sceneId, value: { bodyId, x: 30, y: 12 } } });
+  assert.equal(moved.ok, true, moved.message);
+  assert.deepEqual(scenesTab(session, sceneId).staging.bodies[0].center, { x: 30, y: 12 });
+
+  const removed = session.run('scene:remove-body', { fight: { id: sceneId, value: bodyId } });
+  assert.equal(removed.ok, true, removed.message);
+  assert.equal(scenesTab(session, sceneId).staging.bodies.length, 0);
+});
+
+test('the real staging board mounts into the panel and its callbacks reach the real commands', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  // No queueMicrotask override: jsdom's own delegates back to the global,
+  // so reassigning it recurses infinitely. Node's native one is fine here —
+  // stageHost only needs the mount deferred past the current task.
+
+  const { session, registry, campaignId } = await freshSession();
+  session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });
+  const sceneId = scenesTab(session).shown.find((entry) => entry.name === 'Space').id;
+  const ownShipId = registry.resolveCampaign(campaignId).ships[0].identity.id;
+  session.run('scene:stage-ship', { fight: { id: sceneId, value: { actorId: ownShipId, side: 'party', x: -20, y: 0, label: 'Marisol' } } });
+
+  const view = session.view({ referee: { tab: 'Scenes', stagingSceneId: sceneId } });
+  const nodes = renderDrawer('referee', { ...view, live: true }, view.referee, {
+    onUpdateStagedShip: (tokenId, patch) => session.run('scene:update-ship', { fight: { id: sceneId, value: { tokenId, ...patch } } }),
+    onSetShipVector: (tokenId, velocity) => session.run('scene:set-ship-vector', { fight: { id: sceneId, value: { tokenId, velocity } } }),
+    onSceneBody: (action, value) => session.run(`scene:${action}-body`, { fight: { id: sceneId, value } })
+  });
+  document.querySelector('main').replaceChildren(...nodes);
+  // stageHost defers the mount to a microtask (the host must be in the
+  // document first, for ship-vector-map.js's own layout maths).
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  const board = document.querySelector('.staging-board #ship-vector-workspace');
+  assert.ok(board, 'the real staging board mounted inside the panel');
+  assert.ok(board.querySelector('svg.ship-vector-svg'), 'it drew its board SVG');
+  assert.ok(board.querySelector('.vector-ship-token'), 'the staged ship is drawn on it');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+});
+
 test('the full flow: create, stage both sides, start combat, and the fight is real vector combat', async () => {
   const { session, registry, campaignId } = await freshSession();
   session.run('scene:create', { fight: { value: { name: 'Space', boardKind: 'vector' } } });

@@ -2,14 +2,14 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.232.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.232.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.232.0';
-import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.232.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.232.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.232.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.232.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.232.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, sheetRows } from './play-views.js?v=v0.245.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.245.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.245.0';
+import { createPlaySession, formatCampaignDate } from '../src/play-session.js?v=v0.245.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.245.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.245.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.245.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.245.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -279,6 +279,14 @@ function render() {
     onUpdateStagedShip: (tokenId, patch) => {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;
       source.session.run('scene:update-ship', { fight: { id: ui.stagingSceneId, value: { tokenId, ...patch } } });
+    },
+    onSetShipVector: (tokenId, velocity) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      source.session.run('scene:set-ship-vector', { fight: { id: ui.stagingSceneId, value: { tokenId, velocity } } });
+    },
+    onSceneBody: (action, value) => {
+      if (source.mode !== 'live' || !ui.stagingSceneId) return;
+      source.session.run(`scene:${action}-body`, { fight: { id: ui.stagingSceneId, value } });
     },
     onStartVectorCombat: (intruder, pressurised) => {
       if (source.mode !== 'live' || !ui.stagingSceneId) return;

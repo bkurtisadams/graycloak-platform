@@ -60,7 +60,9 @@ import {
 import {
   createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER,
   sceneActorIsDesignReference, SCENE_DESIGN_REFERENCE_PREFIX, removeSceneToken, placeSceneShip,
-  moveSceneShip, setSceneTokenSide
+  moveSceneShip, setSceneTokenSide, setSceneShipVector, sceneBodies,
+  placeSceneBody, moveSceneBody, removeSceneBody, setSceneGravityBody,
+  worldBody, asteroidFieldBody, emplacementBody
 } from './scene-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
@@ -475,6 +477,13 @@ function buildStagingView(resolved, sceneId) {
   const plan = spaceSceneCombatPlan(scene, { ownShipId: ownShip?.identity?.id ?? null });
   return {
     sceneId, sceneName: scene.identity.name, spanThousandMiles: scene.board.spanThousandMiles,
+    // The scene document itself, and its bodies, for client/ship-vector-map.js's
+    // renderVectorSceneStage — the original working staging board (drag to
+    // place a ship, drag its velocity arrow, place and drag a world, zoom,
+    // pan, minimap). It reads a real scene document, so it gets one rather
+    // than a reshaped copy; `tokens`/`choices` below stay for the numeric
+    // list beside it, which shows the same data as text.
+    scene, bodies: sceneBodies(scene),
     choices, tokens,
     canStart: plan.problems.length === 0,
     blockedReason: plan.problems.length ? plan.problems.join('; ') : null
@@ -1519,6 +1528,47 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           registry.putAll([next, campaign]);
           reload();
           message = 'Staged ship updated.';
+        } else if (action === 'set-ship-vector') {
+          // Dragging a staged ship's velocity arrow. Separate from
+          // update-ship because it writes token.velocity, not position or
+          // side, and setSceneShipVector is the function that validates it.
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to update');
+          const next = setSceneShipVector(scene, { tokenId: value?.tokenId, velocity: value?.velocity });
+          const campaign = addSceneToCampaign(resolved.campaign, next);
+          registry.putAll([next, campaign]);
+          reload();
+          message = 'Starting vector set.';
+        } else if (action === 'place-body' || action === 'move-body' || action === 'remove-body') {
+          // Worlds, asteroid fields and emplacements on a vector board.
+          // scene-document.js already builds and validates each kind
+          // (worldBody/asteroidFieldBody/emplacementBody, which compute Book 2
+          // pp.26-27's own template from a diameter and density rather than
+          // taking one ready-made); this only routes to them.
+          const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
+          if (!scene) throw new Error('choose a scene to update');
+          let next = scene;
+          if (action === 'place-body') {
+            const spec = value ?? {};
+            const body = spec.kind === 'asteroid-field' ? asteroidFieldBody(spec)
+              : spec.kind === 'emplacement' ? emplacementBody(spec)
+              : worldBody(spec);
+            next = placeSceneBody(next, body);
+            // Book 2 p.28: a table holds one world, so the first world placed
+            // becomes the one whose gravity the fight samples. A second world
+            // is drawn but does not silently steal that role.
+            if (body.kind === 'world' && !next.space?.gravityBodyId) next = setSceneGravityBody(next, body.id);
+            message = `${body.name} placed.`;
+          } else if (action === 'move-body') {
+            next = moveSceneBody(next, { bodyId: value?.bodyId, x: value?.x, y: value?.y });
+            message = 'Body moved.';
+          } else {
+            next = removeSceneBody(next, value);
+            message = 'Body removed.';
+          }
+          const campaign = addSceneToCampaign(resolved.campaign, next);
+          registry.putAll([next, campaign]);
+          reload();
         } else if (action === 'file') {
           const scene = (resolved.scenes ?? []).find((entry) => entry.identity.id === id);
           if (!scene) throw new Error('choose a scene to file');
