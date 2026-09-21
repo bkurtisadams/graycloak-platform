@@ -11,7 +11,7 @@
 // from file:// — the client carries on signed out and entirely local, which is
 // how it has worked up to now and must keep working.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.252.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.252.1';
 
 const SDK_VERSION = '10.12.2';
 const SDK_SCRIPTS = Object.freeze([

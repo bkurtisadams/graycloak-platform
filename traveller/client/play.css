@@ -942,3 +942,9 @@ a.button { text-decoration: none; color: inherit; }
   .scene > .fight-shell { grid-template-rows: auto auto auto auto; }
   .fight-board > svg.bands { min-height: 260px; }
 }
+
+/* v0.252.1: a fight that ended by itself stays on screen until closed. */
+.fight-concluded { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; background: var(--go); border: 1px solid var(--go-border); }
+.fight-concluded h3 { margin: 0; font-size: 15px; }
+.fight-concluded p { margin: 0; font-size: 13px; color: var(--ink-2); }
+.fight-concluded .button { margin-left: auto; }

@@ -527,3 +527,49 @@ test('v0.252.0 the fight renders as the scene, table and all, and the now column
   delete globalThis.Node;
   delete globalThis.Option;
 });
+
+// ---------------------------------------------------------------------------
+// v0.252.1: Kurt's report — resolving the round that knocked the only foe
+// unconscious snapped the screen back to the port call, with the result as
+// one line of notice that opened "Refused — Harp: …".
+// ---------------------------------------------------------------------------
+
+test('v0.252.1 a fight that ends by itself stays on screen, concluded, until the referee leaves it', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const foe = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Harp' } } }).createdId;
+  session.run('fight:start', { fight: { opponentIds: [foe], range: 'short' } });
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+
+  // Resolve rounds until someone is down. Dice decide how long that takes,
+  // not whether: a rifle at short range against an unarmoured thug ends it.
+  let notice = null;
+  for (let round = 0; round < 40; round += 1) {
+    const view = session.view();
+    if (view.concluded) break;
+    // A pending wound allocation has to be dealt with before the next round.
+    if (view.next?.wound) { session.run('fight:end'); break; }
+    notice = session.run('fight:sheet', { fight: { rows: [{ actorId: me, move: 'Stand', targetId: foe }] } });
+  }
+  const view = session.view();
+  if (!view.concluded) return; // a wound prompt interrupted this run; nothing to check
+
+  assert.ok(view.fighters?.length, 'the fight is still what is on screen');
+  assert.match(view.concluded.headline, /out of the fight|escaped|over/);
+  assert.ok(view.concluded.rounds >= 1);
+  assert.deepEqual(view.refereeActions.map((action) => action.command), ['fight:dismiss'], 'no Resolve round, no End fight: only leaving');
+  // What happened comes first; a refused row is noted after it, not before.
+  assert.equal(/^Refused/.test(notice.message), false);
+
+  assert.equal(session.run('fight:dismiss').ok, true);
+  assert.equal(session.view().fighters?.length ?? 0, 0, 'and then back to the campaign');
+});
+
+test('v0.252.1 ending a fight deliberately goes straight back, with no aftermath to close', async () => {
+  const { session } = await freshSession();
+  const foe = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Harp' } } }).createdId;
+  session.run('fight:start', { fight: { opponentIds: [foe], range: 'medium' } });
+  assert.equal(session.run('fight:end').ok, true);
+  const view = session.view();
+  assert.equal(view.concluded ?? null, null);
+  assert.equal(view.fighters?.length ?? 0, 0);
+});

@@ -7,17 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.252.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.252.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.252.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.252.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.252.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.252.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.252.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.252.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.252.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.252.1';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.252.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.252.1';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +32,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.252.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.252.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.252.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -392,7 +392,8 @@ function sheetRow(row, state, handlers, focusId) {
   // matters is how close the lowest one is.
   const lowest = Math.min(...['STR', 'DEX', 'END'].map((key) => fighter.characteristics[key]));
   const brink = !row.down && lowest > 0 && lowest <= 2;
-  const live = Boolean(state.live) && !row.down;
+  // A concluded fight is shown, not played: its orders are read-only.
+  const live = Boolean(state.live) && !row.down && !state.concluded;
   const weapon = getPersonalWeapon(fighter.weaponKey);
   return h('tr', {
     class: `is-${fighter.side}${row.down ? ' is-down' : ''}${fighter.id === focusId ? ' is-focus' : ''}`,
@@ -453,7 +454,10 @@ function fightScene(state, handlers) {
       h('header', { class: 'lead' },
         h('h2', { text: state.situation.title }),
         h('p', { text: [state.setup?.range, state.setup?.surprise].filter(Boolean).join('. ') })),
-      encounterStepStrip(state, handlers),
+      state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
+        h('h3', { text: state.concluded.headline }),
+        h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` }),
+        h('button', { type: 'button', class: 'button is-primary', text: 'Leave the fight', onclick: () => handlers.onCommand?.('fight:dismiss') })) : encounterStepStrip(state, handlers),
       h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
       h('section', { class: 'fight-orders', 'aria-label': 'Declarations' },
         h('table', { class: 'tracker sheet' },
@@ -463,7 +467,7 @@ function fightScene(state, handlers) {
             h('th', { title: 'Book 1 p.28 step 4B', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
           sides.map((side) => h('tbody', {}, side.map((row) => sheetRow(row, state, handlers, focus?.fighter.id))))),
         h('div', { class: 'fight-actions' },
-          state.live && !(state.next?.wound ?? null)
+          state.live && !(state.next?.wound ?? null) && !state.concluded
             ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() },
               h('span', { text: 'Resolve round' }), h('small', { text: `${live} order${live === 1 ? '' : 's'}, as shown` }))
             : null,

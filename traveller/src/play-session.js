@@ -763,6 +763,27 @@ export function sheetViews(resolved, open = [], { subsector = null } = {}) {
     .filter(Boolean);
 }
 
+// v0.252.1: how a fight that ended by itself came out, in a sentence.
+function fightConclusion(encounter) {
+  const reason = encounter.outcome?.reason ?? '';
+  const winner = encounter.outcome?.winner ?? null;
+  const down = encounter.combatants.filter((entry) => entry.status !== 'active');
+  const lines = {
+    'party-escaped': 'The party escaped.',
+    'party-avoided-contact': 'The party used its surprise to avoid the encounter.'
+  };
+  const headline = lines[reason]
+    ?? (winner === 'party' ? 'The opposition is out of the fight.'
+      : winner === 'opposition' ? 'The party is out of the fight.'
+        : 'The fight is over.');
+  return {
+    headline,
+    winner,
+    rounds: Number(encounter.round ?? 1),
+    casualties: down.map((entry) => ({ name: entry.name, side: entry.side, status: entry.status }))
+  };
+}
+
 // Book 1 p.27: "While steps 1 through 3 are executed only once per encounter,
 // step 4 is performed cyclically until the combat is concluded."
 function encounterStepStrip(fight, resolved, writable) {
@@ -969,8 +990,9 @@ export function engineToSheetMove(action) {
   return { attack: 'Stand', wait: 'Stand', close: 'Close', 'close-run': 'Close (run)', open: 'Open', 'open-run': 'Open (run)', evade: 'Evade', escape: 'Escape' }[action] ?? 'Stand';
 }
 
-export function fightView(encounter, { characters = [] } = {}) {
-  if (!encounter || encounter.status !== 'active') return null;
+export function fightView(encounter, { characters = [], concluded = false } = {}) {
+  // v0.252.1: a concluded encounter can be drawn too, for the aftermath.
+  if (!encounter || (encounter.status !== 'active' && !concluded)) return null;
   const byId = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const declared = new Map((encounter.roundState?.declaredActions ?? []).map((entry) => [entry.actorId, entry]));
   const awaiting = new Set(undeclaredCombatantIds(encounter));
@@ -1421,6 +1443,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // Not persisted, same as pendingArrivalEncounter: a reload forgets an
   // in-progress fight, which is a known limit of this first cut.
   let pendingShipFight = null;
+  // v0.252.1: the encounter that ended by itself this session — every foe
+  // down, or the party escaped — and has not been acknowledged yet. Without
+  // it the moment the last foe fell the screen snapped back to the port call
+  // with one line of notice, and the referee never saw how it ended.
+  let concludedEncounterId = null;
   // v0.232.0: a successful merchant hail on arrival (Book 2 p.36) earns a
   // one-time broker's tip on the next speculative resale quote made at that
   // same system. Not persisted, same as the arrival encounter and ship
@@ -2100,6 +2127,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
+      if (command === 'fight:dismiss') {
+        // v0.252.1: the referee has seen how it ended; back to the campaign.
+        concludedEncounterId = null;
+        lastMessage = { ok: true, message: 'Fight closed.' };
+        onChange();
+        return lastMessage;
+      }
       if (command.startsWith('fight:')) {
         let message;
         const encounter = liveEncounter();
@@ -2145,7 +2179,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const result = resolveDeclaredRound(staged, { dice: createDice(), date: resolved.campaign.time, playerAllocatesWounds: true });
           persist([result.encounter]);
           const narration = (result.encounter.history ?? []).filter((entry) => entry.round === staged.round && entry.text).map((entry) => entry.text);
-          message = [...refused.map((line) => `Refused \u2014 ${line}`), ...narration].join('. ') || `Round ${staged.round} resolved`;
+          // v0.252.1: what happened first, and what was refused after it. A
+          // surprised combatant's refused row used to open the notice, so a
+          // round that ended the fight read "Refused \u2014 Harp: \u2026" as
+          // though the resolve itself had failed.
+          message = [...narration, ...refused.map((line) => `(not declared: ${line})`)].join('. ') || `Round ${staged.round} resolved`;
+          if (result.encounter.status !== 'active') concludedEncounterId = result.encounter.identity.id;
         } else if (verb === 'undeclare') {
           const actorId = fight?.actorId;
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
@@ -3135,8 +3174,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         };
       }
       // A fight in progress is what is happening; nothing else is offered.
-      const live = (resolved.encounters ?? []).find((entry) => entry.status === 'active');
-      const fight = fightView(live, { characters: resolved.characters ?? [] });
+      // v0.252.1: and a fight that has just ended stays on screen, concluded,
+      // until the referee closes it — the aftermath is still what is
+      // happening. Only a fight that ended by itself does this; ending one
+      // deliberately (End fight, avoiding it) goes straight back.
+      const active = (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
+      const ended = !active && concludedEncounterId
+        ? (resolved.encounters ?? []).find((entry) => entry.identity.id === concludedEncounterId) ?? null
+        : null;
+      const live = active ?? ended;
+      const fight = fightView(live, { characters: resolved.characters ?? [], concluded: Boolean(ended) });
       if (fight) {
         const writable = save.state !== 'stale';
         const wound = pendingWoundAllocation(live);
@@ -3193,7 +3240,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           lastRound: fight.lastRound,
           scene: { ...fight.scene, selected: selectedFighterId ?? fight.scene.selected },
           next,
-          refereeActions: writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
+          refereeActions: ended
+            ? [{ command: 'fight:dismiss', label: 'Leave the fight' }]
+            : writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
+          concluded: ended ? fightConclusion(ended) : null,
           // v0.252.0: Book 1 p.27's procedure, as a strip across the top of
           // the fight. Steps 1 to 3 run once per encounter and were reported
           // only as a sentence of prose; step 3 — escape and avoidance — had
