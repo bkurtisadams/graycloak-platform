@@ -326,7 +326,6 @@ function gearTab(sheet, handlers) {
   const load = sheet.load;
   const parts = [];
   if (load) {
-    if (sheet.npc && load.penalty) parts.push(h('p', { class: 'sheet-note is-warn', text: `${load.words}. Book 1 p.33 applies to anyone; the fight does not yet take it off an NPC\u2019s scores.` }));
     // Book 1 p.33 drawn out: free to STR in kilograms, encumbered to twice
     // it, military to three times, each band widened or narrowed by the
     // local gravity.

@@ -74,7 +74,8 @@ import {
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap,
-  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setEncounterOpeningRange, setCombatantWeapon, setCombatantArmor,
+  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setEncounterOpeningRange,
+  moraleStanding, setEncounterMorale, setCombatantWeapon, setCombatantArmor,
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
@@ -791,11 +792,12 @@ function npcActorSheet(actor, resolved, subsector) {
   const inventory = actor.inventory ?? [];
   const load = assessLoad({ strength: actor.characteristics.STR, loadGrams: inventoryLoadGrams(inventory), military: false, gravityFactor });
   const effective = {};
-  // The fight does not yet take Book 1 p.33's penalty off an NPC's scores,
-  // so the band shows the scores as they are rather than as they would be.
+  // v0.272.0: the fight takes Book 1 p.33's penalty off an NPC's scores now,
+  // so the band shows what it will fight with, as a character's does.
+  const penalty = load.characteristicDM ?? 0;
   for (const key of ['STR', 'DEX', 'END']) {
     const now = Number(actor.current?.[key] ?? actor.characteristics[key] ?? 0);
-    effective[key] = { now, full: Number(actor.characteristics[key] ?? 0), played: now };
+    effective[key] = { now, full: Number(actor.characteristics[key] ?? 0), played: Math.max(0, now + penalty) };
   }
   for (const key of ['INT', 'EDU', 'SOC']) {
     const score = Number(actor.characteristics[key] ?? 0);
@@ -1414,11 +1416,29 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
   };
   // Book 1 p.33: at 25% of a party unconscious or killed, it throws morale
   // each round, 7+ to stand; -2 once casualties pass 50%.
-  const casualties = ['party', 'foe'].map((side) => {
-    const members = fighters.filter((entry) => entry.side === side);
-    const out = members.filter((entry) => entry.down).length;
-    const share = members.length ? out / members.length : 0;
-    return { side, out, of: members.length, share, throwing: share >= 0.25 && out < members.length };
+  // v0.272.0: both sides, read by the engine's own rule: the unconscious
+  // and the killed count (not the escaped), with every DM that applies.
+  const casualties = ['party', 'opposition'].map((side) => {
+    const standing = moraleStanding(encounter, side);
+    const dms = [
+      standing.militaryUnit ? 'military unit +1' : null,
+      standing.leaderPresent ? `leader ${standing.leaderName} +1` : null,
+      standing.leaderHasTactics ? 'leader\u2019s tactics +1' : null,
+      standing.leaderKilled ? 'leader killed \u22122' : null,
+      standing.overHalf ? 'casualties over half \u22122' : null,
+      standing.refereeDM ? `referee ${standing.refereeDM > 0 ? '+' : '\u2212'}${Math.abs(standing.refereeDM)}` : null
+    ].filter(Boolean);
+    const total = (standing.militaryUnit ? 1 : 0) + (standing.leaderPresent ? 1 : 0) + (standing.leaderHasTactics ? 1 : 0)
+      + (standing.leaderKilled ? -2 : 0) + (standing.overHalf ? -2 : 0) + standing.refereeDM;
+    return {
+      side: side === 'party' ? 'party' : 'foe',
+      out: standing.casualties, of: standing.of, share: standing.share,
+      throwing: standing.required && !standing.broken,
+      broken: standing.broken,
+      militaryUnit: standing.militaryUnit, refereeDM: standing.refereeDM,
+      dms, total,
+      words: `${side === 'party' ? 'The party' : 'The opposition'} has ${standing.casualties} of ${standing.of} unconscious or killed (${Math.round(standing.share * 100)}%): morale is thrown at the end of each round, 7+ to stand${total ? ` at DM ${total > 0 ? '+' : '\u2212'}${Math.abs(total)}` : ''}${dms.length ? ` (${dms.join(', ')})` : ''}.`
+    };
   });
 
   return {
@@ -1842,8 +1862,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       if (!combatant.playerCharacter) {
         const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === combatant.sourceActorId);
         if (!actor || actor.profile?.kind === 'statblock' || combatant.copyNumber !== undefined && combatant.copyNumber !== null) continue;
+        // v0.272.0: the load's penalty belongs to the fight, as a
+        // character's does; a score still at zero stays at zero.
+        const penalty = Number(combatant.encumbrance ?? 0);
         const current = {};
-        for (const key of ['STR', 'DEX', 'END']) current[key] = Math.max(0, Math.min(actor.characteristics[key], Number(combatant.current?.[key] ?? 0)));
+        for (const key of ['STR', 'DEX', 'END']) {
+          const inFight = Number(combatant.current?.[key] ?? 0);
+          current[key] = inFight <= 0 ? 0 : Math.max(0, Math.min(actor.characteristics[key], inFight - penalty));
+        }
         const zeros = ['STR', 'DEX', 'END'].filter((key) => current[key] <= 0).length;
         const dead = zeros >= 3 || combatant.status === 'dead';
         const severe = Boolean(combatant.severelyWounded) || (!dead && zeros >= 2);
@@ -2886,6 +2912,18 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         return lastMessage;
       }
+      // v0.272.0: Book 1 p.33's per-side morale settings — a military unit,
+      // and the referee's DM for a valiant (or shaky) party. Set any time.
+      if (command === 'fight:morale') {
+        const encounter = liveEncounter() ?? setupEncounter();
+        if (!encounter) throw new Error('no fight is running');
+        const value = fight?.value ?? {};
+        persist([setEncounterMorale(encounter, { side: value.side, militaryUnit: value.militaryUnit, dm: value.dm })]);
+        lastMessage = { ok: true, message: 'Morale set.' };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (['fight:place', 'fight:reposition', 'fight:remove', 'fight:begin', 'fight:discard', 'fight:range'].includes(command)) {
         const encounter = setupEncounter();
         if (!encounter) throw new Error('no fight is being set up');
@@ -2922,7 +2960,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               registry.put(actor);
               reload();
             }
-            next = addEncounterCombatantFromActor(encounter, { actor, side: value.side ?? 'opposition', column, row: 0 });
+            next = addEncounterCombatantFromActor(encounter, { actor, side: value.side ?? 'opposition', column, row: 0, gravityFactor: currentGravityFactor(resolved, subsector) });
           }
           message = next.entry?.text ?? 'Placed.';
           next = next.encounter;
@@ -2995,7 +3033,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const encounter = createEncounterDocument({
           campaign: resolved.campaign,
           characters: named,
-          opponents: actors.map(opponentSpecFromNpcActor),
+          opponents: actors.map((actor) => opponentSpecFromNpcActor(actor, { gravityFactor: currentGravityFactor(resolved, subsector) })),
           spatialMode: 'range-line',
           range: fight?.range ?? 'medium',
           // Book 1 p.33: what each character is carrying, against the gravity

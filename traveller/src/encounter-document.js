@@ -3,6 +3,8 @@ import {
   PERSONAL_ARMOR_TYPES,
   PERSONAL_COMBAT_STATUSES,
   characterLoad,
+  assessLoad,
+  inventoryLoadGrams,
   getPersonalWeapon,
   createPersonalCombatant,
   resolvePersonalSurprise,
@@ -246,7 +248,7 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
       id: spec.id ?? stableDocumentId('foe', `${campaign.identity.id}|${encounterKey ?? situation?.identity?.id ?? date.dayOfYear}|${index}|${spec.name}`),
       name: spec.name, side: 'opposition', characteristics: spec.characteristics ?? { STR: 7, DEX: 7, END: 7, INT: 7 },
       skills: spec.skills ?? { [defaultSkill]: 0 }, armor: spec.armor ?? 'jack',
-      weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0)
+      weaponKey, surpriseDM: Number(spec.surpriseDM ?? 0), encumbrance: Number(spec.encumbrance ?? 0)
     }), spec.current), (spec.actorId && staged.get(spec.actorId)) ?? initialPosition('opposition', index, opponentSpecs.length, range, board)), cover: 'none', foldingStock: false, tactics: 'auto', militaryExperience: Boolean(spec.militaryExperience), sourceActorId: spec.actorId ?? null,
       actorType: spec.actorType ?? 'npc', bodyModel: spec.bodyModel ?? (spec.actorType === 'robot' ? 'robotic' : 'biological'),
       tokenLabel: String(spec.tokenLabel ?? spec.name).charAt(0).toUpperCase(), conditions: Array.isArray(spec.conditions) ? [...spec.conditions] : [], contactIds: [] };
@@ -709,7 +711,17 @@ function actorConditionKeys(actor) {
     .filter((key) => ENCOUNTER_CONDITIONS[actor.profile?.bodyModel]?.includes(key));
 }
 
-export function addEncounterCombatantFromActor(document, { actor, side = 'opposition', column, row } = {}) {
+// v0.272.0: Book 1 p.33 is "for all purposes", and an NPC actor now carries
+// an inventory, so it fights under its load the way a character does. A
+// military load is a character's choice; an NPC carries as a civilian.
+export function npcActorEncumbrance(actor, { gravityFactor = null } = {}) {
+  const strength = Number(actor?.characteristics?.STR ?? 0);
+  const inventory = Array.isArray(actor?.inventory) ? actor.inventory : [];
+  if (!inventory.length) return 0;
+  return assessLoad({ strength, loadGrams: inventoryLoadGrams(inventory), military: false, gravityFactor }).characteristicDM ?? 0;
+}
+
+export function addEncounterCombatantFromActor(document, { actor, side = 'opposition', column, row, gravityFactor = null } = {}) {
   const next = importEncounterDocument(document);
   // v0.94.0: setup accepts combatants too — that is the phase whose whole
   // purpose is collecting them.
@@ -758,7 +770,8 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
       skills: actor.skills ?? {},
       armor: actor.loadout?.armor ?? 'none',
       weaponKey,
-      surpriseDM: 0
+      surpriseDM: 0,
+      encumbrance: npcActorEncumbrance(actor, { gravityFactor })
     }), actor.current),
     position: { column, row },
     cover: 'none',
@@ -1445,16 +1458,33 @@ function concludeRound(next, entries, live, { dice, date } = {}) {
   else if (!foesLeft) { next.status = 'victory'; next.outcome = { winner: 'party', reason: 'opposition-incapacitated' }; }
 
   if (next.status === 'active') {
-    const casualties = next.combatants.filter((entry) => entry.side !== 'party' && entry.status !== 'active').length;
-    const originalStrength = next.combatants.filter((entry) => entry.side !== 'party').length;
-    const morale = resolvePersonalMorale({ casualties, originalStrength, dice });
-    if (morale.required) {
-      const moraleDM = morale.dm ? ` / DM ${morale.dm >= 0 ? '+' : ''}${morale.dm}` : '';
-      entries.push({ round: next.round, kind: 'morale', side: 'opposition', text: `Opposition morale / 2D [${morale.dice.join('] [')}]${moraleDM} / TOTAL ${morale.total} vs ${morale.target}+ / ${morale.stands ? 'STANDS' : 'WITHDRAWS'}.`, detail: morale });
-      if (!morale.stands) {
+    // v0.272.0: Book 1 p.33 for both sides, with its DMs. Until now only the
+    // opposition threw, with none of them, and anyone who had escaped counted
+    // as a casualty. The rule counts the unconscious and the killed.
+    noteFallenLeaders(next);
+    for (const side of MORALE_SIDES) {
+      const view = moraleStanding(next, side);
+      if (!view.required || view.broken) continue;
+      const morale = resolvePersonalMorale({
+        casualties: view.casualties, originalStrength: view.of, dm: view.refereeDM,
+        militaryUnit: view.militaryUnit, leaderPresent: view.leaderPresent, leaderHasTactics: view.leaderHasTactics, leaderKilled: view.leaderKilled,
+        dice
+      });
+      const name = side === 'party' ? 'Party' : 'Opposition';
+      const dmText = morale.parts.filter((part) => part.dm).map((part) => `${String(part.label ?? part.key).toLowerCase()} ${part.dm > 0 ? '+' : ''}${part.dm}`);
+      if (morale.refereeDM) dmText.push(`referee ${morale.refereeDM > 0 ? '+' : ''}${morale.refereeDM}`);
+      const moraleDM = morale.dm ? ` / DM ${morale.dm >= 0 ? '+' : ''}${morale.dm}${dmText.length ? ` (${dmText.join(', ')})` : ''}` : '';
+      entries.push({ round: next.round, kind: 'morale', side, text: `${name} morale / 2D [${morale.dice.join('] [')}]${moraleDM} / TOTAL ${morale.total} vs ${morale.target}+ / ${morale.stands ? 'STANDS' : side === 'party' ? 'BREAKS' : 'WITHDRAWS'}.`, detail: morale });
+      if (morale.stands) continue;
+      if (side === 'opposition') {
         next.status = 'opposition-withdrew'; next.outcome = { winner: 'party', reason: 'morale' };
         next.combatants = next.combatants.map((entry) => entry.side !== 'party' && entry.status === 'active' ? { ...entry, status: 'withdrawn' } : entry);
+        break;
       }
+      // The party is the players': a broken party is reported, and what the
+      // characters do about it is theirs and the referee's to say.
+      next.morale = { ...(next.morale ?? {}), party: { ...(next.morale?.party ?? {}), brokenRound: next.round } };
+      entries.push({ round: next.round, kind: 'morale', side: 'party', text: 'The party breaks (Book 1 p.33): the referee rules what that means for the characters.' });
     }
   }
   next.history.push(...entries);
@@ -1484,6 +1514,69 @@ export function resolveEncounterRound(document, { action = 'attack', modifier = 
   return resolveDeclaredRound(encounter, { dice, date });
 }
 
+// ---- v0.272.0: morale, Book 1 p.33 ---------------------------------------
+// "At the point in which 25% of a party are unconscious or killed, the party
+// must begin throwing for morale" — 7+ to stand; +1 a military unit, +1 a
+// leader (leader expertise) present, +1 that leader has tactical expertise,
+// -2 the leader killed (for two rounds, then until a new leader takes
+// control), -2 casualties over half. A leader is whoever on the side has the
+// Leader skill; the military-unit flag and a referee DM ("valiant parties may
+// have a higher throw") are set per side.
+export const MORALE_SIDES = Object.freeze(['party', 'opposition']);
+const sideOf = (entry) => (entry.side === 'party' ? 'party' : 'opposition');
+const leaderLevel = (entry) => Number(entry.skills?.Leader ?? -1);
+
+function noteFallenLeaders(next) {
+  for (const side of MORALE_SIDES) {
+    const fallen = next.combatants.filter((entry) => sideOf(entry) === side && entry.status === 'dead' && leaderLevel(entry) >= 1);
+    const known = new Set(next.morale?.[side]?.fallenLeaderIds ?? []);
+    const fresh = fallen.filter((entry) => !known.has(entry.id));
+    if (!fresh.length) continue;
+    next.morale = { ...(next.morale ?? {}), [side]: { ...(next.morale?.[side] ?? {}), fallenLeaderIds: [...known, ...fresh.map((entry) => entry.id)], leaderKilledRound: next.round } };
+  }
+}
+
+export function moraleStanding(encounter, side) {
+  const members = encounter.combatants.filter((entry) => sideOf(entry) === side);
+  const casualties = members.filter((entry) => entry.status === 'unconscious' || entry.status === 'dead').length;
+  const of = members.length;
+  const standing = members.filter((entry) => entry.status === 'active');
+  const leader = standing.filter((entry) => leaderLevel(entry) >= 1).sort((a, b) => leaderLevel(b) - leaderLevel(a))[0] ?? null;
+  const settings = encounter.morale?.[side] ?? {};
+  const killedRound = settings.leaderKilledRound ?? null;
+  // Two rounds of -2, and after that until someone else with leader
+  // expertise is standing to take control.
+  const leaderKilled = killedRound !== null && (Number(encounter.round) - killedRound < 2 || !leader);
+  return {
+    side, casualties, of, share: of ? casualties / of : 0,
+    required: of > 0 && casualties / of >= 0.25 && standing.length > 0,
+    militaryUnit: Boolean(settings.militaryUnit),
+    refereeDM: Number.isInteger(settings.dm) ? settings.dm : 0,
+    leaderPresent: Boolean(leader) && !(killedRound !== null && Number(encounter.round) - killedRound < 2),
+    leaderHasTactics: Boolean(leader) && Number(leader.skills?.Tactics ?? 0) >= 1 && !(killedRound !== null && Number(encounter.round) - killedRound < 2),
+    leaderName: leader?.name ?? null,
+    leaderKilled,
+    broken: side === 'party' && Number.isInteger(settings.brokenRound),
+    overHalf: of > 0 && casualties / of > 0.5
+  };
+}
+
+export function setEncounterMorale(document, { side, militaryUnit, dm } = {}) {
+  const next = importEncounterDocument(document);
+  if (!MORALE_SIDES.includes(side)) throw new RangeError('side must be party or opposition');
+  const current = next.morale?.[side] ?? {};
+  const patch = { ...current };
+  if (militaryUnit !== undefined) patch.militaryUnit = Boolean(militaryUnit);
+  if (dm !== undefined) {
+    const value = Number(dm);
+    if (!Number.isInteger(value) || value < -6 || value > 6) throw new RangeError('a morale DM is a whole number from -6 to +6');
+    patch.dm = value;
+  }
+  next.morale = { ...(next.morale ?? {}), [side]: patch };
+  assertValidEncounterDocument(next);
+  return next;
+}
+
 export function avoidEncounter(document, { date } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
@@ -1498,7 +1591,7 @@ export function avoidEncounter(document, { date } = {}) {
 
 // v0.74.0: a roster NPC as an opponent spec for createEncounterDocument, with
 // the same fields addEncounterCombatantFromActor gives a placed one.
-export function opponentSpecFromNpcActor(actor) {
+export function opponentSpecFromNpcActor(actor, { gravityFactor = null } = {}) {
   if (!actor?.identity?.id || !actor?.identity?.name || !actor?.profile?.bodyModel) throw new TypeError('a roster actor is required');
   return {
     name: actor.identity.name, actorId: actor.identity.id,
@@ -1506,7 +1599,8 @@ export function opponentSpecFromNpcActor(actor) {
     armor: actor.loadout?.armor ?? 'none', weaponKey: actor.loadout?.weaponKey ?? 'hands',
     actorType: actor.profile.actorType ?? 'npc', bodyModel: actor.profile.bodyModel,
     tokenLabel: String(actor.presentation?.tokenLabel || actor.identity.name).slice(0, 3).toUpperCase(),
-    conditions: actorConditionKeys(actor), current: actor.current ?? null
+    conditions: actorConditionKeys(actor), current: actor.current ?? null,
+    encumbrance: npcActorEncumbrance(actor, { gravityFactor })
   };
 }
 
@@ -1535,8 +1629,13 @@ export function setCombatantCurrent(document, { combatantId, scores = {} } = {})
   }
   if (!changes.length) return { encounter: next, combatant, entry: null };
   // Someone brought back above zero is conscious again unless dead.
-  const downed = ['STR', 'DEX', 'END'].some((key) => combatant.current[key] <= 0);
-  if (!downed && combatant.status === 'unconscious') combatant.status = 'active';
+  const zeros = ['STR', 'DEX', 'END'].filter((key) => combatant.current[key] <= 0).length;
+  if (!zeros && combatant.status === 'unconscious') combatant.status = 'active';
+  // v0.272.0: and the other way. Book 1 p.30: one characteristic at zero is
+  // unconscious, all three dead. The referee's fiat set the scores but left
+  // the combatant standing, so it still acted and never counted for morale.
+  if (zeros >= 3 && ['active', 'unconscious'].includes(combatant.status)) combatant.status = 'dead';
+  else if (zeros && combatant.status === 'active') combatant.status = 'unconscious';
   const entry = {
     round: next.round, kind: 'status', side: 'referee', combatantId,
     text: `Referee sets ${combatant.name}: ${changes.join(', ')}.`

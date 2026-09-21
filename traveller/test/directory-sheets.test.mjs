@@ -1783,13 +1783,16 @@ test('v0.271.0 an actor walks out of a fight with its wounds; a statblock does n
   assert.equal(session.run('edit:combatant:current', { fight: { id: idOf('Thug'), value: { STR: 1 } } }).ok, true);
   assert.equal(session.run('fight:end').ok, true);
   const actorOf = (id) => registry.resolveCampaign(campaignId).npcActors.find((entry) => entry.identity.id === id);
-  assert.equal(actorOf(rao).current.STR, 2);
-  assert.equal(actorOf(rao).current.DEX, 0);
+  // One characteristic at zero knocks him out; he wakes ten minutes on at
+  // halfway between full and wounded, fractions against him (Book 1 p.31).
+  const full = actorOf(rao).characteristics;
+  assert.equal(actorOf(rao).current.STR, Math.floor((2 + full.STR) / 2));
+  assert.equal(actorOf(rao).current.DEX, Math.max(1, Math.floor(full.DEX / 2)));
   assert.equal(actorOf(thug).current.STR, actorOf(thug).characteristics.STR, 'the pattern is untouched');
   const [sheet] = session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets;
   assert.equal(sheet.condition.wounded, true);
   assert.equal(sheet.condition.severe, false, 'one characteristic at zero is not severe');
-  assert.equal(sheet.effective.DEX.now, 0);
+  assert.ok(sheet.effective.DEX.now < sheet.effective.DEX.full);
 });
 
 test('v0.271.0 a severely wounded actor cannot rest it off; medical attention can; a dead actor stays off the board', async () => {
@@ -1874,4 +1877,107 @@ test('v0.271.0 the range line in setup offers terrain, a throw, and a stated ran
   assert.deepEqual(asked, [{ terrain: 'forest' }, { range: 'close' }]);
   dom.window.close();
   delete globalThis.document;
+});
+
+// ------------------------------------------------------------ v0.272.0
+// Book 1 p.33 for an NPC's load, and morale for both sides with its DMs.
+test('v0.272.0 an NPC fights under its load, and the penalty comes off again afterwards', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const mule = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Pack Mule' } } }).createdId;
+  session.run('edit:actor:characteristics', { fight: { id: mule, value: { STR: 6, DEX: 7, END: 7, INT: 7, EDU: 7, SOC: 7 } } });
+  session.run('inventory:add', { characterId: mule, item: { name: 'Ammunition crate', weightKg: 15, quantity: 1 } });
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: mule }] }).sheets;
+  assert.equal(sheet.load.penalty, -1, '15 kg against STR 6 in this world\u2019s gravity: encumbered');
+  assert.equal(sheet.effective.DEX.played, 6, 'the band shows what it will fight with');
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: mule, column: 5 } } });
+  const fighter = session.view().fighters.find((entry) => entry.name === 'Pack Mule');
+  assert.deepEqual([fighter.characteristics.STR, fighter.characteristics.DEX, fighter.characteristics.END], [5, 6, 6]);
+  assert.equal(fighter.encumbrance, -1);
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  session.run('fight:end');
+  const after = registry.resolveCampaign(campaignId).npcActors.find((entry) => entry.identity.id === mule);
+  assert.deepEqual(after.current, { STR: 6, DEX: 7, END: 7 }, 'unhurt, it walks out at its own scores, not the loaded ones');
+});
+
+async function moraleFixture({ thugs = 4, leader = false } = {}) {
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  for (let copy = 0; copy < thugs; copy += 1) session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 12 } } });
+  if (leader) {
+    const sarge = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sergeant' } } }).createdId;
+    session.run('edit:actor:skills', { fight: { id: sarge, value: 'Leader-1, Tactics-1' } });
+    session.run('fight:place', { fight: { value: { kind: 'actor', id: sarge, column: 12 } } });
+  }
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const byName = (name) => session.view().fighters.find((entry) => entry.name === name);
+  const holdFire = () => session.run('fight:sheet', { fight: { rows: session.view().fighters.filter((entry) => !entry.down).map((entry) => ({ actorId: entry.id, move: 'Stand', targetId: null })) } });
+  return { session, byName, holdFire };
+}
+
+test('v0.272.0 morale counts the unconscious and killed, throws with its DMs, and the settings add to it', async () => {
+  const { session, byName, holdFire } = await moraleFixture({ thugs: 3, leader: true });
+  let foes = session.view().casualties.find((entry) => entry.side === 'foe');
+  assert.equal(foes.throwing, false);
+  assert.match(foes.dms.join(', '), /leader Sergeant \+1, leader\u2019s tactics \+1/);
+  session.run('edit:combatant:current', { fight: { id: byName('Thug').id, value: { END: 0 } } });
+  assert.equal(session.run('fight:morale', { fight: { value: { side: 'opposition', militaryUnit: true, dm: -1 } } }).ok, true);
+  foes = session.view().casualties.find((entry) => entry.side === 'foe');
+  assert.equal(foes.out, 1);
+  assert.equal(foes.throwing, true, 'one of four is a quarter');
+  assert.equal(foes.total, 2, '+1 military, +1 leader, +1 tactics, -1 referee');
+  assert.match(foes.words, /7\+ to stand at DM \+2 \(military unit \+1, leader Sergeant \+1, leader\u2019s tactics \+1, referee \u22121\)/);
+  const before = session.view().chat.length;
+  holdFire();
+  const line = session.view().chat.slice(before).find((entry) => /Opposition morale/.test(entry.text));
+  assert.ok(line, 'thrown at the end of the round');
+  assert.match(line.text, /DM \+2 \(military unit \+1, leader present \+1, leader tactics \+1, referee -1\)/);
+});
+
+test('v0.272.0 a killed leader costs \u22122; the party throws too, and breaking is reported, not enforced', async () => {
+  const { session, byName } = await moraleFixture({ thugs: 3, leader: true });
+  session.run('edit:combatant:current', { fight: { id: byName('Sergeant').id, value: { STR: 0, DEX: 0, END: 0 } } });
+  const foes = session.view().casualties.find((entry) => entry.side === 'foe');
+  // Recorded as killed once a round ends; before that it is a casualty only.
+  assert.equal(foes.out, 1);
+  const { moraleStanding } = await import('../src/encounter-document.js');
+  const encounter = session.resolved.encounters.find((entry) => entry.status === 'active');
+  assert.equal(moraleStanding(encounter, 'opposition').leaderPresent, false, 'no leader left standing');
+  assert.equal(moraleStanding(encounter, 'party').required, false);
+  // At the round's end his death is recorded, and the next throw carries it.
+  const { holdFire } = await (async () => ({ holdFire: () => session.run('fight:sheet', { fight: { rows: session.view().fighters.filter((entry) => !entry.down).map((entry) => ({ actorId: entry.id, move: 'Stand', targetId: null })) } }) }))();
+  const before = session.view().chat.length;
+  holdFire();
+  const line = session.view().chat.slice(before).find((entry) => /Opposition morale/.test(entry.text));
+  assert.ok(line);
+  assert.match(line.text, /leader killed -2/);
+  if (session.view().fighters?.length && !session.view().concluded) {
+    assert.match(session.view().casualties.find((entry) => entry.side === 'foe').dms.join(', '), /leader killed \u22122/);
+  }
+});
+
+test('v0.272.0 the escaped are not casualties for morale', async () => {
+  const { moraleStanding } = await import('../src/encounter-document.js');
+  const base = { round: 2, combatants: [
+    { id: 'a', side: 'opposition', status: 'escaped', skills: {} },
+    { id: 'b', side: 'opposition', status: 'escaped', skills: {} },
+    { id: 'c', side: 'opposition', status: 'active', skills: {} },
+    { id: 'd', side: 'opposition', status: 'active', skills: {} }
+  ] };
+  assert.equal(moraleStanding(base, 'opposition').required, false);
+  base.combatants[0].status = 'unconscious';
+  assert.equal(moraleStanding(base, 'opposition').required, true);
+  base.morale = { opposition: { leaderKilledRound: 1 } };
+  assert.equal(moraleStanding(base, 'opposition').leaderKilled, true, 'within two rounds');
+  base.round = 4;
+  assert.equal(moraleStanding(base, 'opposition').leaderKilled, true, 'and after, while no one else leads');
+  base.combatants[2].skills = { Leader: 1 };
+  base.combatants[2].name = 'Corporal';
+  assert.equal(moraleStanding(base, 'opposition').leaderKilled, false, 'until a new leader takes control');
+  assert.equal(moraleStanding(base, 'opposition').leaderPresent, true);
 });

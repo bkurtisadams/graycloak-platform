@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.271.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.271.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.271.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.271.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.271.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.271.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.271.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.271.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.271.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.272.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.272.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.272.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.272.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.272.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.272.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.272.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.272.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.272.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -358,6 +358,13 @@ function render() {
           result = source.session.run('fight:place', { fight: { value: { ...data, column: band, asStatblock: true } } });
         } else if (actor && /already on the board/.test(result.message)) { render(); return; }
       }
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
+    // v0.272.0: Book 1 p.33's per-side morale settings.
+    onMorale: (side, patch) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:morale', { fight: { value: { side, ...patch } } });
       if (!result.ok) window.alert(result.message);
       render();
     },

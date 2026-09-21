@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.271.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.271.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.271.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.272.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.272.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.272.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.271.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.271.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.271.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.271.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.272.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.272.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.272.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.272.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.271.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.272.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -573,8 +573,7 @@ function fightScene(state, handlers) {
   const sides = [rows.filter((row) => row.fighter.side === 'party'), rows.filter((row) => row.fighter.side !== 'party')];
   const live = rows.filter((row) => !row.down).length;
   const wound = state.next?.wound ?? null;
-  const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) =>
-    `${entry.side === 'party' ? 'The party' : 'The opposition'} has ${entry.out} of ${entry.of} down (${Math.round(entry.share * 100)}%): morale is thrown each round, 7+ to stand${entry.share > 0.5 ? ', at \u22122' : ''}.`);
+  const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) => entry.words);
   const whyRow = (row) => {
     if (!focus || row.fighter.id !== focus.fighter.id || focus.down) return null;
     const parts = [];
@@ -596,6 +595,7 @@ function fightScene(state, handlers) {
         h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` })) : null,
       wound ? woundPanel(state, handlers) : null,
       morale.length ? h('p', { class: 'hold-note is-morale' }, morale.join(' ')) : null,
+      referee && state.live ? moraleSettings(state, handlers) : null,
       h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
       h('section', { class: 'fight-orders', 'aria-label': 'Declarations' },
         h('table', { class: 'tracker sheet' },
@@ -629,12 +629,36 @@ function setupColumn(state) {
   ];
 }
 
+// v0.272.0: Book 1 p.33's two per-side choices the engine cannot read off
+// the combatants: whether the side is a military unit, and the referee's DM
+// ("valiant parties may have a higher throw"). Leaders are read from the
+// Leader skill. Folded away until wanted.
+function moraleSettings(state, handlers) {
+  const sides = (state.casualties ?? []);
+  if (!sides.length) return null;
+  const summary = sides.map((entry) => `${entry.side === 'party' ? 'party' : 'opposition'} ${entry.total >= 0 ? '+' : '\u2212'}${Math.abs(entry.total)}`).join(', ');
+  return h('details', { class: 'morale-settings' },
+    h('summary', { text: `Morale (Book 1 p.33): DMs ${summary}${sides.some((entry) => entry.broken) ? ' \u00b7 the party has broken' : ''}` }),
+    sides.map((entry) => {
+      const side = entry.side === 'party' ? 'party' : 'opposition';
+      return h('div', { class: 'morale-side' },
+        h('b', { text: side === 'party' ? 'Party' : 'Opposition' }),
+        h('label', { class: 'sheet-check' },
+          h('input', { type: 'checkbox', checked: entry.militaryUnit, onchange: (event) => handlers.onMorale?.(side, { militaryUnit: event.currentTarget.checked }) }),
+          ' military unit (+1)'),
+        h('label', { class: 'sheet-inline' }, 'referee DM ',
+          h('input', { type: 'number', min: '-6', max: '6', value: String(entry.refereeDM), 'aria-label': `${side} morale DM`, style: 'width:52px',
+            onchange: (event) => handlers.onMorale?.(side, { dm: Number(event.currentTarget.value) || 0 }) })),
+        h('span', { class: 'cite', text: entry.dms.length ? entry.dms.join(', ') : 'no DMs' }));
+    }),
+    h('p', { class: 'cite', text: 'Thrown for a side once a quarter of it is unconscious or killed, 7+ to stand. A leader is anyone with Leader skill; killed, \u22122 for two rounds and until another leader takes over.' }));
+}
+
 function fightColumn(state, handlers) {
   const rows = state.sheetRows ?? sheetRows(state, {});
   const focus = rows.find((row) => row.fighter.id === state.sheetFocus) ?? rows.find((row) => !row.down) ?? null;
   const wound = state.next?.wound ?? null;
-  const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) =>
-    `${entry.side === 'party' ? 'The party' : 'The opposition'} has ${entry.out} of ${entry.of} down (${Math.round(entry.share * 100)}%): morale is thrown each round, 7+ to stand${entry.share > 0.5 ? ', at \u22122' : ''}.`);
+  const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) => entry.words);
   return [
     h('header', { class: 'now-head' }, h('h1', { text: 'This round' }), h('p', { text: focus ? focus.fighter.name : 'Nobody left standing' })),
     state.notice ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null,
