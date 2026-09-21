@@ -1024,3 +1024,29 @@ test('v0.258.0 shooting an untrained NPC gives no +3; punching one holding a clu
   assert.ok(punch, 'Hawkeye threw a punch');
   assert.match(punch.detail, /Defender untrained \+3/);
 });
+
+// ---------------------------------------------------------------------------
+// v0.259.0: Book 1's guns as clubs — a pistol classed as a club in brawling,
+// an unloaded rifle or carbine as a cudgel, never a laser.
+// ---------------------------------------------------------------------------
+
+test('v0.259.0 a pistol-armed thug may swing it as a club; a laser rifle offers no cudgel', async () => {
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 0 } } });
+  const fighters = session.view().fighters;
+  const foe = fighters.find((entry) => entry.side !== 'party');
+  const hawkeye = fighters.find((entry) => entry.side === 'party');
+  const thugChoices = foe.weaponChoices.map((choice) => `${choice.key}=${choice.name}`);
+  assert.ok(thugChoices.includes('club=Automatic Pistol, swung as a club'));
+  assert.ok(thugChoices.some((choice) => choice.startsWith('hands=')));
+  // Hawkeye carries a laser rifle: "laser weapons are too delicate".
+  assert.equal(hawkeye.weaponChoices.some((choice) => choice.key === 'cudgel'), false);
+
+  assert.equal(session.run('fight:weapon', { fight: { value: { combatantId: foe.id, weaponKey: 'club' } } }).ok, true);
+  // The choice stays with the combatant from round to round.
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  session.run('fight:sheet', { fight: { rows: [{ actorId: hawkeye.id, move: 'Stand', targetId: null }, { actorId: foe.id, move: 'Stand', targetId: null }] } });
+  assert.equal(session.view().round, 2);
+  assert.equal(session.view().fighters.find((entry) => entry.id === foe.id).weaponKey, 'club');
+});

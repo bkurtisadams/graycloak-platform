@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.258.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.258.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.258.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.258.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.258.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.258.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.258.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.258.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.258.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.259.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.259.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.259.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.259.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.259.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.259.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.259.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.259.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.259.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -113,7 +113,16 @@ function viewState() {
     // so the movement row, the target and the throw all agree before Declare.
     if (state.fighters?.length || state.setupPhase) {
       // A new round starts from a clean sheet.
-      if (ui.sheetRound !== state.round) { ui.sheet = {}; ui.sheetRound = state.round; }
+      // v0.259.0: declarations carry over from round to round until changed
+      // (Kurt, Sep 2026: a brawler who closed and punched keeps doing so).
+      // A new fight starts clean; a new round keeps the last one's orders,
+      // less any that no longer make sense — Escape is round 1 only, and
+      // sheetRows drops a target who is down.
+      if (ui.sheetFight !== state.encounterId) { ui.sheet = {}; ui.sheetFight = state.encounterId; }
+      if (ui.sheetRound !== state.round) {
+        ui.sheet = Object.fromEntries(Object.entries(ui.sheet).map(([id, order]) => [id, order.move === 'Escape' ? { ...order, move: 'Stand' } : order]));
+        ui.sheetRound = state.round;
+      }
       const focus = ui.sheetFocus ?? ui.selectedMarker;
       const withSetting = { ...state, autoTarget: Boolean(ui.settings.autoTarget), bandsShown: ui.bandsShown, viewSettings: ui.settings };
       return { ...withSetting, sheetRows: sheetRows(withSetting, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
@@ -523,7 +532,8 @@ function render() {
       if (source.mode !== 'live') return;
       const rows = (viewState().sheetRows ?? []).filter((row) => !row.down).map((row) => ({ actorId: row.fighter.id, move: row.move, targetId: row.targetId }));
       source.session.run('fight:sheet', { fight: { rows } });
-      ui.sheet = {};
+      // Keep what was just declared as next round's starting point.
+      ui.sheet = Object.fromEntries(rows.map((row) => [row.actorId, { move: row.move, targetId: row.targetId }]));
       render();
     },
     onPickWeapon: (key) => { ui.fightWeaponKey = key; render(); },

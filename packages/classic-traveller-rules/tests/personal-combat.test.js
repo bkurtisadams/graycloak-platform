@@ -190,7 +190,7 @@ test('an untrained defender armed with a brawling or blade weapon grants +3 in a
   assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'club', { Brawling: 1 }), range: 'close', dice: dice() }).defenderUntrainedDM, 0);
   // Holding a pistol: a gun gives no protective DM, and so no penalty either.
   assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'automatic-pistol', {}), range: 'close', dice: dice() }).defenderUntrainedDM, 0);
-  // Holding a rifle, which may be used as a club: the club's expertise counts.
+  // Holding a rifle, which may be used as a cudgel: the cudgel's expertise counts.
   assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'rifle', {}), range: 'close', dice: dice() }).defenderUntrainedDM, 3);
   // Evading gives up the weapon's defence, and with it the penalty.
   const evader = brawler('d', 'opposition', 'club', {});
@@ -366,7 +366,7 @@ test('the blow and swing allowance follows Book 1 p.36', () => {
   assert.equal(endPersonalCombatRecovery(attacker).blowsUsed, 0);
 });
 
-test('gun expertise never defends; club expertise does, with a gun in hand (B1 p.32)', () => {
+test('gun expertise never defends; a long gun defends as a cudgel (B1 p.32, and the cudgel\u2019s description)', () => {
   const attacker = createPersonalCombatant({ id: 'a', name: 'a', side: 'party', characteristics: { STR: 9, DEX: 7, END: 7, INT: 7 }, skills: { Blade: 1 }, armor: 'none', weaponKey: 'blade' });
   const make = (weaponKey, skills) => createPersonalCombatant({ id: 'd', name: 'd', side: 'opposition', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills, armor: 'none', weaponKey });
 
@@ -376,16 +376,21 @@ test('gun expertise never defends; club expertise does, with a gun in hand (B1 p
   // Book 1 p.32: "a gun armed character does not receive a protective DM for
   // his gun expertise; but may receive such a protective DM if he actually
   // uses the gun as a brawling weapon (as a club, for example)." Gun expertise
-  // never defends; club expertise does, for a gun that can serve as a club.
+  // never defends. v0.259.0: Book 1 names what a long gun becomes — a cudgel,
+  // "an unloaded long gun such as rifle or carbine" — so the cudgel's
+  // expertise defends with one, not the club's.
   assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Rifle: 3 }), range: 'short' }).parryDM, 0);
-  assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Club: 2 }), range: 'short' }).parryDM, -2);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Cudgel: 2 }), range: 'short' }).parryDM, -2);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('rifle', { Club: 2 }), range: 'short' }).parryDM, 0);
+  // "Laser weapons are too delicate to be used as cudgels."
+  assert.equal(previewPersonalAttack({ attacker, defender: make('laser-rifle', { Cudgel: 2 }), range: 'short' }).parryDM, 0);
 
   // Graycloak ruling: a pistol cannot fend off a blow, so club expertise buys
   // nothing with one in hand. A long gun can be swung or blocked with.
   assert.equal(previewPersonalAttack({ attacker, defender: make('automatic-pistol', { Club: 2 }), range: 'short' }).parryDM, 0);
   assert.equal(previewPersonalAttack({ attacker, defender: make('body-pistol', { Club: 2 }), range: 'short' }).parryDM, 0);
   assert.equal(previewPersonalAttack({ attacker, defender: make('revolver', { Club: 2 }), range: 'short' }).parryDM, 0);
-  assert.equal(previewPersonalAttack({ attacker, defender: make('shotgun', { Club: 2 }), range: 'short' }).parryDM, -2);
+  assert.equal(previewPersonalAttack({ attacker, defender: make('shotgun', { Cudgel: 2 }), range: 'short' }).parryDM, -2);
 
   // Shots are never parried.
   const shooter = createPersonalCombatant({ id: 's', name: 's', side: 'party', characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills: { Rifle: 1 }, armor: 'none', weaponKey: 'rifle' });
@@ -476,4 +481,16 @@ test('v0.251.0 a military force carrying to three times strength counts two less
   // A score cannot be driven below zero by carrying something heavy.
   const frail = createPersonalCombatant({ id: 'd', name: 'D', side: 'party', characteristics: { STR: 1, DEX: 1, END: 1, INT: 5 }, encumbrance: -2 });
   assert.equal(frail.characteristics.STR, 0);
+});
+
+test('v0.259.0 a pistol can be swung as a club and a long gun as a cudgel, but a laser cannot', async () => {
+  const { improvisedMeleeWeapons } = await import('../src/combat/personal-combat.js');
+  // Book 1, Brawling Weapons: "Pistols may be classed as clubs when used in brawling."
+  assert.deepEqual(improvisedMeleeWeapons(['automatic-pistol']), [{ key: 'club', from: 'automatic-pistol', as: 'club' }]);
+  assert.deepEqual(improvisedMeleeWeapons(['revolver', 'body-pistol']).map((entry) => entry.key), ['club', 'club']);
+  // Book 1, Cudgel: "an unloaded long gun such as rifle or carbine".
+  assert.deepEqual(improvisedMeleeWeapons(['rifle']), [{ key: 'cudgel', from: 'rifle', as: 'cudgel' }]);
+  assert.deepEqual(improvisedMeleeWeapons(['carbine', 'shotgun']).map((entry) => entry.key), ['cudgel', 'cudgel']);
+  // "Laser weapons are too delicate to be used as cudgels."
+  assert.deepEqual(improvisedMeleeWeapons(['laser-rifle', 'laser-carbine']), []);
 });

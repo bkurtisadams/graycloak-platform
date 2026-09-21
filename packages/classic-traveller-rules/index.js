@@ -605,6 +605,8 @@ export {
   classifyBlow,
   blowsRemaining,
   parryExpertise,
+  improvisedMeleeWeapons,
+  PISTOL_CLUB_KEYS,
   LONG_GUN_PARRY_KEYS,
   BLOW_CLASSES,
   TERRAIN_DMS,

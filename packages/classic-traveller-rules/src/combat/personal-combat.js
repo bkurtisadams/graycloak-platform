@@ -544,18 +544,44 @@ export const BLOW_CLASSES = Object.freeze(['surprise', 'combat', 'weakened', 'sp
 // character "may receive such a protective DM if he actually uses the gun as a
 // brawling weapon (as a club, for example)"; a long gun can be held two-handed
 // and swung or blocked with, a pistol cannot.
-export const LONG_GUN_PARRY_KEYS = Object.freeze(['rifle', 'carbine', 'automatic-rifle', 'shotgun', 'submachine-gun', 'laser-rifle', 'laser-carbine']);
+//
+// v0.259.0, checked against the text (Kurt, Sep 2026). Book 1's weapon
+// descriptions say a cudgel may be "an unloaded long gun such as rifle or
+// carbine" and that "laser weapons are too delicate to be used as cudgels".
+// So a long gun defends as a CUDGEL — a Blade Combat weapon in Book 1's list,
+// on the cudgel's expertise — not as a club; and the laser rifle and laser
+// carbine were never on the list. (Book 1 means an unloaded gun; ammunition
+// is not tracked, so that is left to the referee.)
+export const LONG_GUN_PARRY_KEYS = Object.freeze(['rifle', 'carbine', 'automatic-rifle', 'shotgun', 'submachine-gun']);
 // Kept for callers that predate the ruling; it is now the long-gun list.
 export const GUN_PARRY_KEYS = LONG_GUN_PARRY_KEYS;
+// Book 1, Brawling Weapons: "Pistols may be classed as clubs when used in
+// brawling."
+export const PISTOL_CLUB_KEYS = Object.freeze(['body-pistol', 'revolver', 'automatic-pistol']);
+
+/**
+ * v0.259.0: the brawling or blade weapons a combatant can improvise from the
+ * guns he carries — a pistol swung as a club, a rifle or carbine swung as a
+ * cudgel. Choosing one makes that the weapon in hand, fought with on that
+ * weapon's own expertise and its own damage.
+ */
+export function improvisedMeleeWeapons(weaponKeys = []) {
+  const out = [];
+  for (const key of weaponKeys) {
+    if (PISTOL_CLUB_KEYS.includes(key)) out.push({ key: 'club', from: key, as: 'club' });
+    else if (LONG_GUN_PARRY_KEYS.includes(key)) out.push({ key: 'cudgel', from: key, as: 'cudgel' });
+  }
+  return out;
+}
 
 // Book 1 p.32: expertise in a brawling or blade weapon is a negative DM
-// against a brawling or blade attack. A long gun defends as a club; a pistol
-// does not (see the ruling above).
+// against a brawling or blade attack. A long gun defends as a cudgel; a pistol
+// held as a gun does not (see the ruling above) — swung as a club, it is one.
 export function parryExpertise(defender) {
   if (!defender?.weaponKey) return 0;
   const weapon = getPersonalWeapon(defender.weaponKey);
   if (weapon.parry) return personalWeaponSkillLevel(defender, defender.weaponKey);
-  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'club');
+  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return personalWeaponSkillLevel(defender, 'cudgel');
   return 0;
 }
 
@@ -566,7 +592,7 @@ export function parryExpertise(defender) {
  * only where a trained defender would have had a protective DM — "when
  * engaged in brawling or blade (including polearm) combat, and armed with
  * brawling or blade weapons". So it is never given against a gun, and never
- * to a defender holding a gun, unless he is using a long gun as a club; and
+ * to a defender holding a gun, unless he is using a long gun as a cudgel; and
  * not while evading, which gives up the weapon's defence (p.33).
  *
  * Until v0.258.0 the +3 was given against every untrained defender, which
@@ -577,8 +603,8 @@ export function untrainedDefenderDM(defender, attackSpec) {
   if (!attackSpec?.melee || defender?.evading || !defender?.weaponKey) return 0;
   const weapon = getPersonalWeapon(defender.weaponKey);
   if (weapon.parry) return hasPersonalWeaponExpertise(defender, defender.weaponKey) ? 0 : 3;
-  // A long gun used as a club: the expertise that counts is the club's.
-  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return hasPersonalWeaponExpertise(defender, 'club') ? 0 : 3;
+  // A long gun used as a cudgel: the expertise that counts is the cudgel's.
+  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return hasPersonalWeaponExpertise(defender, 'cudgel') ? 0 : 3;
   return 0;
 }
 

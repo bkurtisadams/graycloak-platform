@@ -30,7 +30,7 @@ import {
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions,
-  SHIP_COMBAT_PHASES, opposingSide, shipDataCard, COMPUTER_PROGRAMS
+  SHIP_COMBAT_PHASES, opposingSide, shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout,
@@ -1153,9 +1153,19 @@ export function fightView(encounter, { characters = [], concluded = false } = {}
       // v0.255.0: what this combatant could fight with instead — carried
       // weapons, the one in hand, and bare hands, each named.
       armorChoices: [...PERSONAL_ARMOR_TYPES],
-      weaponChoices: [...new Set([entry.weaponKey, ...carried, 'hands'])].filter(Boolean).map((key) => {
-        try { return { key, name: getPersonalWeapon(key).name }; } catch { return null; }
-      }).filter(Boolean),
+      // v0.259.0: and what those guns can be swung as — Book 1 classes a
+      // pistol used in brawling as a club, and lets an unloaded rifle or
+      // carbine serve as a cudgel (never a laser). Named for the gun it is.
+      weaponChoices: (() => {
+        const held = [...new Set([entry.weaponKey, ...carried, 'hands'])].filter(Boolean);
+        const named = held.map((key) => { try { return { key, name: getPersonalWeapon(key).name }; } catch { return null; } }).filter(Boolean);
+        for (const swung of improvisedMeleeWeapons([...new Set([entry.weaponKey, ...carried])])) {
+          if (named.some((choice) => choice.key === swung.key)) continue;
+          const gun = (() => { try { return getPersonalWeapon(swung.from).name; } catch { return swung.from; } })();
+          named.push({ key: swung.key, name: `${gun}, swung as a ${swung.as}` });
+        }
+        return named;
+      })(),
       skills: { ...entry.skills },
       blowAllowance: entry.blowAllowance,
       // Book 1 p.32: wounds do not reduce the blow allowance during a fight,
@@ -3518,6 +3528,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         }
         return {
           ...state,
+          encounterId: fight.encounterId,
           fighters: fight.fighters,
           declaredList: fight.declaredList,
           setup: fight.setup,
