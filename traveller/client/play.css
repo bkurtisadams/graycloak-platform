@@ -1173,3 +1173,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .sheet-compact-tag { margin: -4px 0 6px; }
 .tracker td.tr-arms { white-space: normal; }
 .tracker td.tr-arms .weapon-tag { white-space: normal; overflow-wrap: anywhere; }
+
+/* v0.271.0: Book 1 p.27's range line in fight setup. */
+.fight-setup { flex-wrap: wrap; }
+.fight-setup-range { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 6px; margin-bottom: 2px; border-bottom: 1px dashed var(--line); }
+.fight-setup-note { font-size: 12px; color: var(--ink-2); }
+.fight-setup-range .sheet-select { width: auto; max-width: 220px; }
+.fight-setup-range .fight-setup-note { flex-basis: 100%; }

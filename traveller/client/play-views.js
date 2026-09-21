@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.270.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.270.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.270.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.271.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.271.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.271.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.270.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.270.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.270.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.270.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.271.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.271.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.271.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.271.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.270.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.271.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -489,7 +489,24 @@ function setupStrip(state, handlers) {
   const foes = state.fighters.filter((entry) => entry.side !== 'party').length;
   const ready = party > 0 && foes > 0;
   const begin = (surprise) => handlers.onBeginFight?.(surprise);
+  // v0.271.0: Book 1 p.27, the range the parties met at. Thrown with the
+  // terrain DM or stated; either moves the opposition that far off. Dragging
+  // the tokens afterwards is still the referee's to do.
+  const opening = state.openingRange;
+  const terrain = opening ? h('select', { class: 'sheet-select', 'aria-label': 'Terrain', disabled: !ready },
+    h('option', { value: '', text: 'No terrain DM' }),
+    opening.terrains.map((entry) => h('option', { value: entry.key, selected: entry.key === state.lastTerrain, text: entry.name }))) : null;
+  const stated = opening ? h('select', { class: 'sheet-select', 'aria-label': 'State the range', disabled: !ready, onchange: (event) => { if (event.target.value) handlers.onOpeningRange?.({ range: event.target.value }); } },
+    h('option', { value: '', text: 'or state it\u2026' }),
+    ['close', 'short', 'medium', 'long', 'very-long'].map((range) => h('option', { value: range, text: range.replace('-', ' ') }))) : null;
+  const rangeLine = opening ? h('div', { class: 'fight-setup-range' },
+    h('span', { class: 'fight-setup-count', text: `Range (p.27): ${opening.now ? `${opening.now} on the board now` : 'both sides needed'}.` }),
+    terrain,
+    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Throw range', title: '2D plus the terrain DM (Book 1 p.27); the opposition is moved that far off', onclick: () => handlers.onOpeningRange?.({ terrain: terrain.value || null }) }),
+    stated,
+    opening.set ? h('span', { class: 'fight-setup-note', text: opening.set }) : null) : null;
   return h('section', { class: 'fight-setup', 'aria-label': 'Setting up the fight' },
+    rangeLine,
     h('span', { class: 'fight-setup-count', text: ready
       ? `${party} party, ${foes} opposition. Surprise, then begin (p.26):`
       : 'Drag characters and actors from the Actors tab onto a band. Right-click a token to remove it.' }),

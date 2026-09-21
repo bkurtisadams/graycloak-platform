@@ -1760,3 +1760,118 @@ test('v0.270.0 sheets and the fight table carry the tag for the weapon in hand a
   assert.equal(fighter.weaponTag.short, '+1, foes +3 in melee', 'trained with the gun, untrained with it as a cudgel');
   assert.equal(fighter.weaponChoices.find((choice) => choice.key === 'cudgel').tag.untrained, true);
 });
+
+// ------------------------------------------------------------ v0.271.0
+// A named NPC keeps its wounds; a statblock's copies do not.
+async function npcFightFixture() {
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const rao = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: rao, column: 6 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 6 } } });
+  assert.equal(session.run('fight:begin', { fight: { value: { surprise: 'none' } } }).ok, true);
+  const idOf = (name) => session.view().fighters.find((entry) => entry.name === name).id;
+  return { session, registry, campaignId, me, rao, thug, idOf };
+}
+
+test('v0.271.0 an actor walks out of a fight with its wounds; a statblock does not change', async () => {
+  const { session, registry, campaignId, rao, thug, idOf } = await npcFightFixture();
+  assert.equal(session.run('edit:combatant:current', { fight: { id: idOf('Sanjay Rao'), value: { STR: 2, DEX: 0 } } }).ok, true);
+  assert.equal(session.run('edit:combatant:current', { fight: { id: idOf('Thug'), value: { STR: 1 } } }).ok, true);
+  assert.equal(session.run('fight:end').ok, true);
+  const actorOf = (id) => registry.resolveCampaign(campaignId).npcActors.find((entry) => entry.identity.id === id);
+  assert.equal(actorOf(rao).current.STR, 2);
+  assert.equal(actorOf(rao).current.DEX, 0);
+  assert.equal(actorOf(thug).current.STR, actorOf(thug).characteristics.STR, 'the pattern is untouched');
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets;
+  assert.equal(sheet.condition.wounded, true);
+  assert.equal(sheet.condition.severe, false, 'one characteristic at zero is not severe');
+  assert.equal(sheet.effective.DEX.now, 0);
+});
+
+test('v0.271.0 a severely wounded actor cannot rest it off; medical attention can; a dead actor stays off the board', async () => {
+  const { session, registry, campaignId, rao, idOf } = await npcFightFixture();
+  session.run('edit:combatant:current', { fight: { id: idOf('Sanjay Rao'), value: { STR: 0, DEX: 0 } } });
+  session.run('fight:end');
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets;
+  assert.equal(sheet.condition.severe, true, 'two at zero: severely wounded (Book 1 p.31)');
+  const rested = session.run('character:rest', { fight: { id: rao } });
+  assert.equal(rested.ok, false);
+  assert.match(rested.message, /severely wounded/);
+  // Untrained, 8+ at −5 needs 13 on 2D: it cannot succeed. A doctor can.
+  const doc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Dr Imre' } } }).createdId;
+  session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-4' } });
+  assert.ok(session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.medics.some((entry) => entry.id === doc && entry.level === 4), 'an NPC with Medical can attend');
+  let healed = false;
+  for (let attempt = 0; attempt < 30 && !healed; attempt += 1) {
+    assert.equal(session.run('character:medical', { fight: { id: rao, value: { medicId: doc } } }).ok, true);
+    healed = !session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.wounded;
+  }
+  assert.ok(healed, 'medical attention at 4+ succeeds soon enough');
+  assert.equal(session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.severe, false);
+
+  // And one killed stays dead.
+  session.run('fight:setup');
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: rao, column: 6 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  session.run('edit:combatant:current', { fight: { id: session.view().fighters.find((entry) => entry.name === 'Sanjay Rao').id, value: { STR: 0, DEX: 0, END: 0 } } });
+  session.run('fight:end');
+  assert.equal(session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.dead, true);
+  session.run('fight:setup');
+  const refused = session.run('fight:place', { fight: { value: { kind: 'actor', id: rao, column: 6 } } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /dead/);
+});
+
+// Book 1 p.27: the range the parties met at, for a fight set up by hand.
+test('v0.271.0 stating or throwing the range places the opposition; beginning reads the range off the board', async () => {
+  const { session, me, thug } = await setupFixture();
+  assert.equal(session.run('fight:range', { fight: { value: { range: 'long' } } }).ok, false, 'both sides first');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 1 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 3 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 4 } } });
+  const stated = session.run('fight:range', { fight: { value: { range: 'long' } } });
+  assert.equal(stated.ok, true, stated.message);
+  const bands = () => session.view().fighters.map((entry) => [entry.name, entry.band]);
+  assert.deepEqual(bands(), [['Hawkeye', 1], ['Thug', 10], ['Thug 2', 11]], 'the nearest foe 9 bands off, the rest keep their spacing');
+  assert.equal(session.view().openingRange.now, 'long');
+  assert.match(session.view().openingRange.set, /sets the range: long/);
+
+  const thrown = session.run('fight:range', { fight: { value: { terrain: 'city' } } });
+  assert.equal(thrown.ok, true, thrown.message);
+  assert.match(thrown.message, /Range thrown: 2D \d+ \u22124 city = -?\d+: (close|short|medium|long|very long)/);
+
+  session.run('fight:range', { fight: { value: { range: 'long' } } });
+  // Dragged after the range was set: the board is what counts.
+  session.run('fight:reposition', { fight: { value: { combatantId: session.view().fighters.find((entry) => entry.name === 'Thug').id, column: 2 } } });
+  assert.equal(session.run('fight:begin', { fight: { value: { surprise: 'none' } } }).ok, true);
+  assert.equal(session.view().setup.range, 'Met at short range', 'the nearest foe decides it, not the medium the board was created with');
+});
+
+test('v0.271.0 the range line in setup offers terrain, a throw, and a stated range', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { renderScene } = await import('../client/play-views.js');
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 3 } } });
+  const asked = [];
+  document.querySelector('main').replaceChildren(...renderScene({ ...session.view(), live: true }, { onOpeningRange: (choice) => asked.push(choice) }));
+  const line = document.querySelector('.fight-setup-range');
+  assert.match(line.textContent, /Range \(p\.27\): medium on the board now/);
+  line.querySelector('select[aria-label="Terrain"]').value = 'forest';
+  [...line.querySelectorAll('button')].find((node) => node.textContent === 'Throw range').click();
+  const stated = line.querySelector('select[aria-label="State the range"]');
+  stated.value = 'close';
+  stated.dispatchEvent(new dom.window.Event('change'));
+  assert.deepEqual(asked, [{ terrain: 'forest' }, { range: 'close' }]);
+  dom.window.close();
+  delete globalThis.document;
+});

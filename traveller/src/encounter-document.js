@@ -1601,6 +1601,49 @@ export function addEncounterCombatantFromCharacter(document, { character, loadou
  * by hand. Kurt, Sep 2026: in a manual set-up, like a PC throwing the first
  * punch in a bar, whether to roll is the referee's decision.
  */
+/**
+ * v0.271.0: Book 1 p.27's step 2 for a fight set up by hand. The referee
+ * throws for the range the parties met at (2D + terrain DM) or states it;
+ * either way the opposition is moved, as a body, so its nearest member stands
+ * that many bands from the party's nearest — the same gaps a fight started
+ * from the directory opens at (ENCOUNTER_RANGE_LINE_BAND_GAP). The party does
+ * not move.
+ */
+export function setEncounterOpeningRange(document, { range, thrown = null } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'setup') throw new Error('the range is set before the fight begins');
+  if (!PERSONAL_COMBAT_RANGES.includes(range)) throw new RangeError(`unknown personal combat range: ${range}`);
+  const party = next.combatants.filter((entry) => entry.side === 'party');
+  const foes = next.combatants.filter((entry) => entry.side !== 'party');
+  if (party.length && foes.length && next.map?.spatialMode === 'range-line') {
+    const gap = ENCOUNTER_RANGE_LINE_BAND_GAP[range];
+    let front = Math.max(...party.map((entry) => entry.position.column));
+    const nearest = Math.min(...foes.map((entry) => entry.position.column));
+    const furthest = Math.max(...foes.map((entry) => entry.position.column));
+    let delta = front + gap - nearest;
+    // Keep the whole opposition on the board: if the field runs out, the
+    // party steps back instead, as far as it can.
+    const overflow = furthest + delta - (next.map.columns - 1);
+    if (overflow > 0) {
+      const back = Math.min(overflow, Math.min(...party.map((entry) => entry.position.column)));
+      for (const entry of party) entry.position = { ...entry.position, column: entry.position.column - back };
+      front -= back;
+      delta = front + gap - nearest;
+    }
+    for (const entry of foes) entry.position = { ...entry.position, column: clamp(entry.position.column + delta, 0, next.map.columns - 1) };
+  }
+  next.range = range;
+  const words = String(range).replace('-', ' ');
+  const text = thrown
+    ? `Range thrown: 2D ${thrown.roll}${thrown.terrainDM ? ` ${thrown.terrainDM > 0 ? '+' : '\u2212'}${Math.abs(thrown.terrainDM)} ${String(thrown.terrain).replace('-', ' ')}` : ''} = ${thrown.total}: ${words} (Book 1 p.27).`
+    : `The referee sets the range: ${words} (Book 1 p.27).`;
+  next.history = next.history.filter((entry) => !(entry.round === 0 && entry.kind === 'range'));
+  const entry = { round: 0, kind: 'range', side: 'referee', text, ...(thrown ? { detail: { dice: [...thrown.dice], roll: thrown.roll, terrain: thrown.terrain, terrainDM: thrown.terrainDM, total: thrown.total } } : {}) };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
+}
+
 export function beginEncounter(document, { surpriseConditions = {}, dice, surprise = 'roll' } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'setup') throw new Error('encounter has already begun');
@@ -1636,6 +1679,10 @@ export function beginEncounter(document, { surpriseConditions = {}, dice, surpri
     };
   next.status = 'active';
   next.round = 1;
+  // v0.271.0: the range the parties met at is where they stand. A fight set
+  // up by hand used to keep the 'medium' it was created with, whatever the
+  // board said, and the header reported "met at medium range" regardless.
+  next.range = closestOpposingBand(next.combatants, next.map?.spatialMode) ?? next.range;
   // v0.254.0: an encounter created in setup already carries a round-0
   // surprise line from creation, rolled before anyone was on the board. The
   // real decision is this one, so the stale line goes — it was showing as

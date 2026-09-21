@@ -369,3 +369,81 @@ export function removeNpcActorInventoryItem(document, itemId) {
   if (!actor.inventory.some((entry) => entry.id === itemId)) throw new Error(`no inventory item: ${itemId}`);
   return updateNpcActorDocument(actor, { inventory: actor.inventory.filter((entry) => entry.id !== itemId) });
 }
+
+// v0.271.0: an NPC actor keeps its wounds. A fight's damage came back only to
+// player characters, so an actor ("one person, one set of wounds") walked out
+// of every fight unhurt. Book 1 p.31 applies to anyone: three days' rest, or
+// medical attention, brings back full strength, and the severely wounded (two
+// characteristics taken to zero) can only be treated. The schema has no field
+// for severity, so it is kept as an injury effect with this id.
+export const NPC_SEVERE_WOUND_EFFECT_ID = 'effect-severely-wounded';
+const NPC_MEDICAL_TARGET = 8;
+
+export function npcActorIsWounded(document) {
+  return ['STR', 'DEX', 'END'].some((key) => Number(document.current?.[key]) < Number(document.characteristics?.[key]));
+}
+
+export function npcActorIsSeverelyWounded(document) {
+  return (document.effects ?? []).some((effect) => effect.id === NPC_SEVERE_WOUND_EFFECT_ID && effect.active);
+}
+
+export function npcActorIsDead(document) {
+  return document.state?.lifeState === 'dead';
+}
+
+function withSevere(effects, severe) {
+  const rest = (effects ?? []).filter((effect) => effect.id !== NPC_SEVERE_WOUND_EFFECT_ID);
+  return severe ? [...rest, { id: NPC_SEVERE_WOUND_EFFECT_ID, label: 'Severely wounded', kind: 'injury', active: true, source: 'combat' }] : rest;
+}
+
+// What a fight left an actor with: its scores, whether it lived, and whether
+// it was severely wounded. By the time the fight is over the unconscious have
+// woken (p.31), so a living actor is conscious.
+export function recordNpcActorWounds(document, { current, dead = false, severe = false } = {}) {
+  const actor = importNpcActorDocument(document);
+  const scores = {};
+  for (const key of ['STR', 'DEX', 'END']) scores[key] = Math.max(0, Math.min(actor.characteristics[key], Number(current?.[key] ?? actor.current[key])));
+  const biological = actor.profile.bodyModel !== 'robotic';
+  return updateNpcActorDocument(actor, {
+    current: scores,
+    state: {
+      ...actor.state,
+      lifeState: biological ? (dead ? 'dead' : 'alive') : actor.state.lifeState,
+      consciousness: biological ? (dead ? 'not-applicable' : 'conscious') : actor.state.consciousness,
+      integrity: biological ? actor.state.integrity : (dead ? 'destroyed' : actor.state.integrity)
+    },
+    effects: withSevere(actor.effects, !dead && severe)
+  });
+}
+
+function recoveredNpcActor(actor) {
+  return updateNpcActorDocument(actor, {
+    current: { STR: actor.characteristics.STR, DEX: actor.characteristics.DEX, END: actor.characteristics.END },
+    effects: withSevere(actor.effects, false)
+  });
+}
+
+export function restNpcActor(document) {
+  const actor = importNpcActorDocument(document);
+  if (npcActorIsDead(actor)) throw new Error(`${actor.identity.name} is dead`);
+  if (npcActorIsSeverelyWounded(actor)) throw new Error(`${actor.identity.name} is severely wounded and cannot recover without medical attention (Book 1 p.31)`);
+  if (!npcActorIsWounded(actor)) throw new Error(`${actor.identity.name} is not wounded`);
+  return recoveredNpcActor(actor);
+}
+
+// Kurt's ruling for the throw: 8+, DM the attendant's Medical, -5 with none,
+// optional -2 for a non-human patient (1981).
+export function medicalAttentionNpcActor(document, { medicalLevel = null, xeno = false, dice } = {}) {
+  const actor = importNpcActorDocument(document);
+  if (npcActorIsDead(actor)) throw new Error(`${actor.identity.name} is dead`);
+  if (!npcActorIsWounded(actor) && !npcActorIsSeverelyWounded(actor)) throw new Error(`${actor.identity.name} is not wounded`);
+  if (!dice || typeof dice.rollD6 !== 'function') throw new TypeError('dice are required');
+  const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const skillDM = level === null ? -5 : level;
+  const xenoDM = xeno ? -2 : 0;
+  const rolled = [dice.rollD6(), dice.rollD6()];
+  const roll = rolled[0] + rolled[1];
+  const total = roll + skillDM + xenoDM;
+  const success = total >= NPC_MEDICAL_TARGET;
+  return { success, dice: rolled, roll, skillDM, xenoDM, total, target: NPC_MEDICAL_TARGET, actor: success ? recoveredNpcActor(actor) : actor };
+}

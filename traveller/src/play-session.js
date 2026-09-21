@@ -24,7 +24,7 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
-  skimGasGiantToCapacity, assessLoad, inventoryLoadGrams,
+  skimGasGiantToCapacity, assessLoad, inventoryLoadGrams, rollEncounterRange,
   personalWeaponExpertise, PERSONAL_EXPERTISE_FLOOR, LONG_GUN_PARRY_KEYS,
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
@@ -74,7 +74,7 @@ import {
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap,
-  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setCombatantWeapon, setCombatantArmor,
+  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setEncounterOpeningRange, setCombatantWeapon, setCombatantArmor,
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
@@ -84,7 +84,8 @@ import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 import { lawCheck, starportLine, atmosphereGear, worldDetail, prohibitedWeaponKeys } from './world-notes.js';
 import {
   createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS, normalizeFolderPath,
-  addNpcActorInventoryItem, updateNpcActorInventoryItem, removeNpcActorInventoryItem
+  addNpcActorInventoryItem, updateNpcActorInventoryItem, removeNpcActorInventoryItem,
+  recordNpcActorWounds, restNpcActor, medicalAttentionNpcActor, npcActorIsWounded, npcActorIsSeverelyWounded, npcActorIsDead
 } from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
@@ -831,6 +832,16 @@ function npcActorSheet(actor, resolved, subsector) {
       gravityFactor, multiplier: load.multiplier, words: LOAD_WORDS[load.state]
     },
     entitlements: [],
+    // v0.271.0: the same condition block a character's Play tab has.
+    condition: {
+      wounded: npcActorIsWounded(actor),
+      severe: npcActorIsSeverelyWounded(actor),
+      dead: npcActorIsDead(actor),
+      medics: [...(resolved.characters ?? []), ...(resolved.npcActors ?? []).filter((entry) => entry.profile?.kind !== 'statblock' && entry.identity.id !== actor.identity.id)]
+        .filter((entry) => entry.status?.alive !== false && entry.state?.lifeState !== 'dead' && String(entry.identity.name ?? '').trim())
+        .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
+        .sort((a, b) => (b.level ?? -1) - (a.level ?? -1))
+    },
     profile: {
       folder: actor.profile.folder, role: actor.profile.role, faction: actor.profile.faction,
       homeworld: actor.profile.homeworld, age: actor.profile.age
@@ -1826,7 +1837,21 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     if (!encounter || encounter.status === 'active' || encounter.status === 'setup') return [];
     const changed = [];
     for (const combatant of encounter.combatants ?? []) {
-      if (!combatant.playerCharacter) continue;
+      // v0.271.0: an actor (one person) keeps its wounds too. A statblock's
+      // copies are the pattern's, not the pattern itself, and are not.
+      if (!combatant.playerCharacter) {
+        const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === combatant.sourceActorId);
+        if (!actor || actor.profile?.kind === 'statblock' || combatant.copyNumber !== undefined && combatant.copyNumber !== null) continue;
+        const current = {};
+        for (const key of ['STR', 'DEX', 'END']) current[key] = Math.max(0, Math.min(actor.characteristics[key], Number(combatant.current?.[key] ?? 0)));
+        const zeros = ['STR', 'DEX', 'END'].filter((key) => current[key] <= 0).length;
+        const dead = zeros >= 3 || combatant.status === 'dead';
+        const severe = Boolean(combatant.severelyWounded) || (!dead && zeros >= 2);
+        const same = ['STR', 'DEX', 'END'].every((key) => current[key] === actor.current[key]);
+        if (same && !dead && !severe) continue;
+        changed.push(recordNpcActorWounds(actor, { current, dead, severe }));
+        continue;
+      }
       const character = (resolved.characters ?? []).find((entry) => entry.identity.id === combatant.id);
       if (!character) continue;
       const penalty = Number(combatant.encumbrance ?? 0);
@@ -2252,6 +2277,41 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       }
       if (command === 'character:rest' || command === 'character:medical') {
         const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+        // v0.271.0: an NPC actor rests and is treated by the same rule.
+        const npcPatient = patient ? null : (resolved.npcActors ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+        if (npcPatient) {
+          let campaign = resolved.campaign;
+          if (command === 'character:rest') {
+            const next = restNpcActor(npcPatient);
+            campaign = advanceCampaignDays(campaign, REST_DAYS);
+            registry.put(campaign);
+            reload();
+            persist([next]);
+            log('MEDICAL', `${npcPatient.identity.name} rests three days and is back to full strength.`);
+            lastMessage = { ok: true, message: `${npcPatient.identity.name} rested three days: full strength.` };
+          } else {
+            const medicId = fight?.value?.medicId ?? null;
+            const medic = medicId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === medicId) : null;
+            const level = medic ? (Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null) : null;
+            const result = medicalAttentionNpcActor(npcPatient, { medicalLevel: level, xeno: Boolean(fight?.value?.xeno), dice: createDice() });
+            campaign = advanceCampaignDays(campaign, 1);
+            registry.put(campaign);
+            reload();
+            persist([result.actor]);
+            const who = medic ? `${medic.identity.name} (${level === null ? 'no Medical' : `Medical-${level}`})` : 'Nobody trained';
+            const line = `${who} treats ${npcPatient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.`;
+            log('MEDICAL', line, { detail: [
+              `2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll}`,
+              `Medical ${result.skillDM >= 0 ? '+' : '\u2212'}${Math.abs(result.skillDM)}${level === null ? ' (no expertise)' : ''}`,
+              result.xenoDM ? 'Non-human patient \u22122 (1981 xeno-medicine)' : null,
+              `Total ${result.total} against ${result.target}+ \u2014 ${result.success ? 'success' : 'failure'}`
+            ].filter(Boolean).join('\n') });
+            lastMessage = { ok: true, message: line };
+          }
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        }
         if (!patient) throw new Error('choose a character first');
         let campaign = resolved.campaign;
         if (command === 'character:rest') {
@@ -2826,7 +2886,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         return lastMessage;
       }
-      if (['fight:place', 'fight:reposition', 'fight:remove', 'fight:begin', 'fight:discard'].includes(command)) {
+      if (['fight:place', 'fight:reposition', 'fight:remove', 'fight:begin', 'fight:discard', 'fight:range'].includes(command)) {
         const encounter = setupEncounter();
         if (!encounter) throw new Error('no fight is being set up');
         const value = fight?.value ?? {};
@@ -2845,6 +2905,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           } else {
             let actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.id);
             if (!actor) throw new Error('unknown actor');
+            // v0.271.0: an actor now keeps what a fight did to it.
+            if (actor.profile?.kind !== 'statblock' && npcActorIsDead(actor)) throw new Error(`${actor.identity.name} is dead`);
             // An actor is one person: placing the same one twice is refused.
             // A statblock is a pattern, and each placement is its own copy.
             // v0.269.0: Kurt dragged his Mercenary on a second time expecting
@@ -2869,6 +2931,24 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           next = repositionEncounterCombatant(encounter, { combatantId: value.combatantId, column, row: 0 });
           next = next.encounter ?? next;
           message = 'Moved.';
+        } else if (command === 'fight:range') {
+          // v0.271.0: Book 1 p.27, the range the parties met at — thrown
+          // (2D + terrain DM) or the referee's call — and the opposition
+          // placed that far off.
+          const party = encounter.combatants.filter((entry) => entry.side === 'party');
+          const foes = encounter.combatants.filter((entry) => entry.side !== 'party');
+          if (!party.length || !foes.length) throw new Error('put both sides on the board first');
+          let thrown = null;
+          let range = value.range;
+          if (!range) {
+            const terrain = value.terrain && Object.hasOwn(TERRAIN_DMS, value.terrain) ? value.terrain : null;
+            thrown = rollEncounterRange(createDice(), { terrain });
+            range = thrown.range;
+          }
+          const result = setEncounterOpeningRange(encounter, { range, thrown });
+          next = result.encounter;
+          message = result.entry.text;
+          log('COMBAT', message);
         } else if (command === 'fight:remove') {
           next = removeEncounterCombatant(encounter, { combatantId: value.combatantId });
           next = next.encounter ?? next;
@@ -4153,6 +4233,18 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           // v0.254.0: the board is open and being filled; nobody has thrown
           // for surprise and no round has begun.
           setupPhase: live.status === 'setup',
+          // v0.271.0: Book 1 p.27's range, while the board is being set.
+          openingRange: live.status === 'setup' ? (() => {
+            const party = fight.fighters.filter((entry) => entry.side === 'party');
+            const foes = fight.fighters.filter((entry) => entry.side !== 'party');
+            const gap = party.length && foes.length ? Math.min(...party.flatMap((mine) => foes.map((foe) => Math.abs(Number(mine.band ?? 0) - Number(foe.band ?? 0))))) : null;
+            const set = [...(live.history ?? [])].reverse().find((entry) => entry.round === 0 && entry.kind === 'range') ?? null;
+            return {
+              now: gap === null ? null : rangeBandForBandGap(gap).replace('-', ' '),
+              set: set?.text ?? null,
+              terrains: Object.entries(TERRAIN_DMS).map(([key, dm]) => ({ key, name: `${sentenceCase(key.replace('-', ' '))} (${dm > 0 ? '+' : dm < 0 ? '\u2212' : '\u00b1'}${Math.abs(dm)})` }))
+            };
+          })() : null,
           // v0.252.0: Book 1 p.27's procedure, as a strip across the top of
           // the fight. Steps 1 to 3 run once per encounter and were reported
           // only as a sentence of prose; step 3 — escape and avoidance — had
