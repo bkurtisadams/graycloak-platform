@@ -1093,3 +1093,19 @@ details.talk-notice summary { cursor: pointer; list-style: none; font-size: 12px
 details.talk-notice summary::-webkit-details-marker { display: none; }
 .talk-detail { margin: 4px 0 2px; padding: 5px 7px; font: inherit; font-size: 11px; line-height: 1.5; white-space: pre-wrap; color: var(--ink-2); background: var(--panel); border: 1px solid var(--line); }
 #settings { margin-right: 10px; }
+
+/* v0.260.0: Book 1 p.30's wound, answered on the fight screen. The rows and
+   buttons are client/wound-dialog.js's, which uses the old client's class
+   names; they are styled here for play.html. */
+.fight-wound { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--warn, #eadfaa); border: 1px solid var(--ink); }
+.fight-wound-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.fight-wound-head .cite { margin: 0; }
+.fight-wound > .button { align-self: flex-start; }
+.wound-groups { display: flex; flex-direction: column; gap: 5px; }
+.wound-group-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wound-group-die { min-width: 110px; font-weight: 700; }
+.wound-group-picks, .wound-group-share { display: inline-flex; gap: 4px; }
+.fight-wound .text-button { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); cursor: pointer; }
+.fight-wound .text-button.is-on { background: var(--ink); color: var(--raise); border-color: var(--ink); font-weight: 700; }
+.fight-wound .text-button:disabled { opacity: .45; cursor: not-allowed; }
+.wound-preview { font-size: 12px; color: var(--ink-2); }

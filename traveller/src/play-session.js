@@ -3492,7 +3492,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             title: `Where does ${wound.defender?.name ?? 'the wound'} take it?`,
             copy: `${wound.attackerName} hit with the ${wound.weaponName} for ${wound.damageDice.join(' + ')}${wound.modifier ? ` ${wound.modifier > 0 ? '+' : ''}${wound.modifier}` : ''}. Each group falls whole on one of STR, DEX or END; nothing may go on a characteristic already at zero.`,
             cite: 'Book 1 p.30',
-            wound: { key: wound.key, defenderId: wound.defender?.id ?? null, damageDice: [...wound.damageDice], modifier: wound.modifier, weaponName: wound.weaponName },
+            // v0.260.0: everything client/wound-dialog.js's prompt needs, so
+            // the play page can draw the groups and the preview. It carried
+            // only the dice before, and play.html drew no controls at all.
+            wound: {
+              key: wound.key, defenderId: wound.defender?.id ?? null, defenderName: wound.defender?.name ?? null,
+              attackerName: wound.attackerName, damageDice: [...wound.damageDice], modifier: wound.modifier,
+              weaponName: wound.weaponName, current: { ...(wound.defender?.current ?? {}) }, remaining: wound.remaining ?? 1
+            },
             actions: []
           };
         } else if (selected && !selected.down && selected.awaiting) {

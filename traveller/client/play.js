@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.259.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.259.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.259.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.259.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.259.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.259.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.259.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.259.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.259.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.260.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.260.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.260.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.260.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.260.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.260.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.260.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.260.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.260.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -124,7 +124,7 @@ function viewState() {
         ui.sheetRound = state.round;
       }
       const focus = ui.sheetFocus ?? ui.selectedMarker;
-      const withSetting = { ...state, autoTarget: Boolean(ui.settings.autoTarget), bandsShown: ui.bandsShown, viewSettings: ui.settings };
+      const withSetting = { ...state, autoTarget: Boolean(ui.settings.autoTarget), bandsShown: ui.bandsShown, viewSettings: ui.settings, woundDraft: ui.woundDraft ?? null };
       return { ...withSetting, sheetRows: sheetRows(withSetting, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
     }
     if (!state.next?.declare) {
@@ -291,6 +291,15 @@ function render() {
     },
     onUndeclare: (id) => { if (source.mode === 'live') { source.session.run('fight:undeclare', { fight: { actorId: id } }); ui.selectedMarker = id; render(); } },
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
+    // v0.260.0: the wound's groups on the fight screen.
+    onWoundDraft: (draft) => { ui.woundDraft = draft; render(); },
+    onAllocateWound: (draft) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:wound', { fight: { woundTargets: draft.targets, woundAllocation: draft.shares } });
+      if (!result.ok) window.alert(result.message);
+      ui.woundDraft = null;
+      render();
+    },
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
     // v0.254.0 ---------------------------------------- board setup
     onHoverMarker: (id) => { ui.hoveredMarker = id; },

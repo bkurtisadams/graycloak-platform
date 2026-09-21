@@ -7,17 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.259.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.259.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.259.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.260.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.260.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.260.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.259.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.259.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.259.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.260.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.260.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.260.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.260.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +33,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.259.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.259.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.260.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -513,6 +514,32 @@ function fightHeader(state, handlers) {
     (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })));
 }
 
+// v0.260.0: Book 1 p.30's wound, answered on the fight screen. "Each die
+// rolled is taken as a single wound or group of hits, and must be applied to a
+// single characteristic; further modifications may be distributed against,
+// or added to, such wound groups as desired." The prompt said so in words
+// and drew nothing to answer it with — and Resolve round is withheld while a
+// wound is waiting — so the fight simply stopped (Kurt's report, Sep 2026).
+// The groups and the preview are client/wound-dialog.js's, shared with the
+// player's page since v0.179.0.
+function woundPanel(state, handlers) {
+  const prompt = woundPromptFrom(state.next.wound);
+  const draft = state.woundDraft?.key === prompt.key ? state.woundDraft : initialWoundDraft(prompt);
+  const groups = h('div', { class: 'wound-groups' });
+  renderWoundGroups(groups, prompt, draft, (next) => handlers.onWoundDraft?.(next));
+  const preview = h('div', { class: 'wound-preview' });
+  try { renderWoundPreview(preview, prompt, previewWoundDraft(prompt, draft)); } catch { /* a draft the rules reject previews nothing */ }
+  const allowed = state.live && (state.seat !== 'player' || state.next.wound.defenderId === state.characterId);
+  return h('section', { class: 'fight-wound', role: 'group', 'aria-label': 'Where the wound falls' },
+    h('div', { class: 'fight-wound-head' },
+      h('b', { text: state.next.title }),
+      h('span', { text: state.next.copy }),
+      h('span', { class: 'cite', text: state.next.cite })),
+    groups,
+    preview,
+    allowed ? h('button', { type: 'button', class: 'button is-primary', text: 'Apply the wound', onclick: () => handlers.onAllocateWound?.(draft) }) : h('p', { class: 'cite', text: `Waiting for ${prompt.defenderName}\u2019s player to place it.` }));
+}
+
 function fightScene(state, handlers) {
   const rows = state.sheetRows ?? sheetRows(state, {});
   const focus = rows.find((row) => row.fighter.id === state.sheetFocus) ?? rows.find((row) => !row.down) ?? null;
@@ -541,7 +568,7 @@ function fightScene(state, handlers) {
         h('h3', { text: state.concluded.headline }),
         // Leave the fight is on the header line already.
         h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` })) : null,
-      wound ? h('section', { class: 'fight-wound', role: 'status' }, h('b', { text: state.next.title }), ' ', state.next.copy, h('span', { class: 'cite', text: ` ${state.next.cite}` })) : null,
+      wound ? woundPanel(state, handlers) : null,
       morale.length ? h('p', { class: 'hold-note is-morale' }, morale.join(' ')) : null,
       h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
       h('section', { class: 'fight-orders', 'aria-label': 'Declarations' },

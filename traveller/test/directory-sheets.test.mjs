@@ -1050,3 +1050,78 @@ test('v0.259.0 a pistol-armed thug may swing it as a club; a laser rifle offers 
   assert.equal(session.view().round, 2);
   assert.equal(session.view().fighters.find((entry) => entry.id === foe.id).weaponKey, 'club');
 });
+
+// ---------------------------------------------------------------------------
+// v0.260.0: Kurt's report — "Where does Hawkeye take it?" appeared with no
+// way to answer, and with Resolve round withheld the fight stopped.
+// ---------------------------------------------------------------------------
+
+async function woundedFixture() {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const { session, me, thug } = await setupFixture();
+    session.run('edit:actor:skills', { fight: { id: thug, value: 'Brawling-3' } });
+    session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+    session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 0 } } });
+    const fighters = session.view().fighters;
+    const hawkeye = fighters.find((entry) => entry.side === 'party');
+    const foe = fighters.find((entry) => entry.side !== 'party');
+    session.run('fight:weapon', { fight: { value: { combatantId: foe.id, weaponKey: 'club' } } });
+    session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+    for (let round = 0; round < 12; round += 1) {
+      const view = session.view();
+      if (!view.fighters?.length || view.concluded) break;
+      if (view.next?.wound) return { session, hawkeye, foe };
+      session.run('fight:sheet', { fight: { rows: [{ actorId: hawkeye.id, move: 'Stand', targetId: null }, { actorId: foe.id, move: 'Stand', targetId: hawkeye.id }] } });
+    }
+  }
+  return null;
+}
+
+test('v0.260.0 a waiting wound carries what the groups need, and answering it lets the fight go on', async () => {
+  const fixture = await woundedFixture();
+  assert.ok(fixture, 'a club-armed brawler lands a second hit within a few rounds');
+  const { session, hawkeye } = fixture;
+  const wound = session.view().next.wound;
+  assert.equal(wound.defenderName, 'Hawkeye');
+  assert.ok(wound.damageDice.length >= 1);
+  assert.equal(typeof wound.current.END, 'number', 'the current scores, for the buttons and the preview');
+
+  const before = session.view().fighters.find((entry) => entry.id === hawkeye.id).characteristics;
+  const shares = wound.damageDice.map((die, index) => (index === 0 ? wound.modifier : 0));
+  const targets = wound.damageDice.map(() => (before.STR > 0 ? 'STR' : before.DEX > 0 ? 'DEX' : 'END'));
+  const answered = session.run('fight:wound', { fight: { woundTargets: targets, woundAllocation: shares } });
+  assert.equal(answered.ok, true, answered.message);
+  const view = session.view();
+  assert.equal(Boolean(view.next?.wound && view.next.wound.key === wound.key), false, 'that wound is no longer waiting');
+});
+
+test('v0.260.0 the fight screen draws the wound\u2019s groups and applies the choice', { skip: !JSDOM }, async () => {
+  const fixture = await woundedFixture();
+  assert.ok(fixture);
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { renderScene } = await import('../client/play-views.js');
+  let drafted = null;
+  let applied = null;
+  const state = { ...fixture.session.view(), live: true };
+  document.querySelector('main').replaceChildren(...renderScene(state, {
+    onWoundDraft: (draft) => { drafted = draft; },
+    onAllocateWound: (draft) => { applied = draft; }
+  }));
+  const panel = document.querySelector('.fight-wound');
+  assert.ok(panel, 'the wound is answered on the fight screen');
+  const rows = panel.querySelectorAll('.wound-group-row');
+  assert.equal(rows.length, state.next.wound.damageDice.length, 'one row per die: each is a group (p.30)');
+  // Pick END for the first group.
+  [...rows[0].querySelectorAll('button')].find((button) => button.textContent.startsWith('END')).click();
+  assert.equal(drafted.targets[0], 'END');
+  panel.querySelector('button.is-primary').click();
+  assert.ok(applied, 'Apply sends the draft');
+  assert.equal(applied.targets.length, rows.length);
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+});
