@@ -248,6 +248,7 @@ function playTab(sheet, handlers) {
       (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
       armours.length ? select('Armour', sheet.armor, armours, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
     h('p', { class: 'sheet-note', text: 'Armour sets the throw anyone shooting at you needs, as well as your own protection (Book 1 p.42).' }),
+    conditionBlock(sheet, handlers),
     h('div', { class: 'sheet-section-label', text: 'SKILLS \u2014 THE LABEL IS THE BUTTON' }),
     sheet.skills.length
       ? h('div', { class: 'sheet-skills' }, sheet.skills.map((skill) => h('button', {
@@ -258,6 +259,30 @@ function playTab(sheet, handlers) {
       h('small', { text: skill.name === 'Jack-of-All-Trades' ? 'stands in untrained' : `+${skill.dm}` }))))
       : h('p', { class: 'sheet-note', text: 'No skills recorded.' })
   ].filter(Boolean);
+}
+
+// v0.261.0: Book 1 p.31 — "Return to full strength requires medical
+// attention, or three days of rest"; the severely wounded (two
+// characteristics taken to zero) cannot rest it off. The medical throw is
+// Kurt's ruling: 8+, DM the attending character's Medical, -5 with none.
+function conditionBlock(sheet, handlers) {
+  const condition = sheet.condition;
+  if (!condition) return null;
+  if (condition.dead) return h('p', { class: 'sheet-note is-error', text: 'Dead.' });
+  if (!condition.wounded && !condition.severe) return h('p', { class: 'sheet-note', text: 'Unwounded.' });
+  const medic = h('select', { class: 'sheet-select', 'aria-label': 'Attending' },
+    condition.medics.map((entry) => h('option', { value: entry.id, text: `${entry.name} \u2014 ${entry.level === null ? 'no Medical (\u22125)' : `Medical-${entry.level}`}` })));
+  const xeno = h('input', { type: 'checkbox', 'aria-label': 'Non-human patient' });
+  return h('div', { class: 'sheet-condition' },
+    h('div', { class: 'sheet-section-label', text: 'CONDITION' }),
+    h('p', { class: `sheet-note${condition.severe ? ' is-error' : ''}`, text: condition.severe
+      ? 'Severely wounded: only medical attention will bring back full strength (Book 1 p.31).'
+      : 'Wounded: three days of rest, or medical attention, brings back full strength (Book 1 p.31).' }),
+    h('div', { class: 'sheet-actions' },
+      h('button', { type: 'button', class: 'button is-small', disabled: condition.severe, title: condition.severe ? 'Not possible while severely wounded' : 'Advances the campaign three days', text: 'Rest three days', onclick: () => handlers.onRest?.(sheet.id) }),
+      h('span', { class: 'sheet-inline' }, 'Attending ', medic),
+      h('label', { class: 'sheet-check', title: '1981 xeno-medicine: \u22122 treating a non-human' }, xeno, ' non-human'),
+      h('button', { type: 'button', class: 'button is-small is-primary', text: 'Medical attention (8+)', title: 'Takes a day, success or not', onclick: () => handlers.onMedical?.(sheet.id, medic.value, xeno.checked) })));
 }
 
 function gearTab(sheet, handlers) {

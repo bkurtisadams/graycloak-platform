@@ -433,6 +433,7 @@ export function validateCharacterDocument(document) {
     if (document.status.alive === false) add(errors, document.status.consciousness === 'not-applicable', 'dead characters require not-applicable consciousness');
     if (document.status.alive === true) add(errors, document.status.consciousness !== 'not-applicable', 'living characters require a consciousness state');
     add(errors, typeof document.status.retired === 'boolean', 'status.retired must be boolean');
+    add(errors, document.status.severelyWounded === undefined || document.status.severelyWounded === true, 'status.severelyWounded must be true when present');
   }
   validateCareer(document, errors);
   validateSkills(document, errors);
@@ -580,16 +581,81 @@ export function importCharacterDocument(input) {
   return cloneJson(migrated);
 }
 
-export function updateCharacterGameplayState(document, { current, alive, consciousness, weaponKey, armor, notes } = {}) {
+export function updateCharacterGameplayState(document, { current, alive, consciousness, severelyWounded, weaponKey, armor, notes } = {}) {
   const next = importCharacterDocument(document);
   if (current !== undefined) next.current = cloneJson(current);
   if (alive !== undefined) next.status.alive = Boolean(alive);
   if (consciousness !== undefined) next.status.consciousness = consciousness;
+  // v0.261.0: Book 1 p.31 — two characteristics taken to zero leaves a
+  // character severely wounded, who "recover[s] consciousness after three
+  // hours" at the wounded level but cannot recover further without medical
+  // attention. The scores alone cannot say so once he wakes, so it is kept.
+  if (severelyWounded !== undefined) {
+    if (severelyWounded) next.status.severelyWounded = true;
+    else delete next.status.severelyWounded;
+  }
   if (weaponKey !== undefined) next.loadout.weaponKey = weaponKey;
   if (armor !== undefined) next.loadout.armor = armor;
   if (notes !== undefined) next.notes = String(notes);
   assertValidCharacterDocument(next);
   return next;
+}
+
+// ---- recovery (Book 1 p.31) -------------------------------------------------
+//
+// "Return to full strength requires medical attention, or three days of rest."
+// A severely wounded character (two characteristics taken to zero) has
+// "recuperation without medical attention ... not possible".
+//
+// Book 1 gives no throw for medical attention: "Medical expertise is generally
+// used as a DM for curing diseases or healing wounds. Exact throws necessary
+// must be generated." Graycloak ruling (Kurt, Sep 2026), following the one
+// medical throw Book 1 does give (p.8: "a basic saving throw of 8+ ... may be
+// modified by the expertise of attending medical personnel") and its usual
+// skill DMs (+1 per level, no expertise -5): throw 8+, DM + the attending
+// character's Medical level, -5 with none. Optionally -2 treating a non-human,
+// from the 1981 edition's xeno-medicine; the 1977 text has no such rule.
+export const MEDICAL_ATTENTION_TARGET = 8;
+export const REST_DAYS = 3;
+
+export function characterIsWounded(document) {
+  return ['STR', 'DEX', 'END'].some((key) => Number(document.current?.[key] ?? 0) < Number(document.characteristics?.[key] ?? 0));
+}
+
+function recovered(document) {
+  const next = importCharacterDocument(document);
+  if (next.status.alive === false) throw new Error(`${next.identity.name} is dead`);
+  next.current = { STR: next.characteristics.STR, DEX: next.characteristics.DEX, END: next.characteristics.END };
+  next.status.consciousness = 'conscious';
+  delete next.status.severelyWounded;
+  assertValidCharacterDocument(next);
+  return next;
+}
+
+// Three days of rest: full strength, unless severely wounded.
+export function restCharacter(document) {
+  if (document.status?.alive === false) throw new Error(`${document.identity.name} is dead`);
+  if (document.status?.severelyWounded) throw new Error(`${document.identity.name} is severely wounded and cannot recover without medical attention (Book 1 p.31)`);
+  if (!characterIsWounded(document)) throw new Error(`${document.identity.name} is not wounded`);
+  return recovered(document);
+}
+
+// The throw for medical attention, and what it does to the patient.
+export function medicalAttention(document, { medicalLevel = null, xeno = false, dice } = {}) {
+  if (document.status?.alive === false) throw new Error(`${document.identity.name} is dead`);
+  if (!characterIsWounded(document) && !document.status?.severelyWounded) throw new Error(`${document.identity.name} is not wounded`);
+  if (!dice || typeof dice.rollD6 !== 'function') throw new TypeError('dice are required');
+  const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const skillDM = level === null ? -5 : level;
+  const xenoDM = xeno ? -2 : 0;
+  const rolled = [dice.rollD6(), dice.rollD6()];
+  const roll = rolled[0] + rolled[1];
+  const total = roll + skillDM + xenoDM;
+  const success = total >= MEDICAL_ATTENTION_TARGET;
+  return {
+    success, dice: rolled, roll, skillDM, xenoDM, total, target: MEDICAL_ATTENTION_TARGET,
+    character: success ? recovered(document) : importCharacterDocument(document)
+  };
 }
 
 // ---- inventory (schema 4) ----------------------------------------------------

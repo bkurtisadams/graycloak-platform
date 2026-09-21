@@ -637,7 +637,8 @@ test('v0.253.0 the chat folds all but COMBAT and ARRIVAL notices into one line t
   globalThis.document = dom.window.document;
   globalThis.Node = dom.window.Node;
   const { renderTalkLog, CHAT_NOTICE_DEFAULTS } = await import('../client/play-views.js');
-  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL']);
+  // v0.261.0 adds MEDICAL: a rest or a treatment is worth seeing.
+  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL', 'MEDICAL']);
 
   const chat = [
     { kind: 'notice', category: 'PORT', text: 'Berthed at Cinder, Cr 100.', dateLabel: '106-4800' },
@@ -1124,4 +1125,106 @@ test('v0.260.0 the fight screen draws the wound\u2019s groups and applies the ch
   delete globalThis.document;
   delete globalThis.Node;
   delete globalThis.Option;
+});
+
+// ---------------------------------------------------------------------------
+// v0.261.0: a fight's wounds reach the characters, and Book 1 p.31 recovery —
+// three days of rest, or medical attention (8+, Kurt's ruling).
+// ---------------------------------------------------------------------------
+
+async function foughtFixture() {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const fixture = await woundedFixture();
+    if (!fixture) continue;
+    const { session } = fixture;
+    // Place the waiting wound, then end the fight.
+    const wound = session.view().next.wound;
+    const now = session.view().fighters.find((entry) => entry.id === wound.defenderId).characteristics;
+    const key = now.DEX > 0 ? 'DEX' : now.STR > 0 ? 'STR' : 'END';
+    session.run('fight:wound', { fight: { woundTargets: wound.damageDice.map(() => key), woundAllocation: wound.damageDice.map((die, index) => (index === 0 ? wound.modifier : 0)) } });
+    const view = session.view();
+    if (view.concluded) session.run('fight:dismiss');
+    else if (view.fighters?.length) session.run('fight:end');
+    return fixture;
+  }
+  return null;
+}
+
+test('v0.261.0 the fight\u2019s wounds are written to the character when it ends', async () => {
+  const fixture = await foughtFixture();
+  assert.ok(fixture);
+  const { session, hawkeye } = fixture;
+  const sheet = session.view({ sheets: [{ kind: 'actor', id: hawkeye.id }] }).sheets[0];
+  assert.equal(sheet.condition.wounded, true, 'he walks out of the fight hurt');
+  assert.ok(['STR', 'DEX', 'END'].some((key) => sheet.effective[key].now < sheet.effective[key].full));
+
+  // And the next fight starts him that way.
+  const foe = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Second Thug' } } }).createdId;
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: hawkeye.id, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: foe, column: 3 } } });
+  const again = session.view().fighters.find((entry) => entry.side === 'party');
+  assert.ok(['STR', 'DEX', 'END'].some((key) => again.characteristics[key] < again.full[key]));
+});
+
+test('v0.261.0 three days of rest restores him and moves the clock', async () => {
+  const fixture = await foughtFixture();
+  const { session, hawkeye } = fixture;
+  const before = session.view().chat.at(-1)?.dateLabel;
+  const rested = session.run('character:rest', { fight: { id: hawkeye.id } });
+  if (session.view({ sheets: [{ kind: 'actor', id: hawkeye.id }] }).sheets[0].condition.severe) return;
+  assert.equal(rested.ok, true, rested.message);
+  const sheet = session.view({ sheets: [{ kind: 'actor', id: hawkeye.id }] }).sheets[0];
+  assert.equal(sheet.condition.wounded, false);
+  const restLine = session.view().chat.find((entry) => entry.category === 'MEDICAL' && /rests three days/.test(entry.text));
+  assert.ok(restLine);
+  assert.notEqual(restLine.dateLabel, before, 'three days pass on the campaign clock');
+  assert.equal(session.run('character:rest', { fight: { id: hawkeye.id } }).ok, false, 'not wounded now');
+});
+
+test('v0.261.0 medical attention throws 8+ with the attendant\u2019s Medical, and says so in chat', async () => {
+  const fixture = await foughtFixture();
+  const { session, hawkeye } = fixture;
+  const chatBefore = session.view().chat.length;
+  const treated = session.run('character:medical', { fight: { id: hawkeye.id, value: { medicId: hawkeye.id } } });
+  assert.equal(treated.ok, true, treated.message);
+  assert.match(treated.message, /treats Hawkeye: -?\d+ vs 8\+ \u2014 (back to full strength|no better; try again tomorrow)\./);
+  const line = session.view().chat.slice(chatBefore).find((entry) => entry.category === 'MEDICAL');
+  assert.ok(line);
+  assert.match(line.detail, /Total -?\d+ against 8\+/);
+});
+
+test('v0.261.0 the sheet shows the condition, with Rest refused to the severely wounded', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  globalThis.window = dom.window;
+  const { renderSheets } = await import('../client/sheets.js');
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const sheetOf = () => session.view({ sheets: [{ kind: 'actor', id, tab: 'Play' }] }).sheets;
+  document.querySelector('main').replaceChildren(renderSheets(sheetOf(), {}));
+  assert.match(document.querySelector('main').textContent, /Unwounded\./);
+
+  session.run('edit:character:current', { fight: { id, value: { STR: 3 } } });
+  let rested = null;
+  let treated = null;
+  document.querySelector('main').replaceChildren(renderSheets(sheetOf(), {
+    onRest: (who) => { rested = who; },
+    onMedical: (who, medic, xeno) => { treated = { who, medic, xeno }; }
+  }));
+  const block = document.querySelector('.sheet-condition');
+  assert.ok(block, 'a wounded character has the recovery controls');
+  const buttons = [...block.querySelectorAll('button')];
+  buttons.find((button) => /Rest three days/.test(button.textContent)).click();
+  buttons.find((button) => /Medical attention/.test(button.textContent)).click();
+  assert.equal(rested, id);
+  assert.equal(treated.who, id);
+  assert.ok(treated.medic, 'an attending character is chosen');
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+  delete globalThis.window;
 });

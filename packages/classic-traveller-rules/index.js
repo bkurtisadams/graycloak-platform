@@ -125,6 +125,11 @@ export {
   setCharacterMilitaryLoad,
   characterLoad,
   updateCharacterRecord,
+  restCharacter,
+  medicalAttention,
+  characterIsWounded,
+  MEDICAL_ATTENTION_TARGET,
+  REST_DAYS,
   emptyCharacterRecord,
   CHARACTER_RECORD_TEXT_FIELDS
 } from './src/characters/character-document.js';

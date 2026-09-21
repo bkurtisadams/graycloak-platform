@@ -16,6 +16,7 @@
 import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
   setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
+  restCharacter, medicalAttention, characterIsWounded, REST_DAYS,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, beginPortCall, bookPassenger,
   calculateBerthingCost, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost, canShipMakeJump,
   chargeLifeSupportForTrip, chargeShipUpkeep, consumeJumpFuel, creditShipAccount, deliverFreightAtDestination,
@@ -674,6 +675,16 @@ function actorSheet(resolved, id, subsector = null) {
     entitlements: view.entitlements,
     record,
     notes: character.notes ?? '',
+    // v0.261.0: Book 1 p.31's recovery on the sheet.
+    condition: {
+      wounded: characterIsWounded(character),
+      severe: Boolean(character.status?.severelyWounded),
+      dead: character.status?.alive === false,
+      medics: (resolved.characters ?? [])
+        .filter((entry) => entry.status?.alive !== false && String(entry.identity.name ?? '').trim())
+        .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
+        .sort((a, b) => (b.level ?? -1) - (a.level ?? -1))
+    },
     compactOnly: false,
     editable: true
   };
@@ -1616,6 +1627,45 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     reload();
   }
 
+  // v0.261.0: a personal fight's wounds reach the characters. Until now they
+  // lived only on the encounter's copy of each combatant: Book 1 p.31's
+  // waking-up rule was applied to that copy when the fight ended and went no
+  // further, so a character walked out of every fight at full strength.
+  //
+  // The combatant's scores carry Book 1 p.33's encumbrance penalty (v0.251.0),
+  // which belongs to the fight, not the body, so it is taken back off. A
+  // characteristic still at zero stays at zero: the dead stay dead.
+  function writeFightToCharacters(encounter) {
+    if (!encounter || encounter.status === 'active' || encounter.status === 'setup') return [];
+    const changed = [];
+    for (const combatant of encounter.combatants ?? []) {
+      if (!combatant.playerCharacter) continue;
+      const character = (resolved.characters ?? []).find((entry) => entry.identity.id === combatant.id);
+      if (!character) continue;
+      const penalty = Number(combatant.encumbrance ?? 0);
+      const current = {};
+      for (const key of ['STR', 'DEX', 'END']) {
+        const inFight = Number(combatant.current?.[key] ?? 0);
+        current[key] = inFight <= 0 ? 0 : Math.max(0, Math.min(character.characteristics[key], inFight - penalty));
+      }
+      const zeros = ['STR', 'DEX', 'END'].filter((key) => current[key] <= 0).length;
+      // Severe (two zeros, p.31) is marked by the recovery that woke him.
+      const wasSevere = Boolean(combatant.severelyWounded);
+      const dead = zeros >= 3 || combatant.status === 'dead';
+      const same = ['STR', 'DEX', 'END'].every((key) => current[key] === character.current[key]);
+      if (same && !dead && !wasSevere) continue;
+      changed.push(updateCharacterGameplayState(character, {
+        current,
+        alive: !dead,
+        // By the time the fight is over the unconscious have woken (p.31: ten
+        // minutes, or three hours if severely wounded).
+        consciousness: dead ? 'not-applicable' : 'conscious',
+        severelyWounded: !dead && wasSevere ? true : undefined
+      }));
+    }
+    return changed;
+  }
+
   function log(category, message, extra = {}) {
     let { campaign } = resolved;
     let document = resolved.activityLogs[0] ?? null;
@@ -1853,6 +1903,49 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // personnel text nothing else reads, so it goes straight through
       // updateCharacterRecord; name and notes are the two fields outside
       // that block the sheet can set.
+      // v0.261.0: Book 1 p.31's recovery, with Kurt's Sep 2026 ruling for the
+      // throw: "Return to full strength requires medical attention, or three
+      // days of rest."
+      if (command === 'character:rest' || command === 'character:medical') {
+        const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+        if (!patient) throw new Error('choose a character first');
+        let campaign = resolved.campaign;
+        if (command === 'character:rest') {
+          const next = restCharacter(patient);
+          campaign = advanceCampaignDays(campaign, REST_DAYS);
+          registry.put(campaign);
+          // persist() rebuilds refs from resolved.campaign; the new date has to
+          // be in resolved first or it is written back over.
+          reload();
+          persist([next]);
+          log('MEDICAL', `${patient.identity.name} rests three days and is back to full strength.`);
+          lastMessage = { ok: true, message: `${patient.identity.name} rested three days: full strength.` };
+        } else {
+          const medicId = fight?.value?.medicId ?? null;
+          const medic = medicId ? (resolved.characters ?? []).find((entry) => entry.identity.id === medicId) : null;
+          const level = medic ? (Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null) : null;
+          const result = medicalAttention(patient, { medicalLevel: level, xeno: Boolean(fight?.value?.xeno), dice: createDice() });
+          // An attempt takes the day, success or not; a failure may be tried
+          // again after it.
+          campaign = advanceCampaignDays(campaign, 1);
+          registry.put(campaign);
+          reload();
+          persist([result.character]);
+          const who = medic ? `${medic.identity.name} (${level === null ? 'no Medical' : `Medical-${level}`})` : 'Nobody trained';
+          const line = `${who} treats ${patient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.`;
+          const detail = [
+            `2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll}`,
+            `Medical ${result.skillDM >= 0 ? '+' : '\u2212'}${Math.abs(result.skillDM)}${level === null ? ' (no expertise)' : ''}`,
+            result.xenoDM ? `Non-human patient \u22122 (1981 xeno-medicine)` : null,
+            `Total ${result.total} against ${result.target}+ \u2014 ${result.success ? 'success' : 'failure'}`
+          ].filter(Boolean).join('\n');
+          log('MEDICAL', line, { detail });
+          lastMessage = { ok: true, message: line };
+        }
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('character:')) {
         const [, verb] = command.split(':');
         if (verb === 'record' || verb === 'name' || verb === 'notes') {
@@ -2542,6 +2635,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           persist([result.encounter]);
           message = 'The fight is over';
         } else throw new Error(`unknown command: ${command}`);
+        // v0.261.0: however the fight ended — the last foe down, an escape,
+        // avoided, or the referee ending it — its wounds go to the characters.
+        const settled = (resolved.encounters ?? []).find((entry) => entry.identity.id === encounter.identity.id);
+        if (settled && settled.status !== 'active') {
+          const changed = writeFightToCharacters(settled);
+          if (changed.length) persist(changed);
+        }
         if (!alreadyLogged) log('COMBAT', message);
         lastMessage = { ok: true, message };
         onChange();

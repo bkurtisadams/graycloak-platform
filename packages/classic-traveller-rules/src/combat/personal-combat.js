@@ -764,6 +764,9 @@ export function endPersonalCombatRecovery(combatant) {
     const zeroes = PHYSICAL_KEYS.filter((key) => next.current[key] <= 0).length;
     if (zeroes === 1) for (const key of PHYSICAL_KEYS) next.current[key] = Math.max(1, Math.floor((next.current[key] + next.characteristics[key]) / 2));
     else for (const key of PHYSICAL_KEYS) next.current[key] = Math.max(1, next.current[key]);
+    // v0.261.0: once awake the scores no longer show which case it was, and
+    // it matters afterwards — the severely wounded cannot rest back to full.
+    if (zeroes >= 2) next.severelyWounded = true;
   }
   return next;
 }
