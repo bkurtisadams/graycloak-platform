@@ -24,7 +24,7 @@ import {
   disembarkPassengersAtDestination, generateFreightOffers, generatePassengerDemand, generateSpeculativeTradeOffer,
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
-  skimGasGiantToCapacity,
+  skimGasGiantToCapacity, assessLoad, inventoryLoadGrams,
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
   createDice, importCharacterDocument, stableDocumentId, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
@@ -81,7 +81,10 @@ import {
 import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 import { lawCheck, starportLine, atmosphereGear, worldDetail, prohibitedWeaponKeys } from './world-notes.js';
-import { createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS, normalizeFolderPath } from './npc-actor-document.js';
+import {
+  createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS, normalizeFolderPath,
+  addNpcActorInventoryItem, updateNpcActorInventoryItem, removeNpcActorInventoryItem
+} from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
@@ -616,6 +619,11 @@ function actorSheet(resolved, id, subsector = null) {
   const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === id);
   if (actor) {
     const statblock = actor.profile.kind === 'statblock';
+    // v0.267.0: an NPC actor (one person, not a statblock) gets the tabbed
+    // sheet a character has: Play, Gear, Profile and Notes. Profile stands
+    // where a character's Record does, holding what the referee writes about
+    // an NPC. A statblock stays compact (Kurt, Sep 2026).
+    if (!statblock) return npcActorSheet(actor, resolved, subsector);
     return {
       kind: 'actor', id, statblock,
       title: actor.identity.name,
@@ -700,6 +708,73 @@ function actorSheet(resolved, id, subsector = null) {
         .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
         .sort((a, b) => (b.level ?? -1) - (a.level ?? -1))
     },
+    compactOnly: false,
+    editable: true
+  };
+}
+
+function sheetSkills(skillsByName) {
+  const weaponNames = Object.values(PERSONAL_WEAPONS).map((spec) => spec.name);
+  return Object.entries(skillsByName ?? {})
+    .map(([name, level]) => {
+      const guide = skillGuide(name, { weaponNames });
+      return { name, level, label: `${name}-${level}`, dm: skillDM(name, level, { weaponNames }), tagline: guide.tagline, summary: guide.summary, page: guide.page, weapon: Boolean(guide.weapon) };
+    })
+    .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
+}
+
+function npcActorSheet(actor, resolved, subsector) {
+  const gravityFactor = currentGravityFactor(resolved, subsector);
+  const inventory = actor.inventory ?? [];
+  const load = assessLoad({ strength: actor.characteristics.STR, loadGrams: inventoryLoadGrams(inventory), military: false, gravityFactor });
+  const effective = {};
+  // The fight does not yet take Book 1 p.33's penalty off an NPC's scores,
+  // so the band shows the scores as they are rather than as they would be.
+  for (const key of ['STR', 'DEX', 'END']) {
+    const now = Number(actor.current?.[key] ?? actor.characteristics[key] ?? 0);
+    effective[key] = { now, full: Number(actor.characteristics[key] ?? 0), played: now };
+  }
+  for (const key of ['INT', 'EDU', 'SOC']) {
+    const score = Number(actor.characteristics[key] ?? 0);
+    effective[key] = { now: score, full: score, played: score };
+  }
+  return {
+    kind: 'actor', id: actor.identity.id, statblock: false, character: false, npc: true,
+    title: actor.identity.name,
+    subtitle: [actor.profile.role, actor.profile.faction].filter(Boolean).join(' \u00b7 ') || 'Actor',
+    tabs: ['Play', 'Gear', 'Profile', 'Notes'],
+    upp: actor.upp,
+    characteristics: { ...actor.characteristics },
+    current: { ...actor.current },
+    effective,
+    aging: { age: actor.profile.age, nextCheckAge: null, modifierMonths: 0 },
+    skills: sheetSkills(actor.skills),
+    skillsText: Object.entries(actor.skills ?? {}).map(([name, level]) => `${name}-${level}`).join(', '),
+    weaponKey: actor.loadout?.weaponKey ?? null,
+    weaponName: actor.loadout?.weaponKey ? getPersonalWeapon(actor.loadout.weaponKey)?.name ?? actor.loadout.weaponKey : null,
+    armor: actor.loadout?.armor ?? 'none',
+    weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
+    armorChoices: [...PERSONAL_ARMOR_TYPES],
+    cashCr: actor.finances?.credits ?? 0,
+    inventory: inventory.map((item) => ({
+      id: item.id, name: item.name, quantity: item.quantity, carried: item.carried,
+      counts: item.countsTowardLoad, weightGrams: item.weightGrams, weaponKey: item.weaponKey ?? null,
+      totalGrams: item.countsTowardLoad && item.carried ? item.weightGrams * item.quantity : 0
+    })),
+    load: {
+      state: load.state, penalty: load.characteristicDM ?? 0, military: false,
+      loadGrams: load.loadGrams, normalGrams: load.normalGrams, doubleGrams: load.doubleGrams, tripleGrams: load.tripleGrams,
+      gravityFactor, multiplier: load.multiplier, words: LOAD_WORDS[load.state]
+    },
+    entitlements: [],
+    profile: {
+      folder: actor.profile.folder, role: actor.profile.role, faction: actor.profile.faction,
+      homeworld: actor.profile.homeworld, age: actor.profile.age
+    },
+    folder: actor.profile.folder,
+    numberTokens: actor.profile.numberTokens,
+    notes: actor.notes?.referee ?? '',
+    publicNotes: actor.notes?.public ?? '',
     compactOnly: false,
     editable: true
   };
@@ -1140,11 +1215,12 @@ export function engineToSheetMove(action) {
   return { attack: 'Stand', wait: 'Stand', close: 'Close', 'close-run': 'Close (run)', open: 'Open', 'open-run': 'Open (run)', evade: 'Evade', escape: 'Escape' }[action] ?? 'Stand';
 }
 
-export function fightView(encounter, { characters = [], concluded = false } = {}) {
+export function fightView(encounter, { characters = [], actors = [], concluded = false } = {}) {
   // v0.252.1: a concluded encounter can be drawn too, for the aftermath.
   // v0.254.0: and one being set up, which may have nobody on it yet.
   if (!encounter || (!['active', 'setup'].includes(encounter.status) && !concluded)) return null;
   const byId = new Map(characters.map((entry) => [entry.identity.id, entry]));
+  const actorById = new Map(actors.map((entry) => [entry.identity.id, entry]));
   const declared = new Map((encounter.roundState?.declaredActions ?? []).map((entry) => [entry.actorId, entry]));
   const awaiting = new Set(undeclaredCombatantIds(encounter));
   const line = encounter.map?.spatialMode === 'range-line';
@@ -1154,7 +1230,9 @@ export function fightView(encounter, { characters = [], concluded = false } = {}
     const source = byId.get(entry.sourceActorId ?? entry.id) ?? null;
     // What else this combatant could pick up: carried weapons from the
     // character's own inventory, plus what is in hand and bare hands.
-    const carried = (source?.inventory ?? []).filter((item) => item.carried && item.weaponKey).map((item) => item.weaponKey);
+    // v0.267.0: or from an NPC actor's, now that an actor has one.
+    const holder = source ?? actorById.get(entry.sourceActorId ?? entry.id) ?? null;
+    const carried = (holder?.inventory ?? []).filter((item) => item.carried && item.weaponKey).map((item) => item.weaponKey);
     const weapons = [...new Set([entry.weaponKey, ...carried, 'hands'])];
     let weaponLabel = entry.weaponKey;
     try {
@@ -1778,7 +1856,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // Returns { ok, message }. A refused command changes nothing.
   function runInventory(command, { characterId = null, item = null } = {}) {
     const character = resolved.characters.find((entry) => entry.identity.id === characterId) ?? null;
-    if (!character) throw new Error('choose a character first');
+    if (!character) {
+      const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === characterId) ?? null;
+      if (actor) return runNpcInventory(actor, command, item);
+      throw new Error('choose a character first');
+    }
     const [, verb, ...rest] = command.split(':');
     const itemId = rest.join(':');
     const named = character.inventory.find((entry) => entry.id === itemId);
@@ -1795,6 +1877,20 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         next = addCharacterInventoryItem(character, { name, weightGrams: grams, quantity, carried: true });
       }
       message = `${character.identity.name} now has ${next.inventory.at(-1).name}`;
+    } else if (verb === 'update') {
+      // v0.267.0: the Gear tab's name, quantity and weight cells sent this
+      // since v0.250.0, and it had no branch: every edit there was refused.
+      if (!named) throw new Error('that item is no longer listed');
+      const patch = {};
+      if (item?.name !== undefined) patch.name = String(item.name).trim() || named.name;
+      if (item?.quantity !== undefined) patch.quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      if (item?.weightKg !== undefined) patch.weightGrams = Math.max(0, Math.round(Number(item.weightKg) * 1000) || 0);
+      next = updateCharacterInventoryItem(character, itemId, patch);
+      message = `${character.identity.name}: ${patch.name ?? named.name} changed`;
+    } else if (verb === 'ready') {
+      if (!named?.weaponKey) throw new Error('that is not a weapon');
+      next = updateCharacterGameplayState(character, { weaponKey: named.weaponKey, armor: character.loadout.armor });
+      message = `${character.identity.name} readies ${named.name}`;
     } else if (verb === 'toggle') {
       if (!named) throw new Error('that item is no longer listed');
       next = updateCharacterInventoryItem(character, itemId, { carried: !named.carried });
@@ -1807,6 +1903,53 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       next = setCharacterMilitaryLoad(character, itemId === 'on');
       message = `${character.identity.name} ${itemId === 'on' ? 'carries as part of a military force' : 'carries as a civilian'}`;
     } else throw new Error(`unknown command: ${command}`);
+    persist([next]);
+    return message;
+  }
+
+  // v0.267.0: the same verbs on an NPC actor's inventory. Book 1 p.33's
+  // military load is a character's choice and is not offered here.
+  function runNpcInventory(actor, command, item) {
+    const [, verb, ...rest] = command.split(':');
+    const itemId = rest.join(':');
+    const named = (actor.inventory ?? []).find((entry) => entry.id === itemId);
+    const label = actor.identity.name;
+    let next;
+    let message;
+    if (verb === 'add') {
+      if (item?.weaponKey) next = addNpcActorInventoryItem(actor, { weaponKey: item.weaponKey, carried: true });
+      else {
+        const name = String(item?.name ?? '').trim();
+        const grams = Math.round(Number(item?.weightKg ?? 0) * 1000);
+        const quantity = Math.max(1, Math.floor(Number(item?.quantity ?? 1)));
+        if (!name) throw new Error('give the item a name');
+        if (!Number.isFinite(grams) || grams < 0) throw new Error('weight must be zero or more kilograms');
+        next = addNpcActorInventoryItem(actor, { name, weightGrams: grams, quantity, carried: true });
+      }
+      message = `${label} now has ${next.inventory.at(-1).name}`;
+    } else if (verb === 'update') {
+      if (!named) throw new Error('that item is no longer listed');
+      const patch = {};
+      if (item?.name !== undefined) patch.name = String(item.name).trim() || named.name;
+      if (item?.quantity !== undefined) patch.quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+      if (item?.weightKg !== undefined) patch.weightGrams = Math.max(0, Math.round(Number(item.weightKg) * 1000) || 0);
+      next = updateNpcActorInventoryItem(actor, itemId, patch);
+      message = `${label}: ${patch.name ?? named.name} changed`;
+    } else if (verb === 'toggle') {
+      if (!named) throw new Error('that item is no longer listed');
+      next = updateNpcActorInventoryItem(actor, itemId, { carried: !named.carried });
+      message = `${label} ${named.carried ? 'put down' : 'picked up'} ${named.name}`;
+    } else if (verb === 'remove') {
+      if (!named) throw new Error('that item is no longer listed');
+      next = removeNpcActorInventoryItem(actor, itemId);
+      message = `${named.name} removed from ${label}\u2019s inventory`;
+    } else if (verb === 'ready') {
+      // A carried weapon taken in hand: the loadout's weapon is the one the
+      // fight starts with.
+      if (!named?.weaponKey) throw new Error('that is not a weapon');
+      next = updateNpcActorDocument(actor, { weaponKey: named.weaponKey });
+      message = `${label} readies ${named.name}`;
+    } else throw new Error(`${label} is not a character: ${verb} does not apply`);
     persist([next]);
     return message;
   }
@@ -1960,8 +2103,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // into the inventory, carried; armour is put on (Book 1 allows one
       // suit at a time).
       if (command === 'gear:buy' || command === 'gear:give') {
-        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id);
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id)
+          ?? (resolved.npcActors ?? []).find((entry) => entry.identity.id === fight?.id);
         if (!who) throw new Error('choose a character first');
+        // v0.267.0: an NPC actor takes a drop too; its gear goes through the
+        // NPC document's own helpers.
+        const npc = (resolved.npcActors ?? []).includes(who);
         const entry = catalogueEntry(String(fight?.value?.key ?? ''));
         const quantity = entry.armourKey || entry.weaponKey ? 1 : Math.max(1, Math.floor(Number(fight?.value?.quantity ?? 1)));
         const buying = command === 'gear:buy';
@@ -1975,16 +2122,18 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         let what;
         if (entry.armourKey) {
           const was = who.loadout?.armor ?? 'none';
-          next = updateCharacterGameplayState(next, { armor: entry.armourKey });
+          next = npc ? updateNpcActorDocument(next, { armor: entry.armourKey }) : updateCharacterGameplayState(next, { armor: entry.armourKey });
           what = `${entry.name}${was !== 'none' && was !== entry.armourKey ? ` (in place of ${was === 'combat' ? 'battle dress' : was})` : ''}`;
         } else if (entry.weaponKey) {
-          next = addCharacterInventoryItem(next, { weaponKey: entry.weaponKey, carried: true });
+          next = npc ? addNpcActorInventoryItem(next, { weaponKey: entry.weaponKey, carried: true }) : addCharacterInventoryItem(next, { weaponKey: entry.weaponKey, carried: true });
           what = `a ${entry.name}`;
         } else {
-          next = addCharacterInventoryItem(next, { name: entry.name, weightGrams: entry.weightGrams, quantity, carried: true });
+          next = npc
+            ? addNpcActorInventoryItem(next, { name: entry.name, weightGrams: entry.weightGrams, quantity, carried: true })
+            : addCharacterInventoryItem(next, { name: entry.name, weightGrams: entry.weightGrams, quantity, carried: true });
           what = quantity > 1 ? `${quantity} \u00d7 ${entry.name}` : entry.name;
         }
-        if (buying) next = importCharacterDocument({ ...next, finances: { ...next.finances, credits: cash - cost } });
+        if (buying) next = npc ? updateNpcActorDocument(next, { credits: cash - cost }) : importCharacterDocument({ ...next, finances: { ...next.finances, credits: cash - cost } });
         persist([next]);
         const line = buying
           ? `${who.identity.name} buys ${what} for Cr ${cost.toLocaleString('en-US')} (Cr ${(cash - cost).toLocaleString('en-US')} left).`
@@ -1996,7 +2145,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         return lastMessage;
       }
       if (command === 'character:skill-roll' || command === 'character:skill-info') {
-        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id);
+        // v0.267.0: an NPC actor's sheet throws its skills the same way.
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id)
+          ?? (resolved.npcActors ?? []).find((entry) => entry.identity.id === fight?.id);
         if (!who) throw new Error('choose a character first');
         const name = String(fight?.value?.skill ?? '');
         if (!Object.hasOwn(who.skills ?? {}, name)) throw new Error(`${who.identity.name} has no ${name}`);
@@ -2373,6 +2524,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             patch.skills = skills;
           } else if (field === 'folder') {
             patch.folder = String(value ?? '');
+          } else if (field === 'notes') {
+            // v0.267.0: the Notes tab's two boxes.
+            if (value?.referee !== undefined) patch.refereeNotes = String(value.referee);
+            if (value?.public !== undefined) patch.publicNotes = String(value.public);
+          } else if (field === 'profile') {
+            // v0.267.0: the Profile tab. Age is a whole number or unknown.
+            for (const key of ['role', 'faction', 'homeworld']) if (value?.[key] !== undefined) patch[key] = String(value[key]).trim();
+            if (value?.age !== undefined) {
+              const age = value.age === '' || value.age === null ? null : Number(value.age);
+              if (age !== null && (!Number.isInteger(age) || age < 0)) throw new RangeError('age must be a whole number');
+              patch.age = age;
+            }
+          } else if (field === 'credits') {
+            const credits = Number(value);
+            if (!Number.isInteger(credits) || credits < 0) throw new RangeError('cash must be a whole number of credits');
+            patch.credits = credits;
           } else throw new Error(`unknown edit: ${command}`);
           persist([updateNpcActorDocument(actor, patch)]);
           message = `${actor.identity.name}: changed`;
@@ -3835,7 +4002,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         ? (resolved.encounters ?? []).find((entry) => entry.identity.id === concludedEncounterId) ?? null
         : null;
       const live = active ?? ended;
-      const fight = fightView(live, { characters: resolved.characters ?? [], concluded: Boolean(ended) });
+      // v0.267.0: NPC actors too, so an actor's carried weapons are offered
+      // in the fight's weapon column the way a character's are.
+      const fight = fightView(live, { characters: resolved.characters ?? [], actors: resolved.npcActors ?? [], concluded: Boolean(ended) });
       if (fight) {
         const writable = save.state !== 'stale';
         const wound = pendingWoundAllocation(live);

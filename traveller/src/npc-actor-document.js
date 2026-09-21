@@ -1,6 +1,8 @@
 import {
   PERSONAL_ARMOR_TYPES,
   getPersonalWeapon,
+  personalWeaponWeight,
+  personalWeaponCarriedWeightGrams,
   stableDocumentId
 } from '../vendor/classic-traveller-rules/index.js';
 
@@ -300,7 +302,7 @@ export function duplicateNpcActorDocument(document, { name = null } = {}) {
     kind: source.profile.kind, numberTokens: source.profile.numberTokens, folder: source.profile.folder,
     role: source.profile.role, faction: source.profile.faction, homeworld: source.profile.homeworld, age: source.profile.age,
     characteristics: source.characteristics, current: source.current, career: source.career, benefits: source.benefits,
-    skills: source.skills, weaponKey: source.loadout?.weaponKey, armor: source.loadout?.armor, inventory: source.loadout?.inventory ?? [],
+    skills: source.skills, weaponKey: source.loadout?.weaponKey, armor: source.loadout?.armor, inventory: source.inventory ?? [],
     credits: source.finances?.credits ?? 0, retirementPayAnnual: source.finances?.retirementPayAnnual ?? 0,
     effects: source.effects ?? [], state: { ...source.state, archived: false },
     publicNotes: source.notes?.public ?? '', refereeNotes: source.notes?.referee ?? ''
@@ -317,4 +319,53 @@ export function npcActorMatchesSearch(document, query) {
   if (!text) return true;
   return [document.identity.name, document.profile.role, document.profile.actorType, document.profile.faction, ...(document.identity.aliases ?? [])]
     .filter(Boolean).some((value) => String(value).toLowerCase().includes(text));
+}
+
+// v0.267.0: an NPC actor's inventory, the same item shape a character's uses
+// ({ id, name, quantity, weightGrams, carried, countsTowardLoad, weaponKey })
+// so the sheet's Gear tab, Book 1 p.33's load and the fight's list of
+// carried weapons read both alike. The field has been in the schema since
+// schema 1; nothing wrote to it until now.
+function weaponInventoryItem(weaponKey, { carried = true } = {}) {
+  const spec = getPersonalWeapon(weaponKey);
+  const weight = personalWeaponWeight(weaponKey);
+  return {
+    id: `weapon-${weaponKey}`, name: weight?.ammunition ? `${spec.name}, loaded` : spec.name, quantity: 1,
+    weightGrams: personalWeaponCarriedWeightGrams(weaponKey), carried, countsTowardLoad: weight?.countsTowardLoad ?? true, weaponKey
+  };
+}
+
+export function addNpcActorInventoryItem(document, { name = null, quantity = 1, weightGrams = 0, carried = true, countsTowardLoad = true, weaponKey = null } = {}) {
+  const actor = importNpcActorDocument(document);
+  const item = weaponKey && !name
+    ? weaponInventoryItem(weaponKey, { carried })
+    : { id: null, name: String(name ?? '').trim(), quantity, weightGrams, carried, countsTowardLoad, weaponKey };
+  if (!item.name) throw new TypeError('an item needs a name');
+  if (!Number.isInteger(Number(item.quantity)) || Number(item.quantity) < 1) throw new RangeError('quantity must be a whole number of 1 or more');
+  if (!Number.isFinite(Number(item.weightGrams)) || Number(item.weightGrams) < 0) throw new RangeError('weight must be zero or more');
+  let itemId = item.id ?? `item-${item.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'item'}`;
+  const taken = new Set(actor.inventory.map((entry) => entry.id));
+  if (taken.has(itemId)) { let n = 2; while (taken.has(`${itemId}-${n}`)) n += 1; itemId = `${itemId}-${n}`; }
+  const inventory = [...actor.inventory, {
+    ...item, id: itemId, quantity: Number(item.quantity), weightGrams: Number(item.weightGrams),
+    carried: Boolean(item.carried), countsTowardLoad: Boolean(item.countsTowardLoad), weaponKey: item.weaponKey ?? null
+  }];
+  return updateNpcActorDocument(actor, { inventory });
+}
+
+export function updateNpcActorInventoryItem(document, itemId, patch = {}) {
+  const actor = importNpcActorDocument(document);
+  const index = actor.inventory.findIndex((entry) => entry.id === itemId);
+  if (index < 0) throw new Error(`no inventory item: ${itemId}`);
+  const allowed = ['name', 'quantity', 'weightGrams', 'carried', 'countsTowardLoad'];
+  const inventory = actor.inventory.map((entry, at) => (at === index
+    ? { ...entry, ...Object.fromEntries(Object.entries(patch).filter(([key]) => allowed.includes(key))) }
+    : entry));
+  return updateNpcActorDocument(actor, { inventory });
+}
+
+export function removeNpcActorInventoryItem(document, itemId) {
+  const actor = importNpcActorDocument(document);
+  if (!actor.inventory.some((entry) => entry.id === itemId)) throw new Error(`no inventory item: ${itemId}`);
+  return updateNpcActorDocument(actor, { inventory: actor.inventory.filter((entry) => entry.id !== itemId) });
 }

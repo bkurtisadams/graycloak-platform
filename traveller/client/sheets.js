@@ -177,7 +177,7 @@ function actorFull(sheet, handlers) {
   const parts = [
     h('div', { class: 'sheet-rows' },
       field('Name', sheet.title, { onchange: (value) => handlers.onEditActor?.(sheet.id, 'name', value), locked }),
-      sheet.character ? null : field('Folder', sheet.folder ?? '', { onchange: (value) => handlers.onFileActor?.(sheet.id, value), locked })),
+      sheet.character ? null : field('Folder', sheet.folder ?? '', { onchange: (value) => handlers.onEditActor?.(sheet.id, 'folder', value), locked })),
     h('div', { class: 'sheet-section-label', text: 'UNIVERSAL PERSONALITY PROFILE' }),
     uppGrid(sheet, handlers, { locked }),
     // v0.266.0: an actor's full form edits skills too; only the compact
@@ -233,11 +233,16 @@ function vitalsBand(sheet) {
       h('div', {}, h('span', { class: 'sheet-label', text: 'Cash' }), h('b', { text: `Cr ${Number(sheet.cashCr).toLocaleString('en-US')}` })),
       sheet.load ? h('div', {}, h('span', { class: 'sheet-label', text: 'Load' }), h('span', { text: `${KG(sheet.load.loadGrams)} of ${KG(sheet.load.normalGrams)}` })) : null,
       h('div', {}, h('span', { class: 'sheet-label', text: 'Age' }),
-        h('span', { text: `${aging.age}${modifier ? ` (${modifier > 0 ? '+' : ''}${modifier})` : ''}${aging.nextCheckAge ? ` \u00b7 check at ${aging.nextCheckAge}` : ''}` }))));
+        h('span', { text: aging.age === null || aging.age === undefined ? '\u2014' : `${aging.age}${modifier ? ` (${modifier > 0 ? '+' : ''}${modifier})` : ''}${aging.nextCheckAge ? ` \u00b7 check at ${aging.nextCheckAge}` : ''}` }))));
 }
+
+// v0.267.0: the tabbed sheet serves NPC actors too. The same field goes to
+// the character's command or the actor's, by what the sheet is.
+const editOf = (sheet, handlers) => (sheet.npc ? handlers.onEditActor : handlers.onEditCharacter);
 
 function playTab(sheet, handlers) {
   const locked = !sheet.editable;
+  const edit = editOf(sheet, handlers);
   const armours = (sheet.armorChoices ?? []).map((key) => ({ key, name: key === 'none' ? 'No armour' : key === 'combat' ? 'Battle Dress' : key[0].toUpperCase() + key.slice(1) }));
   const encumbered = (sheet.load?.penalty ?? 0) !== 0;
   return [
@@ -251,8 +256,17 @@ function playTab(sheet, handlers) {
           : 'expertise \u00bd, as every character has in every weapon: no penalty, no DM (Book 1 p.12)' })),
       h('button', { type: 'button', class: 'button is-small is-primary', text: 'Attack', disabled: !sheet.weaponKey, onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'attack', weaponKey: sheet.weaponKey }) })),
     h('div', { class: 'sheet-rows' },
-      (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
-      armours.length ? select('Armour', sheet.armor, armours, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
+      (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => edit?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
+      armours.length ? select('Armour', sheet.armor, armours, (key) => edit?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
+    // v0.267.0: the other weapons carried, one click from hand. The fight's
+    // weapon column offers the same list.
+    (() => {
+      const others = (sheet.inventory ?? []).filter((item) => item.weaponKey && item.carried && item.weaponKey !== sheet.weaponKey);
+      if (!others.length) return null;
+      return h('div', { class: 'sheet-carried-weapons' },
+        h('span', { class: 'sheet-label', text: 'Also carried' }),
+        others.map((item) => h('button', { type: 'button', class: 'button is-small', text: `Ready ${item.name}`, onclick: () => handlers.onInventory?.(sheet.id, 'ready', item.id) })));
+    })(),
     h('p', { class: 'sheet-note', text: 'Armour sets the throw anyone shooting at you needs, as well as your own protection (Book 1 p.42).' }),
     conditionBlock(sheet, handlers),
     // v0.263.0: the label is the throw (2D + Book 1's DM, into chat); the
@@ -269,7 +283,11 @@ function playTab(sheet, handlers) {
         h('b', { text: skill.label }),
         h('small', { text: skill.tagline ?? '' })),
         h('button', { type: 'button', class: 'sheet-skill-info', 'aria-label': `Describe ${skill.name} in chat`, title: 'Describe in chat', text: '\u24d8', onclick: () => handlers.onSkillInfo?.(sheet.id, skill.name) }))))
-      : h('p', { class: 'sheet-note', text: 'No skills recorded.' })
+      : h('p', { class: 'sheet-note', text: 'No skills recorded.' }),
+    // An NPC's skills are the referee's to write; a character's come from
+    // generation and are not edited here.
+    sheet.npc ? h('div', { class: 'sheet-rows' }, field('Edit skills', sheet.skillsText ?? '', { onchange: (value) => handlers.onEditSkills?.(sheet.id, value), locked, width: 320 })) : null,
+    sheet.npc ? h('p', { class: 'sheet-note', text: 'Written as Rifle-1, Brawling-1.' }) : null
   ].filter(Boolean);
 }
 
@@ -301,6 +319,7 @@ function gearTab(sheet, handlers) {
   const load = sheet.load;
   const parts = [];
   if (load) {
+    if (sheet.npc && load.penalty) parts.push(h('p', { class: 'sheet-note is-warn', text: `${load.words}. Book 1 p.33 applies to anyone; the fight does not yet take it off an NPC\u2019s scores.` }));
     // Book 1 p.33 drawn out: free to STR in kilograms, encumbered to twice
     // it, military to three times, each band widened or narrowed by the
     // local gravity.
@@ -356,7 +375,7 @@ function gearTab(sheet, handlers) {
     h('input', { name: 'weightKg', type: 'number', step: '0.1', min: '0', value: '0', 'aria-label': 'New item weight in kilograms' }),
     h('button', { type: 'submit', class: 'button is-small', text: 'Add item' })));
   parts.push(h('p', { class: 'sheet-note', text: 'Clothing, personal armour and minor items \u2014 holsters, scabbards, belts \u2014 are not counted (p.33). Untick carried for anything stowed aboard ship.' }));
-  if (load) {
+  if (load && !sheet.npc) {
     parts.push(h('label', { class: 'sheet-check' },
       h('input', { type: 'checkbox', checked: load.military, onchange: (event) => handlers.onInventory?.(sheet.id, 'military', event.currentTarget.checked ? 'on' : 'off') }),
       ' Carrying as part of a military force (p.33: to three times STR, at two off)'));
@@ -427,9 +446,49 @@ function notesTab(sheet, handlers) {
   ];
 }
 
+// v0.267.0: an NPC actor's Profile, where a character's Record stands: who
+// they are, filed where, built how. Everything on it is the referee's.
+function profileTab(sheet, handlers) {
+  const profile = sheet.profile ?? {};
+  const put = (key) => (value) => handlers.onEditActor?.(sheet.id, 'profile', { [key]: value });
+  return [
+    h('div', { class: 'sheet-group' },
+      h('h3', { text: 'WHO THEY ARE' }),
+      h('div', { class: 'sheet-rows' },
+        field('Name', sheet.title, { onchange: (value) => handlers.onEditActor?.(sheet.id, 'name', value) }),
+        field('Role', profile.role ?? '', { onchange: put('role') }),
+        field('Faction', profile.faction ?? '', { onchange: put('faction') }),
+        field('Homeworld', profile.homeworld ?? '', { onchange: put('homeworld') }),
+        field('Age', profile.age ?? '', { type: 'number', width: 70, onchange: put('age') }),
+        field('Cash, Cr', sheet.cashCr ?? 0, { type: 'number', width: 110, onchange: (value) => handlers.onEditActor?.(sheet.id, 'credits', value) }),
+        field('Folder', sheet.folder ?? '', { onchange: (value) => handlers.onEditActor?.(sheet.id, 'folder', value) }))),
+    h('div', { class: 'sheet-group' },
+      h('h3', { text: 'UNIVERSAL PERSONALITY PROFILE' }),
+      uppGrid(sheet, handlers, { locked: false }),
+      h('p', { class: 'sheet-note', text: 'Changing a characteristic resets the wounds on this sheet to full.' })),
+    h('div', { class: 'sheet-group' },
+      h('h3', { text: 'ON THE BOARD' }),
+      h('label', { class: 'sheet-check' },
+        h('input', { type: 'checkbox', checked: sheet.numberTokens, onchange: (event) => handlers.onNumberTokens?.(sheet.id, event.currentTarget.checked) }),
+        ' Number the tokens (Bandit 1, Bandit 2\u2026)'),
+      h('div', { class: 'sheet-actions' },
+        h('span', { class: 'sheet-note', text: 'One person: one sheet, one set of wounds.' }),
+        h('button', { type: 'button', class: 'button is-small', text: 'Make a statblock', onclick: () => handlers.onActorKind?.(sheet.id, 'statblock') })))
+  ];
+}
+
+function npcNotesTab(sheet, handlers) {
+  return [
+    h('label', { class: 'sheet-field is-wide' }, h('span', { text: 'Referee notes' }),
+      h('textarea', { rows: '8', 'aria-label': 'Referee notes', onchange: (event) => handlers.onEditActor?.(sheet.id, 'notes', { referee: event.currentTarget.value }) }, sheet.notes ?? '')),
+    h('label', { class: 'sheet-field is-wide' }, h('span', { text: 'What the players may be told' }),
+      h('textarea', { rows: '4', 'aria-label': 'Public notes', onchange: (event) => handlers.onEditActor?.(sheet.id, 'notes', { public: event.currentTarget.value }) }, sheet.publicNotes ?? ''))
+  ];
+}
+
 function characterBody(sheet, handlers) {
   const tab = sheet.tab && sheet.tabs.includes(sheet.tab) ? sheet.tab : sheet.tabs[0];
-  const build = { Play: playTab, Gear: gearTab, Record: recordTab, Notes: notesTab };
+  const build = { Play: playTab, Gear: gearTab, Record: recordTab, Profile: profileTab, Notes: sheet.npc ? npcNotesTab : notesTab };
   return [
     vitalsBand(sheet),
     h('div', { class: 'sheet-tabs' },
@@ -439,7 +498,7 @@ function characterBody(sheet, handlers) {
         type: 'button', class: 'sheet-tab', 'aria-pressed': name === tab ? 'true' : 'false', text: name,
         onclick: () => handlers.onSheetTab?.(sheet.kind, sheet.id, name)
       })),
-      h('button', { type: 'button', class: 'button is-small sheet-print', text: 'Print TAS Form 2', onclick: () => handlers.onPrintCharacter?.(sheet.id) })),
+      sheet.npc ? null : h('button', { type: 'button', class: 'button is-small sheet-print', text: 'Print TAS Form 2', onclick: () => handlers.onPrintCharacter?.(sheet.id) })),
     h('div', { class: 'sheet-tab-body' }, build[tab](sheet, handlers))
   ];
 }
@@ -504,7 +563,7 @@ export function renderSheets(sheets, handlers = {}) {
     const compact = Boolean(sheet.compact);
     const body = sheet.kind === 'ship' ? shipBody(sheet, handlers)
       : sheet.kind === 'scene' ? sceneBody(sheet, handlers)
-        : compact ? actorCompact(sheet, handlers) : (sheet.character ? characterBody(sheet, handlers) : actorFull(sheet, handlers));
+        : compact ? actorCompact(sheet, handlers) : (sheet.tabs ? characterBody(sheet, handlers) : actorFull(sheet, handlers));
     const bar = h('div', { class: 'sheet-bar' },
       h('button', { type: 'button', class: 'sheet-back', 'aria-label': 'Back', text: '\u2190', onclick: () => handlers.onCloseSheet?.(sheet.kind, sheet.id) }),
       h('span', { class: 'sheet-title', text: sheet.title }),
@@ -518,7 +577,8 @@ export function renderSheets(sheets, handlers = {}) {
     const panel = h('section', { class: `sheet${compact ? ' is-compact' : ''}`, 'aria-label': `${sheet.title} sheet` }, bar, h('div', { class: 'sheet-body' }, body));
     // v0.264.0: a character's sheet takes a drop from the Compendium, as
     // Foundry's does from a compendium pack; the drop asks Buy or Give.
-    if (sheet.kind === 'actor' && sheet.character) {
+    // v0.267.0: an NPC actor's too; a statblock's compact form does not.
+    if (sheet.kind === 'actor' && (sheet.character || sheet.npc)) {
       const carriesGear = (event) => [...(event.dataTransfer?.types ?? [])].includes('application/x-graycloak-gear');
       panel.addEventListener('dragover', (event) => {
         if (!carriesGear(event)) return;

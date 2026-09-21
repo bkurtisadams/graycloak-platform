@@ -1582,11 +1582,128 @@ test('v0.266.0 Unfiled offers its one verb; an actor opened full can edit its sk
   const edits = [];
   const sheet = session.view({ sheets: [{ kind: 'actor', id, compact: false }] }).sheets[0];
   document.querySelector('main').replaceChildren(renderSheets([sheet], { onEditSkills: (sheetId, text) => edits.push([sheetId, text]) }));
-  const input = [...document.querySelectorAll('.sheet-field')].find((node) => node.textContent.startsWith('Skills'))?.querySelector('input');
+  // v0.267.0: an actor's full sheet is the tabbed one now; skills are
+  // edited on its Play tab.
+  const input = [...document.querySelectorAll('.sheet-field')].find((node) => node.textContent.startsWith('Edit skills'))?.querySelector('input');
   assert.ok(input, 'the full form has a skills field');
   input.value = 'Rifle-1, Brawling-1';
   input.dispatchEvent(new dom.window.Event('change'));
   assert.deepEqual(edits, [[id, 'Rifle-1, Brawling-1']]);
+  dom.window.close();
+  delete globalThis.document;
+});
+
+// ------------------------------------------------------------ v0.267.0
+// Kurt, Sep 2026: NPCs have skills and more than one weapon, and their sheet
+// had no way to add either. An NPC actor gets the tabbed sheet; a statblock
+// stays compact.
+
+test('v0.267.0 an NPC actor opens on the tabbed sheet; a statblock stays compact', async () => {
+  const { session } = await freshSession();
+  const actor = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  const pattern = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Bandit' } } }).createdId;
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: actor }] }).sheets;
+  assert.deepEqual(sheet.tabs, ['Play', 'Gear', 'Profile', 'Notes']);
+  assert.equal(sheet.npc, true);
+  const [compact] = session.view({ sheets: [{ kind: 'actor', id: pattern }] }).sheets;
+  assert.equal(compact.tabs, undefined);
+  assert.equal(compact.compactOnly, true);
+});
+
+test('v0.267.0 an NPC carries several weapons, readies one, and the fight offers them all', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  assert.equal(session.run('gear:give', { fight: { id, value: { key: 'weapon:rifle' } } }).ok, true);
+  assert.equal(session.run('inventory:add', { characterId: id, item: { weaponKey: 'dagger' } }).ok, true);
+  assert.equal(session.run('inventory:add', { characterId: id, item: { name: 'Rope', weightKg: 1.5, quantity: 2 } }).ok, true);
+  const sheet = () => session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0];
+  assert.deepEqual(sheet().inventory.map((item) => item.weaponKey).filter(Boolean), ['rifle', 'dagger']);
+  const rope = sheet().inventory.find((item) => item.name === 'Rope');
+  assert.equal(rope.totalGrams, 3000);
+  assert.equal(session.run(`inventory:update:${rope.id}`, { characterId: id, item: { quantity: 3 } }).ok, true);
+  assert.equal(sheet().inventory.find((item) => item.id === rope.id).quantity, 3);
+
+  const rifle = sheet().inventory.find((item) => item.weaponKey === 'rifle');
+  assert.equal(session.run(`inventory:ready:${rifle.id}`, { characterId: id }).ok, true);
+  assert.equal(sheet().weaponKey, 'rifle');
+
+  session.run('fight:setup');
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id, column: 4 } } }).ok, true);
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  const fighter = session.view().fighters.find((entry) => entry.name === 'Sanjay Rao');
+  const keys = fighter.weaponChoices.map((choice) => choice.key);
+  assert.ok(keys.includes('rifle') && keys.includes('dagger') && keys.includes('hands'), keys.join(', '));
+});
+
+test('v0.267.0 an NPC throws its skills into chat; profile, notes and cash are written', async () => {
+  const { session } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  assert.equal(session.run('edit:actor:skills', { fight: { id, value: 'Rifle-1, Streetwise-2' } }).ok, true);
+  const rolled = session.run('character:skill-roll', { fight: { id, value: { skill: 'Streetwise' } } });
+  assert.equal(rolled.ok, true, rolled.message);
+  assert.match(rolled.message, /^Streetwise-2: 2D/);
+  assert.equal(session.run('edit:actor:profile', { fight: { id, value: { role: 'Fixer', faction: 'Dock gangs', age: '38' } } }).ok, true);
+  assert.equal(session.run('edit:actor:notes', { fight: { id, value: { referee: 'Owes Hawkeye money.' } } }).ok, true);
+  assert.equal(session.run('edit:actor:credits', { fight: { id, value: '1200' } }).ok, true);
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id }] }).sheets;
+  assert.equal(sheet.profile.role, 'Fixer');
+  assert.equal(sheet.profile.age, 38);
+  assert.equal(sheet.subtitle, 'Fixer \u00b7 Dock gangs');
+  assert.equal(sheet.notes, 'Owes Hawkeye money.');
+  assert.equal(sheet.cashCr, 1200);
+  assert.deepEqual(sheet.skills.map((skill) => skill.label), ['Streetwise-2', 'Rifle-1']);
+  assert.equal(session.run('inventory:military:on', { characterId: id }).ok, false, 'military load is a character\u2019s choice');
+});
+
+test('v0.267.0 a copied actor keeps its gear (the copy used to drop it)', async () => {
+  const { session } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  session.run('gear:give', { fight: { id, value: { key: 'weapon:rifle' } } });
+  const copy = session.run('actor:copy', { fight: { id } }).createdId;
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: copy }] }).sheets;
+  assert.deepEqual(sheet.inventory.map((item) => item.weaponKey), ['rifle']);
+});
+
+test('v0.267.0 a character\u2019s gear cells now save (inventory:update had no branch)', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  assert.equal(session.run('inventory:add', { characterId: id, item: { name: 'Rope', weightKg: 1, quantity: 1 } }).ok, true);
+  const rope = registry.resolveCampaign(campaignId).characters[0].inventory.find((item) => item.name === 'Rope');
+  const changed = session.run(`inventory:update:${rope.id}`, { characterId: id, item: { name: 'Climbing rope', weightKg: 2.5 } });
+  assert.equal(changed.ok, true, changed.message);
+  const after = registry.resolveCampaign(campaignId).characters[0].inventory.find((item) => item.id === rope.id);
+  assert.equal(after.name, 'Climbing rope');
+  assert.equal(after.weightGrams, 2500);
+});
+
+test('v0.267.0 the NPC sheet draws Play, Gear, Profile and Notes, and takes a Compendium drop', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  session.run('gear:give', { fight: { id, value: { key: 'weapon:rifle' } } });
+  const readied = [];
+  const draw = (tab) => {
+    const [sheet] = session.view({ sheets: [{ kind: 'actor', id, tab }] }).sheets;
+    document.querySelector('main').replaceChildren(renderSheets([sheet], { onInventory: (...args) => readied.push(args) }));
+  };
+  draw('Play');
+  assert.deepEqual([...document.querySelectorAll('.sheet-tab')].map((node) => node.textContent), ['Play', 'Gear', 'Profile', 'Notes']);
+  assert.equal(document.querySelector('.sheet-print'), null, 'no TAS Form 2 for an NPC');
+  const ready = [...document.querySelectorAll('.sheet-carried-weapons button')].find((node) => node.textContent.includes('Rifle'));
+  assert.ok(ready, 'a carried weapon can be readied from Play');
+  ready.click();
+  assert.equal(readied[0][1], 'ready');
+  draw('Gear');
+  assert.ok(document.querySelector('.sheet-table'));
+  assert.ok(![...document.querySelectorAll('.sheet-check')].some((node) => /military force/.test(node.textContent)));
+  draw('Profile');
+  assert.ok([...document.querySelectorAll('.sheet-field span')].some((node) => node.textContent === 'Faction'));
+  draw('Notes');
+  assert.ok(document.querySelector('textarea[aria-label="Referee notes"]'));
   dom.window.close();
   delete globalThis.document;
 });

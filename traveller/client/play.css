@@ -1154,3 +1154,7 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .gear-drop { position: fixed; z-index: 60; width: 280px; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--ink); box-shadow: 0 6px 20px rgba(0,0,0,.25); pointer-events: auto; }
 .gear-drop p { margin: 0; font-size: 12px; }
 .sheet-layer > .sheet.is-drop-target { outline: 3px dashed var(--signal); outline-offset: -3px; }
+
+/* v0.267.0: an NPC actor's tabbed sheet. */
+.sheet-note.is-warn { color: var(--red); }
+.sheet-carried-weapons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
