@@ -1040,7 +1040,8 @@ test('v0.259.0 a pistol-armed thug may swing it as a club; a laser rifle offers 
   const fighters = session.view().fighters;
   const foe = fighters.find((entry) => entry.side !== 'party');
   const hawkeye = fighters.find((entry) => entry.side === 'party');
-  const thugChoices = foe.weaponChoices.map((choice) => `${choice.key}=${choice.name}`);
+  // v0.270.0: the name carries the expertise tag; the weapon itself is baseName.
+  const thugChoices = foe.weaponChoices.map((choice) => `${choice.key}=${choice.baseName ?? choice.name}`);
   assert.ok(thugChoices.includes('club=Automatic Pistol, swung as a club'));
   assert.ok(thugChoices.some((choice) => choice.startsWith('hands=')));
   // Hawkeye carries a laser rifle: "laser weapons are too delicate".
@@ -1722,4 +1723,40 @@ test('v0.269.0 an actor already on the board is refused with the way out, and as
   assert.deepEqual(session.view().fighters.filter((entry) => entry.name.startsWith('Mercenary')).map((entry) => entry.name), ['Mercenary', 'Mercenary 2', 'Mercenary 3']);
   const [sheet] = session.view({ sheets: [{ kind: 'actor', id: merc }] }).sheets;
   assert.equal(sheet.statblock, true, 'and the directory entry is a statblock');
+});
+
+// v0.270.0: whether the weapon in hand is trained, and what that costs.
+test('v0.270.0 the expertise tag: a character\u2019s \u00bd, an NPC\u2019s untrained \u22125, a skill\u2019s +DM, and the melee +3', async () => {
+  const { weaponExpertiseTag } = await import('../src/play-session.js');
+  const pc = { skills: {}, playerCharacter: true };
+  assert.equal(weaponExpertiseTag(pc, 'rifle').untrained, false, 'Book 1 p.33: every PC has \u00bd');
+  assert.equal(weaponExpertiseTag(pc, 'rifle').warn, false);
+  assert.equal(weaponExpertiseTag(pc, 'rifle').short, '');
+  assert.equal(weaponExpertiseTag({ skills: { Rifle: 2 }, playerCharacter: true }, 'rifle').short, '+2');
+
+  const mook = { skills: {}, playerCharacter: false };
+  const pistol = weaponExpertiseTag(mook, 'automatic-pistol');
+  assert.equal(pistol.untrained, true);
+  assert.equal(pistol.exposed, false, 'a gun held as a gun gives no melee +3');
+  assert.equal(pistol.short, 'untrained \u22125');
+  const dagger = weaponExpertiseTag(mook, 'dagger');
+  assert.equal(dagger.exposed, true, 'an untrained blade gives attackers +3 in melee');
+  assert.match(dagger.short, /untrained \u22125, foes \+3 in melee/);
+  assert.equal(weaponExpertiseTag({ skills: { Rifle: 1 }, playerCharacter: false }, 'rifle').exposed, true, 'a rifleman with no cudgel parries untrained');
+  assert.equal(weaponExpertiseTag({ skills: { Dagger: 0 }, playerCharacter: false }, 'dagger').warn, false, 'a level-0 entry is familiar, not untrained');
+  assert.equal(weaponExpertiseTag(mook, 'hands'), null);
+});
+
+test('v0.270.0 sheets and the fight table carry the tag for the weapon in hand and every choice', async () => {
+  const { session } = await setupFixture();
+  const merc = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Mercenary' } } }).createdId;
+  session.run('edit:actor:loadout', { fight: { id: merc, value: { weaponKey: 'carbine', armor: 'jack' } } });
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: merc }] }).sheets;
+  assert.equal(sheet.weaponTag.untrained, true);
+  assert.match(sheet.weaponChoices.find((choice) => choice.key === 'carbine').name, /^Carbine \u2014 untrained/);
+  session.run('edit:actor:skills', { fight: { id: merc, value: 'Carbine-1' } });
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id: merc, column: 8 } } }).ok, true);
+  const fighter = session.view().fighters.find((entry) => entry.name === 'Mercenary');
+  assert.equal(fighter.weaponTag.short, '+1, foes +3 in melee', 'trained with the gun, untrained with it as a cudgel');
+  assert.equal(fighter.weaponChoices.find((choice) => choice.key === 'cudgel').tag.untrained, true);
 });

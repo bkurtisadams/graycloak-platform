@@ -25,6 +25,7 @@ import {
   getPersonalWeapon, getSubsectorSystem, jumpDistanceBetweenSystems, loadCargo, parseUniversalWorldProfile,
   payCurrentBerthing, purchaseShipFuel, purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo,
   skimGasGiantToCapacity, assessLoad, inventoryLoadGrams,
+  personalWeaponExpertise, PERSONAL_EXPERTISE_FLOOR, LONG_GUN_PARRY_KEYS,
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
   createDice, importCharacterDocument, stableDocumentId, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
@@ -644,7 +645,9 @@ function actorSheet(resolved, id, subsector = null) {
       // Book 1's carried weapons only: claws, teeth and hooves are an
       // animal's own and belong to Book 3's encounter tables, not to a
       // dropdown a referee arms a bandit from.
-      weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
+      weaponChoices: taggedWeaponChoices({ skills: actor.skills, playerCharacter: false }, Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name }))),
+      // v0.270.0: what the weapon in hand means for the throw.
+      weaponTag: weaponExpertiseTag({ skills: actor.skills, playerCharacter: false }, actor.loadout?.weaponKey),
       armorChoices: [...PERSONAL_ARMOR_TYPES],
       editable: true
     };
@@ -689,7 +692,9 @@ function actorSheet(resolved, id, subsector = null) {
     weaponKey: character.loadout?.weaponKey ?? null,
     weaponName: character.loadout?.weaponKey ? getPersonalWeapon(character.loadout.weaponKey)?.name ?? character.loadout.weaponKey : null,
     armor: character.loadout?.armor ?? 'none',
-    weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
+    weaponChoices: taggedWeaponChoices({ skills: character.skills, playerCharacter: true }, Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name }))),
+    // v0.270.0: what the weapon in hand means for the throw.
+    weaponTag: weaponExpertiseTag({ skills: character.skills, playerCharacter: true }, character.loadout?.weaponKey),
     armorChoices: [...PERSONAL_ARMOR_TYPES],
     age: character.age,
     cashCr: character.finances?.credits ?? 0,
@@ -711,6 +716,63 @@ function actorSheet(resolved, id, subsector = null) {
     compactOnly: false,
     editable: true
   };
+}
+
+// v0.270.0: what a combatant's expertise with a weapon means for the throw,
+// in the words the sheet and the fight table show. The engine decides it
+// (personalWeaponExpertise): Book 1 p.33 gives every player character ½ in
+// every weapon, enough to avoid the untrained -5 but no DM; anyone else with
+// no entry for the weapon is untrained and takes -5 on the attack. A brawling
+// or blade weapon held untrained — or a long gun, parried with as a cudgel,
+// with no cudgel expertise — also gives an attacker +3 in melee (Kurt's
+// ruling, untrainedDefenderDM). Only the untrained cases warn.
+export function weaponExpertiseTag({ skills = {}, playerCharacter = false } = {}, weaponKey) {
+  let spec;
+  try { spec = getPersonalWeapon(weaponKey); } catch { return null; }
+  if (spec.naturalWeapon || weaponKey === 'hands') return null;
+  const who = { skills, playerCharacter };
+  const expertise = personalWeaponExpertise(who, weaponKey);
+  const level = Math.floor(expertise);
+  const skill = spec.skillNames.find((name) => Object.hasOwn(skills ?? {}, name)) ?? null;
+  const untrained = expertise < PERSONAL_EXPERTISE_FLOOR;
+  const parryUntrained = spec.parry
+    ? untrained
+    : LONG_GUN_PARRY_KEYS.includes(weaponKey) && personalWeaponExpertise(who, 'cudgel') < PERSONAL_EXPERTISE_FLOOR;
+  const exposed = parryUntrained;
+  let text;
+  let title;
+  if (untrained) {
+    text = 'untrained \u22125';
+    title = `No expertise in the ${spec.name.toLowerCase()}: \u22125 on every attack with it (Book 1, Untrained Weapons Usage).`;
+  } else if (level >= 1) {
+    text = `${skill ?? spec.skillNames[0]}-${level} (+${level})`;
+    title = `${skill}-${level}: +${level} on the attack.`;
+  } else {
+    text = skill ? `${skill}-0, no DM` : 'expertise \u00bd, no DM';
+    title = skill
+      ? `${skill}-0: familiar with it, so no untrained penalty, but no DM.`
+      : 'Book 1 p.33: every player character has expertise \u00bd in every weapon: no untrained penalty, but no DM.';
+  }
+  if (exposed) {
+    text += spec.parry ? '; foes +3 in melee' : '; foes +3 in melee (no cudgel)';
+    title += spec.parry
+      ? ' Held untrained, it gives anyone attacking with a brawling or blade weapon +3 (Book 1 p.33, Graycloak ruling).'
+      : ' Parried with as a cudgel, and nobody here has cudgel expertise: an attacker with a brawling or blade weapon gets +3.';
+  }
+  // The fight table's column is narrow: there only what changes the throw.
+  const short = [untrained ? 'untrained \u22125' : level >= 1 ? `+${level}` : null, exposed ? 'foes +3 in melee' : null].filter(Boolean).join(', ');
+  // Red only where it costs something every time it matters: an untrained
+  // attack, or a blade held untrained. A gun's cudgel parry is shown, but
+  // quietly, since it counts only if someone closes to melee.
+  return { level, untrained, exposed, warn: untrained || (exposed && Boolean(spec.parry)), text, short, title };
+}
+
+// A weapon's name with what it means in this combatant's hands.
+function taggedWeaponChoices(who, choices) {
+  return choices.map((choice) => {
+    const tag = weaponExpertiseTag(who, choice.key);
+    return tag ? { ...choice, baseName: choice.name, name: `${choice.name} \u2014 ${tag.text}`, tag } : choice;
+  });
 }
 
 function sheetSkills(skillsByName) {
@@ -753,7 +815,9 @@ function npcActorSheet(actor, resolved, subsector) {
     weaponKey: actor.loadout?.weaponKey ?? null,
     weaponName: actor.loadout?.weaponKey ? getPersonalWeapon(actor.loadout.weaponKey)?.name ?? actor.loadout.weaponKey : null,
     armor: actor.loadout?.armor ?? 'none',
-    weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
+    weaponChoices: taggedWeaponChoices({ skills: actor.skills, playerCharacter: false }, Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name }))),
+    // v0.270.0: what the weapon in hand means for the throw.
+    weaponTag: weaponExpertiseTag({ skills: actor.skills, playerCharacter: false }, actor.loadout?.weaponKey),
     armorChoices: [...PERSONAL_ARMOR_TYPES],
     cashCr: actor.finances?.credits ?? 0,
     inventory: inventory.map((item) => ({
@@ -1268,8 +1332,10 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
           const gun = (() => { try { return getPersonalWeapon(swung.from).name; } catch { return swung.from; } })();
           named.push({ key: swung.key, name: `${gun}, swung as a ${swung.as}` });
         }
-        return named;
+        // v0.270.0: each named with what it means in this combatant's hands.
+        return taggedWeaponChoices({ skills: entry.skills, playerCharacter: Boolean(entry.playerCharacter) }, named);
       })(),
+      weaponTag: weaponExpertiseTag({ skills: entry.skills, playerCharacter: Boolean(entry.playerCharacter) }, entry.weaponKey),
       skills: { ...entry.skills },
       blowAllowance: entry.blowAllowance,
       // Book 1 p.32: wounds do not reduce the blow allowance during a fight,

@@ -150,6 +150,8 @@ function actorCompact(sheet, handlers) {
     h('div', { class: 'sheet-rows' },
       weapons.length ? select('Weapon', sheet.weaponKey, weapons, (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
       armours.length ? select('Armour', sheet.armor, armours, (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
+    // v0.270.0: a statblock's mooks fight with this; say what it means.
+    sheet.weaponTag ? h('p', { class: `sheet-note weapon-tag sheet-compact-tag${sheet.weaponTag.warn ? ' is-warn' : ''}`, title: sheet.weaponTag.title, text: `${sheet.weaponName}: ${sheet.weaponTag.text}` }) : null,
     h('div', { class: 'sheet-rows' },
       // v0.263.0: a character's skills are objects ("[object Object]" was
       // the join of them); an actor's are already text.
@@ -251,9 +253,11 @@ function playTab(sheet, handlers) {
     h('div', { class: 'sheet-inhand' },
       h('div', { class: 'sheet-inhand-what' },
         h('b', { text: sheet.weaponName ?? 'Empty hands' }),
-        h('span', { class: 'sheet-note', text: sheet.weaponKey && sheet.skills.find((skill) => skill.name.toLowerCase() === (sheet.weaponName ?? '').toLowerCase())
-          ? `${sheet.weaponName}-${sheet.skills.find((skill) => skill.name.toLowerCase() === sheet.weaponName.toLowerCase()).level}`
-          : 'expertise \u00bd, as every character has in every weapon: no penalty, no DM (Book 1 p.12)' })),
+        // v0.270.0: the engine's own reading of the expertise, which a
+        // character's ½ and an NPC's untrained -5 both come from.
+        sheet.weaponTag
+          ? h('span', { class: `sheet-note weapon-tag${sheet.weaponTag.warn ? ' is-warn' : ''}`, title: sheet.weaponTag.title, text: sheet.weaponTag.text })
+          : null),
       h('button', { type: 'button', class: 'button is-small is-primary', text: 'Attack', disabled: !sheet.weaponKey, onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'attack', weaponKey: sheet.weaponKey }) })),
     h('div', { class: 'sheet-rows' },
       (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => edit?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
@@ -265,7 +269,10 @@ function playTab(sheet, handlers) {
       if (!others.length) return null;
       return h('div', { class: 'sheet-carried-weapons' },
         h('span', { class: 'sheet-label', text: 'Also carried' }),
-        others.map((item) => h('button', { type: 'button', class: 'button is-small', text: `Ready ${item.name}`, onclick: () => handlers.onInventory?.(sheet.id, 'ready', item.id) })));
+        others.map((item) => {
+          const tag = (sheet.weaponChoices ?? []).find((choice) => choice.key === item.weaponKey)?.tag;
+          return h('button', { type: 'button', class: `button is-small${tag?.warn ? ' is-warn' : ''}`, title: tag?.title ?? null, text: `Ready ${item.name}${tag?.short ? ` (${tag.short})` : ''}`, onclick: () => handlers.onInventory?.(sheet.id, 'ready', item.id) });
+        }));
     })(),
     h('p', { class: 'sheet-note', text: 'Armour sets the throw anyone shooting at you needs, as well as your own protection (Book 1 p.42).' }),
     conditionBlock(sheet, handlers),
