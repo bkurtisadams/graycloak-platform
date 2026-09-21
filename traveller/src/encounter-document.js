@@ -1059,6 +1059,28 @@ export function setEncounterGridScale(document, metersPerSquare) {
   return { encounter: next };
 }
 
+/**
+ * v0.255.0: change what a combatant fights with — a character reaching for
+ * fists in a bar fight rather than the rifle in the loadout. Book 1 names no
+ * time cost for drawing or dropping a weapon, so this is the referee's (and
+ * player's) declaration for the coming round: it applies to throws resolved
+ * after it and changes nothing already thrown. Refused for someone down.
+ */
+export function setCombatantWeapon(document, { combatantId, weaponKey } = {}) {
+  const next = importEncounterDocument(document);
+  if (!['setup', 'active'].includes(next.status)) throw new Error('encounter is already resolved');
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  if (combatant.status !== 'active') throw new Error(`${combatant.name} is ${combatant.status}`);
+  const weapon = getPersonalWeapon(weaponKey);
+  if (combatant.weaponKey === weaponKey) return { encounter: next, entry: null };
+  combatant.weaponKey = weaponKey;
+  const entry = { round: next.round, kind: 'weapon', side: combatant.side, combatantId, text: `${combatant.name} fights with ${weapon.name.toLowerCase()}.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
+}
+
 export function setCombatantCover(document, { combatantId, cover } = {}) {
   const next = importEncounterDocument(document);
   if (!COMBATANT_COVER.includes(cover)) throw new RangeError(`unknown cover: ${cover}`);

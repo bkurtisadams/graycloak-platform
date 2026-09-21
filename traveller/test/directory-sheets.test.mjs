@@ -488,7 +488,7 @@ test('v0.252.0 a party holding surprise can state that it avoids the encounter',
   }
 });
 
-test('v0.252.0 the fight renders as the scene, table and all, and the now column keeps the focused combatant', { skip: !JSDOM }, async () => {
+test('v0.255.0 the fight renders as the scene, table and all, with the focused row\u2019s throw beneath it', { skip: !JSDOM }, async () => {
   const dom = new JSDOM('<main></main><aside></aside>');
   globalThis.document = dom.window.document;
   globalThis.Node = dom.window.Node;
@@ -501,7 +501,7 @@ test('v0.252.0 the fight renders as the scene, table and all, and the now column
   document.querySelector('main').replaceChildren(...renderScene(state, {}));
   const shell = document.querySelector('.fight-shell');
   assert.ok(shell, 'the fight is a screen, not a band grid with a table beside it');
-  assert.ok(shell.querySelector('.fight-steps'), 'p.27\u2019s steps across the top');
+  assert.equal(shell.querySelectorAll('.fight-pill').length, 4, 'p.27\u2019s steps as pills on the one header line');
   assert.ok(shell.querySelector('svg.bands'), 'the band grid in the middle');
   const table = shell.querySelector('.fight-orders table.tracker');
   assert.ok(table, 'and the declaration table beneath it, at full width');
@@ -510,10 +510,10 @@ test('v0.252.0 the fight renders as the scene, table and all, and the now column
   assert.equal(needs.length, state.fighters.length);
   assert.ok(needs.every((cell) => cell.textContent.trim().length));
 
-  document.querySelector('aside').replaceChildren(...renderNow(state, {}));
-  assert.equal(document.querySelector('aside .now-head h1').textContent, 'This round');
-  assert.ok(document.querySelector('aside .sheet-why'), 'the column keeps the throw behind the focused row');
-  assert.equal(document.querySelector('aside table.tracker'), null, 'and not a second copy of the table');
+  // v0.255.0: the left column is hidden during a fight; what only it held —
+  // the focused row's explanation — sits beneath that row instead.
+  assert.ok(shell.querySelector('tr.sheet-why-row'), 'the throw behind the focused row, under its row');
+  assert.ok(shell.querySelector('svg.bands.is-across'), 'and the band line runs across');
 
   // The token menu gives the same orders the table's dropdowns do.
   const fighter = state.fighters[0];
@@ -773,4 +773,87 @@ test('v0.254.0 Actors rows carry what dragging them onto the board places', asyn
   const rows = tree.flatMap((node) => session.view({ referee: { tab: 'Actors', folder: node.path } }).referee.shown);
   assert.ok(rows.some((row) => row.drag?.kind === 'character'));
   assert.ok(rows.some((row) => row.drag?.kind === 'actor'));
+});
+
+// ---------------------------------------------------------------------------
+// v0.255.0: Kurt's review of v0.254.0.
+// ---------------------------------------------------------------------------
+
+async function begunFixture() {
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 1 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  return { session, me, thug };
+}
+
+test('v0.255.0 nobody targets anybody until told to; auto-target is an option', async () => {
+  const { session } = await begunFixture();
+  const { sheetRows } = await import('../client/play-views.js');
+  const state = session.view();
+  const off = sheetRows({ ...state, autoTarget: false }, {});
+  assert.ok(off.every((row) => row.targetId === null), 'placing a token does not aim it');
+  assert.ok(off.every((row) => row.move === 'Stand'));
+  const on = sheetRows({ ...state, autoTarget: true }, {});
+  assert.ok(on.some((row) => row.targetId !== null), 'with the option on, each row aims at someone');
+  // A chosen target is kept whichever way the option is set.
+  const party = state.fighters.find((entry) => entry.side === 'party');
+  const foe = state.fighters.find((entry) => entry.side !== 'party');
+  const chosen = sheetRows({ ...state, autoTarget: false }, { [party.id]: { move: 'Stand', targetId: foe.id } });
+  assert.equal(chosen.find((row) => row.fighter.id === party.id).targetId, foe.id);
+});
+
+test('v0.255.0 a combatant can change weapon — fists in a bar fight — during setup or the fight', async () => {
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 1 } } });
+  const hawkeye = session.view().fighters.find((entry) => entry.side === 'party');
+  const keys = hawkeye.weaponChoices.map((choice) => choice.key);
+  assert.ok(keys.includes('hands'), 'bare hands are always there');
+  assert.ok(keys.includes(hawkeye.weaponKey), 'and the weapon in hand');
+
+  // In setup.
+  const set = session.run('fight:weapon', { fight: { value: { combatantId: hawkeye.id, weaponKey: 'hands' } } });
+  assert.equal(set.ok, true, set.message);
+  assert.equal(session.view().fighters.find((entry) => entry.id === hawkeye.id).weaponKey, 'hands');
+
+  // And after the fight has begun, the thug picks up a club.
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const foe = session.view().fighters.find((entry) => entry.side !== 'party');
+  assert.equal(session.run('fight:weapon', { fight: { value: { combatantId: foe.id, weaponKey: 'club' } } }).ok, true);
+  assert.equal(session.view().fighters.find((entry) => entry.id === foe.id).weaponKey, 'club');
+  assert.ok(session.view().chat.some((entry) => /fights with club/.test(entry.text)), 'said in chat');
+
+  assert.equal(session.run('fight:weapon', { fight: { value: { combatantId: foe.id, weaponKey: 'banana' } } }).ok, false);
+});
+
+test('v0.255.0 the band line runs across, shows the bands in play, and the fight has no left column', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session } = await begunFixture();
+  const { renderScene } = await import('../client/play-views.js');
+  const state = { ...session.view(), live: true, autoTarget: false };
+  document.querySelector('main').replaceChildren(...renderScene(state, {}));
+
+  const svg = document.querySelector('svg.bands.is-across');
+  assert.ok(svg);
+  const [, , width, height] = svg.getAttribute('viewBox').split(' ').map(Number);
+  assert.ok(width > height, 'wider than it is tall');
+  // Bands 1 and 2 are in use: eight are drawn, not all sixteen.
+  assert.equal(svg.querySelectorAll('rect.band').length, 8);
+  // One header line with the steps as pills, and the auto-target option.
+  assert.ok(document.querySelector('.fight-head .fight-toggle input[type=checkbox]'));
+  assert.equal(document.querySelectorAll('.fight-head .fight-pill').length, 4);
+  // A weapon choice on every row that has one.
+  assert.ok(document.querySelector('select[aria-label$=": weapon"]'));
+
+  const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
+  assert.match(css, /\.shell\[data-situation='fight'\] \.now \{ display: none; \}/, 'the left column is gone during a fight');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
 });

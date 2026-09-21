@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.254.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.254.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.254.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.254.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.254.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.254.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.254.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.254.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.254.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.255.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.255.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.255.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.255.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.255.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.255.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.255.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.255.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.255.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -74,6 +74,8 @@ const ui = {
   // directories. A masthead chip (character, ship, combat) opens its panel in
   // the sidebar over whichever tab was showing, and Close returns to it.
   sidebarTab: 'Chat',
+  // v0.255.0: off by default — nobody aims at anybody until told to.
+  autoTarget: false,
   sidebarCollapsed: false,
   showAllNotices: false,
   speakerId: null,
@@ -111,7 +113,8 @@ function viewState() {
       // A new round starts from a clean sheet.
       if (ui.sheetRound !== state.round) { ui.sheet = {}; ui.sheetRound = state.round; }
       const focus = ui.sheetFocus ?? ui.selectedMarker;
-      return { ...state, sheetRows: sheetRows(state, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
+      const withSetting = { ...state, autoTarget: ui.autoTarget };
+      return { ...withSetting, sheetRows: sheetRows(withSetting, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
     }
     if (!state.next?.declare) {
       // Vector-mode ship combat: the thrust typed but not yet committed
@@ -272,6 +275,23 @@ function render() {
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
     // v0.254.0 ---------------------------------------- board setup
     onHoverMarker: (id) => { ui.hoveredMarker = id; },
+    onAutoTarget: (on) => { ui.autoTarget = Boolean(on); ui.sheet = {}; render(); },
+    onWeapon: (combatantId, weaponKey) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:weapon', { fight: { value: { combatantId, weaponKey } } });
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
+    onEditScoresPrompt: (fighter) => {
+      // The referee's fiat, off the round's own flow: one prompt rather than
+      // three boxes sitting beside every attack.
+      const now = fighter.characteristics;
+      const typed = window.prompt(`${fighter.name}: STR DEX END now (was ${now.STR} ${now.DEX} ${now.END})`, `${now.STR} ${now.DEX} ${now.END}`);
+      if (typed === null) return;
+      const [STR, DEX, END] = typed.trim().split(/[\s,]+/).map(Number);
+      if ([STR, DEX, END].some((value) => !Number.isInteger(value))) { window.alert('Three whole numbers, like 7 7 5.'); return; }
+      handlers.onEditCombatant?.(fighter.id, { STR, DEX, END });
+    },
     onDropActor: (data, band) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:place', { fight: { value: { ...data, column: band } } });

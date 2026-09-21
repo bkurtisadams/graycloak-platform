@@ -7,17 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.254.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.254.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.254.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.255.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.255.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.255.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.254.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.254.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.254.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.255.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.255.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.255.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +32,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.254.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.254.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.255.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -355,12 +355,19 @@ export function sheetRows(state, chosen = {}) {
     const pick = chosen[fighter.id] ?? null;
     const held = fighter.order ? { move: ({ attack: 'Stand', wait: 'Stand', close: 'Close', 'close-run': 'Close (run)', open: 'Open', 'open-run': 'Open (run)', evade: 'Evade', escape: 'Escape' })[fighter.order.engineAction] ?? 'Stand', targetId: fighter.order.targetId } : null;
     const reachNearest = nearest ? hitLine(fighter, nearest).preview?.canAttack : false;
-    const fallback = { move: nearest && !reachNearest ? 'Close' : 'Stand', targetId: nearest?.id ?? null };
-    const base = pick ?? held ?? fighter.suggestion ?? fallback;
-    const source = pick ? 'chosen' : held ? 'declared' : fighter.suggestion ? 'suggested' : 'default';
+    // v0.255.0: nobody targets anybody until told to (Kurt, Sep 2026: tokens
+    // dragged onto the board were aiming at the nearest enemy by themselves).
+    // Auto-target puts the old behaviour back as an option: the nearest foe
+    // for a character, the NPC's own choice for an NPC.
+    const auto = Boolean(state.autoTarget);
+    const fallback = auto
+      ? { move: nearest && !reachNearest ? 'Close' : 'Stand', targetId: nearest?.id ?? null }
+      : { move: 'Stand', targetId: null };
+    const base = pick ?? held ?? (auto ? fighter.suggestion : null) ?? fallback;
+    const source = pick ? 'chosen' : held ? 'declared' : auto && fighter.suggestion ? 'suggested' : 'default';
     const move = base.move ?? 'Stand';
     let targetId = base.targetId ?? null;
-    if (targetId && !foes.some((foe) => foe.id === targetId)) targetId = nearest?.id ?? null;
+    if (targetId && !foes.some((foe) => foe.id === targetId)) targetId = auto ? nearest?.id ?? null : null;
     if (move === 'Evade' || move === 'Escape') targetId = null;
     const target = foes.find((foe) => foe.id === targetId) ?? null;
     const attacks = Boolean(target) && !NO_ATTACK_MOVES.has(move);
@@ -412,8 +419,15 @@ function sheetRow(row, state, handlers, focusId) {
       row.down ? condition(fighter).toLowerCase() : [stats, brink ? h('span', { class: 'brink', text: ' \u26a0' }) : null]),
     h('td', {}, row.down ? '' : h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: movement`, disabled: !live, onchange: (event) => handlers.onSheetChange?.(fighter.id, { move: event.target.value, targetId: row.targetId }) },
       [...SHEET_MOVES, ...(state.round === 1 ? ['Escape'] : [])].map((move) => h('option', { value: move, selected: move === row.move, text: move })))),
+    // v0.255.0: the weapon is a choice, not a label (Kurt, Sep 2026: a bar
+    // fight is fists, whatever rifle the character carries). The list is what
+    // the combatant has on them, and bare hands.
     h('td', { class: 'tr-arms', title: `${fighter.weaponLabel}, ${fighter.armorLabel}${weapon.melee ? `, ${blowsRemaining(fighter)} of ${fighter.blowAllowance} combat blows left` : ''}` },
-      fighter.weaponLabel, weapon.melee && !row.down ? h('span', { class: 'blows', text: ` \u00b7 ${blowsRemaining(fighter)} blows` }) : null),
+      live && (fighter.weaponChoices ?? []).length > 1
+        ? h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: weapon`, onchange: (event) => handlers.onWeapon?.(fighter.id, event.target.value) },
+          fighter.weaponChoices.map((choice) => h('option', { value: choice.key, selected: choice.key === fighter.weaponKey, text: choice.name })))
+        : fighter.weaponLabel,
+      weapon.melee && !row.down ? h('span', { class: 'blows', text: ` \u00b7 ${blowsRemaining(fighter)} blows` }) : null),
     h('td', {}, row.down || row.move === 'Evade' || row.move === 'Escape' ? '' : h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: target`, disabled: !live, onchange: (event) => handlers.onSheetChange?.(fighter.id, { move: row.move, targetId: event.target.value || null }) },
       row.move === 'Stand' ? h('option', { value: '', selected: !row.targetId, text: '\u2014 hold fire \u2014' }) : null,
       row.foes.map((foe) => h('option', { value: foe.id, selected: foe.id === row.targetId, text: `${foe.name} (${rangeBetween(fighter, foe).name.toLowerCase()})` })))),
@@ -453,16 +467,37 @@ function setupStrip(state, handlers) {
   const ready = party > 0 && foes > 0;
   const begin = (surprise) => handlers.onBeginFight?.(surprise);
   return h('section', { class: 'fight-setup', 'aria-label': 'Setting up the fight' },
-    h('div', { class: 'fight-setup-count' },
-      h('b', { text: 'Setting up' }),
-      h('span', { text: `${party} party, ${foes} opposition on the board` })),
-    h('div', { class: 'fight-setup-begin' },
-      h('span', { class: 'fight-setup-label', text: 'Surprise, then begin (Book 1 p.26):' }),
-      h('button', { type: 'button', class: 'button is-small is-primary', disabled: !ready, text: 'Roll surprise', onclick: () => begin('roll') }),
-      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Party has it', onclick: () => begin('party') }),
-      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Opposition has it', onclick: () => begin('opposition') }),
-      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Nobody', onclick: () => begin('none') })),
-    ready ? null : h('p', { class: 'cite', text: 'Drag at least one character and one opponent from the Actors tab onto a band.' }));
+    h('span', { class: 'fight-setup-count', text: ready
+      ? `${party} party, ${foes} opposition. Surprise, then begin (p.26):`
+      : 'Drag characters and actors from the Actors tab onto a band. Right-click a token to remove it.' }),
+    h('button', { type: 'button', class: 'button is-small is-primary', disabled: !ready, text: 'Roll surprise', onclick: () => begin('roll') }),
+    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Party has it', onclick: () => begin('party') }),
+    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Opposition has it', onclick: () => begin('opposition') }),
+    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Nobody', onclick: () => begin('none') }));
+}
+
+// v0.255.0: Kurt's review of v0.254.0 — the band line was still the
+// smallest thing on screen, the header and setup buttons took half as much
+// room as the grid, and the left column repeated what chat already said. So
+// the fight is one header line, the band line across the screen, and the
+// table; the left column is gone, and what was only in it (the wound prompt,
+// morale, the focused row's throw) moved beside what it is about.
+function fightHeader(state, handlers) {
+  const steps = state.encounterSteps ?? [];
+  const facts = [state.setup?.range, state.setup?.surprise].filter(Boolean).map((line) => line.replace(/\.$/, '').toLowerCase());
+  return h('header', { class: 'fight-head' },
+    h('h2', { text: state.setupPhase ? 'Setting up a fight' : state.situation.title.replace(', ', ' \u00b7 ') }),
+    state.setupPhase ? null : h('span', { class: 'fight-facts', text: facts.join(' \u00b7 ') }),
+    state.setupPhase ? null : steps.map((step) => h('span', {
+      class: `fight-pill is-${step.state}`, title: `${step.detail} (${step.cite})`, text: `${step.number} ${step.title}`
+    })),
+    state.setupPhase ? null : steps.filter((step) => step.action).map((step) => h('button', {
+      type: 'button', class: 'button is-small', text: step.action.label, onclick: () => handlers.onCommand?.(step.action.command)
+    })),
+    h('label', { class: 'fight-toggle', title: 'Fill each row\u2019s target with the nearest enemy, and NPCs\u2019 with their own choice. Off by default: everyone targets on purpose.' },
+      h('input', { type: 'checkbox', checked: Boolean(state.autoTarget), onchange: (event) => handlers.onAutoTarget?.(event.currentTarget.checked) }),
+      ' Auto-target'),
+    (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })));
 }
 
 function fightScene(state, handlers) {
@@ -471,33 +506,46 @@ function fightScene(state, handlers) {
   const referee = state.seat !== 'player';
   const sides = [rows.filter((row) => row.fighter.side === 'party'), rows.filter((row) => row.fighter.side !== 'party')];
   const live = rows.filter((row) => !row.down).length;
+  const wound = state.next?.wound ?? null;
+  const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) =>
+    `${entry.side === 'party' ? 'The party' : 'The opposition'} has ${entry.out} of ${entry.of} down (${Math.round(entry.share * 100)}%): morale is thrown each round, 7+ to stand${entry.share > 0.5 ? ', at \u22122' : ''}.`);
+  const whyRow = (row) => {
+    if (!focus || row.fighter.id !== focus.fighter.id || focus.down) return null;
+    const parts = [];
+    if (focus.attacks && focus.line?.preview?.canAttack) parts.push(`${dmSum(focus.line.preview)} for ${woundText(focus.line.preview)} wounds.`);
+    if (focus.target && focus.line && !focus.line.preview?.canAttack) parts.push(`${getPersonalWeapon(focus.fighter.weaponKey).name} cannot reach ${focus.target.name} at ${focus.line.range.name.toLowerCase()} range${focus.move === 'Close' ? '; closing one band this round.' : '. Close the range, or this order does nothing.'}`);
+    if (!focus.target && !['Evade', 'Escape'].includes(focus.move)) parts.push('No target: select this token, hover an enemy and press T.');
+    if (focus.reason) parts.push(`Suggested: ${focus.reason}.`);
+    return h('tr', { class: 'sheet-why-row' }, h('td', { colspan: '6' },
+      parts.join(' '),
+      referee && state.live ? h('button', { type: 'button', class: 'link-button', text: ' Referee: set scores\u2026', onclick: () => handlers.onEditScoresPrompt?.(focus.fighter) }) : null));
+  };
   return [
     h('div', { class: 'fight-shell' },
-      h('header', { class: 'lead' },
-        h('h2', { text: state.situation.title }),
-        h('p', { text: [state.setup?.range, state.setup?.surprise].filter(Boolean).join('. ') })),
-      state.setupPhase ? setupStrip(state, handlers) : state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
+      fightHeader(state, handlers),
+      state.setupPhase ? setupStrip(state, handlers) : null,
+      state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
         h('h3', { text: state.concluded.headline }),
         h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` }),
-        h('button', { type: 'button', class: 'button is-primary', text: 'Leave the fight', onclick: () => handlers.onCommand?.('fight:dismiss') })) : encounterStepStrip(state, handlers),
+        h('button', { type: 'button', class: 'button is-primary', text: 'Leave the fight', onclick: () => handlers.onCommand?.('fight:dismiss') })) : null,
+      wound ? h('section', { class: 'fight-wound', role: 'status' }, h('b', { text: state.next.title }), ' ', state.next.copy, h('span', { class: 'cite', text: ` ${state.next.cite}` })) : null,
+      morale.length ? h('p', { class: 'hold-note is-morale' }, morale.join(' ')) : null,
       h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
       h('section', { class: 'fight-orders', 'aria-label': 'Declarations' },
         h('table', { class: 'tracker sheet' },
           h('thead', {}, h('tr', {},
             h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'Status' }),
             h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }),
-            h('th', { title: 'Book 1 p.28 step 4B', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
-          sides.map((side) => h('tbody', {}, side.map((row) => sheetRow(row, state, handlers, focus?.fighter.id))))),
+            h('th', { title: 'Book 1 p.28 step 4B \u2014 or hover an enemy token and press T', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
+          sides.map((side) => h('tbody', {}, side.flatMap((row) => [sheetRow(row, state, handlers, focus?.fighter.id), whyRow(row)]).filter(Boolean)))),
         h('div', { class: 'fight-actions' },
-          state.live && !(state.next?.wound ?? null) && !state.concluded && !state.setupPhase
+          state.live && !wound && !state.concluded && !state.setupPhase
             ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() },
               h('span', { text: 'Resolve round' }), h('small', { text: `${live} order${live === 1 ? '' : 's'}, as shown` }))
             : null,
           // p.30: a round is every combatant throwing once, together. Said
           // here because the table reads like a turn order and is not one.
-          h('span', { class: 'cite', text: 'Every attack in a round lands together (Book 1 p.30).' }),
-          referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
-          (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))))
+          state.setupPhase ? null : h('span', { class: 'cite', text: 'Every attack in a round lands together (Book 1 p.30).' }))))
   ];
 }
 
@@ -752,61 +800,73 @@ function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
 // close, next band short, 2-5 medium, 6-9 long, 10-14 very long, 15 escaped.
 // The bands have no size in metres; they are steps of range. Ranges
 // are read from the selected marker; its declared target gets a line.
+// v0.255.0: the band line runs across the screen, not down it (Kurt,
+// Sep 2026: "the range band panel is still the smallest element in the UI").
+// Drawn vertically, sixteen stacked bands in a wide, short screen were
+// scaled to the height and came out narrow with 9px labels. Across, bands are
+// columns and the wide screen goes to the grid; and only the bands in play
+// are drawn, a few past the furthest token, rather than all sixteen.
 function bandsScene(state, handlers) {
-  // v0.254.0: a board being set up may have nobody on it yet, so there may be
-  // no one to read ranges from; the bands then read from band 1.
+  // A board being set up may have nobody on it yet, so there may be no one to
+  // read ranges from; the bands then read from band 1.
   const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0] ?? null;
-  const bands = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
-  const rowH = 46;
-  const width = 1000;
-  const gutter = 130;
-  const lane = width - gutter;
-  const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${bands * rowH}`, class: 'bands', preserveAspectRatio: 'xMidYMid meet', role: 'group', 'aria-label': 'Range bands' });
+  const edge = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
+  const furthest = state.fighters.reduce((most, fighter) => Math.max(most, Number(fighter.band ?? 0)), 0);
+  // Room to drag someone a few bands out while setting up, and to see where
+  // the next band or two of movement lands; never fewer than eight.
+  const shown = Math.min(edge, Math.max(8, furthest + 4));
+  const width = 1200;
+  const ribbon = 26;
+  const foot = 22;
+  const colW = width / shown;
+  const perBand = new Map();
+  for (const fighter of state.fighters) perBand.set(fighter.band, (perBand.get(fighter.band) ?? 0) + 1);
+  const deepest = Math.max(3, ...perBand.values());
+  // Tall enough to fill the space the board is given rather than sitting in
+  // a strip at its top: the rows spread to a roughly 5:2 board.
+  const height = Math.max(ribbon + 12 + deepest * 62 + foot, 480);
+  const tokenH = (height - ribbon - 12 - foot) / Math.max(deepest, 4);
+  const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${height}`, class: 'bands is-across', preserveAspectRatio: 'xMidYMin meet', role: 'group', 'aria-label': 'Range bands' });
+
+  // The range names across the top, read from the selected token.
   const spans = [];
-  for (let band = 0; band < bands; band += 1) {
+  for (let band = 0; band < shown; band += 1) {
     const gap = Math.abs(band - (reader?.band ?? 0));
     const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
-    if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band });
-    svg.append(createSvgNode('rect', { x: 0, y: band * rowH, width: lane, height: rowH, class: `band${gap === 0 ? ' is-own' : ''}` }));
-    const number = createSvgNode('text', { x: 10, y: band * rowH + 17, class: 'band-number' });
+    if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band, own: gap === 0 });
+  }
+  for (const span of spans) {
+    const x = span.from * colW;
+    const w = (span.to - span.from + 1) * colW;
+    svg.append(createSvgNode('rect', { x: x + 1, y: 1, width: w - 2, height: ribbon - 2, class: `span-ribbon${span.own ? ' is-own' : ''}` }));
+    const label = createSvgNode('text', { x: x + w / 2, y: ribbon - 8, class: 'span-label', 'text-anchor': 'middle' });
+    label.textContent = span.name.toUpperCase();
+    svg.append(label);
+  }
+  for (let band = 0; band < shown; band += 1) {
+    const gap = Math.abs(band - (reader?.band ?? 0));
+    svg.append(createSvgNode('rect', { x: band * colW, y: ribbon + 4, width: colW, height: height - ribbon - 4 - foot, class: `band${gap === 0 ? ' is-own' : ''}` }));
+    const number = createSvgNode('text', { x: band * colW + colW / 2, y: height - 6, class: 'band-number', 'text-anchor': 'middle' });
     number.textContent = String(band + 1);
     svg.append(number);
   }
-  for (const span of spans) {
-    const top = span.from * rowH + 4;
-    const bottom = (span.to + 1) * rowH - 4;
-    svg.append(createSvgNode('line', { x1: lane + 12, y1: top, x2: lane + 12, y2: bottom, class: 'span-rule' }));
-    const label = createSvgNode('text', { x: lane + 22, y: (top + bottom) / 2 + 5, class: 'span-label' });
-    label.textContent = span.name;
-    svg.append(label);
-  }
+
+  // Tokens stack down their band's column.
   const at = new Map();
-  const perBand = new Map();
+  const placed = new Map();
   for (const fighter of state.fighters) {
-    const index = perBand.get(fighter.band) ?? 0;
-    perBand.set(fighter.band, index + 1);
-    // Markers in contact (tactical grid fights) are drawn touching.
-    const partner = state.fighters.find((other) => at.has(other.id) && other.band === fighter.band && inContact(fighter, other));
-    at.set(fighter.id, partner ? { cx: at.get(partner.id).cx + 30, cy: at.get(partner.id).cy, tucked: true } : { cx: 80 + index * 230, cy: fighter.band * rowH + rowH / 2 });
+    const index = placed.get(fighter.band) ?? 0;
+    placed.set(fighter.band, index + 1);
+    at.set(fighter.id, { cx: fighter.band * colW + colW / 2, cy: ribbon + 12 + index * tokenH + tokenH / 2 - 8 });
   }
-  // Every order on the sheet is drawn, so the board and the sheet say the same
+  // Every order on the sheet is drawn, so the board and the table say the same
   // thing: a solid line for an attack, a dashed one for movement without one.
-  const drawn = state.sheetRows ?? [];
-  if (drawn.length) {
-    for (const row of drawn) {
-      if (row.down || !row.targetId || !at.has(row.targetId)) continue;
-      const from = at.get(row.fighter.id);
-      const to = at.get(row.targetId);
-      svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: `target-line is-${row.fighter.side}${row.attacks ? '' : ' is-move'}` }));
-    }
-  } else {
-    const order = reader ? orderOf(reader, state) : null;
-    if (order?.targetId && at.has(order.targetId) && !isDown(reader)) {
-      const from = at.get(reader.id);
-      const to = at.get(order.targetId);
-      svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: 'target-line' }));
-    }
+  for (const row of state.sheetRows ?? []) {
+    if (row.down || !row.targetId || !at.has(row.targetId)) continue;
+    const from = at.get(row.fighter.id);
+    const to = at.get(row.targetId);
+    svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: `target-line is-${row.fighter.side}${row.attacks ? '' : ' is-move'}` }));
   }
   for (const fighter of state.fighters) {
     const { cx, cy } = at.get(fighter.id);
@@ -815,50 +875,47 @@ function bandsScene(state, handlers) {
       class: `marker is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
       role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band + 1}`
     });
-    // v0.254.0: the selected token wears a ring, so which one is selected can
-    // be read off the board itself (Kurt, Sep 2026).
-    if (fighter === reader && state.fighters.length) group.append(createSvgNode('circle', { cx, cy, r: 21, class: 'marker-ring' }));
-    group.append(createSvgNode('circle', { cx, cy, r: 14 }));
+    // The selected token wears a ring, so which one is selected can be read
+    // off the board itself (Kurt, Sep 2026).
+    if (fighter === reader) group.append(createSvgNode('circle', { cx, cy, r: 24, class: 'marker-ring' }));
+    group.append(createSvgNode('circle', { cx, cy, r: 17 }));
     const initial = createSvgNode('text', { x: cx, y: cy + 5, class: 'marker-initial', 'text-anchor': 'middle' });
     initial.textContent = shortName(fighter);
-    const name = createSvgNode('text', { x: cx + 24, y: cy + 6, class: 'marker-name' });
+    const name = createSvgNode('text', { x: cx, y: cy + 34, class: 'marker-name', 'text-anchor': 'middle' });
     name.textContent = down ? `${fighter.name} (down)` : fighter.name;
     group.append(initial, name);
     group.addEventListener('click', () => { if (!group.dataset.dragged) handlers.onSelectMarker(fighter.id); delete group.dataset.dragged; });
-    // v0.254.0: hover is remembered so T can target whatever is under the
-    // pointer — Foundry's gesture, and the old client's.
+    group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.onSelectMarker(fighter.id); } });
+    // Hover is remembered so T can target whatever is under the pointer —
+    // Foundry's gesture, and the old client's.
     group.addEventListener('mouseenter', () => handlers.onHoverMarker?.(fighter.id));
     group.addEventListener('mouseleave', () => handlers.onHoverMarker?.(null));
+    group.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      handlers.onSelectMarker(fighter.id);
+      handlers.onFighterMenu?.(fighter, { x: event.clientX, y: event.clientY });
+    });
     // While the board is being set up, a token is dragged to its band.
     if (state.setupPhase) {
       group.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
-        const start = event.clientY;
-        const move = (moved) => { if (Math.abs(moved.clientY - start) > 6) group.dataset.dragged = '1'; };
+        const start = event.clientX;
+        const move = (moved) => { if (Math.abs(moved.clientX - start) > 6) group.dataset.dragged = '1'; };
         const drop = (released) => {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', drop);
           if (!group.dataset.dragged) return;
-          const band = bandAt(svg, released.clientX, released.clientY, rowH, bands);
+          const band = bandAt(svg, released.clientX, released.clientY, colW, shown);
           if (band !== null && band !== fighter.band) handlers.onRepositionToken?.(fighter.id, band);
         };
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', drop);
       });
     }
-    group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.onSelectMarker(fighter.id); } });
-    // v0.252.0: the same gesture the directory rows and the Space canvas
-    // use. A token was selectable and nothing else: a wrong order had to be
-    // fixed by finding the right dropdown in the table.
-    group.addEventListener('contextmenu', (event) => {
-      event.preventDefault();
-      handlers.onSelectMarker(fighter.id);
-      handlers.onFighterMenu?.(fighter, { x: event.clientX, y: event.clientY });
-    });
     svg.append(group);
   }
-  // v0.254.0: a character or actor dragged in from the sidebar's Actors
-  // tab lands on the band it is dropped on.
+  // A character or actor dragged in from the sidebar's Actors tab lands on
+  // the band it is dropped on.
   if (state.setupPhase) {
     svg.addEventListener('dragover', (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
     svg.addEventListener('drop', (event) => {
@@ -866,24 +923,24 @@ function bandsScene(state, handlers) {
       let data = null;
       try { data = JSON.parse(event.dataTransfer.getData('application/x-traveller-actor') || 'null'); } catch { data = null; }
       if (!data) return;
-      const band = bandAt(svg, event.clientX, event.clientY, rowH, bands);
+      const band = bandAt(svg, event.clientX, event.clientY, colW, shown);
       if (band !== null) handlers.onDropActor?.(data, band);
     });
   }
   return [
     h('p', { class: 'scene-title', text: reader
-      ? `Ranges read from ${reader.name}. One band a round, two at a run; fifteen bands from the nearest enemy is off the field.`
+      ? `Ranges read from ${reader.name}. Bands 1\u2013${shown} of ${ENCOUNTER_RANGE_LINE_ESCAPE_BANDS} shown; one band a round, two at a run.`
       : 'Drag characters and actors from the Actors tab onto a band.' }),
     svg
   ];
 }
 
 // Which band a point on screen falls in, or null if it is off the board.
-function bandAt(svg, clientX, clientY, rowH, bands) {
+function bandAt(svg, clientX, clientY, colW, bands) {
   const matrix = svg.getScreenCTM?.();
   if (!matrix) return null;
   const point = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
-  const band = Math.floor(point.y / rowH);
+  const band = Math.floor(point.x / colW);
   return band >= 0 && band < bands ? band : null;
 }
 

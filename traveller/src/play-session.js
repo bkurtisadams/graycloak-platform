@@ -70,7 +70,7 @@ import {
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap,
-  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter,
+  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setCombatantWeapon,
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
@@ -1097,6 +1097,11 @@ export function fightView(encounter, { characters = [], concluded = false } = {}
       armor: entry.armor,
       weaponKey: entry.weaponKey,
       weapons,
+      // v0.255.0: what this combatant could fight with instead — carried
+      // weapons, the one in hand, and bare hands, each named.
+      weaponChoices: [...new Set([entry.weaponKey, ...carried, 'hands'])].filter(Boolean).map((key) => {
+        try { return { key, name: getPersonalWeapon(key).name }; } catch { return null; }
+      }).filter(Boolean),
       skills: { ...entry.skills },
       blowAllowance: entry.blowAllowance,
       // Book 1 p.32: wounds do not reduce the blow allowance during a fight,
@@ -2306,6 +2311,19 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         saveToCloud();
         return { ok: true, message: '' };
+      }
+      // v0.255.0: a weapon can be chosen while the board is being set up as
+      // well as during the fight, so this sits outside both groups.
+      if (command === 'fight:weapon') {
+        const encounter = liveEncounter() ?? setupEncounter();
+        if (!encounter) throw new Error('no fight is running');
+        const result = setCombatantWeapon(encounter, { combatantId: fight?.value?.combatantId, weaponKey: fight?.value?.weaponKey });
+        persist([result.encounter]);
+        lastMessage = { ok: true, message: result.entry?.text ?? 'No change.' };
+        if (result.entry) log('COMBAT', result.entry.text);
+        onChange();
+        saveToCloud();
+        return lastMessage;
       }
       if (command === 'fight:dismiss') {
         // v0.252.1: the referee has seen how it ended; back to the campaign.

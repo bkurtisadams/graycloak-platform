@@ -1015,3 +1015,50 @@ a.button { text-decoration: none; color: inherit; }
 .row-menu { overflow-y: auto; }
 .side-count-line { margin: 0; font-size: 12px; color: var(--ink-2); }
 .setup-steps { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }
+
+/* v0.255.0: the fight gets the width. The left column repeated what chat
+   already carries, so during a fight (and while setting one up) it goes. */
+.shell[data-situation='fight'] { --now-width: 0px; }
+.shell[data-situation='fight'] .now { display: none; }
+.scene > .fight-shell { grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; gap: 8px; }
+.fight-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.fight-head h2 { margin: 0; font-size: 18px; }
+.fight-facts { font-size: 13px; color: var(--ink-2); }
+.fight-pill { font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); background: var(--raise); cursor: help; }
+.fight-pill.is-done { background: var(--go); border-color: var(--go-border); }
+.fight-pill.is-open { background: var(--ink); border-color: var(--ink); color: var(--raise); }
+.fight-pill.is-closed { opacity: .55; }
+.fight-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-2); margin-left: auto; }
+.fight-head > .button:last-child { margin-left: 4px; }
+.fight-setup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; }
+.fight-setup-count { font-size: 12px; color: var(--ink-2); margin-right: 4px; flex-direction: row; }
+.fight-wound { padding: 6px 10px; background: var(--warn, #eadfaa); border: 1px solid var(--line); font-size: 13px; }
+.fight-board > svg.bands.is-across { flex: 1 1 0; min-height: 180px; padding: 0; }
+.bands.is-across .band { fill: var(--raise); stroke: var(--line); stroke-opacity: .6; }
+.bands.is-across .band.is-own { fill: var(--signal-wash); }
+.bands.is-across .span-ribbon { fill: var(--ground); stroke: var(--line); }
+.bands.is-across .span-ribbon.is-own { fill: var(--signal-wash); stroke: var(--signal); }
+.bands.is-across .span-label { font-size: 13px; fill: var(--ink-2); letter-spacing: .06em; }
+.bands.is-across .band-number { font-size: 13px; fill: var(--ink-2); }
+.bands.is-across .marker-initial { font-size: 13px; font-weight: 700; }
+.bands.is-across .marker-name { font-size: 14px; }
+.tracker tr.sheet-why-row td { white-space: normal; overflow: visible; font-size: 12px; color: var(--ink-2); background: var(--raise); border-left: 3px solid var(--signal); }
+.link-button { font: inherit; font-size: 12px; border: none; background: none; color: var(--signal); text-decoration: underline; cursor: pointer; padding: 0; }
+.tracker .sheet-select { max-width: 100%; }
+
+/* v0.255.0: the table has the full width now; the weapon is a choice and the
+   Needs column is the one that says why a row cannot act, so both get room. */
+.fight-orders .tracker th:nth-child(1) { width: 16%; }
+.fight-orders .tracker th:nth-child(2) { width: 9%; }
+.fight-orders .tracker th:nth-child(3) { width: 14%; }
+.fight-orders .tracker th:nth-child(4) { width: 17%; }
+.fight-orders .tracker th:nth-child(5) { width: 17%; }
+.fight-orders .tracker th:nth-child(6) { width: auto; }
+.fight-orders .sheet-needs { white-space: normal; font-size: 13px; }
+/* The shell's children vary (setup line, aftermath, wound prompt, morale come
+   and go), so a fixed row template put the stretching row in the wrong place
+   and the board stayed at its minimum. A column with the board as the one
+   growing child does not care how many siblings it has. */
+.scene > .fight-shell { display: flex; flex-direction: column; }
+.fight-shell > .fight-board { flex: 1 1 0; min-height: 220px; }
+.fight-shell > .fight-orders { flex: 0 0 auto; }
