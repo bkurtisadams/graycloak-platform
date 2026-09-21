@@ -1495,7 +1495,7 @@ test('v0.265.0 renaming a folder moves characters, actors and sub-folders; remov
   assert.equal(rowOf(bandit).folder, 'Downport');
   assert.equal(session.run('folder:remove', { fight: { value: { tab: 'Actors', from: 'Downport' } } }).ok, true);
   assert.equal(rowOf(bandit).folder, '', 'a top-level folder removed leaves its contents Unfiled');
-  assert.equal(session.run('folder:rename', { fight: { value: { tab: 'Actors', from: 'Unfiled', to: 'X' } } }).ok, false, 'Unfiled is not a folder');
+  assert.equal(session.run('folder:remove', { fight: { value: { tab: 'Actors', from: 'Unfiled' } } }).ok, false, 'Unfiled is not a folder to remove');
 });
 
 test('v0.265.0 a new NPC is not filed among the player characters', async () => {
@@ -1548,6 +1548,45 @@ test('v0.265.0 a crowded band widens; tokens keep their size', { skip: !JSDOM },
   const xs = new Set([...svg.querySelectorAll('.marker.is-opposition > circle:not(.marker-ring), .marker.is-foe > circle:not(.marker-ring)')].map((circle) => Math.round(Number(circle.getAttribute('cx')))));
   assert.ok(xs.size >= 2, 'the eleven stand in more than one column');
   assert.match([...svg.querySelectorAll('.band-number')][12].textContent, /11 here/);
+  dom.window.close();
+  delete globalThis.document;
+});
+
+// v0.266.0: Unfiled's own verb, and skills on an actor's full sheet.
+test('v0.266.0 everything in Unfiled is filed into a folder in one go; nothing else moves', async () => {
+  const { session } = await freshSession();
+  const a = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  const b = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Bandit' } } }).createdId;
+  const c = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Guard', folder: 'Mooks' } } }).createdId;
+  const rowOf = (id) => allActorRows(session).find((entry) => entry.id === id);
+  const filed = session.run('folder:rename', { fight: { value: { tab: 'Actors', from: 'Unfiled', to: 'NPCs/Startown' } } });
+  assert.equal(filed.ok, true, filed.message);
+  assert.equal(filed.folder, 'NPCs/Startown');
+  assert.equal(rowOf(a).folder, 'NPCs/Startown');
+  assert.equal(rowOf(b).folder, 'NPCs/Startown');
+  assert.equal(rowOf(c).folder, 'Mooks', 'a filed actor stays where it is');
+  assert.equal(actorsTab(session).tree.some((node) => node.path === 'Unfiled'), false, 'and Unfiled is gone');
+  assert.equal(session.run('folder:rename', { fight: { value: { tab: 'Actors', from: 'Unfiled', to: 'Unfiled' } } }).ok, false);
+});
+
+test('v0.266.0 Unfiled offers its one verb; an actor opened full can edit its skills', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  document.querySelector('main').replaceChildren(renderRowMenu({ folder: { tab: 'Actors', path: 'Unfiled' }, at: { x: 10, y: 10 } }, {}));
+  assert.deepEqual([...document.querySelectorAll('.row-menu-item')].map((node) => node.textContent), ['File everything here in\u2026']);
+
+  const edits = [];
+  const sheet = session.view({ sheets: [{ kind: 'actor', id, compact: false }] }).sheets[0];
+  document.querySelector('main').replaceChildren(renderSheets([sheet], { onEditSkills: (sheetId, text) => edits.push([sheetId, text]) }));
+  const input = [...document.querySelectorAll('.sheet-field')].find((node) => node.textContent.startsWith('Skills'))?.querySelector('input');
+  assert.ok(input, 'the full form has a skills field');
+  input.value = 'Rifle-1, Brawling-1';
+  input.dispatchEvent(new dom.window.Event('change'));
+  assert.deepEqual(edits, [[id, 'Rifle-1, Brawling-1']]);
   dom.window.close();
   delete globalThis.document;
 });

@@ -2147,12 +2147,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       if (command === 'folder:rename' || command === 'folder:remove') {
         const value = fight?.value ?? {};
         const from = normalizeFolderPath(value.from);
-        if (!from || from === 'Unfiled') throw new Error('choose a folder');
-        const parent = from.split('/').slice(0, -1).join('/');
+        // v0.266.0: Unfiled is not a folder, only where entries with no
+        // folder show, so it cannot be removed; "renaming" it files
+        // everything shown there into a real folder in one go.
+        const unfiled = from === 'Unfiled';
+        if (!from || (unfiled && command === 'folder:remove')) throw new Error('choose a folder');
+        const parent = unfiled ? '' : from.split('/').slice(0, -1).join('/');
         const to = command === 'folder:remove' ? parent : normalizeFolderPath(value.to);
-        if (command === 'folder:rename' && !to) throw new Error('a folder needs a name');
+        if (command === 'folder:rename' && (!to || to === 'Unfiled')) throw new Error('a folder needs a name');
         const moved = (path) => {
           const current = normalizeFolderPath(path);
+          if (unfiled) return current === '' ? to : null;
           if (current === from) return to;
           if (current.startsWith(`${from}/`)) return [to, current.slice(from.length + 1)].filter(Boolean).join('/');
           return null;
@@ -2188,7 +2193,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         } else throw new Error('only Actors and Scenes folders can be changed');
         reload();
         const where = to || (value.tab === 'Scenes' ? DEFAULT_SCENE_FOLDER : 'Unfiled');
-        const message = command === 'folder:rename'
+        const message = unfiled
+          ? `${count} unfiled filed in ${to}.`
+          : command === 'folder:rename'
           ? `Folder ${from} renamed ${to}; ${count} moved.`
           : `Folder ${from} removed; ${count} moved to ${where}.`;
         log('REFEREE', message);

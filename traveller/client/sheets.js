@@ -180,7 +180,11 @@ function actorFull(sheet, handlers) {
       sheet.character ? null : field('Folder', sheet.folder ?? '', { onchange: (value) => handlers.onFileActor?.(sheet.id, value), locked })),
     h('div', { class: 'sheet-section-label', text: 'UNIVERSAL PERSONALITY PROFILE' }),
     uppGrid(sheet, handlers, { locked }),
-    sheet.skills.length ? h('div', { class: 'sheet-chips' }, sheet.skills.map((skill) => h('span', { class: 'sheet-chip', text: skill }))) : h('p', { class: 'sheet-note', text: 'No skills recorded.' }),
+    // v0.266.0: an actor's full form edits skills too; only the compact
+    // form could, so an actor opened full had no way to add one.
+    sheet.character
+      ? (sheet.skills.length ? h('div', { class: 'sheet-chips' }, sheet.skills.map((skill) => h('span', { class: 'sheet-chip', text: typeof skill === 'string' ? skill : skill.label }))) : h('p', { class: 'sheet-note', text: 'No skills recorded.' }))
+      : h('div', { class: 'sheet-rows' }, field('Skills', sheet.skills.join(', '), { onchange: (value) => handlers.onEditSkills?.(sheet.id, value), locked, width: 320 })),
     h('div', { class: 'sheet-rows' },
       (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
       (sheet.armorChoices ?? []).length ? select('Armour', sheet.armor, sheet.armorChoices.map((key) => ({ key, name: key === 'none' ? 'No armour' : key === 'combat' ? 'Battle Dress' : key[0].toUpperCase() + key.slice(1) })), (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null)

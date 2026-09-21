@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.265.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.265.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.265.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.266.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.266.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.266.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.265.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.265.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.265.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.265.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.266.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.266.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.266.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.266.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.265.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.266.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1301,9 +1301,9 @@ function refereeDrawer(referee, state, handlers) {
           style: `padding-left:${8 + folder.depth * 12}px`,
           'aria-pressed': folder.path === referee.folder,
           onclick: () => go({ folder: folder.path, query: '' }),
-          // v0.265.0: right-click a folder to rename or remove it. Unfiled is
-          // not a folder, only where unfiled entries show.
-          oncontextmenu: state.live && (referee.tab === 'Actors' || referee.tab === 'Scenes') && folder.path !== 'Unfiled'
+          // v0.265.0: right-click a folder to rename or remove it.
+          // v0.266.0: Unfiled too, whose menu files its contents instead.
+          oncontextmenu: state.live && (referee.tab === 'Actors' || referee.tab === 'Scenes')
             ? (event) => { event.preventDefault(); handlers.onFolderMenu?.({ tab: referee.tab, path: folder.path }, { x: event.clientX, y: event.clientY }); }
             : null
         }, h('span', { class: 'folder-name', text: folder.name }), h('span', { class: 'folder-count', text: String(folder.count) })))
@@ -1602,10 +1602,14 @@ export function renderRowMenu(menu, handlers = {}) {
   // what was filed there, moving it up a level.
   if (menu?.folder) {
     const { tab, path } = menu.folder;
-    const folderItems = [
-      item('Rename folder\u2026', () => handlers.onRenameFolder?.(tab, path)),
-      item('Remove folder, keep contents', () => handlers.onRemoveFolder?.(tab, path), { danger: true })
-    ];
+    // v0.266.0: Unfiled is not a folder, so it cannot be renamed or removed;
+    // its one verb files everything shown there into a real folder.
+    const folderItems = path === 'Unfiled'
+      ? [item('File everything here in\u2026', () => handlers.onFileUnfiled?.(tab))]
+      : [
+        item('Rename folder\u2026', () => handlers.onRenameFolder?.(tab, path)),
+        item('Remove folder, keep contents', () => handlers.onRemoveFolder?.(tab, path), { danger: true })
+      ];
     const node = h('div', { class: 'row-menu', role: 'menu', 'aria-label': `${path} folder` },
       h('div', { class: 'row-menu-head', text: path }), folderItems);
     return placeMenu(node, menu.at, folderItems.length);
