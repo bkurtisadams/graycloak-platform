@@ -2,6 +2,7 @@ import {
   PERSONAL_COMBAT_RANGES,
   PERSONAL_ARMOR_TYPES,
   PERSONAL_COMBAT_STATUSES,
+  characterLoad,
   getPersonalWeapon,
   createPersonalCombatant,
   resolvePersonalSurprise,
@@ -150,10 +151,16 @@ function initialPosition(side, index, total, range, { columns, rows, gridScale, 
 }
 function withPosition(combatant, position) { return { ...combatant, position }; }
 function withCurrentState(combatant, current = null, status = 'active') {
+  // v0.251.0: the document's current scores are what the character walks in
+  // with, but Book 1 p.33's encumbrance is "for all purposes" — so the same
+  // penalty createPersonalCombatant put on the ceilings goes on these too.
+  // Without this the reduction reached the ceilings and the wounds a
+  // character could absorb came back at full strength.
+  const penalty = Number(combatant.encumbrance ?? 0);
   const next = {
     ...combatant,
     current: current
-      ? Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, current[key]]))
+      ? Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, Math.max(0, Number(current[key]) + penalty)]))
       : combatant.current,
     status
   };
@@ -178,7 +185,7 @@ function partyDocuments(character, characters, { allowEmpty = false } = {}) {
   return entries;
 }
 
-export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, spatialMode = 'scene', surpriseConditions = {}, setup = false, dice } = {}) {
+export function createEncounterDocument({ campaign, situation = null, scene = null, character = null, characters = null, partyLoadouts = {}, gravityFactor = null, opponent = null, opponents = null, title = null, encounterKey = null, date, range = 'medium', metersPerSquare = null, boardMeters = null, spatialMode = 'scene', surpriseConditions = {}, setup = false, dice } = {}) {
   if (!campaign?.identity?.id) throw new TypeError('campaign is required');
   const characterDocuments = partyDocuments(character, characters, { allowEmpty: setup });
   const opponentSpecs = Array.isArray(opponents) && opponents.length ? opponents : opponent ? [opponent] : [];
@@ -215,12 +222,20 @@ export function createEncounterDocument({ campaign, situation = null, scene = nu
   const party = characterDocuments.map((entry, index) => {
     const military = ['Navy', 'Army', 'Marines', 'Scouts'].includes(entry.career?.service);
     const loadout = partyLoadouts[entry.identity.id] ?? {};
+    // v0.251.0: Book 1 p.33. What the character is carrying, worked out at
+    // the moment the fight starts and against the gravity of the world they
+    // are standing on, costs one off STR, DEX and END — or two, for a
+    // military force carrying to three times strength. Until now the engine
+    // read the rolled score and an overloaded character fought at full
+    // strength.
+    const load = characterLoad(entry, { gravityFactor });
     return { ...withPosition(withCurrentState(createPersonalCombatant({
       id: entry.identity.id, name: entry.identity.name, side: 'party', playerCharacter: true,
       characteristics: entry.characteristics, skills: entry.skills,
       armor: loadout.armor ?? opponentSpecs[0].playerArmor ?? 'none',
       weaponKey: loadout.weaponKey ?? opponentSpecs[0].playerWeaponKey ?? 'rifle',
-      surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0))
+      surpriseDM: (military ? 1 : 0) + Math.min(1, Number(entry.skills?.Leadership ?? 0)) + Math.min(1, Number(entry.skills?.Tactics ?? 0)),
+      encumbrance: load.characteristicDM ?? 0
     }), entry.current, characterEncounterStatus(entry)), staged.get(entry.identity.id) ?? initialPosition('party', index, characterDocuments.length, range, board)), cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military, sourceActorId: entry.identity.id,
       actorType: 'pc', bodyModel: 'biological', tokenLabel: entry.identity.name.charAt(0).toUpperCase(), conditions: [], contactIds: [] };
   });

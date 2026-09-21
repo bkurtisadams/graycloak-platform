@@ -949,6 +949,10 @@ export function fightView(encounter, { characters = [] } = {}) {
       // combatant arrived with. A thug who walked in already hurt therefore has
       // fewer swings than its characteristic suggests, which is worth saying.
       blowsFromWounds: entry.blowAllowance < entry.characteristics.END,
+      // v0.251.0: Book 1 p.33. The scores above are already reduced, so the
+      // screen has to say why, or a player sees a DEX they never rolled.
+      encumbrance: Number(entry.encumbrance ?? 0),
+      rolled: entry.rolled ? { ...entry.rolled } : null,
       blowsUsed: entry.blowsUsed,
       down: entry.status !== 'active',
       contactIds: [...(entry.contactIds ?? [])],
@@ -2015,6 +2019,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           opponents: actors.map(opponentSpecFromNpcActor),
           spatialMode: 'range-line',
           range: fight?.range ?? 'medium',
+          // Book 1 p.33: what each character is carrying, against the gravity
+          // of the world they are standing on.
+          gravityFactor: currentGravityFactor(resolved, subsector),
           date: resolved.campaign.time,
           dice: createDice()
         });

@@ -393,3 +393,43 @@ test('v0.250.0 the sheet draws its four tabs, and the Gear tab reaches the real 
   delete globalThis.Option;
   delete globalThis.window;
 });
+
+// ---------------------------------------------------------------------------
+// v0.251.0: Book 1 p.33 encumbrance reaching the fight, not only the sheet.
+// ---------------------------------------------------------------------------
+
+test('v0.251.0 a character who picks up too much fights at one less, and sheds it to fight at full', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const rolled = registry.resolveCampaign(campaignId).characters[0].characteristics;
+  const foe = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Bandit' } } }).createdId;
+  const meIn = (view) => view.fighters.find((entry) => entry.id === id);
+
+  // Unladen first: the fight uses what was rolled.
+  let started = session.run('fight:start', { fight: { opponentIds: [foe], range: 'medium' } });
+  assert.equal(started.ok, true, started.message);
+  assert.equal(meIn(session.view()).characteristics.STR, rolled.STR);
+  session.run('fight:end');
+
+  // 10 kg on top of the rifle's 10 puts the total over the free band on
+  // Cinder (gravity 2, so 16.25 kg), which p.33 costs one off STR, DEX and END.
+  session.run('inventory:add', { characterId: id, item: { name: 'Oxygen Tanks', weightKg: 10, quantity: 1 } });
+  started = session.run('fight:start', { fight: { opponentIds: [foe], range: 'medium' } });
+  assert.equal(started.ok, true, started.message);
+  const laden = meIn(session.view());
+  assert.equal(laden.characteristics.STR, rolled.STR - 1, 'p.33: treated as one less for all purposes');
+  assert.equal(laden.characteristics.DEX, rolled.DEX - 1);
+  assert.equal(laden.characteristics.END, rolled.END - 1);
+  assert.equal(laden.full.STR, rolled.STR - 1, 'the ceiling is reduced too, so healing cannot outrun the load');
+  // "including wounds": there is less to lose before going down, and the
+  // blow allowance Book 1 p.36 takes from endurance is smaller too.
+  assert.equal(laden.blowAllowance, rolled.END - 1);
+  session.run('fight:end');
+
+  // Stowing it aboard ship restores the fight to full strength.
+  const item = session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0].inventory.find((entry) => entry.name === 'Oxygen Tanks');
+  session.run(`inventory:toggle:${item.id}`, { characterId: id });
+  started = session.run('fight:start', { fight: { opponentIds: [foe], range: 'medium' } });
+  assert.equal(started.ok, true, started.message);
+  assert.equal(meIn(session.view()).characteristics.STR, rolled.STR);
+});

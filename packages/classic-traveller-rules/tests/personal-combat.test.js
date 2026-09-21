@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   createSequenceDice,
   createPersonalCombatant,
+  weaponCharacteristicDM,
   resolvePersonalSurprise,
   resolvePersonalAttack,
   rollPersonalAttack,
@@ -408,4 +409,48 @@ test('an animal is never untrained in its own natural weapon', () => {
     characteristics: { STR: 9, DEX: 9, END: 9, INT: 2 }, skills: {}, weaponKey: 'teeth' });
   assert.equal(hasPersonalWeaponExpertise(beast, 'teeth'), true);
   assert.equal(personalWeaponSkillLevel(beast, 'teeth'), 0);
+});
+
+// ---------------------------------------------------------------------------
+// v0.251.0: Book 1 p.33 encumbrance, which the fight engine did not read.
+// ---------------------------------------------------------------------------
+
+test('Book 1 p.33: an encumbered combatant counts one less on STR, DEX and END, for all purposes', () => {
+  const rolled = { STR: 7, DEX: 9, END: 8, INT: 6 };
+  const free = createPersonalCombatant({ id: 'a', name: 'Free', side: 'party', characteristics: rolled, weaponKey: 'blade' });
+  const laden = createPersonalCombatant({ id: 'b', name: 'Laden', side: 'party', characteristics: rolled, weaponKey: 'blade', encumbrance: -1 });
+
+  assert.equal(free.characteristics.STR, 7);
+  assert.equal(laden.characteristics.STR, 6, 'p.33\u2019s own example: strength 7 is treated as 6');
+  assert.equal(laden.characteristics.DEX, 8);
+  assert.equal(laden.characteristics.END, 7);
+  assert.equal(laden.characteristics.INT, 6, 'the mental scores are untouched');
+  assert.deepEqual(laden.rolled, rolled, 'what was rolled is kept, so shedding the load restores it');
+
+  // "including wounds": the current scores start from the reduced ones, so
+  // an encumbered character has less to lose before going down.
+  assert.equal(laden.current.END, 7);
+  // And the blow allowance, which Book 1 p.36 takes from endurance.
+  assert.equal(free.blowAllowance, 8);
+  assert.equal(laden.blowAllowance, 7);
+
+  // "and strength advantage": a blade gives +1 at STR 9 or more, which the
+  // unladen character reaches and the same character carrying a load does not.
+  const strong = { STR: 9, DEX: 9, END: 8, INT: 6 };
+  assert.equal(weaponCharacteristicDM(createPersonalCombatant({ id: 'c', name: 'C', side: 'party', characteristics: strong, weaponKey: 'blade' }), 'blade'), 1);
+  assert.equal(weaponCharacteristicDM(createPersonalCombatant({ id: 'd', name: 'D', side: 'party', characteristics: strong, weaponKey: 'blade', encumbrance: -1 }), 'blade'), 0);
+});
+
+test('v0.251.0 a military force carrying to three times strength counts two less; anything else is refused', () => {
+  const rolled = { STR: 9, DEX: 9, END: 9, INT: 7 };
+  const heavy = createPersonalCombatant({ id: 'a', name: 'Trooper', side: 'party', characteristics: rolled, encumbrance: -2 });
+  assert.equal(heavy.characteristics.STR, 7);
+  assert.equal(heavy.blowAllowance, 7);
+
+  assert.throws(() => createPersonalCombatant({ id: 'b', name: 'B', side: 'party', characteristics: rolled, encumbrance: -3 }), RangeError);
+  assert.throws(() => createPersonalCombatant({ id: 'c', name: 'C', side: 'party', characteristics: rolled, encumbrance: 1 }), RangeError);
+
+  // A score cannot be driven below zero by carrying something heavy.
+  const frail = createPersonalCombatant({ id: 'd', name: 'D', side: 'party', characteristics: { STR: 1, DEX: 1, END: 1, INT: 5 }, encumbrance: -2 });
+  assert.equal(frail.characteristics.STR, 0);
 });

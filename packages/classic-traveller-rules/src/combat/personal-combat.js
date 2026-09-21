@@ -206,19 +206,39 @@ export function weaponTargetNumber(weaponKey, armor, range) {
   return spec.targets[armor][RANGE_INDEX[range]];
 }
 
-export function createPersonalCombatant({ id, name, side, characteristics, skills = {}, armor = 'none', weaponKey = 'hands', playerCharacter = false, surpriseDM = 0 } = {}) {
+/**
+ * encumbrance: Book 1 p.33. A character carrying more than his strength in
+ * kilograms "is treated as if their strength, dexterity, and endurance are
+ * one less than normal (for example, an encumbered person of strength 7 is
+ * treated as if he has a strength of 6 for all purposes, including wounds
+ * and strength advantage)" — twice strength costs one, three times costs two
+ * and is only for a military force. Pass 0, -1 or -2.
+ *
+ * Because the rule says "for all purposes", the reduction is applied to the
+ * combatant's scores themselves rather than as a DM on the throw: it then
+ * reaches the weapon advantage bands, the blow allowance taken from END, and
+ * the wounds those scores absorb, without each of those having to know about
+ * carrying weight. `characteristics` keeps what was rolled, so shedding the
+ * load restores it.
+ */
+export function createPersonalCombatant({ id, name, side, characteristics, skills = {}, armor = 'none', weaponKey = 'hands', playerCharacter = false, surpriseDM = 0, encumbrance = 0 } = {}) {
   if (typeof id !== 'string' || !id.trim()) throw new TypeError('combatant id must be a nonblank string');
   if (typeof name !== 'string' || !name.trim()) throw new TypeError('combatant name must be a nonblank string');
   if (typeof side !== 'string' || !side.trim()) throw new TypeError('combatant side must be a nonblank string');
   if (!characteristics || typeof characteristics !== 'object') throw new TypeError('combatant characteristics must be an object');
-  const base = {};
-  for (const key of ['STR', 'DEX', 'END', 'INT']) base[key] = integer(characteristics[key], `combatant ${key}`);
+  const penalty = integer(encumbrance, 'combatant encumbrance');
+  if (penalty > 0 || penalty < -2) throw new RangeError('encumbrance must be 0, -1 or -2');
+  const rolled = {};
+  for (const key of ['STR', 'DEX', 'END', 'INT']) rolled[key] = integer(characteristics[key], `combatant ${key}`);
+  const base = { ...rolled };
+  // INT is untouched: p.33 names strength, dexterity and endurance only.
+  for (const key of ['STR', 'DEX', 'END']) base[key] = Math.max(0, rolled[key] + penalty);
   getPersonalWeapon(weaponKey);
   if (!PERSONAL_ARMOR_TYPES.includes(armor)) throw new RangeError(`unknown personal armor: ${armor}`);
   // Book 1 p.36: the blow and swing allowance is endurance as it stands at the
   // start of the encounter. Wounds taken during the fight do not reduce it;
   // wounds taken before it do, because they reduced endurance first.
-  return { id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: Boolean(playerCharacter), characteristics: clone(base), current: { STR: base.STR, DEX: base.DEX, END: base.END }, skills: clone(skills), armor, weaponKey, status: 'active', firstBlood: true, surpriseDM: integer(surpriseDM, 'surpriseDM'), evading: false, blows: 0, blowAllowance: base.END, blowsUsed: 0, hitsTaken: 0 };
+  return { id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: Boolean(playerCharacter), encumbrance: penalty, rolled: clone(rolled), characteristics: clone(base), current: { STR: base.STR, DEX: base.DEX, END: base.END }, skills: clone(skills), armor, weaponKey, status: 'active', firstBlood: true, surpriseDM: integer(surpriseDM, 'surpriseDM'), evading: false, blows: 0, blowAllowance: base.END, blowsUsed: 0, hitsTaken: 0 };
 }
 
 export function resolvePersonalSurprise({ sides, dice } = {}) {

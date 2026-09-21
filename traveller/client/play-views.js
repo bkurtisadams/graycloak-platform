@@ -7,17 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.250.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.250.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.250.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.251.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.251.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.251.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.250.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.250.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.250.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.251.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.251.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.251.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +32,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.250.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.250.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.251.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -232,6 +232,8 @@ function gearRow(reader, state, handlers) {
           reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: label(key) })))
         : h('b', { text: `${weapon.name}  ${dice}` })),
     h('span', { class: 'sel-stat is-gear' }, h('small', { text: 'Armor' }), h('b', { text: reader.armor === 'none' ? 'None' : reader.armor[0].toUpperCase() + reader.armor.slice(1) })),
+    reader.encumbrance ? h('span', { class: 'sel-stat is-hurt', title: `Book 1 p.33: carrying ${reader.encumbrance === -2 ? 'to three times strength, as part of a military force' : 'more than their strength in kilograms'}, ${reader.name} counts ${reader.encumbrance === -2 ? 'two' : 'one'} less on STR, DEX and END for all purposes\u2014including wounds and strength advantage.` },
+      h('small', { text: 'Laden' }), h('b', { text: String(reader.encumbrance) })) : null,
     weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: reader.blowsFromWounds
         ? `Combat blows before every swing is weakened. ${reader.name} entered this fight already wounded, so the allowance is the endurance carried in (${reader.blowAllowance}), not the full ${reader.full.END} (Book 1 p.32).`
         : 'Combat blows before every swing is weakened. The allowance is the endurance the fight began with and does not fall as wounds land (Book 1 p.32).' },
