@@ -1228,3 +1228,51 @@ test('v0.261.0 the sheet shows the condition, with Rest refused to the severely 
   delete globalThis.Option;
   delete globalThis.window;
 });
+
+// ---------------------------------------------------------------------------
+// v0.262.0: the chat footer — room to write, Clear, Export — and the date as
+// a divider where it changes.
+// ---------------------------------------------------------------------------
+
+test('v0.262.0 chat shows the date once where it changes, and Clear hides without deleting', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderTalkLog } = await import('../client/play-views.js');
+  const chat = [
+    { id: 'a', kind: 'message', category: 'CHAT', who: 'Referee', text: 'Landing.', dateLabel: '106-4800', at: '2026-09-21T10:00:00.000Z' },
+    { id: 'b', kind: 'notice', category: 'COMBAT', who: 'Referee', text: 'Round 1 \u00b7 a hit.', dateLabel: '106-4800', at: '2026-09-21T10:01:00.000Z' },
+    { id: 'c', kind: 'message', category: 'CHAT', who: 'Hawkeye', text: 'Rested.', dateLabel: '109-4800', at: '2026-09-21T10:02:00.000Z' }
+  ];
+  const main = document.querySelector('main');
+  main.replaceChildren(...renderTalkLog(chat));
+  assert.deepEqual([...main.querySelectorAll('.talk-day')].map((node) => node.textContent), ['106-4800', '109-4800']);
+
+  let restored = false;
+  main.replaceChildren(...renderTalkLog(chat, { clearedAt: chat[1].at, onUnclear: () => { restored = true; } }));
+  assert.equal(/Landing/.test(main.textContent), false);
+  assert.match(main.textContent, /Rested\./);
+  const show = main.querySelector('.talk-cleared');
+  assert.match(show.textContent, /show 2 earlier/);
+  show.click();
+  assert.equal(restored, true);
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+});
+
+test('v0.262.0 Export has the whole chat, each line dated, with its working beneath', async () => {
+  const { chatExportText } = await import('../client/play-views.js');
+  const { session } = await freshSession();
+  for (let index = 0; index < 305; index += 1) session.run('chat:say', { fight: { value: `line ${index}` } });
+  assert.equal(session.view().chat.length <= 300, true, 'the screen keeps 300');
+  const transcript = session.chatTranscript();
+  assert.ok(transcript.lines.length >= 305, 'Export has them all');
+  const text = chatExportText({ campaignName: 'Sea of Suns', date: '106-4800', lines: [
+    { kind: 'message', who: 'Hawkeye', text: 'Two\nlines', dateLabel: '106-4800' },
+    { kind: 'notice', who: 'Referee', text: 'Round 1 \u00b7 Hawkeye hits Thug.', dateLabel: '106-4800', detail: '2D [5] [6] = 11\nTotal 11 against 11+ \u2014 hit' }
+  ] });
+  assert.match(text, /^Sea of Suns \u2014 chat, exported 106-4800\n/);
+  assert.match(text, /\[106-4800\] Hawkeye: Two\n {4}lines\n/);
+  assert.match(text, /\[106-4800\] Round 1 \u00b7 Hawkeye hits Thug\.\n {4}2D \[5\] \[6\] = 11\n {4}Total 11 against 11\+/);
+});

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.261.0">
+  <link rel="stylesheet" href="./play.css?v=v0.262.0">
   <script>
     // Same key the other pages use, applied before first paint.
     try {
@@ -50,14 +50,23 @@
       <section class="side-chat" id="side-chat" aria-label="Chat">
         <div class="talk-log" id="talk-log" aria-live="polite"></div>
         <form class="talk-bar" id="talk-form">
-          <div class="dice" role="group" aria-label="Dice">
-            <button type="button" class="die" data-roll="2D" title="Throw two dice">2D</button>
-            <button type="button" class="die" data-roll="1D" title="Throw one die">1D</button>
-            <button type="button" class="die" data-roll="3D" title="Throw three dice">3D</button>
+          <div class="talk-tools">
+            <div class="dice" role="group" aria-label="Dice">
+              <button type="button" class="die" data-roll="2D" title="Throw two dice">2D</button>
+              <button type="button" class="die" data-roll="1D" title="Throw one die">1D</button>
+              <button type="button" class="die" data-roll="3D" title="Throw three dice">3D</button>
+            </div>
+            <select class="talk-speaker" id="talk-speaker" aria-label="Speaking as"></select>
+            <span class="talk-tools-end">
+              <button type="button" class="talk-tool" id="talk-export" title="Save the whole chat as a text file">Export</button>
+              <button type="button" class="talk-tool" id="talk-clear" title="Hide everything said so far. Nothing is deleted: Export still has it, and it can be shown again.">Clear</button>
+            </span>
           </div>
-          <select class="talk-speaker" id="talk-speaker" aria-label="Speaking as"></select>
-          <input class="talk-input" id="talk-input" type="text" aria-label="Say something or roll"
-                 placeholder="Say something, or /roll 2D+1" autocomplete="off">
+          <div class="talk-write">
+            <textarea class="talk-input" id="talk-input" rows="3" aria-label="Say something or roll"
+                      placeholder="Say something, or /roll 2D+1. Enter sends; Shift+Enter for a new line." autocomplete="off"></textarea>
+            <button type="submit" class="talk-send">Send</button>
+          </div>
         </form>
       </section>
       <div class="drawer-body" id="drawer-body"></div>
@@ -101,6 +110,6 @@
        reads a real campaign, along with play-sample.js. -->
   <div class="preview" id="preview" role="group" aria-label="Preview a situation (sample data)"></div>
 
-  <script type="module" src="./play.js?v=v0.261.0"></script>
+  <script type="module" src="./play.js?v=v0.262.0"></script>
 </body>
 </html>

@@ -1109,3 +1109,18 @@ details.talk-notice summary::-webkit-details-marker { display: none; }
 .fight-wound .text-button.is-on { background: var(--ink); color: var(--raise); border-color: var(--ink); font-weight: 700; }
 .fight-wound .text-button:disabled { opacity: .45; cursor: not-allowed; }
 .wound-preview { font-size: 12px; color: var(--ink-2); }
+
+/* v0.262.0: the chat footer — tools on one line, and room to write beneath. */
+.side-chat .talk-bar { display: flex; flex-direction: column; align-items: stretch; gap: 6px; height: auto; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); }
+.talk-tools { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.talk-tools .talk-speaker { max-width: 130px; }
+.talk-tools-end { margin-left: auto; display: inline-flex; gap: 4px; }
+.talk-tool { font: inherit; font-size: 11px; padding: 3px 8px; border: 1px solid var(--line); background: var(--raise); color: var(--ink-2); cursor: pointer; }
+.talk-tool:hover { color: var(--ink); border-color: var(--ink-2); }
+.talk-write { display: flex; gap: 6px; align-items: stretch; }
+.side-chat .talk-input { flex: 1; height: auto; min-height: 64px; max-height: 40vh; resize: vertical; padding: 6px 8px; font: inherit; font-size: 13px; line-height: 1.4; }
+.talk-send { font: inherit; font-size: 12px; font-weight: 700; padding: 0 12px; border: 1px solid var(--ink); background: var(--ink); color: var(--raise); cursor: pointer; }
+.talk-day { display: flex; align-items: center; gap: 8px; margin: 8px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--ink-2); }
+.talk-day::before, .talk-day::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+.talk-message p { white-space: pre-wrap; }
+.side-chat .talk-write .talk-input { width: 100%; min-width: 0; }

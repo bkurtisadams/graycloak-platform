@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.261.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.261.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.261.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.261.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.261.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.261.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.261.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.261.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.261.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText } from './play-views.js?v=v0.262.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.262.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.262.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.262.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.262.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.262.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.262.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.262.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.262.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -694,7 +694,14 @@ function render() {
   const wasAtBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
   // During a fight only COMBAT notices show by default: the ship's travel
   // history was burying the round (Kurt's v0.253.0 screenshot).
+  if (ui.chatClearedAt === undefined) ui.chatClearedAt = loadChatCleared();
   log.replaceChildren(...renderTalkLog(state.chat ?? [], {
+    clearedAt: ui.chatClearedAt,
+    onUnclear: () => {
+      ui.chatClearedAt = null;
+      try { localStorage.removeItem(chatClearKey()); } catch { /* nothing kept */ }
+      render();
+    },
     showAll: ui.showAllNotices,
     onShowAll: () => { ui.showAllNotices = true; render(); },
     categories: state.fighters?.length || state.setupPhase
@@ -745,6 +752,42 @@ $('talk-form').addEventListener('submit', (event) => {
   const input = $('talk-input');
   say(input.value);
   input.value = '';
+});
+// v0.262.0: the input is a text area now. Enter sends, as it did; Shift+Enter
+// starts a new line.
+$('talk-input').addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
+  event.preventDefault();
+  $('talk-form').requestSubmit();
+});
+// v0.262.0: Clear hides the chat so far, on this screen; the log is the
+// campaign's record and is never deleted. Kept per campaign in this browser.
+function chatClearKey() {
+  return `graycloak-traveller-chat-cleared:${source.session?.resolved?.campaign?.identity?.id ?? 'sample'}`;
+}
+function loadChatCleared() {
+  try { return localStorage.getItem(chatClearKey()) || null; } catch { return null; }
+}
+$('talk-clear').addEventListener('click', () => {
+  const chat = viewState().chat ?? [];
+  const last = chat.at(-1)?.at;
+  if (!last) return;
+  ui.chatClearedAt = last;
+  try { localStorage.setItem(chatClearKey(), last); } catch { /* private mode: cleared for this session */ }
+  render();
+});
+$('talk-export').addEventListener('click', () => {
+  if (source.mode !== 'live') return;
+  const transcript = source.session.chatTranscript({ seat: 'referee' });
+  const blob = new Blob([chatExportText(transcript)], { type: 'text/plain;charset=utf-8' });
+  const link = document.createElement('a');
+  const slug = String(transcript.campaignName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${slug}-chat-${transcript.date.replace(/[^0-9a-z-]+/gi, '-')}.txt`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 });
 for (const button of document.querySelectorAll('.side-chat .die')) {
   button.addEventListener('click', () => say(`/roll ${button.dataset.roll}`));

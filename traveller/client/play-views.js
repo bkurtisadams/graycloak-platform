@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.261.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.261.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.261.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.262.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.262.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.262.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.261.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.261.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.261.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.261.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.262.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.262.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.262.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.262.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.261.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.262.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1637,9 +1637,18 @@ export function renderDrawer(kind, state, referee, handlers = {}) {
 // expands in place. The log keeps everything either way.
 export const CHAT_NOTICE_DEFAULTS = Object.freeze(['COMBAT', 'ARRIVAL', 'MEDICAL']);
 
-export function renderTalkLog(chat, { showAll = false, onShowAll = null, categories = CHAT_NOTICE_DEFAULTS } = {}) {
+// v0.262.0: the campaign date, as a divider where it changes rather than on
+// every line (Kurt, Sep 2026) — a fight's thirty lines share one day, and a
+// week's travel gets one divider a day. Clear hides what came before without
+// deleting it: the log is the campaign's record, and Export still has it all.
+export function renderTalkLog(chat, { showAll = false, onShowAll = null, categories = CHAT_NOTICE_DEFAULTS, clearedAt = null, onUnclear = null } = {}) {
   const shown = [];
+  const hidden = clearedAt ? chat.filter((entry) => String(entry.at) <= clearedAt).length : 0;
+  if (hidden) {
+    shown.push(h('button', { type: 'button', class: 'talk-folded talk-cleared', text: `Chat cleared \u00b7 show ${hidden} earlier`, onclick: () => onUnclear?.() }));
+  }
   let folded = [];
+  let day = null;
   const flush = () => {
     if (!folded.length) return;
     const count = folded.length;
@@ -1652,11 +1661,16 @@ export function renderTalkLog(chat, { showAll = false, onShowAll = null, categor
     folded = [];
   };
   for (const entry of chat) {
+    if (hidden && String(entry.at) <= clearedAt) continue;
     if (entry.kind === 'notice' && !showAll && !categories.includes(entry.category)) {
       folded.push(entry);
       continue;
     }
     flush();
+    if (entry.dateLabel && entry.dateLabel !== day) {
+      day = entry.dateLabel;
+      shown.push(h('p', { class: 'talk-day', role: 'separator', text: entry.dateLabel }));
+    }
     if (entry.kind === 'notice') {
       // v0.257.0: the working behind a short line — the throw and every DM
       // — on hover, and on tap too, since a phone has no hover.
@@ -1664,19 +1678,33 @@ export function renderTalkLog(chat, { showAll = false, onShowAll = null, categor
         ? h('details', { class: 'talk-notice has-detail', title: entry.detail },
           h('summary', { text: entry.text }),
           h('pre', { class: 'talk-detail', text: entry.detail }))
-        : h('p', { class: 'talk-notice', title: `${entry.category} \u00b7 ${entry.dateLabel}`, text: entry.text }));
+        : h('p', { class: 'talk-notice', title: entry.category, text: entry.text }));
     } else if (entry.kind === 'roll') {
       shown.push(h('article', { class: 'talk-roll' },
-        h('div', { class: 'talk-who' }, h('b', { text: entry.who }), h('span', { text: entry.dateLabel })),
+        h('div', { class: 'talk-who' }, h('b', { text: entry.who })),
         h('div', { class: 'talk-roll-body', text: entry.text })));
     } else {
       shown.push(h('article', { class: 'talk-message' },
-        h('div', { class: 'talk-who' }, h('b', { text: entry.who }), h('span', { text: entry.dateLabel })),
+        h('div', { class: 'talk-who' }, h('b', { text: entry.who })),
         h('p', { text: entry.text })));
     }
   }
   flush();
   return shown.length ? shown : [h('p', { class: 'talk-empty', text: 'Nothing said yet. Type below, or /roll 2D.' })];
+}
+
+// v0.262.0: the chat as plain text, for Export. Every line carries its date
+// here, since a saved file has no dividers to lean on, and a line's working
+// (the throw and each DM) follows it indented.
+export function chatExportText({ campaignName = 'Campaign', date = '', lines = [] } = {}) {
+  const out = [`${campaignName} \u2014 chat, exported ${date}`, ''];
+  for (const entry of lines) {
+    const who = entry.kind === 'notice' ? '' : `${entry.who}: `;
+    const text = String(entry.text ?? '').replace(/\n/g, '\n    ');
+    out.push(`[${entry.dateLabel ?? ''}] ${who}${text}`);
+    if (entry.detail) for (const line of String(entry.detail).split('\n')) out.push(`    ${line}`);
+  }
+  return `${out.join('\n')}\n`;
 }
 
 // The sidebar's tabs: Chat first, then the directories.

@@ -816,7 +816,7 @@ export function rollDiceExpression(expression, dice) {
 
 // v0.253.0: the chat panel's stream — messages, rolls and notices, oldest
 // first, the way a chat reads. A player sees only public entries.
-function chatStream(resolved, seat) {
+function chatStream(resolved, seat, { limit = 300 } = {}) {
   const log = (resolved.activityLogs ?? [])[0];
   // A token speaks as itself: "Thug 2", not the statblock "Thug" it was
   // placed from. So the fight's own combatants are named here too, by their
@@ -828,7 +828,7 @@ function chatStream(resolved, seat) {
   ]);
   return (log?.entries ?? [])
     .filter((entry) => seat !== 'player' || entry.visibility === 'public')
-    .slice(-300)
+    .slice(limit ? -limit : 0)
     .map((entry) => {
       const kind = entry.category === 'CHAT' ? 'message' : entry.category === 'ROLL' ? 'roll' : 'notice';
       return {
@@ -3390,6 +3390,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
 
   return {
     connect, run, saveToCloud, reload,
+    // v0.262.0: the whole chat, not the last 300 the screen keeps, for Export.
+    chatTranscript({ seat = 'referee' } = {}) {
+      return { campaignName: resolved.campaign.identity.name, date: formatCampaignDate(resolved.campaign.time), lines: chatStream(resolved, seat, { limit: 0 }) };
+    },
     get arrivalEncounter() { return pendingArrivalEncounter; },
     dismissArrivalEncounter() { pendingArrivalEncounter = null; onChange(); },
     get resolved() { return resolved; },
