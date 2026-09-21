@@ -1417,3 +1417,137 @@ test('v0.264.0 the Compendium tab lists the packs, flags what cannot be bought, 
   delete globalThis.document;
   delete globalThis.Node;
 });
+
+// ------------------------------------------------------------ v0.265.0
+// Kurt, Sep 2026: folders in the Actors tab could not be renamed, and player
+// characters (Hawkeye) could not be copied or deleted.
+
+test('v0.265.0 a player character is filed, copied and deleted from the Actors directory', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const campaign = () => registry.resolveCampaign(campaignId).campaign;
+  const hawkeye = registry.resolveCampaign(campaignId).characters[0];
+  const id = hawkeye.identity.id;
+  const row = () => allActorRows(session).find((entry) => entry.id === id);
+  assert.equal(row().folder, 'Player characters', 'unfiled characters keep the old folder');
+  assert.equal(row().editable, true);
+
+  assert.equal(session.run('character:folder', { fight: { id, value: ' Crew / Bridge ' } }).ok, true);
+  assert.equal(row().folder, 'Crew/Bridge');
+
+  const copied = session.run('character:copy', { fight: { id } });
+  assert.equal(copied.ok, true, copied.message);
+  const copy = allActorRows(session).find((entry) => entry.id === copied.createdId);
+  assert.equal(copy.name, `${hawkeye.identity.name || 'Unnamed'} (copy)`);
+  assert.equal(copy.folder, 'Crew/Bridge', 'a copy is filed beside its original');
+  assert.match(copy.note, /not in the party/);
+  assert.equal(campaign().party.characterIds.includes(copied.createdId), false);
+
+  const deleted = session.run('character:delete', { fight: { id: copied.createdId } });
+  assert.equal(deleted.ok, true, deleted.message);
+  assert.equal(allActorRows(session).some((entry) => entry.id === copied.createdId), false);
+  assert.equal(registry.resolveCampaign(campaignId).characters.some((entry) => entry.identity.id === copied.createdId), false);
+});
+
+test('v0.265.0 deleting the active character moves the active slot; the last of the party is refused', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const { addCharacterToCampaign } = await import('../src/campaign-document.js');
+  const resolved = () => registry.resolveCampaign(campaignId);
+  const [first] = resolved().campaign.party.characterIds;
+  // The fixture party is one character; a copy put into the party makes two.
+  const copyId = session.run('character:copy', { fight: { id: first } }).createdId;
+  const copy = resolved().characters.find((entry) => entry.identity.id === copyId);
+  registry.put(addCharacterToCampaign(resolved().campaign, copy, { active: true, makeActive: true }));
+  session.reload();
+  assert.equal(resolved().campaign.activeCharacterId, copyId);
+
+  assert.equal(session.run('character:delete', { fight: { id: copyId } }).ok, true);
+  assert.equal(resolved().campaign.activeCharacterId, first, 'the active slot moves to whoever is left');
+  const refused = session.run('character:delete', { fight: { id: first } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /at least one/);
+});
+
+test('v0.265.0 a character on the combat board cannot be deleted', async () => {
+  const { session, me } = await setupFixture();
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } }).ok, true);
+  const refused = session.run('character:delete', { fight: { id: me } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /combat board/);
+});
+
+test('v0.265.0 renaming a folder moves characters, actors and sub-folders; removing one moves them up', async () => {
+  const { session } = await freshSession();
+  const bandit = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Bandit', folder: 'Startown/Dock gangs' } } }).createdId;
+  const rowOf = (id) => allActorRows(session).find((entry) => entry.id === id);
+  const pc = allActorRows(session).find((entry) => entry.folder === 'Player characters').id;
+
+  const renamed = session.run('folder:rename', { fight: { value: { tab: 'Actors', from: 'Player characters', to: 'Crew' } } });
+  assert.equal(renamed.ok, true, renamed.message);
+  assert.equal(renamed.folder, 'Crew');
+  assert.equal(rowOf(pc).folder, 'Crew');
+  assert.equal(actorsTab(session).tree.some((node) => node.path === 'Player characters'), false);
+
+  assert.equal(session.run('folder:rename', { fight: { value: { tab: 'Actors', from: 'Startown', to: 'Downport' } } }).ok, true);
+  assert.equal(rowOf(bandit).folder, 'Downport/Dock gangs', 'a sub-folder moves with its parent');
+
+  const removed = session.run('folder:remove', { fight: { value: { tab: 'Actors', from: 'Downport/Dock gangs' } } });
+  assert.equal(removed.ok, true, removed.message);
+  assert.equal(rowOf(bandit).folder, 'Downport');
+  assert.equal(session.run('folder:remove', { fight: { value: { tab: 'Actors', from: 'Downport' } } }).ok, true);
+  assert.equal(rowOf(bandit).folder, '', 'a top-level folder removed leaves its contents Unfiled');
+  assert.equal(session.run('folder:rename', { fight: { value: { tab: 'Actors', from: 'Unfiled', to: 'X' } } }).ok, false, 'Unfiled is not a folder');
+});
+
+test('v0.265.0 a new NPC is not filed among the player characters', async () => {
+  const { session } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug', folder: 'Player characters' } } }).createdId;
+  assert.equal(allActorRows(session).find((entry) => entry.id === id).folder, '');
+  const kept = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Bandit', folder: 'Mooks' } } }).createdId;
+  assert.equal(allActorRows(session).find((entry) => entry.id === kept).folder, 'Mooks', 'any other folder is honoured');
+});
+
+test('v0.265.0 folder and character menus offer the new verbs', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session } = await freshSession();
+  const state = { ...session.view({ referee: { tab: 'Actors', folder: 'Player characters' } }), live: true };
+  const folderMenus = [];
+  document.querySelector('main').replaceChildren(...renderDrawer('referee', state, state.referee, { onFolderMenu: (folder, at) => folderMenus.push({ folder, at }) }));
+  const folderRow = [...document.querySelectorAll('.folder-row')].find((node) => node.textContent.includes('Player characters'));
+  folderRow.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  assert.deepEqual(folderMenus[0].folder, { tab: 'Actors', path: 'Player characters' });
+  document.querySelector('main').replaceChildren(renderRowMenu({ ...folderMenus[0], at: { x: 10, y: 10 } }, {}));
+  assert.deepEqual([...document.querySelectorAll('.row-menu-item')].map((node) => node.textContent), ['Rename folder\u2026', 'Remove folder, keep contents']);
+
+  const pc = state.referee.shown.find((entry) => entry.character);
+  document.querySelector('main').replaceChildren(renderRowMenu({ entry: pc, at: { x: 10, y: 10 } }, {}));
+  assert.deepEqual([...document.querySelectorAll('.row-menu-item')].map((node) => node.textContent),
+    ['Open sheet', 'Rename\u2026', 'Copy', 'Move to folder\u2026', 'Delete']);
+  dom.window.close();
+  delete globalThis.document;
+});
+
+test('v0.265.0 a crowded band widens; tokens keep their size', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { renderScene } = await import('../client/play-views.js');
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 1 } } });
+  for (let copy = 0; copy < 11; copy += 1) session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 12 } } });
+  document.querySelector('main').replaceChildren(...renderScene({ ...session.view(), live: true }, {}));
+  const svg = document.querySelector('svg.bands');
+  const [, , width, height] = svg.getAttribute('viewBox').split(' ').map(Number);
+  assert.equal(height, 480, 'the height no longer grows with the deepest stack');
+  const bands = [...svg.querySelectorAll('rect.band')].map((rect) => Number(rect.getAttribute('width')));
+  assert.ok(bands[12] > bands[0] * 1.5, 'the crowded band is drawn wider than the rest');
+  assert.ok(Math.abs(bands.reduce((sum, value) => sum + value, 0) - width) < 0.01, 'the bands tile the board');
+  const xs = new Set([...svg.querySelectorAll('.marker.is-opposition > circle:not(.marker-ring), .marker.is-foe > circle:not(.marker-ring)')].map((circle) => Math.round(Number(circle.getAttribute('cx')))));
+  assert.ok(xs.size >= 2, 'the eleven stand in more than one column');
+  assert.match([...svg.querySelectorAll('.band-number')][12].textContent, /11 here/);
+  dom.window.close();
+  delete globalThis.document;
+});

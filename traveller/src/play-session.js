@@ -27,7 +27,7 @@ import {
   skimGasGiantToCapacity,
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
-  createDice, importCharacterDocument, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
+  createDice, importCharacterDocument, stableDocumentId, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
@@ -60,7 +60,8 @@ import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTrad
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
   setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays,
-  addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter
+  addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter,
+  addCharacterToCampaign, removeCharacterFromCampaign, characterFolder, setCharacterFolders
 } from './campaign-document.js';
 import {
   createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER,
@@ -80,7 +81,7 @@ import {
 import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 import { lawCheck, starportLine, atmosphereGear, worldDetail, prohibitedWeaponKeys } from './world-notes.js';
-import { createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS } from './npc-actor-document.js';
+import { createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS, normalizeFolderPath } from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
 // client/app.js's own convention for a contract's reserved cargo manifest id.
@@ -315,11 +316,17 @@ function actorEntries(resolved) {
   // v0.249.0: player characters belong in the same directory as everyone
   // else — they are actors. The Players tab is about accounts, not people
   // in the campaign.
+  // v0.265.0: filed, renamed, copied and deleted like any other actor; the
+  // folder lives on the campaign (characterFolder) since the character
+  // document has none.
+  const party = new Set(resolved.campaign.party?.characterIds ?? []);
   const characters = (resolved.characters ?? []).map((character) => ({
     id: character.identity.id,
     name: character.identity.name || '(unnamed)',
-    note: [character.career?.service, character.upp].filter(Boolean).join(' \u00b7 '),
-    folder: 'Player characters',
+    note: [character.career?.service, character.upp, party.has(character.identity.id) ? null : 'not in the party'].filter(Boolean).join(' \u00b7 '),
+    folder: characterFolder(resolved.campaign, character.identity.id),
+    editable: true,
+    character: true,
     sheet: { kind: 'actor', id: character.identity.id },
     drag: { kind: 'character', id: character.identity.id },
     badge: { kind: 'actor', side: 'party' }
@@ -2087,6 +2094,108 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           saveToCloud();
           return lastMessage;
         }
+        // v0.265.0: the Actors directory's verbs for a player character —
+        // copy, delete and file — which only NPC actors had.
+        if (verb === 'copy' || verb === 'delete' || verb === 'folder') {
+          const target = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id);
+          if (!target) throw new Error('choose a character first');
+          const label = target.identity.name || '(unnamed)';
+          let message;
+          let createdId = null;
+          if (verb === 'copy') {
+            // A second person built the same way, outside the party and with
+            // no player, filed beside the original.
+            const clone = JSON.parse(JSON.stringify(target));
+            clone.identity = {
+              ...clone.identity,
+              id: stableDocumentId('char', `${target.identity.id}\u0000copy\u0000${Date.now()}\u0000${Math.random()}`),
+              name: `${target.identity.name || 'Unnamed'} (copy)`
+            };
+            const copy = importCharacterDocument(clone);
+            let campaign = addCharacterToCampaign(resolved.campaign, copy, { active: false });
+            campaign = setCharacterFolders(campaign, { [copy.identity.id]: characterFolder(resolved.campaign, target.identity.id) });
+            registry.putAll([copy, campaign]);
+            reload();
+            createdId = copy.identity.id;
+            message = `${copy.identity.name} created, outside the party.`;
+          } else if (verb === 'delete') {
+            const fighting = (resolved.encounters ?? []).some((encounter) => (encounter.status === 'active' || encounter.status === 'setup')
+              && (encounter.combatants ?? []).some((combatant) => combatant.id === target.identity.id || combatant.sourceActorId === target.identity.id));
+            if (fighting) throw new Error(`${label} is on the combat board; take them off it first`);
+            registry.put(removeCharacterFromCampaign(resolved.campaign, target.identity.id));
+            registry.remove(target.identity.id);
+            reload();
+            message = `${label} deleted.`;
+          } else {
+            registry.put(setCharacterFolders(resolved.campaign, { [target.identity.id]: normalizeFolderPath(fight?.value) }));
+            reload();
+            message = `${label} filed.`;
+          }
+          log('REFEREE', message);
+          lastMessage = { ok: true, message, createdId };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        }
+      }
+      // v0.265.0: renaming or removing a directory folder moves everything
+      // filed in it (and below it). Folders are only paths on their entries,
+      // so there is no folder document to change. Actors covers player
+      // characters (paths on the campaign) and NPC actors (paths on each
+      // actor); Scenes covers scenes. Removing a folder files its contents in
+      // the folder above it.
+      if (command === 'folder:rename' || command === 'folder:remove') {
+        const value = fight?.value ?? {};
+        const from = normalizeFolderPath(value.from);
+        if (!from || from === 'Unfiled') throw new Error('choose a folder');
+        const parent = from.split('/').slice(0, -1).join('/');
+        const to = command === 'folder:remove' ? parent : normalizeFolderPath(value.to);
+        if (command === 'folder:rename' && !to) throw new Error('a folder needs a name');
+        const moved = (path) => {
+          const current = normalizeFolderPath(path);
+          if (current === from) return to;
+          if (current.startsWith(`${from}/`)) return [to, current.slice(from.length + 1)].filter(Boolean).join('/');
+          return null;
+        };
+        let count = 0;
+        if (value.tab === 'Actors') {
+          const actors = [];
+          for (const actor of resolved.npcActors ?? []) {
+            const next = moved(actor.profile?.folder ?? '');
+            if (next === null) continue;
+            actors.push(updateNpcActorDocument(actor, { folder: next }));
+          }
+          const folders = {};
+          for (const character of resolved.characters ?? []) {
+            const next = moved(characterFolder(resolved.campaign, character.identity.id));
+            if (next !== null) folders[character.identity.id] = next;
+          }
+          const campaign = Object.keys(folders).length ? setCharacterFolders(resolved.campaign, folders) : resolved.campaign;
+          registry.putAll([...actors, campaign]);
+          count = actors.length + Object.keys(folders).length;
+        } else if (value.tab === 'Scenes') {
+          let campaign = resolved.campaign;
+          const scenes = [];
+          for (const scene of resolved.scenes ?? []) {
+            const next = moved(scene.folder ?? '');
+            if (next === null) continue;
+            const updated = updateSceneDocument(scene, { folder: next || DEFAULT_SCENE_FOLDER });
+            campaign = addSceneToCampaign(campaign, updated);
+            scenes.push(updated);
+          }
+          registry.putAll([...scenes, campaign]);
+          count = scenes.length;
+        } else throw new Error('only Actors and Scenes folders can be changed');
+        reload();
+        const where = to || (value.tab === 'Scenes' ? DEFAULT_SCENE_FOLDER : 'Unfiled');
+        const message = command === 'folder:rename'
+          ? `Folder ${from} renamed ${to}; ${count} moved.`
+          : `Folder ${from} removed; ${count} moved to ${where}.`;
+        log('REFEREE', message);
+        lastMessage = { ok: true, message, folder: where };
+        onChange();
+        saveToCloud();
+        return lastMessage;
       }
       if (command === 'character:activate') {
         if (!characterId) throw new Error('choose a character to make active');
@@ -2115,13 +2224,23 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (action === 'create') {
           const kind = NPC_ACTOR_KINDS.includes(value?.kind) ? value.kind : 'actor';
           const name = String(value?.name ?? '').trim() || (kind === 'statblock' ? 'New statblock' : 'New actor');
-          const created = createNpcActorDocument({ name, kind, folder: value?.folder ?? '', role: value?.role ?? '' });
+          // v0.265.0: the Actors tab opens on the player characters' folder,
+          // so a new NPC landed there (Thug and Mercenary did). A folder that
+          // holds only characters is theirs; the NPC goes to Unfiled instead.
+          let folder = normalizeFolderPath(value?.folder ?? '');
+          const characterOnly = folder
+            && (resolved.characters ?? []).some((entry) => characterFolder(resolved.campaign, entry.identity.id) === folder)
+            && !(resolved.npcActors ?? []).some((entry) => normalizeFolderPath(entry.profile?.folder ?? '') === folder);
+          if (characterOnly) folder = '';
+          const created = createNpcActorDocument({ name, kind, folder, role: value?.role ?? '' });
           // The document alone is not in the campaign: an actor is reached
           // through the campaign's own refs and roster, so both are written.
           registry.putAll([created, addNpcActorToCampaign(resolved.campaign, created)]);
           reload();
           message = `${created.identity.name} created.`;
           lastMessage = { ok: true, message, createdId: created.identity.id };
+          onChange();
+          saveToCloud();
           return lastMessage;
         }
         if (!actor) throw new Error('choose an actor');
@@ -2134,6 +2253,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           reload();
           message = `${copy.identity.name} created.`;
           lastMessage = { ok: true, message, createdId: copy.identity.id };
+          onChange();
+          saveToCloud();
           return lastMessage;
         } else if (action === 'delete') {
           const staged = (resolved.scenes ?? []).filter((scene) => scene.tokens.some((token) => token.actorId === actor.identity.id));
@@ -2160,6 +2281,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           message = `${actor.identity.name} filed.`;
         } else throw new Error(`unknown actor command: ${command}`);
         lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
         return lastMessage;
       }
       if (command.startsWith('edit:')) {

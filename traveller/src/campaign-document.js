@@ -260,7 +260,8 @@ export function createCampaignDocument({
     roster: {
       folders: Array.isArray(roster.folders) && roster.folders.length
         ? cloneJson(roster.folders)
-        : [{ id: 'folder-npcs', name: 'NPCS', actorIds: npcActorRefs.map((entry) => entry.id) }]
+        : [{ id: 'folder-npcs', name: 'NPCS', actorIds: npcActorRefs.map((entry) => entry.id) }],
+      ...(isPlainObject(roster.characterFolders) ? { characterFolders: cloneJson(roster.characterFolders) } : {})
     },
     commerce: {
       speculativeLots: Array.isArray(commerce.speculativeLots) ? cloneJson(commerce.speculativeLots) : []
@@ -499,6 +500,14 @@ export function validateCampaignDocument(document) {
       }
     }
     add(errors, isPlainObject(document.roster) && Array.isArray(document.roster?.folders), 'roster must contain folders');
+    if (document.roster?.characterFolders !== undefined) {
+      add(errors, isPlainObject(document.roster.characterFolders), 'roster.characterFolders must be an object');
+      if (isPlainObject(document.roster.characterFolders)) {
+        for (const [characterId, folder] of Object.entries(document.roster.characterFolders)) {
+          add(errors, nonblank(characterId) && typeof folder === 'string', `character folder for ${characterId} is invalid`);
+        }
+      }
+    }
     if (Array.isArray(document.roster?.folders)) {
       const folderIds = new Set();
       const assignedActorIds = new Set();
@@ -837,6 +846,50 @@ export function addCharacterToCampaign(document, characterDocument, { active = t
   next.documentRefs.characters = uniqueById([...next.documentRefs.characters, characterRef(characterDocument)]);
   if (active && !next.party.characterIds.includes(characterDocument.identity.id)) next.party.characterIds.push(characterDocument.identity.id);
   if (active && makeActive) next.activeCharacterId = characterDocument.identity.id;
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+// v0.265.0: player characters are filed in the Actors directory like anyone
+// else. The character document belongs to the rules package and has no folder
+// of its own, so the campaign keeps the path; a character with no entry sits in
+// DEFAULT_CHARACTER_FOLDER.
+export const DEFAULT_CHARACTER_FOLDER = 'Player characters';
+
+export function characterFolder(document, characterId) {
+  const folders = document?.roster?.characterFolders;
+  return isPlainObject(folders) && typeof folders[characterId] === 'string' ? folders[characterId] : DEFAULT_CHARACTER_FOLDER;
+}
+
+export function setCharacterFolders(document, changes = {}) {
+  const next = cloneJson(document);
+  const folders = isPlainObject(next.roster.characterFolders) ? next.roster.characterFolders : {};
+  const known = new Set(next.documentRefs.characters.map((entry) => entry.id));
+  for (const [characterId, folder] of Object.entries(changes)) {
+    if (!known.has(characterId)) throw new CampaignDocumentValidationError(`character is not in this campaign: ${characterId}`);
+    folders[characterId] = String(folder ?? '');
+  }
+  next.roster.characterFolders = folders;
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+// v0.265.0: deleting a character from the Actors directory. A campaign keeps
+// at least one character and a party of at least one, so the last of either
+// is refused; the active character moves to whoever is left in the party.
+export function removeCharacterFromCampaign(document, characterId) {
+  const next = cloneJson(document);
+  if (!next.documentRefs.characters.some((entry) => entry.id === characterId)) {
+    throw new CampaignDocumentValidationError(`character is not in this campaign: ${characterId}`);
+  }
+  if (next.documentRefs.characters.length <= 1) throw new CampaignDocumentValidationError('a campaign needs at least one character');
+  const party = next.party.characterIds.filter((id) => id !== characterId);
+  if (!party.length) throw new CampaignDocumentValidationError('the party needs at least one character; add another to the party first');
+  next.documentRefs.characters = next.documentRefs.characters.filter((entry) => entry.id !== characterId);
+  next.party.characterIds = party;
+  if (next.activeCharacterId === characterId) next.activeCharacterId = party[0];
+  if (isPlainObject(next.ownership?.actors)) delete next.ownership.actors[characterId];
+  if (isPlainObject(next.roster.characterFolders)) delete next.roster.characterFolders[characterId];
   assertValidCampaignDocument(next);
   return next;
 }

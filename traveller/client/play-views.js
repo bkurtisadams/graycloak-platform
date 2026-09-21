@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.264.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.264.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.264.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.265.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.265.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.265.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.264.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.264.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.264.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.264.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.265.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.265.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.265.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.265.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.264.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.265.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -859,17 +859,31 @@ function bandsScene(state, handlers) {
   // the edge is, or in on a few bands. state.bandsShown is that choice; left
   // unset the board fits the bands in play.
   const shown = Math.max(3, Math.min(edge, Number(state.bandsShown) || fitted));
-  const width = 1200;
+  // v0.265.0: a crowded band widens instead of the whole board shrinking.
+  // The board used to grow taller with the deepest stack, and since it is
+  // drawn to fit its box, eleven Mercenaries in one band shrank every token
+  // on it. Now the height is fixed at ROWS tokens; a band holding more lays
+  // them out in side-by-side columns and is drawn that much wider, so a
+  // token is the same size however many share a band.
   const ribbon = 26;
   const foot = 22;
-  const colW = width / shown;
+  const ROWS = 6;
+  const SUB_COLUMN = 118;
+  const height = 480;
+  const rowH = (height - ribbon - 12 - foot) / ROWS;
+  const baseW = 1200 / shown;
   const perBand = new Map();
   for (const fighter of state.fighters) perBand.set(fighter.band, (perBand.get(fighter.band) ?? 0) + 1);
-  const deepest = Math.max(3, ...perBand.values());
-  // Tall enough to fill the space the board is given rather than sitting in
-  // a strip at its top: the rows spread to a roughly 5:2 board.
-  const height = Math.max(ribbon + 12 + deepest * 62 + foot, 480);
-  const tokenH = (height - ribbon - 12 - foot) / Math.max(deepest, 4);
+  const subColumns = (band) => Math.max(1, Math.ceil((perBand.get(band) ?? 0) / ROWS));
+  const bandW = [];
+  const bandX = [];
+  let width = 0;
+  for (let band = 0; band < shown; band += 1) {
+    const columns = subColumns(band);
+    bandX.push(width);
+    bandW.push(columns > 1 ? Math.max(baseW, columns * SUB_COLUMN) : baseW);
+    width += bandW[band];
+  }
   const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${height}`, class: 'bands is-across', preserveAspectRatio: 'xMidYMin meet', role: 'group', 'aria-label': 'Range bands' });
 
   // The range names across the top, read from the selected token.
@@ -881,8 +895,8 @@ function bandsScene(state, handlers) {
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band, own: gap === 0 });
   }
   for (const span of spans) {
-    const x = span.from * colW;
-    const w = (span.to - span.from + 1) * colW;
+    const x = bandX[span.from];
+    const w = bandX[span.to] + bandW[span.to] - x;
     svg.append(createSvgNode('rect', { x: x + 1, y: 1, width: w - 2, height: ribbon - 2, class: `span-ribbon${span.own ? ' is-own' : ''}` }));
     const label = createSvgNode('text', { x: x + w / 2, y: ribbon - 8, class: 'span-label', 'text-anchor': 'middle' });
     label.textContent = span.name.toUpperCase();
@@ -890,19 +904,29 @@ function bandsScene(state, handlers) {
   }
   for (let band = 0; band < shown; band += 1) {
     const gap = Math.abs(band - (reader?.band ?? 0));
-    svg.append(createSvgNode('rect', { x: band * colW, y: ribbon + 4, width: colW, height: height - ribbon - 4 - foot, class: `band${gap === 0 ? ' is-own' : ''}` }));
-    const number = createSvgNode('text', { x: band * colW + colW / 2, y: height - 6, class: 'band-number', 'text-anchor': 'middle' });
-    number.textContent = String(band + 1);
+    svg.append(createSvgNode('rect', { x: bandX[band], y: ribbon + 4, width: bandW[band], height: height - ribbon - 4 - foot, class: `band${gap === 0 ? ' is-own' : ''}` }));
+    const number = createSvgNode('text', { x: bandX[band] + bandW[band] / 2, y: height - 6, class: 'band-number', 'text-anchor': 'middle' });
+    // A widened band says how many it holds, so the extra width reads as a
+    // crowd rather than as a longer stretch of range.
+    number.textContent = subColumns(band) > 1 ? `${band + 1} \u00b7 ${perBand.get(band)} here` : String(band + 1);
     svg.append(number);
   }
 
-  // Tokens stack down their band's column.
+  // Tokens fill down their band's column, then into the next column across.
+  // One beyond the drawn bands (zoomed in past it) sits off the right edge,
+  // as it always has.
   const at = new Map();
   const placed = new Map();
   for (const fighter of state.fighters) {
-    const index = placed.get(fighter.band) ?? 0;
-    placed.set(fighter.band, index + 1);
-    at.set(fighter.id, { cx: fighter.band * colW + colW / 2, cy: ribbon + 12 + index * tokenH + tokenH / 2 - 8 });
+    const band = Number(fighter.band ?? 0);
+    const index = placed.get(band) ?? 0;
+    placed.set(band, index + 1);
+    const row = index % ROWS;
+    const cy = ribbon + 12 + row * rowH + rowH / 2 - 8;
+    if (band < 0 || band >= shown) { at.set(fighter.id, { cx: width + baseW * (band - shown + 0.5), cy }); continue; }
+    const columns = subColumns(band);
+    const pitch = bandW[band] / columns;
+    at.set(fighter.id, { cx: bandX[band] + Math.floor(index / ROWS) * pitch + pitch / 2, cy });
   }
   // Every order on the sheet is drawn, so the board and the table say the same
   // thing: a solid line for an attack, a dashed one for movement without one.
@@ -949,7 +973,7 @@ function bandsScene(state, handlers) {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', drop);
           if (!group.dataset.dragged) return;
-          const band = bandAt(svg, released.clientX, released.clientY, colW, shown);
+          const band = bandAt(svg, released.clientX, released.clientY, bandX, bandW);
           if (band !== null && band !== fighter.band) handlers.onRepositionToken?.(fighter.id, band);
         };
         window.addEventListener('pointermove', move);
@@ -967,7 +991,7 @@ function bandsScene(state, handlers) {
       let data = null;
       try { data = JSON.parse(event.dataTransfer.getData('application/x-traveller-actor') || 'null'); } catch { data = null; }
       if (!data) return;
-      const band = bandAt(svg, event.clientX, event.clientY, colW, shown);
+      const band = bandAt(svg, event.clientX, event.clientY, bandX, bandW);
       if (band !== null) handlers.onDropActor?.(data, band);
     });
   }
@@ -987,12 +1011,12 @@ function bandsScene(state, handlers) {
 }
 
 // Which band a point on screen falls in, or null if it is off the board.
-function bandAt(svg, clientX, clientY, colW, bands) {
+function bandAt(svg, clientX, clientY, bandX, bandW) {
   const matrix = svg.getScreenCTM?.();
   if (!matrix) return null;
   const point = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
-  const band = Math.floor(point.x / colW);
-  return band >= 0 && band < bands ? band : null;
+  const band = bandX.findIndex((x, index) => point.x >= x && point.x < x + bandW[index]);
+  return band >= 0 ? band : null;
 }
 
 function plotScene(state) {
@@ -1276,7 +1300,12 @@ function refereeDrawer(referee, state, handlers) {
           class: `folder-row${folder.path === referee.folder ? ' is-open' : ''}`,
           style: `padding-left:${8 + folder.depth * 12}px`,
           'aria-pressed': folder.path === referee.folder,
-          onclick: () => go({ folder: folder.path, query: '' })
+          onclick: () => go({ folder: folder.path, query: '' }),
+          // v0.265.0: right-click a folder to rename or remove it. Unfiled is
+          // not a folder, only where unfiled entries show.
+          oncontextmenu: state.live && (referee.tab === 'Actors' || referee.tab === 'Scenes') && folder.path !== 'Unfiled'
+            ? (event) => { event.preventDefault(); handlers.onFolderMenu?.({ tab: referee.tab, path: folder.path }, { x: event.clientX, y: event.clientY }); }
+            : null
         }, h('span', { class: 'folder-name', text: folder.name }), h('span', { class: 'folder-count', text: String(folder.count) })))
         : h('p', { class: 'empty', text: 'No folders yet.' })),
       h('ul', { class: 'entries' }, entries.length
@@ -1565,19 +1594,38 @@ function placeMenu(node, at, count) {
 }
 
 export function renderRowMenu(menu, handlers = {}) {
-  if (!menu?.entry) return null;
-  const entry = menu.entry;
-  const kind = entry.sheet?.kind;
   const item = (text, onclick, { danger = false } = {}) => h('button', {
     type: 'button', class: `row-menu-item${danger ? ' is-danger' : ''}`, text,
     onclick: () => { handlers.onCloseRowMenu?.(); onclick(); }
   });
+  // v0.265.0: a folder's own menu, Foundry's Edit and Remove. Removing keeps
+  // what was filed there, moving it up a level.
+  if (menu?.folder) {
+    const { tab, path } = menu.folder;
+    const folderItems = [
+      item('Rename folder\u2026', () => handlers.onRenameFolder?.(tab, path)),
+      item('Remove folder, keep contents', () => handlers.onRemoveFolder?.(tab, path), { danger: true })
+    ];
+    const node = h('div', { class: 'row-menu', role: 'menu', 'aria-label': `${path} folder` },
+      h('div', { class: 'row-menu-head', text: path }), folderItems);
+    return placeMenu(node, menu.at, folderItems.length);
+  }
+  if (!menu?.entry) return null;
+  const entry = menu.entry;
+  const kind = entry.sheet?.kind;
   const items = [item('Open sheet', () => handlers.onOpenSheet?.(kind, entry.id))];
   if (kind === 'scene') {
     items.push(item(entry.active ? 'Deactivate' : 'Activate', () => handlers.onSceneAction?.('activate', entry.id)));
     if (entry.isVectorBoard) items.push(item('Open on the canvas', () => handlers.onSceneAction?.('stage', entry.id)));
     items.push(item('Move to folder\u2026', () => handlers.onSceneAction?.('file', entry.id, entry.folder)));
     items.push(item('Delete', () => handlers.onSceneAction?.('delete', entry.id), { danger: true }));
+  } else if (kind === 'actor' && entry.character) {
+    // v0.265.0: a player character gets the same verbs as an actor, less
+    // the actor/statblock switch, which has no meaning for a character.
+    items.push(item('Rename\u2026', () => handlers.onRenameActor?.(entry.id, entry.name, 'character')));
+    items.push(item('Copy', () => handlers.onCopyDocument?.('character', entry.id)));
+    items.push(item('Move to folder\u2026', () => handlers.onFileActor?.(entry.id, entry.folder, 'character')));
+    items.push(item('Delete', () => handlers.onDeleteActor?.(entry.id, entry.name, 'character'), { danger: true }));
   } else if (kind === 'actor') {
     items.push(item(entry.actorKind === 'statblock' ? 'Place on scene' : 'Put on the board', () => handlers.onStageDocument?.('actor', entry.id)));
     if (entry.editable) {

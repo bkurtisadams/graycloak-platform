@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.264.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.264.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.264.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.264.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.264.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.264.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.264.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.264.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.264.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.265.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.265.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.265.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.265.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.265.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.265.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.265.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.265.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.265.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -455,6 +455,28 @@ function render() {
     onPrintCharacter: () => { window.alert('The TAS Form 2 print view is the next step after the tabs.'); },
     onRowMenu: (entry, at) => { ui.rowMenu = { entry, at }; render(); },
     onCloseRowMenu: () => { ui.rowMenu = null; render(); },
+    onFolderMenu: (folder, at) => { ui.rowMenu = { folder, at }; render(); },
+    // v0.265.0: a folder renamed or removed moves its contents; the tab
+    // follows them if that folder was the one open.
+    onRenameFolder: (tab, path) => {
+      if (source.mode !== 'live') return;
+      const parts = path.split('/');
+      const wanted = window.prompt('Rename folder to (use / to move it under another):', parts.at(-1));
+      if (wanted === null || !wanted.trim()) return;
+      const to = wanted.includes('/') ? wanted.trim() : [...parts.slice(0, -1), wanted.trim()].join('/');
+      const result = source.session.run('folder:rename', { fight: { value: { tab, from: path, to } } });
+      if (!result.ok) window.alert(result.message);
+      else if (ui.referee.folder === path) ui.referee = { ...ui.referee, folder: result.folder };
+      render();
+    },
+    onRemoveFolder: (tab, path) => {
+      if (source.mode !== 'live') return;
+      if (!window.confirm(`Remove the folder ${path}? Everything in it moves up a level; nothing is deleted.`)) return;
+      const result = source.session.run('folder:remove', { fight: { value: { tab, from: path } } });
+      if (!result.ok) window.alert(result.message);
+      else if (ui.referee.folder === path) ui.referee = { ...ui.referee, folder: result.folder };
+      render();
+    },
     onFighterMenu: (fighter, at, row = {}) => {
       ui.fighterMenu = { fighter, at, ...row };
       ui.selectedMarker = fighter.id;
@@ -470,23 +492,28 @@ function render() {
       render();
     },
     onCopyDocument: (kind, id) => {
-      if (source.mode !== 'live' || kind !== 'actor') return;
-      const result = source.session.run('actor:copy', { fight: { id } });
+      if (source.mode !== 'live' || (kind !== 'actor' && kind !== 'character')) return;
+      const result = source.session.run(kind === 'character' ? 'character:copy' : 'actor:copy', { fight: { id } });
+      if (!result.ok) window.alert(result.message);
       if (result.ok && result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'actor', id: result.createdId, compact: false }];
       render();
     },
-    onDeleteActor: (id, name) => {
+    onDeleteActor: (id, name, kind = 'actor') => {
       if (source.mode !== 'live') return;
-      if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
-      const result = source.session.run('actor:delete', { fight: { id } });
+      const warning = kind === 'character' ? ' A player seated as this character will have no character until you seat them as another.' : '';
+      if (!window.confirm(`Delete ${name}? This cannot be undone.${warning}`)) return;
+      const result = source.session.run(kind === 'character' ? 'character:delete' : 'actor:delete', { fight: { id } });
       if (result.ok) ui.openSheets = ui.openSheets.filter((entry) => entry.id !== id);
+      else window.alert(result.message);
       render();
     },
-    onRenameActor: (id, was) => {
+    onRenameActor: (id, was, kind = 'actor') => {
       if (source.mode !== 'live') return;
-      const name = window.prompt('Rename to:', was ?? '');
+      const name = window.prompt('Rename to:', was === '(unnamed)' ? '' : was ?? '');
       if (name === null || !name.trim()) return;
-      source.session.run('edit:actor:name', { fight: { id, value: name.trim() } });
+      const result = source.session.run(kind === 'character' ? 'character:name' : 'edit:actor:name', { fight: { id, value: name.trim() } });
+      if (!result.ok) window.alert(result.message);
+      render();
     },
     onActorKind: (id, kind) => { if (source.mode === 'live') source.session.run('actor:kind', { fight: { id, value: kind } }); },
     onNumberTokens: (id, on) => { if (source.mode === 'live') source.session.run('actor:numbering', { fight: { id, value: on } }); },
@@ -502,11 +529,13 @@ function render() {
         ? 'Open a space scene first: Referee \u2192 Scenes \u2192 Stage.'
         : `Placing ${count > 1 ? `${count} of them` : 'an actor'} on a board comes with the combat tracker.`);
     },
-    onFileActor: (id, folder) => {
+    onFileActor: (id, folder, kind = 'actor') => {
       if (source.mode !== 'live') return;
-      const wanted = window.prompt('File this actor under (use / for sub-folders)', folder ?? '');
+      const wanted = window.prompt('File under (use / for sub-folders; leave empty for Unfiled)', folder ?? '');
       if (wanted === null) return;
-      source.session.run('edit:actor:folder', { fight: { id, value: wanted } });
+      const result = source.session.run(kind === 'character' ? 'character:folder' : 'edit:actor:folder', { fight: { id, value: wanted } });
+      if (!result.ok) window.alert(result.message);
+      render();
     },
     // v0.229.0: the Scenes tab's own fiat. Board authoring (size, planets)
     // stays in the referee client — this is create, file, activate, delete.
