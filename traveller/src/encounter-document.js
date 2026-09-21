@@ -725,7 +725,25 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
       row = Math.round((next.map.rows - 1) / 2);
     }
   }
-  if (next.combatants.some((entry) => entry.sourceActorId === actor.identity.id)) throw new Error(`${actor.identity.name} is already in this encounter`);
+  // v0.254.0: an actor is one person and appears once; a statblock (v0.249.0)
+  // is a pattern, and every placement is its own copy with its own wounds.
+  const statblock = actor.profile?.kind === 'statblock';
+  const copies = next.combatants.filter((entry) => entry.sourceActorId === actor.identity.id);
+  if (!statblock && copies.length) throw new Error(`${actor.identity.name} is already in this encounter`);
+  // Numbered "Thug 2", "Thug 3" when the statblock asks for it (on by
+  // default): the lowest number not already standing on the board, so
+  // removing Thug 2 and placing another gives a new Thug 2, not a Thug 4.
+  let copyName = actor.identity.name;
+  let copyKey = actor.identity.id;
+  let copyNumber = null;
+  if (statblock) {
+    const taken = new Set(copies.map((entry) => entry.copyNumber ?? 1));
+    let number = 1;
+    while (taken.has(number)) number += 1;
+    copyKey = `${actor.identity.id}|${number}`;
+    if (actor.profile?.numberTokens !== false && number > 1) copyName = `${actor.identity.name} ${number}`;
+    copyNumber = number;
+  }
   const sideCount = next.combatants.filter((entry) => entry.side === side).length;
   const sideLimit = side === 'party' ? 8 : 16;
   if (sideCount >= sideLimit) throw new RangeError(`${side} supports at most ${sideLimit} combatants`);
@@ -733,8 +751,8 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
   const weaponKey = actor.loadout?.weaponKey ?? 'hands';
   const combatant = {
     ...withCurrentState(createPersonalCombatant({
-      id: stableDocumentId('participant', `${next.identity.id}|${actor.identity.id}`),
-      name: actor.identity.name,
+      id: stableDocumentId('participant', `${next.identity.id}|${copyKey}`),
+      name: copyName,
       side,
       characteristics: actor.characteristics,
       skills: actor.skills ?? {},
@@ -748,14 +766,17 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
     tactics: side === 'party' ? 'manual' : 'auto',
     militaryExperience: false,
     sourceActorId: actor.identity.id,
+    ...(statblock ? { copyNumber } : {}),
     actorType: actor.profile.actorType ?? 'npc',
     bodyModel: actor.profile.bodyModel,
-    tokenLabel: String(actor.presentation?.tokenLabel || actor.identity.name).slice(0, 3).toUpperCase(),
+    tokenLabel: statblock && copyNumber > 1
+      ? `${String(actor.identity.name).charAt(0).toUpperCase()}${copyNumber}`
+      : String(actor.presentation?.tokenLabel || actor.identity.name).slice(0, 3).toUpperCase(),
     conditions: actorConditionKeys(actor),
     contactIds: []
   };
   next.combatants.push(combatant);
-  const entry = { round: next.round, kind: 'placement', side, combatantId: combatant.id, sourceActorId: actor.identity.id, text: `${actor.identity.name} placed for ${side} at ${column + 1},${row + 1}; surprise is not rerolled and Book 1 range remains ${next.range}.` };
+  const entry = { round: next.round, kind: 'placement', side, combatantId: combatant.id, sourceActorId: actor.identity.id, text: `${copyName} placed for ${side} in band ${column + 1}.` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, combatant, entry };
@@ -1492,7 +1513,7 @@ export function restoreCombatant(document, { combatantId } = {}) {
 // v0.94.0: a party character joins an encounter the same way a roster actor
 // does. Without this, one side of the tracker could only be populated at
 // creation, which is why the client had to gather everybody first.
-export function addEncounterCombatantFromCharacter(document, { character, loadout = {}, column, row } = {}) {
+export function addEncounterCombatantFromCharacter(document, { character, loadout = {}, column, row, gravityFactor = null } = {}) {
   const next = importEncounterDocument(document);
   if (!['setup', 'active'].includes(next.status)) throw new Error('encounter is already resolved');
   if (!character?.identity?.id || !nonblank(character.identity.name)) throw new TypeError('a character document is required');
@@ -1508,7 +1529,10 @@ export function addEncounterCombatantFromCharacter(document, { character, loadou
       id: character.identity.id, name: character.identity.name, side: 'party', playerCharacter: true,
       characteristics: character.characteristics, skills: character.skills,
       weaponKey: loadout.weaponKey ?? character.loadout?.weaponKey ?? 'hands',
-      armor: loadout.armor ?? character.loadout?.armor ?? 'none'
+      armor: loadout.armor ?? character.loadout?.armor ?? 'none',
+      // v0.254.0: a character placed by hand carries Book 1 p.33's load the
+      // same way one at the start of fight:start does (v0.251.0).
+      encumbrance: characterLoad(character, { gravityFactor }).characteristicDM ?? 0
     }), character.current, characterEncounterStatus(character)), placed),
     cover: 'none', foldingStock: false, tactics: 'manual', militaryExperience: military,
     sourceActorId: null, actorType: 'pc', bodyModel: 'biological',
@@ -1525,9 +1549,16 @@ export function addEncounterCombatantFromCharacter(document, { character, loadou
 
 // setup -> active. Both sides must be present, and surprise is rolled here
 // rather than at creation, because that is when the fight actually starts.
-export function beginEncounter(document, { surpriseConditions = {}, dice } = {}) {
+/**
+ * surprise: 'roll' (the default, Book 1 p.26's throw), or the referee's own
+ * call — 'party', 'opposition' or 'none' — for a fight the referee has set up
+ * by hand. Kurt, Sep 2026: in a manual set-up, like a PC throwing the first
+ * punch in a bar, whether to roll is the referee's decision.
+ */
+export function beginEncounter(document, { surpriseConditions = {}, dice, surprise = 'roll' } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'setup') throw new Error('encounter has already begun');
+  if (!['roll', 'party', 'opposition', 'none'].includes(surprise)) throw new RangeError('surprise must be roll, party, opposition or none');
   const party = next.combatants.filter((entry) => entry.side === 'party');
   const foes = next.combatants.filter((entry) => entry.side !== 'party');
   if (!party.length) throw new Error('add at least one party character to the tracker');
@@ -1535,20 +1566,41 @@ export function beginEncounter(document, { surpriseConditions = {}, dice } = {})
   if (party.every((entry) => entry.status !== 'active')) throw new Error('at least one conscious living party character is required');
   const partySurprise = surpriseConditionsForSide(party, surpriseConditions.party ?? {});
   const oppositionSurprise = surpriseConditionsForSide(foes, surpriseConditions.opposition ?? {});
-  next.surprise = {
-    ...resolvePersonalSurprise({
-      sides: [
-        { id: 'party', combatants: party.filter((entry) => entry.status === 'active'), dm: partySurprise.total },
-        { id: 'opposition', combatants: foes.filter((entry) => entry.status === 'active'), dm: oppositionSurprise.total }
-      ],
-      dice
-    }),
-    conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
-  };
+  const set = surprise === 'roll' ? null : surprise === 'none' ? null : surprise;
+  next.surprise = surprise === 'roll'
+    ? {
+      ...resolvePersonalSurprise({
+        sides: [
+          { id: 'party', combatants: party.filter((entry) => entry.status === 'active'), dm: partySurprise.total },
+          { id: 'opposition', combatants: foes.filter((entry) => entry.status === 'active'), dm: oppositionSurprise.total }
+        ],
+        dice
+      }),
+      conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
+    }
+    // The referee's call: no throw, so no results or margin, and it says so.
+    : {
+      // Two entries, as the validator requires; no throw was made, so no roll.
+      results: [{ sideId: 'party', roll: null, dm: 0, total: null }, { sideId: 'opposition', roll: null, dm: 0, total: null }],
+      margin: 0,
+      surprisedSideId: set === null ? null : (set === 'party' ? 'opposition' : 'party'),
+      surpriseSideId: set,
+      set: true,
+      conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
+    };
   next.status = 'active';
   next.round = 1;
+  // v0.254.0: an encounter created in setup already carries a round-0
+  // surprise line from creation, rolled before anyone was on the board. The
+  // real decision is this one, so the stale line goes — it was showing as
+  // "Last round: opposition achieved surprise" over a fight the referee had
+  // just given to the party.
+  next.history = next.history.filter((entry) => !(entry.round === 0 && entry.kind === 'surprise'));
+  next.history.push({ round: 0, kind: 'surprise', text: next.surprise.surpriseSideId
+    ? `${next.surprise.surpriseSideId} ${next.surprise.set ? 'has surprise (referee\u2019s call)' : 'achieved surprise'}.`
+    : `Neither side ${next.surprise.set ? 'has surprise (referee\u2019s call)' : 'achieved surprise'}.`, detail: next.surprise });
   const entry = { round: 1, kind: 'status', side: 'referee', combatantId: null,
-    text: `Combat begins: ${party.length} party against ${foes.length}; surprise ${next.surprise.surpriseSideId ?? 'neither side'}.` };
+    text: `Combat begins: ${party.length} party against ${foes.length}; surprise ${next.surprise.surpriseSideId ?? 'neither side'}${next.surprise.set ? ' (referee\u2019s call)' : ''}.` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, entry };

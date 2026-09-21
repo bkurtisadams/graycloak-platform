@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.252.1">
+  <link rel="stylesheet" href="./play.css?v=v0.254.0">
   <script>
     // Same key the other pages use, applied before first paint.
     try {
@@ -37,25 +37,30 @@
     <main class="scene" id="scene"></main>
 
     <div class="overlay" id="overlay" hidden></div>
-    <aside class="drawer" id="drawer" aria-label="Details" hidden>
-      <button class="drawer-close" id="drawer-close" type="button" aria-label="Close">Close</button>
+    <!-- v0.253.0: one sidebar, Foundry's shape. Chat is its first tab and the
+         directories the rest, so reference material and the conversation live
+         in one place; the separate drawer that slid over the page, and the
+         chat strip along the bottom, are both gone. -->
+    <aside class="drawer sidebar" id="drawer" aria-label="Sidebar">
+      <div class="side-head">
+        <nav class="side-tabs" id="side-tabs" aria-label="Sidebar tabs"></nav>
+        <button class="side-collapse" id="side-collapse" type="button" aria-label="Collapse the sidebar" title="Collapse the sidebar">&rsaquo;&rsaquo;</button>
+      </div>
+      <section class="side-chat" id="side-chat" aria-label="Chat">
+        <div class="talk-log" id="talk-log" aria-live="polite"></div>
+        <form class="talk-bar" id="talk-form">
+          <div class="dice" role="group" aria-label="Dice">
+            <button type="button" class="die" data-roll="2D" title="Throw two dice">2D</button>
+            <button type="button" class="die" data-roll="1D" title="Throw one die">1D</button>
+            <button type="button" class="die" data-roll="3D" title="Throw three dice">3D</button>
+          </div>
+          <select class="talk-speaker" id="talk-speaker" aria-label="Speaking as"></select>
+          <input class="talk-input" id="talk-input" type="text" aria-label="Say something or roll"
+                 placeholder="Say something, or /roll 2D+1" autocomplete="off">
+        </form>
+      </section>
       <div class="drawer-body" id="drawer-body"></div>
     </aside>
-
-    <footer class="talk">
-      <div class="talk-log" id="talk-log" aria-live="polite"></div>
-      <div class="talk-bar">
-        <div class="dice" role="group" aria-label="Dice">
-          <button type="button" class="die" title="Throw two dice. Shift-click for a private referee throw.">2D</button>
-          <button type="button" class="die" title="Throw one die">1D</button>
-          <button type="button" class="die" title="Other dice">…</button>
-        </div>
-        <input class="talk-input" id="talk-input" type="text" aria-label="Say something or roll"
-               placeholder="Say something, or /roll 2d6+1">
-        <p class="talk-last" id="talk-last"></p>
-        <button class="talk-toggle" id="talk-toggle" type="button" aria-expanded="false">Show chat</button>
-      </div>
-    </footer>
   </div>
 
   <dialog class="signin" id="signin" aria-labelledby="signin-title">
@@ -95,6 +100,6 @@
        reads a real campaign, along with play-sample.js. -->
   <div class="preview" id="preview" role="group" aria-label="Preview a situation (sample data)"></div>
 
-  <script type="module" src="./play.js?v=v0.252.1"></script>
+  <script type="module" src="./play.js?v=v0.254.0"></script>
 </body>
 </html>

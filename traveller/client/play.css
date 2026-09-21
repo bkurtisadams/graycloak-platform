@@ -948,3 +948,70 @@ a.button { text-decoration: none; color: inherit; }
 .fight-concluded h3 { margin: 0; font-size: 15px; }
 .fight-concluded p { margin: 0; font-size: 13px; color: var(--ink-2); }
 .fight-concluded .button { margin-left: auto; }
+
+/* v0.253.0: one sidebar. Chat is its first tab and the directories the rest;
+   the bottom chat strip and the drawer that slid over the page are gone. The
+   shell loses its talk row, and the sidebar column is always present unless
+   collapsed to a strip. */
+:root { --sidebar-width: 380px; }
+.shell, .shell[data-drawer='open'] {
+  grid-template-columns: var(--now-width) minmax(0, 1fr) var(--sidebar-width);
+  grid-template-rows: 56px minmax(0, 1fr);
+  grid-template-areas: 'mast mast mast' 'now scene drawer';
+}
+.shell[data-sidebar='collapsed'] { grid-template-columns: var(--now-width) minmax(0, 1fr) 34px; }
+.sidebar { display: flex; flex-direction: column; overflow: hidden; }
+.sidebar[hidden] { display: flex; }
+.side-head { display: flex; align-items: flex-end; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--ink); background: var(--panel); flex: 0 0 auto; }
+.side-tabs { display: flex; gap: 2px; flex-wrap: wrap; min-width: 0; }
+.side-tab { font: inherit; font-size: 11px; padding: 4px 6px; border: 1px solid var(--line); border-bottom: none; background: var(--ground); color: var(--ink-2); cursor: pointer; }
+.side-tab[aria-pressed='true'] { font-weight: 700; border-color: var(--ink); background: var(--raise); color: var(--ink); }
+.side-count { color: var(--signal); font-weight: 700; }
+.side-collapse { margin-left: auto; margin-bottom: 3px; font: inherit; padding: 2px 7px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); cursor: pointer; }
+.shell[data-sidebar='collapsed'] .side-tabs,
+.shell[data-sidebar='collapsed'] .side-chat,
+.shell[data-sidebar='collapsed'] .drawer-body { display: none; }
+.shell[data-sidebar='collapsed'] .side-head { border: none; padding: 8px 2px; }
+.shell[data-sidebar='collapsed'] .side-collapse { transform: scaleX(-1); }
+.sidebar > .drawer-body { flex: 1 1 0; overflow-y: auto; }
+.sidebar > .drawer-body[hidden] { display: none; }
+.side-back { justify-self: start; font: inherit; font-size: 12px; border: none; background: none; color: var(--signal); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+
+.side-chat { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; background: var(--raise); }
+.side-chat[hidden] { display: none; }
+.side-chat .talk-log { display: flex; flex-direction: column; gap: 7px; flex: 1 1 0; height: auto; min-height: 0; overflow-y: auto; padding: 10px; border-bottom: 1px solid var(--line); }
+.side-chat .talk-bar { height: auto; display: grid; grid-template-columns: auto minmax(0, 118px) minmax(0, 1fr); gap: 6px; padding: 8px 10px; background: var(--panel); }
+.side-chat .die { width: 30px; height: 28px; }
+.talk-speaker { font: inherit; font-size: 12px; min-width: 0; padding: 3px 4px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.side-chat .talk-input { height: 28px; font: inherit; font-size: 13px; }
+.talk-message, .talk-roll { display: flex; flex-direction: column; gap: 2px; }
+.talk-who { display: flex; align-items: baseline; gap: 8px; }
+.talk-who b { color: var(--ink); font-weight: 700; }
+.talk-who span { font-size: 11px; color: var(--ink-2); }
+.talk-message p { margin: 0; padding: 0; }
+.talk-roll { padding: 6px 8px; background: var(--panel); border: 1px solid var(--ink); }
+.talk-roll-body { font-family: var(--code); font-size: 14px; }
+.talk-notice { margin: 0; font-size: 12px; color: var(--ink-2); padding-left: 6px; border-left: 2px solid var(--line); }
+.talk-folded { align-self: flex-start; font: inherit; font-size: 11px; color: var(--ink-2); padding: 3px 7px; border: 1px dashed var(--line); background: none; cursor: pointer; }
+.talk-empty { margin: 0; font-size: 12px; color: var(--ink-2); }
+@media (max-width: 900px) {
+  :root { --sidebar-width: 320px; }
+}
+@media (max-width: 760px) {
+  .shell, .shell[data-drawer='open'] { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: 'mast' 'now' 'scene' 'drawer'; }
+  .side-chat { min-height: 60vh; }
+}
+
+/* v0.254.0: setting up a fight by hand, and a selected token you can see. */
+.fight-setup { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px; background: var(--raise); border: 1px solid var(--line); }
+.fight-setup-count { display: flex; flex-direction: column; }
+.fight-setup-count span { font-size: 12px; color: var(--ink-2); }
+.fight-setup-begin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+.fight-setup-label { font-size: 12px; color: var(--ink-2); }
+.fight-setup > .cite { width: 100%; margin: 0; }
+.marker-ring { fill: none; stroke: var(--signal); stroke-width: 3; stroke-dasharray: 5 3; }
+.marker.is-foe .marker-ring, .marker.is-opposition .marker-ring { stroke: var(--signal); }
+.shell[data-situation='fight'] .entry[draggable='true'] { cursor: grab; }
+.row-menu { overflow-y: auto; }
+.side-count-line { margin: 0; font-size: 12px; color: var(--ink-2); }
+.setup-steps { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 14px; }

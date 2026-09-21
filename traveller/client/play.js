@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, sheetRows } from './play-views.js?v=v0.252.1';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.252.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.252.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.252.1';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.252.1';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.252.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.252.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.252.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.252.1';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.254.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.254.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.254.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.254.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.254.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.254.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.254.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.254.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.254.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -70,6 +70,13 @@ const ui = {
   // right-click menu's target. Both are view state: nothing here is saved.
   openSheets: [],
   rowMenu: null,
+  // v0.253.0: the sidebar. Chat is the default tab; the others are the
+  // directories. A masthead chip (character, ship, combat) opens its panel in
+  // the sidebar over whichever tab was showing, and Close returns to it.
+  sidebarTab: 'Chat',
+  sidebarCollapsed: false,
+  showAllNotices: false,
+  speakerId: null,
   fighterMenu: null,
   stagingIntruder: 'opposition',
   stagingPressurised: false,
@@ -137,7 +144,24 @@ function viewState() {
 }
 
 function openDrawer(kind) {
-  ui.drawer = ui.drawer === kind ? null : kind;
+  if (kind === 'combat-board') {
+    if (source.mode === 'live') {
+      const result = source.session.run('fight:setup');
+      if (!result.ok) window.alert(result.message);
+    }
+    // The Actors tab is where the tokens come from, so it is put in reach.
+    ui.drawer = 'referee';
+    ui.sidebarTab = 'Actors';
+    ui.referee = { ...ui.referee, tab: 'Actors', folder: '' };
+    ui.sidebarCollapsed = false;
+    render();
+    return;
+  }
+  // v0.253.0: a chip's panel opens in the sidebar over the current tab, and a
+  // second click puts the tab back.
+  const back = ui.sidebarTab === 'Chat' ? null : 'referee';
+  ui.drawer = ui.drawer === kind ? back : kind;
+  ui.sidebarCollapsed = false;
   render();
 }
 
@@ -225,8 +249,7 @@ function render() {
   const state = viewState();
   document.title = `${state.place.name} | ${state.campaign.name} | Traveller`;
   shell.dataset.situation = state.situation.kind;
-  shell.dataset.drawer = ui.drawer ? 'open' : 'closed';
-  shell.dataset.talk = ui.talkOpen ? 'open' : 'closed';
+  shell.dataset.drawer = 'open';
 
   const handlers = {
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
@@ -247,6 +270,32 @@ function render() {
     onUndeclare: (id) => { if (source.mode === 'live') { source.session.run('fight:undeclare', { fight: { actorId: id } }); ui.selectedMarker = id; render(); } },
     onPickWound: (targets) => { ui.woundTargets = targets; render(); },
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
+    // v0.254.0 ---------------------------------------- board setup
+    onHoverMarker: (id) => { ui.hoveredMarker = id; },
+    onDropActor: (data, band) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:place', { fight: { value: { ...data, column: band } } });
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
+    onRepositionToken: (combatantId, band) => {
+      if (source.mode !== 'live') return;
+      source.session.run('fight:reposition', { fight: { value: { combatantId, column: band } } });
+      render();
+    },
+    onRemoveToken: (combatantId) => {
+      if (source.mode !== 'live') return;
+      source.session.run('fight:remove', { fight: { value: { combatantId } } });
+      render();
+    },
+    onBeginFight: (surprise) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:begin', { fight: { value: { surprise } } });
+      if (!result.ok) window.alert(result.message);
+      ui.sidebarTab = 'Chat';
+      ui.drawer = null;
+      render();
+    },
     onSheetFocus: (id) => { ui.sheetFocus = id; ui.selectedMarker = id; render(); },
     onReferee: (patch) => {
       ui.referee = { ...ui.referee, ...patch };
@@ -508,21 +557,42 @@ function render() {
   $('now').replaceChildren(...renderNow(state, handlers));
   $('scene').replaceChildren(...renderScene(state, handlers));
 
-  $('drawer').hidden = !ui.drawer;
-  // v0.219.0: the drawer used to get a hand-built pair of callbacks, so
-  // anything added to `handlers` later (the referee's editor) silently did
-  // nothing when clicked. It gets the whole set now.
-  if (ui.drawer) $('drawer-body').replaceChildren(...renderDrawer(ui.drawer, state, state.referee ?? SAMPLE_REFEREE, {
-    ...handlers,
-    onPickCharacter: (id) => {
-      ui.characterId = id;
+  // v0.253.0: the sidebar is always there (unless collapsed). A chip's panel
+  // takes it over; otherwise it shows the tab.
+  const shellNode = $('shell');
+  shellNode.dataset.sidebar = ui.sidebarCollapsed ? 'collapsed' : 'open';
+  $('side-tabs').replaceChildren(...renderSideTabs(ui.drawer && ui.drawer !== 'referee' ? null : ui.sidebarTab, {
+    players: (state.referee?.presence ?? []).length,
+    onTab: (tab) => {
+      ui.sidebarTab = tab;
+      ui.drawer = tab === 'Chat' ? null : 'referee';
+      if (tab !== 'Chat') ui.referee = { ...ui.referee, tab, folder: '' };
+      ui.sidebarCollapsed = false;
       render();
-      // Make it stick past a reload, not just this tab's session — see the
-      // comment on character:activate in play-session.js.
-      if (source.mode === 'live') source.session.run('character:activate', { characterId: id });
-    },
-    onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); }
+    }
   }));
+  const panel = ui.drawer && ui.drawer !== 'referee' ? ui.drawer : null;
+  const chatShowing = !panel && ui.sidebarTab === 'Chat';
+  $('side-chat').hidden = !chatShowing;
+  $('drawer-body').hidden = chatShowing;
+  if (!chatShowing) {
+    const kind = panel ?? 'referee';
+    const body = renderDrawer(kind, state, state.referee ?? SAMPLE_REFEREE, {
+      ...handlers,
+      onPickCharacter: (id) => {
+        ui.characterId = id;
+        render();
+        // Make it stick past a reload, not just this tab's session — see the
+        // comment on character:activate in play-session.js.
+        if (source.mode === 'live') source.session.run('character:activate', { characterId: id });
+      },
+      onInventory: (command, characterId, item) => { if (source.mode === 'live') source.session.run(command, { characterId, item }); }
+    });
+    $('drawer-body').replaceChildren(...[
+      panel ? h('button', { type: 'button', class: 'side-back', text: `\u2190 ${ui.sidebarTab}`, onclick: () => { ui.drawer = ui.sidebarTab === 'Chat' ? null : 'referee'; render(); } }) : null,
+      ...body
+    ].filter(Boolean));
+  }
 
   // v0.249.0: sheets and the row menu float over everything, so they are
   // drawn last into their own layer rather than inside any column.
@@ -535,17 +605,36 @@ function render() {
         ...ui.fighterMenu,
         round: state.round ?? 1,
         referee: state.seat !== 'player',
+        setup: Boolean(state.setupPhase),
         foes: ui.fighterMenu.foes ?? (state.fighters ?? []).filter((entry) => entry.side !== ui.fighterMenu.fighter.side)
       }, handlers) : null
     ].filter(Boolean));
     layer.hidden = !(state.sheets ?? []).length && !ui.rowMenu && !ui.fighterMenu;
   }
 
-  const last = state.chat[state.chat.length - 1];
-  $('talk-last').replaceChildren(...(last ? [h('b', { text: `${last.who} ` }), last.text] : []));
-  $('talk-log').replaceChildren(...renderTalkLog(state.chat));
-  $('talk-toggle').textContent = ui.talkOpen ? 'Hide chat' : 'Show chat';
-  $('talk-toggle').setAttribute('aria-expanded', String(ui.talkOpen));
+  // v0.253.0: the chat stream, and who is speaking. Speaking as follows the
+  // selected token in a fight (so the referee voices Thug 2 by clicking it),
+  // then whatever was picked, then the referee.
+  const log = $('talk-log');
+  const wasAtBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  // During a fight only COMBAT notices show by default: the ship's travel
+  // history was burying the round (Kurt's v0.253.0 screenshot).
+  log.replaceChildren(...renderTalkLog(state.chat ?? [], {
+    showAll: ui.showAllNotices,
+    onShowAll: () => { ui.showAllNotices = true; render(); },
+    categories: state.fighters?.length || state.setupPhase ? ['COMBAT'] : undefined
+  }));
+  if (wasAtBottom) log.scrollTop = log.scrollHeight;
+  const speakers = [
+    { id: '', name: state.seat === 'player' ? (state.character?.name ?? 'Me') : 'Referee' },
+    // A token speaks by its combatant id, so a statblock's copies speak as
+    // "Thug 2" rather than all as "Thug".
+    ...(state.fighters ?? []).map((entry) => ({ id: entry.id, name: entry.name })),
+    ...(state.seat === 'player' ? [] : (state.referee?.speakers ?? []))
+  ].filter((entry, index, list) => list.findIndex((other) => other.id === entry.id) === index);
+  const selectedSpeaker = ui.selectedMarker ? (state.fighters ?? []).find((entry) => entry.id === ui.selectedMarker) : null;
+  const speaking = ui.speakerId ?? (selectedSpeaker ? selectedSpeaker.id : '');
+  $('talk-speaker').replaceChildren(...speakers.map((entry) => h('option', { value: entry.id, selected: entry.id === speaking, text: entry.name })));
 
   $('preview').hidden = source.mode === 'live';
   if (source.mode !== 'live') $('preview').replaceChildren(h('span', { text: 'Sample data' }), ...SAMPLE_ORDER.map(([key, label]) =>
@@ -563,12 +652,55 @@ $('theme').addEventListener('click', () => {
   try { localStorage.setItem(THEME_KEY, next); } catch { /* private mode */ }
   paintThemeButton();
 });
-$('drawer-close').addEventListener('click', () => { ui.drawer = null; render(); });
-$('talk-toggle').addEventListener('click', () => { ui.talkOpen = !ui.talkOpen; render(); });
-$('talk-input').addEventListener('focus', () => { if (!ui.talkOpen) { ui.talkOpen = true; render(); $('talk-input').focus(); } });
+// v0.253.0: the talk box finally does something. It never had a handler:
+// typing into it on play.html went nowhere.
+function say(text) {
+  if (source.mode !== 'live' || !String(text).trim()) return;
+  const speakerId = $('talk-speaker').value || null;
+  const result = source.session.run('chat:say', { fight: { value: text, speakerId } });
+  if (!result.ok) window.alert(result.message);
+  render();
+  const log = $('talk-log');
+  log.scrollTop = log.scrollHeight;
+}
+$('talk-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const input = $('talk-input');
+  say(input.value);
+  input.value = '';
+});
+for (const button of document.querySelectorAll('.side-chat .die')) {
+  button.addEventListener('click', () => say(`/roll ${button.dataset.roll}`));
+}
+$('talk-speaker').addEventListener('change', (event) => { ui.speakerId = event.target.value; });
+$('side-collapse').addEventListener('click', () => { ui.sidebarCollapsed = !ui.sidebarCollapsed; render(); });
+// v0.254.0: T targets. Hover an enemy token and press T, and the selected
+// combatant's target becomes it — Foundry's gesture, and the old client's.
+// The dropdown in the table stays as a fallback. A player's seat only ever
+// aims its own character.
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 't' && event.key !== 'T') return;
+  if (event.target.closest?.('input, textarea, select')) return;
+  if (source.mode !== 'live' || !ui.hoveredMarker) return;
+  const state = viewState();
+  const fighters = state.fighters ?? [];
+  const attacker = fighters.find((entry) => entry.id === (ui.sheetFocus ?? ui.selectedMarker));
+  const target = fighters.find((entry) => entry.id === ui.hoveredMarker);
+  if (!attacker || !target || attacker.side === target.side) return;
+  if (state.seat === 'player' && attacker.id !== ui.characterId) return;
+  const row = (state.sheetRows ?? []).find((entry) => entry.fighter.id === attacker.id);
+  event.preventDefault();
+  handlers_onSheetChange(attacker.id, { move: row?.move ?? 'Stand', targetId: target.id });
+});
+function handlers_onSheetChange(id, order) {
+  ui.sheet = { ...ui.sheet, [id]: order };
+  ui.sheetFocus = id;
+  render();
+}
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  if (ui.drawer) { ui.drawer = null; render(); } else if (ui.talkOpen) { ui.talkOpen = false; render(); }
+  if (ui.fighterMenu || ui.rowMenu) { ui.fighterMenu = null; ui.rowMenu = null; render(); return; }
+  if (ui.drawer && ui.drawer !== 'referee') { ui.drawer = ui.sidebarTab === 'Chat' ? null : 'referee'; render(); }
 });
 
 // index.html autosaves into the same registry from another tab; follow it.

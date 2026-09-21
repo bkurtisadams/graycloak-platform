@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { createPlaySession, REFEREE_TABS } from '../src/play-session.js';
 import { createNpcActorDocument, importNpcActorDocument, NPC_ACTOR_KINDS, CURRENT_NPC_ACTOR_SCHEMA_VERSION } from '../src/npc-actor-document.js';
+import { createSequenceDice } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { renderDrawer, renderRowMenu } from '../client/play-views.js';
 import { renderSheets } from '../client/sheets.js';
@@ -572,4 +573,204 @@ test('v0.252.1 ending a fight deliberately goes straight back, with no aftermath
   const view = session.view();
   assert.equal(view.concluded ?? null, null);
   assert.equal(view.fighters?.length ?? 0, 0);
+});
+
+// ---------------------------------------------------------------------------
+// v0.253.0: the sidebar, with Chat as its first tab. The talk box on
+// play.html had never done anything — no handler, and an always-empty list.
+// ---------------------------------------------------------------------------
+
+test('v0.253.0 chat:say writes a message and /roll a throw, both as log entries in the chat stream', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+
+  assert.equal(session.run('chat:say', { fight: { value: 'Anyone home?', speakerId: me } }).ok, true);
+  assert.equal(session.run('chat:say', { fight: { value: '/roll 2D+1' } }).ok, true);
+  assert.equal(session.run('chat:say', { fight: { value: '/r 3d6-2' } }).ok, true);
+
+  const chat = session.view().chat;
+  const message = chat.find((entry) => entry.kind === 'message');
+  assert.equal(message.text, 'Anyone home?');
+  assert.equal(message.who, registry.resolveCampaign(campaignId).characters[0].identity.name, 'spoken as the character');
+
+  const rolls = chat.filter((entry) => entry.kind === 'roll');
+  assert.equal(rolls.length, 2);
+  assert.match(rolls[0].text, /^2D\+1: \[\d \d\] \+1 = \d+$/);
+  assert.equal(rolls[0].who, 'Referee', 'no speaker means the referee');
+  assert.match(rolls[1].text, /^3D-2: \[\d \d \d\] \u22122 = -?\d+$/);
+
+  // A chat line does not also become the now column's notice.
+  assert.equal(session.view().notice?.message ?? '', '');
+});
+
+test('v0.253.0 a throw it cannot make is refused by name, and an empty line is refused', async () => {
+  const { session } = await freshSession();
+  const refused = session.run('chat:say', { fight: { value: '/roll banana' } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /banana/);
+  assert.equal(session.run('chat:say', { fight: { value: '   ' } }).ok, false);
+});
+
+test('v0.253.0 the dice parser reads Book 1\u2019s own notation as well as the d6 form', async () => {
+  const { rollDiceExpression } = await import('../src/play-session.js');
+  const dice = createSequenceDice([3, 4, 5, 6, 1]);
+  assert.deepEqual(rollDiceExpression('2D', dice), { expression: '2D', detail: '[3 4]', total: 7 });
+  assert.equal(rollDiceExpression('1D+2', createSequenceDice([5])).total, 7);
+  assert.equal(rollDiceExpression('2d6-1', createSequenceDice([6, 6])).total, 11);
+  assert.throws(() => rollDiceExpression('2d7', dice), /not a throw/);
+  assert.throws(() => rollDiceExpression('', dice), /roll what/);
+});
+
+test('v0.253.0 the activity log\u2019s own lines are notices, and a player sees only public entries', async () => {
+  const { session } = await fightFixture();
+  session.run('fight:end');
+  session.run('chat:say', { fight: { value: 'Well, that went well.' } });
+  const chat = session.view().chat;
+  assert.ok(chat.some((entry) => entry.kind === 'notice' && entry.category === 'COMBAT'));
+  assert.ok(chat.every((entry) => typeof entry.at === 'string'), 'every entry is dated');
+  const player = session.view({ seat: 'player' }).chat;
+  assert.ok(player.every((entry) => entry.visibility === 'public'));
+});
+
+test('v0.253.0 the chat folds all but COMBAT and ARRIVAL notices into one line that expands', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderTalkLog, CHAT_NOTICE_DEFAULTS } = await import('../client/play-views.js');
+  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL']);
+
+  const chat = [
+    { kind: 'notice', category: 'PORT', text: 'Berthed at Cinder, Cr 100.', dateLabel: '106-4800' },
+    { kind: 'notice', category: 'TRADE', text: 'Bought 1 t of radioactives.', dateLabel: '106-4800' },
+    { kind: 'notice', category: 'COMBAT', text: 'Fight begins.', dateLabel: '106-4800' },
+    { kind: 'message', who: 'Kim', text: 'Get down!', dateLabel: '106-4800' },
+    { kind: 'roll', who: 'Referee', text: '2D: [3 4] = 7', dateLabel: '106-4800' }
+  ];
+  let expanded = false;
+  document.querySelector('main').replaceChildren(...renderTalkLog(chat, { showAll: false, onShowAll: () => { expanded = true; } }));
+  const folded = document.querySelector('.talk-folded');
+  assert.ok(folded, 'the port and trade lines fold into one');
+  assert.match(folded.textContent, /^2 port, trade notices hidden/);
+  assert.equal(document.querySelectorAll('.talk-notice').length, 1, 'COMBAT shows');
+  assert.ok(document.querySelector('.talk-message'));
+  assert.ok(document.querySelector('.talk-roll'));
+  folded.click();
+  assert.equal(expanded, true);
+
+  document.querySelector('main').replaceChildren(...renderTalkLog(chat, { showAll: true }));
+  assert.equal(document.querySelectorAll('.talk-notice').length, 3, 'and all of them once expanded');
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+});
+
+test('v0.253.0 a token speaks as itself, by its combatant name', async () => {
+  const { session } = await fightFixture();
+  const thug = session.view().fighters.find((entry) => entry.side !== 'party');
+  session.run('chat:say', { fight: { value: 'Hand over the case.', speakerId: thug.id } });
+  const line = session.view().chat.find((entry) => entry.text === 'Hand over the case.');
+  assert.equal(line.who, thug.name, 'not "Someone", and not the statblock it came from');
+});
+
+// ---------------------------------------------------------------------------
+// v0.254.0: Kurt's dive-bar workflow. Combat opens an empty board; the
+// referee drags people on, moves and removes them, decides surprise — roll it
+// or call it — and begins.
+// ---------------------------------------------------------------------------
+
+async function setupFixture() {
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  const boss = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  assert.equal(session.run('fight:setup').ok, true);
+  return { session, me, thug, boss };
+}
+
+test('v0.254.0 Combat opens an empty board in setup, with nothing to resolve yet', async () => {
+  const { session } = await setupFixture();
+  const view = session.view();
+  assert.equal(view.setupPhase, true);
+  assert.equal(view.fighters.length, 0, 'empty until the referee drags someone on');
+  assert.deepEqual(view.refereeActions.map((action) => action.command), ['fight:discard']);
+  assert.equal(session.run('fight:setup').ok, true, 'opening it again is harmless');
+  assert.equal(session.view().fighters.length, 0);
+});
+
+test('v0.254.0 characters and actors are placed on a band; a statblock can be placed again, numbered', async () => {
+  const { session, me, thug, boss } = await setupFixture();
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } }).ok, true);
+  for (let copy = 0; copy < 3; copy += 1) {
+    assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 5 } } }).ok, true);
+  }
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id: boss, column: 6 } } }).ok, true);
+
+  const names = session.view().fighters.map((entry) => entry.name);
+  assert.deepEqual(names.filter((name) => name.startsWith('Thug')), ['Thug', 'Thug 2', 'Thug 3'], 'Kurt, Sep 2026: numbered by default');
+  assert.equal(session.view().fighters.find((entry) => entry.name === 'Hawkeye' || entry.side === 'party').band, 0);
+
+  // An actor is one person; a character is one too.
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id: boss, column: 6 } } }).ok, false);
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 1 } } }).ok, false);
+
+  // Removing Thug 2 and placing another gives a new Thug 2, not a Thug 4.
+  const two = session.view().fighters.find((entry) => entry.name === 'Thug 2');
+  assert.equal(session.run('fight:remove', { fight: { value: { combatantId: two.id } } }).ok, true);
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 4 } } });
+  const again = session.view().fighters.find((entry) => entry.name === 'Thug 2');
+  assert.ok(again);
+  assert.equal(again.band, 4);
+
+  // Dragging a token moves it.
+  assert.equal(session.run('fight:reposition', { fight: { value: { combatantId: again.id, column: 3 } } }).ok, true);
+  assert.equal(session.view().fighters.find((entry) => entry.id === again.id).band, 3);
+});
+
+test('v0.254.0 the referee calls surprise or rolls it, and the call replaces the one made at creation', async () => {
+  const { session, me, thug } = await setupFixture();
+  assert.equal(session.run('fight:begin', { fight: { value: { surprise: 'party' } } }).ok, false, 'nobody on the board yet');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 1 } } });
+
+  const begun = session.run('fight:begin', { fight: { value: { surprise: 'party' } } });
+  assert.equal(begun.ok, true, begun.message);
+  assert.match(begun.message, /surprise party \(referee\u2019s call\)/);
+  const view = session.view();
+  assert.equal(view.setupPhase, false);
+  assert.match(view.encounterSteps[0].detail, /^The party/);
+  // The line rolled at creation — before anyone was on the board — is gone.
+  assert.ok(view.lastRound.every((line) => !/opposition achieved surprise/.test(line)));
+});
+
+test('v0.254.0 each way of beginning: roll, party, opposition, nobody', async () => {
+  for (const surprise of ['roll', 'party', 'opposition', 'none']) {
+    const { session, me, thug } = await setupFixture();
+    session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+    session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 5 } } });
+    const begun = session.run('fight:begin', { fight: { value: { surprise } } });
+    assert.equal(begun.ok, true, `${surprise}: ${begun.message}`);
+    const detail = session.view().encounterSteps[0].detail;
+    if (surprise === 'party') assert.match(detail, /^The party/);
+    if (surprise === 'opposition') assert.match(detail, /^The opposition/);
+    if (surprise === 'none') assert.match(detail, /^Neither/);
+  }
+});
+
+test('v0.254.0 an unbegun board can be cleared without leaving an encounter behind', async () => {
+  const { session, me } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  assert.equal(session.run('fight:discard').ok, true);
+  const view = session.view();
+  assert.equal(view.setupPhase ?? false, false);
+  assert.equal(view.fighters?.length ?? 0, 0);
+});
+
+test('v0.254.0 Actors rows carry what dragging them onto the board places', async () => {
+  const { session } = await freshSession();
+  session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } });
+  const tree = session.view({ referee: { tab: 'Actors' } }).referee.tree;
+  const rows = tree.flatMap((node) => session.view({ referee: { tab: 'Actors', folder: node.path } }).referee.shown);
+  assert.ok(rows.some((row) => row.drag?.kind === 'character'));
+  assert.ok(rows.some((row) => row.drag?.kind === 'actor'));
 });

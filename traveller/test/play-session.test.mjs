@@ -902,11 +902,12 @@ test('the directory shows one folder at a time, and a search looks everywhere', 
   const { registry, campaignId } = await campaignInAFight();
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.deepEqual(session.view().referee.tabs, [...REFEREE_TABS]);
-  // Journal is filed by the campaign date each entry happened on. A campaign
-  // with no log yet simply has none.
+  // v0.253.0: the activity log moved into Chat, and the Journal waits for
+  // real journal documents rather than listing the log a second time.
   session.run('fight:end');
-  assert.ok(session.view({ referee: { tab: 'Journal' } }).referee.total >= 1);
-  assert.ok(session.view({ referee: { tab: 'Journal' } }).referee.tree.some((entry) => /^\d{3}-\d+$/.test(entry.path)));
+  assert.equal(session.view({ referee: { tab: 'Journal' } }).referee.total, 0);
+  const chat = session.view().chat;
+  assert.ok(chat.some((entry) => entry.kind === 'notice'), 'the log\u2019s lines are notices in Chat now');
   // Scenes used to say it was still referee-client-only; it has its own
   // directory now, so nothing is reported as unbuilt.
   assert.equal(session.view({ referee: { tab: 'Scenes' } }).referee.unbuilt, null);

@@ -36,9 +36,12 @@ test('the play page loads only its own stylesheet and script', async () => {
 test('the play page has the four regions and nothing else at the top level', async () => {
   const html = await read('play.html');
   const shell = html.slice(html.indexOf('id="shell"'));
-  for (const region of ['class="mast"', 'class="now"', 'class="scene"', 'class="drawer"', 'class="talk"']) {
+  // v0.253.0: the talk strip along the bottom is gone; chat is the first tab
+  // of the sidebar, which took the drawer's place.
+  for (const region of ['class="mast"', 'class="now"', 'class="scene"', 'class="drawer sidebar"', 'class="side-chat"', 'id="side-tabs"']) {
     assert.ok(shell.includes(region), `missing ${region}`);
   }
+  assert.equal(shell.includes('<footer class="talk"'), false, 'no separate chat strip');
 });
 
 test('views hold no state: play-views.js declares no module-level let', async () => {

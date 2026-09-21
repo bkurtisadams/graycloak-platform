@@ -70,11 +70,12 @@ import {
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap,
+  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter,
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
 } from './encounter-document.js';
-import { addEncounterToCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
+import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 import { lawCheck, starportLine, atmosphereGear, worldDetail } from './world-notes.js';
 import { createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS } from './npc-actor-document.js';
@@ -291,6 +292,13 @@ function inFolder(entries, folder, query) {
 }
 
 function journalEntries(resolved) {
+  // v0.253.0: the activity log moved into Chat, where Kurt wanted it. The
+  // Journal is for real documents — text and images, adventures, handouts —
+  // which do not exist yet, so it is empty rather than a second copy of the
+  // log. The old listing is kept below for when journal documents land and
+  // the log's own history wants a read-only home.
+  return [];
+  // eslint-disable-next-line no-unreachable
   const log = (resolved.activityLogs ?? [])[0];
   // Newest first, and filed by the campaign date they happened on.
   return [...(log?.entries ?? [])].reverse().map((entry, index) => ({
@@ -311,6 +319,7 @@ function actorEntries(resolved) {
     note: [character.career?.service, character.upp].filter(Boolean).join(' \u00b7 '),
     folder: 'Player characters',
     sheet: { kind: 'actor', id: character.identity.id },
+    drag: { kind: 'character', id: character.identity.id },
     badge: { kind: 'actor', side: 'party' }
   }));
   const actors = (resolved.npcActors ?? []).filter((actor) => !actor.state?.archived).map((actor) => ({
@@ -324,6 +333,7 @@ function actorEntries(resolved) {
     folder: actor.profile?.folder ?? '',
     editable: true,
     sheet: { kind: 'actor', id: actor.identity.id },
+    drag: { kind: 'actor', id: actor.identity.id },
     actorKind: actor.profile?.kind ?? 'actor',
     badge: { kind: actor.profile?.kind ?? 'actor', side: actor.profile?.kind === 'statblock' ? 'opposition' : 'neutral' }
   }));
@@ -763,6 +773,67 @@ export function sheetViews(resolved, open = [], { subsector = null } = {}) {
     .filter(Boolean);
 }
 
+// v0.253.0: "2d6+1", "3D", "1d6-2", "2d6+1d6" — the throws Traveller uses.
+// Book 1 writes dice as D (2D, 3D); lower-case d is accepted too. Refuses
+// anything else by name rather than rolling a guess.
+export function rollDiceExpression(expression, dice) {
+  const source = String(expression ?? '').replace(/\s+/g, '');
+  if (!source) throw new Error('roll what? Try /roll 2D or /roll 2d6+1');
+  const terms = source.match(/[+-]?[^+-]+/g) ?? [];
+  let total = 0;
+  const detail = [];
+  for (const raw of terms) {
+    const sign = raw.startsWith('-') ? -1 : 1;
+    const term = raw.replace(/^[+-]/, '');
+    const die = /^(\d*)[dD](\d*)$/.exec(term);
+    if (die) {
+      const count = Number(die[1] || 1);
+      const sides = Number(die[2] || 6);
+      if (count < 1 || count > 30 || ![2, 3, 4, 6, 8, 10, 12, 20, 100].includes(sides)) throw new Error(`"${raw}" is not a throw this can make`);
+      const rolled = Array.from({ length: count }, () => (sides === 6 ? dice.rollD6() : Math.floor(Math.random() * sides) + 1));
+      total += sign * rolled.reduce((sum, value) => sum + value, 0);
+      detail.push(`${sign < 0 ? '\u2212' : detail.length ? '+' : ''}[${rolled.join(' ')}]`);
+    } else if (/^\d+$/.test(term)) {
+      total += sign * Number(term);
+      detail.push(`${sign < 0 ? '\u2212' : '+'}${term}`);
+    } else {
+      throw new Error(`"${raw}" is not a throw this can make`);
+    }
+  }
+  return { expression: source.toUpperCase().replace(/D6/g, 'D'), detail: detail.join(' '), total };
+}
+
+// v0.253.0: the chat panel's stream — messages, rolls and notices, oldest
+// first, the way a chat reads. A player sees only public entries.
+function chatStream(resolved, seat) {
+  const log = (resolved.activityLogs ?? [])[0];
+  // A token speaks as itself: "Thug 2", not the statblock "Thug" it was
+  // placed from. So the fight's own combatants are named here too, by their
+  // combatant ids, ahead of the documents behind them.
+  const names = new Map([
+    ...(resolved.characters ?? []).map((entry) => [entry.identity.id, entry.identity.name]),
+    ...(resolved.npcActors ?? []).map((entry) => [entry.identity.id, entry.identity.name]),
+    ...(resolved.encounters ?? []).flatMap((encounter) => (encounter.combatants ?? []).map((entry) => [entry.id, entry.name]))
+  ]);
+  return (log?.entries ?? [])
+    .filter((entry) => seat !== 'player' || entry.visibility === 'public')
+    .slice(-300)
+    .map((entry) => {
+      const kind = entry.category === 'CHAT' ? 'message' : entry.category === 'ROLL' ? 'roll' : 'notice';
+      return {
+        id: entry.id,
+        kind,
+        category: entry.category,
+        who: entry.sourceActorId ? names.get(entry.sourceActorId) ?? 'Someone' : 'Referee',
+        speakerId: entry.sourceActorId ?? null,
+        text: entry.message,
+        dateLabel: entry.dateLabel,
+        at: entry.createdAt,
+        visibility: entry.visibility
+      };
+    });
+}
+
 // v0.252.1: how a fight that ended by itself came out, in a sentence.
 function fightConclusion(encounter) {
   const reason = encounter.outcome?.reason ?? '';
@@ -918,7 +989,7 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     steps: [],
     done: [],
     scene: { kind: 'subsector', currentId: campaign.location?.systemId ?? null, selectedId: null, jump: ship?.jump ?? 0 },
-    chat: [],
+    chat: chatStream(resolved, seat),
 
     // v0.218.1: a fight has to be startable from this page. These are the
     // roster actors that can be put on the board against the party.
@@ -992,7 +1063,8 @@ export function engineToSheetMove(action) {
 
 export function fightView(encounter, { characters = [], concluded = false } = {}) {
   // v0.252.1: a concluded encounter can be drawn too, for the aftermath.
-  if (!encounter || (encounter.status !== 'active' && !concluded)) return null;
+  // v0.254.0: and one being set up, which may have nobody on it yet.
+  if (!encounter || (!['active', 'setup'].includes(encounter.status) && !concluded)) return null;
   const byId = new Map(characters.map((entry) => [entry.identity.id, entry]));
   const declared = new Map((encounter.roundState?.declaredActions ?? []).map((entry) => [entry.actorId, entry]));
   const awaiting = new Set(undeclaredCombatantIds(encounter));
@@ -1455,6 +1527,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // moment pass.
   let pendingBrokerTip = null;
   const liveEncounter = () => (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
+  // v0.254.0: a fight being set up by hand — the board is open, tokens are
+  // being dragged on, nobody has thrown for surprise yet.
+  const setupEncounter = () => (resolved.encounters ?? []).find((entry) => entry.status === 'setup') ?? null;
 
   const reload = () => { resolved = registry.resolveCampaign(campaignId); };
   // `label` is the few words the masthead has room for; `detail` is the sentence.
@@ -1472,7 +1547,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     reload();
   }
 
-  function log(category, message) {
+  function log(category, message, extra = {}) {
     let { campaign } = resolved;
     let document = resolved.activityLogs[0] ?? null;
     if (!document) {
@@ -1480,7 +1555,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       campaign = addActivityLogToCampaign(campaign, document);
       registry.put(campaign);
     }
-    registry.put(appendActivityLogEntry(document, { category, message, dateLabel: formatCampaignDate(campaign.time) }));
+    registry.put(appendActivityLogEntry(document, { category, message, dateLabel: formatCampaignDate(campaign.time), ...extra }));
     reload();
   }
 
@@ -2084,6 +2159,87 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
+      // v0.254.0: Kurt's workflow. Combat opens an empty band board; the
+      // referee drags characters and actors onto it, moves or removes them,
+      // decides surprise (roll it, or call it), and begins. The engine has
+      // had every step of this since v0.94.0's setup phase; play.html never
+      // called any of it.
+      if (command === 'fight:setup') {
+        if (liveEncounter()) throw new Error('a fight is already running');
+        const existing = setupEncounter();
+        if (existing) { lastMessage = { ok: true, message: 'The board is already open.' }; return lastMessage; }
+        const encounter = createEncounterDocument({
+          campaign: resolved.campaign, characters: [], opponents: [],
+          spatialMode: 'range-line', range: 'medium', setup: true,
+          date: resolved.campaign.time, dice: createDice()
+        });
+        registry.put(encounter);
+        registry.put(addEncounterToCampaign(resolved.campaign, encounter));
+        reload();
+        persist([]);
+        lastMessage = { ok: true, message: 'Board open: drag characters and actors onto a band.' };
+        onChange();
+        return lastMessage;
+      }
+      if (['fight:place', 'fight:reposition', 'fight:remove', 'fight:begin', 'fight:discard'].includes(command)) {
+        const encounter = setupEncounter();
+        if (!encounter) throw new Error('no fight is being set up');
+        const value = fight?.value ?? {};
+        let next;
+        let message;
+        if (command === 'fight:place') {
+          const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round(Number(value.column ?? 0))));
+          if (encounter.combatants.some((entry) => entry.id === value.id || entry.sourceActorId === value.id) && value.kind === 'character') {
+            throw new Error('that character is already on the board');
+          }
+          if (value.kind === 'character') {
+            const character = (resolved.characters ?? []).find((entry) => entry.identity.id === value.id);
+            if (!character) throw new Error('unknown character');
+            if (!String(character.identity.name ?? '').trim()) throw new Error('a combatant needs a name');
+            next = addEncounterCombatantFromCharacter(encounter, { character, column, row: 0, gravityFactor: currentGravityFactor(resolved, subsector) });
+          } else {
+            const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.id);
+            if (!actor) throw new Error('unknown actor');
+            // An actor is one person: placing the same one twice is refused.
+            // A statblock is a pattern, and each placement is its own copy.
+            if (actor.profile?.kind !== 'statblock' && encounter.combatants.some((entry) => entry.sourceActorId === actor.identity.id)) {
+              throw new Error(`${actor.identity.name} is already on the board`);
+            }
+            next = addEncounterCombatantFromActor(encounter, { actor, side: value.side ?? 'opposition', column, row: 0 });
+          }
+          message = next.entry?.text ?? 'Placed.';
+          next = next.encounter;
+        } else if (command === 'fight:reposition') {
+          const column = Math.max(0, Math.min(encounter.map.columns - 1, Math.round(Number(value.column ?? 0))));
+          next = repositionEncounterCombatant(encounter, { combatantId: value.combatantId, column, row: 0 });
+          next = next.encounter ?? next;
+          message = 'Moved.';
+        } else if (command === 'fight:remove') {
+          next = removeEncounterCombatant(encounter, { combatantId: value.combatantId });
+          next = next.encounter ?? next;
+          message = 'Removed from the board.';
+        } else if (command === 'fight:discard') {
+          // Nothing happened on a board nobody began: it is removed outright
+          // rather than filed as an encounter that ended.
+          registry.put(removeEncounterFromCampaign(resolved.campaign, encounter.identity.id));
+          registry.remove(encounter.identity.id);
+          reload();
+          lastMessage = { ok: true, message: 'Board cleared.' };
+          onChange();
+          return lastMessage;
+        } else {
+          const surprise = ['roll', 'party', 'opposition', 'none'].includes(value.surprise) ? value.surprise : 'roll';
+          const begun = beginEncounter(encounter, { surprise, dice: createDice() });
+          next = begun.encounter;
+          message = begun.entry.text;
+          log('COMBAT', message);
+        }
+        persist([next]);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'fight:start') {
         if (liveEncounter()) throw new Error('a fight is already running');
         const wantedParty = Array.isArray(fight?.characterIds) && fight.characterIds.length
@@ -2126,6 +2282,30 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         onChange();
         saveToCloud();
         return lastMessage;
+      }
+      // v0.253.0: chat. The talk box on play.html had never done anything —
+      // no handler was ever attached, and the view's chat list was always
+      // empty. Messages and rolls are activity-log entries (CHAT and ROLL),
+      // which gives them the log's cloud sync, its campaign dates and its
+      // per-entry visibility for free, and puts them in the same stream as
+      // the notices the log already writes.
+      if (command === 'chat:say') {
+        const text = String(fight?.value ?? '').trim();
+        if (!text) throw new Error('say something');
+        const speakerId = fight?.speakerId ?? null;
+        const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
+        if (roll) {
+          const result = rollDiceExpression(roll[1], createDice());
+          log('ROLL', `${result.expression}: ${result.detail} = ${result.total}`, { sourceActorId: speakerId });
+        } else {
+          log('CHAT', text, { sourceActorId: speakerId });
+        }
+        // Not lastMessage: that is the notice at the top of the now column,
+        // and a chat line is already in the chat. Saying it twice read as a
+        // status report ("Rolled 18.") about something the page did.
+        onChange();
+        saveToCloud();
+        return { ok: true, message: '' };
       }
       if (command === 'fight:dismiss') {
         // v0.252.1: the referee has seen how it ended; back to the campaign.
@@ -3178,7 +3358,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // until the referee closes it — the aftermath is still what is
       // happening. Only a fight that ended by itself does this; ending one
       // deliberately (End fight, avoiding it) goes straight back.
-      const active = (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
+      const active = (resolved.encounters ?? []).find((entry) => entry.status === 'active')
+        ?? (resolved.encounters ?? []).find((entry) => entry.status === 'setup')
+        ?? null;
       const ended = !active && concludedEncounterId
         ? (resolved.encounters ?? []).find((entry) => entry.identity.id === concludedEncounterId) ?? null
         : null;
@@ -3242,8 +3424,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           next,
           refereeActions: ended
             ? [{ command: 'fight:dismiss', label: 'Leave the fight' }]
-            : writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
+            : live.status === 'setup' ? (writable ? [{ command: 'fight:discard', label: 'Clear board' }] : [])
+              : writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
           concluded: ended ? fightConclusion(ended) : null,
+          // v0.254.0: the board is open and being filled; nobody has thrown
+          // for surprise and no round has begun.
+          setupPhase: live.status === 'setup',
           // v0.252.0: Book 1 p.27's procedure, as a strip across the top of
           // the fight. Steps 1 to 3 run once per encounter and were reported
           // only as a sentence of prose; step 3 — escape and avoidance — had

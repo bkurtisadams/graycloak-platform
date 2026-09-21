@@ -7,17 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.252.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.252.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.252.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.254.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.254.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.254.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.252.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.252.1';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.252.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.254.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.254.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.254.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +32,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.252.1';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.252.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.254.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -90,13 +90,14 @@ export function renderMastChips(state, { openDrawer, drawer }) {
     chips.push(h('button', {
       class: `chip${fighting ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'combat',
       title: fighting ? 'A fight is running; it has the screen' : 'Put the party on the board against someone',
-      onclick: () => openDrawer('combat')
+      // v0.254.0: Combat opens the band board, empty and in setup, rather
+      // than a form. A fight already running just has the screen.
+      onclick: () => (fighting ? null : openDrawer('combat-board'))
     },
     h('span', { class: 'chip-name', text: 'Combat' }),
     h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '').replace('Ship fight, ', 'Ship, ') : 'No fight' })));
-    chips.push(h('button', { class: 'chip chip-plain', type: 'button', 'aria-pressed': drawer === 'referee', onclick: () => openDrawer('referee') },
-      h('span', { class: 'chip-name', text: 'Referee' }),
-      h('span', { class: 'chip-line', text: 'Actors, scenes, players' })));
+    // v0.253.0: no Referee chip. Its directories are the sidebar's tabs,
+    // always on screen, so a chip that opened them has nothing to open.
   }
   return chips;
 }
@@ -443,6 +444,27 @@ function encounterStepStrip(state, handlers) {
       }) : null)));
 }
 
+// v0.254.0: the board before round 1. Book 1 p.27's step 1 is surprise and
+// step 2 range; placing the tokens is step 2, and Kurt's call on step 1 for a
+// fight set up by hand is that the referee decides whether to roll at all.
+function setupStrip(state, handlers) {
+  const party = state.fighters.filter((entry) => entry.side === 'party').length;
+  const foes = state.fighters.filter((entry) => entry.side !== 'party').length;
+  const ready = party > 0 && foes > 0;
+  const begin = (surprise) => handlers.onBeginFight?.(surprise);
+  return h('section', { class: 'fight-setup', 'aria-label': 'Setting up the fight' },
+    h('div', { class: 'fight-setup-count' },
+      h('b', { text: 'Setting up' }),
+      h('span', { text: `${party} party, ${foes} opposition on the board` })),
+    h('div', { class: 'fight-setup-begin' },
+      h('span', { class: 'fight-setup-label', text: 'Surprise, then begin (Book 1 p.26):' }),
+      h('button', { type: 'button', class: 'button is-small is-primary', disabled: !ready, text: 'Roll surprise', onclick: () => begin('roll') }),
+      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Party has it', onclick: () => begin('party') }),
+      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Opposition has it', onclick: () => begin('opposition') }),
+      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Nobody', onclick: () => begin('none') })),
+    ready ? null : h('p', { class: 'cite', text: 'Drag at least one character and one opponent from the Actors tab onto a band.' }));
+}
+
 function fightScene(state, handlers) {
   const rows = state.sheetRows ?? sheetRows(state, {});
   const focus = rows.find((row) => row.fighter.id === state.sheetFocus) ?? rows.find((row) => !row.down) ?? null;
@@ -454,7 +476,7 @@ function fightScene(state, handlers) {
       h('header', { class: 'lead' },
         h('h2', { text: state.situation.title }),
         h('p', { text: [state.setup?.range, state.setup?.surprise].filter(Boolean).join('. ') })),
-      state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
+      state.setupPhase ? setupStrip(state, handlers) : state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
         h('h3', { text: state.concluded.headline }),
         h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` }),
         h('button', { type: 'button', class: 'button is-primary', text: 'Leave the fight', onclick: () => handlers.onCommand?.('fight:dismiss') })) : encounterStepStrip(state, handlers),
@@ -467,7 +489,7 @@ function fightScene(state, handlers) {
             h('th', { title: 'Book 1 p.28 step 4B', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
           sides.map((side) => h('tbody', {}, side.map((row) => sheetRow(row, state, handlers, focus?.fighter.id))))),
         h('div', { class: 'fight-actions' },
-          state.live && !(state.next?.wound ?? null) && !state.concluded
+          state.live && !(state.next?.wound ?? null) && !state.concluded && !state.setupPhase
             ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() },
               h('span', { text: 'Resolve round' }), h('small', { text: `${live} order${live === 1 ? '' : 's'}, as shown` }))
             : null,
@@ -476,6 +498,20 @@ function fightScene(state, handlers) {
           h('span', { class: 'cite', text: 'Every attack in a round lands together (Book 1 p.30).' }),
           referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
           (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))))
+  ];
+}
+
+// v0.254.0: the now column while a fight is being set up says how, rather
+// than showing a round nobody has begun.
+function setupColumn(state) {
+  return [
+    h('header', { class: 'now-head' }, h('h1', { text: 'Setting up a fight' })),
+    state.notice?.message ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null,
+    h('ol', { class: 'setup-steps' },
+      h('li', { text: 'Drag characters and actors from the Actors tab onto a band. Player characters join the party; everyone else the opposition.' }),
+      h('li', { text: 'Drag a token to move it, or right-click it to take it off the board.' }),
+      h('li', { text: 'Decide surprise: roll it, or call it yourself (Book 1 p.26). That begins round 1.' }),
+      h('li', { text: 'Then select a token, hover an enemy and press T to target it.' }))
   ];
 }
 
@@ -568,6 +604,7 @@ function startFight(state, handlers, { open = false } = {}) {
 }
 
 export function renderNow(state, handlers = {}) {
+  if (state.setupPhase) return setupColumn(state).filter(Boolean);
   if (state.fighters?.length) return fightColumn(state, handlers).filter(Boolean);
   // v0.230.0: a ship fight takes the centre scene (shipFightScene in
   // renderScene) with the roster, phase and actions already on it — this
@@ -716,7 +753,9 @@ function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
 // The bands have no size in metres; they are steps of range. Ranges
 // are read from the selected marker; its declared target gets a line.
 function bandsScene(state, handlers) {
-  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0];
+  // v0.254.0: a board being set up may have nobody on it yet, so there may be
+  // no one to read ranges from; the bands then read from band 1.
+  const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0] ?? null;
   const bands = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
   const rowH = 46;
   const width = 1000;
@@ -725,7 +764,7 @@ function bandsScene(state, handlers) {
   const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${bands * rowH}`, class: 'bands', preserveAspectRatio: 'xMidYMid meet', role: 'group', 'aria-label': 'Range bands' });
   const spans = [];
   for (let band = 0; band < bands; band += 1) {
-    const gap = Math.abs(band - reader.band);
+    const gap = Math.abs(band - (reader?.band ?? 0));
     const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band });
@@ -762,7 +801,7 @@ function bandsScene(state, handlers) {
       svg.append(createSvgNode('line', { x1: from.cx, y1: from.cy, x2: to.cx, y2: to.cy, class: `target-line is-${row.fighter.side}${row.attacks ? '' : ' is-move'}` }));
     }
   } else {
-    const order = orderOf(reader, state);
+    const order = reader ? orderOf(reader, state) : null;
     if (order?.targetId && at.has(order.targetId) && !isDown(reader)) {
       const from = at.get(reader.id);
       const to = at.get(order.targetId);
@@ -776,13 +815,37 @@ function bandsScene(state, handlers) {
       class: `marker is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
       role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band + 1}`
     });
+    // v0.254.0: the selected token wears a ring, so which one is selected can
+    // be read off the board itself (Kurt, Sep 2026).
+    if (fighter === reader && state.fighters.length) group.append(createSvgNode('circle', { cx, cy, r: 21, class: 'marker-ring' }));
     group.append(createSvgNode('circle', { cx, cy, r: 14 }));
     const initial = createSvgNode('text', { x: cx, y: cy + 5, class: 'marker-initial', 'text-anchor': 'middle' });
     initial.textContent = shortName(fighter);
     const name = createSvgNode('text', { x: cx + 24, y: cy + 6, class: 'marker-name' });
     name.textContent = down ? `${fighter.name} (down)` : fighter.name;
     group.append(initial, name);
-    group.addEventListener('click', () => handlers.onSelectMarker(fighter.id));
+    group.addEventListener('click', () => { if (!group.dataset.dragged) handlers.onSelectMarker(fighter.id); delete group.dataset.dragged; });
+    // v0.254.0: hover is remembered so T can target whatever is under the
+    // pointer — Foundry's gesture, and the old client's.
+    group.addEventListener('mouseenter', () => handlers.onHoverMarker?.(fighter.id));
+    group.addEventListener('mouseleave', () => handlers.onHoverMarker?.(null));
+    // While the board is being set up, a token is dragged to its band.
+    if (state.setupPhase) {
+      group.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        const start = event.clientY;
+        const move = (moved) => { if (Math.abs(moved.clientY - start) > 6) group.dataset.dragged = '1'; };
+        const drop = (released) => {
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', drop);
+          if (!group.dataset.dragged) return;
+          const band = bandAt(svg, released.clientX, released.clientY, rowH, bands);
+          if (band !== null && band !== fighter.band) handlers.onRepositionToken?.(fighter.id, band);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', drop);
+      });
+    }
     group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.onSelectMarker(fighter.id); } });
     // v0.252.0: the same gesture the directory rows and the Space canvas
     // use. A token was selectable and nothing else: a wrong order had to be
@@ -794,10 +857,34 @@ function bandsScene(state, handlers) {
     });
     svg.append(group);
   }
+  // v0.254.0: a character or actor dragged in from the sidebar's Actors
+  // tab lands on the band it is dropped on.
+  if (state.setupPhase) {
+    svg.addEventListener('dragover', (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; });
+    svg.addEventListener('drop', (event) => {
+      event.preventDefault();
+      let data = null;
+      try { data = JSON.parse(event.dataTransfer.getData('application/x-traveller-actor') || 'null'); } catch { data = null; }
+      if (!data) return;
+      const band = bandAt(svg, event.clientX, event.clientY, rowH, bands);
+      if (band !== null) handlers.onDropActor?.(data, band);
+    });
+  }
   return [
-    h('p', { class: 'scene-title', text: `Ranges read from ${reader.name}. One band a round, two at a run; fifteen bands from the nearest enemy is off the field.` }),
+    h('p', { class: 'scene-title', text: reader
+      ? `Ranges read from ${reader.name}. One band a round, two at a run; fifteen bands from the nearest enemy is off the field.`
+      : 'Drag characters and actors from the Actors tab onto a band.' }),
     svg
   ];
+}
+
+// Which band a point on screen falls in, or null if it is off the board.
+function bandAt(svg, clientX, clientY, rowH, bands) {
+  const matrix = svg.getScreenCTM?.();
+  if (!matrix) return null;
+  const point = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+  const band = Math.floor(point.y / rowH);
+  return band >= 0 && band < bands ? band : null;
 }
 
 function plotScene(state) {
@@ -837,7 +924,7 @@ export function renderScene(state, handlers) {
   const scene = state.scene;
   // v0.252.0: a personal fight is a screen, not a band grid with a table
   // squeezed in beside it.
-  if (state.fighters?.length && scene.kind === 'bands') return fightScene(state, handlers);
+  if ((state.fighters?.length || state.setupPhase) && scene.kind === 'bands') return fightScene(state, handlers);
   if (scene.kind === 'bands') return bandsScene(state, handlers);
   if (scene.kind === 'plot') return plotScene(state);
   return subsectorScene(scene, handlers, Boolean(state.live));
@@ -1051,14 +1138,11 @@ function refereeDrawer(referee, state, handlers) {
   const go = (patch) => handlers.onReferee?.(patch);
   const tree = referee.tree ?? [];
   const entries = referee.shown ?? [];
+  // v0.254.0: the sidebar's own tab strip names the tab, so the drawer's
+  // "Referee" header and its second row of tabs are gone — the screenshot
+  // showed both strips at once.
   return [
-    h('header', { class: 'drawer-head' },
-      h('h2', { text: 'Referee' }),
-      h('p', { text: `${referee.total} ${referee.tab.toLowerCase()}${referee.total === 1 ? '' : ''} in this campaign` })),
-    h('div', { class: 'tabs', role: 'tablist' }, (referee.tabs ?? []).map((tab) => h('button', {
-      type: 'button', role: 'tab', 'aria-selected': tab === referee.tab, text: tab,
-      onclick: () => go({ tab, folder: '', query: '' })
-    }))),
+    h('p', { class: 'side-count-line', text: `${referee.total} ${referee.tab.toLowerCase()} in this campaign` }),
     h('input', {
       type: 'search', class: 'search', placeholder: `Search ${referee.tab.toLowerCase()}`, value: referee.query ?? '',
       'aria-label': `Search ${referee.tab.toLowerCase()}`,
@@ -1093,6 +1177,12 @@ function refereeDrawer(referee, state, handlers) {
           // gesture. Right-click gives the same verbs as a menu, so the row
           // no longer has to carry a button for each of them.
           class: `entry${entry.active ? ' is-active' : ''}${entry.sheet ? ' is-openable' : ''}`,
+          // v0.254.0: an Actors row drags onto the combat board.
+          draggable: entry.drag ? 'true' : null,
+          ondragstart: entry.drag ? (event) => {
+            event.dataTransfer.setData('application/x-traveller-actor', JSON.stringify(entry.drag));
+            event.dataTransfer.effectAllowed = 'copy';
+          } : null,
           onclick: entry.sheet ? (event) => { if (!event.target.closest('button')) handlers.onOpenSheet?.(entry.sheet.kind, entry.sheet.id); } : null,
           oncontextmenu: entry.sheet ? (event) => { event.preventDefault(); handlers.onRowMenu?.(entry, { x: event.clientX, y: event.clientY }); } : null
         },
@@ -1338,13 +1428,31 @@ export function renderFighterMenu(menu, handlers = {}) {
     ...(menu.foes ?? []).map((foe) => item(`Target: ${foe.name}`, () => handlers.onSheetChange?.(fighter.id, { move: menu.move ?? 'Stand', targetId: foe.id })))
   ];
   if (fighter.sourceActorId) items.push(item('Open sheet', () => handlers.onOpenSheet?.('actor', fighter.sourceActorId)));
+  // Taking a token off the board is a setup verb; once the fight has begun
+  // the engine has no command for pulling a combatant out mid-round.
+  if (menu.setup && menu.referee) items.push(item('Remove from the board', () => handlers.onRemoveToken?.(fighter.id), { danger: true }));
   // No "remove from the fight" yet: the engine has no command for pulling a
   // combatant out mid-round, and offering a button that does nothing is
   // worse than not offering it.
   const node = h('div', { class: 'row-menu', role: 'menu', 'aria-label': `${fighter.name} orders` },
     h('div', { class: 'row-menu-head', text: `${fighter.name} \u00b7 band ${fighter.band + 1}` }), items);
-  node.style.left = `${menu.at.x}px`;
-  node.style.top = `${menu.at.y}px`;
+  return placeMenu(node, menu.at, items.length);
+}
+
+// v0.254.0: a menu opened near the foot or the right edge of the screen used
+// to run off it (Kurt's screenshot: Thug 3's orders were cut off below the
+// table). The height is estimated from the item count before it is in the
+// document, then the menu flips up or left to stay on screen.
+function placeMenu(node, at, count) {
+  const width = 240;
+  const height = 28 + count * 27;
+  const viewW = globalThis.innerWidth ?? 1280;
+  const viewH = globalThis.innerHeight ?? 800;
+  const x = at.x + width > viewW - 8 ? Math.max(8, at.x - width) : at.x;
+  const y = at.y + height > viewH - 8 ? Math.max(8, at.y - height) : at.y;
+  node.style.left = `${x}px`;
+  node.style.top = `${y}px`;
+  node.style.maxHeight = `${viewH - 16}px`;
   return node;
 }
 
@@ -1376,9 +1484,7 @@ export function renderRowMenu(menu, handlers = {}) {
   }
   const node = h('div', { class: 'row-menu', role: 'menu', 'aria-label': `${entry.name} actions` },
     h('div', { class: 'row-menu-head', text: entry.name }), items);
-  node.style.left = `${Math.min(menu.at.x, 1e4)}px`;
-  node.style.top = `${menu.at.y}px`;
-  return node;
+  return placeMenu(node, menu.at, items.length);
 }
 
 export function renderDrawer(kind, state, referee, handlers = {}) {
@@ -1392,6 +1498,55 @@ export function renderDrawer(kind, state, referee, handlers = {}) {
 
 // -------------------------------------------------------------------- talk
 
-export function renderTalkLog(chat) {
-  return chat.map((line) => h('p', { class: line.roll ? 'is-roll' : '' }, h('b', { text: `${line.who} ` }), line.text));
+// v0.253.0: the chat panel's stream. Three kinds of entry: a message
+// someone typed, a roll, and a notice — the activity log's own lines, which
+// were the whole of the old Journal tab. Notices are what Kurt called noise:
+// COMBAT and ARRIVAL show by default, and the rest fold into one line that
+// expands in place. The log keeps everything either way.
+export const CHAT_NOTICE_DEFAULTS = Object.freeze(['COMBAT', 'ARRIVAL']);
+
+export function renderTalkLog(chat, { showAll = false, onShowAll = null, categories = CHAT_NOTICE_DEFAULTS } = {}) {
+  const shown = [];
+  let folded = [];
+  const flush = () => {
+    if (!folded.length) return;
+    const count = folded.length;
+    const kinds = [...new Set(folded.map((entry) => entry.category.toLowerCase()))].slice(0, 3).join(', ');
+    shown.push(h('button', {
+      type: 'button', class: 'talk-folded',
+      text: `${count} ${kinds} notice${count === 1 ? '' : 's'} hidden \u2014 show`,
+      onclick: () => onShowAll?.()
+    }));
+    folded = [];
+  };
+  for (const entry of chat) {
+    if (entry.kind === 'notice' && !showAll && !categories.includes(entry.category)) {
+      folded.push(entry);
+      continue;
+    }
+    flush();
+    if (entry.kind === 'notice') {
+      shown.push(h('p', { class: 'talk-notice', title: `${entry.category} \u00b7 ${entry.dateLabel}`, text: entry.text }));
+    } else if (entry.kind === 'roll') {
+      shown.push(h('article', { class: 'talk-roll' },
+        h('div', { class: 'talk-who' }, h('b', { text: entry.who }), h('span', { text: entry.dateLabel })),
+        h('div', { class: 'talk-roll-body', text: entry.text })));
+    } else {
+      shown.push(h('article', { class: 'talk-message' },
+        h('div', { class: 'talk-who' }, h('b', { text: entry.who }), h('span', { text: entry.dateLabel })),
+        h('p', { text: entry.text })));
+    }
+  }
+  flush();
+  return shown.length ? shown : [h('p', { class: 'talk-empty', text: 'Nothing said yet. Type below, or /roll 2D.' })];
+}
+
+// The sidebar's tabs: Chat first, then the directories.
+export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Actors', 'Players', 'Vehicles', 'Scenes']);
+
+export function renderSideTabs(active, { players = 0, onTab = null } = {}) {
+  return SIDEBAR_TABS.map((tab) => h('button', {
+    type: 'button', class: 'side-tab', 'aria-pressed': tab === active ? 'true' : 'false',
+    onclick: () => onTab?.(tab)
+  }, tab, tab === 'Players' && players ? h('span', { class: 'side-count', text: ` ${players}` }) : null));
 }
