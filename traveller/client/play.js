@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.268.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.268.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.268.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.268.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.268.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.268.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.268.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.268.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.268.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.269.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.269.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.269.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.269.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.269.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.269.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.269.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.269.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.269.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -348,7 +348,16 @@ function render() {
     },
     onDropActor: (data, band) => {
       if (source.mode !== 'live') return;
-      const result = source.session.run('fight:place', { fight: { value: { ...data, column: band } } });
+      let result = source.session.run('fight:place', { fight: { value: { ...data, column: band } } });
+      // v0.269.0: an actor (one person) dropped a second time. Offer to make
+      // it a statblock, so this and every later drop is a numbered copy.
+      if (!result.ok && data.kind !== 'character') {
+        const actor = (source.session.resolved.npcActors ?? []).find((entry) => entry.identity.id === data.id);
+        if (actor && actor.profile?.kind !== 'statblock' && /already on the board/.test(result.message)
+          && window.confirm(`${actor.identity.name} is an actor: one person, already on the board.\n\nMake ${actor.identity.name} a statblock, so each drag places a numbered copy (${actor.identity.name} 2, ${actor.identity.name} 3\u2026) with its own wounds?`)) {
+          result = source.session.run('fight:place', { fight: { value: { ...data, column: band, asStatblock: true } } });
+        } else if (actor && /already on the board/.test(result.message)) { render(); return; }
+      }
       if (!result.ok) window.alert(result.message);
       render();
     },

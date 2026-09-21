@@ -2777,12 +2777,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             if (!String(character.identity.name ?? '').trim()) throw new Error('a combatant needs a name');
             next = addEncounterCombatantFromCharacter(encounter, { character, column, row: 0, gravityFactor: currentGravityFactor(resolved, subsector) });
           } else {
-            const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.id);
+            let actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.id);
             if (!actor) throw new Error('unknown actor');
             // An actor is one person: placing the same one twice is refused.
             // A statblock is a pattern, and each placement is its own copy.
+            // v0.269.0: Kurt dragged his Mercenary on a second time expecting
+            // Mercenary 2 and was refused, because it had been made as an
+            // actor. The page now offers to make it a statblock on the spot
+            // (asStatblock), which is the mook he meant.
             if (actor.profile?.kind !== 'statblock' && encounter.combatants.some((entry) => entry.sourceActorId === actor.identity.id)) {
-              throw new Error(`${actor.identity.name} is already on the board`);
+              if (!value.asStatblock) {
+                const error = new Error(`${actor.identity.name} is an actor, one person, and is already on the board. Make it a statblock to place numbered copies.`);
+                throw error;
+              }
+              actor = updateNpcActorDocument(actor, { kind: 'statblock' });
+              registry.put(actor);
+              reload();
             }
             next = addEncounterCombatantFromActor(encounter, { actor, side: value.side ?? 'opposition', column, row: 0 });
           }

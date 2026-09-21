@@ -1707,3 +1707,19 @@ test('v0.267.0 the NPC sheet draws Play, Gear, Profile and Notes, and takes a Co
   dom.window.close();
   delete globalThis.document;
 });
+
+// v0.269.0: Kurt's Mercenary, made as an actor, dragged on a second time.
+test('v0.269.0 an actor already on the board is refused with the way out, and asStatblock places a numbered copy', async () => {
+  const { session } = await setupFixture();
+  const merc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Mercenary' } } }).createdId;
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id: merc, column: 8 } } }).ok, true);
+  const refused = session.run('fight:place', { fight: { value: { kind: 'actor', id: merc, column: 8 } } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /already on the board.*statblock/);
+  const placed = session.run('fight:place', { fight: { value: { kind: 'actor', id: merc, column: 8, asStatblock: true } } });
+  assert.equal(placed.ok, true, placed.message);
+  assert.equal(session.run('fight:place', { fight: { value: { kind: 'actor', id: merc, column: 8 } } }).ok, true, 'a statblock now: no question the third time');
+  assert.deepEqual(session.view().fighters.filter((entry) => entry.name.startsWith('Mercenary')).map((entry) => entry.name), ['Mercenary', 'Mercenary 2', 'Mercenary 3']);
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: merc }] }).sheets;
+  assert.equal(sheet.statblock, true, 'and the directory entry is a statblock');
+});
