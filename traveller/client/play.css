@@ -1073,3 +1073,23 @@ a.button { text-decoration: none; color: inherit; }
 .sidebar .search { height: 32px; min-height: 0; padding: 4px 8px; font-size: 13px; resize: none; }
 .sidebar .directory-actions { margin: 0; }
 .sidebar .side-count-line { margin: 0; }
+
+/* v0.257.0: settings, the band zoom, armour on the table, and a chat line's
+   working on hover or tap. */
+.setting { display: grid; gap: 6px; margin: 0; padding: 8px 10px; border: 1px solid var(--line); background: var(--raise); }
+.setting legend { font-size: 12px; font-weight: 700; padding: 0 4px; }
+.setting-choice { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; cursor: pointer; }
+.setting-choice span { display: flex; flex-direction: column; }
+.setting-choice small { color: var(--ink-2); font-size: 11px; }
+.band-bar { display: flex; align-items: center; gap: 10px; }
+.band-bar > .scene-title { margin: 0; padding: 0; }
+.band-zoom { display: inline-flex; gap: 4px; margin-left: auto; }
+.band-zoom .button { min-width: 30px; }
+.fight-orders .tracker th:nth-child(4) { width: 14%; }
+.fight-orders .tracker th:nth-child(5) { width: 11%; }
+.fight-orders .tracker th:nth-child(6) { width: 15%; }
+details.talk-notice.has-detail { padding-left: 6px; border-left: 2px solid var(--signal); }
+details.talk-notice summary { cursor: pointer; list-style: none; font-size: 12px; color: var(--ink); }
+details.talk-notice summary::-webkit-details-marker { display: none; }
+.talk-detail { margin: 4px 0 2px; padding: 5px 7px; font: inherit; font-size: 11px; line-height: 1.5; white-space: pre-wrap; color: var(--ink-2); background: var(--panel); border: 1px solid var(--line); }
+#settings { margin-right: 10px; }

@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.256.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.256.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.256.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.256.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.256.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.256.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.256.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.256.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.256.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows } from './play-views.js?v=v0.258.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.258.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.258.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.258.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.258.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.258.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.258.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.258.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.258.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -74,8 +74,10 @@ const ui = {
   // directories. A masthead chip (character, ship, combat) opens its panel in
   // the sidebar over whichever tab was showing, and Close returns to it.
   sidebarTab: 'Chat',
-  // v0.255.0: off by default — nobody aims at anybody until told to.
-  autoTarget: false,
+  // v0.257.0: the referee's view settings, kept in this browser. Auto-target
+  // is off by default (v0.255.0); combat messages default to attacks only.
+  settings: loadViewSettings(),
+  bandsShown: null,
   sidebarCollapsed: false,
   showAllNotices: false,
   speakerId: null,
@@ -109,11 +111,11 @@ function viewState() {
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
-    if (state.fighters?.length) {
+    if (state.fighters?.length || state.setupPhase) {
       // A new round starts from a clean sheet.
       if (ui.sheetRound !== state.round) { ui.sheet = {}; ui.sheetRound = state.round; }
       const focus = ui.sheetFocus ?? ui.selectedMarker;
-      const withSetting = { ...state, autoTarget: ui.autoTarget };
+      const withSetting = { ...state, autoTarget: Boolean(ui.settings.autoTarget), bandsShown: ui.bandsShown, viewSettings: ui.settings };
       return { ...withSetting, sheetRows: sheetRows(withSetting, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
     }
     if (!state.next?.declare) {
@@ -144,6 +146,14 @@ function viewState() {
       move: ui.fightMove ?? next.declare.move, running: ui.fightRunning ?? next.declare.running } };
   }
   return { ...sample, next, scene };
+}
+
+function loadViewSettings() {
+  const defaults = { combatMessages: 'terse', autoTarget: false };
+  try { return { ...defaults, ...JSON.parse(localStorage.getItem('graycloak-traveller-view-settings') || '{}') }; } catch { return defaults; }
+}
+function saveViewSettings() {
+  try { localStorage.setItem('graycloak-traveller-view-settings', JSON.stringify(ui.settings)); } catch { /* private mode: the setting lasts this session */ }
 }
 
 function openDrawer(kind) {
@@ -275,7 +285,20 @@ function render() {
     onSheetChange: (id, order) => { ui.sheet = { ...ui.sheet, [id]: order }; ui.sheetFocus = id; render(); },
     // v0.254.0 ---------------------------------------- board setup
     onHoverMarker: (id) => { ui.hoveredMarker = id; },
-    onAutoTarget: (on) => { ui.autoTarget = Boolean(on); ui.sheet = {}; render(); },
+    onAutoTarget: (on) => { ui.settings = { ...ui.settings, autoTarget: Boolean(on) }; saveViewSettings(); ui.sheet = {}; render(); },
+    onSetting: (name, value) => {
+      ui.settings = { ...ui.settings, [name]: value };
+      saveViewSettings();
+      if (name === 'autoTarget') ui.sheet = {};
+      render();
+    },
+    onBandZoom: (bands) => { ui.bandsShown = bands; render(); },
+    onArmor: (combatantId, armor) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:armor', { fight: { value: { combatantId, armor } } });
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
     onWeapon: (combatantId, weaponKey) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:weapon', { fight: { value: { combatantId, weaponKey } } });
@@ -597,7 +620,7 @@ function render() {
   $('drawer-body').hidden = chatShowing;
   if (!chatShowing) {
     const kind = panel ?? 'referee';
-    const body = renderDrawer(kind, state, state.referee ?? SAMPLE_REFEREE, {
+    const body = renderDrawer(kind, { ...state, viewSettings: ui.settings }, state.referee ?? SAMPLE_REFEREE, {
       ...handlers,
       onPickCharacter: (id) => {
         ui.characterId = id;
@@ -642,7 +665,9 @@ function render() {
   log.replaceChildren(...renderTalkLog(state.chat ?? [], {
     showAll: ui.showAllNotices,
     onShowAll: () => { ui.showAllNotices = true; render(); },
-    categories: state.fighters?.length || state.setupPhase ? ['COMBAT'] : undefined
+    categories: state.fighters?.length || state.setupPhase
+      ? (ui.settings.combatMessages === 'verbose' ? ['COMBAT', 'MOVEMENT'] : ['COMBAT'])
+      : undefined
   }));
   if (wasAtBottom) log.scrollTop = log.scrollHeight;
   const speakers = [
@@ -694,6 +719,7 @@ for (const button of document.querySelectorAll('.side-chat .die')) {
 }
 $('talk-speaker').addEventListener('change', (event) => { ui.speakerId = event.target.value; });
 $('side-collapse').addEventListener('click', () => { ui.sidebarCollapsed = !ui.sidebarCollapsed; render(); });
+$('settings').addEventListener('click', () => openDrawer('settings'));
 // v0.254.0: T targets. Hover an enemy token and press T, and the selected
 // combatant's target becomes it — Foundry's gesture, and the old client's.
 // The dropdown in the table stays as a fallback. A player's seat only ever

@@ -167,12 +167,35 @@ test('Book 1 p.31: one characteristic at zero wakes halfway, fractions against t
   assert.equal(recovered.current.END, Math.floor(character.characteristics.END / 2));
 });
 
-test('an untrained defender grants the printed +3 attack DM', () => {
+// Graycloak ruling (Kurt, Sep 2026): Book 1's "+3 when defending" is the
+// untrained side of the Defending paragraph above it, so it applies only in
+// brawling or blade combat, to a defender armed with a brawling or blade
+// weapon (or a long gun used as a club).
+test('an untrained defender gives no +3 against a gun: a shot is not brawling or blade combat', () => {
   const defender = raider();
   defender.skills = {};
   const result = resolvePersonalAttack({ attacker: hawkeye(), defender, range: 'medium', dice: createSequenceDice([1, 1, 1, 1, 1, 1]) });
-  assert.equal(result.defenderUntrainedDM, 3);
-  assert.equal(result.totalDM, 7);
+  assert.equal(result.defenderUntrainedDM, 0);
+  assert.equal(result.totalDM, 4);
+});
+
+test('an untrained defender armed with a brawling or blade weapon grants +3 in a melee', () => {
+  const brawler = (id, side, weaponKey, skills) => createPersonalCombatant({ id, name: id, side,
+    characteristics: { STR: 7, DEX: 7, END: 7, INT: 7 }, skills, weaponKey });
+  const attacker = brawler('a', 'party', 'club', { Brawling: 1 });
+  const dice = () => createSequenceDice([1, 1, 1, 1, 1, 1]);
+  // Untrained with the club he holds: +3 to hit him.
+  assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'club', {}), range: 'close', dice: dice() }).defenderUntrainedDM, 3);
+  // Trained with it: no +3 (and his expertise defends instead).
+  assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'club', { Brawling: 1 }), range: 'close', dice: dice() }).defenderUntrainedDM, 0);
+  // Holding a pistol: a gun gives no protective DM, and so no penalty either.
+  assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'automatic-pistol', {}), range: 'close', dice: dice() }).defenderUntrainedDM, 0);
+  // Holding a rifle, which may be used as a club: the club's expertise counts.
+  assert.equal(resolvePersonalAttack({ attacker, defender: brawler('d', 'opposition', 'rifle', {}), range: 'close', dice: dice() }).defenderUntrainedDM, 3);
+  // Evading gives up the weapon's defence, and with it the penalty.
+  const evader = brawler('d', 'opposition', 'club', {});
+  evader.evading = true;
+  assert.equal(resolvePersonalAttack({ attacker, defender: evader, range: 'close', dice: dice() }).defenderUntrainedDM, 0);
 });
 
 test('rollPersonalAttack leaves the defender untouched so wounds can land at round end (B1 p.30 step 2C)', () => {

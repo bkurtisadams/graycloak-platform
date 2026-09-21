@@ -1081,6 +1081,29 @@ export function setCombatantWeapon(document, { combatantId, weaponKey } = {}) {
   return { encounter: next, entry };
 }
 
+/**
+ * v0.257.0: what a combatant is wearing, set by the referee — to put the
+ * right armour on a combatant who arrived without it recorded, so that both
+ * the throw and the players' reading of the table are right. Book 1 has no
+ * rule for changing armour mid-fight; this is the referee's correction, not
+ * a combatant's action. Unlike the weapon, a downed combatant may be
+ * corrected too.
+ */
+export function setCombatantArmor(document, { combatantId, armor } = {}) {
+  const next = importEncounterDocument(document);
+  if (!['setup', 'active'].includes(next.status)) throw new Error('encounter is already resolved');
+  if (!PERSONAL_ARMOR_TYPES.includes(armor)) throw new RangeError(`unknown armour: ${armor}`);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('combatant is unavailable');
+  if (combatant.armor === armor) return { encounter: next, entry: null };
+  combatant.armor = armor;
+  const worn = { none: 'no armour', combat: 'combat armour' }[armor] ?? armor;
+  const entry = { round: next.round, kind: 'armor', side: combatant.side, combatantId, text: `${combatant.name} is wearing ${worn}.` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
+}
+
 export function setCombatantCover(document, { combatantId, cover } = {}) {
   const next = importEncounterDocument(document);
   if (!COMBATANT_COVER.includes(cover)) throw new RangeError(`unknown cover: ${cover}`);

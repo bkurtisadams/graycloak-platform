@@ -905,3 +905,122 @@ test('v0.256.0 the sidebar body packs to the top and the search is one line', as
   assert.match(css, /\.sidebar > \.drawer-body \{ align-content: start;/);
   assert.match(css, /\.sidebar \.search \{ height: 32px;/);
 });
+
+// ---------------------------------------------------------------------------
+// v0.257.0: settings (combat message verbosity), band zoom, armour on the
+// table, and each chat line's working on hover or tap.
+// ---------------------------------------------------------------------------
+
+async function roundFixture() {
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 3 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const fighters = session.view().fighters;
+  const hawkeye = fighters.find((entry) => entry.side === 'party');
+  const foe = fighters.find((entry) => entry.side !== 'party');
+  const before = session.view().chat.length;
+  session.run('fight:sheet', { fight: { rows: [{ actorId: hawkeye.id, move: 'Close', targetId: foe.id }, { actorId: foe.id, move: 'Close', targetId: hawkeye.id }] } });
+  return { session, hawkeye, foe, lines: session.view().chat.slice(before) };
+}
+
+test('v0.257.0 moves are MOVEMENT lines and attacks COMBAT, so chat can leave the moves out', async () => {
+  const { lines } = await roundFixture();
+  assert.ok(lines.some((entry) => entry.category === 'MOVEMENT' && /closes/.test(entry.text)));
+  assert.ok(lines.some((entry) => entry.category === 'COMBAT' && /(hits|misses)/.test(entry.text)));
+  assert.ok(lines.every((entry) => entry.category !== 'MOVEMENT' || !/(hits|misses)/.test(entry.text)));
+});
+
+test('v0.257.0 an attack line carries its working: the throw and every DM, one to a line', async () => {
+  const { lines } = await roundFixture();
+  const attack = lines.find((entry) => entry.category === 'COMBAT' && /(hits|misses)/.test(entry.text));
+  assert.ok(attack.detail, 'the detail travels with the line');
+  const detail = attack.detail.split('\n');
+  assert.match(detail[0], / at \w[\w ]* range against /);
+  assert.match(detail[1], /^2D \[\d\] \[\d\] = \d+$/);
+  assert.ok(detail.some((line) => /^Total -?\d+ against \d+\+ \u2014 (hit|miss)$/.test(line)));
+  assert.ok(detail.every((line) => !/object Object/.test(line)));
+});
+
+test('v0.257.0 terse chat shows attacks only; verbose adds the moves', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderTalkLog } = await import('../client/play-views.js');
+  const { lines } = await roundFixture();
+  document.querySelector('main').replaceChildren(...renderTalkLog(lines, { categories: ['COMBAT'] }));
+  const terse = document.querySelector('main').textContent;
+  assert.equal(/closes/.test(terse), false, 'moves are folded away');
+  assert.match(terse, /movement notice/);
+  document.querySelector('main').replaceChildren(...renderTalkLog(lines, { categories: ['COMBAT', 'MOVEMENT'] }));
+  assert.match(document.querySelector('main').textContent, /closes/);
+  // The working is on hover (title) and on tap (details).
+  const withDetail = document.querySelector('details.has-detail');
+  assert.ok(withDetail);
+  assert.match(withDetail.getAttribute('title'), /^\w/);
+  assert.ok(withDetail.querySelector('pre.talk-detail'));
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+});
+
+test('v0.257.0 the referee sets armour on the board; it changes the throw, and chat says so', async () => {
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 3 } } });
+  const foe = session.view().fighters.find((entry) => entry.side !== 'party');
+  assert.ok(foe.armorChoices.includes('combat'), 'Book 1\u2019s own list');
+  const set = session.run('fight:armor', { fight: { value: { combatantId: foe.id, armor: 'combat' } } });
+  assert.equal(set.ok, true, set.message);
+  assert.equal(set.message, 'Thug is wearing combat armour.');
+  assert.equal(session.view().fighters.find((entry) => entry.id === foe.id).armor, 'combat');
+  assert.equal(session.run('fight:armor', { fight: { value: { combatantId: foe.id, armor: 'powered' } } }).ok, false);
+});
+
+test('v0.257.0 the band line zooms: fewer bands, more, the whole field, or fit', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { renderScene } = await import('../client/play-views.js');
+  const { session } = await roundFixture();
+  const count = (bandsShown) => {
+    document.querySelector('main').replaceChildren(...renderScene({ ...session.view(), live: true, bandsShown }, {}));
+    return document.querySelectorAll('svg.bands rect.band').length;
+  };
+  assert.equal(count(null), 8, 'fit: the bands in play, never fewer than eight');
+  assert.equal(count(16), 16, 'the whole field');
+  assert.equal(count(4), 4);
+  assert.equal(count(1), 3, 'never fewer than three');
+  assert.ok(document.querySelector('.band-zoom button[aria-label="Show fewer bands"]'));
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+});
+
+// ---------------------------------------------------------------------------
+// v0.258.0: Kurt's ruling on Book 1's "+3 when defending" — only in brawling
+// or blade combat, against a defender armed with a brawling or blade weapon.
+// ---------------------------------------------------------------------------
+
+test('v0.258.0 shooting an untrained NPC gives no +3; punching one holding a club he cannot use does', async () => {
+  // A shot across the room at the skill-less Thug statblock.
+  const shot = await roundFixture();
+  const attackLine = shot.lines.find((entry) => entry.category === 'COMBAT' && /^Round 1 \u00b7 Hawkeye (hits|misses)/.test(entry.text));
+  if (attackLine) assert.equal(/Defender untrained/.test(attackLine.detail), false, 'no +3 against a gunman');
+
+  // Fists against a thug holding a club he has no expertise in.
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 0 } } });
+  const [hawkeye, foe] = [session.view().fighters.find((entry) => entry.side === 'party'), session.view().fighters.find((entry) => entry.side !== 'party')];
+  session.run('fight:weapon', { fight: { value: { combatantId: hawkeye.id, weaponKey: 'hands' } } });
+  session.run('fight:weapon', { fight: { value: { combatantId: foe.id, weaponKey: 'club' } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const before = session.view().chat.length;
+  session.run('fight:sheet', { fight: { rows: [{ actorId: hawkeye.id, move: 'Stand', targetId: foe.id }, { actorId: foe.id, move: 'Stand', targetId: null }] } });
+  const punch = session.view().chat.slice(before).find((entry) => /^Round 1 \u00b7 Hawkeye (hits|misses)/.test(entry.text));
+  assert.ok(punch, 'Hawkeye threw a punch');
+  assert.match(punch.detail, /Defender untrained \+3/);
+});

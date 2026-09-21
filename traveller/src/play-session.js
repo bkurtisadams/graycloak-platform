@@ -70,7 +70,7 @@ import {
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
   ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap,
-  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setCombatantWeapon,
+  addEncounterCombatantFromCharacter, addEncounterCombatantFromActor, repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setCombatantWeapon, setCombatantArmor,
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
@@ -829,7 +829,8 @@ function chatStream(resolved, seat) {
         text: entry.message,
         dateLabel: entry.dateLabel,
         at: entry.createdAt,
-        visibility: entry.visibility
+        visibility: entry.visibility,
+        detail: entry.detail ?? null
       };
     });
 }
@@ -837,6 +838,32 @@ function chatStream(resolved, seat) {
 // v0.256.0: one encounter history entry as a chat line — who did what to
 // whom, and the one number that decided it. "Round 2 · Hawkeye hits Thug with
 // hands (11 vs 6+): 5 wounds." The dice breakdown stays in the history.
+// v0.257.0: the working behind an attack, laid out one DM to a line for the
+// hover text: what was thrown, each modifier with its name, the total against
+// the target, and what came of it.
+export function combatDetail(entry) {
+  const d = entry.detail;
+  if (!d) return entry.text || null;
+  const signed = (value) => `${value >= 0 ? '+' : '\u2212'}${Math.abs(value)}`;
+  const lines = [
+    `${d.weaponName ?? 'Weapon'} at ${d.range ?? '?'} range against ${({ none: 'no armour', combat: 'combat armour' })[d.armor ?? 'none'] ?? d.armor}`,
+    `2D ${(d.dice ?? []).map((die) => `[${die}]`).join(' ')} = ${d.roll}`
+  ];
+  const parts = [
+    ['Skill', d.skillDM], ['Characteristic', d.characteristicDM], ['Untrained', d.untrainedDM],
+    ['Defender untrained', d.defenderUntrainedDM], ['Parry', d.parryDM], ['Evasion', d.evasionDM],
+    ['Weakened blow', d.fatigueDM], ['Situation', d.situationalDM], ['Defender', d.defenderDM]
+  ];
+  for (const [label, value] of parts) if (Number(value)) lines.push(`${label} ${signed(Number(value))}`);
+  lines.push(`Total ${d.total} against ${d.target}+ \u2014 ${d.success ? 'hit' : 'miss'}`);
+  if (d.success) {
+    // damageDice is the dice as thrown, not a count of them.
+    const thrown = Array.isArray(d.damageDice) ? d.damageDice : [];
+    lines.push(`Wounds ${thrown.length}D ${thrown.map((die) => `[${die}]`).join(' ')}${d.damageModifier ? ` ${signed(d.damageModifier)}` : ''} = ${d.woundTotal ?? d.damageTotal}${d.defenderStatus && d.defenderStatus !== 'active' ? `; ${d.defenderStatus}` : ''}`);
+  }
+  return lines.join('\n');
+}
+
 export function conciseCombatLine(entry, round, names = new Map()) {
   const at = `Round ${entry.round ?? round} \u00b7 `;
   const detail = entry.detail ?? null;
@@ -1125,6 +1152,7 @@ export function fightView(encounter, { characters = [], concluded = false } = {}
       weapons,
       // v0.255.0: what this combatant could fight with instead — carried
       // weapons, the one in hand, and bare hands, each named.
+      armorChoices: [...PERSONAL_ARMOR_TYPES],
       weaponChoices: [...new Set([entry.weaponKey, ...carried, 'hands'])].filter(Boolean).map((key) => {
         try { return { key, name: getPersonalWeapon(key).name }; } catch { return null; }
       }).filter(Boolean),
@@ -2351,6 +2379,21 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
+      // v0.257.0: armour on the board is for the referee to set — not
+      // because Book 1 lets anyone change armour mid-fight, but so the table
+      // shows what each combatant is wearing (Kurt, Sep 2026: players who see
+      // marines in battle dress choose their fights differently).
+      if (command === 'fight:armor') {
+        const encounter = liveEncounter() ?? setupEncounter();
+        if (!encounter) throw new Error('no fight is running');
+        const result = setCombatantArmor(encounter, { combatantId: fight?.value?.combatantId, armor: fight?.value?.armor });
+        persist([result.encounter]);
+        lastMessage = { ok: true, message: result.entry?.text ?? 'No change.' };
+        if (result.entry) log('COMBAT', result.entry.text);
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'fight:dismiss') {
         // v0.252.1: the referee has seen how it ended; back to the campaign.
         concludedEncounterId = null;
@@ -2414,8 +2457,15 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           // the encounter's own history.
           const added = (result.encounter.history ?? []).slice(before);
           const names = new Map(result.encounter.combatants.map((entry) => [entry.id, entry.name]));
-          const lines = added.map((entry) => conciseCombatLine(entry, staged.round, names)).filter(Boolean);
-          for (const line of lines) log('COMBAT', line);
+          const lines = added.map((entry) => ({ entry, line: conciseCombatLine(entry, staged.round, names) })).filter((item) => item.line);
+          // v0.257.0: moves are their own category, MOVEMENT, so the chat can
+          // leave them out when Kurt's "combat messages" setting is terse —
+          // the band line already shows where everyone is. Each line carries
+          // the full working (the throw and every DM) as its detail, for
+          // hover or tap.
+          for (const { entry, line } of lines) {
+            log(entry.kind === 'movement' ? 'MOVEMENT' : 'COMBAT', line, { detail: entry.kind === 'attack' ? combatDetail(entry) : entry.text || null });
+          }
           for (const line of refused) log('COMBAT', `Round ${staged.round} \u00b7 not declared: ${line}`);
           alreadyLogged = true;
           message = lines.length ? `Round ${staged.round} resolved.` : `Round ${staged.round}: nothing happened.`;

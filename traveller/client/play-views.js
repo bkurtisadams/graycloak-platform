@@ -7,17 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.256.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.256.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.256.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.258.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.258.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.258.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.256.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.256.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.256.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.258.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.258.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.258.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +32,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.256.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.256.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.258.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -392,6 +392,11 @@ export function sheetRows(state, chosen = {}) {
   });
 }
 
+const ARMOR_NAMES = Object.freeze({ none: 'None', jack: 'Jack', mesh: 'Mesh', cloth: 'Cloth', reflec: 'Reflec', ablat: 'Ablat', combat: 'Combat armour' });
+function armorName(key) {
+  return ARMOR_NAMES[key] ?? String(key ?? 'none').replace(/-/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+}
+
 function sheetRow(row, state, handlers, focusId) {
   const { fighter } = row;
   const stats = ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
@@ -428,6 +433,14 @@ function sheetRow(row, state, handlers, focusId) {
           fighter.weaponChoices.map((choice) => h('option', { value: choice.key, selected: choice.key === fighter.weaponKey, text: choice.name })))
         : fighter.weaponLabel,
       weapon.melee && !row.down ? h('span', { class: 'blows', text: ` \u00b7 ${blowsRemaining(fighter)} blows` }) : null),
+    // v0.257.0: armour is on show so the table reads what everyone is
+    // wearing — marines in battle dress change a player's mind. The referee
+    // sets it; a player only reads it.
+    h('td', { class: 'tr-armor' },
+      state.live && state.seat !== 'player' && (fighter.armorChoices ?? []).length
+        ? h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: armour`, onchange: (event) => handlers.onArmor?.(fighter.id, event.target.value) },
+          fighter.armorChoices.map((key) => h('option', { value: key, selected: key === fighter.armor, text: armorName(key) })))
+        : armorName(fighter.armor)),
     h('td', {}, row.down || row.move === 'Evade' || row.move === 'Escape' ? '' : h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: target`, disabled: !live, onchange: (event) => handlers.onSheetChange?.(fighter.id, { move: row.move, targetId: event.target.value || null }) },
       row.move === 'Stand' ? h('option', { value: '', selected: !row.targetId, text: '\u2014 hold fire \u2014' }) : null,
       row.foes.map((foe) => h('option', { value: foe.id, selected: foe.id === row.targetId, text: `${foe.name} (${rangeBetween(fighter, foe).name.toLowerCase()})` })))),
@@ -516,7 +529,7 @@ function fightScene(state, handlers) {
     if (focus.target && focus.line && !focus.line.preview?.canAttack) parts.push(`${getPersonalWeapon(focus.fighter.weaponKey).name} cannot reach ${focus.target.name} at ${focus.line.range.name.toLowerCase()} range${focus.move === 'Close' ? '; closing one band this round.' : '. Close the range, or this order does nothing.'}`);
     if (!focus.target && !['Evade', 'Escape'].includes(focus.move)) parts.push('No target: select this token, hover an enemy and press T.');
     if (focus.reason) parts.push(`Suggested: ${focus.reason}.`);
-    return h('tr', { class: 'sheet-why-row' }, h('td', { colspan: '6' },
+    return h('tr', { class: 'sheet-why-row' }, h('td', { colspan: '7' },
       parts.join(' '),
       referee && state.live ? h('button', { type: 'button', class: 'link-button', text: ' Referee: set scores\u2026', onclick: () => handlers.onEditScoresPrompt?.(focus.fighter) }) : null));
   };
@@ -526,8 +539,8 @@ function fightScene(state, handlers) {
       state.setupPhase ? setupStrip(state, handlers) : null,
       state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
         h('h3', { text: state.concluded.headline }),
-        h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` }),
-        h('button', { type: 'button', class: 'button is-primary', text: 'Leave the fight', onclick: () => handlers.onCommand?.('fight:dismiss') })) : null,
+        // Leave the fight is on the header line already.
+        h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` })) : null,
       wound ? h('section', { class: 'fight-wound', role: 'status' }, h('b', { text: state.next.title }), ' ', state.next.copy, h('span', { class: 'cite', text: ` ${state.next.cite}` })) : null,
       morale.length ? h('p', { class: 'hold-note is-morale' }, morale.join(' ')) : null,
       h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
@@ -535,7 +548,7 @@ function fightScene(state, handlers) {
         h('table', { class: 'tracker sheet' },
           h('thead', {}, h('tr', {},
             h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'Status' }),
-            h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }),
+            h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }), h('th', { title: 'What each is wearing (Book 1 p.42). Set by the referee.', text: 'Armour' }),
             h('th', { title: 'Book 1 p.28 step 4B \u2014 or hover an enemy token and press T', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
           sides.map((side) => h('tbody', {}, side.flatMap((row) => [sheetRow(row, state, handlers, focus?.fighter.id), whyRow(row)]).filter(Boolean)))),
         h('div', { class: 'fight-actions' },
@@ -814,7 +827,11 @@ function bandsScene(state, handlers) {
   const furthest = state.fighters.reduce((most, fighter) => Math.max(most, Number(fighter.band ?? 0)), 0);
   // Room to drag someone a few bands out while setting up, and to see where
   // the next band or two of movement lands; never fewer than eight.
-  const shown = Math.min(edge, Math.max(8, furthest + 4));
+  const fitted = Math.min(edge, Math.max(8, furthest + 4));
+  // v0.257.0: the referee can zoom — out to the whole field to show how far
+  // the edge is, or in on a few bands. state.bandsShown is that choice; left
+  // unset the board fits the bands in play.
+  const shown = Math.max(3, Math.min(edge, Number(state.bandsShown) || fitted));
   const width = 1200;
   const ribbon = 26;
   const foot = 22;
@@ -927,10 +944,17 @@ function bandsScene(state, handlers) {
       if (band !== null) handlers.onDropActor?.(data, band);
     });
   }
+  const zoom = (next) => handlers.onBandZoom?.(next);
   return [
-    h('p', { class: 'scene-title', text: reader
-      ? `Ranges read from ${reader.name}. Bands 1\u2013${shown} of ${ENCOUNTER_RANGE_LINE_ESCAPE_BANDS} shown; one band a round, two at a run.`
-      : 'Drag characters and actors from the Actors tab onto a band.' }),
+    h('div', { class: 'band-bar' },
+      h('p', { class: 'scene-title', text: reader
+        ? `Ranges read from ${reader.name}. Bands 1\u2013${shown} of ${ENCOUNTER_RANGE_LINE_ESCAPE_BANDS} shown; one band a round, two at a run.`
+        : 'Drag characters and actors from the Actors tab onto a band.' }),
+      h('span', { class: 'band-zoom', role: 'group', 'aria-label': 'Zoom the band line' },
+        h('button', { type: 'button', class: 'button is-small', 'aria-label': 'Show fewer bands', disabled: shown <= 3, text: '+', onclick: () => zoom(Math.max(3, shown - 2)) }),
+        h('button', { type: 'button', class: 'button is-small', 'aria-label': 'Show more bands', disabled: shown >= edge, text: '\u2212', onclick: () => zoom(Math.min(edge, shown + 2)) }),
+        h('button', { type: 'button', class: `button is-small${state.bandsShown ? '' : ' is-chosen'}`, text: 'Fit', onclick: () => zoom(null) }),
+        h('button', { type: 'button', class: `button is-small${Number(state.bandsShown) === edge ? ' is-chosen' : ''}`, text: `All ${edge}`, onclick: () => zoom(edge) }))),
     svg
   ];
 }
@@ -1544,11 +1568,35 @@ export function renderRowMenu(menu, handlers = {}) {
   return placeMenu(node, menu.at, items.length);
 }
 
+// v0.257.0: settings, kept to this browser. The first is Kurt's: how much of
+// a combat round chat reports. Terse gives only the attacks, since the band
+// line already shows where everyone moved; verbose adds the moves.
+function settingsDrawer(state, handlers) {
+  const settings = state.viewSettings ?? {};
+  const choice = (name, value, label, note) => h('label', { class: 'setting-choice' },
+    h('input', { type: 'radio', name, value, checked: settings[name] === value, onchange: () => handlers.onSetting?.(name, value) }),
+    h('span', {}, h('b', { text: label }), h('small', { text: note })));
+  return [
+    h('h3', { text: 'Settings' }),
+    h('fieldset', { class: 'setting' },
+      h('legend', { text: 'Combat messages in chat' }),
+      choice('combatMessages', 'terse', 'Attacks only', 'Who hit whom. The band line already shows where everyone is.'),
+      choice('combatMessages', 'verbose', 'Attacks and movement', 'Adds a line for every close, open and evade.')),
+    h('fieldset', { class: 'setting' },
+      h('legend', { text: 'Targeting' }),
+      h('label', { class: 'setting-choice' },
+        h('input', { type: 'checkbox', checked: Boolean(settings.autoTarget), onchange: (event) => handlers.onSetting?.('autoTarget', event.currentTarget.checked) }),
+        h('span', {}, h('b', { text: 'Auto-target' }), h('small', { text: 'Fill each row with the nearest enemy, and NPCs with their own choice.' })))),
+    h('p', { class: 'cite', text: 'Saved in this browser only.' })
+  ];
+}
+
 export function renderDrawer(kind, state, referee, handlers = {}) {
   const tidy = (parts) => parts.flat(Infinity).filter(Boolean);
   if (kind === 'character' && state.character) return tidy(characterDrawer(state.character, state, handlers));
   if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state, handlers));
   if (kind === 'combat') return tidy(combatDrawer(state, handlers));
+  if (kind === 'settings') return tidy(settingsDrawer(state, handlers));
   if (kind === 'referee') return tidy(refereeDrawer(referee, state, handlers));
   return [];
 }
@@ -1583,7 +1631,13 @@ export function renderTalkLog(chat, { showAll = false, onShowAll = null, categor
     }
     flush();
     if (entry.kind === 'notice') {
-      shown.push(h('p', { class: 'talk-notice', title: `${entry.category} \u00b7 ${entry.dateLabel}`, text: entry.text }));
+      // v0.257.0: the working behind a short line — the throw and every DM
+      // — on hover, and on tap too, since a phone has no hover.
+      shown.push(entry.detail
+        ? h('details', { class: 'talk-notice has-detail', title: entry.detail },
+          h('summary', { text: entry.text }),
+          h('pre', { class: 'talk-detail', text: entry.detail }))
+        : h('p', { class: 'talk-notice', title: `${entry.category} \u00b7 ${entry.dateLabel}`, text: entry.text }));
     } else if (entry.kind === 'roll') {
       shown.push(h('article', { class: 'talk-roll' },
         h('div', { class: 'talk-who' }, h('b', { text: entry.who }), h('span', { text: entry.dateLabel })),

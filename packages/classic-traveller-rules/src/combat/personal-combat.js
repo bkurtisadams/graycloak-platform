@@ -559,6 +559,29 @@ export function parryExpertise(defender) {
   return 0;
 }
 
+/**
+ * Book 1, EXPERTISE, "Untrained Weapons Usage": a character with no expertise
+ * in his weapon is "+3 when defending". Graycloak ruling (Kurt, Sep 2026):
+ * the +3 is the untrained side of the paragraph just above it, and applies
+ * only where a trained defender would have had a protective DM — "when
+ * engaged in brawling or blade (including polearm) combat, and armed with
+ * brawling or blade weapons". So it is never given against a gun, and never
+ * to a defender holding a gun, unless he is using a long gun as a club; and
+ * not while evading, which gives up the weapon's defence (p.33).
+ *
+ * Until v0.258.0 the +3 was given against every untrained defender, which
+ * made an NPC's unfamiliar pistol a +3 to anyone shooting at him from across
+ * a room.
+ */
+export function untrainedDefenderDM(defender, attackSpec) {
+  if (!attackSpec?.melee || defender?.evading || !defender?.weaponKey) return 0;
+  const weapon = getPersonalWeapon(defender.weaponKey);
+  if (weapon.parry) return hasPersonalWeaponExpertise(defender, defender.weaponKey) ? 0 : 3;
+  // A long gun used as a club: the expertise that counts is the club's.
+  if (LONG_GUN_PARRY_KEYS.includes(defender.weaponKey)) return hasPersonalWeaponExpertise(defender, 'club') ? 0 : 3;
+  return 0;
+}
+
 export function classifyBlow(attacker, weaponKey, { surprise = false, weakened = false, special = false } = {}) {
   const spec = getPersonalWeapon(weaponKey);
   if (!spec.melee) return { blowClass: null, fatigueDM: 0, spendsAllowance: false };
@@ -585,14 +608,13 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
   const skillDM = personalWeaponSkillLevel(attacker, attacker.weaponKey);
   const characteristicDM = weaponCharacteristicDM(attacker, attacker.weaponKey);
   const untrainedDM = hasPersonalWeaponExpertise(attacker, attacker.weaponKey) ? 0 : -5;
-  const defenderTrained = defender.weaponKey ? hasPersonalWeaponExpertise(defender, defender.weaponKey) : true;
   // Book 1 p.33: an evading combatant may not attack and may not use the
   // weapon to parry or block, so evasion and parry are mutually exclusive.
   // Book 1 p.36: a long gun — rifle or carbine, not a pistol — may parry,
   // treated as a cudgel, so the defender's skill with it does not apply.
   const parryDM = !defender.evading && spec.melee ? -parryExpertise(defender) || 0 : 0;
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
-  const defenderUntrainedDM = defenderTrained ? 0 : 3;
+  const defenderUntrainedDM = untrainedDefenderDM(defender, spec);
   const blow = classifyBlow(attacker, attacker.weaponKey, { surprise, weakened, special });
   const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM;
   return {
@@ -630,14 +652,13 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
   const skillDM = personalWeaponSkillLevel(attacker, attacker.weaponKey);
   const characteristicDM = weaponCharacteristicDM(attacker, attacker.weaponKey);
   const untrainedDM = hasPersonalWeaponExpertise(attacker, attacker.weaponKey) ? 0 : -5;
-  const defenderTrained = defender.weaponKey ? hasPersonalWeaponExpertise(defender, defender.weaponKey) : true;
   // Book 1 p.33: an evading combatant may not attack and may not use the
   // weapon to parry or block, so evasion and parry are mutually exclusive.
   // Book 1 p.36: a long gun — rifle or carbine, not a pistol — may parry,
   // treated as a cudgel, so the defender's skill with it does not apply.
   const parryDM = !defender.evading && spec.melee ? -parryExpertise(defender) || 0 : 0;
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
-  const defenderUntrainedDM = defenderTrained ? 0 : 3;
+  const defenderUntrainedDM = untrainedDefenderDM(defender, spec);
   const blow = classifyBlow(attacker, attacker.weaponKey, { surprise, weakened, special });
   const diceRoll = [dice.rollD6(), dice.rollD6()];
   const roll = diceRoll[0] + diceRoll[1];

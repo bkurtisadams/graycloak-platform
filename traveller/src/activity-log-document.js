@@ -43,7 +43,11 @@ function normalizeEntry(entry, sequence, campaignId) {
     sourceDocumentId: entry.sourceDocumentId ?? null,
     sourceActorId: entry.sourceActorId ?? null,
     visibility: entry.visibility ?? ACTIVITY_VISIBILITY.PUBLIC,
-    audiencePlayerIds: [...new Set((entry.audiencePlayerIds ?? []).map(String).filter((id) => id.trim()))]
+    audiencePlayerIds: [...new Set((entry.audiencePlayerIds ?? []).map(String).filter((id) => id.trim()))],
+    // v0.257.0: the full working behind a short line — for a combat line,
+    // the throw and every DM. Shown on hover or on tap; the line itself stays
+    // short. Optional, and absent from entries written before it existed.
+    ...(entry.detail ? { detail: String(entry.detail) } : {})
   };
 }
 
@@ -122,9 +126,9 @@ export function exportActivityLogDocument(document, { space = 2 } = {}) {
   return JSON.stringify(importActivityLogDocument(document), null, space);
 }
 
-export function appendActivityLogEntry(document, { category = 'SYSLOG', message, dateLabel = 'SESSION', createdAt = new Date().toISOString(), sourceDocumentId = null, sourceActorId = null, visibility = ACTIVITY_VISIBILITY.PUBLIC, audiencePlayerIds = [] } = {}) {
+export function appendActivityLogEntry(document, { category = 'SYSLOG', message, dateLabel = 'SESSION', createdAt = new Date().toISOString(), sourceDocumentId = null, sourceActorId = null, visibility = ACTIVITY_VISIBILITY.PUBLIC, audiencePlayerIds = [], detail = null } = {}) {
   const next = importActivityLogDocument(document);
-  next.entries.push(normalizeEntry({ category, message, dateLabel, createdAt, sourceDocumentId, sourceActorId, visibility, audiencePlayerIds }, next.entries.length + 1, next.campaignId));
+  next.entries.push(normalizeEntry({ category, message, dateLabel, createdAt, sourceDocumentId, sourceActorId, visibility, audiencePlayerIds, detail }, next.entries.length + 1, next.campaignId));
   assertValidActivityLogDocument(next);
   return next;
 }
