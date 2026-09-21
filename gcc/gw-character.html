@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.47 — MP export now fills structured attack and protection fields from paid ability builds. Quillspines has rules-legal 10/20/30 CP profiles (the Low 10 CP build no longer exports the full 20 CP template); attack rows cover Strike plus explicit Natural Weaponry, Power Blast, Special Weapon, Laser, and Telekinesis damage; protection rows preserve separate Force Field and Armor layers in MP application order. -->
 <!-- gw-character.html v0.2.46 — Export JSON now downloads a real named .json file, reports visible status, and no longer adds export events to the character Story. Transfer validates the saved MP roster, omits the redundant mp-char-sheet copy, and on quota exhaustion removes only that disposable cache before retrying once; any remaining failure preserves the roster and downloads the character JSON as a fallback. -->
 <!-- gw-character.html v0.2.45 — exportJSON() now awaits the clipboard write instead of assuming it succeeded (a denied/unsupported clipboard permission was logging "Copied..." with nothing actually on the clipboard); transfer() moved the overspend confirm() inside its own try/catch so a browser-suppressed confirm() or any other exception surfaces an alert instead of the button silently doing nothing. -->
 <!-- gw-character.html v0.2.44 — Fix duplicate roster characters on re-transfer: transfer() now calls saveDraft() after assigning __gwExportId, so the draft's exportId persists across the navigation to character.html. Previously the id was lost on the next wizard page load and every subsequent Transfer pushed a brand-new character into mp-char-list instead of updating the existing one. -->
@@ -866,6 +867,23 @@
     });
     return out;
   }
+  /* A Core grant can differ from the source conversion template. MP 2.1.16
+     says the CP actually assigned determines exactly what the Ability can do,
+     so any resized conversion must be an explicit, audited build. */
+  const FUNDED_BUILD_PROFILES={
+    Quillspines:{
+      5:{ability:'Natural Weaponry: +2 to hit (5), +2 sharp Kinetic damage (0)'},
+      10:{ability:'Natural Weaponry: +2 to hit (5), +2 sharp Kinetic damage (0), Range: ST/2 (+7.5), 24 Charges (-2.5)'},
+      15:{ability:'Natural Weaponry: +2 to hit (5), +2 sharp Kinetic damage (0), Range: STx2 (+12.5), 24 Charges (-2.5)'},
+      20:{ability:'Natural Weaponry: +2 to hit (5), +2 sharp Kinetic damage (0) / Natural Weaponry: +2 to hit (5), +2 sharp Kinetic damage (0), Range: STx2 (+12.5), 24 Charges (-2.5)'},
+      30:{ability:'Natural Weaponry: +4 to hit (10), +2 sharp Kinetic damage (0) / Natural Weaponry: +2 to hit (5), +4 sharp Kinetic damage (5), Range: STx2 (+12.5), 24 Charges (-2.5)'}
+    }
+  };
+  function fundedBuildProfile(a){
+    const set=FUNDED_BUILD_PROFILES[a&&a.base];
+    return set&&set[assignedAbilityCP(a)]||null;
+  }
+  function paidAbilityBuild(a){const p=fundedBuildProfile(a);return (p&&p.ability)||a.ability||'';}
   function cleanSheetText(s){return String(s||'').replace(/[“”]/g,'"').replace(/[’]/g,"'").replace(/\s+/g,' ').trim();}
   function abbrBuild(s){
     return cleanSheetText(s)
@@ -933,7 +951,7 @@
     return out;
   }
   function abilitySheetParts(a){
-    const body=cleanSheetText(a.ability||'').replace(/^Weakness[;:]\s*/i,'');
+    const body=cleanSheetText(paidAbilityBuild(a)).replace(/^Weakness[;:]\s*/i,'');
     if(!body)return [abbrBuild(cleanSheetText(a.mp||a.gw||'Ability'))];
     const parts=body.split(/(?<=\))\s+\/\s+/).map(abbrBuild);
     const name=abbrBuild(a.mp||a.gw||''),short=abbrBuild(shortMpName(a)),f=parts[0].toLowerCase();
@@ -944,7 +962,7 @@
     const status=a.weakness?'weakness':(isFixed(a)?(a.source==='special-weapon'?'gear':'fixed'):(a.core?'core':`weakness-funded slot ${nonCoreIndex(a)+1}`));
     const assigned=fmt(assignedAbilityCP(a)),tmpl=fmt(templateCP(a));
     const cost=(!a.weakness&&!isFixed(a)&&assigned!==tmpl)?`${assigned} CP, template ${tmpl} CP`:`${assigned} CP`;
-    return `• ${shortMpName(a)} [GW: ${a.gw||'—'}; ${status}; ${cost}]: ${abbrBuild(a.ability||'')}`;
+    return `• ${shortMpName(a)} [GW: ${a.gw||'—'}; ${status}; ${cost}]: ${abbrBuild(paidAbilityBuild(a))}`;
   }
   function gwBuildNotes(){return exportedAbilityEntries().map(buildNoteLine);}
   function abilityRows(){
@@ -973,13 +991,82 @@
     const cp=exportedAbilities().filter(a=>!a.weakness&&/^wealth\b/i.test(a.mp||a.gw||'')).reduce((s,a)=>s+(a.cpNum||0),0);
     let roll='d4';WEALTH_TIERS.forEach(([c,r])=>{if(cp>=c)roll=r;});return roll;
   }
+  function splitAbilityParts(s){return cleanSheetText(s).split(/(?<=\))\s+\/\s+/).map(x=>x.trim()).filter(Boolean);}
+  function attackToHit(s){
+    let m=String(s||'').match(/([+-]\d+)\s+to\s+hit/i);if(m)return m[1];
+    m=String(s||'').match(/\bhit\s*([+-]\d+)/i);return m?m[1]:'';
+  }
+  function attackDamageType(s,kind){
+    s=String(s||'');
+    if(/pick\s+kinetic\s+or\s+energy/i.test(s))return 'Kinetic/Energy';
+    if(/other\s+damage\s+type\s*:\s*other|\bradiation\b/i.test(s))return 'Other';
+    if(/\bpsychic\b/i.test(s))return 'Psychic';
+    if(/\b(?:bio|biochemical)\b/i.test(s))return 'Bio';
+    if(/\bentropy\b/i.test(s))return 'Entropy';
+    if(/\benergy\b|\blaser\b/i.test(s))return 'Energy';
+    if(/\bkinetic\b/i.test(s)||/Natural Weaponry|Special Weapon|Telekinesis/i.test(kind||''))return 'Kinetic';
+    return '';
+  }
+  function attackDamage(s,kind){
+    s=String(s||'');let m;
+    if(/Natural Weaponry/i.test(kind||'')){
+      m=s.match(/([+-]\s*(?:\d*d\d+(?:\s*[+-]\s*(?:\d*d\d+|\d+))*|\d+))\s*(?:sharp|blunt)(?:\s+kinetic)?(?:\s+damage)?/i);
+      return m?'Base HTH '+m[1].replace(/\s+/g,''):'';
+    }
+    if(/Special Weapon/i.test(kind||'')){
+      m=s.match(/Special Weapon[^:]*:\s*([+-]?(?:\d*d\d+(?:\s*[+-]\s*(?:\d*d\d+|\d+))*|\d+))/i);
+      if(!m)return '';
+      const d=m[1].replace(/\s+/g,'');return d[0]==='+'?'Base HTH '+d:d;
+    }
+    if(/Telekinesis/i.test(kind||'')){m=s.match(/\/\s*(\d*d\d+(?:\s*[+-]\s*(?:\d*d\d+|\d+))*)\s+damage/i);return m?m[1].replace(/\s+/g,''):'';}
+    m=s.match(/\b(\d*d\d+(?:\s*[+-]\s*(?:\d*d\d+|\d+))*)\b/i);return m?m[1].replace(/\s+/g,''):'';
+  }
+  function attackFromPart(a,part,index,count){
+    let kind='';
+    if(/Natural Weaponry\s*:/i.test(part))kind='Natural Weaponry';
+    else if(/Power Blast\s*:/i.test(part))kind='Power Blast';
+    else if(/Special Weapon[^:]*:/i.test(part))kind='Special Weapon';
+    else if(/Light Control[^:]*\)\s*Laser\s*:/i.test(part))kind='Laser';
+    else if(/Telekinesis\s*:/i.test(part)&&/\bdamage\b/i.test(part))kind='Telekinesis';
+    else return null;
+    const damage=attackDamage(part,kind);if(!damage)return null;
+    let name=cleanSheetText(a.gw||shortMpName(a)||kind);
+    if(kind==='Natural Weaponry'&&(/\bRange\b|\bRng\b/i.test(part)||count>1))name+=/\bRange\b|\bRng\b/i.test(part)?' (ranged)':' (melee)';
+    const sharp=/\bsharp\b/i.test(part),noKb=/\bNo\s+KB\b/i.test(part);
+    return{name,toHit:attackToHit(part),damage,dmgType:attackDamageType(part,kind),kb:(sharp||noKb)?'No':'Yes'};
+  }
+  function attackRows(){
+    const rows=[{name:'Strike (HTH)',toHit:'',damage:'Base HTH',dmgType:'Kinetic',kb:'Yes'}];
+    exportedAbilityEntries().forEach(a=>{
+      const parts=splitAbilityParts(paidAbilityBuild(a));
+      parts.forEach((part,i)=>{const row=attackFromPart(a,part,i,parts.length);if(row&&rows.length<3)rows.push(row);});
+    });
+    while(rows.length<3)rows.push({name:'',toHit:'',damage:'',dmgType:'',kb:''});
+    return rows;
+  }
+  const ARMOR_DEFAULT_BY_TOTAL={2:[1,0,0,1],3:[1,1,0,1],5:[2,1,1,1],6:[2,1,1,2],8:[2,2,2,2],9:[3,2,2,2],11:[3,3,2,3],12:[3,3,3,3],13:[4,3,3,3],14:[4,3,3,4],15:[4,4,3,4],16:[4,4,4,4],17:[5,4,4,4],18:[5,4,4,5],19:[5,5,4,5],20:[5,5,5,5],21:[6,5,5,5],22:[6,5,5,6],23:[6,6,5,6],24:[6,6,6,6]};
+  function protectionFromPart(a,part){
+    const km=part.match(/\b(Armor|Force Field)\b[^:]*:\s*(?:\d+(?:\.\d+)?\s+points?\s*:\s*)?((?:\d+(?:\.\d+)?\s*\/\s*){3,5}\d+(?:\.\d+)?)/i);
+    if(km)return{kind:/Force Field/i.test(km[1])?'Force Field':'Armor',name:a.gw||shortMpName(a),values:km[2].split(/\s*\/\s*/).map(String)};
+    const am=part.match(/\bArmor\b[^:]*:\s*(\d+(?:\.\d+)?)\s+points?/i),v=am&&ARMOR_DEFAULT_BY_TOTAL[am[1]];
+    return v?{kind:'Armor',name:a.gw||shortMpName(a),values:v.map(String)}:null;
+  }
+  function protectionFields(){
+    const layers=[];
+    exportedAbilityEntries().forEach(a=>splitAbilityParts(paidAbilityBuild(a)).forEach(part=>{const p=protectionFromPart(a,part);if(p)layers.push(p);}));
+    layers.sort((a,b)=>(a.kind==='Force Field'?0:1)-(b.kind==='Force Field'?0:1));
+    const fields={},keys=['Kinetic','Energy','Bio','Entropy','Psychic','Other'];
+    layers.slice(0,3).forEach((p,i)=>keys.forEach((k,j)=>{if(p.values[j]!=null)fields['prot'+k+(i?i+1:'')]=p.values[j];}));
+    return fields;
+  }
   function buildMP(){
     const name=(state.name||'').trim()||'Unnamed Gamma World Character';
     const id=window.__gwExportId||((typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now());
     const bc=state.bc;
     const data={_id:id,_gwStarter:true,_gwStarterVersion:D.version||'2.0.0',name,player:(state.player||'').trim(),trueId:'',side:state.side||'Neutral',birthplace:[state.home,state.homeland].filter(Boolean).join(' — ')||'Gamma World',species:state.species+(state.apType?' ('+state.apType+')':''),gender:state.gender||'',age:String(state.age||''),weight:String(state.weight||''),mass:'',culture:state.culture||'Modern',originType:(state.origin||'').trim(),background:(state.backgrounds||[]).join(', '),motivation:(state.motivation||'').trim(),legalStatus:state.faction||'Independent',wealth:exportWealthRoll(),luck:'10-',powerLevel:state.powerLevel.toLowerCase(),xpBase:String(tierOf(state.powerLevel).total),
       stats:{st:{cp:String(bc.st),mod:'',score:String(bc.st),save:''},en:{cp:String(bc.en),mod:'',score:String(bc.en),save:''},ag:{cp:String(bc.ag),mod:'',score:String(bc.ag),save:''},in:{cp:String(bc.in),mod:'',score:String(bc.in),save:''},cl:{cp:String(bc.cl),mod:'',score:String(bc.cl),save:''}},
-      abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText(),gwBuildNotes:gwBuildNotes()};
+      abilities:abilityRows(),attacks:attackRows(),story:storyText(),gwBuildNotes:gwBuildNotes()};
+    Object.assign(data,protectionFields());
     return data;
   }
   function setActionStatus(message,kind){
