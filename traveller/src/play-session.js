@@ -69,6 +69,7 @@ import {
 } from './scene-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from './contract-document.js';
 import {
+  ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap,
   allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction,
   undeclaredCombatantIds
@@ -760,6 +761,66 @@ export function sheetViews(resolved, open = [], { subsector = null } = {}) {
       return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null } : null;
     })
     .filter(Boolean);
+}
+
+// Book 1 p.27: "While steps 1 through 3 are executed only once per encounter,
+// step 4 is performed cyclically until the combat is concluded."
+function encounterStepStrip(fight, resolved, writable) {
+  const encounter = (resolved.encounters ?? []).find((entry) => entry.identity.id === fight.situation?.identity?.id)
+    ?? (resolved.encounters ?? []).find((entry) => entry.status === 'active')
+    ?? null;
+  const round = Number(fight.round ?? 1);
+  const surpriseSide = encounter?.surprise?.surpriseSideId ?? null;
+  const rangeName = fight.setup?.range ?? null;
+  // p.28: either party may try to escape "immediately (before any combat or
+  // contact occurs)", at 9+ with a DM for the range escaped from; and a party
+  // holding surprise "may always avoid an encounter by so stating".
+  // The engine throws escape against the band between the escaper and its
+  // nearest enemy, not an encounter-wide range, so the strip reads the same
+  // pair: the party's nearest foe. One number for the whole party is a
+  // simplification the strip makes deliberately — the row's own Needs cell
+  // carries the per-combatant figure.
+  const party = (fight.fighters ?? []).filter((entry) => entry.side === 'party' && !entry.down);
+  const foes = (fight.fighters ?? []).filter((entry) => entry.side !== 'party' && !entry.down);
+  let escapeDM = null;
+  if (party.length && foes.length) {
+    const gap = Math.min(...party.flatMap((mine) => foes.map((foe) => Math.abs(Number(mine.band ?? 0) - Number(foe.band ?? 0)))));
+    escapeDM = ESCAPE_RANGE_DMS[rangeBandForBandGap(gap)] ?? 0;
+  }
+  const escapeOpen = round === 1 && (fight.fighters ?? []).some((entry) => entry.side === 'party' && !entry.down);
+  const canAvoid = surpriseSide === 'party' && round === 1;
+  return [
+    {
+      key: 'surprise', number: 1, title: 'Surprise',
+      state: 'done',
+      detail: surpriseSide === null ? 'Neither party: both aware' : `${surpriseSide === 'party' ? 'The party' : 'The opposition'} \u2014 the other side cannot act`,
+      cite: 'Book 1 p.26'
+    },
+    {
+      key: 'range', number: 2, title: 'Range',
+      state: 'done',
+      detail: rangeName ?? 'Set by the referee',
+      cite: 'Book 1 p.27'
+    },
+    {
+      key: 'escape', number: 3, title: 'Escape',
+      state: escapeOpen || canAvoid ? 'open' : 'closed',
+      detail: escapeOpen
+        ? `Throw ${ESCAPE_TARGET}+${escapeDM ? ` at DM ${escapeDM > 0 ? '+' : ''}${escapeDM}` : ''} \u2014 only before contact`
+        : 'Gone: only by opening beyond the field now',
+      // Escape is declared as a movement on the row (it is one of p.28's four
+      // statuses); avoidance is a single statement by a surprising party, so
+      // it gets the button.
+      action: canAvoid && writable ? { command: 'fight:avoid', label: 'Avoid the encounter' } : null,
+      cite: 'Book 1 p.28'
+    },
+    {
+      key: 'round', number: 4, title: 'Declare',
+      state: 'open',
+      detail: 'Movement, then attack and target',
+      cite: 'Book 1 p.28'
+    }
+  ];
 }
 
 export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null } = {}) {
@@ -2052,6 +2113,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           persist([result.encounter]);
           const actor = encounter.combatants.find((entry) => entry.id === actorId);
           message = `${actor?.name ?? 'Combatant'} declared ${action.replace('-', ' at a ')}`;
+        } else if (verb === 'avoid') {
+          // Book 1 p.28: a party holding surprise "may always avoid an
+          // encounter by so stating" — no throw. avoidEncounter has been in
+          // the engine since v0.96.0 with nothing calling it.
+          const next = avoidEncounter(encounter, { date: resolved.campaign.time });
+          persist([next]);
+          message = 'The party uses its surprise to avoid the encounter.';
+          log('COMBAT', message);
         } else if (verb === 'sheet') {
           // The sheet is the declaration: whatever rows it carries replace any
           // orders already standing for those combatants, then the round is
@@ -3125,6 +3194,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           scene: { ...fight.scene, selected: selectedFighterId ?? fight.scene.selected },
           next,
           refereeActions: writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
+          // v0.252.0: Book 1 p.27's procedure, as a strip across the top of
+          // the fight. Steps 1 to 3 run once per encounter and were reported
+          // only as a sentence of prose; step 3 — escape and avoidance — had
+          // no UI at all, though the engine has done both since v0.96.0.
+          encounterSteps: encounterStepStrip(fight, resolved, writable),
           steps: [], done: [],
           save, notice: lastMessage
         };

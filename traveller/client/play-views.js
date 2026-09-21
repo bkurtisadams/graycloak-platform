@@ -7,17 +7,17 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.251.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.251.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.251.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.252.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.252.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.252.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.251.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.251.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.251.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.252.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.252.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.252.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -32,7 +32,7 @@ import { actorBadge, shipBadge } from './sheets.js?v=v0.251.0';
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.251.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.252.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -394,7 +394,17 @@ function sheetRow(row, state, handlers, focusId) {
   const brink = !row.down && lowest > 0 && lowest <= 2;
   const live = Boolean(state.live) && !row.down;
   const weapon = getPersonalWeapon(fighter.weaponKey);
-  return h('tr', { class: `is-${fighter.side}${row.down ? ' is-down' : ''}${fighter.id === focusId ? ' is-focus' : ''}`, onclick: (event) => { if (!event.target.closest('select')) handlers.onSheetFocus?.(fighter.id); } },
+  return h('tr', {
+    class: `is-${fighter.side}${row.down ? ' is-down' : ''}${fighter.id === focusId ? ' is-focus' : ''}`,
+    onclick: (event) => { if (!event.target.closest('select')) handlers.onSheetFocus?.(fighter.id); },
+    // v0.252.0: the row and its token carry the same menu, so an order can
+    // be given from wherever the referee is looking.
+    oncontextmenu: row.down ? null : (event) => {
+      event.preventDefault();
+      handlers.onSheetFocus?.(fighter.id);
+      handlers.onFighterMenu?.(fighter, { x: event.clientX, y: event.clientY }, { move: row.move, targetId: row.targetId, foes: row.foes });
+    }
+  },
     h('td', {}, h('div', { class: 'tr-name' }, h('span', { class: 'tr-dot', 'aria-hidden': 'true' }), h('span', { class: 'tr-select', text: fighter.name }))),
     h('td', { class: 'tr-stats', title: row.down ? condition(fighter) : brink ? 'One more wound may put a characteristic to zero: unconscious (Book 1 p.30)' : condition(fighter) },
       row.down ? condition(fighter).toLowerCase() : [stats, brink ? h('span', { class: 'brink', text: ' \u26a0' }) : null]),
@@ -408,26 +418,74 @@ function sheetRow(row, state, handlers, focusId) {
     h('td', { class: `sheet-needs is-${row.tone || 'plain'}`, title: row.needs, text: row.needs }));
 }
 
-function fightColumn(state, handlers) {
+// v0.252.0: the fight takes the screen, the way staging and the ship fight
+// already do. Before this the declaration table lived in the 420px now
+// column, where it was wider than its own container: it overlapped the
+// header above it and clipped the Needs column on the right — which is the
+// column that says why a row cannot act.
+//
+// So the table, the band grid and Book 1 p.27's step strip are the scene, and
+// the column keeps what is genuinely about one combatant: the throw behind
+// the focused row, the wound prompt, morale, and last round.
+
+function encounterStepStrip(state, handlers) {
+  const steps = state.encounterSteps ?? [];
+  if (!steps.length) return null;
+  return h('nav', { class: 'fight-steps', 'aria-label': 'Encounter steps, Book 1 p.27' },
+    h('div', { class: 'fight-round' }, h('span', { class: 'fight-round-label', text: 'ROUND' }), h('b', { text: String(state.round ?? 1) })),
+    steps.map((step) => h('div', { class: `fight-step is-${step.state}`, title: step.cite },
+      h('b', { text: `${step.number}. ${step.title}` }),
+      h('span', { text: step.detail }),
+      step.action ? h('button', {
+        type: 'button', class: 'button is-small', text: step.action.label,
+        onclick: () => handlers.onCommand?.(step.action.command)
+      }) : null)));
+}
+
+function fightScene(state, handlers) {
   const rows = state.sheetRows ?? sheetRows(state, {});
   const focus = rows.find((row) => row.fighter.id === state.sheetFocus) ?? rows.find((row) => !row.down) ?? null;
   const referee = state.seat !== 'player';
   const sides = [rows.filter((row) => row.fighter.side === 'party'), rows.filter((row) => row.fighter.side !== 'party')];
+  const live = rows.filter((row) => !row.down).length;
+  return [
+    h('div', { class: 'fight-shell' },
+      h('header', { class: 'lead' },
+        h('h2', { text: state.situation.title }),
+        h('p', { text: [state.setup?.range, state.setup?.surprise].filter(Boolean).join('. ') })),
+      encounterStepStrip(state, handlers),
+      h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
+      h('section', { class: 'fight-orders', 'aria-label': 'Declarations' },
+        h('table', { class: 'tracker sheet' },
+          h('thead', {}, h('tr', {},
+            h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'Status' }),
+            h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }),
+            h('th', { title: 'Book 1 p.28 step 4B', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
+          sides.map((side) => h('tbody', {}, side.map((row) => sheetRow(row, state, handlers, focus?.fighter.id))))),
+        h('div', { class: 'fight-actions' },
+          state.live && !(state.next?.wound ?? null)
+            ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() },
+              h('span', { text: 'Resolve round' }), h('small', { text: `${live} order${live === 1 ? '' : 's'}, as shown` }))
+            : null,
+          // p.30: a round is every combatant throwing once, together. Said
+          // here because the table reads like a turn order and is not one.
+          h('span', { class: 'cite', text: 'Every attack in a round lands together (Book 1 p.30).' }),
+          referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
+          (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) })))))
+  ];
+}
+
+function fightColumn(state, handlers) {
+  const rows = state.sheetRows ?? sheetRows(state, {});
+  const focus = rows.find((row) => row.fighter.id === state.sheetFocus) ?? rows.find((row) => !row.down) ?? null;
   const wound = state.next?.wound ?? null;
   const morale = (state.casualties ?? []).filter((entry) => entry.throwing).map((entry) =>
     `${entry.side === 'party' ? 'The party' : 'The opposition'} has ${entry.out} of ${entry.of} down (${Math.round(entry.share * 100)}%): morale is thrown each round, 7+ to stand${entry.share > 0.5 ? ', at \u22122' : ''}.`);
   return [
-    h('header', { class: 'now-head' }, h('h1', { text: state.situation.title }), h('p', { text: [state.setup?.range, state.setup?.surprise].filter(Boolean).join('. ') })),
+    h('header', { class: 'now-head' }, h('h1', { text: 'This round' }), h('p', { text: focus ? focus.fighter.name : 'Nobody left standing' })),
     state.notice ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null,
     morale.length ? h('p', { class: 'hold-note is-morale', text: morale.join(' ') }) : null,
     wound ? h('section', { class: 'lead' }, h('h2', { text: state.next.title }), h('p', { text: state.next.copy }), h('p', { class: 'cite', text: state.next.cite })) : null,
-    h('table', { class: 'tracker sheet' },
-      h('thead', {}, h('tr', {},
-        h('th', { text: 'Combatant' }), h('th', { title: 'Strength, dexterity, endurance now', text: 'Status' }),
-        h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }),
-        h('th', { title: 'Book 1 p.28 step 4B', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
-      sides.map((side) => h('tbody', {}, side.map((row) => sheetRow(row, state, handlers, focus?.fighter.id))))),
-    // The throw behind the focused row, as a sum, and an NPC's own reasoning.
     focus && !focus.down ? h('section', { class: 'sheet-why' },
       h('h3', { text: focus.fighter.name }),
       focus.attacks && focus.line?.preview?.canAttack ? h('p', { class: 'odds', text: `${dmSum(focus.line.preview)} for ${woundText(focus.line.preview)} wounds.` }) : null,
@@ -436,17 +494,14 @@ function fightColumn(state, handlers) {
       focus.source === 'declared' ? h('p', { class: 'odds', text: 'Already declared this round; changing the row replaces it.' }) : null,
       state.live && state.seat !== 'player' ? h('form', { class: 'editor-row', onsubmit: (event) => {
         event.preventDefault();
-        const data = new FormData(event.currentTarget);
-        handlers.onEditCombatant?.(focus.fighter.id, Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, data.get(key)])));
+        const form = event.currentTarget;
+        const read = (key) => form.querySelector(`[name="${key}"]`)?.value ?? '';
+        handlers.onEditCombatant?.(focus.fighter.id, Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, read(key)])));
       } },
         h('span', { class: 'editor-label', text: 'Set' }),
         ['STR', 'DEX', 'END'].map((key) => h('label', { class: 'editor-score' }, h('span', { text: key }),
           h('input', { name: key, type: 'number', min: '0', max: String(focus.fighter.full[key]), value: String(focus.fighter.characteristics[key]), 'aria-label': `${focus.fighter.name} ${key}` }))),
         h('button', { type: 'submit', class: 'button is-small', text: 'Apply' })) : null) : null,
-    h('div', { class: 'lead-actions' },
-      state.live && !wound ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() }, h('span', { text: 'Resolve round' }), h('small', { text: `${rows.filter((row) => !row.down).length} orders, as shown` })) : null,
-      referee ? h('button', { type: 'button', class: 'button is-small', text: 'Add to combat' }) : null,
-      (state.refereeActions ?? []).map((action) => h('button', { type: 'button', class: 'button is-small', text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
     state.lastRound?.length ? h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))) : null
   ];
 }
@@ -725,6 +780,14 @@ function bandsScene(state, handlers) {
     group.append(initial, name);
     group.addEventListener('click', () => handlers.onSelectMarker(fighter.id));
     group.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handlers.onSelectMarker(fighter.id); } });
+    // v0.252.0: the same gesture the directory rows and the Space canvas
+    // use. A token was selectable and nothing else: a wrong order had to be
+    // fixed by finding the right dropdown in the table.
+    group.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      handlers.onSelectMarker(fighter.id);
+      handlers.onFighterMenu?.(fighter, { x: event.clientX, y: event.clientY });
+    });
     svg.append(group);
   }
   return [
@@ -768,6 +831,9 @@ export function renderScene(state, handlers) {
   if (state.staging) return stagingScene(state.staging, handlers);
   if (state.shipFight) return shipFightScene(state.shipFight, handlers);
   const scene = state.scene;
+  // v0.252.0: a personal fight is a screen, not a band grid with a table
+  // squeezed in beside it.
+  if (state.fighters?.length && scene.kind === 'bands') return fightScene(state, handlers);
   if (scene.kind === 'bands') return bandsScene(state, handlers);
   if (scene.kind === 'plot') return plotScene(state);
   return subsectorScene(scene, handlers, Boolean(state.live));
@@ -1249,6 +1315,35 @@ function combatDrawer(state, handlers) {
 
 // v0.249.0: one context menu shape for every directory, with the verbs that
 // make sense for that row's kind. play.js positions and dismisses it.
+// v0.252.0: a combatant's own orders, on the token or its row. Movement and
+// target are declarations (Book 1 p.28 step 4), so they go through the same
+// handlers the table's dropdowns use; the referee's fiat is here too, rather
+// than inline beside the attack where it read as part of the round.
+export function renderFighterMenu(menu, handlers = {}) {
+  if (!menu?.fighter) return null;
+  const fighter = menu.fighter;
+  const item = (text, onclick, { danger = false } = {}) => h('button', {
+    type: 'button', class: `row-menu-item${danger ? ' is-danger' : ''}`, text,
+    onclick: () => { handlers.onCloseFighterMenu?.(); onclick(); }
+  });
+  const moves = [...SHEET_MOVES, ...(menu.round === 1 ? ['Escape'] : [])];
+  const items = [
+    // Both go through onSheetChange, the same handler the table's own
+    // dropdowns use, so an order given here is the same order.
+    ...moves.map((move) => item(`Movement: ${move.toLowerCase()}`, () => handlers.onSheetChange?.(fighter.id, { move, targetId: menu.targetId ?? null }))),
+    ...(menu.foes ?? []).map((foe) => item(`Target: ${foe.name}`, () => handlers.onSheetChange?.(fighter.id, { move: menu.move ?? 'Stand', targetId: foe.id })))
+  ];
+  if (fighter.sourceActorId) items.push(item('Open sheet', () => handlers.onOpenSheet?.('actor', fighter.sourceActorId)));
+  // No "remove from the fight" yet: the engine has no command for pulling a
+  // combatant out mid-round, and offering a button that does nothing is
+  // worse than not offering it.
+  const node = h('div', { class: 'row-menu', role: 'menu', 'aria-label': `${fighter.name} orders` },
+    h('div', { class: 'row-menu-head', text: `${fighter.name} \u00b7 band ${fighter.band + 1}` }), items);
+  node.style.left = `${menu.at.x}px`;
+  node.style.top = `${menu.at.y}px`;
+  return node;
+}
+
 export function renderRowMenu(menu, handlers = {}) {
   if (!menu?.entry) return null;
   const entry = menu.entry;

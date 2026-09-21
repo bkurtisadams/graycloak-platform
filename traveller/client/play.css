@@ -307,7 +307,10 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 
 /* A fight. The left column widens to hold the selected combatant and the
    tracker; the scene is the band board and nothing else. */
-.shell[data-situation='fight'] { --now-width: 720px; }
+/* v0.252.0: the fight moved to the scene column, so the now column goes back
+   to its ordinary width. It was 720px to hold the declaration table, which
+   left the band grid about 300px and the table overflowing anyway. */
+.shell[data-situation='fight'] { --now-width: 360px; }
 .target-line { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 5; pointer-events: none; }
 
 .selected { display: grid; gap: 10px; padding-top: 12px; border-top: 3px solid var(--ink); }
@@ -793,14 +796,14 @@ a.button { text-decoration: none; color: inherit; }
 .overlay { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
 .overlay > * { pointer-events: auto; }
 .sheet-layer { position: absolute; inset: 0; pointer-events: none; }
-.sheet {
+.sheet-layer > .sheet {
   position: absolute; pointer-events: auto;
   left: var(--sheet-x, 180px); top: var(--sheet-y, 90px);
   width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 120px);
   display: flex; flex-direction: column;
   background: var(--raise); border: 1px solid var(--ink); box-shadow: 6px 6px 0 rgba(16, 18, 16, 0.18);
 }
-.sheet.is-compact { width: min(380px, calc(100vw - 32px)); }
+.sheet-layer > .sheet.is-compact { width: min(380px, calc(100vw - 32px)); }
 .sheet-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--ink); color: var(--raise); cursor: grab; touch-action: none; }
 .sheet-bar:active { cursor: grabbing; }
 .sheet-back { display: none; }
@@ -849,7 +852,7 @@ a.button { text-decoration: none; color: inherit; }
 /* Phones: nowhere to drag to, and a title-bar drag fights the browser's own
    scrolling, so the same sheet body fills the screen with a back arrow. */
 @media (max-width: 760px) {
-  .sheet, .sheet.is-compact { position: fixed; inset: 0; width: 100%; max-height: none; box-shadow: none; }
+  .sheet-layer > .sheet, .sheet-layer > .sheet.is-compact { position: fixed; inset: 0; width: 100%; max-height: none; box-shadow: none; }
   .sheet-bar { cursor: default; padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
   .sheet-back { display: inline; }
   .sheet-close { display: none; }
@@ -903,3 +906,39 @@ a.button { text-decoration: none; color: inherit; }
 .sheet-field.is-wide { width: 100%; }
 .sheet-field textarea { font: inherit; font-size: 13px; text-transform: none; letter-spacing: 0; padding: 5px 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); resize: vertical; }
 .sheet-field .is-own { background: var(--ground); border-style: dashed; }
+
+/* v0.252.0: a personal fight takes the screen. The declaration table used to
+   live in the 420px now column, where it was wider than its own container —
+   it overlapped the header above it and clipped the Needs column, which is
+   the one that says why a row cannot act. */
+.scene > .fight-shell {
+  grid-row: 1 / -1; min-height: 0;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px; padding: 12px 20px 14px;
+}
+.fight-shell > .lead { padding: 0; }
+.fight-steps { display: flex; align-items: stretch; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.fight-round { display: flex; flex-direction: column; justify-content: center; padding-right: 12px; border-right: 1px solid var(--line); }
+.fight-round b { font-size: 19px; line-height: 1; }
+.fight-round-label { font-size: 10px; letter-spacing: .08em; color: var(--ink-2); }
+.fight-step { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 3px 9px; border: 1px solid var(--line); background: var(--raise); }
+.fight-step b { font-size: 12px; }
+.fight-step span { font-size: 10px; color: var(--ink-2); }
+.fight-step.is-done { border-color: var(--go-border); background: var(--go); }
+.fight-step.is-open { border-color: var(--ink); background: var(--ink); color: var(--raise); }
+.fight-step.is-open span { color: var(--line); }
+.fight-step.is-closed { opacity: .6; }
+.fight-step > .button { align-self: flex-start; margin-top: 3px; }
+.fight-board { min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+.fight-board > svg.bands { flex: 1 1 0; min-height: 200px; }
+.fight-orders { display: flex; flex-direction: column; gap: 8px; }
+.fight-orders .tracker { width: 100%; }
+.fight-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fight-actions > .cite { margin: 0; }
+.fight-actions > .button.is-small { margin-left: auto; }
+.fight-actions > .button.is-small + .button.is-small { margin-left: 0; }
+.tracker tr[oncontextmenu] { cursor: context-menu; }
+@container (max-width: 760px) {
+  .scene > .fight-shell { grid-template-rows: auto auto auto auto; }
+  .fight-board > svg.bands { min-height: 260px; }
+}

@@ -433,3 +433,97 @@ test('v0.251.0 a character who picks up too much fights at one less, and sheds i
   assert.equal(started.ok, true, started.message);
   assert.equal(meIn(session.view()).characteristics.STR, rolled.STR);
 });
+
+// ---------------------------------------------------------------------------
+// v0.252.0: the personal fight takes the screen, and Book 1 p.27's procedure
+// is on it. Step 3 — escape and avoidance — had no UI at all.
+// ---------------------------------------------------------------------------
+
+async function fightFixture() {
+  const { session, registry, campaignId } = await freshSession();
+  const foe = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Thug' } } }).createdId;
+  const started = session.run('fight:start', { fight: { opponentIds: [foe], range: 'medium' } });
+  assert.equal(started.ok, true, started.message);
+  return { session, registry, campaignId, foe };
+}
+
+test('v0.252.0 the fight carries p.27\u2019s four steps, with the escape throw and its range DM', async () => {
+  const { session } = await fightFixture();
+  const steps = session.view().encounterSteps;
+  assert.deepEqual(steps.map((step) => step.title), ['Surprise', 'Range', 'Escape', 'Declare']);
+  assert.deepEqual(steps.map((step) => step.number), [1, 2, 3, 4]);
+  assert.equal(steps[0].state, 'done');
+  assert.equal(steps[1].state, 'done');
+
+  const escape = steps[2];
+  assert.equal(escape.state, 'open', 'p.28: escape is legal before contact, which is round 1');
+  // Medium range carries +1 (ESCAPE_RANGE_DMS), and the strip reads the real
+  // band gap rather than an encounter-wide range.
+  assert.match(escape.detail, /Throw 9\+ at DM \+1/);
+  assert.match(escape.cite, /p\.28/);
+});
+
+test('v0.252.0 a party holding surprise can state that it avoids the encounter', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const foe = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Thug' } } }).createdId;
+
+  // Surprise is a throw, so a fixture cannot count on holding it; ask the
+  // step strip whether the option is offered and check it against who has it.
+  session.run('fight:start', { fight: { opponentIds: [foe], range: 'medium' } });
+  const view = session.view();
+  const escape = view.encounterSteps.find((step) => step.key === 'escape');
+  const surprise = view.encounterSteps.find((step) => step.key === 'surprise');
+  const partyHasSurprise = /The party/.test(surprise.detail);
+  assert.equal(Boolean(escape.action), partyHasSurprise, 'p.28: only a surprising party may simply avoid');
+
+  if (partyHasSurprise) {
+    const avoided = session.run(escape.action.command);
+    assert.equal(avoided.ok, true, avoided.message);
+    assert.equal(session.view().fighters?.length ?? 0, 0, 'the encounter is over without a shot');
+  } else {
+    // And it is refused when the party does not hold it, rather than quietly
+    // ending a fight the opposition started.
+    assert.equal(session.run('fight:avoid').ok, false);
+  }
+});
+
+test('v0.252.0 the fight renders as the scene, table and all, and the now column keeps the focused combatant', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main><aside></aside>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+
+  const { session } = await fightFixture();
+  const state = { ...session.view(), live: true };
+  const { renderScene, renderNow, renderFighterMenu } = await import('../client/play-views.js');
+
+  document.querySelector('main').replaceChildren(...renderScene(state, {}));
+  const shell = document.querySelector('.fight-shell');
+  assert.ok(shell, 'the fight is a screen, not a band grid with a table beside it');
+  assert.ok(shell.querySelector('.fight-steps'), 'p.27\u2019s steps across the top');
+  assert.ok(shell.querySelector('svg.bands'), 'the band grid in the middle');
+  const table = shell.querySelector('.fight-orders table.tracker');
+  assert.ok(table, 'and the declaration table beneath it, at full width');
+  // Every row must carry its Needs cell: it was the column being clipped.
+  const needs = [...table.querySelectorAll('.sheet-needs')];
+  assert.equal(needs.length, state.fighters.length);
+  assert.ok(needs.every((cell) => cell.textContent.trim().length));
+
+  document.querySelector('aside').replaceChildren(...renderNow(state, {}));
+  assert.equal(document.querySelector('aside .now-head h1').textContent, 'This round');
+  assert.ok(document.querySelector('aside .sheet-why'), 'the column keeps the throw behind the focused row');
+  assert.equal(document.querySelector('aside table.tracker'), null, 'and not a second copy of the table');
+
+  // The token menu gives the same orders the table's dropdowns do.
+  const fighter = state.fighters[0];
+  const menu = renderFighterMenu({ fighter, at: { x: 10, y: 10 }, round: 1, referee: true, foes: state.fighters.filter((entry) => entry.side !== fighter.side) }, {});
+  const labels = [...menu.querySelectorAll('.row-menu-item')].map((node) => node.textContent);
+  assert.ok(labels.includes('Movement: evade'));
+  assert.ok(labels.includes('Movement: escape'), 'escape is a movement on round 1 (p.28)');
+  assert.ok(labels.some((label) => label.startsWith('Target: ')));
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+});

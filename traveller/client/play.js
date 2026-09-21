@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, sheetRows } from './play-views.js?v=v0.251.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.251.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.251.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.251.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.251.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.251.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.251.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.251.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.251.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, sheetRows } from './play-views.js?v=v0.252.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.252.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.252.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.252.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.252.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.252.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.252.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.252.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.252.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -70,6 +70,7 @@ const ui = {
   // right-click menu's target. Both are view state: nothing here is saved.
   openSheets: [],
   rowMenu: null,
+  fighterMenu: null,
   stagingIntruder: 'opposition',
   stagingPressurised: false,
   // Seats, invites and join requests live in the cloud, so they are fetched
@@ -299,6 +300,12 @@ function render() {
     onPrintCharacter: () => { window.alert('The TAS Form 2 print view is the next step after the tabs.'); },
     onRowMenu: (entry, at) => { ui.rowMenu = { entry, at }; render(); },
     onCloseRowMenu: () => { ui.rowMenu = null; render(); },
+    onFighterMenu: (fighter, at, row = {}) => {
+      ui.fighterMenu = { fighter, at, ...row };
+      ui.selectedMarker = fighter.id;
+      render();
+    },
+    onCloseFighterMenu: () => { ui.fighterMenu = null; render(); },
     onCreateActor: (kind, folder) => {
       if (source.mode !== 'live') return;
       const name = window.prompt(kind === 'statblock' ? 'New statblock name:' : 'New actor name:', '');
@@ -414,7 +421,11 @@ function render() {
     onEditShip: (id, field, value) => { if (source.mode === 'live') source.session.run(`edit:ship:${field}`, { fight: { id, value } }); },
     onEditCombatant: (id, value) => { if (source.mode === 'live') source.session.run('edit:combatant:current', { fight: { id, value } }); },
     onStartFight: (opponentIds, range, characterIds) => {
-      if (source.mode === 'live') source.session.run('fight:start', { fight: { opponentIds, range, characterIds } });
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:start', { fight: { opponentIds, range, characterIds } });
+      // v0.252.0: the fight has the scene column now, so the drawer it was
+      // started from gets out of the way.
+      if (result.ok) { ui.drawer = null; render(); }
     },
     onResolveSheet: () => {
       if (source.mode !== 'live') return;
@@ -519,9 +530,15 @@ function render() {
   if (layer) {
     layer.replaceChildren(...[
       (state.sheets ?? []).length ? renderSheets(state.sheets, handlers) : null,
-      ui.rowMenu ? renderRowMenu(ui.rowMenu, handlers) : null
+      ui.rowMenu ? renderRowMenu(ui.rowMenu, handlers) : null,
+      ui.fighterMenu ? renderFighterMenu({
+        ...ui.fighterMenu,
+        round: state.round ?? 1,
+        referee: state.seat !== 'player',
+        foes: ui.fighterMenu.foes ?? (state.fighters ?? []).filter((entry) => entry.side !== ui.fighterMenu.fighter.side)
+      }, handlers) : null
     ].filter(Boolean));
-    layer.hidden = !(state.sheets ?? []).length && !ui.rowMenu;
+    layer.hidden = !(state.sheets ?? []).length && !ui.rowMenu && !ui.fighterMenu;
   }
 
   const last = state.chat[state.chat.length - 1];
