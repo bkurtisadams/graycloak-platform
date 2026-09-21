@@ -15,7 +15,7 @@
 
 import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
-  setCharacterMilitaryLoad, updateCharacterInventoryItem,
+  setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, beginPortCall, bookPassenger,
   calculateBerthingCost, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost, canShipMakeJump,
   chargeLifeSupportForTrip, chargeShipUpkeep, consumeJumpFuel, creditShipAccount, deliverFreightAtDestination,
@@ -592,7 +592,7 @@ function shipSheet(resolved, id) {
   };
 }
 
-function actorSheet(resolved, id) {
+function actorSheet(resolved, id, subsector = null) {
   const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === id);
   if (actor) {
     const statblock = actor.profile.kind === 'statblock';
@@ -623,25 +623,116 @@ function actorSheet(resolved, id) {
   }
   const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
   if (!character) return null;
+  // v0.250.0: the full character sheet, built for play rather than as a
+  // facsimile of TAS Form 2. Four tabs in the order they get opened, and a
+  // band of vitals above them that never scrolls away. Form 2's own content
+  // is the Record tab; Form 2 itself is the print view of the same fields.
+  const view = characterSheetVitals(character, resolved, subsector);
+  const record = { ...emptyCharacterRecord(), ...(character.record ?? {}) };
+  const skills = Object.entries(character.skills ?? {})
+    .map(([name, level]) => ({ name, level, label: `${name}-${level}`, dm: level }))
+    .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
   return {
     kind: 'actor', id, statblock: false, character: true,
     title: character.identity.name || '(unnamed)',
-    subtitle: [character.career?.service, character.career?.terms ? `${character.career.terms} terms` : null].filter(Boolean).join(' \u00b7 ') || 'Player character',
+    subtitle: [(() => {
+      const service = SERVICE_NAMES[character.career?.service] ?? sentenceCase(String(character.career?.service ?? ''));
+      return character.status?.retired ? `Retired ${service}` : service;
+    })(),
+      character.career?.terms ? `${character.career.terms} terms` : null,
+      `age ${character.age}`].filter(Boolean).join(' \u00b7 '),
+    tabs: ['Play', 'Gear', 'Record', 'Notes'],
     upp: character.upp,
     characteristics: { ...character.characteristics },
     current: { ...character.current },
-    skills: Object.entries(character.skills ?? {}).map(([name, level]) => `${name}-${level}`),
+    // Book 1 p.33: an encumbered character counts one less on all three
+    // physical characteristics, so the band shows what is being played with,
+    // not only what was rolled.
+    effective: view.effective,
+    aging: view.aging,
+    skills,
     weaponKey: character.loadout?.weaponKey ?? null,
     weaponName: character.loadout?.weaponKey ? getPersonalWeapon(character.loadout.weaponKey)?.name ?? character.loadout.weaponKey : null,
     armor: character.loadout?.armor ?? 'none',
-    age: character.profile?.age ?? null,
-    cashCr: character.finances?.credits ?? 0,
     weaponChoices: Object.entries(PERSONAL_WEAPONS).filter(([, weapon]) => !weapon.naturalWeapon).map(([key, weapon]) => ({ key, name: weapon.name })),
     armorChoices: [...PERSONAL_ARMOR_TYPES],
-    notes: '',
+    age: character.age,
+    cashCr: character.finances?.credits ?? 0,
+    inventory: view.inventory,
+    load: view.load,
+    entitlements: view.entitlements,
+    record,
+    notes: character.notes ?? '',
     compactOnly: false,
     editable: true
   };
+}
+
+// The vitals and the load, worked out once for whichever tab is showing.
+// Separate from characterView above, which is the player column's model.
+function characterSheetVitals(character, resolved, subsector) {
+  const gravityFactor = currentGravityFactor(resolved, subsector);
+  const load = characterLoad(character, { gravityFactor });
+  const penalty = load.characteristicDM ?? 0;
+  const current = character.current ?? {};
+  const effective = {};
+  for (const key of ['STR', 'DEX', 'END']) {
+    const now = Number(current[key] ?? character.characteristics[key] ?? 0);
+    effective[key] = { now, full: Number(character.characteristics[key] ?? 0), played: Math.max(0, now + penalty) };
+  }
+  for (const key of ['INT', 'EDU', 'SOC']) {
+    const score = Number(character.characteristics[key] ?? 0);
+    effective[key] = { now: score, full: score, played: score };
+  }
+  const months = character.chronology ?? {};
+  return {
+    effective,
+    aging: {
+      age: character.age,
+      nextCheckAge: months.nextAgingCheckAgeMonths ? Math.floor(months.nextAgingCheckAgeMonths / 12) : null,
+      // The gap the app already tracks: anagathics push it one way, a low
+      // berth the other. Field 7 of TAS Form 2 asks for exactly this.
+      modifierMonths: Number(months.chronologicalAgeMonths ?? 0) - Number(months.physicalAgeMonths ?? 0)
+    },
+    inventory: (character.inventory ?? []).map((item) => ({
+      id: item.id, name: item.name, quantity: item.quantity, carried: item.carried,
+      counts: item.countsTowardLoad, weightGrams: item.weightGrams,
+      totalGrams: item.countsTowardLoad && item.carried ? item.weightGrams * item.quantity : 0
+    })),
+    load: {
+      state: load.state, penalty, military: Boolean(load.military),
+      loadGrams: load.loadGrams, normalGrams: load.normalGrams, doubleGrams: load.doubleGrams, tripleGrams: load.tripleGrams,
+      gravityFactor, multiplier: load.multiplier,
+      words: LOAD_WORDS[load.state]
+    },
+    entitlements: [
+      // benefits.passages holds objects, not strings: a bare String() of one
+      // reads "[object Object]" on the sheet.
+      // benefits.passages holds { name, count }, not strings: a bare String()
+      // of one reads "[object Object]" on the sheet.
+      ...(character.benefits?.passages ?? []).map((entry) => (typeof entry === 'string'
+        ? entry
+        : `${entry.name}${Number(entry.count ?? 1) > 1 ? ` \u00d7${entry.count}` : ''}`)),
+      ...(character.shipRefs ?? []).map((ref) => `${ref.shipType || 'Ship'} \u2014 ${ref.shipName || ref.shipId} (${ref.relationship})`),
+      character.finances?.retirementPayAnnual ? `Retirement pay Cr ${character.finances.retirementPayAnnual.toLocaleString('en-US')} a year` : null
+    ].filter(Boolean)
+  };
+}
+
+// Where the party is standing, for Book 1 p.33's gravity adjustment. The
+// campaign records its position under `location`, not `position`, and the
+// world's size digit comes out of the UWP — which is what buildPlayViewState
+// below has always done, so this is the same reading rather than a second
+// one. Aboard ship in jump there is no world, and the bands are unadjusted.
+function currentGravityFactor(resolved, subsector) {
+  const campaign = resolved.campaign;
+  const underway = (resolved.ships ?? []).find((entry) => entry.identity.id === campaign.activeShipId)?.state?.operationalStatus === 'in-jump';
+  if (underway || !subsector) return null;
+  try {
+    return parseUniversalWorldProfile(getSubsectorSystem(subsector, campaign.location?.systemId).mainWorld.uwp).size;
+  } catch {
+    return null;
+  }
 }
 
 function sceneSheet(resolved, id) {
@@ -661,11 +752,11 @@ function sceneSheet(resolved, id) {
 }
 
 /** The open sheets, in the order the referee opened them. */
-export function sheetViews(resolved, open = []) {
+export function sheetViews(resolved, open = [], { subsector = null } = {}) {
   const build = { ship: shipSheet, actor: actorSheet, scene: sceneSheet };
   return open
     .map((entry) => {
-      const sheet = build[entry.kind]?.(resolved, entry.id) ?? null;
+      const sheet = build[entry.kind]?.(resolved, entry.id, subsector) ?? null;
       return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null } : null;
     })
     .filter(Boolean);
@@ -1522,6 +1613,32 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // makeActive default) is what actually won on every fresh page load,
       // however many times a different character had been clicked since.
       // This makes a click stick by writing it back to the campaign too.
+      // v0.250.0: the character sheet's own writes. The Record tab is all
+      // personnel text nothing else reads, so it goes straight through
+      // updateCharacterRecord; name and notes are the two fields outside
+      // that block the sheet can set.
+      if (command.startsWith('character:')) {
+        const [, verb] = command.split(':');
+        if (verb === 'record' || verb === 'name' || verb === 'notes') {
+          const target = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+          if (!target) throw new Error('choose a character first');
+          const value = fight?.value;
+          let next;
+          if (verb === 'record') next = updateCharacterRecord(target, value ?? {});
+          else if (verb === 'name') {
+            const name = String(value ?? '').trim();
+            if (!name) throw new Error('give the character a name');
+            next = { ...JSON.parse(JSON.stringify(target)), identity: { ...target.identity, name } };
+          } else {
+            next = { ...JSON.parse(JSON.stringify(target)), notes: String(value ?? '') };
+          }
+          persist([next]);
+          lastMessage = { ok: true, message: `${next.identity.name}: changed.` };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        }
+      }
       if (command === 'character:activate') {
         if (!characterId) throw new Error('choose a character to make active');
         const character = (resolved.characters ?? []).find((entry) => entry.identity.id === characterId);
@@ -2775,7 +2892,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating
       // over the page means. A sheet whose document has been deleted drops out.
-      state.sheets = sheetViews(resolved, sheets);
+      state.sheets = sheetViews(resolved, sheets, { subsector });
       // v0.233.0: state.ship (the masthead chip and the ship drawer both
       // read it) otherwise always reflects the persisted document, which a
       // ship fight in progress hasn't touched yet — resolveLaserFire writes

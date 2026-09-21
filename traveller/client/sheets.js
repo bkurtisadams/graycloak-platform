@@ -200,6 +200,213 @@ function actorFull(sheet, handlers) {
   return parts.filter(Boolean);
 }
 
+// --------------------------------------------------------- character sheet
+// v0.250.0. Built for play rather than as a facsimile of TAS Form 2: a band
+// of vitals that never scrolls away, then four tabs in the order they get
+// opened. Form 2's own content is the Record tab; Form 2 itself is the print
+// view of the same fields.
+
+const KG = (grams) => `${Math.round(grams / 100) / 10} kg`;
+
+function vitalsBand(sheet) {
+  const cell = (key) => {
+    const entry = sheet.effective[key];
+    const hurt = entry.now < entry.full;
+    const held = entry.played !== entry.now;
+    return h('div', { class: `sheet-vital${hurt ? ' is-hurt' : ''}`, title: held ? 'Encumbered: one less on this (Book 1 p.33)' : null },
+      h('span', { class: 'sheet-vital-key', text: key }),
+      h('span', { class: 'sheet-vital-now' },
+        String(held ? entry.played : entry.now),
+        hurt ? h('small', { text: `/${entry.full}` }) : null));
+  };
+  const aging = sheet.aging ?? {};
+  const modifier = Math.round((aging.modifierMonths ?? 0) / 12);
+  return h('div', { class: 'sheet-band' },
+    h('div', { class: 'sheet-vitals' }, ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC'].map(cell)),
+    h('div', { class: 'sheet-band-side' },
+      h('div', {}, h('span', { class: 'sheet-label', text: 'Cash' }), h('b', { text: `Cr ${Number(sheet.cashCr).toLocaleString('en-US')}` })),
+      sheet.load ? h('div', {}, h('span', { class: 'sheet-label', text: 'Load' }), h('span', { text: `${KG(sheet.load.loadGrams)} of ${KG(sheet.load.normalGrams)}` })) : null,
+      h('div', {}, h('span', { class: 'sheet-label', text: 'Age' }),
+        h('span', { text: `${aging.age}${modifier ? ` (${modifier > 0 ? '+' : ''}${modifier})` : ''}${aging.nextCheckAge ? ` \u00b7 check at ${aging.nextCheckAge}` : ''}` }))));
+}
+
+function playTab(sheet, handlers) {
+  const locked = !sheet.editable;
+  const armours = (sheet.armorChoices ?? []).map((key) => ({ key, name: key === 'none' ? 'No armour' : key[0].toUpperCase() + key.slice(1) }));
+  const encumbered = (sheet.load?.penalty ?? 0) !== 0;
+  return [
+    encumbered ? h('p', { class: 'sheet-note is-error', text: `${sheet.load.words} \u2014 the scores above are what every throw from this sheet uses.` }) : null,
+    h('div', { class: 'sheet-section-label', text: 'IN HAND' }),
+    h('div', { class: 'sheet-inhand' },
+      h('div', { class: 'sheet-inhand-what' },
+        h('b', { text: sheet.weaponName ?? 'Empty hands' }),
+        h('span', { class: 'sheet-note', text: sheet.weaponKey && sheet.skills.find((skill) => skill.name.toLowerCase() === (sheet.weaponName ?? '').toLowerCase())
+          ? `${sheet.weaponName}-${sheet.skills.find((skill) => skill.name.toLowerCase() === sheet.weaponName.toLowerCase()).level}`
+          : 'no skill with it' })),
+      h('button', { type: 'button', class: 'button is-small is-primary', text: 'Attack', disabled: !sheet.weaponKey, onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'attack', weaponKey: sheet.weaponKey }) })),
+    h('div', { class: 'sheet-rows' },
+      (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
+      armours.length ? select('Armour', sheet.armor, armours, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
+    h('p', { class: 'sheet-note', text: 'Armour sets the throw anyone shooting at you needs, as well as your own protection (Book 1 p.42).' }),
+    h('div', { class: 'sheet-section-label', text: 'SKILLS \u2014 THE LABEL IS THE BUTTON' }),
+    sheet.skills.length
+      ? h('div', { class: 'sheet-skills' }, sheet.skills.map((skill) => h('button', {
+        type: 'button', class: 'sheet-skill',
+        onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'skill', skill: skill.name, level: skill.level })
+      },
+      h('b', { text: skill.label }),
+      h('small', { text: skill.name === 'Jack-of-All-Trades' ? 'stands in untrained' : `+${skill.dm}` }))))
+      : h('p', { class: 'sheet-note', text: 'No skills recorded.' })
+  ].filter(Boolean);
+}
+
+function gearTab(sheet, handlers) {
+  const load = sheet.load;
+  const parts = [];
+  if (load) {
+    // Book 1 p.33 drawn out: free to STR in kilograms, encumbered to twice
+    // it, military to three times, each band widened or narrowed by the
+    // local gravity.
+    const span = load.tripleGrams || 1;
+    const width = (grams) => `${Math.min(100, (grams / span) * 100)}%`;
+    parts.push(h('div', { class: 'sheet-load' },
+      h('div', { class: 'sheet-load-head' },
+        h('span', { class: 'sheet-label', text: 'Load' }),
+        h('b', { text: KG(load.loadGrams) }),
+        h('span', { class: 'sheet-note', text: `of ${KG(load.normalGrams)} free${load.gravityFactor === null ? '' : `, gravity ${load.gravityFactor}${load.multiplier !== 1 ? ` (${load.multiplier > 1 ? '+' : '\u2212'}${Math.abs(Math.round((load.multiplier - 1) * 1000) / 10)}%)` : ''}`}` }),
+        load.penalty ? h('span', { class: 'sheet-load-flag', text: load.words }) : null),
+      h('div', { class: 'sheet-load-bar' },
+        h('span', { class: 'is-free', style: `width:${width(load.normalGrams)}` }),
+        h('span', { class: 'is-enc', style: `width:${width(load.doubleGrams - load.normalGrams)}` }),
+        h('span', { class: 'is-mil', style: `width:${width(load.tripleGrams - load.doubleGrams)}` }),
+        h('span', { class: 'sheet-load-mark', style: `left:${width(load.loadGrams)}` })),
+      h('p', { class: 'sheet-note', text: `Free to ${KG(load.normalGrams)}; encumbered to ${KG(load.doubleGrams)} at one off STR, DEX and END; a military force may carry to ${KG(load.tripleGrams)} at two off.` })));
+  }
+  parts.push(h('div', { class: 'sheet-section-label' }, 'CARRIED'));
+  const rows = (sheet.inventory ?? []).map((item) => h('tr', {},
+    h('td', {}, h('input', {
+      class: 'sheet-cell', value: item.name, 'aria-label': `Name of ${item.name}`,
+      onchange: (event) => handlers.onInventory?.(sheet.id, 'update', item.id, { name: event.currentTarget.value })
+    })),
+    h('td', {}, h('input', {
+      class: 'sheet-cell', type: 'number', min: '1', value: String(item.quantity), 'aria-label': `Quantity of ${item.name}`,
+      onchange: (event) => handlers.onInventory?.(sheet.id, 'update', item.id, { quantity: Number(event.currentTarget.value) || 1 })
+    })),
+    h('td', {}, h('input', {
+      class: 'sheet-cell', type: 'number', step: '0.1', min: '0', value: String(item.weightGrams / 1000), 'aria-label': `Weight of ${item.name} in kilograms`,
+      onchange: (event) => handlers.onInventory?.(sheet.id, 'update', item.id, { weightKg: Number(event.currentTarget.value) || 0 })
+    })),
+    h('td', { class: 'sheet-cell-total', text: item.carried ? (item.counts ? KG(item.totalGrams) : 'not counted') : 'stowed' }),
+    h('td', {}, h('label', { class: 'sheet-check' },
+      h('input', { type: 'checkbox', checked: item.carried, 'aria-label': `${item.name} carried`, onchange: () => handlers.onInventory?.(sheet.id, 'toggle', item.id) }),
+      ' carried')),
+    h('td', {}, h('button', { type: 'button', class: 'sheet-remove', 'aria-label': `Remove ${item.name}`, text: '\u00d7', onclick: () => handlers.onInventory?.(sheet.id, 'remove', item.id) }))));
+  parts.push(h('table', { class: 'sheet-table' },
+    h('thead', {}, h('tr', {}, ['Item', 'Qty', 'Each kg', 'Counts', 'Carried', ''].map((label) => h('th', { text: label })))),
+    h('tbody', {}, rows.length ? rows : h('tr', {}, h('td', { colspan: '6', class: 'sheet-note', text: 'Nothing carried.' })))));
+  // Read off the fields rather than through FormData: the page's own
+  // FormData and the one a test harness provides are not the same class, and
+  // constructing one from the other's <form> throws.
+  parts.push(h('form', { class: 'sheet-add', onsubmit: (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? '';
+    handlers.onInventory?.(sheet.id, 'add', null, { name: value('name'), weightKg: Number(value('weightKg')) || 0, quantity: Number(value('quantity')) || 1 });
+    form.reset();
+  } },
+    h('input', { name: 'name', type: 'text', placeholder: 'Item', 'aria-label': 'New item name' }),
+    h('input', { name: 'quantity', type: 'number', min: '1', value: '1', 'aria-label': 'New item quantity' }),
+    h('input', { name: 'weightKg', type: 'number', step: '0.1', min: '0', value: '0', 'aria-label': 'New item weight in kilograms' }),
+    h('button', { type: 'submit', class: 'button is-small', text: 'Add item' })));
+  parts.push(h('p', { class: 'sheet-note', text: 'Clothing, personal armour and minor items \u2014 holsters, scabbards, belts \u2014 are not counted (p.33). Untick carried for anything stowed aboard ship.' }));
+  if (load) {
+    parts.push(h('label', { class: 'sheet-check' },
+      h('input', { type: 'checkbox', checked: load.military, onchange: (event) => handlers.onInventory?.(sheet.id, 'military', event.currentTarget.checked ? 'on' : 'off') }),
+      ' Carrying as part of a military force (p.33: to three times STR, at two off)'));
+  }
+  if ((sheet.entitlements ?? []).length) {
+    parts.push(h('div', { class: 'sheet-section-label', text: 'PASSAGES AND ENTITLEMENTS' }));
+    parts.push(h('div', { class: 'sheet-chips' }, sheet.entitlements.map((entry) => h('span', { class: 'sheet-chip', text: entry }))));
+  }
+  return parts;
+}
+
+function recordTab(sheet, handlers) {
+  const record = sheet.record ?? {};
+  const write = (key) => (value) => handlers.onEditRecord?.(sheet.id, { [key]: value });
+  const text = (label, key, { own = true } = {}) => h('label', { class: 'sheet-field' },
+    h('span', { text: label }),
+    h('input', {
+      value: record[key] ?? '', 'aria-label': label, class: own ? 'is-own' : null,
+      placeholder: own ? 'not recorded' : null,
+      onchange: (event) => write(key)(event.currentTarget.value)
+    }));
+  const area = (label, key) => h('label', { class: 'sheet-field is-wide' },
+    h('span', { text: label }),
+    h('textarea', { rows: '2', class: 'is-own', 'aria-label': label, onchange: (event) => write(key)(event.currentTarget.value) }, record[key] ?? ''));
+  const aging = sheet.aging ?? {};
+  const modifier = Math.round((aging.modifierMonths ?? 0) / 12);
+  return [
+    h('div', { class: 'sheet-group' },
+      h('h3', { text: 'WHO THEY ARE' }),
+      h('div', { class: 'sheet-rows' },
+        h('label', { class: 'sheet-field' }, h('span', { text: 'Name' }),
+          h('input', { value: sheet.title, 'aria-label': 'Name', onchange: (event) => handlers.onEditCharacter?.(sheet.id, 'name', event.currentTarget.value) })),
+        text('Noble title', 'nobleTitle'),
+        text('Birthworld', 'birthworld'),
+        text('Birthdate', 'birthdate')),
+      h('p', { class: 'sheet-note', text: `Age ${aging.age}${modifier ? `, modifier ${modifier > 0 ? '+' : ''}${modifier} from anagathics or low berths` : ', no modifier'}${aging.nextCheckAge ? ` \u00b7 next aging check at ${aging.nextCheckAge}` : ''}.` })),
+    h('div', { class: 'sheet-group' },
+      h('h3', { text: 'SERVICE' }),
+      h('div', { class: 'sheet-rows' },
+        text('Branch', 'branch'),
+        text('Dischargeworld', 'dischargeworld'),
+        text('Preferred pistol', 'preferredPistol'),
+        text('Preferred blade', 'preferredBlade')),
+      area('Special assignments', 'specialAssignments'),
+      area('Awards and decorations', 'awards'),
+      area('Equipment qualified on', 'equipmentQualifiedOn'),
+      h('label', { class: 'sheet-check' },
+        h('input', { type: 'checkbox', checked: record.travellersMember, onchange: (event) => write('travellersMember')(event.currentTarget.checked) }),
+        ' Travellers\u2019 Aid Society member'),
+      h('p', { class: 'sheet-note', text: 'Service, terms, rank and retirement come from generation and are on the printed form.' })),
+    h('div', { class: 'sheet-group' },
+      h('h3', { text: 'PSIONICS' }),
+      h('div', { class: 'sheet-rows' },
+        text('Date of test', 'psionicTestDate'),
+        h('label', { class: 'sheet-field' }, h('span', { text: 'PSR' }),
+          h('input', { type: 'number', min: '0', max: '15', class: 'is-own', value: record.psionicStrength ?? '', 'aria-label': 'Psionic strength rating', onchange: (event) => write('psionicStrength')(event.currentTarget.value) })),
+        text('Training completed', 'psionicTrainingCompleted')),
+      area('Talents and current levels', 'psionicTalents'),
+      h('p', { class: 'sheet-note', text: 'Confidential: the referee decides who else sees this block.' }))
+  ];
+}
+
+function notesTab(sheet, handlers) {
+  return [
+    h('label', { class: 'sheet-field is-wide' }, h('span', { text: 'Notes' }),
+      h('textarea', { rows: '10', 'aria-label': 'Character notes', onchange: (event) => handlers.onEditCharacter?.(sheet.id, 'notes', event.currentTarget.value) }, sheet.notes ?? '')),
+    h('p', { class: 'sheet-note', text: 'Contacts, debts and anything else worth writing down. Yours to keep.' })
+  ];
+}
+
+function characterBody(sheet, handlers) {
+  const tab = sheet.tab && sheet.tabs.includes(sheet.tab) ? sheet.tab : sheet.tabs[0];
+  const build = { Play: playTab, Gear: gearTab, Record: recordTab, Notes: notesTab };
+  return [
+    vitalsBand(sheet),
+    h('div', { class: 'sheet-tabs' },
+      sheet.tabs.map((name) => h('button', {
+        // Written out rather than passed as a boolean: h() turns `true` into
+        // a bare attribute, and aria-pressed must read "true" or "false".
+        type: 'button', class: 'sheet-tab', 'aria-pressed': name === tab ? 'true' : 'false', text: name,
+        onclick: () => handlers.onSheetTab?.(sheet.kind, sheet.id, name)
+      })),
+      h('button', { type: 'button', class: 'button is-small sheet-print', text: 'Print TAS Form 2', onclick: () => handlers.onPrintCharacter?.(sheet.id) })),
+    h('div', { class: 'sheet-tab-body' }, build[tab](sheet, handlers))
+  ];
+}
+
 function sceneBody(sheet, handlers) {
   return [
     h('div', { class: 'sheet-rows' }, field('Name', sheet.title, { onchange: (value) => handlers.onRenameScene?.(sheet.id, value) })),
@@ -260,7 +467,7 @@ export function renderSheets(sheets, handlers = {}) {
     const compact = Boolean(sheet.compact);
     const body = sheet.kind === 'ship' ? shipBody(sheet, handlers)
       : sheet.kind === 'scene' ? sceneBody(sheet, handlers)
-        : compact ? actorCompact(sheet, handlers) : actorFull(sheet, handlers);
+        : compact ? actorCompact(sheet, handlers) : (sheet.character ? characterBody(sheet, handlers) : actorFull(sheet, handlers));
     const bar = h('div', { class: 'sheet-bar' },
       h('button', { type: 'button', class: 'sheet-back', 'aria-label': 'Back', text: '\u2190', onclick: () => handlers.onCloseSheet?.(sheet.kind, sheet.id) }),
       h('span', { class: 'sheet-title', text: sheet.title }),

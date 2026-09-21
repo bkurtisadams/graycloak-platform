@@ -152,7 +152,7 @@ test('completed chargen renders a final gameplay personnel record', () => {
   const document = createCharacterDocument(character);
   const record = buildFinalCharacterRecord(document);
   assert.match(record, /FINAL PERSONNEL RECORD/);
-  assert.match(record, /GAMEPLAY DOCUMENT v4/);
+  assert.match(record, /GAMEPLAY DOCUMENT v5/);
   assert.match(record, /PASSAGE Low Passage/);
   assert.doesNotMatch(record, /PHASE/);
 });

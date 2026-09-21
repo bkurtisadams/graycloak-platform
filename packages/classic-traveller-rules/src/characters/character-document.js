@@ -7,14 +7,34 @@ import { PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, getPersonalWeapon } from '../co
 import { assessLoad, inventoryLoadGrams, personalWeaponCarriedWeightGrams, personalWeaponWeight } from './load.js';
 
 export const CHARACTER_DOCUMENT_TYPE = 'classic-traveller-character';
-export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 4;
-export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4]);
+export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 5;
+export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
+
+// v5 (Graycloak, Sep 2026): the personnel-record fields TAS Form 2 asks for
+// that nothing in generation produces — a noble title, where they were born,
+// which branch they served in, what they were decorated for, and the psionics
+// block. All free text but for the psionic strength rating and two flags, and
+// all of it the player's to write: none of it is earned under a rule, so
+// nothing here is derived or checked.
+export const CHARACTER_RECORD_TEXT_FIELDS = Object.freeze([
+  'nobleTitle', 'birthworld', 'birthdate', 'branch', 'dischargeworld',
+  'specialAssignments', 'awards', 'equipmentQualifiedOn',
+  'preferredPistol', 'preferredBlade',
+  'psionicTestDate', 'psionicTrainingCompleted', 'psionicTalents'
+]);
+
+export function emptyCharacterRecord() {
+  const record = Object.fromEntries(CHARACTER_RECORD_TEXT_FIELDS.map((key) => [key, '']));
+  record.psionicStrength = null;
+  record.travellersMember = false;
+  return record;
+}
 
 const SERVICE_VALUES = new Set(SERVICE_KEYS);
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'age', 'chronology',
   'characteristics', 'current', 'upp', 'status', 'career', 'skills', 'loadout', 'inventory', 'finances',
-  'benefits', 'shipRefs', 'history', 'notes', 'provenance'
+  'benefits', 'shipRefs', 'history', 'notes', 'record', 'provenance'
 ]);
 const LEGACY_V1_TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'age', 'chronology',
@@ -231,6 +251,10 @@ export function createCharacterDocument(character, { id, aliases = [], notes = '
     shipRefs: [],
     history: cloneJson(character.history),
     notes,
+    // v5: empty for a newly generated character too — Book 1 chargen produces
+    // none of it. TAS membership is the exception and is read back from the
+    // mustering-out benefits below.
+    record: { ...emptyCharacterRecord(), travellersMember: (benefits.memberships ?? []).some((entry) => /travell/i.test(String(entry))) },
     provenance: {
       source: 'classic-traveller-book-1-chargen',
       chargenSchemaVersion: character.schemaVersion
@@ -456,6 +480,14 @@ export function validateCharacterDocument(document) {
   }
   add(errors, Array.isArray(document.history), 'history must be an array');
   add(errors, typeof document.notes === 'string', 'notes must be a string');
+  add(errors, isPlainObject(document.record), 'record must be an object');
+  if (isPlainObject(document.record)) {
+    for (const key of CHARACTER_RECORD_TEXT_FIELDS) {
+      add(errors, typeof document.record[key] === 'string', `record.${key} must be a string`);
+    }
+    add(errors, document.record.psionicStrength === null || Number.isInteger(document.record.psionicStrength), 'record.psionicStrength must be a whole number or null');
+    add(errors, typeof document.record.travellersMember === 'boolean', 'record.travellersMember must be a boolean');
+  }
   add(errors, isPlainObject(document.provenance), 'provenance must be an object');
   if (isPlainObject(document.provenance)) {
     add(errors, document.provenance.source === 'classic-traveller-book-1-chargen', 'provenance.source is invalid');
@@ -518,6 +550,12 @@ export function migrateCharacterDocument(document) {
     // mustering out, stowed.
     migrated.inventory = initialInventory({ benefits: migrated.benefits, weaponKey: migrated.loadout?.weaponKey });
     migrated.schemaVersion = 4;
+  }
+  if (migrated.schemaVersion === 4) {
+    // v5: the record block. Empty for everyone: nothing already filed knows
+    // its own birthworld, and guessing one would be inventing history.
+    migrated.record = emptyCharacterRecord();
+    migrated.schemaVersion = 5;
   }
   if (migrated.schemaVersion === CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION) return migrated;
   throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);
@@ -615,6 +653,36 @@ export function setCharacterMilitaryLoad(document, military) {
 
 // Load is reckoned against the full Strength characteristic: the rule speaks
 // of "his strength characteristic", not of strength as wounded.
+/**
+ * Writes the personnel-record fields (v5). Everything here is the player's
+ * own text, so there is nothing to check but the shape: unknown keys are
+ * refused, the psionic rating is a whole number or nothing, and membership is
+ * a flag.
+ */
+export function updateCharacterRecord(document, patch = {}) {
+  assertValidCharacterDocument(document);
+  if (!isPlainObject(patch)) throw new TypeError('patch must be an object');
+  const next = cloneJson(document);
+  next.record = { ...emptyCharacterRecord(), ...next.record };
+  for (const [key, value] of Object.entries(patch)) {
+    if (CHARACTER_RECORD_TEXT_FIELDS.includes(key)) {
+      if (typeof value !== 'string') throw new TypeError(`record.${key} must be a string`);
+      next.record[key] = value;
+    } else if (key === 'psionicStrength') {
+      if (value === null || value === '') next.record.psionicStrength = null;
+      else {
+        const number = Number(value);
+        if (!Number.isInteger(number) || number < 0 || number > 15) throw new RangeError('psionicStrength must be a whole number from 0 to 15');
+        next.record.psionicStrength = number;
+      }
+    } else if (key === 'travellersMember') {
+      next.record.travellersMember = Boolean(value);
+    } else throw new TypeError(`unknown record field: ${key}`);
+  }
+  assertValidCharacterDocument(next);
+  return next;
+}
+
 export function characterLoad(document, { gravityFactor = null } = {}) {
   return assessLoad({ strength: document.characteristics.STR, loadGrams: inventoryLoadGrams(document.inventory), military: Boolean(document.loadout?.militaryLoad), gravityFactor });
 }

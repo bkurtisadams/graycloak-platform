@@ -261,3 +261,135 @@ test('v0.249.0 the tab strip is the five Foundry-shaped directories', async () =
   assert.equal(vehicles[0].sheet.kind, 'ship');
   assert.equal(vehicles[0].badge.kind, 'ship');
 });
+
+// ---------------------------------------------------------------------------
+// v0.250.0: the full character sheet, built for play rather than as a
+// facsimile of TAS Form 2.
+// ---------------------------------------------------------------------------
+
+test('v0.250.0 a character sheet carries four tabs, the vitals and Book 1 p.33\u2019s load', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const sheetOf = () => session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0];
+  const sheet = sheetOf();
+
+  assert.deepEqual(sheet.tabs, ['Play', 'Gear', 'Record', 'Notes']);
+  assert.equal(sheet.character, true);
+  assert.match(sheet.subtitle, /^Retired Scout/, 'the service reads as its name, not its key');
+
+  // The band shows what is being played with. Unencumbered, that is the
+  // current score; the original stays alongside so a wound is visible.
+  assert.equal(sheet.effective.STR.played, sheet.effective.STR.now);
+  assert.equal(sheet.load.state, 'unencumbered');
+  assert.equal(sheet.load.penalty, 0);
+
+  // Book 1 p.33's gravity adjustment, from the world the campaign is on.
+  // Cinder is size 2, five steps under the standard 7, so every band is
+  // 62.5% wider: 10 kg of strength becomes 16.25 kg free.
+  assert.equal(sheet.load.gravityFactor, 2);
+  assert.equal(sheet.load.normalGrams, 16250);
+  assert.equal(sheet.load.doubleGrams, 32500);
+  assert.equal(sheet.load.tripleGrams, 48750);
+
+  // Skills come sorted by level so the useful ones are not buried.
+  assert.ok(sheet.skills[0].level >= sheet.skills.at(-1).level);
+  assert.equal(sheet.skills[0].label, `${sheet.skills[0].name}-${sheet.skills[0].level}`);
+
+  // benefits.passages holds objects; a bare String() of one read
+  // "[object Object]" on the sheet until v0.250.0.
+  assert.ok(sheet.entitlements.includes('Low Passage'));
+  assert.equal(sheet.entitlements.some((entry) => entry.includes('object Object')), false);
+});
+
+test('v0.250.0 picking up enough weight encumbers the character, and the band shows the played scores', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const sheetOf = () => session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0];
+  const before = sheetOf();
+  assert.equal(before.effective.STR.played, before.effective.STR.now);
+
+  // Over 16.25 kg on Cinder: p.33 costs one off all three physical scores.
+  // 10 kg on top of the rifle's 10 puts the total over 16.25 but under
+  // twice it: encumbered, not overloaded.
+  session.run('inventory:add', { characterId: id, item: { name: 'Oxygen Tanks', weightKg: 10, quantity: 1 } });
+  const after = sheetOf();
+  assert.equal(after.load.state, 'encumbered');
+  assert.equal(after.load.penalty, -1);
+  assert.equal(after.effective.STR.played, before.effective.STR.now - 1);
+  assert.equal(after.effective.DEX.played, before.effective.DEX.now - 1);
+  assert.equal(after.effective.END.played, before.effective.END.now - 1);
+  // The mental three are untouched.
+  assert.equal(after.effective.INT.played, before.effective.INT.now);
+
+  // Stowing it aboard ship takes the weight off without losing the item.
+  const item = after.inventory.find((entry) => entry.name === 'Oxygen Tanks');
+  session.run(`inventory:toggle:${item.id}`, { characterId: id });
+  assert.equal(sheetOf().load.state, 'unencumbered');
+});
+
+test('v0.250.0 the Record tab writes the personnel fields, and refuses what is not one', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const recordOf = () => session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0].record;
+
+  assert.equal(recordOf().birthworld, '', 'migrated characters start empty: guessing a birthworld would be inventing history');
+  assert.equal(session.run('character:record', { fight: { id, value: { birthworld: 'Regina', awards: 'MCUF' } } }).ok, true);
+  assert.equal(recordOf().birthworld, 'Regina');
+  assert.equal(recordOf().awards, 'MCUF');
+
+  assert.equal(session.run('character:record', { fight: { id, value: { psionicStrength: 8 } } }).ok, true);
+  assert.equal(recordOf().psionicStrength, 8);
+  assert.equal(session.run('character:record', { fight: { id, value: { psionicStrength: 99 } } }).ok, false);
+  assert.equal(session.run('character:record', { fight: { id, value: { favouriteColour: 'blue' } } }).ok, false);
+
+  assert.equal(session.run('character:notes', { fight: { id, value: 'Owes Sanjay Cr 2,000.' } }).ok, true);
+  assert.equal(session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0].notes, 'Owes Sanjay Cr 2,000.');
+});
+
+test('v0.250.0 the sheet draws its four tabs, and the Gear tab reaches the real inventory commands', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  globalThis.window = dom.window;
+
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const handlers = {
+    onInventory: (characterId, verb, itemId, value) => session.run(itemId ? `inventory:${verb}:${itemId}` : `inventory:${verb}`, { characterId, item: value ?? null })
+  };
+  const draw = (tab) => {
+    const state = session.view({ sheets: [{ kind: 'actor', id, tab }] });
+    document.querySelector('main').replaceChildren(renderSheets(state.sheets, handlers));
+  };
+
+  draw('Play');
+  assert.deepEqual([...document.querySelectorAll('.sheet-tab')].map((node) => node.textContent), ['Play', 'Gear', 'Record', 'Notes']);
+  assert.equal(document.querySelector('.sheet-tab[aria-pressed="true"]').textContent, 'Play');
+  assert.equal(document.querySelectorAll('.sheet-vital').length, 6, 'the band never scrolls away');
+  // The label is the button (Kurt, Sep 2026), three to a row.
+  assert.ok(document.querySelectorAll('.sheet-skill').length > 0);
+  assert.ok(document.querySelector('.sheet-inhand button'), 'and the weapon has its attack');
+
+  draw('Gear');
+  assert.ok(document.querySelector('.sheet-load-bar'), 'p.33 drawn as three bands');
+  const before = session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0].inventory.length;
+  const form = document.querySelector('.sheet-add');
+  form.querySelector('input[name="name"]').value = 'Electric Torch';
+  form.querySelector('input[name="weightKg"]').value = '0.5';
+  form.dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
+  assert.equal(session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0].inventory.length, before + 1);
+
+  draw('Record');
+  assert.equal(document.querySelectorAll('.sheet-group').length, 3, 'who they are, service, psionics');
+  assert.ok(document.querySelector('input[aria-label="Birthworld"]'));
+
+  draw('Notes');
+  assert.ok(document.querySelector('textarea[aria-label="Character notes"]'));
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+  delete globalThis.window;
+});

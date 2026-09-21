@@ -123,7 +123,10 @@ export {
   updateCharacterInventoryItem,
   removeCharacterInventoryItem,
   setCharacterMilitaryLoad,
-  characterLoad
+  characterLoad,
+  updateCharacterRecord,
+  emptyCharacterRecord,
+  CHARACTER_RECORD_TEXT_FIELDS
 } from './src/characters/character-document.js';
 
 export {

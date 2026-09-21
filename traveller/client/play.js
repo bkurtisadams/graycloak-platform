@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, sheetRows } from './play-views.js?v=v0.249.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.249.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.249.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.249.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.249.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.249.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.249.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.249.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.249.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, sheetRows } from './play-views.js?v=v0.250.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.250.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.250.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.250.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.250.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.250.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.250.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.250.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.250.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -272,6 +272,31 @@ function render() {
       ui.openSheets = ui.openSheets.map((entry) => (entry.kind === kind && entry.id === id ? { ...entry, compact } : entry));
       render();
     },
+    onSheetTab: (kind, id, tab) => {
+      ui.openSheets = ui.openSheets.map((entry) => (entry.kind === kind && entry.id === id ? { ...entry, tab } : entry));
+      render();
+    },
+    onEditCharacter: (id, field, value) => {
+      if (source.mode !== 'live') return;
+      // Name and loadout already had commands of their own (edit:character);
+      // notes is new and goes through the sheet's own group.
+      if (field === 'notes') source.session.run('character:notes', { fight: { id, value } });
+      else source.session.run(`edit:character:${field}`, { fight: { id, value } });
+    },
+    onEditRecord: (id, patch) => { if (source.mode === 'live') source.session.run('character:record', { fight: { id, value: patch } }); },
+    onInventory: (id, verb, itemId, value) => {
+      if (source.mode !== 'live') return;
+      const command = itemId ? `inventory:${verb}:${itemId}` : `inventory:${verb}`;
+      source.session.run(verb === 'military' ? `inventory:military:${value ?? itemId}` : command, { characterId: id, item: value ?? null });
+    },
+    onSheetRoll: (id, what) => {
+      // The roll pipeline and its chat card are the next slice; until then
+      // the sheet says what it would throw rather than pretending to.
+      window.alert(what.kind === 'attack'
+        ? 'Attack rolls from the sheet arrive with the chat cards.'
+        : `${what.skill}-${what.level} would throw 2D +${what.level}. Skill throws arrive with the chat cards.`);
+    },
+    onPrintCharacter: () => { window.alert('The TAS Form 2 print view is the next step after the tabs.'); },
     onRowMenu: (entry, at) => { ui.rowMenu = { entry, at }; render(); },
     onCloseRowMenu: () => { ui.rowMenu = null; render(); },
     onCreateActor: (kind, folder) => {

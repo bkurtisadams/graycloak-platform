@@ -855,3 +855,51 @@ a.button { text-decoration: none; color: inherit; }
   .sheet-close { display: none; }
   .sheet-layer > .sheet:not(:last-child) { display: none; }
 }
+
+/* v0.250.0: the full character sheet — a band of vitals that never scrolls,
+   then Play, Gear, Record and Notes. */
+.sheet-band { display: flex; align-items: center; gap: 12px; padding: 8px 12px; margin: -12px -14px 4px; background: var(--panel); border-bottom: 2px solid var(--ink); }
+.sheet-vitals { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; flex-grow: 1; }
+.sheet-vital { padding: 2px 0; text-align: center; background: var(--raise); border: 1px solid var(--line); }
+.sheet-vital.is-hurt { background: var(--no); border-color: var(--red); }
+.sheet-vital.is-hurt .sheet-vital-key, .sheet-vital.is-hurt .sheet-vital-now { color: var(--red); }
+.sheet-vital-key { display: block; font-size: 10px; letter-spacing: .06em; color: var(--ink-2); }
+.sheet-vital-now { display: block; font-size: 16px; font-weight: 700; }
+.sheet-vital-now small { font-size: 11px; font-weight: 400; color: var(--ink-2); }
+.sheet-band-side { display: flex; flex-direction: column; gap: 2px; padding-left: 12px; border-left: 1px solid var(--line); font-size: 12px; white-space: nowrap; }
+.sheet-label { display: inline-block; min-width: 38px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.sheet-tabs { display: flex; gap: 2px; align-items: flex-end; border-bottom: 1px solid var(--line); margin: 0 -14px; padding: 0 14px; }
+.sheet-tab { font: inherit; font-size: 12px; padding: 4px 11px; border: 1px solid var(--line); border-bottom: none; background: var(--ground); color: var(--ink-2); cursor: pointer; }
+.sheet-tab[aria-pressed="true"] { font-weight: 700; border-color: var(--ink); background: var(--raise); color: var(--ink); }
+.sheet-print { margin-left: auto; margin-bottom: 3px; }
+.sheet-tab-body { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.sheet-inhand { display: flex; align-items: center; gap: 10px; padding: 6px 9px; background: var(--raise); border: 1px solid var(--ink); }
+.sheet-inhand-what { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.sheet-inhand > .button { margin-left: auto; }
+.sheet-skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.sheet-skill { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; font: inherit; font-size: 12px; text-align: left; padding: 5px 9px; border: 1px solid var(--ink); background: var(--raise); color: var(--ink); cursor: pointer; }
+.sheet-skill:hover { background: var(--signal-wash); }
+.sheet-skill small { font-size: 10px; color: var(--ink-2); }
+.sheet-load { display: flex; flex-direction: column; gap: 4px; }
+.sheet-load-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sheet-load-flag { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--red); }
+.sheet-load-bar { position: relative; display: flex; height: 14px; }
+.sheet-load-bar > span { display: block; height: 100%; }
+.sheet-load-bar .is-free { background: var(--go); border: 1px solid var(--go-border); }
+.sheet-load-bar .is-enc { background: var(--warn, #eadfaa); border: 1px solid var(--line); }
+.sheet-load-bar .is-mil { background: var(--no); border: 1px solid var(--red); }
+.sheet-load-mark { position: absolute; top: -3px; width: 2px; height: 20px; background: var(--ink); }
+.sheet-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sheet-table th { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); font-weight: 400; text-align: left; padding: 0 4px 3px; }
+.sheet-table td { padding: 2px 4px; border-bottom: 1px solid var(--ground); }
+.sheet-cell { font: inherit; font-size: 12px; width: 100%; min-width: 0; padding: 2px 4px; border: none; border-bottom: 1px dotted var(--line); background: transparent; color: var(--ink); }
+.sheet-cell-total { color: var(--ink-2); white-space: nowrap; }
+.sheet-remove { font: inherit; border: none; background: none; color: var(--red); cursor: pointer; }
+.sheet-add { display: flex; gap: 6px; }
+.sheet-add input[type="text"] { flex-grow: 1; min-width: 0; }
+.sheet-add input { font: inherit; font-size: 12px; width: 76px; padding: 4px 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.sheet-group { display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--ink); padding-top: 8px; }
+.sheet-group h3 { margin: 0; font-size: 12px; letter-spacing: .08em; }
+.sheet-field.is-wide { width: 100%; }
+.sheet-field textarea { font: inherit; font-size: 13px; text-transform: none; letter-spacing: 0; padding: 5px 6px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); resize: vertical; }
+.sheet-field .is-own { background: var(--ground); border-style: dashed; }

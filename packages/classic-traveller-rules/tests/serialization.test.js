@@ -39,6 +39,8 @@ test('new characters use schema v4 and round-trip through strict JSON export/imp
 test('compatible schema v3 documents migrate to v4 on import', () => {
   const legacy = { ...freshCharacter(), schemaVersion: 3 };
   const imported = importCharacter(JSON.stringify(legacy));
+  // The chargen character's own schema, which v5 of the character DOCUMENT
+  // does not touch: they are different things that both say schemaVersion.
   assert.equal(imported.schemaVersion, 4);
   assert.equal(validateCharacter(imported).valid, true);
 });

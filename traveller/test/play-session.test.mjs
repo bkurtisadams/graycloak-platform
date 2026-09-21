@@ -417,7 +417,7 @@ test('inventory commands change the character, the load, and the saved document'
   assert.equal(session.run(`inventory:remove:${kit.id}`, { characterId: id }).ok, true);
 
   const saved = registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === id);
-  assert.equal(saved.schemaVersion, 4);
+  assert.equal(saved.schemaVersion, 5);
   assert.deepEqual(saved.inventory.map((item) => item.name), ['Laser Rifle, loaded', 'Revolver, loaded', 'Vacc suit']);
   assert.equal(saved.loadout.militaryLoad, true);
   assert.equal(session.run('inventory:add', { characterId: id, item: { name: '  ', weightKg: '1' } }).ok, false);
