@@ -16,7 +16,8 @@
 import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad, removeCharacterInventoryItem,
   setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
-  restCharacter, medicalAttention, characterIsWounded, REST_DAYS,
+  restCharacter, medicalAttention, characterIsWounded, REST_DAYS, skillGuide, skillDM,
+  CATALOGUE, CATALOGUE_PACKS, catalogueEntry, catalogueAvailability,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, availablePassengerCapacity, beginPortCall, bookPassenger,
   calculateBerthingCost, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost, canShipMakeJump,
   chargeLifeSupportForTrip, chargeShipUpkeep, consumeJumpFuel, creditShipAccount, deliverFreightAtDestination,
@@ -78,7 +79,7 @@ import {
 } from './encounter-document.js';
 import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
-import { lawCheck, starportLine, atmosphereGear, worldDetail } from './world-notes.js';
+import { lawCheck, starportLine, atmosphereGear, worldDetail, prohibitedWeaponKeys } from './world-notes.js';
 import { createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS } from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
@@ -641,8 +642,15 @@ function actorSheet(resolved, id, subsector = null) {
   // is the Record tab; Form 2 itself is the print view of the same fields.
   const view = characterSheetVitals(character, resolved, subsector);
   const record = { ...emptyCharacterRecord(), ...(character.record ?? {}) };
+  // v0.263.0: each skill carries Book 1's guide to it — a short tagline, a
+  // paraphrase, the page, and the DM Book 1 actually gives per level (it is
+  // not always the level: Administration +2, Vacc Suit +4).
+  const weaponNames = Object.values(PERSONAL_WEAPONS).map((spec) => spec.name);
   const skills = Object.entries(character.skills ?? {})
-    .map(([name, level]) => ({ name, level, label: `${name}-${level}`, dm: level }))
+    .map(([name, level]) => {
+      const guide = skillGuide(name, { weaponNames });
+      return { name, level, label: `${name}-${level}`, dm: skillDM(name, level, { weaponNames }), tagline: guide.tagline, summary: guide.summary, page: guide.page, weapon: Boolean(guide.weapon) };
+    })
     .sort((a, b) => b.level - a.level || a.name.localeCompare(b.name));
   return {
     kind: 'actor', id, statblock: false, character: true,
@@ -857,7 +865,7 @@ export function combatDetail(entry) {
   if (!d) return entry.text || null;
   const signed = (value) => `${value >= 0 ? '+' : '\u2212'}${Math.abs(value)}`;
   const lines = [
-    `${d.weaponName ?? 'Weapon'} at ${d.range ?? '?'} range against ${({ none: 'no armour', combat: 'combat armour' })[d.armor ?? 'none'] ?? d.armor}`,
+    `${d.weaponName ?? 'Weapon'} at ${d.range ?? '?'} range against ${({ none: 'no armour', combat: 'battle dress' })[d.armor ?? 'none'] ?? d.armor}`,
     `2D ${(d.dice ?? []).map((die) => `[${die}]`).join(' ')} = ${d.roll}`
   ];
   const parts = [
@@ -1296,6 +1304,34 @@ function narrateDamageControl(logEntries, encounter) {
       ? `${who} repairs ${where} aboard ${nameOf(entry.shipId)} (${entry.total} vs ${entry.target}).`
       : `${who}'s repair attempt on ${where} aboard ${nameOf(entry.shipId)} fails (${entry.total} vs ${entry.target}).`;
   });
+}
+
+// v0.264.0: the Compendium — Book 1's weapons and armour and Book 3's
+// equipment, each marked for the world the party is on: whether it can be
+// bought here, and whether carrying it breaks the local law.
+function currentWorldProfile(resolved, subsector) {
+  let system = null;
+  try { system = getSubsectorSystem(subsector, resolved.campaign.location?.systemId); } catch { /* off the map, or in jump */ }
+  return system ? { system, profile: parseUniversalWorldProfile(system.mainWorld.uwp) } : { system: null, profile: null };
+}
+
+export function compendiumView(resolved, subsector) {
+  const { system, profile } = currentWorldProfile(resolved, subsector);
+  const banned = profile ? prohibitedWeaponKeys(profile.lawLevel) : [];
+  return {
+    world: system ? { name: system.name, techLevel: profile.techLevel, lawLevel: profile.lawLevel } : null,
+    packs: CATALOGUE_PACKS.map((pack) => ({
+      name: pack,
+      entries: CATALOGUE.filter((entry) => entry.pack === pack).map((entry) => ({
+        key: entry.key, name: entry.name, group: entry.group, priceCr: entry.priceCr, priceNote: entry.priceNote ?? null,
+        // A gun weighs as carried: loaded (Book 1 p.41's weight plus a clip).
+        weightGrams: entry.weaponKey ? (PERSONAL_WEAPON_WEIGHTS_GRAMS[entry.weaponKey]?.weapon ?? 0) + (PERSONAL_WEAPON_WEIGHTS_GRAMS[entry.weaponKey]?.ammunition ?? 0) : entry.weightGrams,
+        techLevel: entry.techLevel, note: entry.note, page: entry.page,
+        kind: entry.weaponKey ? 'weapon' : entry.armourKey ? 'armour' : 'item',
+        ...catalogueAvailability(entry, profile, { prohibitedWeaponKeys: banned })
+      }))
+    }))
+  };
 }
 
 function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
@@ -1906,6 +1942,90 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // v0.261.0: Book 1 p.31's recovery, with Kurt's Sep 2026 ruling for the
       // throw: "Return to full strength requires medical attention, or three
       // days of rest."
+      // v0.263.0: a skill from the sheet. Click throws 2D plus Book 1's DM
+      // for it into chat, as the character; the info button (or Shift+click)
+      // puts the skill's description there instead. Book 1's own targets for
+      // the skill ride along in the roll's detail; most skills have none, since
+      // "specific throws ... must be generated" by the referee.
+      // v0.264.0: something from the Compendium onto a character. Buy pays
+      // from the character's own cash and needs a world that sells it; Give
+      // is the referee's grant and costs nothing. A weapon or an item goes
+      // into the inventory, carried; armour is put on (Book 1 allows one
+      // suit at a time).
+      if (command === 'gear:buy' || command === 'gear:give') {
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id);
+        if (!who) throw new Error('choose a character first');
+        const entry = catalogueEntry(String(fight?.value?.key ?? ''));
+        const quantity = entry.armourKey || entry.weaponKey ? 1 : Math.max(1, Math.floor(Number(fight?.value?.quantity ?? 1)));
+        const buying = command === 'gear:buy';
+        const { profile } = currentWorldProfile(resolved, subsector);
+        const availability = catalogueAvailability(entry, profile, { prohibitedWeaponKeys: profile ? prohibitedWeaponKeys(profile.lawLevel) : [] });
+        const cost = entry.priceCr * quantity;
+        const cash = Number(who.finances?.credits ?? 0);
+        if (buying && !availability.buy) throw new Error(availability.reason);
+        if (buying && cost > cash) throw new Error(`${who.identity.name} has Cr ${cash.toLocaleString('en-US')}; ${entry.name} costs Cr ${cost.toLocaleString('en-US')}`);
+        let next = who;
+        let what;
+        if (entry.armourKey) {
+          const was = who.loadout?.armor ?? 'none';
+          next = updateCharacterGameplayState(next, { armor: entry.armourKey });
+          what = `${entry.name}${was !== 'none' && was !== entry.armourKey ? ` (in place of ${was === 'combat' ? 'battle dress' : was})` : ''}`;
+        } else if (entry.weaponKey) {
+          next = addCharacterInventoryItem(next, { weaponKey: entry.weaponKey, carried: true });
+          what = `a ${entry.name}`;
+        } else {
+          next = addCharacterInventoryItem(next, { name: entry.name, weightGrams: entry.weightGrams, quantity, carried: true });
+          what = quantity > 1 ? `${quantity} \u00d7 ${entry.name}` : entry.name;
+        }
+        if (buying) next = importCharacterDocument({ ...next, finances: { ...next.finances, credits: cash - cost } });
+        persist([next]);
+        const line = buying
+          ? `${who.identity.name} buys ${what} for Cr ${cost.toLocaleString('en-US')} (Cr ${(cash - cost).toLocaleString('en-US')} left).`
+          : `${who.identity.name} is given ${what}.`;
+        log('GEAR', line, { detail: [entry.priceNote, entry.note || null, availability.warning, entry.page ? `Book ${entry.pack === 'Equipment' ? 3 : 1} p.${entry.page}` : null].filter(Boolean).join('\n') || null });
+        lastMessage = { ok: true, message: line, warning: availability.warning };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command === 'character:skill-roll' || command === 'character:skill-info') {
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id);
+        if (!who) throw new Error('choose a character first');
+        const name = String(fight?.value?.skill ?? '');
+        if (!Object.hasOwn(who.skills ?? {}, name)) throw new Error(`${who.identity.name} has no ${name}`);
+        const level = Number(who.skills[name]);
+        const weaponNames = Object.values(PERSONAL_WEAPONS).map((spec) => spec.name);
+        const guide = skillGuide(name, { weaponNames });
+        const perLevel = guide.against ? 'counts against the inspector, \u22122 a level' : `${guide.dmPerLevel >= 0 ? '+' : '\u2212'}${Math.abs(guide.dmPerLevel)} a level${guide.stated ? '' : ' (Book 1 leaves the DM to the referee; +1 a level used)'}`;
+        const reference = guide.throws.map((entry) => `${entry.label}: ${entry.target}+${entry.note ? ` (${entry.note})` : ''}`);
+        if (command === 'character:skill-info') {
+          const detail = [guide.summary, `DM: ${perLevel}.${guide.untrainedDM !== null ? ` Untrained ${guide.untrainedDM}.` : ''}`, ...reference, guide.page ? `Book 1 p.${guide.page}` : null].filter(Boolean).join('\n');
+          log('SKILL', `${who.identity.name}\u2019s ${name}-${level}: ${guide.tagline}.`, { detail, sourceActorId: who.identity.id });
+          lastMessage = { ok: true, message: `${name} described in chat.` };
+        } else {
+          const dice = createDice();
+          const rolled = [dice.rollD6(), dice.rollD6()];
+          const dm = skillDM(name, level, { weaponNames });
+          const total = rolled[0] + rolled[1] + dm;
+          const line = `${name}-${level}: 2D [${rolled[0]} ${rolled[1]}] ${dm >= 0 ? '+' : '\u2212'} ${Math.abs(dm)} = ${total}`;
+          const detail = [
+            `2D [${rolled[0]}] [${rolled[1]}] = ${rolled[0] + rolled[1]}`,
+            `${name}-${level}: ${dm >= 0 ? '+' : '\u2212'}${Math.abs(dm)} (${perLevel})`,
+            `Total ${total}`,
+            ...(reference.length ? ['', 'Book 1\u2019s throws for this skill:', ...reference.map((entry) => {
+              const target = Number(/: (\d+)\+/.exec(entry)?.[1]);
+              return `${entry}${Number.isFinite(target) && !guide.against ? ` \u2014 ${total >= target ? 'made' : 'missed'}` : ''}`;
+            })] : ['Book 1 sets no standard throw: the referee names the target.']),
+            guide.weapon ? 'A weapon skill: in a fight, it is added to the attack.' : null,
+            guide.page ? `Book 1 p.${guide.page}` : null
+          ].filter((entry) => entry !== null).join('\n');
+          log('ROLL', line, { detail, sourceActorId: who.identity.id });
+          lastMessage = { ok: true, message: line };
+        }
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'character:rest' || command === 'character:medical') {
         const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
         if (!patient) throw new Error('choose a character first');
@@ -3402,6 +3522,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     get lastMessage() { return lastMessage; },
     view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {}, staging = null, sheets = [] } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
+      state.compendium = compendiumView(resolved, subsector);
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating

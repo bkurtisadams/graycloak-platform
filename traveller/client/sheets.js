@@ -139,7 +139,7 @@ function select(label, value, choices, onchange, { locked = false } = {}) {
 function actorCompact(sheet, handlers) {
   const locked = !sheet.editable;
   const weapons = sheet.weaponChoices ?? [];
-  const armours = (sheet.armorChoices ?? []).map((key) => ({ key, name: key === 'none' ? 'No armour' : key[0].toUpperCase() + key.slice(1) }));
+  const armours = (sheet.armorChoices ?? []).map((key) => ({ key, name: key === 'none' ? 'No armour' : key === 'combat' ? 'Battle Dress' : key[0].toUpperCase() + key.slice(1) }));
   const parts = [
     h('div', { class: 'sheet-compact-head' },
       actorBadge(sheet.statblock ? 'statblock' : 'actor', { side: sheet.statblock ? 'opposition' : 'party', size: 38 }),
@@ -151,7 +151,9 @@ function actorCompact(sheet, handlers) {
       weapons.length ? select('Weapon', sheet.weaponKey, weapons, (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
       armours.length ? select('Armour', sheet.armor, armours, (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
     h('div', { class: 'sheet-rows' },
-      field('Skills', sheet.skills.join(', '), { onchange: (value) => handlers.onEditSkills?.(sheet.id, value), locked, width: 240 }))
+      // v0.263.0: a character's skills are objects ("[object Object]" was
+      // the join of them); an actor's are already text.
+      field('Skills', sheet.skills.map((skill) => (typeof skill === 'string' ? skill : skill.label)).join(', '), { onchange: (value) => handlers.onEditSkills?.(sheet.id, value), locked, width: 240 }))
   ];
   if (sheet.statblock) {
     const count = h('input', { type: 'number', min: '1', value: '1', 'aria-label': 'How many to place', style: 'width:56px' });
@@ -181,7 +183,7 @@ function actorFull(sheet, handlers) {
     sheet.skills.length ? h('div', { class: 'sheet-chips' }, sheet.skills.map((skill) => h('span', { class: 'sheet-chip', text: skill }))) : h('p', { class: 'sheet-note', text: 'No skills recorded.' }),
     h('div', { class: 'sheet-rows' },
       (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
-      (sheet.armorChoices ?? []).length ? select('Armour', sheet.armor, sheet.armorChoices.map((key) => ({ key, name: key === 'none' ? 'No armour' : key[0].toUpperCase() + key.slice(1) })), (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null)
+      (sheet.armorChoices ?? []).length ? select('Armour', sheet.armor, sheet.armorChoices.map((key) => ({ key, name: key === 'none' ? 'No armour' : key === 'combat' ? 'Battle Dress' : key[0].toUpperCase() + key.slice(1) })), (key) => handlers.onEditActor?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null)
   ];
   if (!sheet.character) {
     // Kurt, Sep 2026: numbering defaults to on, because a tracker of five
@@ -232,7 +234,7 @@ function vitalsBand(sheet) {
 
 function playTab(sheet, handlers) {
   const locked = !sheet.editable;
-  const armours = (sheet.armorChoices ?? []).map((key) => ({ key, name: key === 'none' ? 'No armour' : key[0].toUpperCase() + key.slice(1) }));
+  const armours = (sheet.armorChoices ?? []).map((key) => ({ key, name: key === 'none' ? 'No armour' : key === 'combat' ? 'Battle Dress' : key[0].toUpperCase() + key.slice(1) }));
   const encumbered = (sheet.load?.penalty ?? 0) !== 0;
   return [
     encumbered ? h('p', { class: 'sheet-note is-error', text: `${sheet.load.words} \u2014 the scores above are what every throw from this sheet uses.` }) : null,
@@ -242,21 +244,27 @@ function playTab(sheet, handlers) {
         h('b', { text: sheet.weaponName ?? 'Empty hands' }),
         h('span', { class: 'sheet-note', text: sheet.weaponKey && sheet.skills.find((skill) => skill.name.toLowerCase() === (sheet.weaponName ?? '').toLowerCase())
           ? `${sheet.weaponName}-${sheet.skills.find((skill) => skill.name.toLowerCase() === sheet.weaponName.toLowerCase()).level}`
-          : 'no skill with it' })),
+          : 'expertise \u00bd, as every character has in every weapon: no penalty, no DM (Book 1 p.12)' })),
       h('button', { type: 'button', class: 'button is-small is-primary', text: 'Attack', disabled: !sheet.weaponKey, onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'attack', weaponKey: sheet.weaponKey }) })),
     h('div', { class: 'sheet-rows' },
       (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
       armours.length ? select('Armour', sheet.armor, armours, (key) => handlers.onEditCharacter?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
     h('p', { class: 'sheet-note', text: 'Armour sets the throw anyone shooting at you needs, as well as your own protection (Book 1 p.42).' }),
     conditionBlock(sheet, handlers),
-    h('div', { class: 'sheet-section-label', text: 'SKILLS \u2014 THE LABEL IS THE BUTTON' }),
+    // v0.263.0: the label is the throw (2D + Book 1's DM, into chat); the
+    // second line says what the skill is for, not the level again; ⓘ or
+    // Shift+click puts the full description in chat.
+    h('div', { class: 'sheet-section-label', text: 'SKILLS \u2014 CLICK TO THROW \u00b7 SHIFT+CLICK OR \u24d8 TO DESCRIBE IN CHAT' }),
     sheet.skills.length
-      ? h('div', { class: 'sheet-skills' }, sheet.skills.map((skill) => h('button', {
-        type: 'button', class: 'sheet-skill',
-        onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'skill', skill: skill.name, level: skill.level })
-      },
-      h('b', { text: skill.label }),
-      h('small', { text: skill.name === 'Jack-of-All-Trades' ? 'stands in untrained' : `+${skill.dm}` }))))
+      ? h('div', { class: 'sheet-skills' }, sheet.skills.map((skill) => h('div', { class: 'sheet-skill-card' },
+        h('button', {
+          type: 'button', class: 'sheet-skill',
+          title: `${skill.summary ?? ''}${skill.page ? ` (Book 1 p.${skill.page})` : ''}\n\nClick: throw 2D ${skill.dm >= 0 ? '+' : '\u2212'}${Math.abs(skill.dm)}. Shift+click: describe in chat.`,
+          onclick: (event) => (event.shiftKey ? handlers.onSkillInfo?.(sheet.id, skill.name) : handlers.onSkillRoll?.(sheet.id, skill.name))
+        },
+        h('b', { text: skill.label }),
+        h('small', { text: skill.tagline ?? '' })),
+        h('button', { type: 'button', class: 'sheet-skill-info', 'aria-label': `Describe ${skill.name} in chat`, title: 'Describe in chat', text: '\u24d8', onclick: () => handlers.onSkillInfo?.(sheet.id, skill.name) }))))
       : h('p', { class: 'sheet-note', text: 'No skills recorded.' })
   ].filter(Boolean);
 }
@@ -504,6 +512,24 @@ export function renderSheets(sheets, handlers = {}) {
         }),
         h('button', { type: 'button', class: 'sheet-close', 'aria-label': `Close ${sheet.title}`, text: '\u00d7', onclick: () => handlers.onCloseSheet?.(sheet.kind, sheet.id) })));
     const panel = h('section', { class: `sheet${compact ? ' is-compact' : ''}`, 'aria-label': `${sheet.title} sheet` }, bar, h('div', { class: 'sheet-body' }, body));
+    // v0.264.0: a character's sheet takes a drop from the Compendium, as
+    // Foundry's does from a compendium pack; the drop asks Buy or Give.
+    if (sheet.kind === 'actor' && sheet.character) {
+      const carriesGear = (event) => [...(event.dataTransfer?.types ?? [])].includes('application/x-graycloak-gear');
+      panel.addEventListener('dragover', (event) => {
+        if (!carriesGear(event)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        panel.classList.add('is-drop-target');
+      });
+      panel.addEventListener('dragleave', (event) => { if (!panel.contains(event.relatedTarget)) panel.classList.remove('is-drop-target'); });
+      panel.addEventListener('drop', (event) => {
+        if (!carriesGear(event)) return;
+        event.preventDefault();
+        panel.classList.remove('is-drop-target');
+        handlers.onGearDrop?.(sheet.id, event.dataTransfer.getData('application/x-graycloak-gear'), { x: event.clientX, y: event.clientY });
+      });
+    }
     const at = DRAGGED.get(key) ?? { x: 180 + index * 34, y: 90 + index * 30 };
     place(panel, at);
     dragging(panel, bar, key);

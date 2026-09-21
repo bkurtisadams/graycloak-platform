@@ -42,6 +42,21 @@ export {
   specializationTypeForWeaponCategory,
   eligibleRankServiceBenefits
 } from './src/skills/acquired-skills.js';
+export {
+  CATALOGUE,
+  CATALOGUE_PACKS,
+  CATALOGUE_WEAPONS,
+  CATALOGUE_WEAPON_EXTRAS,
+  CATALOGUE_ARMOUR,
+  CATALOGUE_EQUIPMENT,
+  catalogueEntry,
+  catalogueAvailability
+} from './src/equipment/catalogue.js';
+export {
+  SKILL_GUIDE,
+  skillGuide,
+  skillDM
+} from './src/skills/skill-guide.js';
 
 export {
   AGING_START_AGE,

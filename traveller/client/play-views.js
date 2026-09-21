@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.262.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.262.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.262.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.264.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.264.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.264.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.262.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.262.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.262.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.262.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.264.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.264.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.264.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.264.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.262.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.264.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -393,7 +393,7 @@ export function sheetRows(state, chosen = {}) {
   });
 }
 
-const ARMOR_NAMES = Object.freeze({ none: 'None', jack: 'Jack', mesh: 'Mesh', cloth: 'Cloth', reflec: 'Reflec', ablat: 'Ablat', combat: 'Combat armour' });
+const ARMOR_NAMES = Object.freeze({ none: 'None', jack: 'Jack', mesh: 'Mesh', cloth: 'Cloth', reflec: 'Reflec', ablat: 'Ablat', combat: 'Battle dress' });
 function armorName(key) {
   return ARMOR_NAMES[key] ?? String(key ?? 'none').replace(/-/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
 }
@@ -1618,12 +1618,104 @@ function settingsDrawer(state, handlers) {
   ];
 }
 
+// v0.264.0: the Compendium, Foundry's name for it. Book 1's weapons and
+// armour and Book 3's equipment, in packs; each row can be dragged onto an
+// open character sheet (Buy or Give, chosen on the drop), or opened here to
+// do the same without dragging, which a phone cannot.
+export const GEAR_DRAG_TYPE = 'application/x-graycloak-gear';
+
+function formatGrams(grams) {
+  if (grams === null || grams === undefined) return '';
+  if (grams >= 1000000) return `${(grams / 1000000).toLocaleString('en-US')} t`;
+  if (grams >= 1000) return `${(grams / 1000).toLocaleString('en-US', { maximumFractionDigits: 2 })} kg`;
+  return grams ? `${grams} g` : '\u2014';
+}
+
+function compendiumDrawer(state, handlers) {
+  const compendium = state.compendium;
+  if (!compendium) return [h('p', { class: 'empty', text: 'The Compendium is not loaded.' })];
+  const view = state.compendiumUi ?? {};
+  const query = String(view.query ?? '').trim().toLowerCase();
+  const go = (patch) => handlers.onCompendium?.(patch);
+  const characters = state.compendiumCharacters ?? [];
+  const world = compendium.world;
+  const row = (entry) => {
+    const open = view.expanded === entry.key;
+    const flag = !entry.buy ? h('span', { class: 'gear-flag is-no', title: entry.reason, text: entry.reason?.startsWith('Needs tech') ? `TL${entry.techLevel}` : entry.reason?.startsWith('Strictly') ? 'Military' : '\u2014' })
+      : entry.warning ? h('span', { class: 'gear-flag is-warn', title: entry.warning, text: `Law ${world?.lawLevel}` }) : null;
+    const summary = h('div', {
+      class: `gear-row${open ? ' is-open' : ''}`, draggable: state.live ? 'true' : 'false', role: 'button', tabindex: '0',
+      title: `${entry.note || entry.name}${entry.reason ? `\n\n${entry.reason}` : entry.warning ? `\n\n${entry.warning}` : ''}\n\nDrag onto a character sheet, or click for Buy and Give.`,
+      ondragstart: (event) => { event.dataTransfer.setData(GEAR_DRAG_TYPE, entry.key); event.dataTransfer.setData('text/plain', entry.name); event.dataTransfer.effectAllowed = 'copy'; },
+      onclick: () => go({ expanded: open ? null : entry.key }),
+      onkeydown: (event) => { if (event.key === 'Enter') go({ expanded: open ? null : entry.key }); }
+    },
+    h('span', { class: 'gear-name', text: entry.name }),
+    flag,
+    h('span', { class: 'gear-price', text: `Cr ${entry.priceCr.toLocaleString('en-US')}` }),
+    h('span', { class: 'gear-weight', text: entry.kind === 'armour' ? 'worn' : formatGrams(entry.weightGrams) }));
+    if (!open) return summary;
+    const who = h('select', { class: 'sheet-select', 'aria-label': 'Character' }, characters.map((entry) => h('option', { value: entry.id, text: entry.name })));
+    const quantity = entry.kind === 'item' ? h('input', { type: 'number', min: '1', value: '1', class: 'gear-qty', 'aria-label': 'How many' }) : null;
+    return h('div', { class: 'gear-open' },
+      summary,
+      h('div', { class: 'gear-detail' },
+        entry.note ? h('p', { text: entry.note }) : null,
+        entry.priceNote ? h('p', { class: 'cite', text: entry.priceNote }) : null,
+        entry.techLevel !== null ? h('p', { class: 'cite', text: `Tech level ${entry.techLevel}` }) : null,
+        entry.reason ? h('p', { class: 'sheet-note is-error', text: entry.reason }) : null,
+        entry.warning ? h('p', { class: 'sheet-note is-warn', text: entry.warning }) : null,
+        state.live && characters.length ? h('div', { class: 'gear-actions' },
+          who, quantity,
+          h('button', { type: 'button', class: 'button is-small is-primary', disabled: !entry.buy, title: entry.reason ?? '', text: 'Buy', onclick: () => handlers.onGear?.('buy', who.value, entry.key, quantity ? quantity.value : 1) }),
+          h('button', { type: 'button', class: 'button is-small', text: 'Give', title: 'The referee\u2019s grant: no charge', onclick: () => handlers.onGear?.('give', who.value, entry.key, quantity ? quantity.value : 1) })) : null,
+        h('p', { class: 'cite', text: `Book ${entry.kind === 'item' ? 3 : 1} p.${entry.page}` })));
+  };
+  return [
+    h('p', { class: 'side-count-line', text: world ? `Prices and availability at ${world.name}: tech level ${world.techLevel}, law level ${world.lawLevel}` : 'In space: nothing can be bought until the party is in port' }),
+    h('input', { type: 'search', class: 'search', placeholder: 'Search the compendium', 'aria-label': 'Search the compendium', value: view.query ?? '', oninput: (event) => go({ query: event.target.value }) }),
+    ...compendium.packs.map((pack) => {
+      const entries = pack.entries.filter((entry) => !query || entry.name.toLowerCase().includes(query) || String(entry.group).toLowerCase().includes(query));
+      if (!entries.length) return null;
+      const collapsed = !query && (view.collapsed ?? {})[pack.name];
+      const groups = [...new Set(entries.map((entry) => entry.group))];
+      return h('section', { class: 'gear-pack' },
+        h('button', { type: 'button', class: 'gear-pack-head', 'aria-expanded': String(!collapsed), onclick: () => go({ collapsed: { ...(view.collapsed ?? {}), [pack.name]: !collapsed } }) },
+          h('span', { text: `${collapsed ? '\u25b8' : '\u25be'} ${pack.name}` }), h('small', { text: String(entries.length) })),
+        collapsed ? null : groups.map((group) => h('div', { class: 'gear-group' },
+          groups.length > 1 || group !== pack.name ? h('div', { class: 'gear-group-label', text: group }) : null,
+          entries.filter((entry) => entry.group === group).map(row))));
+    }),
+    h('p', { class: 'cite', text: 'Drag an item onto an open character sheet. Buy pays from that character\u2019s cash; Give is the referee\u2019s grant.' })
+  ];
+}
+
+// The choice made on a drop: Buy (if this world sells it) or Give.
+export function renderGearDrop(drop, handlers) {
+  const entry = drop.entry;
+  const quantity = entry.kind === 'item' ? h('input', { type: 'number', min: '1', value: '1', class: 'gear-qty', 'aria-label': 'How many' }) : null;
+  const left = Math.max(8, Math.min(drop.at.x, (globalThis.innerWidth ?? 1200) - 290));
+  const top = Math.max(8, Math.min(drop.at.y, (globalThis.innerHeight ?? 800) - 220));
+  return h('div', { class: 'gear-drop', role: 'dialog', 'aria-label': `${entry.name} for ${drop.characterName}`, style: `left:${left}px;top:${top}px` },
+    h('b', { text: `${entry.name} \u2192 ${drop.characterName}` }),
+    h('span', { class: 'cite', text: `Cr ${entry.priceCr.toLocaleString('en-US')}${entry.kind === 'item' ? ' each' : ''} \u00b7 ${drop.cashCr === null ? '' : `has Cr ${drop.cashCr.toLocaleString('en-US')}`}` }),
+    entry.priceNote ? h('p', { class: 'cite', text: entry.priceNote }) : null,
+    entry.reason ? h('p', { class: 'sheet-note is-error', text: entry.reason }) : null,
+    entry.warning ? h('p', { class: 'sheet-note is-warn', text: entry.warning }) : null,
+    h('div', { class: 'gear-actions' },
+      quantity,
+      h('button', { type: 'button', class: 'button is-small is-primary', disabled: !entry.buy, text: 'Buy', onclick: () => handlers.onGear?.('buy', drop.characterId, entry.key, quantity ? quantity.value : 1) }),
+      h('button', { type: 'button', class: 'button is-small', text: 'Give', onclick: () => handlers.onGear?.('give', drop.characterId, entry.key, quantity ? quantity.value : 1) }),
+      h('button', { type: 'button', class: 'button is-small', text: 'Cancel', onclick: () => handlers.onCloseGearDrop?.() })));
+}
+
 export function renderDrawer(kind, state, referee, handlers = {}) {
   const tidy = (parts) => parts.flat(Infinity).filter(Boolean);
   if (kind === 'character' && state.character) return tidy(characterDrawer(state.character, state, handlers));
   if (kind === 'ship' && state.ship) return tidy(shipDrawer(state.ship, state, handlers));
   if (kind === 'combat') return tidy(combatDrawer(state, handlers));
   if (kind === 'settings') return tidy(settingsDrawer(state, handlers));
+  if (kind === 'compendium') return tidy(compendiumDrawer(state, handlers));
   if (kind === 'referee') return tidy(refereeDrawer(referee, state, handlers));
   return [];
 }
@@ -1635,7 +1727,7 @@ export function renderDrawer(kind, state, referee, handlers = {}) {
 // were the whole of the old Journal tab. Notices are what Kurt called noise:
 // COMBAT and ARRIVAL show by default, and the rest fold into one line that
 // expands in place. The log keeps everything either way.
-export const CHAT_NOTICE_DEFAULTS = Object.freeze(['COMBAT', 'ARRIVAL', 'MEDICAL']);
+export const CHAT_NOTICE_DEFAULTS = Object.freeze(['COMBAT', 'ARRIVAL', 'MEDICAL', 'SKILL', 'GEAR']);
 
 // v0.262.0: the campaign date, as a divider where it changes rather than on
 // every line (Kurt, Sep 2026) — a fight's thirty lines share one day, and a
@@ -1674,15 +1766,20 @@ export function renderTalkLog(chat, { showAll = false, onShowAll = null, categor
     if (entry.kind === 'notice') {
       // v0.257.0: the working behind a short line — the throw and every DM
       // — on hover, and on tap too, since a phone has no hover.
+      // A skill described from the sheet opens at once: the description is
+      // what was asked for (v0.263.0).
       shown.push(entry.detail
-        ? h('details', { class: 'talk-notice has-detail', title: entry.detail },
+        ? h('details', { class: 'talk-notice has-detail', title: entry.detail, open: entry.category === 'SKILL' },
           h('summary', { text: entry.text }),
           h('pre', { class: 'talk-detail', text: entry.detail }))
         : h('p', { class: 'talk-notice', title: entry.category, text: entry.text }));
     } else if (entry.kind === 'roll') {
+      // v0.263.0: a skill throw carries its working and Book 1's targets.
       shown.push(h('article', { class: 'talk-roll' },
         h('div', { class: 'talk-who' }, h('b', { text: entry.who })),
-        h('div', { class: 'talk-roll-body', text: entry.text })));
+        entry.detail
+          ? h('details', { class: 'talk-roll-body has-detail', title: entry.detail }, h('summary', { text: entry.text }), h('pre', { class: 'talk-detail', text: entry.detail }))
+          : h('div', { class: 'talk-roll-body', text: entry.text })));
     } else {
       shown.push(h('article', { class: 'talk-message' },
         h('div', { class: 'talk-who' }, h('b', { text: entry.who })),
@@ -1708,7 +1805,7 @@ export function chatExportText({ campaignName = 'Campaign', date = '', lines = [
 }
 
 // The sidebar's tabs: Chat first, then the directories.
-export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Actors', 'Players', 'Vehicles', 'Scenes']);
+export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Actors', 'Players', 'Vehicles', 'Scenes', 'Compendium']);
 
 export function renderSideTabs(active, { players = 0, onTab = null } = {}) {
   return SIDEBAR_TABS.map((tab) => h('button', {

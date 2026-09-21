@@ -212,3 +212,43 @@ test('medical attention: 8+ with the medic\u2019s Medical as a DM, -5 with none,
   assert.equal(alien.xenoDM, -2);
   assert.equal(alien.success, false);
 });
+
+test('v0.263.0 Book 1\u2019s skill DMs: +1 a level mostly, Administration +2, Vacc Suit and Forward Observer +4, Forgery against the inspector', async () => {
+  const { skillDM, skillGuide } = await import('../index.js');
+  assert.equal(skillDM('Navigation', 2), 2);
+  assert.equal(skillDM('Admin', 2), 4, 'recorded as Admin, read as Administration');
+  assert.equal(skillDM('Vacc Suit', 1), 4);
+  assert.equal(skillDM('Forward Observer', 2), 8);
+  assert.equal(skillDM('Forgery', 3), 0, 'the forger\u2019s own throw takes nothing; it counts against the inspector');
+  assert.equal(skillDM('Bribery', null), -5);
+  assert.equal(skillDM('Administration', null), -3);
+  assert.equal(skillGuide('Laser Rifle', { weaponNames: ['Laser Rifle'] }).weapon, true);
+  assert.equal(skillGuide('Grav Vehicle').tagline, 'Vehicle operation');
+  assert.equal(skillGuide('Something New').summary.length > 0, true, 'nothing is left blank');
+  assert.deepEqual(skillGuide('Administration').throws.map((entry) => entry.target), [7]);
+});
+
+test('v0.264.0 the catalogue: Book 1 p.41 prices, Book 3 tech levels, and what a world will sell', async () => {
+  const { CATALOGUE, catalogueEntry, catalogueAvailability, PERSONAL_WEAPONS } = await import('../index.js');
+  // A gun is sold loaded: Book 1's price plus a clip.
+  assert.equal(catalogueEntry('weapon:rifle').priceCr, 220);
+  assert.equal(catalogueEntry('weapon:automatic-pistol').priceCr, 210);
+  assert.equal(catalogueEntry('weapon:laser-rifle').priceCr, 5000, 'with its power pack');
+  assert.equal(catalogueEntry('weapon:dagger').priceCr, 10);
+  // Every catalogue weapon is one the combat rules know.
+  for (const entry of CATALOGUE.filter((candidate) => candidate.weaponKey)) assert.ok(PERSONAL_WEAPONS[entry.weaponKey], entry.weaponKey);
+  // Armour: Book 1's list, Battle Dress under the rules package's 'combat' key.
+  assert.equal(catalogueEntry('armour:combat').name, 'Battle Dress');
+  assert.equal(catalogueEntry('armour:combat').priceCr, 200000);
+  assert.equal(catalogueEntry('gear:vacc-suit').techLevel, 7);
+
+  const cinder = { techLevel: 6, lawLevel: 2 };
+  assert.equal(catalogueAvailability(catalogueEntry('gear:vacc-suit'), cinder).buy, false, 'TL 7 on a TL 6 world');
+  assert.match(catalogueAvailability(catalogueEntry('gear:vacc-suit'), cinder).reason, /tech level 7/);
+  assert.equal(catalogueAvailability(catalogueEntry('gear:binoculars'), cinder).buy, true);
+  assert.equal(catalogueAvailability(catalogueEntry('armour:combat'), cinder).buy, false, 'strictly military');
+  const laser = catalogueAvailability(catalogueEntry('weapon:laser-rifle'), cinder, { prohibitedWeaponKeys: ['laser-rifle'] });
+  assert.equal(laser.buy, true, 'buying is not carrying');
+  assert.match(laser.warning, /Law level 2/);
+  assert.equal(catalogueAvailability(catalogueEntry('gear:binoculars'), null).buy, false, 'not in port');
+});

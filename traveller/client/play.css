@@ -1124,3 +1124,33 @@ details.talk-notice summary::-webkit-details-marker { display: none; }
 .talk-day::before, .talk-day::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .talk-message p { white-space: pre-wrap; }
 .side-chat .talk-write .talk-input { width: 100%; min-width: 0; }
+
+/* v0.263.0: a skill card — the throw, what the skill is for, and ⓘ. */
+.sheet-skill-card { position: relative; display: flex; }
+.sheet-skill-card .sheet-skill { flex: 1; padding-right: 30px; text-align: left; }
+.sheet-skill-info { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0; font: inherit; font-size: 14px; line-height: 1; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+.sheet-skill-info:hover { color: var(--ink); }
+details.talk-roll-body summary { cursor: pointer; list-style: none; }
+details.talk-roll-body summary::-webkit-details-marker { display: none; }
+
+/* v0.264.0: the Compendium, and a sheet taking a drop from it. */
+.gear-pack { border-top: 1px solid var(--line); }
+.gear-pack-head { display: flex; justify-content: space-between; align-items: baseline; width: 100%; padding: 7px 2px; font: inherit; font-weight: 700; font-size: 13px; background: none; border: 0; color: var(--ink); cursor: pointer; text-align: left; }
+.gear-pack-head small { color: var(--ink-2); font-weight: 400; }
+.gear-group-label { margin: 6px 0 2px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.gear-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 52px; align-items: center; gap: 6px; padding: 4px 4px; font-size: 12px; border-bottom: 1px dotted var(--line); cursor: grab; }
+.gear-row:hover, .gear-row.is-open { background: var(--raise); }
+.gear-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gear-price { font-variant-numeric: tabular-nums; text-align: right; }
+.gear-weight { color: var(--ink-2); font-size: 11px; text-align: right; }
+.gear-flag { font-size: 10px; padding: 0 4px; border: 1px solid var(--line); color: var(--ink-2); }
+.gear-flag.is-no { color: var(--danger, #8a2a1f); border-color: currentColor; }
+.gear-flag.is-warn { color: #7a5a00; border-color: currentColor; }
+.gear-detail { padding: 6px 8px 8px; font-size: 12px; background: var(--raise); border-bottom: 1px solid var(--line); }
+.gear-detail p { margin: 0 0 4px; }
+.gear-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 2px; }
+.gear-qty { width: 56px; font: inherit; font-size: 12px; padding: 3px 4px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); }
+.sheet-note.is-warn { color: #7a5a00; }
+.gear-drop { position: fixed; z-index: 60; width: 280px; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--ink); box-shadow: 0 6px 20px rgba(0,0,0,.25); pointer-events: auto; }
+.gear-drop p { margin: 0; font-size: 12px; }
+.sheet-layer > .sheet.is-drop-target { outline: 3px dashed var(--signal); outline-offset: -3px; }

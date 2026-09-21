@@ -638,7 +638,9 @@ test('v0.253.0 the chat folds all but COMBAT and ARRIVAL notices into one line t
   globalThis.Node = dom.window.Node;
   const { renderTalkLog, CHAT_NOTICE_DEFAULTS } = await import('../client/play-views.js');
   // v0.261.0 adds MEDICAL: a rest or a treatment is worth seeing.
-  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL', 'MEDICAL']);
+  // v0.263.0 adds SKILL: a skill described from the sheet.
+  // v0.264.0 adds GEAR: buying and being given things.
+  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL', 'MEDICAL', 'SKILL', 'GEAR']);
 
   const chat = [
     { kind: 'notice', category: 'PORT', text: 'Berthed at Cinder, Cr 100.', dateLabel: '106-4800' },
@@ -973,7 +975,7 @@ test('v0.257.0 the referee sets armour on the board; it changes the throw, and c
   assert.ok(foe.armorChoices.includes('combat'), 'Book 1\u2019s own list');
   const set = session.run('fight:armor', { fight: { value: { combatantId: foe.id, armor: 'combat' } } });
   assert.equal(set.ok, true, set.message);
-  assert.equal(set.message, 'Thug is wearing combat armour.');
+  assert.equal(set.message, 'Thug is wearing battle dress.');
   assert.equal(session.view().fighters.find((entry) => entry.id === foe.id).armor, 'combat');
   assert.equal(session.run('fight:armor', { fight: { value: { combatantId: foe.id, armor: 'powered' } } }).ok, false);
 });
@@ -1275,4 +1277,143 @@ test('v0.262.0 Export has the whole chat, each line dated, with its working bene
   assert.match(text, /^Sea of Suns \u2014 chat, exported 106-4800\n/);
   assert.match(text, /\[106-4800\] Hawkeye: Two\n {4}lines\n/);
   assert.match(text, /\[106-4800\] Round 1 \u00b7 Hawkeye hits Thug\.\n {4}2D \[5\] \[6\] = 11\n {4}Total 11 against 11\+/);
+});
+
+// ---------------------------------------------------------------------------
+// v0.263.0: skills on the sheet — no repeated "+1", a tagline instead, a
+// throw into chat on click, the description on ⓘ or Shift+click; and the
+// compact sheet's skills no longer "[object Object]".
+// ---------------------------------------------------------------------------
+
+test('v0.263.0 a skill click throws 2D plus Book 1\u2019s DM into chat as the character; \u24d8 describes it', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const character = registry.resolveCampaign(campaignId).characters[0];
+  const [name, level] = Object.entries(character.skills).find(([skill]) => skill === 'Navigation') ?? Object.entries(character.skills)[0];
+  const rolled = session.run('character:skill-roll', { fight: { id: character.identity.id, value: { skill: name } } });
+  assert.equal(rolled.ok, true, rolled.message);
+  assert.match(rolled.message, new RegExp(`^${name}-${level}: 2D \\[\\d \\d\\] [+\u2212] \\d+ = -?\\d+$`));
+  const roll = session.view().chat.at(-1);
+  assert.equal(roll.kind, 'roll');
+  assert.equal(roll.who, character.identity.name, 'thrown as the character');
+  assert.match(roll.detail, /^2D \[\d\] \[\d\] = \d+\n/);
+
+  const described = session.run('character:skill-info', { fight: { id: character.identity.id, value: { skill: name } } });
+  assert.equal(described.ok, true);
+  const info = session.view().chat.at(-1);
+  assert.equal(info.category, 'SKILL');
+  assert.match(info.detail, /Book 1 p\.\d+/);
+  assert.equal(session.run('character:skill-roll', { fight: { id: character.identity.id, value: { skill: 'Basket Weaving' } } }).ok, false);
+});
+
+test('v0.263.0 the sheet\u2019s skill cards carry a tagline, not the level again, and the compact sheet lists them', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  globalThis.window = dom.window;
+  const { renderSheets } = await import('../client/sheets.js');
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  let rolled = null;
+  let described = null;
+  const handlers = { onSkillRoll: (who, skill) => { rolled = skill; }, onSkillInfo: (who, skill) => { described = skill; } };
+  document.querySelector('main').replaceChildren(renderSheets(session.view({ sheets: [{ kind: 'actor', id, tab: 'Play' }] }).sheets, handlers));
+  const cards = [...document.querySelectorAll('.sheet-skill-card')];
+  assert.ok(cards.length);
+  for (const card of cards) assert.equal(/^\+\d+$/.test(card.querySelector('small').textContent.trim()), false, 'no bare "+1"');
+  cards[0].querySelector('.sheet-skill').click();
+  assert.ok(rolled);
+  cards[0].querySelector('.sheet-skill-info').click();
+  assert.equal(described, rolled);
+  cards[0].querySelector('.sheet-skill').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
+  assert.equal(described, rolled);
+
+  document.querySelector('main').replaceChildren(renderSheets(session.view({ sheets: [{ kind: 'actor', id, compact: true }] }).sheets, handlers));
+  const skills = [...document.querySelectorAll('input')].map((input) => input.value).find((value) => /-\d/.test(value));
+  assert.ok(skills, 'the compact sheet shows the skills');
+  assert.equal(/object Object/.test(document.querySelector('main').innerHTML), false);
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+  delete globalThis.Option;
+  delete globalThis.window;
+});
+
+// ---------------------------------------------------------------------------
+// v0.264.0: the Compendium — weapons, armour and equipment onto a character,
+// bought or given.
+// ---------------------------------------------------------------------------
+
+test('v0.264.0 buying from the Compendium pays from the character\u2019s cash and fills the inventory', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const character = () => registry.resolveCampaign(campaignId).characters[0];
+  const id = character().identity.id;
+  const view = session.view().compendium;
+  assert.deepEqual(view.packs.map((pack) => pack.name), ['Weapons', 'Armour', 'Equipment']);
+  const cash = character().finances.credits;
+  const items = character().inventory.length;
+
+  const rifle = session.run('gear:buy', { fight: { id, value: { key: 'weapon:rifle' } } });
+  assert.equal(rifle.ok, true, rifle.message);
+  assert.equal(character().finances.credits, cash - 220);
+  assert.equal(character().inventory.length, items + 1);
+  assert.equal(character().inventory.at(-1).weaponKey, 'rifle');
+
+  const rations = session.run('gear:buy', { fight: { id, value: { key: 'gear:dehydrated-rations-1-day', quantity: 3 } } });
+  assert.equal(rations.ok, true, rations.message);
+  assert.equal(character().finances.credits, cash - 220 - 75);
+  assert.equal(character().inventory.at(-1).quantity, 3);
+  assert.equal(character().inventory.at(-1).weightGrams, 200);
+
+  const line = session.view().chat.find((entry) => entry.category === 'GEAR' && /buys a Rifle for Cr 220/.test(entry.text));
+  assert.ok(line, 'said in chat');
+});
+
+test('v0.264.0 Give costs nothing and reaches what Buy cannot; Buy refuses what this world will not sell or the purse cannot', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const character = () => registry.resolveCampaign(campaignId).characters[0];
+  const id = character().identity.id;
+  const cash = character().finances.credits;
+  const world = session.view().compendium.world;
+  const dress = session.view().compendium.packs.find((pack) => pack.name === 'Armour').entries.find((entry) => entry.key === 'armour:combat');
+  assert.equal(dress.buy, false);
+
+  assert.equal(session.run('gear:buy', { fight: { id, value: { key: 'armour:combat' } } }).ok, false, 'military');
+  const given = session.run('gear:give', { fight: { id, value: { key: 'armour:combat' } } });
+  assert.equal(given.ok, true, given.message);
+  assert.equal(character().loadout.armor, 'combat', 'armour is put on');
+  assert.equal(character().finances.credits, cash, 'a gift is free');
+
+  if (world && world.techLevel < 11) {
+    assert.equal(session.run('gear:buy', { fight: { id, value: { key: 'gear:hand-computer' } } }).ok, false, 'tech level too low');
+  }
+  assert.equal(session.run('gear:buy', { fight: { id, value: { key: 'gear:advanced-base' } } }).ok, cash >= 50000 && (!world || world.techLevel >= 8));
+});
+
+test('v0.264.0 the Compendium tab lists the packs, flags what cannot be bought, and a drop asks Buy or Give', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderDrawer, renderGearDrop, SIDEBAR_TABS } = await import('../client/play-views.js');
+  assert.ok(SIDEBAR_TABS.includes('Compendium'));
+  const { session, registry, campaignId } = await freshSession();
+  const characters = registry.resolveCampaign(campaignId).characters.map((entry) => ({ id: entry.identity.id, name: entry.identity.name }));
+  let acted = null;
+  const handlers = { onGear: (how, who, key, quantity) => { acted = { how, who, key, quantity }; }, onCompendium: () => {} };
+  const state = { ...session.view(), live: true, compendiumCharacters: characters, compendiumUi: { expanded: 'weapon:rifle' } };
+  document.querySelector('main').replaceChildren(...renderDrawer('compendium', state, {}, handlers));
+  const main = document.querySelector('main');
+  assert.equal(main.querySelectorAll('.gear-pack').length, 3);
+  assert.ok([...main.querySelectorAll('.gear-row')].every((row) => row.getAttribute('draggable') === 'true'));
+  [...main.querySelectorAll('.gear-open button')].find((button) => button.textContent === 'Give').click();
+  assert.deepEqual(acted, { how: 'give', who: characters[0].id, key: 'weapon:rifle', quantity: 1 });
+
+  const entry = state.compendium.packs[1].entries.find((candidate) => candidate.key === 'armour:combat');
+  main.replaceChildren(renderGearDrop({ entry, characterId: characters[0].id, characterName: characters[0].name, cashCr: 100, at: { x: 10, y: 10 } }, handlers));
+  const buy = [...main.querySelectorAll('button')].find((button) => button.textContent === 'Buy');
+  assert.equal(buy.disabled, true, 'Battle Dress cannot be bought');
+  assert.match(main.textContent, /Strictly military/);
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
 });

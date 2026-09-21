@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText } from './play-views.js?v=v0.262.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.262.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.262.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.262.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.262.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.262.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.262.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.262.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.262.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.264.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.264.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.264.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.264.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.264.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.264.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.264.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.264.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.264.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -413,6 +413,38 @@ function render() {
       const command = itemId ? `inventory:${verb}:${itemId}` : `inventory:${verb}`;
       source.session.run(verb === 'military' ? `inventory:military:${value ?? itemId}` : command, { characterId: id, item: value ?? null });
     },
+    // v0.264.0: the Compendium.
+    onCompendium: (patch) => { ui.compendium = { ...(ui.compendium ?? {}), ...patch }; render(); },
+    onGearDrop: (characterId, key, at) => {
+      if (source.mode !== 'live' || !key) return;
+      const compendium = source.session.view().compendium;
+      const entry = compendium.packs.flatMap((pack) => pack.entries).find((candidate) => candidate.key === key);
+      const character = (source.session.resolved.characters ?? []).find((candidate) => candidate.identity.id === characterId);
+      if (!entry || !character) return;
+      ui.gearDrop = { entry, characterId, characterName: character.identity.name, cashCr: Number(character.finances?.credits ?? 0), at };
+      render();
+    },
+    onCloseGearDrop: () => { ui.gearDrop = null; render(); },
+    onGear: (how, characterId, key, quantity) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run(how === 'buy' ? 'gear:buy' : 'gear:give', { fight: { id: characterId, value: { key, quantity: Number(quantity) || 1 } } });
+      if (!result.ok) { window.alert(result.message); return; }
+      ui.gearDrop = null;
+      render();
+    },
+    // v0.263.0: skills from the sheet, into chat.
+    onSkillRoll: (id, skill) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('character:skill-roll', { fight: { id, value: { skill } } });
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
+    onSkillInfo: (id, skill) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('character:skill-info', { fight: { id, value: { skill } } });
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
     onSheetRoll: (id, what) => {
       // The roll pipeline and its chat card are the next slice; until then
       // the sheet says what it would throw rather than pretending to.
@@ -636,23 +668,31 @@ function render() {
   // takes it over; otherwise it shows the tab.
   const shellNode = $('shell');
   shellNode.dataset.sidebar = ui.sidebarCollapsed ? 'collapsed' : 'open';
-  $('side-tabs').replaceChildren(...renderSideTabs(ui.drawer && ui.drawer !== 'referee' ? null : ui.sidebarTab, {
+  // v0.264.0: the Compendium tab is drawn by the page, not the referee
+  // directory, but it is a tab like the others.
+  const tabDrawer = (drawer) => drawer === 'referee' || drawer === 'compendium';
+  $('side-tabs').replaceChildren(...renderSideTabs(ui.drawer && !tabDrawer(ui.drawer) ? null : ui.sidebarTab, {
     players: (state.referee?.presence ?? []).length,
     onTab: (tab) => {
       ui.sidebarTab = tab;
-      ui.drawer = tab === 'Chat' ? null : 'referee';
-      if (tab !== 'Chat') ui.referee = { ...ui.referee, tab, folder: '' };
+      ui.drawer = tab === 'Chat' ? null : tab === 'Compendium' ? 'compendium' : 'referee';
+      if (tab !== 'Chat' && tab !== 'Compendium') ui.referee = { ...ui.referee, tab, folder: '' };
       ui.sidebarCollapsed = false;
       render();
     }
   }));
-  const panel = ui.drawer && ui.drawer !== 'referee' ? ui.drawer : null;
+  const panel = ui.drawer && !tabDrawer(ui.drawer) ? ui.drawer : null;
   const chatShowing = !panel && ui.sidebarTab === 'Chat';
   $('side-chat').hidden = !chatShowing;
   $('drawer-body').hidden = chatShowing;
   if (!chatShowing) {
-    const kind = panel ?? 'referee';
-    const body = renderDrawer(kind, { ...state, viewSettings: ui.settings }, state.referee ?? SAMPLE_REFEREE, {
+    const kind = panel ?? (ui.drawer === 'compendium' ? 'compendium' : 'referee');
+    const body = renderDrawer(kind, {
+      ...state,
+      viewSettings: ui.settings,
+      compendiumUi: ui.compendium,
+      compendiumCharacters: (source.session?.resolved?.characters ?? []).filter((entry) => entry.status?.alive !== false && String(entry.identity.name ?? '').trim()).map((entry) => ({ id: entry.identity.id, name: entry.identity.name }))
+    }, state.referee ?? SAMPLE_REFEREE, {
       ...handlers,
       onPickCharacter: (id) => {
         ui.characterId = id;
@@ -676,6 +716,7 @@ function render() {
     layer.replaceChildren(...[
       (state.sheets ?? []).length ? renderSheets(state.sheets, handlers) : null,
       ui.rowMenu ? renderRowMenu(ui.rowMenu, handlers) : null,
+      ui.gearDrop ? renderGearDrop(ui.gearDrop, handlers) : null,
       ui.fighterMenu ? renderFighterMenu({
         ...ui.fighterMenu,
         round: state.round ?? 1,
@@ -684,7 +725,7 @@ function render() {
         foes: ui.fighterMenu.foes ?? (state.fighters ?? []).filter((entry) => entry.side !== ui.fighterMenu.fighter.side)
       }, handlers) : null
     ].filter(Boolean));
-    layer.hidden = !(state.sheets ?? []).length && !ui.rowMenu && !ui.fighterMenu;
+    layer.hidden = !(state.sheets ?? []).length && !ui.rowMenu && !ui.fighterMenu && !ui.gearDrop;
   }
 
   // v0.253.0: the chat stream, and who is speaking. Speaking as follows the
@@ -820,8 +861,8 @@ function handlers_onSheetChange(id, order) {
 }
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  if (ui.fighterMenu || ui.rowMenu) { ui.fighterMenu = null; ui.rowMenu = null; render(); return; }
-  if (ui.drawer && ui.drawer !== 'referee') { ui.drawer = ui.sidebarTab === 'Chat' ? null : 'referee'; render(); }
+  if (ui.fighterMenu || ui.rowMenu || ui.gearDrop) { ui.fighterMenu = null; ui.rowMenu = null; ui.gearDrop = null; render(); return; }
+  if (ui.drawer && ui.drawer !== 'referee' && ui.drawer !== 'compendium') { ui.drawer = ui.sidebarTab === 'Chat' ? null : ui.sidebarTab === 'Compendium' ? 'compendium' : 'referee'; render(); }
 });
 
 // index.html autosaves into the same registry from another tab; follow it.

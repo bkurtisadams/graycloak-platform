@@ -1097,7 +1097,8 @@ export function setCombatantArmor(document, { combatantId, armor } = {}) {
   if (!combatant) throw new Error('combatant is unavailable');
   if (combatant.armor === armor) return { encounter: next, entry: null };
   combatant.armor = armor;
-  const worn = { none: 'no armour', combat: 'combat armour' }[armor] ?? armor;
+  // v0.264.0: the rules package's 'combat' column is Book 1's Battle Dress.
+  const worn = { none: 'no armour', combat: 'battle dress' }[armor] ?? armor;
   const entry = { round: next.round, kind: 'armor', side: combatant.side, combatantId, text: `${combatant.name} is wearing ${worn}.` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
