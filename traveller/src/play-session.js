@@ -834,6 +834,32 @@ function chatStream(resolved, seat) {
     });
 }
 
+// v0.256.0: one encounter history entry as a chat line — who did what to
+// whom, and the one number that decided it. "Round 2 · Hawkeye hits Thug with
+// hands (11 vs 6+): 5 wounds." The dice breakdown stays in the history.
+export function conciseCombatLine(entry, round, names = new Map()) {
+  const at = `Round ${entry.round ?? round} \u00b7 `;
+  const detail = entry.detail ?? null;
+  if (entry.kind === 'attack') {
+    if (!detail) return entry.text ? at + entry.text : null;
+    const attacker = detail.attacker?.name ?? 'Someone';
+    const defenderName = names.get(detail.defenderId ?? entry.targetId) ?? 'the target';
+    const weapon = String(detail.weaponName ?? 'weapon').toLowerCase();
+    const odds = detail.total === null || detail.total === undefined ? '' : ` (${detail.total} vs ${detail.target}+)`;
+    if (!detail.success) return `${at}${attacker} misses ${defenderName} with ${weapon}${odds}.`;
+    const wounds = Number(detail.woundTotal ?? 0);
+    const fell = detail.defenderStatus && detail.defenderStatus !== 'active' ? ` ${defenderName} is ${detail.defenderStatus}.` : '';
+    return `${at}${attacker} hits ${defenderName} with ${weapon}${odds}: ${wounds} wound${wounds === 1 ? '' : 's'}.${fell}`;
+  }
+  if (entry.kind === 'movement' && detail) {
+    const name = names.get(entry.actorId) ?? ((entry.text ?? '').split(' ')[0] || 'Someone');
+    const verb = { close: 'closes', open: 'opens', evade: 'evades', escape: 'tries to escape' }[detail.movementStatus] ?? 'moves';
+    const pace = detail.pace === 'run' ? ' at a run' : '';
+    return `${at}${name} ${verb}${pace}${detail.band ? `, now at ${detail.band} range` : ''}.`;
+  }
+  return entry.text ? at + entry.text : null;
+}
+
 // v0.252.1: how a fight that ended by itself came out, in a sentence.
 function fightConclusion(encounter) {
   const reason = encounter.outcome?.reason ?? '';
@@ -2334,6 +2360,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       }
       if (command.startsWith('fight:')) {
         let message;
+        let alreadyLogged = false;
         const encounter = liveEncounter();
         if (!encounter) throw new Error('no fight is running');
         const [, verb] = command.split(':');
@@ -2374,14 +2401,24 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               refused.push(`${actor.name}: ${error?.message ?? error}`);
             }
           }
+          const before = (staged.history ?? []).length;
           const result = resolveDeclaredRound(staged, { dice: createDice(), date: resolved.campaign.time, playerAllocatesWounds: true });
           persist([result.encounter]);
-          const narration = (result.encounter.history ?? []).filter((entry) => entry.round === staged.round && entry.text).map((entry) => entry.text);
-          // v0.252.1: what happened first, and what was refused after it. A
-          // surprised combatant's refused row used to open the notice, so a
-          // round that ended the fight read "Refused \u2014 Harp: \u2026" as
-          // though the resolve itself had failed.
-          message = [...narration, ...refused.map((line) => `(not declared: ${line})`)].join('. ') || `Round ${staged.round} resolved`;
+          // v0.256.0: one short chat line per thing that happened this round,
+          // each opening with the round (Kurt, Sep 2026: "a massive blob of
+          // text"). Two faults made the blob: every attack's full dice
+          // breakdown went into chat, and the filter took every history entry
+          // numbered this round — which, for a fight set up by hand, also
+          // swept up the placements and the start of the fight. Only entries
+          // this resolve added are reported now; the full breakdown stays in
+          // the encounter's own history.
+          const added = (result.encounter.history ?? []).slice(before);
+          const names = new Map(result.encounter.combatants.map((entry) => [entry.id, entry.name]));
+          const lines = added.map((entry) => conciseCombatLine(entry, staged.round, names)).filter(Boolean);
+          for (const line of lines) log('COMBAT', line);
+          for (const line of refused) log('COMBAT', `Round ${staged.round} \u00b7 not declared: ${line}`);
+          alreadyLogged = true;
+          message = lines.length ? `Round ${staged.round} resolved.` : `Round ${staged.round}: nothing happened.`;
           if (result.encounter.status !== 'active') concludedEncounterId = result.encounter.identity.id;
         } else if (verb === 'undeclare') {
           const actorId = fight?.actorId;
@@ -2445,7 +2482,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           persist([result.encounter]);
           message = 'The fight is over';
         } else throw new Error(`unknown command: ${command}`);
-        log('COMBAT', message);
+        if (!alreadyLogged) log('COMBAT', message);
         lastMessage = { ok: true, message };
         onChange();
         saveToCloud();

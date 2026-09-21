@@ -857,3 +857,51 @@ test('v0.255.0 the band line runs across, shows the bands in play, and the fight
   delete globalThis.Node;
   delete globalThis.Option;
 });
+
+// ---------------------------------------------------------------------------
+// v0.256.0: chat says each thing that happened in a line, with its round;
+// and the Actors tab packs to the top with a one-line search.
+// ---------------------------------------------------------------------------
+
+test('v0.256.0 each attack and move is its own short chat line, opening with the round', async () => {
+  const { session, me, thug } = await setupFixture();
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 3 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const before = session.view().chat.length;
+  const [hawkeye, foe] = [session.view().fighters.find((entry) => entry.side === 'party'), session.view().fighters.find((entry) => entry.side !== 'party')];
+  const result = session.run('fight:sheet', { fight: { rows: [
+    { actorId: hawkeye.id, move: 'Close', targetId: foe.id },
+    { actorId: foe.id, move: 'Close', targetId: hawkeye.id }
+  ] } });
+  assert.equal(result.ok, true, result.message);
+  assert.equal(result.message, 'Round 1 resolved.');
+
+  const lines = session.view().chat.slice(before).filter((entry) => entry.category === 'COMBAT').map((entry) => entry.text);
+  assert.ok(lines.length >= 2, 'one line per thing that happened');
+  assert.ok(lines.every((line) => line.startsWith('Round 1 \u00b7 ')));
+  assert.ok(lines.every((line) => line.length < 140), 'short: no dice breakdown');
+  assert.ok(lines.every((line) => !/SKILL|UNTRAINED|SITUATION/.test(line)));
+  assert.ok(lines.some((line) => /(hits|misses) Thug with /.test(line)), 'names who was attacked');
+  // The setup placements and the start of the fight are not repeated.
+  assert.ok(lines.every((line) => !/joins the encounter|placed for|Combat begins/.test(line)));
+});
+
+test('v0.256.0 a concise line reads the decisive numbers', async () => {
+  const { conciseCombatLine } = await import('../src/play-session.js');
+  const names = new Map([['a', 'Hawkeye'], ['b', 'Thug']]);
+  const hit = conciseCombatLine({ round: 2, kind: 'attack', actorId: 'a', targetId: 'b', detail: {
+    attacker: { name: 'Hawkeye' }, defenderId: 'b', weaponName: 'Hands', total: 11, target: 6, success: true, woundTotal: 5, defenderStatus: 'unconscious'
+  } }, 2, names);
+  assert.equal(hit, 'Round 2 \u00b7 Hawkeye hits Thug with hands (11 vs 6+): 5 wounds. Thug is unconscious.');
+  const miss = conciseCombatLine({ round: 2, kind: 'attack', detail: {
+    attacker: { name: 'Thug' }, defenderId: 'a', weaponName: 'Club', total: 4, target: 8, success: false
+  } }, 2, names);
+  assert.equal(miss, 'Round 2 \u00b7 Thug misses Hawkeye with club (4 vs 8+).');
+});
+
+test('v0.256.0 the sidebar body packs to the top and the search is one line', async () => {
+  const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
+  assert.match(css, /\.sidebar > \.drawer-body \{ align-content: start;/);
+  assert.match(css, /\.sidebar \.search \{ height: 32px;/);
+});

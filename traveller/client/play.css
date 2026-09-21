@@ -1062,3 +1062,14 @@ a.button { text-decoration: none; color: inherit; }
 .scene > .fight-shell { display: flex; flex-direction: column; }
 .fight-shell > .fight-board { flex: 1 1 0; min-height: 220px; }
 .fight-shell > .fight-orders { flex: 0 0 auto; }
+
+/* v0.256.0: the Actors tab (Kurt, Sep 2026): a huge empty band above the
+   search and a search box the height of a text area. The sidebar body is a
+   grid, and with the sidebar now stretching it to the full column, a grid
+   left at its default spreads its rows to fill the height — so the gap and
+   the search input grew with the window. Rows pack to the top instead, and
+   the search is a one-line input. */
+.sidebar > .drawer-body { align-content: start; gap: 10px; padding: 12px 14px; }
+.sidebar .search { height: 32px; min-height: 0; padding: 4px 8px; font-size: 13px; resize: none; }
+.sidebar .directory-actions { margin: 0; }
+.sidebar .side-count-line { margin: 0; }
