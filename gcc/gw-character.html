@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- gw-character.html v0.2.46 — Export JSON now downloads a real named .json file, reports visible status, and no longer adds export events to the character Story. Transfer validates the saved MP roster, omits the redundant mp-char-sheet copy, and on quota exhaustion removes only that disposable cache before retrying once; any remaining failure preserves the roster and downloads the character JSON as a fallback. -->
 <!-- gw-character.html v0.2.45 — exportJSON() now awaits the clipboard write instead of assuming it succeeded (a denied/unsupported clipboard permission was logging "Copied..." with nothing actually on the clipboard); transfer() moved the overspend confirm() inside its own try/catch so a browser-suppressed confirm() or any other exception surfaces an alert instead of the button silently doing nothing. -->
 <!-- gw-character.html v0.2.44 — Fix duplicate roster characters on re-transfer: transfer() now calls saveDraft() after assigning __gwExportId, so the draft's exportId persists across the navigation to character.html. Previously the id was lost on the next wizard page load and every subsequent Transfer pushed a brand-new character into mp-char-list instead of updating the existing one. -->
 <!-- gw-character.html v0.2.43 — Transfer no longer auto-assigns characters to a campaign: removed the _campaign stamp in buildMP and the ensureCampaign lookup/auto-create of "Gamma World 2519" on page load. The campaign roster is authoritative; assign transferred characters deliberately via the Campaign button on character.html. -->
@@ -205,6 +206,11 @@
   .gw-summary h3{color:#2c5424;margin:0 0 4px;font-size:16px}
   .gw-summary p{color:var(--wl-soft);margin:0;font-size:12px}
   .gw-summary-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px}
+  .gw-action-status{display:none;margin:-4px 0 12px;padding:7px 10px;border:1px solid var(--wl-line);border-radius:6px;font-size:12px;text-align:center;background:var(--wl-input)}
+  .gw-action-status.show{display:block}
+  .gw-action-status.ok{background:#e6f0db;border-color:#7e9a55;color:#2c5424}
+  .gw-action-status.warn{background:#fff2cf;border-color:var(--wl-amber);color:#5d4710}
+  .gw-action-status.error{background:#f8dede;border-color:var(--wl-red);color:#7d2222}
   .wl-foot{color:var(--wl-soft);font-size:11px;text-align:center;margin:10px 0 2px}
   @media(max-width:760px){.gw-body{flex-direction:column}.gw-chronicle{width:auto;border-right:none;border-bottom:2px solid var(--wl-line)}.gw-content{flex-direction:column}.gw-controls{width:100%}.gw-ctrlcol{width:100%}}
 </style>
@@ -957,7 +963,8 @@
     if(w.length)lines.push('Weaknesses: '+w.map(a=>`${shortWeaknessName(a)} (${abilityCPLabel(a)})`).join('; ')+'.');
     const notes=gwBuildNotes();
     if(notes.length)lines.push('\nGW → MP Build Notes:\n'+notes.join('\n'));
-    if(state.rollLog.length)lines.push('\nRoll log:\n'+state.rollLog.join('\n'));
+    const usefulLog=state.rollLog.filter(x=>!/\]\s+Copied MP JSON to clipboard\.?$/i.test(String(x)));
+    if(usefulLog.length)lines.push('\nRoll log:\n'+usefulLog.join('\n'));
     return lines.join('\n');
   }
   /* ── MP 2.1.12 / 8.4.2 Wealth ───────────────────────────────── */
@@ -975,7 +982,48 @@
       abilities:abilityRows(),attacks:[{name:'Strike (HTH)',toHit:'',damage:'',dmgType:'Kinetic',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''},{name:'',toHit:'',damage:'',dmgType:'',kb:''}],story:storyText(),gwBuildNotes:gwBuildNotes()};
     return data;
   }
+  function setActionStatus(message,kind){
+    const el=$('.gw-action-status');
+    if(!el){try{alert(message);}catch(e){}return;}
+    el.textContent=message;
+    el.className='gw-action-status show '+(kind||'ok');
+  }
+  function jsonFilename(data){
+    const stem=String(data&&data.name||'gamma-world-character').trim().replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'')||'gamma-world-character';
+    return stem+'.json';
+  }
+  function downloadMPJSON(data,json){
+    json=json||JSON.stringify(data,null,2);
+    const blob=new Blob([json],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    const filename=jsonFilename(data);
+    a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    return filename;
+  }
+  function quotaError(e){return !!(e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014||/quota/i.test(e.message||'')));}
+  function readMPList(){
+    const raw=localStorage.getItem(MP_LIST_KEY);
+    if(!raw)return [];
+    let list;
+    try{list=JSON.parse(raw);}catch(e){throw new Error('The saved MP character list is unreadable. It was not changed.');}
+    if(!Array.isArray(list))throw new Error('The saved MP character list has an invalid format. It was not changed.');
+    return list;
+  }
+  function writeMPList(serialized){
+    try{localStorage.setItem(MP_LIST_KEY,serialized);return false;}
+    catch(first){
+      if(!quotaError(first))throw first;
+      let cached=null,hadCache=false;
+      try{cached=localStorage.getItem('mp-char-sheet');hadCache=cached!==null;if(hadCache)localStorage.removeItem('mp-char-sheet');}catch(e){}
+      try{localStorage.setItem(MP_LIST_KEY,serialized);return hadCache;}
+      catch(second){
+        if(hadCache)try{localStorage.setItem('mp-char-sheet',cached);}catch(e){}
+        throw second;
+      }
+    }
+  }
   function transfer(){
+    let data=null;
     try{
       if(unspent()<0){
         let proceed=true;
@@ -985,24 +1033,31 @@
       }
       if(!window.__gwExportId)window.__gwExportId=(typeof GCC!=='undefined'&&GCC.genId)?GCC.genId('mp'):'mp_'+Date.now();
       saveDraft();
-      const data=buildMP();data._saved=new Date().toISOString();
-      let list=[];try{list=JSON.parse(localStorage.getItem(MP_LIST_KEY)||'[]');}catch(e){list=[];}
+      data=buildMP();data._saved=new Date().toISOString();
+      const list=readMPList();
       let idx=list.findIndex(c=>c&&c._id===data._id);if(idx>=0)list[idx]=data;else{list.push(data);idx=list.length-1;}
-      localStorage.setItem(MP_LIST_KEY,JSON.stringify(list));
-      localStorage.setItem('mp-char-edit-idx',String(idx));
-      localStorage.setItem('mp-char-sheet',JSON.stringify(data));
+      writeMPList(JSON.stringify(list));
+      try{localStorage.setItem('mp-char-edit-idx',String(idx));}catch(e){}
       if(typeof GCCSync!=='undefined'&&GCCSync.notifySync)try{GCCSync.notifySync(MP_LIST_KEY);}catch(e){}
       window.location.href='character.html?id='+encodeURIComponent(data._id);
-    }catch(e){alert('Transfer failed: '+e.message);}
+    }catch(e){
+      let fallback='';
+      try{data=data||buildMP();fallback=' '+downloadMPJSON(data)+' was downloaded instead.';}catch(downloadError){}
+      const reason=quotaError(e)?'Browser storage is full, so the saved MP roster could not be enlarged.':'Transfer failed: '+(e.message||e);
+      setActionStatus(reason+fallback+' No saved characters were deleted.','error');
+    }
   }
   function exportJSON(){
-    let json;try{json=JSON.stringify(buildMP(),null,2);}catch(e){alert('Export failed: '+e.message);return;}
-    if(!navigator.clipboard||!navigator.clipboard.writeText){
-      alert('Clipboard access isn\'t available here — select the JSON in the box below and copy it manually.');
-      render();return;
-    }
-    navigator.clipboard.writeText(json).then(()=>{log('Copied MP JSON to clipboard.');render();})
-      .catch(e=>{alert('Clipboard copy failed ('+e.message+') — select the JSON in the box below and copy it manually.');render();});
+    let data,json,filename;
+    try{data=buildMP();json=JSON.stringify(data,null,2);filename=downloadMPJSON(data,json);}
+    catch(e){setActionStatus('Export failed: '+(e.message||e),'error');return;}
+    setActionStatus('Downloaded '+filename+'.','ok');
+    if(!navigator.clipboard||!navigator.clipboard.writeText)return;
+    try{
+      Promise.resolve(navigator.clipboard.writeText(json))
+        .then(()=>setActionStatus('Downloaded '+filename+' and copied the JSON to the clipboard.','ok'))
+        .catch(()=>setActionStatus('Downloaded '+filename+'. Clipboard copying was blocked, but the file is complete.','warn'));
+    }catch(e){setActionStatus('Downloaded '+filename+'. Clipboard copying was blocked, but the file is complete.','warn');}
   }
 
   /* ── draft persistence ──────────────────────────────────────── */
@@ -1333,6 +1388,7 @@
     return `<div class="gw-step-head"><div class="gw-step-num">✓</div><div class="gw-step-title">Review</div><div style="margin-left:auto;display:flex;gap:6px;align-items:center"><button class="wl-btn ghost" data-act="startover" style="font-size:11px;padding:4px 10px">↺ Start Over</button><button class="wl-btn ghost" data-act="prev" style="font-size:11px;padding:4px 10px">← Back</button></div></div>`+
       `<div class="gw-summary"><h3>Build Complete</h3><p>Review below, then transfer to the MP Builder.</p></div>`+warnHtml+
       `<div class="gw-summary-actions"><button class="wl-btn green" data-act="transfer">Transfer to MP Builder →</button><button class="wl-btn ghost" data-act="copyjson">Export JSON</button><button class="wl-btn ghost" data-act="startover">Start Over</button><button class="wl-btn red" data-act="discard">Discard</button></div>`+
+      `<div class="gw-action-status" role="status" aria-live="polite"></div>`+
       idEdit+
       `<div class="gw-sheet"><div class="sb">IDENTITY</div><div class="gw-kv">${idkv}</div>`+
       `<div class="sb">BASIC CHARACTERISTICS</div><div class="gw-cv">${bc}</div>`+
