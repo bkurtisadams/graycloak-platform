@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.267.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.267.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.267.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.268.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.268.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.268.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.267.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.267.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.267.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.267.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.268.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.268.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.268.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.268.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.267.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.268.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -886,6 +886,7 @@ function bandsScene(state, handlers) {
   }
   const svg = createSvgNode('svg', { viewBox: `0 0 ${width} ${height}`, class: 'bands is-across', preserveAspectRatio: 'xMidYMin meet', role: 'group', 'aria-label': 'Range bands' });
 
+  const bandRects = [];
   // The range names across the top, read from the selected token.
   const spans = [];
   for (let band = 0; band < shown; band += 1) {
@@ -904,7 +905,9 @@ function bandsScene(state, handlers) {
   }
   for (let band = 0; band < shown; band += 1) {
     const gap = Math.abs(band - (reader?.band ?? 0));
-    svg.append(createSvgNode('rect', { x: bandX[band], y: ribbon + 4, width: bandW[band], height: height - ribbon - 4 - foot, class: `band${gap === 0 ? ' is-own' : ''}` }));
+    const rect = createSvgNode('rect', { x: bandX[band], y: ribbon + 4, width: bandW[band], height: height - ribbon - 4 - foot, class: `band${gap === 0 ? ' is-own' : ''}` });
+    bandRects.push(rect);
+    svg.append(rect);
     const number = createSvgNode('text', { x: bandX[band] + bandW[band] / 2, y: height - 6, class: 'band-number', 'text-anchor': 'middle' });
     // A widened band says how many it holds, so the extra width reads as a
     // crowd rather than as a longer stretch of range.
@@ -964,14 +967,37 @@ function bandsScene(state, handlers) {
       handlers.onFighterMenu?.(fighter, { x: event.clientX, y: event.clientY });
     });
     // While the board is being set up, a token is dragged to its band.
+    // v0.268.0: the token follows the pointer and the band under it lights
+    // up. It used to stay put until released, and the press selected the
+    // board's text instead, so a drag looked as if nothing was happening
+    // (Kurt, Sep 2026). The token moves across only: a band is a column.
     if (state.setupPhase) {
+      group.classList.add('is-draggable');
       group.addEventListener('pointerdown', (event) => {
         if (event.button !== 0) return;
+        event.preventDefault();
         const start = event.clientX;
-        const move = (moved) => { if (Math.abs(moved.clientX - start) > 6) group.dataset.dragged = '1'; };
+        const origin = svgX(svg, event.clientX, event.clientY);
+        let lit = null;
+        const light = (band) => {
+          if (lit === band) return;
+          if (lit !== null) bandRects[lit]?.classList.remove('is-drop');
+          lit = band;
+          if (lit !== null && lit !== fighter.band) bandRects[lit]?.classList.add('is-drop');
+        };
+        const move = (moved) => {
+          if (Math.abs(moved.clientX - start) > 6) { group.dataset.dragged = '1'; group.classList.add('is-dragging'); }
+          if (!group.dataset.dragged) return;
+          const x = svgX(svg, moved.clientX, moved.clientY);
+          if (x !== null && origin !== null) group.setAttribute('transform', `translate(${x - origin} 0)`);
+          light(bandAt(svg, moved.clientX, moved.clientY, bandX, bandW));
+        };
         const drop = (released) => {
           window.removeEventListener('pointermove', move);
           window.removeEventListener('pointerup', drop);
+          light(null);
+          group.classList.remove('is-dragging');
+          group.removeAttribute('transform');
           if (!group.dataset.dragged) return;
           const band = bandAt(svg, released.clientX, released.clientY, bandX, bandW);
           if (band !== null && band !== fighter.band) handlers.onRepositionToken?.(fighter.id, band);
@@ -1008,6 +1034,13 @@ function bandsScene(state, handlers) {
         h('button', { type: 'button', class: `button is-small${Number(state.bandsShown) === edge ? ' is-chosen' : ''}`, text: `All ${edge}`, onclick: () => zoom(edge) }))),
     svg
   ];
+}
+
+// A point on screen in the board's own units, or null before it is drawn.
+function svgX(svg, clientX, clientY) {
+  const matrix = svg.getScreenCTM?.();
+  if (!matrix) return null;
+  return new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse()).x;
 }
 
 // Which band a point on screen falls in, or null if it is off the board.

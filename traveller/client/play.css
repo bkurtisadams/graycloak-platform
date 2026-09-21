@@ -1158,3 +1158,9 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 /* v0.267.0: an NPC actor's tabbed sheet. */
 .sheet-note.is-warn { color: var(--red); }
 .sheet-carried-weapons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 8px; }
+
+/* v0.268.0: dragging a token on the band line while a fight is set up. */
+.bands.is-across { user-select: none; -webkit-user-select: none; }
+.bands.is-across .marker.is-draggable { cursor: grab; touch-action: none; }
+.bands.is-across .marker.is-dragging { cursor: grabbing; opacity: .85; }
+.bands.is-across .band.is-drop { fill: var(--signal-wash); stroke: var(--signal); stroke-width: 2; stroke-opacity: 1; stroke-dasharray: 6 4; }
