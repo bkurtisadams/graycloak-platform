@@ -2040,6 +2040,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     }
   }
 
+  // v0.282.0: the session object, so the save can ask its own view for the
+  // ship fight players are shown.
+  let api = null;
   const publishedSheets = new Map();
   // v0.276.0: the rest of what players read and write, which only the
   // referee client handled. The fight as players see it, each player's log,
@@ -2194,6 +2197,25 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     return [...lines, ...theirs].sort((a, b) => Date.parse(a.at ?? 0) - Date.parse(b.at ?? 0));
   }
 
+  // The referee's ship fight view with every control taken out: the plot,
+  // the turn track, the data cards, the roster and the log. Players watch;
+  // the referee's page runs the fight.
+  function playerShipFight() {
+    if (!pendingShipFight || !api) return null;
+    try {
+      const fight = api.view().shipFight;
+      if (!fight) return null;
+      const copy = JSON.parse(JSON.stringify(fight));
+      copy.actions = []; copy.repairActions = []; copy.cancelRepairAction = [];
+      copy.awaitingPlayer = false; copy.readOnly = true;
+      if (copy.vector) { copy.vector.awaitingMovement = false; copy.vector.awaitingFireDecision = false; copy.vector.canFire = false; }
+      return copy;
+    } catch (error) {
+      console.warn('[traveller] ship fight for players:', error?.message ?? error);
+      return null;
+    }
+  }
+
   async function saveToCloud() {
     const uid = cloud?.userId?.();
     if (!uid || save.state === 'stale') return null;
@@ -2212,10 +2234,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // player's page did not change until the fight began).
       const fight = resolved.encounters.find((entry) => entry.status === 'active')
         ?? resolved.encounters.find((entry) => entry.status === 'setup') ?? null;
-      const envelope = buildPublishedCampaign(campaign, {
-        publishedAt: campaign.ownership?.publishedAt ?? home.savedAt, currentEncounterId: fight?.identity.id ?? null,
-        ship, activeScene: scene ? buildPublishedScene(scene, { names }) : null
-      });
+      const envelope = {
+        ...buildPublishedCampaign(campaign, {
+          publishedAt: campaign.ownership?.publishedAt ?? home.savedAt, currentEncounterId: fight?.identity.id ?? null,
+          ship, activeScene: scene ? buildPublishedScene(scene, { names }) : null
+        }),
+        // v0.282.0: a ship fight, as the players' page shows it (Kurt, Sep
+        // 2026: the player saw nothing while the referee fought one).
+        shipFight: playerShipFight(),
+        // v0.282.0: the referee's Clear, which players' chat follows.
+        chatClearedAt: campaign.roster?.chatClearedAt ?? null
+      };
       revision = await cloud.save(home, envelope, { expectedRevision: revision });
       // v0.274.0: each seated player's own sheet, which player.html reads.
       // Only the referee client wrote these, so a character played from this
@@ -3435,6 +3464,19 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // which gives them the log's cloud sync, its campaign dates and its
       // per-entry visibility for free, and puts them in the same stream as
       // the notices the log already writes.
+      // v0.282.0: the referee's Clear reaches the players' chat too. Nothing
+      // is deleted (Export still has everything); the time is kept on the
+      // campaign and published, and each page hides what came before it.
+      if (command === 'chat:clear') {
+        const at = String(fight?.value ?? '');
+        if (at && !Number.isFinite(Date.parse(at))) throw new Error('clear up to when?');
+        const campaign = { ...resolved.campaign, roster: { ...resolved.campaign.roster, chatClearedAt: at || null } };
+        registry.put(campaign);
+        reload();
+        onChange();
+        saveToCloud();
+        return { ok: true, message: '' };
+      }
       if (command === 'chat:say') {
         const text = String(fight?.value ?? '').trim();
         if (!text) throw new Error('say something');
@@ -4375,7 +4417,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     }
   }
 
-  return {
+  api = {
     connect, run, saveToCloud, reload,
     // v0.276.0: the multiplayer channels, driven by the page's listeners.
     applyPlayerDeclarations, applyPlayerWoundAllocations, setCloudChat,
@@ -4708,4 +4750,5 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       return { ...state, ...procedure, next, arrivalEncounter: encounter, scene: { ...state.scene, selectedId: selectedSystemId, world: procedure.world }, save, notice: lastMessage };
     }
   };
+  return api;
 }

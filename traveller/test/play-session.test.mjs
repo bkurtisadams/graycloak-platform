@@ -1213,3 +1213,47 @@ test('v0.281.0 players\u2019 chat lines carry ISO times and sit in time order am
   const times = lines.map((line) => Date.parse(line.at));
   assert.deepEqual(times, [...times].sort((a, b) => a - b));
 });
+
+// v0.282.0: Kurt — the player saw nothing of a ship fight, and the referee's
+// Clear did not reach the player's chat.
+test('v0.282.0 a ship fight is published for players with no controls, and gone when it ends', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const resolved = registry.resolveCampaign(campaignId);
+  const oldShip = resolved.ships[0];
+  let ship = createShipDocument({ designKey: 'type-s-scout-courier', id: oldShip.identity.id, name: oldShip.identity.name, authority: oldShip.authority, crewAssignments: oldShip.crew.assignments, state: { ...oldShip.state, currentFuelTons: 40 } });
+  ship = armShipTurret(ship, { turretId: ship.specifications.armament.turrets[0].id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  registry.put(ship);
+  const envelopes = [];
+  const cloud = fakeCloud();
+  const save = cloud.save;
+  cloud.save = async (home, envelope, options) => { envelopes.push(envelope); return save(home, envelope, options); };
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  assert.equal(session.run('depart', { selectedSystemId: 'calder' }).ok, true);
+  assert.equal(session.run('arrival:fight').ok, true);
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  const published = envelopes.at(-1).shipFight;
+  assert.ok(published, 'the fight is on the players\u2019 page');
+  assert.equal(published.readOnly, true);
+  assert.deepEqual(published.actions, []);
+  assert.deepEqual(published.repairActions, []);
+  assert.equal(published.roster.length, 2);
+  let guard = 0;
+  while (session.view().shipFight?.outcome === 'in-progress' && guard < 40) { guard += 1; session.run('shipfight:fire'); }
+  session.run('shipfight:end');
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  assert.equal(envelopes.at(-1).shipFight, null, 'and leaves when it ends');
+});
+
+test('v0.282.0 the referee\u2019s Clear is kept on the campaign and published for players', async () => {
+  const { registry, campaignId } = await atOrison();
+  const envelopes = [];
+  const cloud = fakeCloud();
+  const save = cloud.save;
+  cloud.save = async (home, envelope, options) => { envelopes.push(envelope); return save(home, envelope, options); };
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  const at = new Date().toISOString();
+  assert.equal(session.run('chat:clear', { fight: { value: at } }).ok, true);
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  assert.equal(envelopes.at(-1).chatClearedAt, at);
+  assert.equal(session.run('chat:clear', { fight: { value: 'not a time' } }).ok, false);
+});

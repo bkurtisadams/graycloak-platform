@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene, subsectorScene } from './play-views.js?v=v0.281.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.281.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.281.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.281.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.281.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.281.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.281.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.281.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.281.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.281.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.281.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.282.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.282.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.282.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.282.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.282.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.282.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.282.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.282.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.282.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.282.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.282.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -154,6 +154,17 @@ function renderScene() {
         h('p', { class: 'cite', text: 'Waiting for the referee\u2019s board\u2026' })));
     }
   }
+  // v0.282.0: a ship fight the referee is running, watched.
+  if (envelope?.shipFight) {
+    // Arriving, it shrinks an open sheet out of the way, as a fight does.
+    if (!state.watchingShipFight && state.sheets) state.sheets = state.sheets.map((entry) => ({ ...entry, compact: true }));
+    state.watchingShipFight = true;
+    $('shell').dataset.situation = 'ship-fight';
+    const parts = shipFightScene(envelope.shipFight, {});
+    $('scene').replaceChildren(...(Array.isArray(parts) ? parts : [parts]));
+    return;
+  }
+  state.watchingShipFight = false;
   if (fightLive()) {
     $('shell').dataset.situation = 'fight';
     $('scene').replaceChildren(fightScene());
@@ -421,7 +432,13 @@ function isoTime(value) {
 function renderChat() {
   const log = $('talk-log');
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-  log.replaceChildren(...renderTalkLog(chatLines(), { showAll: true }));
+  // v0.282.0: the referee's Clear hides what came before it here too; the
+  // player can show it again, as on the referee's page.
+  const clearedAt = state.unclearFor && state.unclearFor === state.envelope?.chatClearedAt ? null : (state.envelope?.chatClearedAt ?? null);
+  log.replaceChildren(...renderTalkLog(chatLines(), {
+    showAll: true, clearedAt,
+    onUnclear: () => { state.unclearFor = state.envelope?.chatClearedAt ?? null; renderChat(); }
+  }));
   if (atBottom) log.scrollTop = log.scrollHeight;
 }
 
@@ -523,7 +540,11 @@ async function connect() {
     stops.push(mine.collection('characters').onSnapshot((snapshot) => {
       state.published = new Map(snapshot.docs.map((entry) => [entry.id, entry.data()]));
       // The player's own sheet opens the first time it arrives.
-      if (state.sheets === null && state.published.size) state.sheets = [{ kind: 'actor', id: [...state.published.keys()][0], compact: false, tab: null }];
+      // In a fight it opens compact, out of the board's way.
+      if (state.sheets === null && state.published.size) {
+        const busy = Boolean(state.envelope?.shipFight) || Boolean(state.envelope?.currentEncounterId);
+        state.sheets = [{ kind: 'actor', id: [...state.published.keys()][0], compact: busy, tab: null }];
+      }
       render();
     }, (error) => console.warn('[traveller-seat] characters:', error)));
     stops.push(mine.collection('log').doc('current').onSnapshot((snapshot) => {

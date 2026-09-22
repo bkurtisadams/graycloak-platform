@@ -16,7 +16,7 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.281.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.282.0';
 
 const DRAGGED = new Map();
 
@@ -168,7 +168,8 @@ function actorCompact(sheet, handlers) {
       h('span', { class: 'sheet-note', text: 'A pattern: each token placed owns its own wounds.' }),
       h('label', { class: 'sheet-inline' }, 'Place ', count),
       h('button', { type: 'button', class: 'button is-small', text: 'Place on scene', onclick: () => handlers.onStageDocument?.('actor', sheet.id, Number(count.value) || 1) })));
-  } else {
+  } else if (!sheet.playerSeat) {
+    // v0.282.0: not on a player's page, where the board is the referee's.
     parts.push(h('div', { class: 'sheet-actions' },
       h('span', { class: 'sheet-note', text: 'One person: one sheet, one set of wounds.' }),
       h('button', { type: 'button', class: 'button is-small', text: 'Put on the board', onclick: () => handlers.onStageDocument?.('actor', sheet.id, 1) })));

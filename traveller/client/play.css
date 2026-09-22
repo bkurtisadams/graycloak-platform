@@ -1222,3 +1222,8 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 /* v0.281.0: the subsector map on the player's page. */
 .seat-map .map { width: 100%; max-height: 62vh; }
 .seat-scene { max-width: 980px; }
+
+/* v0.282.0: a watched ship fight has the player's page to itself. */
+.shell.is-seat[data-situation='ship-fight'] { --now-width: 0px; }
+.shell.is-seat[data-situation='ship-fight'] .now { display: none; }
+.shell.is-seat[data-situation='ship-fight'] .scene { padding: 14px 20px; }

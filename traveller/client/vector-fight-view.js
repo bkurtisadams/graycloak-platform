@@ -174,7 +174,10 @@ export function renderVectorFight(shipFight, handlers = {}) {
 
   const parts = [plot, status];
 
-  if (v.awaitingMovement) {
+  // v0.282.0: the players' copy (readOnly) draws the plot and nothing to press.
+  if (shipFight.readOnly) {
+    parts.push(h('p', { class: 'vfv-note', text: 'The referee is running this fight; you are watching the plot.' }));
+  } else if (v.awaitingMovement) {
     const over = () => Math.hypot(thrust.x, thrust.y) / 2 > v.player.maxG + 1e-9;
     const readout = h('span', { class: 'vfv-g-readout' });
     const commit = h('button', { type: 'button', class: 'button is-primary', text: 'Commit maneuver', onclick: () => handlers.onCommit?.({ ...thrust }) });
@@ -235,7 +238,7 @@ export function renderVectorFight(shipFight, handlers = {}) {
     parts.push(h('div', { class: 'vfv-actions' }, row));
   }
 
-  if ((shipFight.actions ?? []).length) {
+  if (!shipFight.readOnly && (shipFight.actions ?? []).length) {
     parts.push(h('div', { class: 'vfv-actions' }, shipFight.actions.map((action) =>
       h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))));
   }

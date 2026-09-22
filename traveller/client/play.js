@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.281.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.281.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.281.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.281.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.281.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.281.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.281.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.281.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.281.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.282.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.282.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.282.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.282.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.282.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.282.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.282.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.282.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.282.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -887,6 +887,8 @@ $('talk-clear').addEventListener('click', () => {
   const last = chat.map((entry) => Date.parse(entry.at ?? '')).filter(Number.isFinite).reduce((most, time) => Math.max(most, time), 0);
   if (!last) return;
   ui.chatClearedAt = new Date(last).toISOString();
+  // v0.282.0: and the players' chat, through the campaign.
+  if (source.mode === 'live') source.session.run('chat:clear', { fight: { value: ui.chatClearedAt } });
   try { localStorage.setItem(chatClearKey(), last); } catch { /* private mode: cleared for this session */ }
   render();
 });
