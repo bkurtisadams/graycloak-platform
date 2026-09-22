@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.282.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.282.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.282.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.282.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.282.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.282.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.282.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.282.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.282.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.282.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.282.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.283.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.283.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.283.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.283.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.283.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.283.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.283.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.283.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.283.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.283.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.283.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -44,6 +44,7 @@ const state = {
   answeredWoundKey: null
 };
 const fightStops = [];
+const narrationSeen = new Map();
 const stops = [];
 
 // A published character is the character document with the campaign's
@@ -209,7 +210,9 @@ function fighters() {
     band: Number(entry.position?.column ?? 0),
     down: DOWN.has(entry.condition),
     characteristics: { STR: 1, DEX: 1, END: 1 },
-    condition: entry.condition
+    condition: entry.condition,
+    weaponKey: entry.weaponKey ?? null,
+    weaponChoices: entry.weaponChoices ?? []
   }));
 }
 
@@ -221,10 +224,13 @@ async function sendOrder(actorId) {
   const draft = state.drafts.get(actorId) ?? { action: 'attack', targetId: null };
   const order = ORDERS.find((entry) => entry.action === draft.action) ?? ORDERS[0];
   try {
+    const fighter = fighters().find((entry) => entry.id === actorId);
     const declaration = createPlayerDeclaration({
       uid: currentUserId(), actorId, action: order.action,
       targetId: order.target ? draft.targetId : null,
-      round: state.view.declaringRound, declaredAt: Date.now()
+      round: state.view.declaringRound, declaredAt: Date.now(),
+      // v0.283.0: the weapon, only when it changes.
+      weaponKey: draft.weaponKey && draft.weaponKey !== fighter?.weaponKey ? draft.weaponKey : null
     });
     await writeDeclaration(campaignId, state.view.encounterId, declaration);
     setStatus('Order sent. Waiting for the referee.', 'ok');
@@ -240,12 +246,13 @@ function orderRow(fighter, foes) {
   if (sent) {
     const target = foes.find((foe) => foe.id === sent.targetId);
     const order = ORDERS.find((entry) => entry.action === sent.action);
+    const taken = sent.weaponKey ? fighter.weaponChoices.find((entry) => entry.key === sent.weaponKey)?.name ?? sent.weaponKey : null;
     return h('div', { class: 'seat-order is-sent' },
       h('b', { text: fighter.name }),
-      h('span', { text: ` \u2014 ${order?.label ?? sent.action}${target ? `: ${target.name}` : ''}.` }),
+      h('span', { text: ` \u2014 ${taken ? `takes up ${taken}; ` : ''}${order?.label ?? sent.action}${target ? `: ${target.name}` : ''}.` }),
       h('span', { class: 'cite', text: ' Sent; waiting for the referee to resolve the round.' }));
   }
-  const draft = state.drafts.get(fighter.id) ?? { action: 'attack', targetId: foes.find((foe) => !foe.down)?.id ?? null };
+  const draft = state.drafts.get(fighter.id) ?? { action: 'attack', targetId: foes.find((foe) => !foe.down)?.id ?? null, weaponKey: fighter.weaponKey };
   state.drafts.set(fighter.id, draft);
   const order = ORDERS.find((entry) => entry.action === draft.action) ?? ORDERS[0];
   const needs = (targetId) => {
@@ -258,11 +265,20 @@ function orderRow(fighter, foes) {
   ORDERS.map((entry) => h('option', { value: entry.action, selected: entry.action === draft.action, text: entry.label })));
   const targetSelect = order.target ? h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: target`,
     onchange: (event) => { state.drafts.set(fighter.id, { ...draft, targetId: event.currentTarget.value }); renderScene(); } },
-  foes.filter((foe) => !foe.down).map((foe) => h('option', { value: foe.id, selected: foe.id === draft.targetId, text: `${foe.name}${draft.action === 'attack' ? needs(foe.id) : ''}` }))) : null;
-  const card = draft.action === 'attack' ? throws.find((entry) => entry.targetId === draft.targetId) : null;
+  foes.filter((foe) => !foe.down).map((foe) => h('option', { value: foe.id, selected: foe.id === draft.targetId, text: `${foe.name}${draft.action === 'attack' && !(draft.weaponKey && draft.weaponKey !== fighter.weaponKey) ? needs(foe.id) : ''}` }))) : null;
+  // v0.283.0: the weapon to fight with, from what the character carries,
+  // their hands, and a gun swung as a club — with its expertise tag. The
+  // throw shown is for the weapon in hand; a change shows its own throw once
+  // the referee has applied it.
+  const changed = draft.weaponKey && draft.weaponKey !== fighter.weaponKey;
+  const weaponSelect = fighter.weaponChoices.length > 1 ? h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: weapon`,
+    onchange: (event) => { state.drafts.set(fighter.id, { ...draft, weaponKey: event.currentTarget.value }); renderScene(); } },
+  fighter.weaponChoices.map((entry) => h('option', { value: entry.key, selected: entry.key === (draft.weaponKey ?? fighter.weaponKey), text: `${entry.name}${entry.tag ? ` (${entry.tag})` : ''}` }))) : null;
+  const card = draft.action === 'attack' && !changed ? throws.find((entry) => entry.targetId === draft.targetId) : null;
   return h('div', { class: 'seat-order' },
     h('b', { text: fighter.name }),
-    actionSelect, targetSelect,
+    weaponSelect, actionSelect, targetSelect,
+    changed ? h('p', { class: 'cite seat-throw', text: 'A new weapon: its throw shows once the referee takes the order.' }) : null,
     h('button', { type: 'button', class: 'button is-primary', text: 'Send order', disabled: order.target && !draft.targetId, onclick: () => sendOrder(fighter.id) }),
     card ? h('p', { class: 'cite seat-throw', text: `${card.weaponName}: 2D ${card.totalDM >= 0 ? '+' : '\u2212'}${Math.abs(card.totalDM)}, needs ${card.needed}+ at ${String(card.range ?? '').replace('-', ' ')} range${card.rows.length ? ` \u2014 ${card.rows.map((row) => `${row.label} ${row.dm >= 0 ? '+' : '\u2212'}${Math.abs(row.dm)}`).join(', ')}` : ''}${card.defenceDM ? `, their defence ${card.defenceDM >= 0 ? '+' : '\u2212'}${Math.abs(card.defenceDM)}` : ''}.` }) : null);
 }
@@ -282,7 +298,6 @@ function fightScene() {
     onSelectMarker: (id) => { state.selected = id; renderScene(); },
     onBandZoom: (next) => { state.bandsShown = next; renderScene(); }
   });
-  const narration = [...(state.view.narration ?? [])].sort((a, b) => a.round - b.round).slice(-12);
   const setup = state.view.status === 'setup';
   return h('div', { class: 'fight-column seat-fight' },
     setup
@@ -297,9 +312,7 @@ function fightScene() {
       h('h3', { text: `Your orders for round ${state.view.declaringRound ?? state.view.round}` }),
       ...list.filter((entry) => own.has(entry.id)).map((fighter) => orderRow(fighter, foes)),
       own.size ? null : h('p', { class: 'cite', text: 'None of yours are in this fight.' })),
-    narration.length ? h('section', { class: 'seat-narration', 'aria-label': 'What happened' },
-      h('h3', { text: 'What happened' }),
-      ...narration.map((entry) => h('p', {}, h('span', { class: 'cite', text: `Round ${entry.round}. ` }), entry.text))) : null);
+    null);
 }
 
 // Book 1 p.30: when the round pauses on one of this player's characters, the
@@ -421,7 +434,18 @@ function chatLines() {
   // v0.281.0: the chat keeps milliseconds and the log ISO strings; sorted
   // as they were, a string minus a number is NaN, and a player's own lines
   // landed anywhere in the list — usually out of sight above the log.
-  return [...said, ...logged].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  // v0.283.0: the fight's narration goes to the chat, where the referee's
+  // page puts its combat lines, not under the board (Kurt, Sep 2026). A line
+  // is timed when this page first sees it, so it keeps its place.
+  const fought = (state.view?.narration ?? []).map((entry, index) => ({ entry, index })).sort((a, b) => a.entry.round - b.entry.round || a.index - b.index).map(({ entry, index }) => {
+    const key = `${state.view.encounterId}|${entry.round}|${entry.kind}|${entry.text}|${index}`;
+    if (!narrationSeen.has(key)) narrationSeen.set(key, new Date(Date.now() + narrationSeen.size).toISOString());
+    return {
+      id: `fight-${key}`, kind: 'notice', category: 'COMBAT', who: 'Referee', speakerId: null,
+      text: `Round ${entry.round} \u00b7 ${entry.text}`, dateLabel: null, at: narrationSeen.get(key), visibility: 'public', detail: null
+    };
+  });
+  return [...said, ...logged, ...fought].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 
 function isoTime(value) {

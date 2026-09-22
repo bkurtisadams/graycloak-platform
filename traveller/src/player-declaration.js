@@ -8,7 +8,11 @@ function nonblank(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-export function createPlayerDeclaration({ uid, actorId, action, targetId = null, round, declaredAt = Date.now() } = {}) {
+// v0.283.0: weaponKey — the weapon the player takes up for this order, as
+// the referee's weapon column would set it (Kurt, Sep 2026: a player could
+// not go to Hands). Optional; the referee checks it against what the
+// character carries before applying it.
+export function createPlayerDeclaration({ uid, actorId, action, targetId = null, round, declaredAt = Date.now(), weaponKey = null } = {}) {
   if (!nonblank(uid)) throw new TypeError('a signed-in player is required');
   if (!nonblank(actorId)) throw new TypeError('actorId is required');
   if (!PLAYER_DECLARATION_ACTIONS.includes(action)) throw new RangeError(`unknown player action: ${action}`);
@@ -17,7 +21,8 @@ export function createPlayerDeclaration({ uid, actorId, action, targetId = null,
   const needsTarget = ['attack', 'close', 'open', 'close-run', 'open-run'].includes(action);
   if (needsTarget && !nonblank(targetId)) throw new TypeError(`${action} requires a target`);
   if (!needsTarget && targetId !== null) throw new TypeError(`${action} does not take a target`);
-  return Object.freeze({ uid: uid.trim(), actorId: actorId.trim(), action, targetId: targetId === null ? null : targetId.trim(), round, declaredAt });
+  if (weaponKey !== null && weaponKey !== undefined && !nonblank(weaponKey)) throw new TypeError('weaponKey must name a weapon');
+  return Object.freeze({ uid: uid.trim(), actorId: actorId.trim(), action, targetId: targetId === null ? null : targetId.trim(), round, declaredAt, weaponKey: weaponKey ? weaponKey.trim() : null });
 }
 
 export function authorizePlayerDeclaration(raw, { campaign, encounter } = {}) {

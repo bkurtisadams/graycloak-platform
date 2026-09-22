@@ -21,7 +21,7 @@ function declaration(patch = {}) {
 }
 
 test('a current declaration from the assigned player is accepted', () => {
-  assert.deepEqual(authorizePlayerDeclaration(declaration(), { campaign, encounter }), declaration());
+  assert.deepEqual(authorizePlayerDeclaration(declaration(), { campaign, encounter }), { ...declaration(), weaponKey: null }, 'v0.283.0: an order with no weapon change carries weaponKey null');
 });
 
 test('the referee rejects a declaration for another player character', () => {

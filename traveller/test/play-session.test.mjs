@@ -1257,3 +1257,25 @@ test('v0.282.0 the referee\u2019s Clear is kept on the campaign and published fo
   assert.equal(envelopes.at(-1).chatClearedAt, at);
   assert.equal(session.run('chat:clear', { fight: { value: 'not a time' } }).ok, false);
 });
+
+// v0.283.0: Kurt — a player could not take up Hands; only the referee could.
+test('v0.283.0 a player\u2019s order can change their weapon to one their character could take up', async () => {
+  const { session, me, sent, encounter } = await multiplayerFixture();
+  const mine = sent.views.at(-1).combatants.find((entry) => entry.id === me);
+  assert.ok(mine.weaponChoices.some((choice) => choice.key === 'hands'), 'the choices are published for the player\u2019s own character');
+  assert.ok(sent.views.at(-1).combatants.filter((entry) => !entry.playerCharacter).every((entry) => entry.weaponChoices === undefined), 'and not for the enemy');
+  const foe = encounter().combatants.find((entry) => entry.side !== 'party');
+  const refused = session.applyPlayerDeclarations([{ uid: 'player-7', actorId: me, action: 'attack', targetId: foe.id, round: encounter().round, declaredAt: 1, weaponKey: 'fusion-gun-man-portable' }]);
+  assert.equal(refused.length, 1);
+  assert.match(refused[0].message, /no fusion-gun-man-portable to take up/);
+});
+
+test('v0.283.0 taking up hands with an order sets the weapon, then declares', async () => {
+  const { session, me, encounter } = await multiplayerFixture();
+  const foe = encounter().combatants.find((entry) => entry.side !== 'party');
+  assert.deepEqual(session.applyPlayerDeclarations([{ uid: 'player-7', actorId: me, action: 'attack', targetId: foe.id, round: encounter().round, declaredAt: 2, weaponKey: 'hands' }]), []);
+  assert.equal(encounter().combatants.find((entry) => entry.id === me).weaponKey, 'hands');
+  const { createPlayerDeclaration } = await import('../src/player-declaration.js');
+  assert.equal(createPlayerDeclaration({ uid: 'u', actorId: 'a', action: 'wait', round: 1, weaponKey: 'hands' }).weaponKey, 'hands');
+  assert.equal(createPlayerDeclaration({ uid: 'u', actorId: 'a', action: 'wait', round: 1 }).weaponKey, null);
+});

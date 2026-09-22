@@ -2060,10 +2060,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const current = campaign.currentEncounterId === encounter.identity.id || live;
         if (!current && !publishedViews.has(encounter.identity.id)) continue;
         try {
-          const view = buildPublishedView(encounter, { campaignId, publishedAt: 0 });
+          const view = withPlayerWeapons(encounter, buildPublishedView(encounter, { campaignId, publishedAt: 0 }));
           const key = JSON.stringify(view);
           if (publishedViews.get(encounter.identity.id) !== key) {
-            await cloud.publishEncounterView(buildPublishedView(encounter, { campaignId, publishedAt: Date.now() }));
+            await cloud.publishEncounterView({ ...view, publishedAt: Date.now() });
             publishedViews.set(encounter.identity.id, key);
           }
         } catch (error) { console.warn('[traveller] fight view:', encounter.identity.id, error?.code ?? error); }
@@ -2094,6 +2094,27 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     }
   }
 
+  // v0.283.0: each player character's weapon in hand and what it could take
+  // up instead, so a player's order can change it. Only the party's own
+  // characters: an enemy's weapon is for the players to find out.
+  function withPlayerWeapons(encounter, view) {
+    let fighters = [];
+    try { fighters = fightView(encounter, { characters: resolved.characters ?? [], actors: resolved.npcActors ?? [] })?.fighters ?? []; } catch { fighters = []; }
+    return {
+      ...view,
+      combatants: view.combatants.map((combatant) => {
+        if (!combatant.playerCharacter) return combatant;
+        const fighter = fighters.find((entry) => entry.id === combatant.id);
+        if (!fighter) return combatant;
+        return {
+          ...combatant,
+          weaponKey: fighter.weaponKey ?? null,
+          weaponChoices: (fighter.weaponChoices ?? []).map((choice) => ({ key: choice.key, name: choice.baseName ?? choice.name, tag: choice.tag?.short ?? '' }))
+        };
+      })
+    };
+  }
+
   // v0.276.0: what players write, read back and applied as the referee's own
   // commands, after the same checks the referee client made (the player owns
   // the combatant, it is this round, the target is on the other side).
@@ -2111,6 +2132,19 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       changed = true;
       try {
         const authorized = authorizePlayerDeclaration(entry, { campaign: resolved.campaign, encounter });
+        // v0.283.0: the weapon first, if the player changed it — only one
+        // their character could take up (the referee's own weapon column's
+        // choices: what they carry, hands, a gun swung as a club).
+        const combatant = encounter.combatants.find((candidate) => candidate.id === authorized.actorId);
+        if (authorized.weaponKey && authorized.weaponKey !== combatant?.weaponKey) {
+          const choices = fightView(encounter, { characters: resolved.characters ?? [], actors: resolved.npcActors ?? [] })
+            ?.fighters.find((fighter) => fighter.id === authorized.actorId)?.weaponChoices ?? [];
+          if (!choices.some((choice) => choice.key === authorized.weaponKey)) throw new Error(`${combatant?.name ?? 'That character'} has no ${authorized.weaponKey} to take up`);
+          const armed = setCombatantWeapon(encounter, { combatantId: authorized.actorId, weaponKey: authorized.weaponKey });
+          persist([armed.encounter]);
+          encounter = armed.encounter;
+          if (armed.entry) log('COMBAT', armed.entry.text);
+        }
         const result = declareEncounterAction(encounter, { action: authorized.action, actorId: authorized.actorId, targetId: authorized.targetId });
         persist([result.encounter]);
         encounter = result.encounter;
