@@ -3,15 +3,15 @@
 // calls src/play-session.js asks for. Sign-in is per tab (auth.js keeps a
 // session), so arriving from the lobby in the same tab arrives signed in.
 
-import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.284.0';
+import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.285.0';
 import {
   saveCampaignHome, loadCampaignHome, listOwnCampaigns,
   seatPlayer, unseatPlayer, listSeatedPlayers,
   createInvite, deleteInvite, listCampaignInvites,
   watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, publishPlayerCharacter,
   publishEncounterView, publishPlayerLog, watchDeclarations, clearDeclarations,
-  watchWoundAllocations, clearWoundAllocations, watchChat, sendChatMessage
-} from './publish.js?v=v0.284.0';
+  watchWoundAllocations, clearWoundAllocations, watchChat, sendChatMessage, releaseSeat
+} from './publish.js?v=v0.285.0';
 
 export function createPlayCloud() {
   return {
@@ -54,6 +54,8 @@ export function createPlayCloud() {
     clearWoundAllocations: (campaignId, encounterId) => clearWoundAllocations(campaignId, encounterId),
     watchChat: (campaignId, onChange) => watchChat(campaignId, onChange),
     sendChat: (campaignId, message) => sendChatMessage(campaignId, message),
+    // v0.285.0: Remove — the seat and log go, the published sheet stays.
+    releaseSeat: (campaignId, uid) => releaseSeat(campaignId, uid),
     save: (home, envelope, options) => saveCampaignHome(home, envelope, options)
   };
 }

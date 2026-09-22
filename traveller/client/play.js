@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.284.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.284.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.284.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.284.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.284.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.284.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.284.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.284.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.284.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.285.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.285.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.285.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.285.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.285.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.285.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.285.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.285.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.285.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -995,6 +995,7 @@ async function refreshPlayers() {
   render();
 }
 
+const autoAdmitted = new Set();
 async function runSeat(action, seat) {
   if (source.mode !== 'live') return;
   const campaignId = source.session.resolved.campaign.identity.id;
@@ -1011,6 +1012,42 @@ async function runSeat(action, seat) {
       let copied = false;
       try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
       window.prompt(`${copied ? 'Copied. ' : ''}Send this join link to your players. It stays open until revoked.`, url.toString());
+    } else if (action === 'copy-link' || action === 'reset-link') {
+      // v0.285.0: the campaign's one join link, copied; or a fresh one, the
+      // old ones revoked (Roll20 changes its link on a kick for the same
+      // reason: whoever held it can no longer use it).
+      let code = seat.code ?? null;
+      if (action === 'reset-link') {
+        if (code && !window.confirm('Make a new join link? The current one stops working.')) return;
+        for (const invite of await cloud.listInvites(campaignId)) await cloud.revokeInvite(invite.code);
+        const invite = createTravellerInvite({ code: generateInviteCode(), ownerUid: cloud.userId(), campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null });
+        await cloud.createInvite(invite);
+        code = invite.code;
+      }
+      const url = new URL('enter.html', window.location.href);
+      url.search = `?join=${encodeURIComponent(code)}`;
+      let copied = false;
+      try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
+      window.prompt(`${copied ? 'Copied. ' : ''}The join link for your players:`, url.toString());
+    } else if (action === 'auto-admit') {
+      source.session.run('players:auto-admit', { fight: { value: Boolean(seat) } });
+    } else if (action === 'remove') {
+      // v0.285.0: Remove — seat, log and party place go; the character goes
+      // home with its sheet; the referee may keep a copy.
+      const names = seat.characters.map((entry) => entry.name).join(', ') || 'no character';
+      if (seat.characters.some((entry) => entry.fighting)) throw new Error(`${names} is in a fight; remove them when it ends`);
+      if (!window.confirm(`Remove ${seat.name} from the campaign?\n\n${names} goes home with everything that happened here.`)) return;
+      const keepCopy = seat.characters.length ? window.confirm(`Keep a copy of ${names} in Actors as your own?\n\nOK keeps a copy; Cancel lets them go entirely.`) : false;
+      await source.session.saveToCloud();
+      for (const entry of seat.characters) {
+        const released = source.session.run('character:release', { fight: { id: entry.id, value: { keepCopy } } });
+        if (!released.ok) throw new Error(released.message);
+        await cloud.placeCharacter(entry.id, { kind: 'unassigned', campaignId: null, campaignName: null, since: null }).catch((error) => console.warn('[traveller] return character:', error));
+      }
+      await cloud.releaseSeat(campaignId, seat.uid);
+    } else if (action === 'release') {
+      const released = source.session.run('character:release', { fight: { id: seat.id, value: { keepCopy: Boolean(seat.keepCopy) } } });
+      if (!released.ok) throw new Error(released.message);
     } else if (action === 'revoke') {
       if (!window.confirm(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`)) return;
       await cloud.revokeInvite(seat.code);
@@ -1211,6 +1248,15 @@ async function start() {
     try {
       cloud.watchJoins(source.session.resolved.campaign.identity.id, (joins) => {
         ui.players = { seats: [], invites: [], ...(ui.players ?? {}), joins };
+        // v0.285.0: let in at once, if the referee chose it, while this page
+        // is open (it is what brings the character into the campaign).
+        if (source.session.resolved.campaign.roster?.autoAdmit) {
+          for (const join of joins) {
+            if (autoAdmitted.has(join.uid)) continue;
+            autoAdmitted.add(join.uid);
+            runSeat('admit', { kind: 'join', uid: join.uid, characterId: join.characterId ?? null, name: join.name ?? null });
+          }
+        }
         if (ui.drawer === 'referee' && ui.referee.tab === 'Players') render();
       });
     } catch (error) { console.warn('[traveller] join requests:', error); }

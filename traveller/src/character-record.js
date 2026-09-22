@@ -150,3 +150,31 @@ export function createJoinRequest({ uid, name = null, code, campaignId, record, 
     requestedAt
   };
 }
+
+// v0.285.0: a character coming home from a campaign — Kurt's ruling (Sep
+// 2026): it brings everything that happened to it there. The campaign's
+// published sheet (the player's own, with the referee's notes already left
+// out) replaces the record's character; the campaign's things (the ship, its
+// account, cargo, contracts) were never on it. One line goes on the
+// character's history, like a stamp in a passport, so the next referee can
+// see where it has been.
+export function characterFromPublished(published) {
+  if (!published) return null;
+  const { campaignId: _campaign, characterId: _id, ownerUid: _owner, publishedAt: _at, ...document } = published;
+  return importCharacterDocument({ inventory: [], record: {}, provenance: {}, ...document });
+}
+
+export function campaignStamp({ campaignId = null, campaignName = null, refereeName = null, from = null, to = null } = {}) {
+  return { type: 'campaign', campaignId, campaignName, refereeName, from, to };
+}
+
+export function returnCharacterHome(record, published, trip = {}) {
+  const current = importCharacterRecord(record);
+  const played = characterFromPublished(published);
+  const character = played && played.identity.id === current.characterId ? played : current.character;
+  const history = Array.isArray(character.history) ? [...character.history] : [];
+  const stamp = campaignStamp(trip);
+  if (!history.some((entry) => entry.type === 'campaign' && entry.campaignId === stamp.campaignId && entry.to === stamp.to)) history.push(stamp);
+  const next = { ...current, character: { ...character, history }, name: character.identity.name, lastCampaign: null, updatedAt: Date.now() };
+  return importCharacterRecord(next);
+}

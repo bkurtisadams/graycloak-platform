@@ -1186,6 +1186,40 @@ function encounterStepStrip(fight, resolved, writable) {
   ];
 }
 
+// v0.285.0: the Players tab as one list (Kurt, Sep 2026: a seated player was
+// hard to find in the old folders, and there was no plain way to remove
+// one). The join link, requests waiting, the members with their characters,
+// and — the repair pass — party characters whose player no longer has a
+// seat, because they left or were never cleaned up.
+export function playersModel(resolved, players) {
+  const campaign = resolved.campaign;
+  const refereeUid = campaign.ownership?.ownerUid ?? null;
+  const owners = campaign.ownership?.actors ?? {};
+  const characters = resolved.characters ?? [];
+  const nameOf = (id) => characters.find((entry) => entry.identity.id === id)?.identity.name || null;
+  const fighting = new Set((resolved.encounters ?? [])
+    .filter((encounter) => encounter.status === 'active' || encounter.status === 'setup')
+    .flatMap((encounter) => (encounter.combatants ?? []).map((entry) => entry.id)));
+  const seats = players?.seats ?? [];
+  const seated = new Set(seats.map((seat) => seat.uid));
+  const charactersOf = (uid) => Object.entries(owners).filter(([id, owner]) => owner === uid && characters.some((entry) => entry.identity.id === id)).map(([id]) => ({ id, name: nameOf(id), fighting: fighting.has(id) }));
+  return {
+    link: (players?.invites ?? [])[0]?.code ?? null,
+    autoAdmit: Boolean(campaign.roster?.autoAdmit),
+    requests: (players?.joins ?? []).map((join) => ({
+      uid: join.uid, name: join.name || join.uid, characterId: join.characterId ?? null,
+      characterName: join.characterName ?? join.character?.identity?.name ?? null, code: join.code ?? null
+    })),
+    members: seats.filter((seat) => seat.uid !== refereeUid).map((seat) => ({
+      uid: seat.uid, name: seat.name || seat.uid, seatedAt: seat.seatedAt ?? null, lastSeenAt: seat.lastSeenAt ?? null,
+      characters: charactersOf(seat.uid)
+    })),
+    departed: Object.entries(owners)
+      .filter(([id, owner]) => owner && owner !== refereeUid && !seated.has(owner) && characters.some((entry) => entry.identity.id === id))
+      .map(([id, owner]) => ({ id, name: nameOf(id), uid: owner, fighting: fighting.has(id) }))
+  };
+}
+
 export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null } = {}) {
   const sets = {
     Journal: journalEntries,
@@ -1212,6 +1246,7 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     // Tables has nothing behind it but the printed pages; Players' seats live
     // in the cloud and need a signed-in referee to fetch them.
     unbuilt: tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
+    members: tab === 'Players' && players && !players.loading ? playersModel(resolved, players) : null,
     // The Players tab acts on the cloud, not on campaign documents.
     seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null,
     // v0.246.0: staging took over the screen (see view() below), so the
@@ -2277,7 +2312,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         // 2026: the player saw nothing while the referee fought one).
         shipFight: playerShipFight(),
         // v0.282.0: the referee's Clear, which players' chat follows.
-        chatClearedAt: campaign.roster?.chatClearedAt ?? null
+        chatClearedAt: campaign.roster?.chatClearedAt ?? null,
+        // v0.285.0: whose campaign it is, for the stamp a character takes home.
+        refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null
       };
       revision = await cloud.save(home, envelope, { expectedRevision: revision });
       // v0.274.0: each seated player's own sheet, which player.html reads.
@@ -3498,6 +3535,47 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // which gives them the log's cloud sync, its campaign dates and its
       // per-entry visibility for free, and puts them in the same stream as
       // the notices the log already writes.
+      // v0.285.0: a player's character leaves the campaign — removed by the
+      // referee, or its player gone. It goes home with its published sheet;
+      // the campaign may keep a copy, unowned, as the referee's own. Not in
+      // the middle of a fight: that waits until the fight ends.
+      if (command === 'character:release') {
+        const id = fight?.id;
+        const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+        if (!character) throw new Error('that character is not in this campaign');
+        const busy = (resolved.encounters ?? []).some((encounter) => (encounter.status === 'active' || encounter.status === 'setup')
+          && (encounter.combatants ?? []).some((entry) => entry.id === id));
+        if (busy) throw new Error(`${character.identity.name} is in a fight; this happens when the fight ends`);
+        let campaign = resolved.campaign;
+        const documents = [];
+        if (fight?.value?.keepCopy) {
+          const clone = JSON.parse(JSON.stringify(character));
+          clone.identity = { ...clone.identity, id: stableDocumentId('char', `${id}\u0000kept\u0000${Date.now()}`), name: `${character.identity.name || 'Unnamed'} (kept)` };
+          const copy = importCharacterDocument(clone);
+          const inParty = campaign.party.characterIds.includes(id) && campaign.party.characterIds.length === 1;
+          campaign = addCharacterToCampaign(campaign, copy, { active: inParty, makeActive: false });
+          campaign = setCharacterFolders(campaign, { [copy.identity.id]: characterFolder(resolved.campaign, id) });
+          documents.push(copy);
+        }
+        campaign = removeCharacterFromCampaign(campaign, id);
+        registry.putAll([...documents, campaign]);
+        registry.remove(id);
+        reload();
+        const message = `${character.identity.name} leaves the campaign${fight?.value?.keepCopy ? '; a copy stays in Actors' : ''}.`;
+        log('SYSTEM', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command === 'players:auto-admit') {
+        const on = Boolean(fight?.value);
+        registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, autoAdmit: on } });
+        reload();
+        onChange();
+        saveToCloud();
+        return { ok: true, message: on ? 'Players joining by link are let in at once.' : 'Requests to join wait for you.' };
+      }
       // v0.282.0: the referee's Clear reaches the players' chat too. Nothing
       // is deleted (Export still has everything); the time is kept on the
       // campaign and published, and each page hides what came before it.

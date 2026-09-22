@@ -1,4 +1,12 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v18
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v19
+// v19 makes leaving a campaign real, and lets a character come home with
+//   what happened to it:
+//   travellerCampaigns/{id}/players/{uid} — the seated player may delete
+//     their own seat (Leave); the referee still may too (Remove).
+//   travellerCampaigns/{id}/players/{uid}/characters/{id} — that account
+//     may read its own published sheet without a seat, so a character
+//     removed or departed can take its campaign sheet back to the lobby.
+//
 // v18 lets a Traveller character's owner take it out of its campaign:
 //   travellerCharacters/{id} may be updated by its owner to world
 //   'unassigned', touching nothing but world, pendingJoin and updatedAt.
@@ -312,7 +320,10 @@ service cloud.firestore {
       // read the roster and update nothing but their own seat.
       match /players/{playerUid} {
         allow read: if isAtTravellerTable(campaignId);
-        allow create, delete: if isTravellerReferee(campaignId);
+        allow create: if isTravellerReferee(campaignId);
+        // v19: the player may stand up from their own seat.
+        allow delete: if isTravellerReferee(campaignId)
+          || (isAuthed() && request.auth.uid == playerUid);
         allow update: if isTravellerReferee(campaignId)
           || (isAuthed() && request.auth.uid == playerUid);
 
@@ -323,8 +334,10 @@ service cloud.firestore {
         // read here, and a seat that is gone takes its documents with it in
         // the rule as well as in the client.
         match /characters/{characterId} {
+          // v19: their own sheet, seated or not — it is how a character
+          // comes home from a campaign it has left.
           allow read: if isTravellerReferee(campaignId)
-            || (isAuthed() && request.auth.uid == playerUid && isTravellerPlayer(campaignId));
+            || (isAuthed() && request.auth.uid == playerUid);
           allow write: if isTravellerReferee(campaignId);
         }
 
@@ -474,10 +487,10 @@ service cloud.firestore {
     // ── Graycloak Traveller: the player's own characters ───────
     // v13. A character rolled at enter.html, owned by the account that rolled
     // it and carrying where it is: nowhere yet, a referee's campaign, or the
-    // solo world. The owner reads, lists, edits and deletes it but may not
-    // move it between worlds by hand — a seat is the referee's to give and
-    // take — so the world changes only at the hands of the referee of the
-    // campaign it is leaving or joining, and they may change nothing else.
+    // solo world. The owner reads, lists, edits and deletes it; a seat is the
+    // referee's to give, so the world changes into a campaign only at the
+    // hands of that campaign's referee (who may change nothing else). Since
+    // v18 the owner may take it out of a campaign (to unassigned) themselves.
     match /travellerCharacters/{characterId} {
       allow read: if isAuthed()
         && resource.data.get('ownerUid', '') == request.auth.uid;

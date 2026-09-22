@@ -1279,3 +1279,61 @@ test('v0.283.0 taking up hands with an order sets the weapon, then declares', as
   assert.equal(createPlayerDeclaration({ uid: 'u', actorId: 'a', action: 'wait', round: 1, weaponKey: 'hands' }).weaponKey, 'hands');
   assert.equal(createPlayerDeclaration({ uid: 'u', actorId: 'a', action: 'wait', round: 1 }).weaponKey, null);
 });
+
+// v0.285.0: the Players tab as one list, Remove, and a character going home.
+test('v0.285.0 the players model lists requests, members with their characters, and anyone whose player has gone', async () => {
+  const { registry, campaignId } = await atOrison();
+  const { setDocumentOwner } = await import('../src/campaign-document.js');
+  const { playersModel } = await import('../src/play-session.js');
+  const resolved = () => registry.resolveCampaign(campaignId);
+  const me = resolved().characters[0].identity.id;
+  registry.put(setDocumentOwner(resolved().campaign, { documentId: me, ownerUid: 'player-7' }));
+  const withSeat = playersModel(resolved(), { seats: [{ uid: 'player-7', name: 'Kurt', lastSeenAt: Date.now() }], invites: [{ code: 'ABC234' }], joins: [{ uid: 'p9', name: 'Ann', characterName: 'Leona' }] });
+  assert.equal(withSeat.link, 'ABC234');
+  assert.deepEqual(withSeat.requests.map((entry) => entry.characterName), ['Leona']);
+  assert.deepEqual(withSeat.members.map((entry) => [entry.name, entry.characters.map((character) => character.id)]), [['Kurt', [me]]]);
+  assert.deepEqual(withSeat.departed, []);
+  const gone = playersModel(resolved(), { seats: [], invites: [], joins: [] });
+  assert.deepEqual(gone.departed.map((entry) => [entry.id, entry.uid]), [[me, 'player-7']], 'no seat: their character is flagged');
+});
+
+test('v0.285.0 releasing a player\u2019s character takes it out of the campaign, optionally keeping an unowned copy', async () => {
+  const { registry, campaignId } = await atOrison();
+  const { setDocumentOwner, addCharacterToCampaign } = await import('../src/campaign-document.js');
+  const resolved = () => registry.resolveCampaign(campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const hawkeye = resolved().characters[0].identity.id;
+  const copyId = session.run('character:copy', { fight: { id: hawkeye } }).createdId;
+  const nico = resolved().characters.find((entry) => entry.identity.id === copyId);
+  registry.put(setDocumentOwner(addCharacterToCampaign(resolved().campaign, nico, { active: true, makeActive: false }), { documentId: copyId, ownerUid: 'player-7' }));
+  session.reload();
+  const kept = session.run('character:release', { fight: { id: copyId, value: { keepCopy: true } } });
+  assert.equal(kept.ok, true, kept.message);
+  assert.equal(resolved().characters.some((entry) => entry.identity.id === copyId), false);
+  assert.equal(resolved().campaign.ownership.actors[copyId], undefined);
+  const copy = resolved().characters.find((entry) => entry.identity.name.endsWith('(kept)'));
+  assert.ok(copy, 'a copy stays');
+  assert.equal(resolved().campaign.ownership.actors[copy.identity.id], undefined, 'unowned: the referee\u2019s own');
+});
+
+test('v0.285.0 a character comes home with its campaign sheet and a stamp on its history', async () => {
+  const { registry, campaignId } = await atOrison();
+  const { createCharacterRecord, setCharacterRecordWorld, returnCharacterHome } = await import('../src/character-record.js');
+  const { buildPublishedCharacter } = await import('../src/published-view.js');
+  const { formatHistoryEvent } = await import('../client/ui-model.js');
+  const source = registry.resolveCampaign(campaignId).characters[0];
+  const record = setCharacterRecordWorld(createCharacterRecord(source, { ownerUid: 'player-7' }), { kind: 'campaign', campaignId: 'sea', campaignName: 'Sea of Suns', since: 1 });
+  const played = JSON.parse(JSON.stringify(source));
+  played.current.STR -= 2;
+  played.finances.credits += 500;
+  const home = returnCharacterHome({ ...record, lastCampaign: { campaignId: 'sea', campaignName: 'Sea of Suns', refereeName: 'BK Adams', from: '106-4800', to: '239-4804' } },
+    buildPublishedCharacter(played, { campaignId: 'sea', ownerUid: 'player-7', publishedAt: 1 }),
+    { campaignId: 'sea', campaignName: 'Sea of Suns', refereeName: 'BK Adams', from: '106-4800', to: '239-4804' });
+  assert.equal(home.character.current.STR, source.current.STR - 2, 'wounds come home');
+  assert.equal(home.character.finances.credits, source.finances.credits + 500, 'and money');
+  assert.equal(home.lastCampaign, null);
+  const stamp = home.character.history.at(-1);
+  assert.equal(stamp.type, 'campaign');
+  assert.equal(formatHistoryEvent(stamp), 'PLAYED IN SEA OF SUNS UNDER BK ADAMS  106-4800 TO 239-4804');
+  assert.equal(returnCharacterHome(home, null, { campaignId: 'sea', to: '239-4804' }).character.history.filter((entry) => entry.type === 'campaign').length, 1, 'stamped once');
+});

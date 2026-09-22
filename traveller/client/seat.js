@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.284.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.284.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.284.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.284.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.284.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.284.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.284.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.284.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.284.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.284.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.284.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.285.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.285.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.285.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord } from './publish.js?v=v0.285.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.285.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.285.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.285.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.285.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.285.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.285.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.285.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -552,12 +552,15 @@ async function connect() {
   state.envelope = null; state.published = new Map(); state.log = null; state.chat = [];
   const uid = currentUserId();
   if (!uid || !campaignId) { render(); return; }
+  seatTouched = 0;
+  touch();
   try {
     const db = await ensureFirestore();
     stops.push(db.doc(`travellerCampaigns/${campaignId}`).onSnapshot((snapshot) => {
       state.envelope = snapshot.exists ? snapshot.data() : null;
       if (!snapshot.exists) setStatus('No such campaign, or you are not seated at it.', 'error');
       watchFight();
+      noteTrip();
       render();
     }, (error) => setStatus(error?.code === 'permission-denied' ? 'You are not seated at this campaign.' : error.message, 'error')));
     const mine = db.doc(`travellerCampaigns/${campaignId}/players/${uid}`);
@@ -581,6 +584,39 @@ async function connect() {
     setStatus(error?.message ?? String(error), 'error');
   }
 }
+
+// v0.285.0: the player's own record keeps a note of this campaign — its
+// name, its referee, and the dates played — so the character's history can
+// be stamped when it comes home (Kurt's ruling). And the seat says when the
+// player was last here, for the referee's Players tab.
+const tripNoted = new Map();
+async function noteTrip() {
+  const envelope = state.envelope;
+  const uid = currentUserId();
+  if (!envelope || !uid) return;
+  const date = envelope.time ? formatCampaignDate(envelope.time) : null;
+  const mine = Object.entries(envelope.ownership?.actors ?? {}).filter(([, owner]) => owner === uid).map(([id]) => id);
+  for (const id of mine) {
+    const key = `${id}|${date}|${envelope.name}|${envelope.refereeName ?? ''}`;
+    if (tripNoted.get(id) === key) continue;
+    tripNoted.set(id, key);
+    try {
+      const record = await loadCharacterRecord(id);
+      if (!record || record.world?.campaignId !== campaignId) continue;
+      const trip = record.lastCampaign?.campaignId === campaignId ? record.lastCampaign : null;
+      const next = { campaignId, campaignName: envelope.name ?? null, refereeName: envelope.refereeName ?? trip?.refereeName ?? null, from: trip?.from ?? date, to: date };
+      if (JSON.stringify(next) === JSON.stringify(trip)) continue;
+      await saveCharacterRecord({ ...record, lastCampaign: next, updatedAt: Date.now() });
+    } catch (error) { console.warn('[traveller-seat] trip note:', error?.code ?? error); }
+  }
+}
+let seatTouched = 0;
+function touch() {
+  if (!campaignId || !currentUserId() || Date.now() - seatTouched < 4 * 60000) return;
+  seatTouched = Date.now();
+  touchSeat(campaignId, currentUserId()).catch((error) => console.warn('[traveller-seat] seat:', error?.code ?? error));
+}
+setInterval(touch, 5 * 60000);
 
 async function start() {
   render();

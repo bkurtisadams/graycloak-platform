@@ -13,6 +13,7 @@
 // list of their own campaigns.
 // v15 lets an owner start a campaign of their own with their own character.
 // v16 adds table chat.
+// v19 lets a player delete their own seat and read their own sheet unseated.
 // v18 lets a character's owner stand it up from its campaign (to unassigned).
 // v17 adds the wounded player's own wound distribution, which Book 1 p.30
 //   leaves to the wounded player rather than the referee.
@@ -251,15 +252,25 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertFails(player.doc(SHEET).delete());
   });
 
-  await t.test('losing the seat loses the documents, in the rule and not only in the client', async () => {
+  // v19 (Kurt's ruling, Sep 2026): a character leaving a campaign takes home
+  // what happened to it, so the player keeps reading their own sheet after
+  // the seat goes; the log, which is table news, still goes with the seat.
+  await t.test('losing the seat keeps the player\u2019s own sheet readable to them, and only to them; the log goes', async () => {
     const secondSheet = `travellerCampaigns/${CAMPAIGN}/players/${SECOND}/characters/other-pc`;
+    const secondLog = `travellerCampaigns/${CAMPAIGN}/players/${SECOND}/log/current`;
     await assertSucceeds(referee.doc(secondSheet).set({ campaignId: CAMPAIGN, characterId: 'other-pc', ownerUid: SECOND }));
+    await assertSucceeds(referee.doc(secondLog).set({ uid: SECOND, entries: [] }));
     await assertSucceeds(second.doc(secondSheet).get());
-    // The referee unseats them; the client also deletes the subtree, but the
-    // rule must not depend on that having happened.
-    await assertSucceeds(referee.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).delete());
-    await assertFails(second.doc(secondSheet).get());
+    // v19: the player stands up from their own seat.
+    await assertFails(player.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).delete(), 'not someone else\u2019s seat');
+    await assertSucceeds(second.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).delete());
+    await assertSucceeds(second.doc(secondSheet).get(), 'their sheet comes home with them');
+    await assertFails(player.doc(secondSheet).get(), 'and nobody else\u2019s');
+    await assertFails(second.doc(secondLog).get(), 'the log is gone with the seat');
     await assertSucceeds(referee.doc(secondSheet).delete());
+    await assertSucceeds(referee.doc(secondLog).delete());
+    // Seated again for anything below that expects it.
+    await assertSucceeds(referee.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).set({ seatedAt: 2 }));
   });
 
   // --- v13: the player's own characters, invites and join requests ---------

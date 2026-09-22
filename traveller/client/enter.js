@@ -8,28 +8,29 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.284.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.284.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.285.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.285.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
-  renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite
-} from './publish.js?v=v0.284.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.284.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.284.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.284.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.284.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.284.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.284.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.284.0';
-import { generateCharacterName } from './generators.js?v=v0.284.0';
+  renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
+  loadPublishedCharacter, leaveSeat
+} from './publish.js?v=v0.285.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.285.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.285.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.285.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.285.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.285.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.285.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.285.0';
+import { generateCharacterName } from './generators.js?v=v0.285.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
-  setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode
-} from '../src/character-record.js?v=v0.284.0';
+  setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome
+} from '../src/character-record.js?v=v0.285.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.284.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.285.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -158,10 +159,30 @@ function watchRecords() {
   ensureFirestore()
     .then(() => watchOwnCharacterRecords(uid, (entries) => {
       records = [...entries].sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0));
+      welcomeHome();
       render();
     }))
     .then((unsubscribe) => { if (uid === watchedUid) unsubscribeRecords = unsubscribe; else unsubscribe(); })
     .catch((error) => setStatus(error?.message ?? String(error), 'error'));
+}
+
+// v0.285.0: a character the referee removed (its world set back to
+// unassigned) still carries its note of the campaign; it comes home with
+// that campaign's sheet and the stamp, once.
+const welcoming = new Set();
+async function welcomeHome() {
+  for (const record of records) {
+    const trip = record.lastCampaign;
+    if (!trip?.campaignId || record.world?.kind !== WORLD_KINDS.UNASSIGNED || welcoming.has(record.characterId)) continue;
+    welcoming.add(record.characterId);
+    try {
+      const home = await bringHome(record, trip.campaignId);
+      await saveCharacterRecord(home);
+      setStatus(`${record.name.toUpperCase()} IS BACK FROM ${String(trip.campaignName ?? 'A CAMPAIGN').toUpperCase()}`, 'ok');
+    } catch (error) {
+      console.warn('[traveller] coming home:', error);
+    }
+  }
 }
 
 // A character JSON — a finished Character Document from any Graycloak client
@@ -710,11 +731,32 @@ async function removeRecord(record) {
 // v0.273.0: a character stands up from its campaign and comes back to the
 // lobby. The referee keeps the campaign's copy and the seat until they take
 // it back; this only frees the character to join somewhere else.
+// v0.285.0: Leave that really leaves. The character comes home with its
+// campaign sheet and a stamp on its history (Kurt's ruling), then stands up,
+// and the seat goes (rules v19), so the referee's Players tab sees them gone.
+function tripFor(record, to = null) {
+  const campaignId = record.world?.campaignId ?? record.lastCampaign?.campaignId ?? null;
+  const noted = record.lastCampaign?.campaignId === campaignId ? record.lastCampaign : {};
+  return { campaignId, campaignName: noted.campaignName ?? record.world?.campaignName ?? null, refereeName: noted.refereeName ?? null, from: noted.from ?? null, to: to ?? noted.to ?? null };
+}
+
+async function bringHome(record, campaignId) {
+  let published = null;
+  try { published = await loadPublishedCharacter(campaignId, currentUserId(), record.characterId); }
+  catch (error) { console.warn('[traveller] campaign sheet:', error?.code ?? error); }
+  return returnCharacterHome(record, published, tripFor(record));
+}
+
 async function leaveCampaign(record) {
   const where = record.world?.campaignName || 'this campaign';
-  if (!window.confirm(`Take ${record.name} out of ${where}?\n\nThe character comes back to the lobby, free to join another campaign.`)) return;
+  if (!window.confirm(`Take ${record.name} out of ${where}?\n\n${record.name} comes home with everything that happened there, free to join another campaign.`)) return;
   try {
-    await saveCharacterRecord(setCharacterRecordWorld(record, unassignedWorld()));
+    const campaignId = record.world.campaignId;
+    // Home first, while still seated (the world unchanged), then out.
+    const home = await bringHome(record, campaignId);
+    await saveCharacterRecord(home);
+    await saveCharacterRecord(setCharacterRecordWorld(home, unassignedWorld()));
+    await leaveSeat(campaignId, currentUserId()).catch((error) => console.warn('[traveller] seat:', error?.code ?? error));
     setStatus(`${record.name.toUpperCase()} HAS LEFT ${String(where).toUpperCase()}`, 'ok');
   } catch (error) {
     console.error(error);

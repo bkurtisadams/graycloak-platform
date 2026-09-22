@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.284.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.284.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.285.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.285.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -106,6 +106,37 @@ export async function unseatPlayer(campaignId, uid) {
   await clearPlayerDocuments(campaignId, uid);
   await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid).delete();
   return uid;
+}
+
+// v0.285.0: Remove, as the referee does it. The seat and the player's log go;
+// their published sheet stays, so the character can go home with what
+// happened to it (rules v19 let that account read it without a seat).
+export async function releaseSeat(campaignId, uid) {
+  const db = await ensureFirestore();
+  await playerRef(db, campaignId, uid).collection('log').doc('current').delete().catch(() => {});
+  await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid).delete();
+  return uid;
+}
+
+// v0.285.0: Leave, as the player does it — their own seat (rules v19).
+export async function leaveSeat(campaignId, uid) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid).delete();
+  return uid;
+}
+
+// v0.285.0: the player's own published sheet in a campaign, for taking home.
+export async function loadPublishedCharacter(campaignId, uid, characterId) {
+  const db = await ensureFirestore();
+  const snapshot = await playerRef(db, campaignId, uid).collection('characters').doc(characterId).get();
+  return snapshot.exists ? snapshot.data() : null;
+}
+
+// v0.285.0: when a seated player was last at the campaign, for the referee's
+// Players tab. Their own seat, which the rules let them update.
+export async function touchSeat(campaignId, uid) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid).set({ lastSeenAt: Date.now() }, { merge: true });
 }
 
 // --- v0.65.0: per-player documents ----------------------------------------

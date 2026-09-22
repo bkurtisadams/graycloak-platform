@@ -2077,3 +2077,32 @@ test('v0.279.0 the Record tab carries the service history generation produced', 
   dom.window.close();
   delete globalThis.document;
 });
+
+// v0.285.0: the Players tab as one list.
+test('v0.285.0 the Players tab draws the link, requests, members with Remove, and anyone whose player has gone', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const { setDocumentOwner } = await import('../src/campaign-document.js');
+  registry.put(setDocumentOwner(registry.resolveCampaign(campaignId).campaign, { documentId: me, ownerUid: 'player-7' }));
+  session.reload();
+  const players = { seats: [{ uid: 'player-7', name: 'Kurt', lastSeenAt: Date.now() }], invites: [{ code: 'ABC234' }], joins: [{ uid: 'p9', name: 'Ann', characterName: 'Leona', characterId: 'c9' }] };
+  const state = { ...session.view({ referee: { tab: 'Players', players } }), live: true };
+  const acted = [];
+  document.querySelector('main').replaceChildren(...renderDrawer('referee', state, state.referee, { onSeat: (action, value) => acted.push([action, value]) }));
+  const text = document.querySelector('main').textContent;
+  assert.match(text, /Join link/);
+  assert.match(text, /Asking to join \(1\)/);
+  assert.match(text, /Players \(1\)/);
+  assert.match(text, /plays Hawkeye · here now/);
+  assert.equal(document.querySelector('.folder-row'), null, 'no folders');
+  [...document.querySelectorAll('button')].find((node) => node.textContent === 'Remove').click();
+  [...document.querySelectorAll('button')].find((node) => node.textContent === 'Copy link').click();
+  assert.deepEqual(acted.map(([action]) => action), ['remove', 'copy-link']);
+  assert.equal(acted[0][1].characters[0].id, me);
+  dom.window.close();
+  delete globalThis.document;
+});

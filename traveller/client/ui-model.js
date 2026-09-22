@@ -16,7 +16,7 @@ import {
   starportFuelService,
   getPersonalWeapon,
   nobleTitleEntitlement
-} from '../vendor/classic-traveller-rules/index.js?v=v0.284.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.285.0';
 
 export const PHASE_LABELS = Object.freeze({
   'service-selection': 'SERVICE APPLICATION',
@@ -487,6 +487,9 @@ export function formatHistoryEvent(event) {
       return `${age}  BENEFIT RESOLVED  ${event.type === 'skill' ? `${event.specialization}-${event.level}` : `${event.specialization} (${event.category})`}`;
     case 'chargen-complete':
       return `${age}  CHARACTER COMPLETE  ${formatCredits(event.credits)} / UPP ${event.upp}`;
+    // v0.285.0: a campaign the character played in, stamped on leaving.
+    case 'campaign':
+      return `PLAYED IN ${String(event.campaignName ?? event.campaignId ?? 'A CAMPAIGN').toUpperCase()}${event.refereeName ? ` UNDER ${String(event.refereeName).toUpperCase()}` : ''}${event.from || event.to ? `  ${event.from ?? '?'} TO ${event.to ?? '?'}` : ''}`;
     default:
       return `${age}  ${String(event.type ?? 'event').toUpperCase()}`;
   }
@@ -495,7 +498,7 @@ export function formatHistoryEvent(event) {
 const SERVICE_HISTORY_TYPES = new Set([
   'enlistment', 'draft', 'term-start', 'survival', 'commission', 'promotion',
   'term-complete', 'reenlistment', 'reenlistment-choice', 'muster-out-start',
-  'chargen-complete'
+  'chargen-complete', 'campaign'
 ]);
 
 export function buildServiceHistory(character) {

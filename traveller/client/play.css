@@ -1227,3 +1227,9 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .shell.is-seat[data-situation='ship-fight'] { --now-width: 0px; }
 .shell.is-seat[data-situation='ship-fight'] .now { display: none; }
 .shell.is-seat[data-situation='ship-fight'] .scene { padding: 14px 20px; }
+
+/* v0.285.0: the Players tab as one list. */
+.players-section { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.players-heading { margin: 0 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+.players-section .entries .entry { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.players-section .seat-actions { margin-left: auto; display: inline-flex; gap: 4px; }
