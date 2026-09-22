@@ -1200,3 +1200,14 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .seat-card h2 { margin: 0 0 6px; font-size: 18px; }
 .seat-card.is-fight { border-color: var(--red); }
 .seat-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+/* v0.278.0: the player's fight. */
+.seat-fight { padding: 12px 18px; display: grid; gap: 12px; }
+.seat-orders, .seat-narration { border-top: 2px solid var(--ink); padding-top: 8px; }
+.seat-orders h3, .seat-narration h3 { margin: 0 0 6px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; }
+.seat-order { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.seat-order .sheet-select { width: auto; max-width: 280px; }
+.seat-order.is-sent { color: var(--ink-2); }
+.seat-throw { flex-basis: 100%; margin: 0; }
+.seat-narration p { margin: 2px 0; }
+.seat-fight .fight-board { height: min(52vh, 480px); min-height: 300px; }
+.seat-fight .fight-board svg.bands { height: 100%; }

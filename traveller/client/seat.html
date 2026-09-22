@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.277.0">
+  <link rel="stylesheet" href="./play.css?v=v0.278.0">
   <script>
     try {
       var t = localStorage.getItem('graycloak-traveller-theme');
@@ -60,6 +60,21 @@
       </section>
     </aside>
   </div>
-  <script type="module" src="./seat.js?v=v0.277.0"></script>
+  <!-- v0.278.0: Book 1 p.30, the wounded player places their own wound. -->
+  <dialog class="signin wound-dialog" id="wound-dialog" aria-labelledby="wound-title">
+    <form class="signin-form" method="dialog" id="wound-form">
+      <header><h2 id="wound-title"></h2></header>
+      <p class="cite" id="wound-remaining"></p>
+      <p id="wound-hit"></p>
+      <div id="wound-groups"></div>
+      <div id="wound-preview"></div>
+      <p class="signin-status is-error" id="wound-error" hidden></p>
+      <div class="lead-actions">
+        <button class="button" type="button" id="wound-decline">Let the referee place it</button>
+        <button class="button is-primary" type="submit" id="wound-apply"><span>Place the wound</span></button>
+      </div>
+    </form>
+  </dialog>
+  <script type="module" src="./seat.js?v=v0.278.0"></script>
 </body>
 </html>

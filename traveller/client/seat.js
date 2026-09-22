@@ -1,24 +1,26 @@
 // seat.js — v0.277.0: the player's seat on the new play page.
 //
 // Kurt's screenshot (Sep 2026): players entering a campaign still got the old
-// player page. This is the new one, in two parts. This first part is the
-// frame: the masthead, the player's own sheets (the referee page's tabbed
-// sheet, read-only), where the party is, and the shared chat. The fight, with
-// orders and wound placement, is the second part; until it lands a fight
-// links to the old page, which still handles it.
+// player page. This is the new one: the masthead, the player's own sheets
+// (the referee page's tabbed sheet, read-only), where the party is, the
+// shared chat (v0.277.0), and the fight — the band line, their orders, and
+// their wounds to place (v0.278.0).
 //
 // A player cannot read the campaign itself, only what the referee publishes
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog } from './play-views.js?v=v0.277.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.277.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.277.0';
-import { ensureFirestore, watchChat, sendChatMessage } from './publish.js?v=v0.277.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.277.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.277.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.277.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.277.0';
+import { h, renderTalkLog, bandsScene } from './play-views.js?v=v0.278.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.278.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.278.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.278.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.278.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.278.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.278.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.278.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.278.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.278.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.278.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -30,8 +32,18 @@ const state = {
   log: null,
   chat: [],
   status: null,
-  sheets: null // [{ kind, id, tab, compact }] — null until the first characters arrive
+  sheets: null, // [{ kind, id, tab, compact }] — null until the first characters arrive
+  // v0.278.0: the fight, as the referee publishes it for players.
+  view: null,
+  viewFor: null,
+  declarations: [],
+  selected: null,
+  bandsShown: null,
+  drafts: new Map(), // actorId -> { action, targetId }
+  woundDraft: null,
+  answeredWoundKey: null
 };
+const fightStops = [];
 const stops = [];
 
 // A published character is the character document with the campaign's
@@ -126,14 +138,216 @@ function renderScene() {
         h('p', { class: 'cite', text: [ship.typeName, ship.tons ? `${ship.tons} t` : null, ship.jumpRating ? `Jump-${ship.jumpRating}` : null].filter(Boolean).join(' \u00b7 ') }),
         h('p', { text: `Fuel ${ship.fuel?.aboardTons ?? '?'} / ${ship.fuel?.capacityTons ?? '?'} t \u00b7 Hold ${ship.cargo?.usedTons ?? 0} / ${ship.cargo?.capacityTons ?? '?'} t` })));
     }
-    if (envelope.currentEncounterId) {
+    if (envelope.currentEncounterId && !fightLive()) {
       body.push(h('section', { class: 'seat-card is-fight' },
         h('h2', { text: 'A fight is under way' }),
-        h('p', { text: 'Fighting from this page arrives in the next update. Until then, give your orders on the older player page.' }),
-        h('a', { class: 'button is-primary', href: `player.html?campaign=${encodeURIComponent(campaignId)}`, text: 'Open the fight' })));
+        h('p', { class: 'cite', text: 'Waiting for the referee\u2019s board\u2026' })));
     }
   }
+  if (fightLive()) {
+    $('shell').dataset.situation = 'fight';
+    $('scene').replaceChildren(fightScene());
+    return;
+  }
+  $('shell').dataset.situation = 'port';
   $('scene').replaceChildren(h('div', { class: 'seat-scene' }, ...body));
+}
+
+// ---- the fight (v0.278.0) ---------------------------------------------------
+// Drawn from the published view: where everyone stands (the band line), the
+// player's own throw against each foe, and the last rounds told as a story.
+// The player's part is their own combatants' orders, sent to the referee as
+// declarations, and their own wounds, placed when the round pauses for them.
+
+function fightLive() {
+  return Boolean(state.view && state.view.status === 'active' && state.view.encounterId === state.envelope?.currentEncounterId);
+}
+
+function mine() {
+  const uid = currentUserId();
+  return new Set(Object.entries(state.envelope?.ownership?.actors ?? {}).filter(([, owner]) => owner === uid).map(([id]) => id));
+}
+
+const DOWN = new Set(['unconscious', 'dead', 'escaped', 'withdrawn']);
+const ORDERS = [
+  { action: 'attack', label: 'Attack', target: true },
+  { action: 'wait', label: 'Hold (no action)', target: false },
+  { action: 'close', label: 'Close one band', target: true },
+  { action: 'open', label: 'Open one band', target: true },
+  { action: 'close-run', label: 'Close at a run (two bands)', target: true },
+  { action: 'open-run', label: 'Open at a run (two bands)', target: true },
+  { action: 'evade', label: 'Evade', target: false },
+  { action: 'escape', label: 'Escape', target: false }
+];
+
+function fighters() {
+  return (state.view?.combatants ?? []).map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    side: entry.side === 'party' ? 'party' : 'foe',
+    band: Number(entry.position?.column ?? 0),
+    down: DOWN.has(entry.condition),
+    characteristics: { STR: 1, DEX: 1, END: 1 },
+    condition: entry.condition
+  }));
+}
+
+function declarationFor(actorId) {
+  return state.declarations.find((entry) => entry.actorId === actorId && entry.round === state.view?.declaringRound) ?? null;
+}
+
+async function sendOrder(actorId) {
+  const draft = state.drafts.get(actorId) ?? { action: 'attack', targetId: null };
+  const order = ORDERS.find((entry) => entry.action === draft.action) ?? ORDERS[0];
+  try {
+    const declaration = createPlayerDeclaration({
+      uid: currentUserId(), actorId, action: order.action,
+      targetId: order.target ? draft.targetId : null,
+      round: state.view.declaringRound, declaredAt: Date.now()
+    });
+    await writeDeclaration(campaignId, state.view.encounterId, declaration);
+    setStatus('Order sent. Waiting for the referee.', 'ok');
+  } catch (error) {
+    setStatus(error?.code === 'permission-denied' ? 'The order was refused: already given this round?' : (error?.message ?? String(error)), 'error');
+  }
+}
+
+function orderRow(fighter, foes) {
+  const sent = declarationFor(fighter.id);
+  const throws = (state.view.throws ?? []).filter((entry) => entry.attackerId === fighter.id);
+  if (fighter.down) return h('div', { class: 'seat-order is-down' }, h('b', { text: fighter.name }), h('span', { class: 'cite', text: ` is ${fighter.condition}.` }));
+  if (sent) {
+    const target = foes.find((foe) => foe.id === sent.targetId);
+    const order = ORDERS.find((entry) => entry.action === sent.action);
+    return h('div', { class: 'seat-order is-sent' },
+      h('b', { text: fighter.name }),
+      h('span', { text: ` \u2014 ${order?.label ?? sent.action}${target ? `: ${target.name}` : ''}.` }),
+      h('span', { class: 'cite', text: ' Sent; waiting for the referee to resolve the round.' }));
+  }
+  const draft = state.drafts.get(fighter.id) ?? { action: 'attack', targetId: foes.find((foe) => !foe.down)?.id ?? null };
+  state.drafts.set(fighter.id, draft);
+  const order = ORDERS.find((entry) => entry.action === draft.action) ?? ORDERS[0];
+  const needs = (targetId) => {
+    const card = throws.find((entry) => entry.targetId === targetId);
+    if (!card) return '';
+    return card.reach === false ? ' (out of reach)' : ` (${card.weaponName}: ${card.needed}+)`;
+  };
+  const actionSelect = h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: order`,
+    onchange: (event) => { state.drafts.set(fighter.id, { ...draft, action: event.currentTarget.value }); renderScene(); } },
+  ORDERS.map((entry) => h('option', { value: entry.action, selected: entry.action === draft.action, text: entry.label })));
+  const targetSelect = order.target ? h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: target`,
+    onchange: (event) => { state.drafts.set(fighter.id, { ...draft, targetId: event.currentTarget.value }); renderScene(); } },
+  foes.filter((foe) => !foe.down).map((foe) => h('option', { value: foe.id, selected: foe.id === draft.targetId, text: `${foe.name}${draft.action === 'attack' ? needs(foe.id) : ''}` }))) : null;
+  const card = draft.action === 'attack' ? throws.find((entry) => entry.targetId === draft.targetId) : null;
+  return h('div', { class: 'seat-order' },
+    h('b', { text: fighter.name }),
+    actionSelect, targetSelect,
+    h('button', { type: 'button', class: 'button is-primary', text: 'Send order', disabled: order.target && !draft.targetId, onclick: () => sendOrder(fighter.id) }),
+    card ? h('p', { class: 'cite seat-throw', text: `${card.weaponName}: 2D ${card.totalDM >= 0 ? '+' : '\u2212'}${Math.abs(card.totalDM)}, needs ${card.needed}+ at ${String(card.range ?? '').replace('-', ' ')} range${card.rows.length ? ` \u2014 ${card.rows.map((row) => `${row.label} ${row.dm >= 0 ? '+' : '\u2212'}${Math.abs(row.dm)}`).join(', ')}` : ''}${card.defenceDM ? `, their defence ${card.defenceDM >= 0 ? '+' : '\u2212'}${Math.abs(card.defenceDM)}` : ''}.` }) : null);
+}
+
+function fightScene() {
+  const list = fighters();
+  const own = mine();
+  const foes = list.filter((entry) => entry.side === 'foe');
+  const selected = state.selected ?? list.find((entry) => own.has(entry.id))?.id ?? null;
+  const sheetRows = list.filter((entry) => own.has(entry.id)).map((fighter) => {
+    const sent = declarationFor(fighter.id);
+    const draft = state.drafts.get(fighter.id);
+    const targetId = sent?.targetId ?? (ORDERS.find((entry) => entry.action === draft?.action)?.target ? draft?.targetId : null) ?? null;
+    return { fighter, targetId, attacks: (sent?.action ?? draft?.action) === 'attack', down: fighter.down };
+  });
+  const board = bandsScene({ fighters: list, scene: { selected }, bandsShown: state.bandsShown, setupPhase: false, sheetRows }, {
+    onSelectMarker: (id) => { state.selected = id; renderScene(); },
+    onBandZoom: (next) => { state.bandsShown = next; renderScene(); }
+  });
+  const narration = [...(state.view.narration ?? [])].sort((a, b) => a.round - b.round).slice(-12);
+  return h('div', { class: 'fight-column seat-fight' },
+    h('div', { class: 'fight-head' },
+      h('h2', { text: `Fight \u00b7 round ${state.view.declaringRound ?? state.view.round}` }),
+      h('span', { class: 'cite', text: `met at ${String(state.view.range ?? '').replace('-', ' ')} range` })),
+    h('div', { class: 'fight-board' }, board),
+    h('section', { class: 'seat-orders', 'aria-label': 'Your orders' },
+      h('h3', { text: `Your orders for round ${state.view.declaringRound ?? state.view.round}` }),
+      ...list.filter((entry) => own.has(entry.id)).map((fighter) => orderRow(fighter, foes)),
+      own.size ? null : h('p', { class: 'cite', text: 'None of yours are in this fight.' })),
+    narration.length ? h('section', { class: 'seat-narration', 'aria-label': 'What happened' },
+      h('h3', { text: 'What happened' }),
+      ...narration.map((entry) => h('p', {}, h('span', { class: 'cite', text: `Round ${entry.round}. ` }), entry.text))) : null);
+}
+
+// Book 1 p.30: when the round pauses on one of this player's characters, the
+// wound's groups are theirs to place. Same panel and checks as the old page;
+// the referee applies the answer, or places it themselves if handed back.
+function renderWoundPrompt() {
+  const dialog = $('wound-dialog');
+  const pending = state.view?.pendingWound ?? null;
+  const prompt = pending && mine().has(pending.defenderId) ? woundPromptFrom(pending) : null;
+  if (!prompt || state.answeredWoundKey === prompt.key) {
+    if (!prompt) state.woundDraft = null;
+    if (dialog.open) dialog.close();
+    return;
+  }
+  if (!state.woundDraft || state.woundDraft.key !== prompt.key) state.woundDraft = initialWoundDraft(prompt);
+  $('wound-title').textContent = `${prompt.defenderName} is hit`;
+  $('wound-remaining').textContent = prompt.remaining > 1 ? `${prompt.remaining} wounds this round` : '';
+  $('wound-hit').textContent = woundHitLine(prompt);
+  renderWoundGroups($('wound-groups'), prompt, state.woundDraft, (next) => { state.woundDraft = next; renderWoundPrompt(); });
+  const preview = previewWoundDraft(prompt, state.woundDraft);
+  $('wound-error').hidden = preview.ok;
+  $('wound-error').textContent = preview.ok ? '' : String(preview.error);
+  $('wound-apply').disabled = !preview.ok;
+  renderWoundPreview($('wound-preview'), prompt, preview);
+  if (!dialog.open) dialog.showModal();
+}
+
+$('wound-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const pending = state.view?.pendingWound;
+  if (!pending || !state.woundDraft) return;
+  const prompt = woundPromptFrom(pending);
+  try {
+    const allocation = createPlayerWoundAllocation({
+      uid: currentUserId(), encounterId: state.view.encounterId, actorId: pending.defenderId, key: prompt.key,
+      targets: [...state.woundDraft.targets],
+      allocation: prompt.modifier ? [...state.woundDraft.shares] : null,
+      round: prompt.round ?? state.view.declaringRound ?? 1, sentAt: Date.now()
+    });
+    await writeWoundAllocation(campaignId, state.view.encounterId, allocation);
+    state.answeredWoundKey = prompt.key;
+    $('wound-dialog').close();
+    setStatus('Wound placed. Waiting for the referee.', 'ok');
+  } catch (error) {
+    $('wound-error').hidden = false;
+    $('wound-error').textContent = error?.message ?? String(error);
+  }
+});
+$('wound-decline').addEventListener('click', () => {
+  const pending = state.view?.pendingWound;
+  if (pending) state.answeredWoundKey = pending.key;
+  $('wound-dialog').close();
+});
+
+async function watchFight() {
+  const encounterId = state.envelope?.currentEncounterId ?? null;
+  if (encounterId === state.viewFor) return;
+  while (fightStops.length) fightStops.pop()?.();
+  state.viewFor = encounterId;
+  state.view = null; state.declarations = []; state.selected = null;
+  if (!encounterId) { render(); return; }
+  try {
+    const db = await ensureFirestore();
+    fightStops.push(db.doc(`travellerCampaigns/${campaignId}/encounters/${encounterId}/view/current`).onSnapshot((snapshot) => {
+      const round = state.view?.declaringRound;
+      state.view = snapshot.exists ? snapshot.data() : null;
+      if (state.view?.declaringRound !== round) state.drafts = new Map();
+      render();
+    }, (error) => console.warn('[traveller-seat] fight:', error)));
+    const stop = await watchDeclarations(campaignId, encounterId, (entries) => { state.declarations = entries; renderScene(); });
+    if (state.viewFor === encounterId) fightStops.push(stop); else stop();
+  } catch (error) {
+    console.warn('[traveller-seat] fight:', error);
+  }
 }
 
 function sheetViews() {
@@ -191,6 +405,7 @@ function render() {
   renderScene();
   renderOverlay();
   renderChat();
+  renderWoundPrompt();
 }
 
 // ---- sheets ---------------------------------------------------------------
@@ -227,7 +442,7 @@ const handlers = {
     const guide = skillGuide(name, { weaponNames });
     say(createChatMessage({ uid: currentUserId(), name: character?.identity?.name ?? myName(), kind: 'say', text: `${name}-${character?.skills?.[name] ?? 0}: ${guide.tagline}.${guide.page ? ` (Book 1 p.${guide.page})` : ''}` }));
   },
-  onSheetRoll: () => setStatus('Attacks are made from the fight, which arrives on this page in the next update.', 'ok')
+  onSheetRoll: () => setStatus('Attacks are ordered from the fight: choose Attack and a target under Your orders.', 'ok')
 };
 
 // ---- chat input -------------------------------------------------------------
@@ -265,6 +480,8 @@ $('theme').addEventListener('click', () => {
 
 async function connect() {
   while (stops.length) stops.pop()?.();
+  while (fightStops.length) fightStops.pop()?.();
+  state.viewFor = null; state.view = null;
   state.envelope = null; state.published = new Map(); state.log = null; state.chat = [];
   const uid = currentUserId();
   if (!uid || !campaignId) { render(); return; }
@@ -273,6 +490,7 @@ async function connect() {
     stops.push(db.doc(`travellerCampaigns/${campaignId}`).onSnapshot((snapshot) => {
       state.envelope = snapshot.exists ? snapshot.data() : null;
       if (!snapshot.exists) setStatus('No such campaign, or you are not seated at it.', 'error');
+      watchFight();
       render();
     }, (error) => setStatus(error?.code === 'permission-denied' ? 'You are not seated at this campaign.' : error.message, 'error')));
     const mine = db.doc(`travellerCampaigns/${campaignId}/players/${uid}`);
