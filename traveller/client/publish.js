@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.285.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.285.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.286.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.286.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;

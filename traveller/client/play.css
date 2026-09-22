@@ -519,6 +519,13 @@ a.button { text-decoration: none; color: inherit; }
   .scene { height: 70vh; }
   .captions { position: static; padding: 0 20px 16px; }
   .scene svg.map { padding-left: 20px; }
+  /* v0.286.0: on a phone the map had whatever height the world caption left
+     of a 70vh scene, which was very little (Kurt's screenshot). The scene
+     grows to its content instead, the map comes first at the full width of
+     the screen, and the captions follow it. */
+  .scene:has(> svg.map) { height: auto; grid-template-rows: auto auto auto auto; }
+  .scene > svg.map { grid-row: 2; width: 100%; height: auto; padding: 8px 8px 12px; }
+  .scene:has(> svg.map) > .captions { grid-row: 3; }
   .caption { width: auto; }
   .talk-bar { grid-template-columns: auto minmax(0, 1fr) auto; }
   .talk-last { display: none; }
