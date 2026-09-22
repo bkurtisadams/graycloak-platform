@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Traveller</title>
+  <link rel="icon" href="./favicon.svg">
+  <link rel="stylesheet" href="./play.css?v=v0.277.0">
+  <script>
+    try {
+      var t = localStorage.getItem('graycloak-traveller-theme');
+      document.documentElement.dataset.theme = (t === 'light' || t === 'dark') ? t
+        : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    } catch (e) { document.documentElement.dataset.theme = 'light'; }
+  </script>
+</head>
+<body>
+  <!-- v0.277.0: the player's seat on the new play page. Built only from what
+       the referee publishes for this player: the campaign summary, their own
+       characters, their log, and the shared chat. -->
+  <div class="shell is-seat" id="shell" data-drawer="open" data-talk="closed" data-situation="port">
+    <header class="mast">
+      <a class="mast-title" href="./enter.html" title="Back to the lobby">Traveller</a>
+      <a class="mast-lobby" href="./enter.html">Lobby</a>
+      <span class="mast-campaign" id="mast-campaign"></span>
+      <div class="mast-where">
+        <span class="mast-place" id="mast-place"></span>
+        <span class="mast-detail" id="mast-detail"></span>
+      </div>
+      <div class="mast-date" title="Campaign date"><span id="mast-date"></span></div>
+      <p class="mast-save" id="mast-status" hidden></p>
+      <nav class="mast-chips" id="mast-chips" aria-label="Your characters and ship"></nav>
+      <button class="mast-theme" id="theme" type="button" aria-label="Switch between light and dark"></button>
+    </header>
+
+    <aside class="now" id="now" aria-label="You"></aside>
+    <main class="scene" id="scene"></main>
+    <div class="overlay" id="overlay" hidden></div>
+
+    <aside class="drawer sidebar" id="drawer" aria-label="Sidebar">
+      <div class="side-head">
+        <nav class="side-tabs" aria-label="Sidebar tabs"><button type="button" class="side-tab" aria-pressed="true">Chat</button></nav>
+      </div>
+      <section class="side-chat" id="side-chat" aria-label="Chat">
+        <div class="talk-log" id="talk-log" aria-live="polite"></div>
+        <form class="talk-bar" id="talk-form">
+          <div class="talk-tools">
+            <div class="dice" role="group" aria-label="Dice">
+              <button type="button" class="die" data-roll="2d6" title="Throw two dice">2D</button>
+              <button type="button" class="die" data-roll="1d6" title="Throw one die">1D</button>
+              <button type="button" class="die" data-roll="3d6" title="Throw three dice">3D</button>
+            </div>
+          </div>
+          <div class="talk-write">
+            <textarea class="talk-input" id="talk-input" rows="3" aria-label="Say something or roll"
+                      placeholder="Say something, or /roll 2d6+1. Enter sends; Shift+Enter for a new line." autocomplete="off"></textarea>
+            <button type="submit" class="talk-send">Send</button>
+          </div>
+        </form>
+      </section>
+    </aside>
+  </div>
+  <script type="module" src="./seat.js?v=v0.277.0"></script>
+</body>
+</html>

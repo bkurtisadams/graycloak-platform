@@ -94,7 +94,10 @@ import { setCombatantCurrent } from './encounter-document.js';
 const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
 import { appendActivityLogEntry, createActivityLogDocument, mergeActivityLogHistory } from './activity-log-document.js';
 import { StaleCampaignHomeError, createCampaignHome, importCampaignHome, nextCampaignHome } from './campaign-home.js';
-import { buildPublishedCampaign, buildPublishedScene, buildPublishedCharacter } from './published-view.js';
+import { buildPublishedCampaign, buildPublishedScene, buildPublishedCharacter, buildPublishedView, buildPublishedLog } from './published-view.js';
+import { authorizePlayerDeclaration } from './player-declaration.js';
+import { authorizePlayerWoundAllocation } from './player-wound-allocation.js';
+import { createChatMessage } from './dice-tray.js';
 
 const SERVICE_NAMES = Object.freeze({ navy: 'Navy', marines: 'Marines', army: 'Army', scouts: 'Scout', merchants: 'Merchant', other: 'Other' });
 const PHYSICAL = Object.freeze(['STR', 'DEX', 'END']);
@@ -949,6 +952,27 @@ export function sheetViews(resolved, open = [], { subsector = null } = {}) {
       return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null } : null;
     })
     .filter(Boolean);
+}
+
+// v0.277.0: the player's seat on the play page. A player cannot read the
+// campaign, only what the referee publishes for them: the campaign summary
+// and their own characters. The sheet is built by the same code as the
+// referee's, from a campaign made of that summary, and is read-only: the
+// referee's copy is the one that counts.
+export function playerSheetViews(envelope, characters = [], open = [], { subsector = null } = {}) {
+  const ids = characters.map((entry) => entry.identity.id);
+  const campaign = {
+    identity: { id: envelope?.campaignId ?? 'campaign', name: envelope?.name ?? '' },
+    time: { ...(envelope?.time ?? {}) },
+    location: { ...(envelope?.location ?? {}) },
+    party: { characterIds: ids },
+    activeCharacterId: ids[0] ?? null,
+    ownership: { ...(envelope?.ownership ?? {}) },
+    roster: { folders: [] },
+    documentRefs: { characters: [], ships: [], npcActors: [], encounters: [], scenes: [], activityLogs: [] }
+  };
+  const resolved = { campaign, characters, npcActors: [], ships: [], encounters: [], scenes: [], activityLogs: [], contracts: [] };
+  return sheetViews(resolved, open, { subsector }).map((sheet) => ({ ...sheet, editable: false, playerSeat: true }));
 }
 
 // v0.253.0: "2d6+1", "3D", "1d6-2", "2d6+1d6" — the throws Traveller uses.
@@ -2001,6 +2025,149 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   }
 
   const publishedSheets = new Map();
+  // v0.276.0: the rest of what players read and write, which only the
+  // referee client handled. The fight as players see it, each player's log,
+  // and — once a round has moved on — their spent declarations and wound
+  // answers cleared away. Each written only when it changed; a failure is
+  // reported to the console and never stops the referee's save.
+  const publishedViews = new Map();
+  const publishedLogs = new Map();
+  const settledRounds = new Map();
+  async function publishForPlayers(campaign, uid) {
+    const owners = Object.entries(campaign.ownership?.actors ?? {}).filter(([, owner]) => owner && owner !== uid);
+    if (typeof cloud.publishEncounterView === 'function') {
+      for (const encounter of resolved.encounters ?? []) {
+        const live = encounter.status === 'active' || encounter.status === 'setup';
+        const current = campaign.currentEncounterId === encounter.identity.id || live;
+        if (!current && !publishedViews.has(encounter.identity.id)) continue;
+        try {
+          const view = buildPublishedView(encounter, { campaignId, publishedAt: 0 });
+          const key = JSON.stringify(view);
+          if (publishedViews.get(encounter.identity.id) !== key) {
+            await cloud.publishEncounterView(buildPublishedView(encounter, { campaignId, publishedAt: Date.now() }));
+            publishedViews.set(encounter.identity.id, key);
+          }
+        } catch (error) { console.warn('[traveller] fight view:', encounter.identity.id, error?.code ?? error); }
+        // A round (or the fight) moved on: the declarations and wound answers
+        // players wrote for it are spent.
+        const was = settledRounds.get(encounter.identity.id);
+        const now = `${encounter.round}|${encounter.status}`;
+        if (was !== undefined && was !== now) {
+          cloud.clearDeclarations?.(campaignId, encounter.identity.id)?.catch?.((error) => console.warn('[traveller] declarations:', error?.code ?? error));
+          cloud.clearWoundAllocations?.(campaignId, encounter.identity.id)?.catch?.((error) => console.warn('[traveller] wound answers:', error?.code ?? error));
+        }
+        settledRounds.set(encounter.identity.id, now);
+      }
+    }
+    const logDocument = resolved.activityLogs?.[0] ?? null;
+    if (logDocument && typeof cloud.publishPlayerLog === 'function') {
+      const byUid = new Map();
+      for (const [characterId, owner] of owners) byUid.set(owner, [...(byUid.get(owner) ?? []), characterId]);
+      for (const [owner, ownedCharacterIds] of byUid) {
+        try {
+          const published = buildPublishedLog(logDocument, { campaignId, uid: owner, ownedCharacterIds, publishedAt: 0 });
+          const key = `${published.entries.length}|${published.entries.at(-1)?.id ?? ''}`;
+          if (publishedLogs.get(owner) === key) continue;
+          await cloud.publishPlayerLog({ ...published, publishedAt: Date.now() });
+          publishedLogs.set(owner, key);
+        } catch (error) { console.warn('[traveller] player log:', owner, error?.code ?? error); }
+      }
+    }
+  }
+
+  // v0.276.0: what players write, read back and applied as the referee's own
+  // commands, after the same checks the referee client made (the player owns
+  // the combatant, it is this round, the target is on the other side).
+  // Returns the refusals, for the page to report.
+  const appliedDeclarations = new Set();
+  function applyPlayerDeclarations(entries = []) {
+    const refusals = [];
+    let encounter = (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
+    if (!encounter) return refusals;
+    let changed = false;
+    for (const entry of entries) {
+      const key = `${encounter.identity.id}|${entry.round}|${entry.actorId}`;
+      if (appliedDeclarations.has(key) || entry.round !== encounter.round) continue;
+      appliedDeclarations.add(key);
+      changed = true;
+      try {
+        const authorized = authorizePlayerDeclaration(entry, { campaign: resolved.campaign, encounter });
+        const result = declareEncounterAction(encounter, { action: authorized.action, actorId: authorized.actorId, targetId: authorized.targetId });
+        persist([result.encounter]);
+        encounter = result.encounter;
+        const actor = encounter.combatants.find((combatant) => combatant.id === entry.actorId);
+        log('COMBAT', `${actor?.name ?? 'A player'} declares ${String(authorized.action).replace('-', ' at a ')} from their own screen.`);
+      } catch (error) {
+        refusals.push({ uid: entry.uid, message: `Your order was refused: ${error?.message ?? error}` });
+      }
+    }
+    for (const refusal of refusals) tellPlayer(refusal);
+    if (changed) { onChange(); saveToCloud(); }
+    return refusals;
+  }
+
+  function applyPlayerWoundAllocations(entries = []) {
+    const refusals = [];
+    const encounter = (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
+    const pending = encounter ? pendingWoundAllocation(encounter) : null;
+    if (!pending) return refusals;
+    const answer = entries.find((entry) => entry.key === pending.key);
+    if (!answer) return refusals;
+    try {
+      const intent = authorizePlayerWoundAllocation(answer, { campaign: resolved.campaign, encounter, pending });
+      const result = run('fight:wound', { fight: { woundTargets: [...intent.targets], woundAllocation: intent.allocation } });
+      if (!result.ok) throw new Error(result.message);
+      log('COMBAT', `${pending.defender?.name ?? 'The wounded'} placed the wound from their own screen (Book 1 p.30).`);
+      onChange();
+    } catch (error) {
+      refusals.push({ uid: answer.uid, message: `Your wound allocation was refused: ${error?.message ?? error}` });
+    }
+    for (const refusal of refusals) tellPlayer(refusal);
+    if (refusals.length) { onChange(); saveToCloud(); }
+    return refusals;
+  }
+
+  // A refusal goes to that player's own log (and the referee's), as the
+  // referee client told them.
+  function tellPlayer({ uid, message }) {
+    if (!uid) return;
+    log('COMBAT', message, { visibility: 'players', audiencePlayerIds: [uid] });
+  }
+
+  // v0.276.0: the campaign's chat, shared with players. What players say
+  // arrives from the cloud and is shown beside the log; what the referee
+  // says publicly here is sent to it, so players see it on their pages.
+  let cloudChat = [];
+  function setCloudChat(messages = []) { cloudChat = Array.isArray(messages) ? messages : []; onChange(); }
+  function sendCloudChat(text, { name = 'Referee' } = {}) {
+    const uid = cloud?.userId?.();
+    if (!uid || typeof cloud.sendChat !== 'function' || !campaignIsPublished(resolved.campaign)) return;
+    try {
+      cloud.sendChat(campaignId, createChatMessage({ uid, name, kind: 'say', text }))
+        ?.catch?.((error) => console.warn('[traveller] chat:', error?.code ?? error));
+    } catch (error) { console.warn('[traveller] chat:', error?.message ?? error); }
+  }
+  function mergedChat(lines) {
+    const uid = cloud?.userId?.();
+    const theirs = cloudChat.filter((entry) => entry.uid && entry.uid !== uid).map((entry) => ({
+      id: `cloud-${entry.id}`,
+      kind: entry.kind === 'roll' ? 'roll' : 'message',
+      category: entry.kind === 'roll' ? 'ROLL' : 'CHAT',
+      who: entry.name || 'A player',
+      speakerId: null,
+      text: entry.kind === 'roll' && entry.roll
+        ? `${entry.roll.formula ?? 'roll'}: ${Array.isArray(entry.roll.dice) ? `[${entry.roll.dice.join(' ')}] ` : ''}= ${entry.roll.total}`
+        : entry.text,
+      dateLabel: null,
+      at: entry.createdAt ?? 0,
+      visibility: 'public',
+      detail: null,
+      fromPlayer: true
+    }));
+    if (!theirs.length) return lines;
+    return [...lines, ...theirs].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  }
+
   async function saveToCloud() {
     const uid = cloud?.userId?.();
     if (!uid || save.state === 'stale') return null;
@@ -2038,6 +2205,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           } catch (error) { console.warn('[traveller] player sheet:', character.identity.id, error?.code ?? error); }
         }
       }
+      await publishForPlayers(campaign, uid);
       if (!campaignIsPublished(resolved.campaign)) { registry.put(markCampaignPublished(resolved.campaign, home.savedAt)); reload(); }
       setSave('cloud', `Saved to the cloud, revision ${revision}`);
       return revision;
@@ -3248,6 +3416,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         } else {
           log('CHAT', text, { sourceActorId: speakerId });
         }
+        // v0.276.0: and to the players, whose pages read the shared chat.
+        const speaker = speakerId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === speakerId)?.identity.name : null;
+        sendCloudChat(roll ? (resolved.activityLogs?.[0]?.entries?.at(-1)?.message ?? text) : text, { name: speaker ?? 'Referee' });
         // Not lastMessage: that is the notice at the top of the now column,
         // and a chat line is already in the chat. Saying it twice read as a
         // status report ("Rolled 18.") about something the page did.
@@ -4176,6 +4347,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
 
   return {
     connect, run, saveToCloud, reload,
+    // v0.276.0: the multiplayer channels, driven by the page's listeners.
+    applyPlayerDeclarations, applyPlayerWoundAllocations, setCloudChat,
     // v0.275.0: for the page's Rest dialog.
     restCandidates: () => restCandidates(),
     // v0.262.0: the whole chat, not the last 300 the screen keeps, for Export.
@@ -4190,6 +4363,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     get lastMessage() { return lastMessage; },
     view({ seat = 'referee', characterId = null, selectedSystemId = null, selectedFighterId = null, referee = {}, staging = null, sheets = [] } = {}) {
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
+      state.chat = mergedChat(state.chat ?? []);
       state.compendium = compendiumView(resolved, subsector);
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —

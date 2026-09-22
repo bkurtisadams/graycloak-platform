@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.275.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.275.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.275.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.275.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.275.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.275.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.275.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.275.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.275.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.277.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.277.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.277.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.277.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.277.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.277.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.277.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.277.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.277.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -268,6 +268,7 @@ function renderEmpty() {
 
 function render() {
   if (source.mode === 'empty') { renderEmpty(); return; }
+  try { syncMultiplayer(); } catch (error) { console.warn('[traveller] multiplayer:', error); }
   const state = viewState();
   document.title = `${state.place.name} | ${state.campaign.name} | Traveller`;
   shell.dataset.situation = state.situation.kind;
@@ -937,6 +938,38 @@ window.addEventListener('storage', (event) => {
   source.session.reload();
   render();
 });
+
+// v0.276.0: the multiplayer channels. Chat is watched for the campaign while
+// signed in; a fight's declarations and wound answers are watched while that
+// fight is live, and re-aimed when it changes. Called after every render, so
+// it only acts when what should be watched has changed.
+const watching = { chatFor: null, chatStop: null, fightFor: null, fightStops: [] };
+function syncMultiplayer() {
+  const live = source?.mode === 'live' && cloud.userId();
+  const campaignId = live ? source.session.resolved.campaign.identity.id : null;
+  if (watching.chatFor !== campaignId) {
+    watching.chatStop?.(); watching.chatStop = null;
+    watching.chatFor = campaignId;
+    if (campaignId) {
+      cloud.watchChat(campaignId, (messages) => { source.session.setCloudChat(messages); })
+        .then((stop) => { if (watching.chatFor === campaignId) watching.chatStop = stop; else stop(); })
+        .catch((error) => console.warn('[traveller] chat:', error));
+    }
+  }
+  const fight = live ? (source.session.resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null : null;
+  const fightKey = fight ? `${campaignId}|${fight.identity.id}` : null;
+  if (watching.fightFor === fightKey) return;
+  for (const stop of watching.fightStops) stop?.();
+  watching.fightStops = [];
+  watching.fightFor = fightKey;
+  if (!fight) return;
+  const keep = (promise) => promise
+    .then((stop) => { if (watching.fightFor === fightKey) watching.fightStops.push(stop); else stop(); })
+    .catch((error) => console.warn('[traveller] fight channel:', error));
+  keep(cloud.watchDeclarations(campaignId, fight.identity.id, (entries) => { source.session.applyPlayerDeclarations(entries); }));
+  keep(cloud.watchWoundAllocations(campaignId, fight.identity.id, (entries) => { source.session.applyPlayerWoundAllocations(entries); },
+    (error) => console.warn('[traveller] wound answers refused (Firestore rules v17 deployed?):', error?.code ?? error)));
+}
 
 // v0.222.0: the Players tab. Seats, invites and join requests are cloud
 // documents, so they are fetched on demand and re-read after every change.

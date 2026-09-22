@@ -1193,3 +1193,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .time-box legend { font-size: 13px; color: var(--ink-2); padding: 0 4px; }
 .time-row { display: flex; align-items: center; gap: 8px; }
 .signin-form .time-row input { width: 90px; }
+
+/* v0.277.0: the player's seat. */
+.seat-scene { display: grid; gap: 14px; padding: 18px 22px; max-width: 760px; }
+.seat-card { border: 1px solid var(--line); background: var(--paper, var(--ground)); padding: 12px 16px; }
+.seat-card h2 { margin: 0 0 6px; font-size: 18px; }
+.seat-card.is-fight { border-color: var(--red); }
+.seat-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }

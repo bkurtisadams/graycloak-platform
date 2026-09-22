@@ -340,6 +340,11 @@ export function buildPublishedCharacter(character, { campaignId, ownerUid, publi
     career: cloneJson(character.career ?? {}),
     skills: cloneJson(character.skills ?? {}),
     loadout: cloneJson(character.loadout ?? {}),
+    // v0.277.0: the rest of the personnel file, so the player's page can
+    // draw the same sheet the referee's does (Gear and Record tabs).
+    inventory: cloneJson(character.inventory ?? []),
+    record: cloneJson(character.record ?? {}),
+    provenance: cloneJson(character.provenance ?? {}),
     finances: cloneJson(character.finances ?? {}),
     benefits: cloneJson(character.benefits ?? {}),
     shipRefs: cloneJson(character.shipRefs ?? []),

@@ -1080,3 +1080,103 @@ test('v0.274.0 admitting a join request puts the character in the campaign, in t
   assert.equal(session.run('character:admit', { fight: { value: { character: newcomer, ownerUid: 'player-7' } } }).ok, true);
   assert.equal(registry.resolveCampaign(campaignId).characters.filter((entry) => entry.identity.id === 'char-newcomer').length, 1);
 });
+
+// v0.276.0: the multiplayer channels the play page lacked. Only the referee
+// client published the fight for players, read their orders and wound
+// answers back, published their logs, or shared the chat.
+async function multiplayerFixture() {
+  const { registry, campaignId } = await atOrison();
+  const { setDocumentOwner } = await import('../src/campaign-document.js');
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  registry.put(setDocumentOwner(registry.resolveCampaign(campaignId).campaign, { documentId: me, ownerUid: 'player-7' }));
+  const sent = { views: [], logs: [], chat: [], cleared: [] };
+  const cloud = {
+    ...fakeCloud(),
+    publishPlayerCharacter: async () => {},
+    publishEncounterView: async (view) => { sent.views.push(view); },
+    publishPlayerLog: async (log) => { sent.logs.push(log); },
+    clearDeclarations: async (campaign, encounterId) => { sent.cleared.push(['declarations', encounterId]); },
+    clearWoundAllocations: async (campaign, encounterId) => { sent.cleared.push(['wounds', encounterId]); },
+    sendChat: async (campaign, message) => { sent.chat.push(message); }
+  };
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 3 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  const encounter = () => registry.resolveCampaign(campaignId).encounters.find((entry) => entry.status === 'active');
+  return { session, registry, campaignId, me, sent, encounter };
+}
+
+test('v0.276.0 the live fight and each player\u2019s log are published for players when the referee saves', async () => {
+  const { sent, encounter } = await multiplayerFixture();
+  assert.ok(sent.views.some((view) => view.encounterId === encounter().identity.id), 'the fight view goes up');
+  assert.ok(sent.logs.some((log) => log.uid === 'player-7'), 'and the player\u2019s log');
+});
+
+test('v0.276.0 a declaration for someone else\u2019s combatant is refused and told to that player', async () => {
+  const { session, me, encounter } = await multiplayerFixture();
+  const foe = encounter().combatants.find((entry) => entry.side !== 'party');
+  const refused = session.applyPlayerDeclarations([{ uid: 'intruder', actorId: me, action: 'attack', targetId: foe.id, round: encounter().round, declaredAt: 1 }]);
+  assert.equal(refused.length, 1);
+  assert.match(refused[0].message, /does not own/);
+});
+
+test('v0.276.0 an owner\u2019s declaration lands as the character\u2019s order, once, however often the listener fires', async () => {
+  const { session, me, encounter } = await multiplayerFixture();
+  const foe = encounter().combatants.find((entry) => entry.side !== 'party');
+  const entry = { uid: 'player-7', actorId: me, action: 'attack', targetId: foe.id, round: encounter().round, declaredAt: 5 };
+  assert.deepEqual(session.applyPlayerDeclarations([entry]), []);
+  const declared = encounter().declarations ?? encounter().orders ?? null;
+  const view = session.view().fighters.find((fighter) => fighter.id === me);
+  assert.ok(view.order || declared, 'the order is on the referee\u2019s board');
+  assert.deepEqual(session.applyPlayerDeclarations([entry]), [], 'a repeat is ignored, not refused');
+  assert.match(session.view().chat.map((line) => line.text).join('\n'), /declares attack from their own screen/);
+});
+
+test('v0.276.0 players\u2019 chat shows on the referee\u2019s page, and the referee\u2019s public chat is sent to them', async () => {
+  const { session, sent } = await multiplayerFixture();
+  session.setCloudChat([
+    { id: 'm1', uid: 'player-7', name: 'Leona', kind: 'say', text: 'I take cover', createdAt: Date.now() },
+    { id: 'm2', uid: 'referee-1', name: 'Referee', kind: 'say', text: 'mine, already in the log', createdAt: Date.now() }
+  ]);
+  const lines = session.view().chat;
+  assert.ok(lines.some((line) => line.who === 'Leona' && line.text === 'I take cover'));
+  assert.ok(!lines.some((line) => line.text === 'mine, already in the log'), 'the referee\u2019s own messages are not shown twice');
+  session.run('chat:say', { fight: { value: 'Roll for initiative, just kidding' } });
+  assert.ok(sent.chat.some((message) => message.text === 'Roll for initiative, just kidding' && message.uid === 'referee-1'));
+});
+
+test('v0.276.0 once the round moves on, the players\u2019 spent declarations and wound answers are cleared', async () => {
+  const { session, sent, encounter } = await multiplayerFixture();
+  const id = encounter().identity.id;
+  session.run('fight:sheet', { fight: { rows: session.view().fighters.filter((entry) => !entry.down).map((entry) => ({ actorId: entry.id, move: 'Stand', targetId: null })) } });
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  assert.ok(sent.cleared.some(([what, encounterId]) => what === 'declarations' && encounterId === id));
+  assert.ok(sent.cleared.some(([what, encounterId]) => what === 'wounds' && encounterId === id));
+});
+
+// v0.277.0: the player's seat builds the referee page's sheet from what the
+// referee publishes for that player, read-only.
+test('v0.277.0 a player\u2019s sheet is built from their published character and the campaign summary', async () => {
+  const { registry, campaignId } = await atOrison();
+  const { buildPublishedCharacter, buildPublishedCampaign } = await import('../src/published-view.js');
+  const { playerSheetViews } = await import('../src/play-session.js');
+  const { importCharacterDocument } = await import('../vendor/classic-traveller-rules/index.js');
+  const resolved = registry.resolveCampaign(campaignId);
+  const source = resolved.characters[0];
+  const published = buildPublishedCharacter(source, { campaignId, ownerUid: 'player-7', publishedAt: 1 });
+  assert.deepEqual(published.inventory, source.inventory, 'the Gear tab has what it needs');
+  const { campaignId: _c, characterId: _id, ownerUid: _o, publishedAt: _p, ...document } = published;
+  const character = importCharacterDocument(document);
+  const envelope = buildPublishedCampaign(resolved.campaign, { publishedAt: 1 });
+  for (const tab of ['Play', 'Gear', 'Record', 'Notes']) {
+    const [sheet] = playerSheetViews(envelope, [character], [{ kind: 'actor', id: character.identity.id, tab }], { subsector: FAR_MERIDIAN_SUBSECTOR });
+    assert.equal(sheet.title, source.identity.name);
+    assert.deepEqual(sheet.tabs, ['Play', 'Gear', 'Record', 'Notes']);
+    assert.equal(sheet.editable, false, 'the referee\u2019s copy is the one that counts');
+    assert.equal(sheet.playerSeat, true);
+  }
+});

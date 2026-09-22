@@ -258,7 +258,7 @@ function playTab(sheet, handlers) {
         sheet.weaponTag
           ? h('span', { class: `sheet-note weapon-tag${sheet.weaponTag.warn ? ' is-warn' : ''}`, title: sheet.weaponTag.title, text: sheet.weaponTag.text })
           : null),
-      h('button', { type: 'button', class: 'button is-small is-primary', text: 'Attack', disabled: !sheet.weaponKey, onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'attack', weaponKey: sheet.weaponKey }) })),
+      sheet.playerSeat ? null : h('button', { type: 'button', class: 'button is-small is-primary', text: 'Attack', disabled: !sheet.weaponKey, onclick: () => handlers.onSheetRoll?.(sheet.id, { kind: 'attack', weaponKey: sheet.weaponKey }) })),
     h('div', { class: 'sheet-rows' },
       (sheet.weaponChoices ?? []).length ? select('Weapon', sheet.weaponKey, sheet.weaponChoices, (key) => edit?.(sheet.id, 'loadout', { weaponKey: key, armor: sheet.armor }), { locked }) : null,
       armours.length ? select('Armour', sheet.armor, armours, (key) => edit?.(sheet.id, 'loadout', { weaponKey: sheet.weaponKey, armor: key }), { locked }) : null),
@@ -315,7 +315,9 @@ function conditionBlock(sheet, handlers) {
     h('p', { class: `sheet-note${condition.severe ? ' is-error' : ''}`, text: condition.severe
       ? 'Severely wounded: only medical attention will bring back full strength (Book 1 p.31).'
       : 'Wounded: three days of rest, or medical attention, brings back full strength (Book 1 p.31).' }),
-    h('div', { class: 'sheet-actions' },
+    // v0.277.0: on a player's page, rest and treatment are the referee's to
+    // run; the player reads the condition only.
+    sheet.playerSeat ? h('p', { class: 'sheet-note', text: 'Ask the referee to rest the party or arrange treatment.' }) : h('div', { class: 'sheet-actions' },
       h('button', { type: 'button', class: 'button is-small', disabled: condition.severe, title: condition.severe ? 'Not possible while severely wounded' : 'Choose who rests with them; the date moves three days once', text: 'Rest three days\u2026', onclick: () => handlers.onRest?.(sheet.id) }),
       h('span', { class: 'sheet-inline' }, 'Attending ', medic),
       h('label', { class: 'sheet-check', title: '1981 xeno-medicine: \u22122 treating a non-human' }, xeno, ' non-human'),
@@ -504,7 +506,7 @@ function characterBody(sheet, handlers) {
         type: 'button', class: 'sheet-tab', 'aria-pressed': name === tab ? 'true' : 'false', text: name,
         onclick: () => handlers.onSheetTab?.(sheet.kind, sheet.id, name)
       })),
-      sheet.npc ? null : h('button', { type: 'button', class: 'button is-small sheet-print', text: 'Print TAS Form 2', onclick: () => handlers.onPrintCharacter?.(sheet.id) })),
+      sheet.npc || sheet.playerSeat ? null : h('button', { type: 'button', class: 'button is-small sheet-print', text: 'Print TAS Form 2', onclick: () => handlers.onPrintCharacter?.(sheet.id) })),
     h('div', { class: 'sheet-tab-body' }, build[tab](sheet, handlers))
   ];
 }

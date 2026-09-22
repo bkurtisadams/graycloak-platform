@@ -3,13 +3,15 @@
 // calls src/play-session.js asks for. Sign-in is per tab (auth.js keeps a
 // session), so arriving from the lobby in the same tab arrives signed in.
 
-import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.275.0';
+import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.277.0';
 import {
   saveCampaignHome, loadCampaignHome, listOwnCampaigns,
   seatPlayer, unseatPlayer, listSeatedPlayers,
   createInvite, deleteInvite, listCampaignInvites,
-  watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, publishPlayerCharacter
-} from './publish.js?v=v0.275.0';
+  watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, publishPlayerCharacter,
+  publishEncounterView, publishPlayerLog, watchDeclarations, clearDeclarations,
+  watchWoundAllocations, clearWoundAllocations, watchChat, sendChatMessage
+} from './publish.js?v=v0.277.0';
 
 export function createPlayCloud() {
   return {
@@ -42,6 +44,16 @@ export function createPlayCloud() {
     // ENTER WORLD reads it), and their sheet is published for player.html.
     placeCharacter: (characterId, world) => setCharacterRecordWorldRemote(characterId, world),
     publishPlayerCharacter: (published) => publishPlayerCharacter(published),
+    // v0.276.0: the fight as players see it, their logs, what they write
+    // back, and the shared chat — all of which only the referee client had.
+    publishEncounterView: (view) => publishEncounterView(view),
+    publishPlayerLog: (published) => publishPlayerLog(published),
+    watchDeclarations: (campaignId, encounterId, onChange) => watchDeclarations(campaignId, encounterId, onChange),
+    clearDeclarations: (campaignId, encounterId) => clearDeclarations(campaignId, encounterId),
+    watchWoundAllocations: (campaignId, encounterId, onChange, onError) => watchWoundAllocations(campaignId, encounterId, onChange, onError),
+    clearWoundAllocations: (campaignId, encounterId) => clearWoundAllocations(campaignId, encounterId),
+    watchChat: (campaignId, onChange) => watchChat(campaignId, onChange),
+    sendChat: (campaignId, message) => sendChatMessage(campaignId, message),
     save: (home, envelope, options) => saveCampaignHome(home, envelope, options)
   };
 }

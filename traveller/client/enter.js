@@ -8,28 +8,28 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.275.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.275.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.277.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.277.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome
-} from './publish.js?v=v0.275.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.275.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.275.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.275.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.275.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.275.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.275.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.275.0';
-import { generateCharacterName } from './generators.js?v=v0.275.0';
+} from './publish.js?v=v0.277.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.277.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.277.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.277.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.277.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.277.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.277.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.277.0';
+import { generateCharacterName } from './generators.js?v=v0.277.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld
-} from '../src/character-record.js?v=v0.275.0';
+} from '../src/character-record.js?v=v0.277.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.275.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.277.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -400,14 +400,21 @@ function renderCharacterRow(record) {
   if (status.enter === 'campaign') {
     const enter = document.createElement('a');
     enter.className = 'text-button action-button campaign-transition-action';
-    enter.href = `player.html?campaign=${encodeURIComponent(status.campaignId)}`;
+    // v0.277.0: the new player's page. The old one stays a click away
+    // while the new page's fight is being built.
+    enter.href = `seat.html?campaign=${encodeURIComponent(status.campaignId)}`;
     enter.textContent = '[ ENTER WORLD ]';
+    const older = document.createElement('a');
+    older.className = 'text-button';
+    older.href = `player.html?campaign=${encodeURIComponent(status.campaignId)}`;
+    older.textContent = '[ OLD PAGE ]';
+    older.title = 'The previous player page, which still runs fights until the new one does';
     const leave = document.createElement('button');
     leave.type = 'button'; leave.className = 'text-button action-button';
     leave.textContent = '[ LEAVE CAMPAIGN ]';
     leave.title = 'Stand up from this campaign; the character comes back to the lobby, free to join another';
     leave.addEventListener('click', () => leaveCampaign(record));
-    tools.append(enter, leave, remove);
+    tools.append(enter, older, leave, remove);
   } else if (status.enter === 'solo') {
     const solo = document.createElement('button');
     solo.type = 'button'; solo.className = 'text-button action-button'; solo.disabled = true;
