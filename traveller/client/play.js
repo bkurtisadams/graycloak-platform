@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.280.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.280.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.280.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.280.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.280.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.280.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.280.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.280.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.280.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.281.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.281.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.281.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.281.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.281.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.281.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.281.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.281.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.281.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -802,7 +802,12 @@ function render() {
   const wasAtBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
   // During a fight only COMBAT notices show by default: the ship's travel
   // history was burying the round (Kurt's v0.253.0 screenshot).
-  if (ui.chatClearedAt === undefined) ui.chatClearedAt = loadChatCleared();
+  if (ui.chatClearedAt === undefined) {
+    ui.chatClearedAt = loadChatCleared();
+    // A Clear remembered before v0.281.0 may be a bare number of
+    // milliseconds, which hides nothing; read it as the time it was.
+    if (ui.chatClearedAt && /^\d+$/.test(ui.chatClearedAt)) ui.chatClearedAt = new Date(Number(ui.chatClearedAt)).toISOString();
+  }
   log.replaceChildren(...renderTalkLog(state.chat ?? [], {
     clearedAt: ui.chatClearedAt,
     onUnclear: () => {
@@ -878,9 +883,10 @@ function loadChatCleared() {
 }
 $('talk-clear').addEventListener('click', () => {
   const chat = viewState().chat ?? [];
-  const last = chat.at(-1)?.at;
+  // v0.281.0: the latest time on screen, as an ISO string (see mergedChat).
+  const last = chat.map((entry) => Date.parse(entry.at ?? '')).filter(Number.isFinite).reduce((most, time) => Math.max(most, time), 0);
   if (!last) return;
-  ui.chatClearedAt = last;
+  ui.chatClearedAt = new Date(last).toISOString();
   try { localStorage.setItem(chatClearKey(), last); } catch { /* private mode: cleared for this session */ }
   render();
 });

@@ -1200,3 +1200,16 @@ test('v0.280.0 a fight being set up is published as the current one, with its vi
   assert.equal(envelopes.at(-1).currentEncounterId, setup.identity.id);
   assert.ok(views.some((view) => view.encounterId === setup.identity.id && view.status === 'setup'));
 });
+
+// v0.281.0: the log keeps ISO times and the cloud chat milliseconds; mixed,
+// the order broke and the referee's Clear hid nothing.
+test('v0.281.0 players\u2019 chat lines carry ISO times and sit in time order among the log\u2019s', async () => {
+  const { session } = await multiplayerFixture();
+  const later = Date.now() + 60000;
+  session.setCloudChat([{ id: 'late', uid: 'player-7', name: 'Leona', kind: 'say', text: 'after everything', createdAt: later }]);
+  const lines = session.view().chat;
+  assert.ok(lines.every((line) => typeof line.at === 'string' && Number.isFinite(Date.parse(line.at))), 'every time an ISO string');
+  assert.equal(lines.at(-1).text, 'after everything', 'the newest line is last');
+  const times = lines.map((line) => Date.parse(line.at));
+  assert.deepEqual(times, [...times].sort((a, b) => a - b));
+});

@@ -2163,6 +2163,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         ?.catch?.((error) => console.warn('[traveller] chat:', error?.code ?? error));
     } catch (error) { console.warn('[traveller] chat:', error?.message ?? error); }
   }
+  function isoTime(value) {
+    const time = typeof value === 'number' ? value : Date.parse(value ?? '');
+    return new Date(Number.isFinite(time) ? time : 0).toISOString();
+  }
   function mergedChat(lines) {
     const uid = cloud?.userId?.();
     const theirs = cloudChat.filter((entry) => entry.uid && entry.uid !== uid).map((entry) => ({
@@ -2175,13 +2179,19 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         ? `${entry.roll.formula ?? 'roll'}: ${Array.isArray(entry.roll.dice) ? `[${entry.roll.dice.join(' ')}] ` : ''}= ${entry.roll.total}`
         : entry.text,
       dateLabel: null,
-      at: entry.createdAt ?? 0,
+      // v0.281.0: the log keeps ISO time strings and the cloud chat keeps
+      // milliseconds. Mixed, the sort compared a string with a number (NaN,
+      // so the order came out wrong) and Clear, which remembers the last
+      // line's time and hides everything up to it as a string, remembered a
+      // number no ISO time is ever below — so nothing cleared (Kurt, Sep
+      // 2026). Everything is an ISO string here.
+      at: isoTime(entry.createdAt),
       visibility: 'public',
       detail: null,
       fromPlayer: true
     }));
     if (!theirs.length) return lines;
-    return [...lines, ...theirs].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+    return [...lines, ...theirs].sort((a, b) => Date.parse(a.at ?? 0) - Date.parse(b.at ?? 0));
   }
 
   async function saveToCloud() {

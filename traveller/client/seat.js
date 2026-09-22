@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene } from './play-views.js?v=v0.280.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.280.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.280.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.280.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.280.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.280.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.280.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.280.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.280.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.280.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.280.0';
+import { h, renderTalkLog, bandsScene, subsectorScene } from './play-views.js?v=v0.281.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.281.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.281.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.281.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.281.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.281.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.281.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.281.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.281.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.281.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.281.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -126,6 +126,16 @@ function renderScene() {
     body.push(h('p', { class: 'cite', text: currentUserId() ? 'Connecting\u2026' : 'Sign in from the lobby first.' }));
   } else {
     const where = envelope.location ?? {};
+    // v0.281.0: the subsector map, as the referee's page draws it: where the
+    // party is, the worlds within the ship's jump, and a world's profile on
+    // a click. Read-only.
+    if (where.systemId) {
+      const map = h('div', { class: 'seat-map' }, ...subsectorScene({
+        kind: 'subsector', currentId: where.systemId, selectedId: state.selectedSystem ?? null,
+        jump: envelope.ship?.jumpRating ?? 0, world: null
+      }, { onSelectSystem: (id) => { state.selectedSystem = id; renderScene(); } }, true));
+      body.push(map);
+    }
     body.push(h('section', { class: 'seat-card' },
       h('h2', { text: 'Where you are' }),
       h('p', {}, h('b', { text: where.worldName ?? where.systemName ?? 'Somewhere' }),
@@ -381,7 +391,7 @@ function chatLines() {
     speakerId: null,
     text: entry.kind === 'roll' && entry.roll ? formatRoll(entry.roll) : entry.text,
     dateLabel: null,
-    at: entry.createdAt ?? 0,
+    at: isoTime(entry.createdAt),
     visibility: 'public',
     detail: null
   }));
@@ -393,11 +403,19 @@ function chatLines() {
     speakerId: null,
     text: entry.message,
     dateLabel: entry.dateLabel ?? null,
-    at: entry.createdAt ?? 0,
+    at: isoTime(entry.createdAt),
     visibility: 'public',
     detail: null
   }));
-  return [...said, ...logged].sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  // v0.281.0: the chat keeps milliseconds and the log ISO strings; sorted
+  // as they were, a string minus a number is NaN, and a player's own lines
+  // landed anywhere in the list — usually out of sight above the log.
+  return [...said, ...logged].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+function isoTime(value) {
+  const time = typeof value === 'number' ? value : Date.parse(value ?? '');
+  return new Date(Number.isFinite(time) ? time : 0).toISOString();
 }
 
 function renderChat() {
