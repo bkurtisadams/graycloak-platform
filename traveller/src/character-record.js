@@ -82,7 +82,7 @@ export function characterRecordStatus(record) {
   if (record.pendingJoin?.campaignId) {
     return { label: `AWAITING A SEAT AT ${String(record.pendingJoin.campaignName ?? record.pendingJoin.campaignId).toUpperCase()}`, enter: null, campaignId: null };
   }
-  return { label: 'NOT YET AT A TABLE', enter: null, campaignId: null };
+  return { label: 'NOT IN A CAMPAIGN', enter: null, campaignId: null };
 }
 
 export function setCharacterRecordWorld(record, world, { updatedAt = Date.now() } = {}) {

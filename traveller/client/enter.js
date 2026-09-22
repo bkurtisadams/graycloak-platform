@@ -8,27 +8,28 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.272.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.272.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.273.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.273.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome
-} from './publish.js?v=v0.272.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.272.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.272.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.272.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.272.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.272.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.272.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.272.0';
-import { generateCharacterName } from './generators.js?v=v0.272.0';
+} from './publish.js?v=v0.273.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.273.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.273.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.273.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.273.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.273.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.273.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.273.0';
+import { generateCharacterName } from './generators.js?v=v0.273.0';
 import {
-  createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS
-} from '../src/character-record.js?v=v0.272.0';
+  createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
+  setCharacterRecordWorld, unassignedWorld
+} from '../src/character-record.js?v=v0.273.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.272.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.273.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -338,11 +339,19 @@ function renderCampaigns() {
       if (!ok) { if (played) setStatus(`DELETE CANCELLED: typed "${typed}", needed "${label}".`, 'error'); return; }
       try {
         setStatus('DELETING\u2026');
-        await deleteCampaignHome(campaign.campaignId);
+        // v0.273.0: characters seated here are sent back to the lobby as
+        // part of the delete (publish.js), before the campaign goes.
+        const released = await deleteCampaignHome(campaign.campaignId, { seatedCharacterIds: [
+          ...(campaign.seatedCharacterIds ?? []),
+          ...records.filter((record) => record.world?.campaignId === campaign.campaignId).map((record) => record.characterId)
+        ] });
         forgetLocalCampaign(campaign.campaignId);
-        setStatus(`${String(label).toUpperCase()} DELETED`, 'ok');
+        setStatus(`${String(label).toUpperCase()} DELETED${released ? `; ${released} CHARACTER${released === 1 ? '' : 'S'} BACK IN THE LOBBY` : ''}`, 'ok');
         await refreshCampaigns();
-      } catch (error) { setStatus(error?.message ?? String(error), 'error'); }
+      } catch (error) {
+        console.error(error);
+        setStatus(`DELETE FAILED: ${error?.code === 'permission-denied' ? 'THE CLOUD REFUSED IT (ARE YOU SIGNED IN AS ITS REFEREE?)' : String(error?.message ?? error).toUpperCase()}`, 'error');
+      }
     });
 
     const play = document.createElement('a');
@@ -380,12 +389,25 @@ function renderCharacterRow(record) {
   const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = status.label;
   const tools = document.createElement('div'); tools.className = 'enter-character-tools';
 
+  // v0.273.0: every character can be deleted, wherever it is (Kurt, Sep
+  // 2026: four characters seated at a campaign had only ENTER WORLD). A
+  // character sits in one campaign at a time, so a seated one is offered
+  // LEAVE, which puts it back where JOIN A CAMPAIGN is.
+  const remove = document.createElement('button');
+  remove.type = 'button'; remove.className = 'text-button action-button';
+  remove.textContent = '[ DELETE ]';
+  remove.addEventListener('click', () => removeRecord(record));
   if (status.enter === 'campaign') {
     const enter = document.createElement('a');
     enter.className = 'text-button action-button campaign-transition-action';
     enter.href = `player.html?campaign=${encodeURIComponent(status.campaignId)}`;
     enter.textContent = '[ ENTER WORLD ]';
-    tools.append(enter);
+    const leave = document.createElement('button');
+    leave.type = 'button'; leave.className = 'text-button action-button';
+    leave.textContent = '[ LEAVE CAMPAIGN ]';
+    leave.title = 'Stand up from this campaign; the character comes back to the lobby, free to join another';
+    leave.addEventListener('click', () => leaveCampaign(record));
+    tools.append(enter, leave, remove);
   } else if (status.enter === 'solo') {
     const solo = document.createElement('button');
     solo.type = 'button'; solo.className = 'text-button action-button'; solo.disabled = true;
@@ -397,7 +419,7 @@ function renderCharacterRow(record) {
     withdraw.type = 'button'; withdraw.className = 'text-button action-button';
     withdraw.textContent = '[ WITHDRAW ]';
     withdraw.addEventListener('click', () => withdrawJoin(record));
-    tools.append(withdraw);
+    tools.append(withdraw, remove);
   } else {
     // v0.69.0: a campaign starts from a character, here, not from the
     // referee client's own chargen.
@@ -409,14 +431,9 @@ function renderCharacterRow(record) {
     tools.append(start);
     const join = document.createElement('button');
     join.type = 'button'; join.className = 'text-button action-button';
-    join.textContent = openJoinFor === record.characterId ? '[ CANCEL ]' : '[ JOIN A TABLE ]';
+    join.textContent = openJoinFor === record.characterId ? '[ CANCEL ]' : '[ JOIN A CAMPAIGN ]';
     join.addEventListener('click', () => { openJoinFor = openJoinFor === record.characterId ? null : record.characterId; render(); });
-    tools.append(join);
-    const remove = document.createElement('button');
-    remove.type = 'button'; remove.className = 'text-button action-button';
-    remove.textContent = '[ DELETE ]';
-    remove.addEventListener('click', () => removeRecord(record));
-    tools.append(remove);
+    tools.append(join, remove);
   }
   row.append(name, summary, state, tools);
 
@@ -427,7 +444,7 @@ function renderCharacterRow(record) {
     input.type = 'text'; input.placeholder = 'invite code from your referee'; input.autocomplete = 'off'; input.size = 14;
     input.value = inviteFromUrl ?? '';
     const submit = document.createElement('button');
-    submit.type = 'button'; submit.className = 'text-button action-button'; submit.textContent = '[ SIT DOWN ]';
+    submit.type = 'button'; submit.className = 'text-button action-button'; submit.textContent = '[ ASK TO JOIN ]';
     submit.addEventListener('click', () => redeemInvite(record, input.value));
     input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); redeemInvite(record, input.value); } });
     joinRow.append(input, submit);
@@ -545,13 +562,32 @@ function renderCharacters() {
 }
 
 async function removeRecord(record) {
-  if (!window.confirm(`Delete ${record.name}? This cannot be undone.`)) return;
+  const seatedAt = record.world?.kind === WORLD_KINDS.CAMPAIGN ? (record.world.campaignName || 'a campaign') : null;
+  const warning = seatedAt ? `\n\n${record.name} is seated at ${seatedAt}. The referee keeps the campaign's copy; this deletes yours.` : '';
+  if (!window.confirm(`Delete ${record.name}? This cannot be undone.${warning}`)) return;
   try {
     await deleteCharacterRecord(record.characterId);
     setStatus(`${record.name.toUpperCase()} DELETED`, 'ok');
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// v0.273.0: a character stands up from its campaign and comes back to the
+// lobby. The referee keeps the campaign's copy and the seat until they take
+// it back; this only frees the character to join somewhere else.
+async function leaveCampaign(record) {
+  const where = record.world?.campaignName || 'this campaign';
+  if (!window.confirm(`Take ${record.name} out of ${where}?\n\nThe character comes back to the lobby, free to join another campaign.`)) return;
+  try {
+    await saveCharacterRecord(setCharacterRecordWorld(record, unassignedWorld()));
+    setStatus(`${record.name.toUpperCase()} HAS LEFT ${String(where).toUpperCase()}`, 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.code === 'permission-denied'
+      ? 'THE CLOUD REFUSED IT: LEAVING NEEDS THE v18 FIRESTORE RULES DEPLOYED'
+      : (error?.message ?? String(error)), 'error');
   }
 }
 
@@ -721,7 +757,7 @@ onAuthChange(() => {
   else { campaigns = []; campaignsLoadedFor = null; }
   // Sign-in lands on the list; a draft from before a reload is offered there.
   if (!currentUserId()) { character = null; view = 'characters'; }
-  if (inviteFromUrl && currentUserId()) setStatus(`INVITE ${inviteFromUrl} READY / CHOOSE A CHARACTER AND SIT DOWN`, 'ok');
+  if (inviteFromUrl && currentUserId()) setStatus(`INVITE ${inviteFromUrl} READY / CHOOSE A CHARACTER AND ASK TO JOIN`, 'ok');
   render();
 });
 initAuth().then(render);

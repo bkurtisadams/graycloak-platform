@@ -22,7 +22,7 @@ test('a character record wraps the document with an owner and an unassigned worl
   assert.equal(record.world.kind, WORLD_KINDS.UNASSIGNED);
   assert.equal(record.pendingJoin, null);
   assert.deepEqual(validateCharacterRecord(record), []);
-  assert.equal(characterRecordStatus(record).label, 'NOT YET AT A TABLE');
+  assert.equal(characterRecordStatus(record).label, 'NOT IN A CAMPAIGN');
   assert.equal(characterRecordStatus(record).enter, null);
   assert.throws(() => createCharacterRecord(record.character, {}), TypeError);
 });

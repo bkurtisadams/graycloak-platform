@@ -13,6 +13,7 @@
 // list of their own campaigns.
 // v15 lets an owner start a campaign of their own with their own character.
 // v16 adds table chat.
+// v18 lets a character's owner stand it up from its campaign (to unassigned).
 // v17 adds the wounded player's own wound distribution, which Book 1 p.30
 //   leaves to the wounded player rather than the referee.
 //
@@ -339,9 +340,22 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     // Only the world, pendingJoin and updatedAt — never the character itself.
     await assertFails(referee.doc(RECORD).update({ world: seated, 'character.upp': 'AAAAAA' }));
     await assertFails(referee.doc(RECORD).update({ name: 'Mine' }));
-    // The owner still edits the rest, and still cannot leave the table alone.
+    // The owner still edits the rest.
     await assertSucceeds(player.doc(RECORD).update({ name: 'Renamed again', updatedAt: 10 }));
-    await assertFails(player.doc(RECORD).update({ world: unassigned }));
+    // v18: and may stand the character up from its campaign — to unassigned
+    // only, touching nothing else. (Until v18 the owner could not, so a
+    // character whose campaign was deleted stayed seated there for good; the
+    // owner could always delete the record outright, so refusing a leave
+    // protected nothing.)
+    await assertFails(player.doc(RECORD).update({ world: unassigned, name: 'Sneaky', updatedAt: 10 }));
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'solo', campaignId: null, campaignName: null, since: 10 }, updatedAt: 10 }));
+    await assertSucceeds(player.doc(RECORD).update({ world: unassigned, pendingJoin: null, updatedAt: 10 }));
+    // Seated again for the checks below, by its referee on a fresh request.
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc(`travellerCampaigns/${CAMPAIGN}/joins/${PLAYER}`).set({ uid: PLAYER, code: 'ABC234', campaignId: CAMPAIGN, characterId: `${PC}-own`, character: {}, requestedAt: 10 });
+    });
+    await assertSucceeds(referee.doc(RECORD).update({ world: seated, pendingJoin: null, updatedAt: 10 }));
+    await assertSucceeds(referee.doc(`travellerCampaigns/${CAMPAIGN}/joins/${PLAYER}`).delete());
     // Another campaign's referee cannot take it.
     await env.withSecurityRulesDisabled(async (context) => {
       await context.firestore().doc('travellerCampaigns/elsewhere').set({ name: 'Elsewhere', ownership: { ownerUid: SECOND, actors: {} } });

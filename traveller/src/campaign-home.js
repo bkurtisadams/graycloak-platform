@@ -97,6 +97,10 @@ export function campaignHomeSummary(envelope) {
     time: envelope.time ?? null,
     location: envelope.location ?? null,
     savedAt: envelope.homeSavedAt ?? envelope.publishedAt ?? null,
-    revision: envelope.homeRevision ?? null
+    revision: envelope.homeRevision ?? null,
+    // v0.273.0: whose characters are seated here, so deleting the campaign
+    // can send them back to the lobby first (the rules let only this
+    // campaign's referee move them, and only while the campaign exists).
+    seatedCharacterIds: Object.keys(envelope.ownership?.actors ?? {})
   };
 }

@@ -1,4 +1,10 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v17
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v18
+// v18 lets a Traveller character's owner take it out of its campaign:
+//   travellerCharacters/{id} may be updated by its owner to world
+//   'unassigned', touching nothing but world, pendingJoin and updatedAt.
+//   Until now only the campaign's referee could move a character, so one
+//   whose campaign had been deleted stayed seated there for good.
+//
 // v17 adds the wounded player's own wound distribution:
 //   travellerCampaigns/{id}/encounters/{id}/woundAllocations/{woundKey} —
 //   create-only by the account that owns that combatant, read by the referee
@@ -495,6 +501,11 @@ service cloud.firestore {
                 && (travellerJoinRequested(request.resource.data.get('world', {}).get('campaignId', ''), resource.data.get('ownerUid', ''), characterId)
                   // v15: or it is their own character and their own table.
                   || resource.data.get('ownerUid', '') == request.auth.uid))))
+          // v18: the owner stands their own character up from its campaign.
+          || (resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['world', 'pendingJoin', 'updatedAt'])
+            && request.resource.data.get('world', {}).get('kind', '') == 'unassigned')
         );
       allow delete: if isAuthed()
         && resource.data.get('ownerUid', '') == request.auth.uid;

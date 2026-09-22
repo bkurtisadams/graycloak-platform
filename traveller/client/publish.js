@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.272.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.272.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.273.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.273.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -451,10 +451,25 @@ export async function renameCampaignHome(campaignId, name) {
 // The whole campaign: its home and the envelope. Subcollections a referee
 // cannot enumerate (a player's own documents) are left to Firestore; the
 // envelope going means nothing can reach them.
-export async function deleteCampaignHome(campaignId) {
+// v0.273.0: the characters seated there go back to the lobby first. The
+// rules let only this campaign's referee move a character out, and only
+// while the campaign exists; deleted first, its characters were stranded,
+// seated at a campaign nobody could open. Best effort per character: one
+// already moved or deleted is skipped. Returns how many were released.
+export async function deleteCampaignHome(campaignId, { seatedCharacterIds = [] } = {}) {
   const db = await ensureFirestore();
+  let released = 0;
+  for (const characterId of new Set(seatedCharacterIds)) {
+    try {
+      await db.collection('travellerCharacters').doc(characterId).update({
+        world: { kind: 'unassigned', campaignId: null, campaignName: null, since: null }, pendingJoin: null, updatedAt: Date.now()
+      });
+      released += 1;
+    } catch (error) { console.warn('[traveller-publish] release seat:', characterId, error?.code ?? error); }
+  }
   try { await homeRef(db, campaignId).delete(); } catch (error) { if (error?.code !== 'permission-denied') throw error; }
   await db.collection('travellerCampaigns').doc(campaignId).delete();
+  return released;
 }
 
 export async function listOwnCampaigns(uid) {
