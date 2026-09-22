@@ -1180,3 +1180,23 @@ test('v0.277.0 a player\u2019s sheet is built from their published character and
     assert.equal(sheet.playerSeat, true);
   }
 });
+
+// v0.280.0: Kurt set up a fight and the player's page did not change: only a
+// begun fight was published as current.
+test('v0.280.0 a fight being set up is published as the current one, with its view', async () => {
+  const { registry, campaignId } = await atOrison();
+  const envelopes = [];
+  const views = [];
+  const cloud = { ...fakeCloud(), publishEncounterView: async (view) => { views.push(view); } };
+  const save = cloud.save;
+  cloud.save = async (home, envelope, options) => { envelopes.push(envelope); return save(home, envelope, options); };
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 1 } } });
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  const setup = registry.resolveCampaign(campaignId).encounters.find((entry) => entry.status === 'setup');
+  assert.ok(setup);
+  assert.equal(envelopes.at(-1).currentEncounterId, setup.identity.id);
+  assert.ok(views.some((view) => view.encounterId === setup.identity.id && view.status === 'setup'));
+});

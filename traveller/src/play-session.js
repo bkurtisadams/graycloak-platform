@@ -2197,7 +2197,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       const ship = resolved.ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? resolved.ships[0] ?? null;
       const names = new Map([...resolved.characters, ...resolved.npcActors].map((entry) => [entry.identity.id, entry.identity.name]));
       const scene = resolved.scenes.find((entry) => entry.identity.id === campaign.activeSceneId) ?? null;
-      const fight = resolved.encounters.find((entry) => entry.status === 'active') ?? null;
+      // v0.280.0: a fight being set up is current too, so players see the
+      // board filling as the referee places everyone (Kurt, Sep 2026: the
+      // player's page did not change until the fight began).
+      const fight = resolved.encounters.find((entry) => entry.status === 'active')
+        ?? resolved.encounters.find((entry) => entry.status === 'setup') ?? null;
       const envelope = buildPublishedCampaign(campaign, {
         publishedAt: campaign.ownership?.publishedAt ?? home.savedAt, currentEncounterId: fight?.identity.id ?? null,
         ship, activeScene: scene ? buildPublishedScene(scene, { names }) : null

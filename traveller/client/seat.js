@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene } from './play-views.js?v=v0.279.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.279.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.279.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.279.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.279.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.279.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.279.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.279.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.279.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.279.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.279.0';
+import { h, renderTalkLog, bandsScene } from './play-views.js?v=v0.280.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.280.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.280.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation } from './publish.js?v=v0.280.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.280.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.280.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.280.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.280.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.280.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.280.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.280.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -160,7 +160,7 @@ function renderScene() {
 // declarations, and their own wounds, placed when the round pauses for them.
 
 function fightLive() {
-  return Boolean(state.view && state.view.status === 'active' && state.view.encounterId === state.envelope?.currentEncounterId);
+  return Boolean(state.view && (state.view.status === 'active' || state.view.status === 'setup') && state.view.encounterId === state.envelope?.currentEncounterId);
 }
 
 function mine() {
@@ -262,12 +262,17 @@ function fightScene() {
     onBandZoom: (next) => { state.bandsShown = next; renderScene(); }
   });
   const narration = [...(state.view.narration ?? [])].sort((a, b) => a.round - b.round).slice(-12);
+  const setup = state.view.status === 'setup';
   return h('div', { class: 'fight-column seat-fight' },
-    h('div', { class: 'fight-head' },
-      h('h2', { text: `Fight \u00b7 round ${state.view.declaringRound ?? state.view.round}` }),
-      h('span', { class: 'cite', text: `met at ${String(state.view.range ?? '').replace('-', ' ')} range` })),
+    setup
+      ? h('div', { class: 'fight-head' },
+        h('h2', { text: 'A fight is being set up' }),
+        h('span', { class: 'cite', text: 'The referee is placing everyone. Your orders open when the fight begins.' }))
+      : h('div', { class: 'fight-head' },
+        h('h2', { text: `Fight \u00b7 round ${state.view.declaringRound ?? state.view.round}` }),
+        h('span', { class: 'cite', text: `met at ${String(state.view.range ?? '').replace('-', ' ')} range` })),
     h('div', { class: 'fight-board' }, board),
-    h('section', { class: 'seat-orders', 'aria-label': 'Your orders' },
+    setup ? null : h('section', { class: 'seat-orders', 'aria-label': 'Your orders' },
       h('h3', { text: `Your orders for round ${state.view.declaringRound ?? state.view.round}` }),
       ...list.filter((entry) => own.has(entry.id)).map((fighter) => orderRow(fighter, foes)),
       own.size ? null : h('p', { class: 'cite', text: 'None of yours are in this fight.' })),
@@ -334,6 +339,9 @@ async function watchFight() {
   while (fightStops.length) fightStops.pop()?.();
   state.viewFor = encounterId;
   state.view = null; state.declarations = []; state.selected = null;
+  // A fight arriving shrinks any open sheet to its compact form, so it does
+  // not sit over the board.
+  if (encounterId && state.sheets) state.sheets = state.sheets.map((entry) => ({ ...entry, compact: true }));
   if (!encounterId) { render(); return; }
   try {
     const db = await ensureFirestore();
