@@ -60,7 +60,7 @@ import {
 import { campaignDateKey, routeMarketSeed, saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
-  setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays,
+  setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays, advanceCampaignSeconds, updateCampaignTime,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter,
   addCharacterToCampaign, removeCharacterFromCampaign, characterFolder, setCharacterFolders, setDocumentOwner
 } from './campaign-document.js';
@@ -1845,6 +1845,24 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     reload();
   }
 
+  // v0.275.0: Kurt's ruling on medical attention (Sep 2026) — it takes the
+  // medic's day, not each patient's. The first attempt of a day moves the
+  // clock one day; attempts on other patients that same day do not. Trying
+  // the same patient again is the next day's work, so it moves the clock
+  // again. The campaign keeps the date that day of treatment ends on and who
+  // was treated; any other movement of the clock leaves it behind.
+  function treatmentDay(campaign, patientId) {
+    const marker = campaign.roster?.treatingUntil ?? null;
+    const today = marker && marker.year === campaign.time.year && marker.dayOfYear === campaign.time.dayOfYear;
+    const seen = today && Array.isArray(marker.patients) && marker.patients.includes(patientId);
+    if (today && !seen) {
+      return { campaign: { ...campaign, roster: { ...campaign.roster, treatingUntil: { ...marker, patients: [...(marker.patients ?? []), patientId] } } }, sameDay: true };
+    }
+    const moved = advanceCampaignDays(campaign, 1);
+    const next = { ...moved, roster: { ...moved.roster, treatingUntil: { year: moved.time.year, dayOfYear: moved.time.dayOfYear, patients: [patientId] } } };
+    return { campaign: next, sameDay: false };
+  }
+
   // v0.261.0: a personal fight's wounds reach the characters. Until now they
   // lived only on the encounter's copy of each combatant: Book 1 p.31's
   // waking-up rule was applied to that copy when the fight ended and went no
@@ -1853,6 +1871,50 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // The combatant's scores carry Book 1 p.33's encumbrance penalty (v0.251.0),
   // which belongs to the fight, not the body, so it is taken back off. A
   // characteristic still at zero stays at zero: the dead stay dead.
+  // v0.275.0: who could rest now — the party's wounded, and NPC actors'
+  // (statblocks are patterns and are never hurt). The severely wounded and
+  // the dead are listed with the reason they cannot.
+  function restCandidates() {
+    const party = new Set(resolved.campaign.party?.characterIds ?? []);
+    const out = [];
+    for (const character of resolved.characters ?? []) {
+      const severe = Boolean(character.status?.severelyWounded);
+      const dead = character.status?.alive === false;
+      if (!characterIsWounded(character) && !severe) continue;
+      out.push({ id: character.identity.id, name: character.identity.name || '(unnamed)', kind: 'character', inParty: party.has(character.identity.id),
+        canRest: !severe && !dead, why: dead ? 'dead' : severe ? 'severely wounded: medical attention only' : null });
+    }
+    for (const actor of resolved.npcActors ?? []) {
+      if (actor.profile?.kind === 'statblock') continue;
+      const severe = npcActorIsSeverelyWounded(actor);
+      const dead = npcActorIsDead(actor);
+      if (!npcActorIsWounded(actor) && !severe) continue;
+      out.push({ id: actor.identity.id, name: actor.identity.name, kind: 'actor', inParty: false,
+        canRest: !severe && !dead, why: dead ? 'dead' : severe ? 'severely wounded: medical attention only' : null });
+    }
+    return out;
+  }
+
+  // Everyone named rests together; the clock moves once. Returns who rested
+  // and who could not, and why.
+  function restTogether(ids, campaign) {
+    const wanted = new Set(ids);
+    const changed = [];
+    const rested = [];
+    const skipped = [];
+    for (const character of resolved.characters ?? []) {
+      if (!wanted.has(character.identity.id)) continue;
+      try { changed.push(restCharacter(character)); rested.push(character.identity.name || '(unnamed)'); }
+      catch (error) { skipped.push(`${character.identity.name || '(unnamed)'}: ${error.message.replace(`${character.identity.name} `, '')}`); }
+    }
+    for (const actor of resolved.npcActors ?? []) {
+      if (!wanted.has(actor.identity.id)) continue;
+      try { changed.push(restNpcActor(actor)); rested.push(actor.identity.name); }
+      catch (error) { skipped.push(`${actor.identity.name}: ${error.message.replace(`${actor.identity.name} `, '')}`); }
+    }
+    return { changed, rested, skipped, campaign };
+  }
+
   function writeFightToCharacters(encounter) {
     if (!encounter || encounter.status === 'active' || encounter.status === 'setup') return [];
     const changed = [];
@@ -2320,12 +2382,77 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
+      // v0.275.0: rest is the party's, and the clock moves once for it
+      // (Kurt, Sep 2026: two characters resting advanced the date twice).
+      // character:rest is kept, as a party of one.
+      if (command === 'party:rest' || command === 'character:rest') {
+        const ids = command === 'party:rest' ? (Array.isArray(fight?.value?.ids) ? fight.value.ids : []) : [fight?.id ?? characterId].filter(Boolean);
+        if (!ids.length) throw new Error('choose who rests');
+        const { changed, rested, skipped } = restTogether(ids);
+        if (!rested.length) throw new Error(skipped.length ? skipped.join('; ') : 'nobody there needs rest');
+        registry.put(advanceCampaignDays(resolved.campaign, REST_DAYS));
+        reload();
+        persist(changed);
+        const names = rested.length > 1 ? `${rested.slice(0, -1).join(', ')} and ${rested.at(-1)}` : rested[0];
+        const message = `${names} rest${rested.length > 1 ? '' : 's'} three days and ${rested.length > 1 ? 'are' : 'is'} back to full strength.`;
+        log('MEDICAL', message, skipped.length ? { detail: `Not rested: ${skipped.join('; ')}` } : {});
+        lastMessage = { ok: true, message: rested.length > 1 ? `${rested.length} rested three days: full strength.` : `${rested[0]} rested three days: full strength.`, skipped };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      // v0.275.0: the referee's clock. Time passes (with a reason for the
+      // log, and resting if at least three days go by), or the date is set
+      // outright to correct a mistake.
+      if (command === 'time:pass') {
+        const value = fight?.value ?? {};
+        const amount = Number(value.amount);
+        const unit = { hours: 3600, days: 86400, weeks: 604800 }[value.unit];
+        if (!unit) throw new Error('pass hours, days or weeks');
+        if (!Number.isInteger(amount) || amount < 1 || amount > 5200) throw new RangeError('pass a whole number of them, 1 or more');
+        const seconds = amount * unit;
+        const before = formatCampaignDate(resolved.campaign.time);
+        let rested = [];
+        let skipped = [];
+        let changed = [];
+        if (value.resting && seconds >= REST_DAYS * 86400) {
+          ({ changed, rested, skipped } = restTogether(restCandidates().filter((entry) => entry.canRest).map((entry) => entry.id)));
+        }
+        registry.put(advanceCampaignSeconds(resolved.campaign, seconds));
+        reload();
+        persist(changed);
+        const span = `${amount} ${amount === 1 ? value.unit.replace(/s$/, '') : value.unit}`;
+        const reason = String(value.reason ?? '').trim();
+        const message = `${span} pass${amount === 1 ? 'es' : ''}${reason ? `: ${reason}` : ''} (${before} to ${formatCampaignDate(resolved.campaign.time)}).${rested.length ? ` Rested to full strength: ${rested.join(', ')}.` : ''}`;
+        log('TIME', message, skipped.length ? { detail: `Not rested: ${skipped.join('; ')}` } : {});
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command === 'time:set') {
+        const value = fight?.value ?? {};
+        const year = Number(value.year);
+        const dayOfYear = Number(value.dayOfYear);
+        if (!Number.isInteger(year) || year < 0) throw new RangeError('the year is a whole number');
+        if (!Number.isInteger(dayOfYear) || dayOfYear < 1 || dayOfYear > DAYS_IN_YEAR) throw new RangeError(`the day is 1 to ${DAYS_IN_YEAR}`);
+        const before = formatCampaignDate(resolved.campaign.time);
+        registry.put(updateCampaignTime(resolved.campaign, { year, dayOfYear }));
+        reload();
+        const message = `The referee sets the date: ${before} to ${formatCampaignDate(resolved.campaign.time)}.`;
+        log('TIME', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'character:rest' || command === 'character:medical') {
         const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
         // v0.271.0: an NPC actor rests and is treated by the same rule.
         const npcPatient = patient ? null : (resolved.npcActors ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
         if (npcPatient) {
           let campaign = resolved.campaign;
+          let sameDay = false;
           if (command === 'character:rest') {
             const next = restNpcActor(npcPatient);
             campaign = advanceCampaignDays(campaign, REST_DAYS);
@@ -2339,12 +2466,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             const medic = medicId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === medicId) : null;
             const level = medic ? (Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null) : null;
             const result = medicalAttentionNpcActor(npcPatient, { medicalLevel: level, xeno: Boolean(fight?.value?.xeno), dice: createDice() });
-            campaign = advanceCampaignDays(campaign, 1);
+            ({ campaign, sameDay } = treatmentDay(campaign, npcPatient.identity.id));
             registry.put(campaign);
             reload();
             persist([result.actor]);
             const who = medic ? `${medic.identity.name} (${level === null ? 'no Medical' : `Medical-${level}`})` : 'Nobody trained';
-            const line = `${who} treats ${npcPatient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.`;
+            const line = `${who} treats ${npcPatient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
             log('MEDICAL', line, { detail: [
               `2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll}`,
               `Medical ${result.skillDM >= 0 ? '+' : '\u2212'}${Math.abs(result.skillDM)}${level === null ? ' (no expertise)' : ''}`,
@@ -2359,6 +2486,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         }
         if (!patient) throw new Error('choose a character first');
         let campaign = resolved.campaign;
+        let sameDay = false;
         if (command === 'character:rest') {
           const next = restCharacter(patient);
           campaign = advanceCampaignDays(campaign, REST_DAYS);
@@ -2376,12 +2504,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const result = medicalAttention(patient, { medicalLevel: level, xeno: Boolean(fight?.value?.xeno), dice: createDice() });
           // An attempt takes the day, success or not; a failure may be tried
           // again after it.
-          campaign = advanceCampaignDays(campaign, 1);
+          ({ campaign, sameDay } = treatmentDay(campaign, patient.identity.id));
           registry.put(campaign);
           reload();
           persist([result.character]);
           const who = medic ? `${medic.identity.name} (${level === null ? 'no Medical' : `Medical-${level}`})` : 'Nobody trained';
-          const line = `${who} treats ${patient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.`;
+          const line = `${who} treats ${patient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
           const detail = [
             `2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll}`,
             `Medical ${result.skillDM >= 0 ? '+' : '\u2212'}${Math.abs(result.skillDM)}${level === null ? ' (no expertise)' : ''}`,
@@ -4048,6 +4176,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
 
   return {
     connect, run, saveToCloud, reload,
+    // v0.275.0: for the page's Rest dialog.
+    restCandidates: () => restCandidates(),
     // v0.262.0: the whole chat, not the last 300 the screen keeps, for Export.
     chatTranscript({ seat = 'referee' } = {}) {
       return { campaignName: resolved.campaign.identity.name, date: formatCampaignDate(resolved.campaign.time), lines: chatStream(resolved, seat, { limit: 0 }) };

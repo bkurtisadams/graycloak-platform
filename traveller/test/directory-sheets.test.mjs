@@ -1981,3 +1981,76 @@ test('v0.272.0 the escaped are not casualties for morale', async () => {
   assert.equal(moraleStanding(base, 'opposition').leaderKilled, false, 'until a new leader takes control');
   assert.equal(moraleStanding(base, 'opposition').leaderPresent, true);
 });
+
+// ------------------------------------------------------------ v0.275.0
+// Kurt, Sep 2026: two characters resting advanced the date twice.
+async function woundedPairFixture() {
+  const { session, registry, campaignId } = await freshSession();
+  const first = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const copyId = session.run('character:copy', { fight: { id: first } }).createdId;
+  const { addCharacterToCampaign } = await import('../src/campaign-document.js');
+  const copy = registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === copyId);
+  registry.put(addCharacterToCampaign(registry.resolveCampaign(campaignId).campaign, copy, { active: true, makeActive: false }));
+  session.reload();
+  for (const id of [first, copyId]) assert.equal(session.run('edit:character:current', { fight: { id, value: { STR: 3 } } }).ok, true);
+  const date = () => { const time = registry.resolveCampaign(campaignId).campaign.time; return time.year * 365 + time.dayOfYear; };
+  return { session, registry, campaignId, first, copyId, date };
+}
+
+test('v0.275.0 the party rests together: everyone ticked recovers, and the date moves three days once', async () => {
+  const { session, registry, campaignId, first, copyId, date } = await woundedPairFixture();
+  const candidates = session.restCandidates();
+  assert.deepEqual(candidates.filter((entry) => entry.canRest).map((entry) => entry.id).sort(), [first, copyId].sort());
+  const start = date();
+  const rested = session.run('party:rest', { fight: { value: { ids: [first, copyId] } } });
+  assert.equal(rested.ok, true, rested.message);
+  assert.equal(date() - start, 3, 'three days, not six');
+  const characters = registry.resolveCampaign(campaignId).characters.filter((entry) => [first, copyId].includes(entry.identity.id));
+  assert.ok(characters.every((entry) => entry.current.STR === entry.characteristics.STR));
+  assert.match(session.view().chat.at(-1).text, / and .* rest three days and are back to full strength/);
+  assert.equal(session.run('party:rest', { fight: { value: { ids: [first] } } }).ok, false, 'nobody left who needs it');
+});
+
+test('v0.275.0 medical attention takes the medic\u2019s day: the first attempt moves the clock, the rest that day do not', async () => {
+  const { session, first, copyId, date } = await woundedPairFixture();
+  const start = date();
+  assert.equal(session.run('character:medical', { fight: { id: first, value: { medicId: null } } }).ok, true);
+  assert.equal(date() - start, 1);
+  const second = session.run('character:medical', { fight: { id: copyId, value: { medicId: null } } });
+  assert.equal(second.ok, true);
+  assert.equal(date() - start, 1, 'same day of treatment');
+  assert.match(second.message, /Same day of treatment/);
+  // The same patient again is tomorrow's attempt, and moves the clock.
+  const again = session.run('character:medical', { fight: { id: copyId, value: { medicId: null } } });
+  assert.doesNotMatch(again.message, /Same day of treatment/);
+  assert.equal(date() - start, 2, 'a retry is the next day');
+  const other = session.run('character:medical', { fight: { id: first, value: { medicId: null } } });
+  assert.match(other.message, /Same day of treatment/, 'and the other patient can be seen that day too');
+  assert.equal(date() - start, 2);
+  // Any other movement of the clock starts a new day.
+  session.run('time:pass', { fight: { value: { amount: 1, unit: 'days' } } });
+  const fresh = session.run('character:medical', { fight: { id: first, value: { medicId: null } } });
+  assert.doesNotMatch(fresh.message, /Same day of treatment/);
+  assert.equal(date() - start, 4);
+});
+
+test('v0.275.0 the referee passes time (resting if three days or more) and sets the date', async () => {
+  const { session, registry, campaignId, first, date } = await woundedPairFixture();
+  const start = date();
+  const hours = session.run('time:pass', { fight: { value: { amount: 30, unit: 'hours', reason: 'waiting for the ship' } } });
+  assert.equal(hours.ok, true, hours.message);
+  assert.match(hours.message, /^30 hours pass: waiting for the ship \(\d{3}-\d+ to \d{3}-\d+\)\.$/);
+  assert.ok(date() - start >= 1 && date() - start <= 2);
+  const short = session.run('time:pass', { fight: { value: { amount: 2, unit: 'days', resting: true } } });
+  assert.doesNotMatch(short.message, /Rested/, 'two days is not enough rest');
+  const long = session.run('time:pass', { fight: { value: { amount: 1, unit: 'weeks', resting: true, reason: 'laid up' } } });
+  assert.match(long.message, /Rested to full strength: /);
+  const hawkeye = registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === first);
+  assert.equal(hawkeye.current.STR, hawkeye.characteristics.STR);
+  const set = session.run('time:set', { fight: { value: { year: 1105, dayOfYear: 7 } } });
+  assert.equal(set.ok, true, set.message);
+  assert.deepEqual([registry.resolveCampaign(campaignId).campaign.time.year, registry.resolveCampaign(campaignId).campaign.time.dayOfYear], [1105, 7]);
+  assert.match(set.message, /sets the date: .* to 007-1105/);
+  assert.equal(session.run('time:set', { fight: { value: { year: 1105, dayOfYear: 400 } } }).ok, false);
+  assert.equal(session.run('time:pass', { fight: { value: { amount: 0, unit: 'days' } } }).ok, false);
+});

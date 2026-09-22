@@ -316,7 +316,7 @@ function conditionBlock(sheet, handlers) {
       ? 'Severely wounded: only medical attention will bring back full strength (Book 1 p.31).'
       : 'Wounded: three days of rest, or medical attention, brings back full strength (Book 1 p.31).' }),
     h('div', { class: 'sheet-actions' },
-      h('button', { type: 'button', class: 'button is-small', disabled: condition.severe, title: condition.severe ? 'Not possible while severely wounded' : 'Advances the campaign three days', text: 'Rest three days', onclick: () => handlers.onRest?.(sheet.id) }),
+      h('button', { type: 'button', class: 'button is-small', disabled: condition.severe, title: condition.severe ? 'Not possible while severely wounded' : 'Choose who rests with them; the date moves three days once', text: 'Rest three days\u2026', onclick: () => handlers.onRest?.(sheet.id) }),
       h('span', { class: 'sheet-inline' }, 'Attending ', medic),
       h('label', { class: 'sheet-check', title: '1981 xeno-medicine: \u22122 treating a non-human' }, xeno, ' non-human'),
       h('button', { type: 'button', class: 'button is-small is-primary', text: 'Medical attention (8+)', title: 'Takes a day, success or not', onclick: () => handlers.onMedical?.(sheet.id, medic.value, xeno.checked) })));

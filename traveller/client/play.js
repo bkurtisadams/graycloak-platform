@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.274.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.274.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.274.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.274.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.274.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.274.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.274.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.274.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.274.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.275.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.275.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.275.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.275.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.275.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.275.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.275.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.275.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.275.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -294,12 +294,8 @@ function render() {
     // v0.260.0: the wound's groups on the fight screen.
     onWoundDraft: (draft) => { ui.woundDraft = draft; render(); },
     // v0.261.0: recovery, from the character sheet.
-    onRest: (id) => {
-      if (source.mode !== 'live') return;
-      const result = source.session.run('character:rest', { fight: { id } });
-      if (!result.ok) window.alert(result.message);
-      render();
-    },
+    // v0.275.0: resting is the party's, three days once, whoever is ticked.
+    onRest: (id) => { if (source.mode === 'live') openRestDialog(id); },
     onMedical: (id, medicId, xeno) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('character:medical', { fight: { id, value: { medicId, xeno } } });
@@ -713,6 +709,12 @@ function render() {
   $('mast-place').textContent = state.place.name;
   $('mast-detail').textContent = state.place.detail;
   $('mast-date').textContent = state.campaign.date;
+  // v0.275.0: the referee's clock is behind the date.
+  const dateBox = $('mast-date').parentElement;
+  const canSetTime = source.mode === 'live' && state.seat !== 'player';
+  dateBox.classList.toggle('is-control', canSetTime);
+  dateBox.title = canSetTime ? 'Campaign date: click to pass time or correct the date' : 'Campaign date';
+  dateBox.onclick = canSetTime ? () => openTimeDialog() : null;
   const saveLine = $('mast-save');
   saveLine.hidden = !state.save;
   if (state.save) {
@@ -991,6 +993,78 @@ async function runSeat(action, seat) {
     ui.players = { ...(ui.players ?? { seats: [], invites: [], joins: [] }), loading: false, error: cloud.describeError(error) };
     render();
   }
+}
+
+// v0.275.0: the Rest and Time dialogs. Built on demand into one <dialog>, in
+// the sign-in dialog's own style.
+function modal(title, body, { onSubmit, submitLabel }) {
+  let dialog = document.getElementById('play-modal');
+  if (!dialog) {
+    dialog = document.createElement('dialog');
+    dialog.id = 'play-modal';
+    dialog.className = 'signin';
+    document.body.append(dialog);
+  }
+  const status = h('p', { class: 'signin-status', role: 'status' });
+  const form = h('form', { class: 'signin-form', method: 'dialog' },
+    h('header', {}, h('h2', { text: title }), h('button', { class: 'drawer-close', type: 'button', text: 'Close', onclick: () => dialog.close() })),
+    body, status,
+    h('div', { class: 'lead-actions' }, h('button', { class: 'button is-primary', type: 'submit' }, h('span', { text: submitLabel }))));
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const problem = onSubmit(form);
+    if (problem) { status.className = 'signin-status is-error'; status.textContent = problem; return; }
+    dialog.close();
+    render();
+  });
+  dialog.replaceChildren(form);
+  if (!dialog.open) dialog.showModal();
+}
+
+function openRestDialog(preselectId = null) {
+  const candidates = source.session.restCandidates();
+  if (!candidates.length) { window.alert('Nobody is wounded.'); return; }
+  const rows = candidates.map((entry) => h('label', { class: 'check', title: entry.why ?? '' },
+    h('input', { type: 'checkbox', name: 'rest', value: entry.id, disabled: !entry.canRest, checked: entry.canRest && (entry.inParty || entry.id === preselectId) }),
+    ` ${entry.name}${entry.kind === 'actor' ? ' (NPC)' : entry.inParty ? '' : ' (not in the party)'}${entry.why ? ` \u2014 ${entry.why}` : ''}`));
+  modal('Rest three days', [
+    h('p', { class: 'signin-why', text: 'Book 1 p.31: three days of rest bring the wounded back to full strength. Everyone ticked rests together; the date moves three days once.' }),
+    ...rows
+  ], {
+    submitLabel: 'Rest three days',
+    onSubmit: (form) => {
+      const ids = [...form.querySelectorAll('input[name="rest"]:checked')].map((input) => input.value);
+      if (!ids.length) return 'Tick who rests.';
+      const result = source.session.run('party:rest', { fight: { value: { ids } } });
+      return result.ok ? null : result.message;
+    }
+  });
+}
+
+function openTimeDialog() {
+  const time = source.session.resolved.campaign.time;
+  const amount = h('input', { type: 'number', name: 'amount', min: '1', value: '1', 'aria-label': 'How many' });
+  const unit = h('select', { name: 'unit', 'aria-label': 'Hours, days or weeks' }, ['hours', 'days', 'weeks'].map((value) => h('option', { value, selected: value === 'days', text: value })));
+  const reason = h('input', { type: 'text', name: 'reason', placeholder: 'why, for the log (optional)', 'aria-label': 'Reason' });
+  const resting = h('input', { type: 'checkbox', name: 'resting' });
+  const day = h('input', { type: 'number', name: 'day', min: '1', max: '365', value: String(time.dayOfYear), 'aria-label': 'Day of the year' });
+  const year = h('input', { type: 'number', name: 'year', min: '0', value: String(time.year), 'aria-label': 'Year' });
+  const mode = { value: 'pass' };
+  const passBox = h('fieldset', { class: 'time-box' }, h('legend', { text: 'Pass time' }),
+    h('div', { class: 'time-row' }, amount, unit), reason,
+    h('label', { class: 'check' }, resting, ' Resting: the wounded who can rest recover, if three days or more pass'));
+  const setBox = h('fieldset', { class: 'time-box' }, h('legend', { text: 'Or set the date (a correction)' }),
+    h('div', { class: 'time-row' }, 'Day ', day, ' Year ', year),
+    h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'setting', onchange: (event) => { mode.value = event.currentTarget.checked ? 'set' : 'pass'; } }), ' Set the date instead of passing time'));
+  modal(`Campaign date ${String(time.dayOfYear).padStart(3, '0')}-${time.year}`, [passBox, setBox], {
+    submitLabel: 'Apply',
+    onSubmit: () => {
+      const result = mode.value === 'set'
+        ? source.session.run('time:set', { fight: { value: { year: Number(year.value), dayOfYear: Number(day.value) } } })
+        : source.session.run('time:pass', { fight: { value: { amount: Number(amount.value), unit: unit.value, reason: reason.value, resting: resting.checked } } });
+      return result.ok ? null : result.message;
+    }
+  });
 }
 
 // Sign-in: Google or email, in the page's own dialog. The mode lives on the

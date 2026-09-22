@@ -1186,3 +1186,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .morale-settings summary { cursor: pointer; }
 .morale-side { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 4px 0; }
 .morale-side b { min-width: 80px; color: var(--ink); }
+
+/* v0.275.0: the referee's clock and the party's rest. */
+.mast-date.is-control { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.time-box { display: grid; gap: 8px; border: 1px solid var(--line); padding: 8px 10px; }
+.time-box legend { font-size: 13px; color: var(--ink-2); padding: 0 4px; }
+.time-row { display: flex; align-items: center; gap: 8px; }
+.signin-form .time-row input { width: 90px; }
