@@ -707,6 +707,22 @@ function actorSheet(resolved, id, subsector = null) {
     load: view.load,
     entitlements: view.entitlements,
     record,
+    // v0.279.0: the service history generation produced — service, terms,
+    // rank, retirement, the title SOC gives, and the term-by-term events —
+    // which the old player page showed and the new sheet had left to the
+    // printed form (Kurt, Sep 2026).
+    service: {
+      key: character.career?.service ?? null,
+      drafted: Boolean(character.career?.drafted),
+      terms: character.career?.terms ?? 0,
+      years: character.career?.yearsServed ?? null,
+      rankTitle: character.career?.rankTitle || null,
+      separation: character.career?.separationReason ?? null,
+      retired: Boolean(character.status?.retired),
+      retirementPayAnnual: character.finances?.retirementPayAnnual ?? 0,
+      soc: character.characteristics?.SOC ?? null
+    },
+    history: Array.isArray(character.history) ? character.history : [],
     notes: character.notes ?? '',
     // v0.261.0: Book 1 p.31's recovery on the sheet.
     condition: {

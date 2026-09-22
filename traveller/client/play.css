@@ -1211,3 +1211,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .seat-narration p { margin: 2px 0; }
 .seat-fight .fight-board { height: min(52vh, 480px); min-height: 300px; }
 .seat-fight .fight-board svg.bands { height: 100%; }
+
+/* v0.279.0: the service history on the Record tab. */
+.sheet-facts { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; font-size: 13px; }
+.sheet-facts dt { color: var(--ink-2); text-transform: uppercase; font-size: 11px; letter-spacing: .05em; align-self: center; }
+.sheet-facts dd { margin: 0; }
+.sheet-history summary { cursor: pointer; margin-top: 8px; font-size: 12px; }
+.sheet-history-lines { white-space: pre-wrap; font-size: 12px; margin: 6px 0 0; max-height: 240px; overflow: auto; }

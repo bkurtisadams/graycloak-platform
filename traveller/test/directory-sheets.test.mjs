@@ -382,7 +382,7 @@ test('v0.250.0 the sheet draws its four tabs, and the Gear tab reaches the real 
   assert.equal(session.view({ sheets: [{ kind: 'actor', id }] }).sheets[0].inventory.length, before + 1);
 
   draw('Record');
-  assert.equal(document.querySelectorAll('.sheet-group').length, 3, 'who they are, service, psionics');
+  assert.equal(document.querySelectorAll('.sheet-group').length, 4, 'service history (v0.279.0), who they are, service, psionics');
   assert.ok(document.querySelector('input[aria-label="Birthworld"]'));
 
   draw('Notes');
@@ -2053,4 +2053,27 @@ test('v0.275.0 the referee passes time (resting if three days or more) and sets 
   assert.match(set.message, /sets the date: .* to 007-1105/);
   assert.equal(session.run('time:set', { fight: { value: { year: 1105, dayOfYear: 400 } } }).ok, false);
   assert.equal(session.run('time:pass', { fight: { value: { amount: 0, unit: 'days' } } }).ok, false);
+});
+
+// v0.279.0: Kurt, Sep 2026 — the player's sheet had no service record.
+test('v0.279.0 the Record tab carries the service history generation produced', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id, tab: 'Record' }] }).sheets;
+  assert.equal(sheet.service.key, 'scouts');
+  assert.equal(sheet.service.terms, 5);
+  assert.ok(sheet.history.length > 5);
+  document.querySelector('main').replaceChildren(renderSheets([sheet], {}));
+  const text = document.querySelector('main').textContent;
+  assert.match(text, /SERVICE HISTORY/);
+  assert.match(text, /ServiceScouts/);
+  assert.match(text, /Terms served5 \(20 years\)/);
+  assert.match(text, /RetiredYes/);
+  assert.match(text, /Term by term/);
+  dom.window.close();
+  delete globalThis.document;
 });

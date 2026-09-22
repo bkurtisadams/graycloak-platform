@@ -16,6 +16,8 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.279.0';
+
 const DRAGGED = new Map();
 
 function h(tag, attributes = {}, ...children) {
@@ -395,6 +397,11 @@ function gearTab(sheet, handlers) {
   return parts;
 }
 
+function sentence(value) {
+  const text = String(value ?? '').toLowerCase();
+  return text ? text.replace(/(^|[\s/(])([a-z])/g, (whole, lead, letter) => `${lead}${letter.toUpperCase()}`) : '';
+}
+
 function recordTab(sheet, handlers) {
   const record = sheet.record ?? {};
   const write = (key) => (value) => handlers.onEditRecord?.(sheet.id, { [key]: value });
@@ -410,7 +417,26 @@ function recordTab(sheet, handlers) {
     h('textarea', { rows: '2', class: 'is-own', 'aria-label': label, onchange: (event) => write(key)(event.currentTarget.value) }, record[key] ?? ''));
   const aging = sheet.aging ?? {};
   const modifier = Math.round((aging.modifierMonths ?? 0) / 12);
+  // v0.279.0: the service history, read-only — what generation produced.
+  // The old player page showed it; the new sheet had left it to the print.
+  const service = sheet.service ?? null;
+  const serviceBlock = service ? h('div', { class: 'sheet-group' },
+    h('h3', { text: 'SERVICE HISTORY' }),
+    h('dl', { class: 'sheet-facts' },
+      ...[
+        ['Service', `${sentence(serviceName(service.key))}${service.drafted ? ' (drafted)' : ''}`],
+        ['Terms served', `${service.terms}${service.years ? ` (${service.years} years)` : ''}`],
+        ['Final rank', service.rankTitle || 'None'],
+        ['Noble title', service.soc === null ? '\u2014' : sentence(nobleTitleLabel(service.soc))],
+        ['Retired', service.retired ? 'Yes' : 'No'],
+        ['Retirement pay', service.retirementPayAnnual ? `Cr ${Number(service.retirementPayAnnual).toLocaleString('en-US')} a year` : 'None'],
+        service.separation ? ['Left service', sentence(String(service.separation).replace(/-/g, ' '))] : null
+      ].filter(Boolean).flatMap(([term, value]) => [h('dt', { text: term }), h('dd', { text: value })])),
+    (sheet.history ?? []).length ? h('details', { class: 'sheet-history' },
+      h('summary', { text: 'Term by term' }),
+      h('pre', { class: 'sheet-history-lines', text: buildServiceHistory({ history: sheet.history }) })) : null) : null;
   return [
+    serviceBlock,
     h('div', { class: 'sheet-group' },
       h('h3', { text: 'WHO THEY ARE' }),
       h('div', { class: 'sheet-rows' },
@@ -433,7 +459,7 @@ function recordTab(sheet, handlers) {
       h('label', { class: 'sheet-check' },
         h('input', { type: 'checkbox', checked: record.travellersMember, onchange: (event) => write('travellersMember')(event.currentTarget.checked) }),
         ' Travellers\u2019 Aid Society member'),
-      h('p', { class: 'sheet-note', text: 'Service, terms, rank and retirement come from generation and are on the printed form.' })),
+      h('p', { class: 'sheet-note', text: 'Service, terms, rank and retirement are in the service history above.' })),
     h('div', { class: 'sheet-group' },
       h('h3', { text: 'PSIONICS' }),
       h('div', { class: 'sheet-rows' },
