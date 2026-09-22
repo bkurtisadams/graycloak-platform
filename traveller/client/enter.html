@@ -5,7 +5,7 @@
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Graycloak Traveller — Enter</title>
-    <script type="module" src="theme.js?v=v0.283.0"></script>
+    <script type="module" src="theme.js?v=v0.284.0"></script>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body class="player-body enter-body">
@@ -13,7 +13,7 @@
       <div class="masthead-main">
         <nav class="utility masthead-utility" aria-label="Player session">
           <span class="masthead-title">TRAVELLER</span>
-          <span class="subtitle">ENTER v0.283.0</span>
+          <span class="subtitle">ENTER v0.284.0</span>
           <strong id="enter-heading" class="masthead-campaign-name">YOUR CHARACTERS</strong>
           <span class="masthead-spacer"></span>
           <button data-theme-toggle class="text-button utility-button" type="button" hidden>[ DARK ]</button>
@@ -38,6 +38,8 @@
       <section id="enter-characters" class="enter-characters" aria-label="Your characters" hidden>
         <div class="enter-column enter-column-characters">
           <div class="enter-section-heading">YOUR CHARACTERS</div>
+          <!-- v0.284.0: arriving by a campaign's join link. -->
+          <div id="enter-join-panel" class="enter-join-panel" hidden></div>
           <div id="enter-character-list" class="enter-character-list" aria-live="polite"></div>
           <div class="enter-toolbar">
             <button id="enter-new-character" class="text-button action-button" type="button">[ ROLL A NEW CHARACTER ]</button>
@@ -51,8 +53,11 @@
         </div>
         <div class="enter-column enter-column-campaigns">
           <!-- v0.68.0: the campaigns this account referees, from their homes. -->
-          <div class="enter-section-heading">YOUR CAMPAIGNS</div>
+          <div class="enter-section-heading">CAMPAIGNS YOU RUN</div>
           <div id="enter-campaign-list" class="enter-character-list" aria-live="polite"></div>
+          <!-- v0.284.0: the campaigns this account's characters play in. -->
+          <div class="enter-section-heading">CAMPAIGNS YOU PLAY IN</div>
+          <div id="enter-playing-list" class="enter-character-list" aria-live="polite"></div>
           <div class="enter-toolbar">
             <button id="enter-load-campaign" class="text-button action-button" type="button">[ LOAD A CAMPAIGN FILE ]</button>
             <input id="enter-campaign-file" type="file" accept="application/json,.json" hidden>

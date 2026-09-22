@@ -3480,7 +3480,7 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .enter-character-tools { grid-area: tools; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .enter-character-tools a.text-button { text-decoration: none; }
 .enter-join-row { grid-area: join; display: flex; gap: 8px; align-items: center; padding-top: 6px; border-top: 1px dotted var(--disabled); margin-top: 4px; }
-.enter-join-row input { font: inherit; font-size: 11px; padding: 2px 4px; letter-spacing: .12em; text-transform: uppercase; }
+.enter-join-row input { font: inherit; font-size: 11px; padding: 2px 4px; letter-spacing: .04em; }
 .enter-empty { font-size: 11px; letter-spacing: .06em; color: var(--muted); padding: 24px 0; }
 .enter-toolbar { padding-top: 12px; }
 .enter-chargen { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 16px; padding-top: 12px; align-items: start; }
@@ -5819,3 +5819,8 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .shell-sidebar { grid-template-rows: auto auto minmax(220px, 1fr); overflow-y: auto; }
 .sidebar-body { min-height: 200px; }
 .sidebar-body:empty { min-height: 0; }
+
+/* v0.284.0: arriving by a join link. */
+.enter-join-panel { border: 2px solid var(--ink, currentColor); padding: 10px 12px; margin-bottom: 14px; display: grid; gap: 8px; }
+.enter-join-panel .enter-section-heading { margin: 0; }
+.enter-join-panel .enter-character-tools { display: flex; gap: 8px; flex-wrap: wrap; }

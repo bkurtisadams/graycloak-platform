@@ -8,28 +8,28 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.283.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.283.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.284.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.284.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
-  renameCampaignHome, deleteCampaignHome
-} from './publish.js?v=v0.283.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.283.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.283.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.283.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.283.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.283.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.283.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.283.0';
-import { generateCharacterName } from './generators.js?v=v0.283.0';
+  renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite
+} from './publish.js?v=v0.284.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.284.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.284.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.284.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.284.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.284.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.284.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.284.0';
+import { generateCharacterName } from './generators.js?v=v0.284.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
-  setCharacterRecordWorld, unassignedWorld
-} from '../src/character-record.js?v=v0.283.0';
+  setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode
+} from '../src/character-record.js?v=v0.284.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.283.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.284.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -45,6 +45,8 @@ const el = {
   loadCharacter: document.querySelector('#enter-load-character'),
   characterFile: document.querySelector('#enter-character-file'),
   campaignList: document.querySelector('#enter-campaign-list'),
+  playingList: document.querySelector('#enter-playing-list'),
+  joinPanel: document.querySelector('#enter-join-panel'),
   loadCampaign: document.querySelector('#enter-load-campaign'),
   campaignFile: document.querySelector('#enter-campaign-file'),
   chargen: document.querySelector('#enter-chargen'),
@@ -365,7 +367,12 @@ function renderCampaigns() {
     run.href = `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`;
     run.textContent = '[ REFEREE TOOLS ]';
     run.title = 'The older client: scenes, the tactical grid, campaign settings and export';
-    tools.append(run, rename, remove);
+    const link = document.createElement('button');
+    link.type = 'button'; link.className = 'text-button action-button';
+    link.textContent = '[ JOIN LINK ]';
+    link.title = 'Copy the link players open to join this campaign';
+    link.addEventListener('click', () => copyJoinLink(campaign));
+    tools.append(link, run, rename, remove);
     row.append(name, summary, state, tools);
     return row;
   }));
@@ -398,23 +405,18 @@ function renderCharacterRow(record) {
   remove.textContent = '[ DELETE ]';
   remove.addEventListener('click', () => removeRecord(record));
   if (status.enter === 'campaign') {
+    // v0.284.0: PLAY opens the player's page; the old page is retired from
+    // the lobby (player.html still exists for anyone who needs it).
     const enter = document.createElement('a');
     enter.className = 'text-button action-button campaign-transition-action';
-    // v0.277.0: the new player's page. The old one stays a click away
-    // while the new page's fight is being built.
     enter.href = `seat.html?campaign=${encodeURIComponent(status.campaignId)}`;
-    enter.textContent = '[ ENTER WORLD ]';
-    const older = document.createElement('a');
-    older.className = 'text-button';
-    older.href = `player.html?campaign=${encodeURIComponent(status.campaignId)}`;
-    older.textContent = '[ OLD PAGE ]';
-    older.title = 'The previous player page, kept as a fallback while the new one settles in';
+    enter.textContent = '[ PLAY ]';
     const leave = document.createElement('button');
     leave.type = 'button'; leave.className = 'text-button action-button';
-    leave.textContent = '[ LEAVE CAMPAIGN ]';
-    leave.title = 'Stand up from this campaign; the character comes back to the lobby, free to join another';
+    leave.textContent = '[ LEAVE ]';
+    leave.title = 'Leave this campaign; the character comes back to the lobby, free to join another';
     leave.addEventListener('click', () => leaveCampaign(record));
-    tools.append(enter, older, leave, remove);
+    tools.append(enter, leave, remove);
   } else if (status.enter === 'solo') {
     const solo = document.createElement('button');
     solo.type = 'button'; solo.className = 'text-button action-button'; solo.disabled = true;
@@ -438,7 +440,7 @@ function renderCharacterRow(record) {
     tools.append(start);
     const join = document.createElement('button');
     join.type = 'button'; join.className = 'text-button action-button';
-    join.textContent = openJoinFor === record.characterId ? '[ CANCEL ]' : '[ JOIN A CAMPAIGN ]';
+    join.textContent = openJoinFor === record.characterId ? '[ CANCEL ]' : '[ JOIN WITH A LINK ]';
     join.addEventListener('click', () => { openJoinFor = openJoinFor === record.characterId ? null : record.characterId; render(); });
     tools.append(join, remove);
   }
@@ -448,7 +450,7 @@ function renderCharacterRow(record) {
     const joinRow = document.createElement('div');
     joinRow.className = 'enter-join-row';
     const input = document.createElement('input');
-    input.type = 'text'; input.placeholder = 'invite code from your referee'; input.autocomplete = 'off'; input.size = 14;
+    input.type = 'text'; input.placeholder = 'the join link (or code) from your referee'; input.autocomplete = 'off'; input.size = 34;
     input.value = inviteFromUrl ?? '';
     const submit = document.createElement('button');
     submit.type = 'button'; submit.className = 'text-button action-button'; submit.textContent = '[ ASK TO JOIN ]';
@@ -554,7 +556,131 @@ function renderSelectedCharacter() {
   el.selected.replaceChildren(sheet);
 }
 
+// v0.284.0: arriving by a campaign's join link, the lobby asks which of
+// your free characters joins it — or to roll a new one — as D&D Beyond's
+// join page does.
+let joinDismissed = false;
+let joinInvite = { code: null, invite: null, error: null, loading: false };
+async function loadJoinInvite() {
+  if (!inviteFromUrl || !currentUserId() || joinInvite.code === inviteFromUrl) return;
+  joinInvite = { code: inviteFromUrl, invite: null, error: null, loading: true };
+  try {
+    const invite = await readInvite(inviteFromUrl);
+    joinInvite = invite && invite.game === 'traveller' && invite.campaignId
+      ? { code: inviteFromUrl, invite, error: null, loading: false }
+      : { code: inviteFromUrl, invite: null, error: 'That link does not open a Traveller campaign any more. Ask your referee for a new one.', loading: false };
+  } catch (error) {
+    joinInvite = { code: inviteFromUrl, invite: null, error: error?.message ?? String(error), loading: false };
+  }
+  render();
+}
+
+function renderJoinPanel() {
+  const panel = el.joinPanel;
+  if (!panel) return;
+  if (!inviteFromUrl || joinDismissed || !currentUserId()) { panel.hidden = true; return; }
+  panel.hidden = false;
+  const heading = document.createElement('div');
+  heading.className = 'enter-section-heading';
+  const name = joinInvite.invite?.campaignName ?? joinInvite.invite?.campaignId ?? null;
+  heading.textContent = name ? `JOIN ${String(name).toUpperCase()}` : 'JOIN A CAMPAIGN';
+  const body = [];
+  if (joinInvite.loading || joinInvite.code !== inviteFromUrl) body.push(Object.assign(document.createElement('p'), { className: 'enter-empty', textContent: 'READING THE LINK\u2026' }));
+  else if (joinInvite.error) body.push(Object.assign(document.createElement('p'), { className: 'enter-empty', textContent: joinInvite.error.toUpperCase() }));
+  else {
+    const already = records.find((record) => record.world?.campaignId === joinInvite.invite.campaignId || record.pendingJoin?.campaignId === joinInvite.invite.campaignId);
+    if (already) {
+      body.push(Object.assign(document.createElement('p'), { className: 'enter-empty', textContent: `${already.name.toUpperCase()} IS ${already.pendingJoin ? 'ALREADY WAITING FOR A SEAT' : 'ALREADY IN THIS CAMPAIGN'}.` }));
+    }
+    const free = records.filter((record) => !record.pendingJoin && characterRecordStatus(record).enter === null);
+    body.push(Object.assign(document.createElement('p'), { className: 'enter-toolbar-note', textContent: free.length ? 'Choose a character to join with, or roll a new one.' : 'None of your characters is free to join. Roll a new one, or leave a campaign first.' }));
+    for (const record of free) {
+      const pick = document.createElement('button');
+      pick.type = 'button'; pick.className = 'text-button action-button campaign-transition-action';
+      pick.textContent = `[ JOIN WITH ${record.name.toUpperCase()} ]`;
+      pick.title = recordSummary(record);
+      pick.addEventListener('click', () => redeemInvite(record, inviteFromUrl));
+      body.push(pick);
+    }
+  }
+  const roll = document.createElement('button');
+  roll.type = 'button'; roll.className = 'text-button action-button';
+  roll.textContent = '[ ROLL A NEW CHARACTER ]';
+  roll.addEventListener('click', () => startChargen());
+  const later = document.createElement('button');
+  later.type = 'button'; later.className = 'text-button';
+  later.textContent = '[ NOT NOW ]';
+  later.addEventListener('click', () => { joinDismissed = true; render(); });
+  const tools = document.createElement('div'); tools.className = 'enter-character-tools';
+  tools.append(roll, later);
+  panel.replaceChildren(heading, ...body, tools);
+}
+
+// v0.284.0: the campaigns this account plays in, from its own characters'
+// records — the lobby only listed the ones it runs.
+function renderPlaying() {
+  if (!el.playingList) return;
+  const seated = records.filter((record) => record.world?.kind === WORLD_KINDS.CAMPAIGN && record.world.campaignId);
+  const waiting = records.filter((record) => record.pendingJoin?.campaignId);
+  if (!seated.length && !waiting.length) {
+    el.playingList.replaceChildren(Object.assign(document.createElement('div'), { className: 'enter-empty', textContent: 'NONE YET. A REFEREE\u2019S JOIN LINK BRINGS YOU IN.' }));
+    return;
+  }
+  const row = (record, pending) => {
+    const campaignName = pending ? (record.pendingJoin.campaignName || record.pendingJoin.campaignId) : (record.world.campaignName || record.world.campaignId);
+    const entry = document.createElement('div');
+    entry.className = `enter-character${pending ? '' : ' enterable'}`;
+    const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = String(campaignName).toUpperCase();
+    const summary = document.createElement('span'); summary.className = 'enter-character-summary'; summary.textContent = `AS ${record.name.toUpperCase()}`;
+    const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = pending ? 'WAITING FOR THE REFEREE TO LET YOU IN' : 'SEATED';
+    const tools = document.createElement('div'); tools.className = 'enter-character-tools';
+    if (pending) {
+      const withdraw = document.createElement('button');
+      withdraw.type = 'button'; withdraw.className = 'text-button action-button'; withdraw.textContent = '[ WITHDRAW ]';
+      withdraw.addEventListener('click', () => withdrawJoin(record));
+      tools.append(withdraw);
+    } else {
+      const play = document.createElement('a');
+      play.className = 'text-button action-button campaign-transition-action';
+      play.href = `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`;
+      play.textContent = '[ PLAY ]';
+      const leave = document.createElement('button');
+      leave.type = 'button'; leave.className = 'text-button action-button'; leave.textContent = '[ LEAVE ]';
+      leave.addEventListener('click', () => leaveCampaign(record));
+      tools.append(play, leave);
+    }
+    entry.append(name, summary, state, tools);
+    return entry;
+  };
+  el.playingList.replaceChildren(...seated.map((record) => row(record, false)), ...waiting.map((record) => row(record, true)));
+}
+
+// v0.284.0: a campaign's join link — its open invite, or a new one — copied
+// to the clipboard, and shown in case the browser will not copy.
+async function copyJoinLink(campaign) {
+  try {
+    setStatus('FINDING THE JOIN LINK\u2026');
+    const open = await listCampaignInvites(campaign.campaignId);
+    let code = open[0]?.code ?? null;
+    if (!code) {
+      const invite = createTravellerInvite({ code: generateInviteCode(), ownerUid: currentUserId(), campaignId: campaign.campaignId, campaignName: campaign.name ?? null });
+      await createInvite(invite);
+      code = invite.code;
+    }
+    const link = joinLinkFor(code);
+    let copied = false;
+    try { await navigator.clipboard.writeText(link); copied = true; } catch { copied = false; }
+    setStatus(copied ? 'JOIN LINK COPIED. SEND IT TO YOUR PLAYERS.' : 'COPY THE JOIN LINK BELOW AND SEND IT TO YOUR PLAYERS.', 'ok');
+    if (!copied) window.prompt('The join link for your players:', link);
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function renderCharacters() {
+  renderJoinPanel();
+  renderPlaying();
   const draftRow = renderDraftRow();
   if (!records.length && !draftRow) {
     const empty = document.createElement('div');
@@ -600,8 +726,23 @@ async function leaveCampaign(record) {
 
 // --- Invites ---------------------------------------------------------------
 
+// v0.284.0: a join link or a bare code, whichever the referee sent.
+function inviteCodeFrom(text) {
+  const raw = String(text ?? '').trim();
+  try {
+    const url = new URL(raw);
+    return normalizeInviteCode(url.searchParams.get('join') ?? url.searchParams.get('invite') ?? '');
+  } catch { return normalizeInviteCode(raw); }
+}
+
+function joinLinkFor(code) {
+  const url = new URL('enter.html', window.location.href);
+  url.search = `?join=${encodeURIComponent(code)}`;
+  return url.toString();
+}
+
 async function redeemInvite(record, rawCode) {
-  const code = normalizeInviteCode(rawCode);
+  const code = inviteCodeFrom(rawCode);
   try {
     if (!code) throw new Error('enter the invite code your referee sent you');
     const invite = await readInvite(code);
@@ -613,6 +754,7 @@ async function redeemInvite(record, rawCode) {
     const pending = setCharacterRecordPendingJoin(record, { campaignId: invite.campaignId, campaignName: invite.campaignName ?? null, code });
     await saveCharacterRecord(pending);
     openJoinFor = null;
+    joinDismissed = true;
     setStatus(`${record.name.toUpperCase()} IS WAITING FOR A SEAT AT ${String(invite.campaignName ?? invite.campaignId).toUpperCase()}`, 'ok');
   } catch (error) {
     console.error(error);
@@ -756,7 +898,8 @@ el.save.addEventListener('click', saveCharacter);
 el.discard.addEventListener('click', discardCharacter);
 
 // An invite in the link pre-fills the code once a character is chosen.
-const inviteFromUrl = normalizeInviteCode(new URLSearchParams(window.location.search).get('invite')) || null;
+// v0.284.0: ?join= is the join link; ?invite= still works.
+const inviteFromUrl = normalizeInviteCode(new URLSearchParams(window.location.search).get('join') ?? new URLSearchParams(window.location.search).get('invite')) || null;
 
 onAuthChange(() => {
   watchRecords();
@@ -764,7 +907,7 @@ onAuthChange(() => {
   else { campaigns = []; campaignsLoadedFor = null; }
   // Sign-in lands on the list; a draft from before a reload is offered there.
   if (!currentUserId()) { character = null; view = 'characters'; }
-  if (inviteFromUrl && currentUserId()) setStatus(`INVITE ${inviteFromUrl} READY / CHOOSE A CHARACTER AND ASK TO JOIN`, 'ok');
+  if (inviteFromUrl && currentUserId()) loadJoinInvite();
   render();
 });
 initAuth().then(render);

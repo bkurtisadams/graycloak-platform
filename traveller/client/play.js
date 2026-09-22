@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.283.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.283.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.283.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.283.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.283.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.283.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.283.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.283.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.283.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.284.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.284.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.284.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.284.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.284.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.284.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.284.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.284.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.284.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1005,7 +1005,12 @@ async function runSeat(action, seat) {
         campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null
       });
       await cloud.createInvite(invite);
-      window.prompt('Give this code to the player. It stays open until revoked.', invite.code);
+      // v0.284.0: a link the player opens, not a code they type.
+      const url = new URL('enter.html', window.location.href);
+      url.search = `?join=${encodeURIComponent(invite.code)}`;
+      let copied = false;
+      try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
+      window.prompt(`${copied ? 'Copied. ' : ''}Send this join link to your players. It stays open until revoked.`, url.toString());
     } else if (action === 'revoke') {
       if (!window.confirm(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`)) return;
       await cloud.revokeInvite(seat.code);
