@@ -62,7 +62,7 @@ import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
   setCampaignOwner, speculativeLotPurchasedQuantity, updateCampaignLocation, advanceCampaignDays,
   addSceneToCampaign, removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter,
-  addCharacterToCampaign, removeCharacterFromCampaign, characterFolder, setCharacterFolders
+  addCharacterToCampaign, removeCharacterFromCampaign, characterFolder, setCharacterFolders, setDocumentOwner
 } from './campaign-document.js';
 import {
   createSceneDocument, updateSceneDocument, sceneIsVectorBoard, sceneThumbnailSvg, DEFAULT_SCENE_FOLDER,
@@ -94,7 +94,7 @@ import { setCombatantCurrent } from './encounter-document.js';
 const contractCargoId = (contract) => `${contract.identity.id}:cargo`;
 import { appendActivityLogEntry, createActivityLogDocument, mergeActivityLogHistory } from './activity-log-document.js';
 import { StaleCampaignHomeError, createCampaignHome, importCampaignHome, nextCampaignHome } from './campaign-home.js';
-import { buildPublishedCampaign, buildPublishedScene } from './published-view.js';
+import { buildPublishedCampaign, buildPublishedScene, buildPublishedCharacter } from './published-view.js';
 
 const SERVICE_NAMES = Object.freeze({ navy: 'Navy', marines: 'Marines', army: 'Army', scouts: 'Scout', merchants: 'Merchant', other: 'Other' });
 const PHYSICAL = Object.freeze(['STR', 'DEX', 'END']);
@@ -1938,6 +1938,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     }
   }
 
+  const publishedSheets = new Map();
   async function saveToCloud() {
     const uid = cloud?.userId?.();
     if (!uid || save.state === 'stale') return null;
@@ -1957,6 +1958,24 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         ship, activeScene: scene ? buildPublishedScene(scene, { names }) : null
       });
       revision = await cloud.save(home, envelope, { expectedRevision: revision });
+      // v0.274.0: each seated player's own sheet, which player.html reads.
+      // Only the referee client wrote these, so a character played from this
+      // page kept whatever sheet that client last published. Written only
+      // when it changed.
+      if (typeof cloud.publishPlayerCharacter === 'function') {
+        const owners = campaign.ownership?.actors ?? {};
+        for (const character of resolved.characters ?? []) {
+          const ownerUid = owners[character.identity.id];
+          if (!ownerUid || ownerUid === uid) continue;
+          const sheet = buildPublishedCharacter(character, { campaignId, ownerUid, publishedAt: 0 });
+          const key = JSON.stringify(sheet);
+          if (publishedSheets.get(character.identity.id) === key) continue;
+          try {
+            await cloud.publishPlayerCharacter(buildPublishedCharacter(character, { campaignId, ownerUid, publishedAt: Date.now() }));
+            publishedSheets.set(character.identity.id, key);
+          } catch (error) { console.warn('[traveller] player sheet:', character.identity.id, error?.code ?? error); }
+        }
+      }
       if (!campaignIsPublished(resolved.campaign)) { registry.put(markCampaignPublished(resolved.campaign, home.savedAt)); reload(); }
       setSave('cloud', `Saved to the cloud, revision ${revision}`);
       return revision;
@@ -2393,6 +2412,34 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           }
           persist([next]);
           lastMessage = { ok: true, message: `${next.identity.name}: changed.` };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        }
+        // v0.274.0: a player's character seated from a join request. The play
+        // page's Admit only seated the account; the character itself never
+        // reached the campaign, so it was in nobody's Actors tab (Kurt, Sep
+        // 2026). The referee client's SEAT did all of it; this is the
+        // campaign half, and the page does the cloud half around it.
+        if (verb === 'admit') {
+          const value = fight?.value ?? {};
+          if (!value.ownerUid) throw new Error('whose character is this?');
+          const character = importCharacterDocument(value.character);
+          if ((resolved.characters ?? []).some((entry) => entry.identity.id === character.identity.id)) {
+            // Already here (an earlier Admit that stopped half-way): make sure
+            // it is theirs and in the party, and carry on.
+            let campaign = setDocumentOwner(resolved.campaign, { documentId: character.identity.id, ownerUid: value.ownerUid });
+            if (!campaign.party.characterIds.includes(character.identity.id)) campaign = addCharacterToCampaign(campaign, character, { active: true, makeActive: false });
+            registry.put(campaign);
+          } else {
+            let campaign = addCharacterToCampaign(resolved.campaign, character, { active: true, makeActive: false });
+            campaign = setDocumentOwner(campaign, { documentId: character.identity.id, ownerUid: value.ownerUid });
+            registry.putAll([character, campaign]);
+          }
+          reload();
+          const message = `${character.identity.name || '(unnamed)'} joins the campaign${value.playerName ? ` with ${value.playerName}` : ''}.`;
+          log('SYSTEM', message);
+          lastMessage = { ok: true, message, characterId: character.identity.id };
           onChange();
           saveToCloud();
           return lastMessage;

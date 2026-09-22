@@ -3,13 +3,13 @@
 // calls src/play-session.js asks for. Sign-in is per tab (auth.js keeps a
 // session), so arriving from the lobby in the same tab arrives signed in.
 
-import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.273.0';
+import { initAuth, currentUserId, onAuthChange, signIn, signInWithEmail, createAccountWithEmail, signOutOfTraveller, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.274.0';
 import {
   saveCampaignHome, loadCampaignHome, listOwnCampaigns,
   seatPlayer, unseatPlayer, listSeatedPlayers,
   createInvite, deleteInvite, listCampaignInvites,
-  watchJoinRequests, deleteJoinRequest
-} from './publish.js?v=v0.273.0';
+  watchJoinRequests, deleteJoinRequest, setCharacterRecordWorldRemote, publishPlayerCharacter
+} from './publish.js?v=v0.274.0';
 
 export function createPlayCloud() {
   return {
@@ -37,6 +37,11 @@ export function createPlayCloud() {
     revokeInvite: (code) => deleteInvite(code),
     watchJoins: (campaignId, onChange) => watchJoinRequests(campaignId, onChange),
     dismissJoin: (campaignId, uid) => deleteJoinRequest(campaignId, uid),
+    // v0.274.0: the rest of seating a player, which only the referee client
+    // did: the player's own record says where the character is (the lobby's
+    // ENTER WORLD reads it), and their sheet is published for player.html.
+    placeCharacter: (characterId, world) => setCharacterRecordWorldRemote(characterId, world),
+    publishPlayerCharacter: (published) => publishPlayerCharacter(published),
     save: (home, envelope, options) => saveCampaignHome(home, envelope, options)
   };
 }

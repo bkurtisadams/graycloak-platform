@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.273.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.273.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.273.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.273.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.273.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.273.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.273.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.273.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.273.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.274.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.274.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.274.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.274.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.274.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.274.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.274.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.274.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.274.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -967,8 +967,19 @@ async function runSeat(action, seat) {
       if (!window.confirm(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`)) return;
       await cloud.revokeInvite(seat.code);
     } else if (action === 'admit') {
-      await cloud.seat(campaignId, seat.uid, seat.name ?? null);
+      // v0.274.0: all of seating, in the referee client's order: the
+      // character into the campaign as theirs, the seat, their record's
+      // world, then the request cleared. Admit used to do only the seat.
+      const join = (ui.players?.joins ?? []).find((entry) => entry.uid === seat.uid);
+      if (!join?.character) throw new Error('that request no longer carries a character; ask the player to request again');
+      const added = source.session.run('character:admit', { fight: { value: { character: join.character, ownerUid: join.uid, playerName: join.name ?? null } } });
+      if (!added.ok) throw new Error(added.message);
+      await cloud.seat(campaignId, seat.uid, join.name ?? seat.name ?? null);
+      await cloud.placeCharacter(join.characterId, {
+        kind: 'campaign', campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null, since: Date.now()
+      });
       await cloud.dismissJoin(campaignId, seat.uid);
+      await source.session.saveToCloud();
     } else if (action === 'decline') {
       await cloud.dismissJoin(campaignId, seat.uid);
     } else if (action === 'unseat') {

@@ -1049,3 +1049,34 @@ test('Vehicles says where a ship is and what it can do', async () => {
   assert.match(ship.note, /fuel 22\/40 t/);
   assert.match(ship.note, /berthed at orison/);
 });
+
+// v0.274.0: Kurt admitted a character to Sea of Suns from the play page and
+// it never reached the Actors tab — Admit only seated the account.
+test('v0.274.0 admitting a join request puts the character in the campaign, in the party, as the player\u2019s, and publishes their sheet', async () => {
+  const { registry, campaignId } = await atOrison();
+  const published = [];
+  const cloud = { ...fakeCloud(), publishPlayerCharacter: async (sheet) => { published.push(sheet); } };
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  const own = registry.resolveCampaign(campaignId).characters[0];
+  const newcomer = JSON.parse(JSON.stringify(own));
+  newcomer.identity = { ...newcomer.identity, id: 'char-newcomer', name: 'Leona Kade' };
+  const admitted = session.run('character:admit', { fight: { value: { character: newcomer, ownerUid: 'player-7', playerName: 'BK' } } });
+  assert.equal(admitted.ok, true, admitted.message);
+  const resolved = registry.resolveCampaign(campaignId);
+  assert.ok(resolved.characters.some((entry) => entry.identity.id === 'char-newcomer'));
+  assert.ok(resolved.campaign.party.characterIds.includes('char-newcomer'));
+  assert.equal(resolved.campaign.ownership.actors['char-newcomer'], 'player-7');
+  assert.notEqual(resolved.campaign.activeCharacterId, 'char-newcomer', 'the referee\u2019s view does not jump to them');
+  const rows = session.view({ referee: { tab: 'Actors', folder: 'Player characters' } }).referee.shown;
+  assert.ok(rows.some((entry) => entry.name === 'Leona Kade'), 'and it is in the Actors tab');
+
+  await settle(); await settle();
+  assert.ok(published.some((sheet) => sheet.characterId === 'char-newcomer' && sheet.ownerUid === 'player-7'), 'their sheet goes up for player.html');
+  const count = published.length;
+  session.saveToCloud(); await settle(); await settle();
+  assert.equal(published.length, count, 'an unchanged sheet is not written again');
+
+  // A second Admit of the same character (one that stopped half-way) repairs rather than duplicates.
+  assert.equal(session.run('character:admit', { fight: { value: { character: newcomer, ownerUid: 'player-7' } } }).ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).characters.filter((entry) => entry.identity.id === 'char-newcomer').length, 1);
+});
