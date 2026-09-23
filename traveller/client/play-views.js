@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.291.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.291.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.291.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.292.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.292.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.292.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.291.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.291.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.291.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.291.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.292.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.292.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.292.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.292.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.291.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.292.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1383,6 +1383,7 @@ function playersPanel(model, state, handlers) {
       state.live && model.approvePlayers ? h('span', { class: 'seat-actions' },
         h('button', { type: 'button', class: 'button is-small', text: 'Approve', onclick: () => act('admit', { kind: 'join', uid: request.uid, characterId: request.characterId, name: request.name }) }),
         h('button', { type: 'button', class: 'button is-small', text: 'Decline', onclick: () => act('decline', { kind: 'join', uid: request.uid }) })) : null)), 'Nobody is waiting.'),
+    state.live ? h('p', { class: 'cite' }, h('button', { type: 'button', class: 'button is-small', text: 'Refresh', title: 'Read seats, links and joins again', onclick: () => act('refresh', {}) })) : null,
     section(`Players (${model.members.length})`, model.members.map((member) => h('li', { class: 'entry' },
       h('span', { class: 'entry-name', text: member.name }),
       h('span', { class: 'entry-note', text: `${member.characters.length

@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.291.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.291.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.291.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.291.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.291.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.291.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.291.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.291.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.291.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.292.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.292.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.292.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.292.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.292.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.292.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.292.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.292.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.292.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -961,11 +961,16 @@ const watching = { chatFor: null, chatStop: null, fightFor: null, fightStops: []
 // unless the referee approves players; one that fails is tried again on the
 // next change instead of being forgotten.
 function onJoins(joins) {
+  console.info('[traveller] joins for', source.session.resolved.campaign.identity.id, ':', joins.map((join) => `${join.name ?? join.uid} with ${join.characterName ?? join.characterId}`));
   ui.players = { seats: [], invites: [], ...(ui.players ?? {}), joins };
+  // v0.292.0: the seats and links, read fresh — a join changes them, and the
+  // Players tab showed empty lists made up here until someone reopened it.
+  refreshPlayers();
   if (!source.session.resolved.campaign.roster?.approvePlayers) {
     for (const join of joins) {
       if (autoAdmitted.has(join.uid)) continue;
       autoAdmitted.add(join.uid);
+      console.info('[traveller] bringing in', join.characterName ?? join.characterId, 'for', join.name ?? join.uid);
       runSeat('admit', { kind: 'join', uid: join.uid, characterId: join.characterId ?? null, name: join.name ?? null })
         .then((ok) => { if (ok === false) autoAdmitted.delete(join.uid); });
     }
@@ -988,6 +993,9 @@ function syncMultiplayer() {
     watching.joinsStop?.(); watching.joinsStop = null;
     watching.joinsFor = campaignId;
     if (campaignId) {
+      // v0.292.0: the Players tab's lists read once the campaign is live and
+      // signed in, not only when the tab is clicked.
+      refreshPlayers();
       Promise.resolve(cloud.watchJoins(campaignId, onJoins))
         .then((stop) => { if (watching.joinsFor === campaignId) watching.joinsStop = typeof stop === 'function' ? stop : null; else stop?.(); })
         .catch((error) => console.warn('[traveller] joins:', error));
@@ -1060,6 +1068,8 @@ async function runSeat(action, seat) {
       let copied = false;
       try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
       window.prompt(`${copied ? 'Copied. ' : ''}The join link for your players:`, url.toString());
+    } else if (action === 'refresh') {
+      // v0.292.0: nothing to do but read again (below).
     } else if (action === 'approve-setting') {
       // v0.289.0: the setting, and every open link told of it (rules v20
       // seat a link's holder at once only when it does not ask approval).
@@ -1109,7 +1119,7 @@ async function runSeat(action, seat) {
     await refreshPlayers();
     return true;
   } catch (error) {
-    console.warn('[traveller] players:', action, error);
+    console.error('[traveller] players:', action, error);
     ui.players = { ...(ui.players ?? { seats: [], invites: [], joins: [] }), loading: false, error: cloud.describeError(error) };
     render();
     return false;
