@@ -55,7 +55,7 @@ test('invite codes avoid ambiguous glyphs and normalise on entry', () => {
   assert.doesNotMatch(generateInviteCode({ random: Math.random, length: 200 }), /[01IO]/);
   assert.equal(normalizeInviteCode(' ab-c2 34 '), 'ABC234');
   const invite = createTravellerInvite({ code: 'abc234', ownerUid: 'uid-ref', campaignId: 'sea-of-suns', campaignName: 'Sea of Suns', createdAt: 1 });
-  assert.deepEqual(invite, { code: 'ABC234', game: 'traveller', ownerUid: 'uid-ref', campaignId: 'sea-of-suns', campaignName: 'Sea of Suns', createdAt: 1 });
+  assert.deepEqual(invite, { code: 'ABC234', game: 'traveller', ownerUid: 'uid-ref', campaignId: 'sea-of-suns', campaignName: 'Sea of Suns', createdAt: 1, approval: false, refereeName: null }, 'v0.289.0: a link seats at once unless it asks approval');
   assert.throws(() => createTravellerInvite({ code: '', ownerUid: 'x', campaignId: 'y' }), TypeError);
 });
 

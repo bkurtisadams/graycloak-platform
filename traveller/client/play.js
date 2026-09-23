@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.288.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.288.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.288.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.288.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.288.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.288.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.288.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.288.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.288.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.289.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.289.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.289.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.289.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.289.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.289.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.289.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.289.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.289.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1003,7 +1003,8 @@ async function runSeat(action, seat) {
     if (action === 'invite') {
       const invite = createTravellerInvite({
         code: generateInviteCode(), ownerUid: cloud.userId(),
-        campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null
+        campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null,
+        approval: Boolean(source.session.resolved.campaign.roster?.approvePlayers), refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null
       });
       await cloud.createInvite(invite);
       // v0.284.0: a link the player opens, not a code they type.
@@ -1020,7 +1021,8 @@ async function runSeat(action, seat) {
       if (action === 'reset-link') {
         if (code && !window.confirm('Make a new join link? The current one stops working.')) return;
         for (const invite of await cloud.listInvites(campaignId)) await cloud.revokeInvite(invite.code);
-        const invite = createTravellerInvite({ code: generateInviteCode(), ownerUid: cloud.userId(), campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null });
+        const invite = createTravellerInvite({ code: generateInviteCode(), ownerUid: cloud.userId(), campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null,
+          approval: Boolean(source.session.resolved.campaign.roster?.approvePlayers), refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null });
         await cloud.createInvite(invite);
         code = invite.code;
       }
@@ -1029,8 +1031,12 @@ async function runSeat(action, seat) {
       let copied = false;
       try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
       window.prompt(`${copied ? 'Copied. ' : ''}The join link for your players:`, url.toString());
-    } else if (action === 'auto-admit') {
-      source.session.run('players:auto-admit', { fight: { value: Boolean(seat) } });
+    } else if (action === 'approve-setting') {
+      // v0.289.0: the setting, and every open link told of it (rules v20
+      // seat a link's holder at once only when it does not ask approval).
+      const on = Boolean(seat);
+      source.session.run('players:approve', { fight: { value: on } });
+      for (const invite of await cloud.listInvites(campaignId)) await cloud.createInvite({ ...invite, approval: on });
     } else if (action === 'remove') {
       // v0.285.0: Remove — seat, log and party place go; the character goes
       // home with its sheet; the referee may keep a copy.
@@ -1250,7 +1256,10 @@ async function start() {
         ui.players = { seats: [], invites: [], ...(ui.players ?? {}), joins };
         // v0.285.0: let in at once, if the referee chose it, while this page
         // is open (it is what brings the character into the campaign).
-        if (source.session.resolved.campaign.roster?.autoAdmit) {
+        // v0.289.0: players join by link at once unless the referee asks to
+        // approve them; this page brings their character in when it sees
+        // them, so it happens whenever the referee next opens the campaign.
+        if (!source.session.resolved.campaign.roster?.approvePlayers) {
           for (const join of joins) {
             if (autoAdmitted.has(join.uid)) continue;
             autoAdmitted.add(join.uid);

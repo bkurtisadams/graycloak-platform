@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.288.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.288.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.289.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.289.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -115,6 +115,15 @@ export async function releaseSeat(campaignId, uid) {
   const db = await ensureFirestore();
   await playerRef(db, campaignId, uid).collection('log').doc('current').delete().catch(() => {});
   await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid).delete();
+  return uid;
+}
+
+// v0.289.0: Join, as the player does it — their own seat, by a join link
+// that seats its holder (rules v20).
+export async function seatSelf(campaignId, uid, { name = null, code } = {}) {
+  const db = await ensureFirestore();
+  await db.collection('travellerCampaigns').doc(campaignId).collection('players').doc(uid)
+    .set({ uid, name: name ?? null, seatedAt: Date.now(), code });
   return uid;
 }
 

@@ -7,18 +7,18 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.288.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.288.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.288.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.289.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.289.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.289.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.288.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.288.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.288.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.288.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.289.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.289.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.289.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.289.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +33,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.288.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.289.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1374,13 +1374,13 @@ function playersPanel(model, state, handlers) {
         model.link ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Copy link', onclick: () => act('copy-link', { code: model.link }) }) : null,
         h('button', { type: 'button', class: 'button is-small', text: model.link ? 'Reset link' : 'Make a link',
           title: model.link ? 'A new link; the old one stops working' : 'Make the campaign\u2019s join link', onclick: () => act('reset-link', {}) })) : null,
-      state.live ? h('label', { class: 'sheet-check', title: 'Only while this page is open: your page is what brings a character in' },
-        h('input', { type: 'checkbox', checked: model.autoAdmit, onchange: (event) => act('auto-admit', event.currentTarget.checked) }),
-        ' Let players in as soon as they ask') : null),
-    section(`Asking to join (${model.requests.length})`, model.requests.map((request) => h('li', { class: 'entry' },
+      state.live ? h('label', { class: 'sheet-check', title: 'Off: players who open your link join at once, and you can Remove anyone' },
+        h('input', { type: 'checkbox', checked: model.approvePlayers, onchange: (event) => act('approve-setting', event.currentTarget.checked) }),
+        ' Approve players myself') : null),
+    !model.approvePlayers && !model.requests.length ? null : section(`${model.approvePlayers ? 'Asking to join' : 'Joining'} (${model.requests.length})`, model.requests.map((request) => h('li', { class: 'entry' },
       h('span', { class: 'entry-name', text: request.characterName ? `${request.characterName}` : request.name }),
-      h('span', { class: 'entry-note', text: `${request.name}` }),
-      state.live ? h('span', { class: 'seat-actions' },
+      h('span', { class: 'entry-note', text: model.approvePlayers ? `${request.name}` : `${request.name} \u00b7 coming in now` }),
+      state.live && model.approvePlayers ? h('span', { class: 'seat-actions' },
         h('button', { type: 'button', class: 'button is-small', text: 'Approve', onclick: () => act('admit', { kind: 'join', uid: request.uid, characterId: request.characterId, name: request.name }) }),
         h('button', { type: 'button', class: 'button is-small', text: 'Decline', onclick: () => act('decline', { kind: 'join', uid: request.uid }) })) : null)), 'Nobody is waiting.'),
     section(`Players (${model.members.length})`, model.members.map((member) => h('li', { class: 'entry' },

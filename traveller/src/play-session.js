@@ -1205,7 +1205,9 @@ export function playersModel(resolved, players) {
   const charactersOf = (uid) => Object.entries(owners).filter(([id, owner]) => owner === uid && characters.some((entry) => entry.identity.id === id)).map(([id]) => ({ id, name: nameOf(id), fighting: fighting.has(id) }));
   return {
     link: (players?.invites ?? [])[0]?.code ?? null,
-    autoAdmit: Boolean(campaign.roster?.autoAdmit),
+    // v0.289.0: players join by link at once unless the referee asks to
+    // approve each one.
+    approvePlayers: Boolean(campaign.roster?.approvePlayers),
     requests: (players?.joins ?? []).map((join) => ({
       uid: join.uid, name: join.name || join.uid, characterId: join.characterId ?? null,
       characterName: join.characterName ?? join.character?.identity?.name ?? null, code: join.code ?? null
@@ -3568,13 +3570,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
-      if (command === 'players:auto-admit') {
+      if (command === 'players:approve') {
         const on = Boolean(fight?.value);
-        registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, autoAdmit: on } });
+        registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, approvePlayers: on } });
         reload();
         onChange();
         saveToCloud();
-        return { ok: true, message: on ? 'Players joining by link are let in at once.' : 'Requests to join wait for you.' };
+        return { ok: true, message: on ? 'Players who open your link wait for your approval.' : 'Players who open your link join at once.' };
       }
       // v0.282.0: the referee's Clear reaches the players' chat too. Nothing
       // is deleted (Export still has everything); the time is kept on the

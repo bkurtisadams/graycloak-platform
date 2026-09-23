@@ -5821,6 +5821,15 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .sidebar-body:empty { min-height: 0; }
 
 /* v0.284.0: arriving by a join link. */
-.enter-join-panel { border: 2px solid var(--ink, currentColor); padding: 10px 12px; margin-bottom: 14px; display: grid; gap: 8px; }
+.enter-join-panel { border: 2px solid var(--ink, currentColor); padding: 10px 12px; margin-bottom: 14px; display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 8px; }
 .enter-join-panel .enter-section-heading { margin: 0; }
 .enter-join-panel .enter-character-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* v0.289.0: the lobby's [ ⋯ ] menus and NEW CAMPAIGN. */
+.enter-more { position: relative; display: inline-block; }
+.enter-more > summary { list-style: none; cursor: pointer; }
+.enter-more > summary::-webkit-details-marker { display: none; }
+.enter-more[open] > .enter-more-list { position: absolute; right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; margin-top: 4px; background: var(--paper, #f6f3ec); border: 1px solid currentColor; min-width: 180px; }
+.enter-more-list .text-button { text-align: left; }
+.enter-new-campaign { display: grid; gap: 6px; margin-bottom: 10px; justify-items: start; }
+.enter-join-panel > * { grid-area: auto; grid-column: 1; }

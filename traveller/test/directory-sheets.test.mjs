@@ -2095,7 +2095,8 @@ test('v0.285.0 the Players tab draws the link, requests, members with Remove, an
   document.querySelector('main').replaceChildren(...renderDrawer('referee', state, state.referee, { onSeat: (action, value) => acted.push([action, value]) }));
   const text = document.querySelector('main').textContent;
   assert.match(text, /Join link/);
-  assert.match(text, /Asking to join \(1\)/);
+  assert.match(text, /Joining \(1\)/, 'v0.289.0: with approval off, a join comes in by itself');
+  assert.match(text, /Approve players myself/);
   assert.match(text, /Players \(1\)/);
   assert.match(text, /plays Hawkeye · here now/);
   assert.equal(document.querySelector('.folder-row'), null, 'no folders');

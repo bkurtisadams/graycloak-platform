@@ -13,6 +13,7 @@
 // list of their own campaigns.
 // v15 lets an owner start a campaign of their own with their own character.
 // v16 adds table chat.
+// v20 lets a join link seat its holder and the owner move their character in.
 // v19 lets a player delete their own seat and read their own sheet unseated.
 // v18 lets a character's owner stand it up from its campaign (to unassigned).
 // v17 adds the wounded player's own wound distribution, which Book 1 p.30
@@ -531,6 +532,34 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/encounters/${ENCOUNTER}/view/current`).get());
     await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/players/${OUTSIDER}`).set({ seatedAt: 1 }));
     await assertFails(outsider.doc(`travellerCampaigns/${CAMPAIGN}/players/${OUTSIDER}/characters/${PC}`).set({ ownerUid: OUTSIDER }));
+  });
+
+  // v20: join by link in one step. The link is the key: a player seats
+  // themselves with a code that opens this campaign and does not ask for
+  // approval, then moves their own character in where they hold a seat.
+  await t.test('v20: a join link seats its holder, unless it asks for approval', async () => {
+    const JOINER = 'uid-joiner';
+    const joiner = env.authenticatedContext(JOINER).firestore();
+    const seat = `travellerCampaigns/${CAMPAIGN}/players/${JOINER}`;
+    await assertSucceeds(referee.doc('invites/SEATS2').set({ code: 'SEATS2', game: 'traveller', ownerUid: REFEREE, campaignId: CAMPAIGN, campaignName: 'Sea of Suns', createdAt: 1, approval: false }));
+    await assertSucceeds(referee.doc('invites/ASKME2').set({ code: 'ASKME2', game: 'traveller', ownerUid: REFEREE, campaignId: CAMPAIGN, campaignName: 'Sea of Suns', createdAt: 1, approval: true }));
+    await assertFails(joiner.doc(seat).set({ uid: JOINER, name: 'Ann', seatedAt: 1 }), 'no code, no seat');
+    await assertFails(joiner.doc(seat).set({ uid: JOINER, name: 'Ann', seatedAt: 1, code: 'ASKME2' }), 'a link that asks approval does not seat');
+    await assertFails(joiner.doc(seat).set({ uid: JOINER, name: 'Ann', seatedAt: 1, code: 'NOPE22' }), 'nor one that does not exist');
+    await assertFails(joiner.doc(`travellerCampaigns/${CAMPAIGN}/players/${SECOND}`).set({ uid: SECOND, seatedAt: 1, code: 'SEATS2' }), 'nor anyone else\u2019s seat');
+    await assertFails(joiner.doc(seat).set({ uid: JOINER, seatedAt: 1, code: 'SEATS2', admin: true }), 'and it says nothing more');
+    // Their character, not yet anywhere, cannot move in before they are seated.
+    const record = `travellerCharacters/char-joiner`;
+    const unassigned = { kind: 'unassigned', campaignId: null, campaignName: null, since: null };
+    const inCampaign = { kind: 'campaign', campaignId: CAMPAIGN, campaignName: 'Sea of Suns', since: 5 };
+    await assertSucceeds(joiner.doc(record).set({ schemaVersion: 1, characterId: 'char-joiner', ownerUid: JOINER, name: 'Leona', world: unassigned, pendingJoin: null, updatedAt: 1 }));
+    await assertFails(joiner.doc(record).update({ world: inCampaign, updatedAt: 5 }), 'not without a seat');
+    await assertSucceeds(joiner.doc(seat).set({ uid: JOINER, name: 'Ann', seatedAt: 1, code: 'SEATS2' }));
+    await assertSucceeds(joiner.doc(`travellerCampaigns/${CAMPAIGN}`).get(), 'seated: they read the campaign');
+    await assertFails(joiner.doc(record).update({ world: inCampaign, name: 'Sneaky', updatedAt: 5 }), 'moving it in touches nothing else');
+    await assertSucceeds(joiner.doc(record).update({ world: inCampaign, pendingJoin: null, updatedAt: 5 }));
+    await assertFails(joiner.doc(record).update({ world: { ...inCampaign, campaignId: 'someone-elses' }, updatedAt: 6 }), 'only where they hold a seat');
+    await assertSucceeds(referee.doc(seat).delete());
   });
 
   await t.test('the existing AD&D rules still hold', async () => {

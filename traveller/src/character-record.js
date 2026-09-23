@@ -117,12 +117,15 @@ export function normalizeInviteCode(code) {
   return String(code ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
-export function createTravellerInvite({ code, ownerUid, campaignId, campaignName = null, createdAt = Date.now() } = {}) {
+// v0.289.0: approval — whether the link asks for the referee's yes (rules
+// v20 seat its holder at once otherwise); refereeName — shown on the join
+// page ("Join Sea of Suns — referee BK Adams").
+export function createTravellerInvite({ code, ownerUid, campaignId, campaignName = null, createdAt = Date.now(), approval = false, refereeName = null } = {}) {
   const normalized = normalizeInviteCode(code);
   if (!normalized) throw new TypeError('an invite code is required');
   if (!nonblank(ownerUid)) throw new TypeError('ownerUid is required');
   if (!nonblank(campaignId)) throw new TypeError('campaignId is required');
-  return { code: normalized, game: 'traveller', ownerUid: ownerUid.trim(), campaignId: campaignId.trim(), campaignName, createdAt };
+  return { code: normalized, game: 'traveller', ownerUid: ownerUid.trim(), campaignId: campaignId.trim(), campaignName, createdAt, approval: Boolean(approval), refereeName: refereeName ?? null };
 }
 
 // --- Join requests ---------------------------------------------------------

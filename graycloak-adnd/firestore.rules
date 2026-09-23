@@ -1,4 +1,13 @@
-// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v19
+// Firestore Security Rules for GCC / Graycloak AD&D / Traveller v20
+// v20 lets a player join by link in one step, as D&D Beyond and Roll20 do:
+//   travellerCampaigns/{id}/players/{uid} — a player may create their own
+//     seat, carrying a join link's code that opens this campaign, when that
+//     link does not ask for the referee's approval.
+//   travellerCharacters/{id} — its owner may move it into a campaign where
+//     they hold a seat (touching nothing but world, pendingJoin, updatedAt).
+//   The referee's page brings the character into the campaign itself when
+//   it next opens; Remove and Reset link undo an unwanted join.
+//
 // v19 makes leaving a campaign real, and lets a character come home with
 //   what happened to it:
 //   travellerCampaigns/{id}/players/{uid} — the seated player may delete
@@ -277,6 +286,13 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/invites/$(code)).data.get('campaignId', '') == campaignId;
     }
 
+    // v20: a join link that seats its holder at once — one that opens this
+    // campaign and does not ask for the referee's approval.
+    function travellerInviteSeats(code, campaignId) {
+      return travellerInviteOpens(code, campaignId)
+        && get(/databases/$(database)/documents/invites/$(code)).data.get('approval', false) != true;
+    }
+
     // The referee of the campaign a character's world names. An unassigned
     // world carries null in campaignId, which would raise inside a path, so
     // the type is checked first and && short-circuits.
@@ -320,7 +336,13 @@ service cloud.firestore {
       // read the roster and update nothing but their own seat.
       match /players/{playerUid} {
         allow read: if isAtTravellerTable(campaignId);
-        allow create: if isTravellerReferee(campaignId);
+        allow create: if isTravellerReferee(campaignId)
+          // v20: or the player seats themselves with a join link that
+          // seats its holder, saying so and nothing more.
+          || (isAuthed() && request.auth.uid == playerUid
+            && request.resource.data.keys().hasOnly(['uid', 'name', 'seatedAt', 'code', 'lastSeenAt'])
+            && declarationField('uid') == playerUid
+            && travellerInviteSeats(declarationField('code'), campaignId));
         // v19: the player may stand up from their own seat.
         allow delete: if isTravellerReferee(campaignId)
           || (isAuthed() && request.auth.uid == playerUid);
@@ -519,6 +541,14 @@ service cloud.firestore {
             && request.resource.data.get('ownerUid', '') == request.auth.uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['world', 'pendingJoin', 'updatedAt'])
             && request.resource.data.get('world', {}).get('kind', '') == 'unassigned')
+          // v20: or takes it into a campaign where they hold a seat.
+          || (resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.get('ownerUid', '') == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['world', 'pendingJoin', 'updatedAt'])
+            && request.resource.data.get('world', {}).get('kind', '') == 'campaign'
+            && request.resource.data.get('world', {}).get('campaignId', '') is string
+            && request.resource.data.get('world', {}).get('campaignId', '') != ''
+            && exists(/databases/$(database)/documents/travellerCampaigns/$(request.resource.data.get('world', {}).get('campaignId', ''))/players/$(request.auth.uid)))
         );
       allow delete: if isAuthed()
         && resource.data.get('ownerUid', '') == request.auth.uid;

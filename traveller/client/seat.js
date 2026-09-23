@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.288.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.288.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.288.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord } from './publish.js?v=v0.288.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.288.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.288.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.288.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.288.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.288.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.288.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.288.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.289.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.289.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.289.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords } from './publish.js?v=v0.289.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.289.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.289.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.289.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.289.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.289.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.289.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.289.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -61,8 +61,16 @@ function characterFrom(published) {
   }
 }
 
+// v0.289.0: until the referee's page has brought a newly joined character
+// into the campaign (and published it), the player sees their own copy.
 function characters() {
-  return [...state.published.values()].map(characterFrom).filter(Boolean);
+  const published = [...state.published.values()].map(characterFrom).filter(Boolean);
+  if (published.length) return published;
+  return (state.ownRecords ?? []).filter((record) => record.world?.campaignId === campaignId).map((record) => record.character).filter(Boolean);
+}
+
+function arriving() {
+  return !state.published.size && (state.ownRecords ?? []).some((record) => record.world?.campaignId === campaignId);
 }
 
 function myName() {
@@ -115,7 +123,8 @@ function renderNow() {
       h('span', { class: 'cite', text: [character.upp, character.career?.service].filter(Boolean).join(' \u00b7 ') }),
       h('button', { type: 'button', class: 'button is-small', text: 'Sheet', onclick: () => openSheet(character.identity.id) })))
     : [h('p', { class: 'cite', text: currentUserId() ? 'Waiting for the referee to publish your character.' : 'Sign in from the lobby to take your seat.' })];
-  $('now').replaceChildren(h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who));
+  const note = arriving() ? h('p', { class: 'cite', text: 'You have joined. Your referee\u2019s page brings your character into the campaign the next time it opens; until then this is your own copy.' }) : null;
+  $('now').replaceChildren(h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note));
 }
 
 function renderScene() {
@@ -580,6 +589,12 @@ async function connect() {
     }, (error) => console.warn('[traveller-seat] log:', error)));
     const stopChat = await watchChat(campaignId, (messages) => { state.chat = messages; renderChat(); });
     stops.push(stopChat);
+    const stopRecords = await watchOwnCharacterRecords(uid, (records) => {
+      state.ownRecords = records;
+      if (state.sheets === null && characters().length) state.sheets = [{ kind: 'actor', id: characters()[0].identity.id, compact: false, tab: null }];
+      render();
+    });
+    stops.push(stopRecords);
   } catch (error) {
     setStatus(error?.message ?? String(error), 'error');
   }
