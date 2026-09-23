@@ -296,12 +296,15 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
     await assertSucceeds(player.doc('travellerCharacters/temp').delete());
   });
 
+  // v20: an owner may move their character into a campaign where they hold a
+  // seat (joining by link). The player here is seated at CAMPAIGN, so these
+  // refusals are for a campaign they are not seated at.
   await t.test('nobody else reads a character record, and the owner cannot move it between worlds', async () => {
     await assertFails(second.doc(RECORD).get());
     await assertFails(outsider.doc(RECORD).get());
     await assertFails(referee.doc(RECORD).get());
     await assertFails(second.collection('travellerCharacters').where('ownerUid', '==', PLAYER).get());
-    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: CAMPAIGN, campaignName: null, since: 5 } }));
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'not-seated-here', campaignName: null, since: 5 } }));
     await assertFails(player.doc(RECORD).update({ world: { kind: 'solo', campaignId: null, campaignName: null, since: 5 } }));
     await assertFails(player.doc(RECORD).update({ ownerUid: OUTSIDER }));
   });
@@ -389,9 +392,10 @@ test('Traveller multiplayer rules', { skip: available ? false : `Firestore emula
       await context.firestore().doc('travellerCampaigns/mine').set({ name: 'Mine', ownership: { ownerUid: PLAYER, actors: {} } });
     });
     await assertSucceeds(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'mine', campaignName: 'Mine', since: 20 }, pendingJoin: null, updatedAt: 20 }));
-    // But still not into a table they do not referee, and still not the sheet.
+    // But still not into a campaign they neither referee nor sit at (v20: a
+    // seat is the other way in), and still not the sheet.
     await assertSucceeds(player.doc(RECORD).update({ world: unassigned, pendingJoin: null, updatedAt: 21 }));
-    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: CAMPAIGN, campaignName: null, since: 22 }, updatedAt: 22 }));
+    await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'not-seated-here', campaignName: null, since: 22 }, updatedAt: 22 }));
     await assertFails(player.doc(RECORD).update({ world: { kind: 'campaign', campaignId: 'mine', campaignName: 'Mine', since: 23 }, name: 'Sneaky', updatedAt: 23 }));
   });
 
