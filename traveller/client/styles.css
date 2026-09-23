@@ -5829,7 +5829,10 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .enter-more { position: relative; display: inline-block; }
 .enter-more > summary { list-style: none; cursor: pointer; }
 .enter-more > summary::-webkit-details-marker { display: none; }
-.enter-more[open] > .enter-more-list { position: absolute; right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; margin-top: 4px; background: var(--paper, #f6f3ec); border: 1px solid currentColor; min-width: 180px; }
+/* v0.290.0: opens in place under its button, the row's full width, so no
+   column edge can clip it. */
+.enter-more[open] { flex-basis: 100%; display: grid; justify-items: end; gap: 4px; }
+.enter-more[open] > .enter-more-list { display: grid; gap: 4px; justify-items: stretch; min-width: 200px; padding: 6px; border: 1px dotted currentColor; }
 .enter-more-list .text-button { text-align: left; }
 .enter-new-campaign { display: grid; gap: 6px; margin-bottom: 10px; justify-items: start; }
 .enter-join-panel > * { grid-area: auto; grid-column: 1; }

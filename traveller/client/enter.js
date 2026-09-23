@@ -8,29 +8,29 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.289.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.289.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.290.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.290.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf
-} from './publish.js?v=v0.289.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.289.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.289.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.289.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.289.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.289.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.289.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.289.0';
-import { generateCharacterName } from './generators.js?v=v0.289.0';
+} from './publish.js?v=v0.290.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.290.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.290.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.290.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.290.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.290.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.290.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.290.0';
+import { generateCharacterName } from './generators.js?v=v0.290.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome
-} from '../src/character-record.js?v=v0.289.0';
+} from '../src/character-record.js?v=v0.290.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.289.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.290.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -300,9 +300,18 @@ function campaignDate(time) {
 // in — each with one button, OPEN, and the rest behind [ ⋯ ] (Kurt, Sep 2026:
 // the lobby was clunky; D&D Beyond's My Campaigns is one list with a role on
 // each card). NEW CAMPAIGN starts one from a character you choose.
-function moreMenu(buttons) {
+// v0.290.0: which [ ⋯ ] is open survives a re-render (the lobby redraws
+// whenever a record or campaign changes), and it opens in place, under its
+// button, rather than floating off the edge of its column.
+let openMenu = null;
+function moreMenu(buttons, key = null) {
   const more = document.createElement('details');
   more.className = 'enter-more';
+  if (key && openMenu === key) more.open = true;
+  more.addEventListener('toggle', () => {
+    if (more.open) openMenu = key;
+    else if (openMenu === key) openMenu = null;
+  });
   const summary = document.createElement('summary');
   summary.className = 'text-button action-button';
   summary.textContent = '[ \u22ef ]';
@@ -398,7 +407,7 @@ function refereeCard(campaign) {
   rename.textContent = '[ RENAME ]';
   tools.append(
     linkButton('[ OPEN ]', `play.html?campaign=${encodeURIComponent(campaign.campaignId)}`, { primary: true }),
-    moreMenu([link, rename, linkButton('[ REFEREE TOOLS ]', `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`, { title: 'The older referee page: scenes, the tactical grid, settings, export' }), remove]));
+    moreMenu([link, rename, linkButton('[ REFEREE TOOLS ]', `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`, { title: 'The older referee page: scenes, the tactical grid, settings, export' }), remove], `campaign:${campaign.campaignId}`));
   row.append(name, role, state, tools);
   return row;
 }
@@ -411,11 +420,11 @@ function playerCard(record, waiting) {
   const role = document.createElement('span'); role.className = 'enter-character-summary'; role.textContent = `PLAYING ${record.name.toUpperCase()}`;
   const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = waiting ? 'WAITING FOR THE REFEREE TO LET YOU IN' : '';
   const tools = document.createElement('div'); tools.className = 'enter-character-tools';
-  if (waiting) tools.append(moreMenu([textButton('[ WITHDRAW ]', () => withdrawJoin(record))]));
+  if (waiting) tools.append(moreMenu([textButton('[ WITHDRAW ]', () => withdrawJoin(record))], `waiting:${record.characterId}`));
   else {
     tools.append(
       linkButton('[ OPEN ]', `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`, { primary: true }),
-      moreMenu([textButton('[ LEAVE ]', () => leaveCampaign(record), { title: `${record.name} comes home with everything that happened there` })]));
+      moreMenu([textButton('[ LEAVE ]', () => leaveCampaign(record), { title: `${record.name} comes home with everything that happened there` })], `playing:${record.characterId}`));
   }
   row.append(name, role, state, tools);
   return row;
@@ -458,7 +467,8 @@ function renderCharacterRow(record) {
   const row = document.createElement('div');
   row.className = `enter-character${status.enter ? ' enterable' : ''}${selectedRecord()?.characterId === record.characterId ? ' is-selected' : ''}`;
   row.tabIndex = 0;
-  row.addEventListener('click', (event) => { if (event.target.closest('button, a, input')) return; selectCharacter(record); });
+  // v0.290.0: nor the [ ⋯ ] menu, whose click re-rendered the list and shut it.
+  row.addEventListener('click', (event) => { if (event.target.closest('button, a, input, summary, details')) return; selectCharacter(record); });
   row.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target === row) selectCharacter(record); });
   const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = record.name.toUpperCase();
   const summary = document.createElement('span'); summary.className = 'enter-character-summary'; summary.textContent = recordSummary(record);
@@ -472,7 +482,7 @@ function renderCharacterRow(record) {
   else if (status.enter === 'campaign') state.textContent = `IN ${String(record.world.campaignName ?? 'A CAMPAIGN').toUpperCase()}`;
   else if (record.pendingJoin) state.textContent = `WAITING FOR ${String(record.pendingJoin.campaignName ?? 'A CAMPAIGN').toUpperCase()}`;
   else state.textContent = 'FREE';
-  tools.append(moreMenu([textButton('[ DELETE ]', () => removeRecord(record))]));
+  tools.append(moreMenu([textButton('[ DELETE ]', () => removeRecord(record))], `character:${record.characterId}`));
   row.append(name, summary, state, tools);
 
   return row;
