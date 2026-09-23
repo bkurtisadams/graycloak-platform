@@ -1,6 +1,6 @@
 const SQRT3 = Math.sqrt(3);
 
-import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.287.0';
+import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.288.0';
 
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,
@@ -134,7 +134,10 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
     viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
     role: 'group',
     'aria-label': `${subsector.name} subsector hex map`,
-    preserveAspectRatio: 'xMidYMid meet'
+    preserveAspectRatio: 'xMidYMid meet',
+    // v0.288.0: the map's own proportions, so a narrow page can give it the
+    // full width and exactly the height that width needs.
+    style: `--map-ratio: ${viewBox.width} / ${viewBox.height}; --map-w: ${viewBox.width}; --map-h: ${viewBox.height}`
   });
 
   // v0.100.0: while a destination is required and unset, the in-range hexes

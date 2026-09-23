@@ -248,7 +248,17 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
   .caption .button { min-height: 30px; padding: 4px 10px; font-size: 14px; justify-self: start; }
   .caption-facts, .caption-bases { display: none; }
   .scene svg.map { padding-left: 20px; }
+  /* v0.288.0: the world cards took the height and left the map a sliver
+     (Kurt, Sep 2026: small beside an open sidebar, as on the phone). In a
+     narrow scene the map comes first at the column's full width, the cards
+     follow it, and the scene scrolls. */
+  /* The height the column's width needs, as a minimum, so the grid row
+     cannot squeeze it (an auto row takes an item's minimum first). */
+  .scene > svg.map { grid-row: 2; height: min(calc(100cqw * var(--map-h, 4) / var(--map-w, 3)), calc(100vh - 150px)); min-height: min(calc(100cqw * var(--map-h, 4) / var(--map-w, 3)), calc(100vh - 150px)); }
+  .scene > .captions { grid-row: 4; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); padding: 0 20px 12px; }
+  .scene > .scene-foot { grid-row: 5; }
 }
+.scene { overflow-y: auto; }
 .caption { pointer-events: auto; width: 300px; padding: 12px 14px; background: var(--raise); border: 1px solid var(--line); border-top: 3px solid var(--ink); display: grid; gap: 6px; }
 .caption-there { border-top-color: var(--signal); }
 .caption-role { font-size: 13px; color: var(--ink-2); }
@@ -524,7 +534,7 @@ a.button { text-decoration: none; color: inherit; }
      grows to its content instead, the map comes first at the full width of
      the screen, and the captions follow it. */
   .scene:has(> svg.map) { height: auto; grid-template-rows: auto auto auto auto; }
-  .scene > svg.map { grid-row: 2; width: 100%; height: auto; padding: 8px 8px 12px; }
+  .scene > svg.map { grid-row: 2; width: 100%; height: auto; padding: 8px 8px 12px; aspect-ratio: var(--map-ratio, 3 / 4); }
   .scene:has(> svg.map) > .captions { grid-row: 3; }
   /* v0.287.0: a system chosen on the map put its card beside "You are here",
      two cards to a phone's width, each squeezed to a column of ellipses
