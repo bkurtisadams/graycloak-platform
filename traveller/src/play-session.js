@@ -1214,7 +1214,9 @@ export function playersModel(resolved, players) {
     })),
     members: seats.filter((seat) => seat.uid !== refereeUid).map((seat) => ({
       uid: seat.uid, name: seat.name || seat.uid, seatedAt: seat.seatedAt ?? null, lastSeenAt: seat.lastSeenAt ?? null,
-      characters: charactersOf(seat.uid)
+      characters: charactersOf(seat.uid),
+      // v0.291.0: seated by their own link, their character still to come in.
+      joining: (players?.joins ?? []).find((join) => join.uid === seat.uid) ?? null
     })),
     departed: Object.entries(owners)
       .filter(([id, owner]) => owner && owner !== refereeUid && !seated.has(owner) && characters.some((entry) => entry.identity.id === id))

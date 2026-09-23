@@ -1337,3 +1337,11 @@ test('v0.285.0 a character comes home with its campaign sheet and a stamp on its
   assert.equal(formatHistoryEvent(stamp), 'PLAYED IN SEA OF SUNS UNDER BK ADAMS  106-4800 TO 239-4804');
   assert.equal(returnCharacterHome(home, null, { campaignId: 'sea', to: '239-4804' }).character.history.filter((entry) => entry.type === 'campaign').length, 1, 'stamped once');
 });
+
+test('v0.291.0 a member seated by their own link shows the character still coming in', async () => {
+  const { registry, campaignId } = await atOrison();
+  const { playersModel } = await import('../src/play-session.js');
+  const model = playersModel(registry.resolveCampaign(campaignId), { seats: [{ uid: 'p7', name: 'kurt' }], invites: [], joins: [{ uid: 'p7', characterId: 'c1', characterName: 'Nico Arden' }] });
+  assert.equal(model.members[0].characters.length, 0);
+  assert.equal(model.members[0].joining.characterName, 'Nico Arden');
+});

@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.290.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.290.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.290.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.290.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.290.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.290.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.290.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.290.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.290.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.291.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.291.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.291.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.291.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.291.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.291.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.291.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.291.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.291.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -951,7 +951,27 @@ window.addEventListener('storage', (event) => {
 // signed in; a fight's declarations and wound answers are watched while that
 // fight is live, and re-aimed when it changes. Called after every render, so
 // it only acts when what should be watched has changed.
-const watching = { chatFor: null, chatStop: null, fightFor: null, fightStops: [] };
+const watching = { chatFor: null, chatStop: null, fightFor: null, fightStops: [], joinsFor: null, joinsStop: null };
+
+// v0.291.0: players joining by link, watched whenever this page has a live
+// campaign and a signed-in referee. It was watched only if both were true the
+// moment the page started, so a referee whose sign-in arrived a beat later
+// (the usual case) never saw a join, and the player sat in the campaign with
+// no character on this side (Kurt, Sep 2026). A join is brought in at once
+// unless the referee approves players; one that fails is tried again on the
+// next change instead of being forgotten.
+function onJoins(joins) {
+  ui.players = { seats: [], invites: [], ...(ui.players ?? {}), joins };
+  if (!source.session.resolved.campaign.roster?.approvePlayers) {
+    for (const join of joins) {
+      if (autoAdmitted.has(join.uid)) continue;
+      autoAdmitted.add(join.uid);
+      runSeat('admit', { kind: 'join', uid: join.uid, characterId: join.characterId ?? null, name: join.name ?? null })
+        .then((ok) => { if (ok === false) autoAdmitted.delete(join.uid); });
+    }
+  }
+  if (ui.drawer === 'referee' && ui.referee.tab === 'Players') render();
+}
 function syncMultiplayer() {
   const live = source?.mode === 'live' && cloud.userId();
   const campaignId = live ? source.session.resolved.campaign.identity.id : null;
@@ -962,6 +982,15 @@ function syncMultiplayer() {
       cloud.watchChat(campaignId, (messages) => { source.session.setCloudChat(messages); })
         .then((stop) => { if (watching.chatFor === campaignId) watching.chatStop = stop; else stop(); })
         .catch((error) => console.warn('[traveller] chat:', error));
+    }
+  }
+  if (watching.joinsFor !== campaignId) {
+    watching.joinsStop?.(); watching.joinsStop = null;
+    watching.joinsFor = campaignId;
+    if (campaignId) {
+      Promise.resolve(cloud.watchJoins(campaignId, onJoins))
+        .then((stop) => { if (watching.joinsFor === campaignId) watching.joinsStop = typeof stop === 'function' ? stop : null; else stop?.(); })
+        .catch((error) => console.warn('[traveller] joins:', error));
     }
   }
   const fight = live ? (source.session.resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null : null;
@@ -1078,9 +1107,12 @@ async function runSeat(action, seat) {
       await cloud.unseat(campaignId, seat.uid);
     }
     await refreshPlayers();
+    return true;
   } catch (error) {
+    console.warn('[traveller] players:', action, error);
     ui.players = { ...(ui.players ?? { seats: [], invites: [], joins: [] }), loading: false, error: cloud.describeError(error) };
     render();
+    return false;
   }
 }
 
@@ -1248,28 +1280,6 @@ async function start() {
   await cloud.start();
   // A campaign named in the address but absent here is fetched once signed in.
   if (source.mode === 'empty' && source.wantedId && cloud.userId()) await openFromCloud(source.wantedId);
-  // Requests to join arrive while the referee is looking elsewhere, so they
-  // are watched rather than polled; the Players tab shows them as they land.
-  if (source.mode === 'live' && cloud.userId()) {
-    try {
-      cloud.watchJoins(source.session.resolved.campaign.identity.id, (joins) => {
-        ui.players = { seats: [], invites: [], ...(ui.players ?? {}), joins };
-        // v0.285.0: let in at once, if the referee chose it, while this page
-        // is open (it is what brings the character into the campaign).
-        // v0.289.0: players join by link at once unless the referee asks to
-        // approve them; this page brings their character in when it sees
-        // them, so it happens whenever the referee next opens the campaign.
-        if (!source.session.resolved.campaign.roster?.approvePlayers) {
-          for (const join of joins) {
-            if (autoAdmitted.has(join.uid)) continue;
-            autoAdmitted.add(join.uid);
-            runSeat('admit', { kind: 'join', uid: join.uid, characterId: join.characterId ?? null, name: join.name ?? null });
-          }
-        }
-        if (ui.drawer === 'referee' && ui.referee.tab === 'Players') render();
-      });
-    } catch (error) { console.warn('[traveller] join requests:', error); }
-  }
   let seen;
   cloud.onAuthChange((user) => {
     const uid = user?.uid ?? null;
