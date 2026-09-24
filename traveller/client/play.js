@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.303.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.303.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.303.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.303.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.303.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.303.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.303.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.303.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.303.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.303.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.304.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.304.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.304.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.304.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.304.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.304.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.304.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.304.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.304.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.304.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1338,67 +1338,95 @@ async function refreshPlayersQuietly() {
 function openSurfaceDialog() {
   const animals = source.session.view().animals;
   if (!animals?.world) { window.alert('The party is not at a world.'); return; }
+  const close = () => document.getElementById('play-modal')?.close();
   const run = (command, value) => {
     const result = source.session.run(`animals:${command}`, { fight: { value } });
     if (!result.ok) { window.alert(result.message); return null; }
     render();
     return result;
   };
-  const reopen = () => { document.getElementById('play-modal')?.close(); openSurfaceDialog(); };
+  const again = (command, value) => { if (run(command, value)) { close(); openSurfaceDialog(); } };
+  const tableFor = (terrain) => animals.tables.find((table) => table.terrain === terrain) ?? null;
+
+  // --- Party: where it is, and the check. ------------------------------
   const where = h('select', { name: 'terrain', 'aria-label': 'Where the party is' },
-    h('option', { value: '', selected: !animals.surface, text: 'In port or town: no animal checks' }),
-    animals.terrains.map((entry) => h('option', { value: entry.key, selected: animals.surface?.terrain === entry.key, text: `Out on the surface: ${entry.name}` })));
-  const format = h('select', { name: 'format', 'aria-label': 'Table size' },
-    h('option', { value: '2D', text: '2D table (11 rows), for terrain used often' }),
-    h('option', { value: '1D', text: '1D table (6 rows), for terrain not worth the detail' }));
-  const built = h('p', { class: 'signin-why', text: animals.tables.length
-    ? `Tables for ${animals.world.name}: ${animals.tables.map((table) => `${table.label} (${table.dice === 1 ? '1D' : '2D'})`).join(', ')}. They are in the Journal.`
-    : `No tables for ${animals.world.name} yet. Choosing a terrain builds its table.` });
-  const parts = [
+    h('option', { value: '', selected: !animals.surface, text: 'In port or town (no animal checks)' }),
+    animals.terrains.map((entry) => h('option', { value: entry.key, selected: animals.surface?.terrain === entry.key, text: `Out: ${entry.name}${tableFor(entry.key) ? '' : ' (no table yet)'}` })));
+  const format = h('select', { name: 'format', 'aria-label': 'Size of the new table' },
+    h('option', { value: '2D', text: '2D, 11 rows: terrain used often' }),
+    h('option', { value: '1D', text: '1D, 6 rows: terrain not worth the detail' }));
+  const formatRow = h('label', { class: 'surface-row' }, h('span', { text: 'New table' }), format);
+  const syncFormat = () => { formatRow.hidden = !where.value || Boolean(tableFor(where.value)); };
+  where.onchange = syncFormat;
+  syncFormat();
+  const set = h('button', { type: 'button', class: 'button is-small is-primary', text: 'Set', onclick: () => {
+    if ((where.value || null) === (animals.surface?.terrain ?? null)) return;
+    again('surface', { terrain: where.value || null, format: format.value });
+  } });
+  const guide = h('input', { type: 'number', value: '0', min: '-6', max: '6', 'aria-label': 'DM on the check', style: 'width:56px' });
+  const partyBox = h('fieldset', { class: 'time-box' }, h('legend', { text: 'Party' }),
     h('p', { class: 'signin-why', text: `${animals.world.name} (${animals.world.upp}). Out on the surface, animals are checked twice a day as time passes, 5+ on 1D, and the clock stops at the first encounter (The Traveller Book pp.91, 100).` }),
-    animals.airless ? h('p', { class: 'signin-status is-error', text: 'An airless world: the book says these almost never have any life of consequence (p.92). Your call.' }) : null,
-    h('fieldset', { class: 'time-box' }, h('legend', { text: 'Where is the party?' }), where,
-      h('label', { class: 'check' }, 'A new table is ', format)),
-    built
-  ];
-  if (animals.surface) {
-    parts.push(h('div', { class: 'lead-actions' },
-      h('button', { type: 'button', class: 'button is-small', text: 'Check for animals now', title: 'One throw, 5+ on 1D', onclick: () => { if (run('check', {})) reopen(); } }),
+    animals.airless ? h('p', { class: 'signin-status is-error', text: 'An airless world: these almost never have any life of consequence (p.92). Your call.' }) : null,
+    h('div', { class: 'surface-row' }, where, set),
+    formatRow,
+    animals.surface ? h('div', { class: 'surface-row' },
+      h('button', { type: 'button', class: 'button is-small', text: 'Check now', title: 'One throw: 5+ on 1D', onclick: () => again('check', { dm: Number(guide.value) || 0 }) }),
+      h('label', { class: 'surface-inline', title: 'A guide hunting a specific animal: +2 or more (p.92)' }, 'DM ', guide),
       h('button', { type: 'button', class: 'button is-small', text: 'Open the table', onclick: () => {
-        document.getElementById('play-modal')?.close();
+        close();
         if (!ui.openSheets.some((entry) => entry.kind === 'animals' && entry.id === animals.surface.key)) ui.openSheets = [...ui.openSheets, { kind: 'animals', id: animals.surface.key, compact: true }];
         render();
-      } })));
-  }
+      } })) : null,
+    animals.tables.length ? h('p', { class: 'signin-why', text: `Tables for ${animals.world.name}: ${animals.tables.map((table) => `${table.label} (${table.dice === 1 ? '1D' : '2D'})`).join(', ')}, in the Journal.` }) : null);
+
+  const parts = [partyBox];
+
+  // --- Encounter: the book's line, then surprise, range, attack/flee. ----
   const pending = animals.pending;
   if (pending) {
     const row = pending.row;
-    const surprise = h('input', { type: 'checkbox', name: 'surprise' });
-    const surprised = h('input', { type: 'checkbox', name: 'surprised' });
-    const count = h('input', { type: 'number', min: '1', value: String(row?.quantity ?? 1), 'aria-label': 'How many to place', style: 'width:56px' });
-    parts.push(h('fieldset', { class: 'time-box' }, h('legend', { text: `Encounter, ${pending.date}${pending.when === 'halted' ? ', halted' : pending.when === 'travelling' ? ', travelling' : ''}` }),
-      h('p', { text: pending.category === 'event'
-        ? `Event (row ${pending.die}): ${pending.event || 'nothing written for this row yet; write it on the table.'}`
-        : row && !row.missing ? `${row.quantity} ${row.name}: ${row.weight}, hits ${row.hits}, ${row.armor}, ${row.weapons}, ${row.code}.` : 'The statblock for this row is gone.' }),
-      pending.behaviour ? h('p', { class: 'signin-why', text: `Thrown: ${pending.behaviour.text}.` }) : null,
-      pending.actorId ? h('div', { class: 'time-row' },
-        h('label', { class: 'check' }, surprise, ' They have surprise'),
-        h('label', { class: 'check' }, surprised, ' They are surprised')) : null,
-      h('div', { class: 'lead-actions' },
-        pending.actorId ? h('button', { type: 'button', class: 'button is-small', text: 'Throw attack / flee', onclick: () => { if (run('behaviour', { actorId: pending.actorId, surprise: surprise.checked, surprised: surprised.checked })) reopen(); } }) : null,
-        pending.actorId ? h('label', { class: 'sheet-inline' }, 'Place ', count) : null,
-        pending.actorId ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Put on the board', onclick: () => { if (run('place', { actorId: pending.actorId, count: Number(count.value) || 1 })) document.getElementById('play-modal')?.close(); } }) : null,
-        h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => { if (run('dismiss', {})) reopen(); } }))));
-  }
-  modal('Where is the party?', parts, {
-    submitLabel: 'Apply',
-    onSubmit: () => {
-      const wanted = where.value || null;
-      if (wanted === (animals.surface?.terrain ?? null)) return null;
-      const result = source.session.run('animals:surface', { fight: { value: { terrain: wanted, format: format.value } } });
-      return result.ok ? null : result.message;
+    const when = { travelling: 'while travelling', halted: 'while halted', now: 'on a check now', called: 'called by the referee' }[pending.when] ?? '';
+    const header = `${pending.terrain}, ${pending.worldName} \u00b7 ${pending.date} ${when} \u00b7 ${pending.thrown === pending.die ? '' : `thrown ${pending.thrown}, `}row ${pending.die}`;
+    const step = (label, result, buttons) => h('div', { class: 'encounter-step' },
+      h('span', { class: 'encounter-step-label', text: label }),
+      h('span', { class: `encounter-step-result${result ? '' : ' is-open'}`, text: result ?? 'not yet' }),
+      h('span', { class: 'encounter-step-actions' }, buttons));
+    const callSelect = (options, command) => h('select', { 'aria-label': `Call the ${command}`, onchange: (event) => { if (event.target.value) again(command, { mode: event.target.value }); } },
+      h('option', { value: '', text: 'or call it\u2026' }), options.map(([value, text]) => h('option', { value, text })));
+    const body = [];
+    if (pending.category === 'event') {
+      body.push(h('p', { class: 'encounter-line', text: `Event: ${pending.event || 'nothing written for this row yet; write it on the table.'}` }));
+    } else if (!row || row.missing) {
+      body.push(h('p', { class: 'encounter-line', text: 'The statblock for this row is gone.' }));
+    } else {
+      body.push(
+        h('div', { style: 'overflow-x:auto' }, h('table', { class: 'animal-table' },
+          h('thead', {}, h('tr', {}, ['Animal', 'Weight', 'Hits', 'Armor', 'Wounds & weapons', ''].map((text) => h('th', { text })))),
+          h('tbody', {}, h('tr', {},
+            h('td', { text: `${row.quantity} ${row.name}` }), h('td', { class: 'num', text: row.weight }), h('td', { class: 'num', text: row.hits }),
+            h('td', { text: row.armor }), h('td', { text: row.weapons }), h('td', { text: row.code }))))),
+        h('p', { class: 'signin-why', text: `${row.code}: ${row.codeText}.` }),
+        step('1. Surprise', pending.surprise?.text ?? null, [
+          h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: 'Book 1 p.27: 1D a side, surprise at 3 or more higher; the party\u2019s leader, tactics and military DMs', onclick: () => again('surprise', { mode: 'roll' }) }),
+          callSelect([['party', 'party has it'], ['opposition', 'animals have it'], ['none', 'neither']], 'surprise')]),
+        step('2. Range', pending.range?.text ?? null, [
+          h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: animals.surface?.rangeTerrain ? `Book 1 p.27: 2D plus the ${animals.surface.rangeTerrain.replace(/-/g, ' ')} DM` : 'Book 1 p.27: 2D, no terrain DM for this terrain', onclick: () => again('range', { mode: 'roll' }) }),
+          callSelect([['close', 'close'], ['short', 'short'], ['medium', 'medium'], ['long', 'long'], ['very-long', 'very long']], 'range')]),
+        step('3. Attack or flee', pending.behaviour?.text ?? null, [
+          h('button', { type: 'button', class: 'button is-small', text: 'Throw', title: 'The Traveller Book p.95, in the animal\u2019s own order, using the surprise above', onclick: () => again('behaviour', { actorId: pending.actorId }) })]));
     }
-  });
+    const count = h('input', { type: 'number', min: '1', value: String(row?.quantity ?? 1), 'aria-label': 'How many to place', style: 'width:56px' });
+    const settled = pending.surprise ? 'places them at the range above and begins round 1 with that surprise' : pending.range ? 'places them at the range above; settle surprise on the board' : 'places them two bands off; throw range and surprise on the board';
+    parts.push(h('fieldset', { class: 'time-box' }, h('legend', { text: 'Encounter' }),
+      h('p', { class: 'encounter-head', text: header }),
+      ...body,
+      h('div', { class: 'surface-row' },
+        pending.actorId ? h('label', { class: 'surface-inline' }, 'Place ', count) : null,
+        pending.actorId ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Put on the board', title: `With the party: ${settled}`, onclick: () => { if (run('place', { actorId: pending.actorId, count: Number(count.value) || 1 })) close(); } }) : null,
+        h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => again('dismiss', {}) })),
+      pending.actorId ? h('p', { class: 'signin-why', text: `Put on the board ${settled}.` }) : null));
+  }
+  modal('Where is the party?', parts, { submitLabel: 'Done', onSubmit: () => null });
 }
 
 // Sign-in: Google or email, in the page's own dialog. The mode lives on the

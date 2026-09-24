@@ -1777,7 +1777,7 @@ export function setEncounterOpeningRange(document, { range, thrown = null } = {}
   return { encounter: next, entry };
 }
 
-export function beginEncounter(document, { surpriseConditions = {}, dice, surprise = 'roll' } = {}) {
+export function beginEncounter(document, { surpriseConditions = {}, dice, surprise = 'roll', thrown = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'setup') throw new Error('encounter has already begun');
   if (!['roll', 'party', 'opposition', 'none'].includes(surprise)) throw new RangeError('surprise must be roll, party, opposition or none');
@@ -1789,7 +1789,16 @@ export function beginEncounter(document, { surpriseConditions = {}, dice, surpri
   const partySurprise = surpriseConditionsForSide(party, surpriseConditions.party ?? {});
   const oppositionSurprise = surpriseConditionsForSide(foes, surpriseConditions.opposition ?? {});
   const set = surprise === 'roll' ? null : surprise === 'none' ? null : surprise;
-  next.surprise = surprise === 'roll'
+  // v0.304.0: a surprise already thrown before the board (an animal
+  // encounter's dialog) is carried as a throw, not a call.
+  const carried = thrown && Array.isArray(thrown.results) && thrown.results.length === 2
+    ? {
+      results: thrown.results.map((entry) => ({ sideId: entry.sideId, roll: entry.roll, dm: entry.dm, total: entry.total })),
+      margin: thrown.margin, surprisedSideId: thrown.surprisedSideId ?? null, surpriseSideId: thrown.surpriseSideId ?? null,
+      conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
+    }
+    : null;
+  next.surprise = carried ?? (surprise === 'roll'
     ? {
       ...resolvePersonalSurprise({
         sides: [
@@ -1809,7 +1818,7 @@ export function beginEncounter(document, { surpriseConditions = {}, dice, surpri
       surpriseSideId: set,
       set: true,
       conditions: { party: partySurprise.conditions, opposition: oppositionSurprise.conditions }
-    };
+    });
   next.status = 'active';
   next.round = 1;
   // v0.271.0: the range the parties met at is where they stand. A fight set

@@ -8,7 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { createPlaySession, reactionModifiers } from '../src/play-session.js';
-import { campaignDayNumber } from '../src/animal-encounters.js';
+import { campaignDayNumber, animalRangeTerrain, explainBehaviourCode, ANIMAL_RANGE_TERRAIN } from '../src/animal-encounters.js';
+import { TERRAIN_DMS } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { renderSheets } from '../client/sheets.js';
 
@@ -160,4 +161,53 @@ test('the table and the animal statblock draw', { skip: !JSDOM }, async () => {
   assert.deepEqual(asked.at(-1), ['behaviour', { actorId, surprise: false, surprised: false }]);
   delete globalThis.document;
   delete globalThis.Node;
+});
+
+test('v0.304.0 the 1982 animal terrains map onto Book 1\u2019s range-throw terrains', () => {
+  for (const [terrain, book1] of Object.entries(ANIMAL_RANGE_TERRAIN)) {
+    if (book1 !== null) assert.ok(Object.hasOwn(TERRAIN_DMS, book1), `${terrain} maps to ${book1}`);
+  }
+  assert.equal(animalRangeTerrain('forest'), 'forest');
+  assert.equal(animalRangeTerrain('depths'), 'maritime-subsurface');
+  assert.equal(animalRangeTerrain('crater'), null);
+});
+
+test('v0.304.0 the code in words: F0 always flees, special cases named, speed spelled out', () => {
+  const grazer = { order: 'FA', flee: { throw: 0, rule: null }, attack: { throw: 7, rule: null }, speed: 3 };
+  assert.equal(explainBehaviourCode(grazer), 'flees always (0+), then attacks on 7+; triple speed');
+  const pouncer = { order: 'AF', attack: { throw: 0, rule: 'if-surprise' }, flee: { throw: 0, rule: 'if-surprised' }, speed: 1 };
+  assert.equal(explainBehaviourCode(pouncer), 'attacks only if it has surprise, then flees if surprised; ordinary speed');
+});
+
+test('v0.304.0 surprise, then range, then attack/flee, and the board takes what was settled', async () => {
+  const { registry, campaignId, run } = await freshSession();
+  run('animals:surface', { terrain: 'forest' });
+  const table = Object.values(registry.resolveCampaign(campaignId).campaign.roster.animals.tables)[0];
+  assert.equal(run('animals:surprise', { mode: 'roll' }).ok, false, 'nothing is waiting yet');
+  assert.equal(run('animals:roll', { key: table.key }).ok, true);
+  let pending = registry.resolveCampaign(campaignId).campaign.roster.animals.pending;
+  if (!pending.actorId) {
+    // An event row: nothing to place. Roll until an animal comes up.
+    for (let tries = 0; tries < 20 && !pending.actorId; tries += 1) {
+      run('animals:dismiss');
+      run('animals:roll', { key: table.key });
+      pending = registry.resolveCampaign(campaignId).campaign.roster.animals.pending;
+    }
+  }
+  const surprise = withRandom(0.99, () => run('animals:surprise', { mode: 'roll' }));
+  assert.match(surprise.message, /^Surprise \(Book 1 p\.27\): party 1D 6/);
+  const called = run('animals:surprise', { mode: 'opposition' });
+  assert.match(called.message, /the animals have surprise \(referee\u2019s call\)/);
+  const range = run('animals:range', { mode: 'roll' });
+  assert.match(range.message, /forest \+1/, 'Book 1 p.27 forest DM');
+  pending = registry.resolveCampaign(campaignId).campaign.roster.animals.pending;
+  assert.ok(['close', 'short', 'medium', 'long', 'very-long'].includes(pending.range.range));
+  assert.equal(run('animals:behaviour', { actorId: pending.actorId }).ok, true);
+  const placed = run('animals:place', { actorId: pending.actorId, count: 1 });
+  assert.equal(placed.ok, true, placed.message);
+  assert.match(placed.message, /Round 1 begins/);
+  const fight = registry.resolveCampaign(campaignId).encounters.find((entry) => entry.status === 'active');
+  assert.ok(fight, 'the fight began');
+  assert.equal(fight.surprise.surpriseSideId, 'opposition');
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.animals.pending, null);
 });

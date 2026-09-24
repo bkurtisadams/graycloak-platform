@@ -54,6 +54,7 @@ import { dataCardLines } from './ship-data-card-text.js';
 import {
   SECONDS_PER_DAY, campaignDayNumber, animalTableKey, animalState, withAnimalState, buildAnimalTable, animalCheck,
   rollOnAnimalTable, describeAnimalRow, runSurfaceChecks, animalBehaviourThrow, describeBehaviour,
+  animalSurpriseThrow, animalRangeThrow, animalRangeTerrain,
   animalTableSheet, animalJournalEntries, animalSurfaceView, animalSheetView
 } from './animal-encounters.js';
 import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
@@ -3821,6 +3822,48 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           log('ENCOUNTER', message, { visibility: 'referee' });
           return finish(message);
         }
+        // v0.304.0: Book 1 p.26-27's order before anything else happens —
+        // surprise, then range — each thrown or called, on the encounter.
+        if (command === 'animals:surprise' || command === 'animals:range') {
+          const pending = animals.pending;
+          if (!pending) throw new Error('no animal encounter is waiting');
+          const mode = String(value.mode ?? 'roll');
+          const party = (resolved.campaign.party?.characterIds ?? []).map((id) => (resolved.characters ?? []).find((entry) => entry.identity.id === id)).filter(Boolean);
+          let patch;
+          let message;
+          if (command === 'animals:surprise') {
+            if (mode === 'roll') {
+              const thrown = animalSurpriseThrow(createDice(), party);
+              const side = thrown.surpriseSideId;
+              const text = side === 'party' ? 'the party has surprise' : side === 'opposition' ? 'the animals have surprise' : 'neither side has surprise';
+              patch = { surprise: { side, thrown, text } };
+              const dmText = (entry) => (entry.dm ? ` ${entry.dm > 0 ? '+' : ''}${entry.dm}` : '');
+              message = `Surprise (Book 1 p.27): party 1D ${thrown.results[0].roll}${dmText(thrown.results[0])}, animals 1D ${thrown.results[1].roll} \u2014 ${text}.`;
+            } else {
+              if (!['party', 'opposition', 'none'].includes(mode)) throw new Error('surprise is roll, party, opposition or none');
+              const side = mode === 'none' ? null : mode;
+              const text = side === 'party' ? 'the party has surprise' : side === 'opposition' ? 'the animals have surprise' : 'neither side has surprise';
+              patch = { surprise: { side, thrown: null, text: `${text} (referee\u2019s call)` } };
+              message = `Surprise: ${text} (referee\u2019s call).`;
+            }
+          } else {
+            const surfaceTerrain = animals.tables[pending.key]?.terrain ?? null;
+            if (mode === 'roll') {
+              const thrown = animalRangeThrow(createDice(), surfaceTerrain, { dm: Number.parseInt(value.dm ?? 0, 10) || 0 });
+              const terrainText = thrown.book1Terrain ? `${thrown.book1Terrain.replace(/-/g, ' ')} ${thrown.terrainDM >= 0 ? '+' : ''}${thrown.terrainDM}` : 'no terrain DM';
+              patch = { range: { range: thrown.range, thrown: { dice: [...thrown.dice], total: thrown.total, terrain: thrown.book1Terrain, terrainDM: thrown.terrainDM }, text: `${thrown.range.replace('-', ' ')} range (2D ${thrown.roll}, ${terrainText} = ${thrown.total})` } };
+              message = `Encounter range (Book 1 p.27): 2D [${thrown.dice.join(' ')}] ${terrainText} = ${thrown.total} \u2014 ${thrown.range.replace('-', ' ')}.`;
+            } else {
+              if (!['close', 'short', 'medium', 'long', 'very-long'].includes(mode)) throw new Error('unknown range');
+              patch = { range: { range: mode, thrown: null, text: `${mode.replace('-', ' ')} range (referee\u2019s call)` } };
+              message = `Encounter range: ${mode.replace('-', ' ')} (referee\u2019s call).`;
+            }
+          }
+          registry.put(withAnimalState(resolved.campaign, { pending: { ...pending, ...patch } }));
+          reload();
+          log('ENCOUNTER', message, { visibility: 'referee' });
+          return finish(message);
+        }
         if (command === 'animals:dismiss') {
           registry.put(withAnimalState(resolved.campaign, { pending: null }));
           reload();
@@ -3833,7 +3876,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           if (!actor?.animal) throw new Error('choose an animal');
           const preyCount = Math.max(1, (resolved.campaign.party?.characterIds ?? []).length);
           const count = animals.pending?.actorId === actor.identity.id ? animals.pending.quantity ?? actor.animal.quantity : actor.animal.quantity;
-          const result = animalBehaviourThrow(createDice(), actor, { surprise: Boolean(value.surprise), surprised: Boolean(value.surprised), preyCount, animalCount: count });
+          // The encounter's own surprise, once settled, unless the sheet says otherwise.
+          const settled = animals.pending?.actorId === actor.identity.id ? animals.pending.surprise ?? null : null;
+          const surprise = value.surprise === undefined && settled ? settled.side === 'opposition' : Boolean(value.surprise);
+          const surprised = value.surprised === undefined && settled ? settled.side === 'party' : Boolean(value.surprised);
+          const result = animalBehaviourThrow(createDice(), actor, { surprise, surprised, preyCount, animalCount: count });
           const text = describeBehaviour(result);
           const behaviour = { action: result.action, speed: result.speed, text, date: today };
           if (animals.pending?.actorId === actor.identity.id) {
@@ -3871,12 +3918,23 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           for (let index = 0; index < count; index += 1) {
             encounter = addEncounterCombatantFromActor(encounter, { actor, side: 'opposition', column: Math.min(2, encounter.map.columns - 1), row: 0, gravityFactor }).encounter;
           }
+          // v0.304.0: what the dialog settled is not thrown twice. The range
+          // places the animals; a settled surprise begins round 1.
+          const carried = animals.pending?.actorId === actor.identity.id ? animals.pending : null;
+          let begun = false;
+          if (carried?.range?.range) encounter = setEncounterOpeningRange(encounter, { range: carried.range.range, thrown: carried.range.thrown }).encounter ?? encounter;
+          if (carried?.surprise && count > 0) {
+            const side = carried.surprise.side;
+            encounter = beginEncounter(encounter, { surprise: side ?? 'none', thrown: carried.surprise.thrown, dice: createDice() }).encounter;
+            begun = true;
+          }
           persist([encounter]);
           if (animals.pending?.actorId === actor.identity.id) {
             registry.put(withAnimalState(resolved.campaign, { pending: null }));
             reload();
           }
-          const message = `${count} ${actor.identity.name}${count === 1 ? '' : 's'} on the board${count < wanted ? ` (of ${wanted}; the board holds 16 a side)` : ''}. Throw the range, then begin.`;
+          const message = `${count} ${actor.identity.name}${count === 1 ? '' : 's'} on the board${count < wanted ? ` (of ${wanted}; the board holds 16 a side)` : ''}.${begun ? ' Round 1 begins.' : carried?.range ? ' Settle surprise to begin.' : ' Throw the range, then begin.'}`;
+          if (begun) log('COMBAT', message);
           return finish(message);
         }
         if (command === 'animals:wound-mode') {

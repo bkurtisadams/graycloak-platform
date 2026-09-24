@@ -1,7 +1,8 @@
 import {
   ANIMAL_TERRAIN_TYPES_1982, ANIMAL_TERRAIN_KEYS_1982, ANIMAL_ENCOUNTER_CHECK_1982,
   generateAnimalEncounterTable, rollAnimalTableRow, animalDisplayName, resolveAnimalBehaviour,
-  getPersonalWeapon, parseUniversalWorldProfile
+  getPersonalWeapon, parseUniversalWorldProfile,
+  TERRAIN_DMS, rollEncounterRange, resolvePersonalSurprise, SURPRISE_DMS
 } from '../vendor/classic-traveller-rules/index.js';
 import { createNpcActorDocument } from './npc-actor-document.js';
 
@@ -142,6 +143,70 @@ export function describeBehaviour(result) {
   return `${action} (${steps}), speed \u00d7${result.speed}`;
 }
 
+// --- v0.304.0: surprise and range, before the attack/flee throw --------------
+// Book 1 p.26-27's order: surprise, then range, then what the other side
+// does. The Traveller Book's animal terrains are not Book 1's range-throw
+// terrains, and no book joins the two; this is Graycloak's mapping (Kurt to
+// review). null means no terrain DM.
+export const ANIMAL_RANGE_TERRAIN = Object.freeze({
+  clear: 'clear', prairie: 'prairie', rough: 'rough', broken: 'broken', mountain: 'mountain',
+  forest: 'forest', jungle: 'jungle', river: 'river', swamp: 'swamp', marsh: 'marsh',
+  desert: 'desert', beach: 'beach',
+  // Book 1 (1977) has no water rows; the 1981 maritime rows are kept as
+  // options in the rules package and used here.
+  surface: 'maritime-surface', shallows: 'maritime-surface', sargasso: 'maritime-surface',
+  depths: 'maritime-subsurface', bottom: 'maritime-subsurface',
+  'sea-cave': 'cave', cave: 'cave',
+  ruins: 'city', chasm: 'broken', crater: null
+});
+
+export function animalRangeTerrain(terrain) {
+  const key = ANIMAL_RANGE_TERRAIN[terrain] ?? null;
+  return key && Object.hasOwn(TERRAIN_DMS, key) ? key : null;
+}
+
+const MILITARY_SERVICES = new Set(['navy', 'army', 'marines', 'scouts']);
+// Book 1 p.27: one die a side, surprise to the side 3 or more higher; the
+// party's DMs from leader expertise, tactical expertise and military
+// experience (the 1977 table). The animals take none.
+export function animalSurpriseThrow(dice, characters = []) {
+  const skill = (entry, name) => Number(entry.skills?.[name] ?? 0) >= 1;
+  const conditions = {
+    leaderSkill: characters.some((entry) => skill(entry, 'Leadership')),
+    tacticalSkill: characters.some((entry) => skill(entry, 'Tactics')),
+    militaryExperience: characters.some((entry) => MILITARY_SERVICES.has(String(entry.career?.service ?? '').toLowerCase()))
+  };
+  const dm = Object.entries(conditions).filter(([, on]) => on).reduce((sum, [key]) => sum + SURPRISE_DMS[key], 0);
+  const result = resolvePersonalSurprise({ sides: [{ id: 'party', combatants: [], dm }, { id: 'opposition', combatants: [], dm: 0 }], dice });
+  return { ...result, conditions };
+}
+
+export function animalRangeThrow(dice, terrain, { dm = 0 } = {}) {
+  const book1 = animalRangeTerrain(terrain);
+  return { ...rollEncounterRange(dice, { terrain: book1, dm }), book1Terrain: book1 };
+}
+
+// p.95's code in words: F0 on a grazer is a throw of 0+, which always
+// succeeds — not one of the special cases, which grazers do not have.
+const SPEED_WORDS = Object.freeze({ 0: 'does not move', 1: 'ordinary speed', 2: 'double speed', 3: 'triple speed', 4: 'quadruple speed' });
+const RULE_WORDS = Object.freeze({
+  'if-possible': 'attacks whatever it can reach',
+  'if-surprise': 'attacks only if it has surprise',
+  'if-surprised': 'flees if surprised',
+  'if-more': 'attacks if it outnumbers its prey'
+});
+export function explainBehaviourCode(behaviour) {
+  if (!behaviour) return '';
+  const part = (which) => {
+    const code = behaviour[which];
+    if (code.rule) return RULE_WORDS[code.rule] ?? code.rule;
+    const verb = which === 'attack' ? 'attacks' : 'flees';
+    return code.throw <= 2 ? `${verb} always (${code.throw}+)` : `${verb} on ${code.throw}+`;
+  };
+  const order = behaviour.order === 'FA' ? ['flee', 'attack'] : ['attack', 'flee'];
+  return `${order.map(part).join(', then ')}; ${SPEED_WORDS[behaviour.speed] ?? `\u00d7${behaviour.speed} speed`}`;
+}
+
 // --- views -----------------------------------------------------------------
 
 export const ANIMAL_TERRAIN_CHOICES = Object.freeze(ANIMAL_TERRAIN_KEYS_1982.map((key) => Object.freeze({
@@ -159,7 +224,9 @@ function rowView(row, actorsById) {
     name: animalDisplayName(a.type, a.attribute, count),
     weight: `${a.weightKg} kg`, hits: `${a.hits.unconscious}/${a.hits.further}`, armor: a.armor.label === 'none' ? 'none' : a.armor.label,
     weapons: a.weapons.map((weapon) => `${weapon.wound} ${weapon.label}`).join(', '),
-    code: a.behaviour.code
+    code: a.behaviour.code,
+    codeText: explainBehaviourCode(a.behaviour),
+    type: a.type
   };
 }
 
@@ -203,7 +270,7 @@ export function animalSurfaceView(resolved, system) {
     world: system ? { id: system.id, name: system.name, upp: system.mainWorld.uwp } : null,
     // p.92 Common Sense: airless worlds almost never have life of consequence.
     airless,
-    surface: onThisWorld ? { terrain: onThisWorld.terrain, label: ANIMAL_TERRAIN_TYPES_1982[onThisWorld.terrain]?.label ?? onThisWorld.terrain, key: animalTableKey(onThisWorld.systemId, onThisWorld.terrain) } : null,
+    surface: onThisWorld ? { terrain: onThisWorld.terrain, label: ANIMAL_TERRAIN_TYPES_1982[onThisWorld.terrain]?.label ?? onThisWorld.terrain, key: animalTableKey(onThisWorld.systemId, onThisWorld.terrain), rangeTerrain: animalRangeTerrain(onThisWorld.terrain) } : null,
     terrains: ANIMAL_TERRAIN_CHOICES,
     tables: here.map((table) => ({ key: table.key, terrain: table.terrain, label: table.terrainLabel, dice: table.dice })),
     pending: pending ? {

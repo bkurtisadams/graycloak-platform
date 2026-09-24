@@ -1245,6 +1245,20 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .animal-stats small { opacity: .7; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
 .time-box { display: grid; gap: 8px; border: 1px solid var(--line); padding: 8px 10px; }
 .time-box legend { font-size: 13px; color: var(--ink-2); padding: 0 4px; }
+/* v0.304.0: the Party dialog's rows and the encounter's three steps. */
+.surface-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.surface-row[hidden] { display: none; }
+.surface-row > select { flex: 1 1 220px; min-width: 0; }
+.surface-row > span { font-size: 13px; color: var(--ink-2); }
+.surface-inline { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.encounter-head { font-size: 13px; color: var(--ink-2); }
+.encounter-line { font-size: 14px; }
+.encounter-step { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.encounter-step-label { font-weight: 700; font-size: 14px; }
+.encounter-step-result { font-size: 14px; }
+.encounter-step-result.is-open { color: var(--ink-2); font-style: italic; }
+.encounter-step-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+.encounter-step-actions select { font-size: 13px; }
 .time-row { display: flex; align-items: center; gap: 8px; }
 .signin-form .time-row input { width: 90px; }
 
