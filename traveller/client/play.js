@@ -2,15 +2,15 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.292.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.292.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.292.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.292.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.292.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.292.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.292.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.292.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.292.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.293.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.293.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.293.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.293.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.293.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.293.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.293.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.293.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.293.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1033,6 +1033,17 @@ async function refreshPlayers() {
 }
 
 const autoAdmitted = new Set();
+// v0.293.0: wait until the campaign has actually reached the cloud.
+async function flushSave() {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const revision = await source.session.saveToCloud();
+    if (typeof revision === 'number') return revision;
+    const state = source.session.view().save?.state;
+    if (state === 'stale') throw new Error('This page is behind the cloud copy of the campaign; reload it, and the player\u2019s character will be brought in again.');
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  throw new Error('The campaign could not be saved to the cloud; the player\u2019s character will be brought in on the next try.');
+}
 async function runSeat(action, seat) {
   if (source.mode !== 'live') return;
   const campaignId = source.session.resolved.campaign.identity.id;
@@ -1107,9 +1118,13 @@ async function runSeat(action, seat) {
       await cloud.seat(campaignId, seat.uid, join.name ?? seat.name ?? null);
       await cloud.placeCharacter(join.characterId, {
         kind: 'campaign', campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null, since: Date.now()
-      });
+      }).catch((error) => console.warn('[traveller] record world:', error?.code ?? error));
+      // v0.293.0: the join note goes only once the campaign, with the
+      // character in it, is safely saved. It was cleared first, so a save
+      // that failed or was overtaken lost the character with nothing left to
+      // bring it in again (Kurt's kurt/Nico, Sep 2026).
+      await flushSave();
       await cloud.dismissJoin(campaignId, seat.uid);
-      await source.session.saveToCloud();
     } else if (action === 'decline') {
       await cloud.dismissJoin(campaignId, seat.uid);
     } else if (action === 'unseat') {

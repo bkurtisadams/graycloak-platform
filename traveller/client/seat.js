@@ -10,17 +10,17 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.292.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.292.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.292.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords } from './publish.js?v=v0.292.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.292.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.292.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.292.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.292.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.292.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.292.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.292.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.293.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.293.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.293.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest } from './publish.js?v=v0.293.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.293.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.293.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.293.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.293.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.293.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.293.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.293.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -63,14 +63,53 @@ function characterFrom(published) {
 
 // v0.289.0: until the referee's page has brought a newly joined character
 // into the campaign (and published it), the player sees their own copy.
+// v0.293.0: "in the campaign" is what the campaign says (its ownership), not
+// whether an old published sheet is lying about from an earlier visit.
+function joinedHere() {
+  return (state.ownRecords ?? []).filter((record) => record.world?.campaignId === campaignId);
+}
+function ownedHere() {
+  const uid = currentUserId();
+  return new Set(Object.entries(state.envelope?.ownership?.actors ?? {}).filter(([, owner]) => owner === uid).map(([id]) => id));
+}
 function characters() {
-  const published = [...state.published.values()].map(characterFrom).filter(Boolean);
+  const owned = ownedHere();
+  const published = [...state.published.values()].filter((entry) => owned.has(entry.characterId)).map(characterFrom).filter(Boolean);
   if (published.length) return published;
-  return (state.ownRecords ?? []).filter((record) => record.world?.campaignId === campaignId).map((record) => record.character).filter(Boolean);
+  return joinedHere().map((record) => record.character).filter(Boolean);
 }
 
 function arriving() {
-  return !state.published.size && (state.ownRecords ?? []).some((record) => record.world?.campaignId === campaignId);
+  const owned = ownedHere();
+  return joinedHere().some((record) => !owned.has(record.characterId));
+}
+
+// v0.293.0: a character that joined but whose join note was lost before the
+// referee's page brought it in would wait for ever. The player's page sends
+// the note again (their seat keeps the link's code), once per visit.
+const resent = new Set();
+async function resendJoins() {
+  const uid = currentUserId();
+  if (!uid || !state.envelope) return;
+  const owned = ownedHere();
+  for (const record of joinedHere()) {
+    if (owned.has(record.characterId) || resent.has(record.characterId)) continue;
+    resent.add(record.characterId);
+    try {
+      const db = await ensureFirestore();
+      const existing = await db.doc(`travellerCampaigns/${campaignId}/joins/${uid}`).get();
+      if (existing.exists) continue;
+      const seat = await db.doc(`travellerCampaigns/${campaignId}/players/${uid}`).get();
+      const code = seat.exists ? seat.data().code : null;
+      if (!code) { console.warn('[traveller-seat] no link code on the seat; open the referee\u2019s link again'); continue; }
+      const { user } = authStatus();
+      await writeJoinRequest({
+        uid, name: user?.displayName ?? user?.email ?? null, code, campaignId,
+        characterId: record.characterId, characterName: record.name, character: JSON.parse(JSON.stringify(record.character)), requestedAt: Date.now()
+      });
+      console.info('[traveller-seat] sent', record.name, 'to the referee again');
+    } catch (error) { console.warn('[traveller-seat] resend join:', error?.code ?? error); }
+  }
 }
 
 function myName() {
@@ -570,6 +609,7 @@ async function connect() {
       if (!snapshot.exists) setStatus('No such campaign, or you are not seated at it.', 'error');
       watchFight();
       noteTrip();
+      resendJoins();
       render();
     }, (error) => setStatus(error?.code === 'permission-denied' ? 'You are not seated at this campaign.' : error.message, 'error')));
     const mine = db.doc(`travellerCampaigns/${campaignId}/players/${uid}`);
@@ -591,6 +631,7 @@ async function connect() {
     stops.push(stopChat);
     const stopRecords = await watchOwnCharacterRecords(uid, (records) => {
       state.ownRecords = records;
+      resendJoins();
       if (state.sheets === null && characters().length) state.sheets = [{ kind: 'actor', id: characters()[0].identity.id, compact: false, tab: null }];
       render();
     });
