@@ -15,6 +15,24 @@ test('[14.14] illusion casting is Missile and Magic Phase only', () => {
   assert.equal(I.timingState(p, { liveBattle: true, phaseId: 'missileMagic' }).ok, true);
 });
 
+test('[PHB] Phantasmal Force profiles distinguish Illusionist 1 from Magic-User 3', () => {
+  const il = I.illusionProfile({ name: 'Phantasmal Force', level: 1, phbMeta: { class: 'illusionist' } }, { casterLevel: 5 });
+  assert.equal(il.phantasmalForce, true);
+  assert.equal(il.rangeIn, 11);
+  assert.equal(il.sourceAreaSqIn, 9);
+  assert.equal(il.sourceLength, 3);
+  assert.equal(il.castingTimeSegments, 1);
+  assert.equal(il.shape, 'square');
+  assert.equal(il.concentration, true);
+  assert.equal(il.visualOnly, true);
+
+  const mu = I.illusionProfile({ name: 'Phantasmal Force', level: 3, phbMeta: { class: 'magic-user' } }, { casterLevel: 7 });
+  assert.equal(mu.rangeIn, 15);
+  assert.equal(mu.sourceAreaSqIn, 15);
+  assert.equal(mu.castingTimeSegments, 3);
+  assert.equal(mu.movableArea, true);
+});
+
 test('[14.14] sensory and referee plausibility modifiers affect only the disbelief Morale gate', () => {
   assert.equal(I.disbeliefMoraleModifier({ missingSensory: true, plausibilityModifier: 1 }), 2);
   assert.equal(I.disbeliefMoraleModifier({ missingSensory: false, plausibilityModifier: -1 }), -1);

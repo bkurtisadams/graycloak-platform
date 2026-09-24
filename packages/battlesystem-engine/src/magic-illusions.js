@@ -1,4 +1,4 @@
-// @graycloak/battlesystem-engine magic-illusions.js v0.1.0 - 2026-09-24
+// @graycloak/battlesystem-engine magic-illusions.js v0.2.0 - 2026-09-24
 // Pure BATTLESYSTEM [14.14] illusion recognition and disbelief procedure.
 // Hosts own battlefield markers, morale/save rolls, state mutation, logs, and UI.
 
@@ -56,7 +56,7 @@ function illusionName(entry = {}, notes = '') {
 function illusionProfile(entry = {}, opts = {}) {
   const name = illusionName(entry, opts.notes || '');
   if (!name) return null;
-  return {
+  const base = {
     illusionMagic: true,
     illusionName: name,
     executionResolver: 'illusion',
@@ -68,6 +68,35 @@ function illusionProfile(entry = {}, opts = {}) {
     saveType: 'sp',
     saveEffect: 'negates',
     label: `${name} · illusion [14.14] · Missile & Magic Phase only · disbelief uses Morale then save vs Spell`
+  };
+  if (textKey(name) !== 'phantasmal force') return base;
+
+  // PHB Phantasmal Force exists as Illusionist 1 and Magic-User 3.  Its listed
+  // area is a number of square game-inches, so expose an equal-area square;
+  // the host applies BATTLESYSTEM Table 17 to that square's linear side.
+  const metaClass = String(entry?.phbMeta?.class || entry?.spellClass || '').toLowerCase();
+  if (!metaClass) return base;
+  const illusionist = metaClass === 'illusionist' || (!metaClass && Number(entry?.level) === 1);
+  const casterLevel = Math.max(1, Math.round(Number(opts.casterLevel) || 1));
+  const sourceAreaSqIn = (illusionist ? 4 : 8) + casterLevel;
+  const rangeIn = (illusionist ? 6 : 8) + casterLevel;
+  const castingTimeSegments = illusionist ? 1 : 3;
+  return {
+    ...base,
+    phantasmalForce: true,
+    sourceClass: illusionist ? 'illusionist' : 'magic-user',
+    casterLevel,
+    rangeIn,
+    shape: 'square',
+    sourceAreaSqIn,
+    sourceLength: Math.sqrt(sourceAreaSqIn),
+    concentration: true,
+    movableArea: true,
+    visualOnly: true,
+    castingTimeSegments,
+    castingTimeText: `${castingTimeSegments} segment${castingTimeSegments === 1 ? '' : 's'}`,
+    durationText: 'Special · concentration',
+    label: `Phantasmal Force · ${illusionist ? 'Illusionist 1' : 'Magic-User 3'} · range ${rangeIn}″ · ${sourceAreaSqIn} square game-inches · visual only · concentration`
   };
 }
 

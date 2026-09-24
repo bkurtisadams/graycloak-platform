@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.17.0 - 2026-09-24
+// @graycloak/battlesystem-engine v0.17.1 - 2026-09-24
+// v0.17.1: Phantasmal Force distinguishes Illusionist 1 / Magic-User 3 and
+//          exposes class/level range, square area, visual-only concentration,
+//          movable-area, and casting-time metadata for the board host.
 // v0.16.0: magic-healing.js adds pure BATTLESYSTEM [14.16] curative-magic recognition:
 //          named cure/heal/raise/wish spells, HD cured per spell level, hp÷4 conversion,
 //          and the cumulative ½-HD Wound-marker threshold. Hosts own targets/state/logs.
