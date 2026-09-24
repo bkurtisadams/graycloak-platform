@@ -2317,6 +2317,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         shipFight: playerShipFight(),
         // v0.282.0: the referee's Clear, which players' chat follows.
         chatClearedAt: campaign.roster?.chatClearedAt ?? null,
+        // v0.294.0: which characters are in the campaign, so a player's page
+        // can tell "in" from an ownership entry or an old sheet left over.
+        characterIds: (campaign.documentRefs?.characters ?? []).map((entry) => entry.id),
+        partyIds: [...(campaign.party?.characterIds ?? [])],
         // v0.285.0: whose campaign it is, for the stamp a character takes home.
         refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null
       };

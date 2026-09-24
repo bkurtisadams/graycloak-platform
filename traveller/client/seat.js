@@ -10,17 +10,18 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.293.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.293.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.293.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest } from './publish.js?v=v0.293.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.293.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.293.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.293.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.293.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.293.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.293.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.293.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.294.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.294.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.294.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.294.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest } from './publish.js?v=v0.294.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.294.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.294.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.294.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.294.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.294.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.294.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.294.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -70,7 +71,9 @@ function joinedHere() {
 }
 function ownedHere() {
   const uid = currentUserId();
-  return new Set(Object.entries(state.envelope?.ownership?.actors ?? {}).filter(([, owner]) => owner === uid).map(([id]) => id));
+  const inCampaign = Array.isArray(state.envelope?.characterIds) ? new Set(state.envelope.characterIds) : null;
+  return new Set(Object.entries(state.envelope?.ownership?.actors ?? {})
+    .filter(([id, owner]) => owner === uid && (!inCampaign || inCampaign.has(id))).map(([id]) => id));
 }
 function characters() {
   const owned = ownedHere();
@@ -163,7 +166,8 @@ function renderNow() {
       h('button', { type: 'button', class: 'button is-small', text: 'Sheet', onclick: () => openSheet(character.identity.id) })))
     : [h('p', { class: 'cite', text: currentUserId() ? 'Waiting for the referee to publish your character.' : 'Sign in from the lobby to take your seat.' })];
   const note = arriving() ? h('p', { class: 'cite', text: 'You have joined. Your referee\u2019s page brings your character into the campaign the next time it opens; until then this is your own copy.' }) : null;
-  $('now').replaceChildren(h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note));
+  const diagnostics = h('p', { class: 'cite' }, h('button', { type: 'button', class: 'button is-small', text: 'Copy diagnostics', title: 'Copy what this page knows, to paste to Claude', onclick: () => copySeatDiagnostics() }));
+  $('now').replaceChildren(h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note, diagnostics));
 }
 
 function renderScene() {
@@ -673,6 +677,29 @@ function touch() {
   touchSeat(campaignId, currentUserId()).catch((error) => console.warn('[traveller-seat] seat:', error?.code ?? error));
 }
 setInterval(touch, 5 * 60000);
+
+// v0.294.0: what this page knows, for pasting to Claude.
+async function copySeatDiagnostics() {
+  const uid = currentUserId();
+  let joinDoc = null; let seatDoc = null;
+  try {
+    const db = await ensureFirestore();
+    const join = await db.doc(`travellerCampaigns/${campaignId}/joins/${uid}`).get();
+    joinDoc = join.exists ? { characterId: join.data().characterId, characterName: join.data().characterName, code: join.data().code, requestedAt: join.data().requestedAt } : 'none';
+    const seat = await db.doc(`travellerCampaigns/${campaignId}/players/${uid}`).get();
+    seatDoc = seat.exists ? seat.data() : 'none';
+  } catch (error) { joinDoc = `error: ${error?.code ?? error?.message}`; }
+  const copied = await copyDiagnostics({
+    script: document.querySelector('script[src*="seat.js"]')?.getAttribute('src') ?? null,
+    uid, account: authStatus().user?.email ?? null, campaignId,
+    envelope: state.envelope ? { name: state.envelope.name, ownership: state.envelope.ownership, characterIds: state.envelope.characterIds ?? 'not published', partyIds: state.envelope.partyIds ?? 'not published', refereeName: state.envelope.refereeName ?? null } : null,
+    publishedSheets: [...state.published.keys()],
+    ownRecords: (state.ownRecords ?? []).map((record) => ({ id: record.characterId, name: record.name, world: record.world, pendingJoin: record.pendingJoin ?? null, lastCampaign: record.lastCampaign ?? null })),
+    ownedHere: [...ownedHere()], arriving: arriving(), resent: [...resent],
+    joinDoc, seatDoc
+  });
+  window.alert(copied ? 'Diagnostics copied. Paste them into the chat with Claude.' : 'Copy the text shown, then paste it into the chat with Claude.');
+}
 
 async function start() {
   render();

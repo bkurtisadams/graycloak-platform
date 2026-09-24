@@ -2,15 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.293.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.293.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.293.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.293.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.293.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.293.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.293.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.293.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.293.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.294.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.294.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.294.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.294.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.294.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.294.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.294.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.294.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.294.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.294.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1079,6 +1080,29 @@ async function runSeat(action, seat) {
       let copied = false;
       try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
       window.prompt(`${copied ? 'Copied. ' : ''}The join link for your players:`, url.toString());
+    } else if (action === 'diagnostics') {
+      // v0.294.0: what this page knows, for pasting to Claude.
+      const resolved = source.session.resolved;
+      const copied = await copyDiagnostics({
+        script: document.querySelector('script[src*="play.js"]')?.getAttribute('src') ?? null,
+        uid: cloud.userId(), account: cloud.account?.()?.email ?? null,
+        campaignId, campaignName: resolved.campaign.identity.name,
+        save: source.session.view().save ?? null,
+        approvePlayers: Boolean(resolved.campaign.roster?.approvePlayers),
+        ownership: resolved.campaign.ownership ?? null,
+        party: resolved.campaign.party?.characterIds ?? [],
+        characters: (resolved.characters ?? []).map((entry) => ({ id: entry.identity.id, name: entry.identity.name })),
+        players: {
+          seats: (ui.players?.seats ?? []).map((entry) => ({ uid: entry.uid, name: entry.name ?? null, code: entry.code ?? null, seatedAt: entry.seatedAt ?? null, lastSeenAt: entry.lastSeenAt ?? null })),
+          invites: (ui.players?.invites ?? []).map((entry) => ({ code: entry.code, approval: entry.approval ?? null })),
+          joins: (ui.players?.joins ?? []).map((entry) => ({ uid: entry.uid, name: entry.name ?? null, characterId: entry.characterId ?? null, characterName: entry.characterName ?? null, code: entry.code ?? null, requestedAt: entry.requestedAt ?? null })),
+          error: ui.players?.error ?? null
+        },
+        broughtInThisVisit: [...autoAdmitted],
+        watchingJoinsFor: watching.joinsFor
+      });
+      window.alert(copied ? 'Diagnostics copied. Paste them into the chat with Claude.' : 'Copy the text shown, then paste it into the chat with Claude.');
+      return;
     } else if (action === 'refresh') {
       // v0.292.0: nothing to do but read again (below).
     } else if (action === 'approve-setting') {
