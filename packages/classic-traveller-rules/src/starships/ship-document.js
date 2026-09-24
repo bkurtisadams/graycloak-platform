@@ -138,6 +138,29 @@ function refreshSpecificationsFromDesign(document) {
 // four-week name. The tonnage itself never changed, and fuel tankage defines
 // the vessel, so this is a key rename in migration rather than a blanket
 // refresh of the fuel block from the design.
+// v8 added three fields to parts of the document a caller may still build by
+// hand in the v7 shape — a port call of four fields, a passenger without an
+// endurance, a state without the arrival lists. They are purely additive and
+// have safe defaults, so creation and import fill them in rather than
+// rejecting the document; validation itself stays strict.
+function fillArrivalDefaults(document) {
+  const state = document?.state;
+  if (!isPlainObject(state)) return document;
+  const streamlined = Boolean(document.specifications?.hull?.streamlined);
+  if (isPlainObject(state.portCall)) {
+    if (!Object.hasOwn(state.portCall, 'berth')) state.portCall.berth = streamlined ? 'surface' : 'orbit';
+    if (!Object.hasOwn(state.portCall, 'brokerTipDM')) state.portCall.brokerTipDM = 0;
+  }
+  for (const entry of Array.isArray(state.passengerManifest) ? state.passengerManifest : []) {
+    if (isPlainObject(entry) && !Object.hasOwn(entry, 'endurance')) entry.endurance = null;
+  }
+  if (!Object.hasOwn(state, 'portCallHistory')) state.portCallHistory = [];
+  if (!Object.hasOwn(state, 'privateMessages')) state.privateMessages = [];
+  if (!Object.hasOwn(state, 'impound')) state.impound = null;
+  if (isPlainObject(state.finances?.mortgage) && !Object.hasOwn(state.finances.mortgage, 'homeSystemId')) state.finances.mortgage.homeSystemId = null;
+  return document;
+}
+
 function renameLegacyFuelAllowanceKey(fuel) {
   if (!isPlainObject(fuel)) return;
   if (!('powerPlantFuelTonsForFourWeeks' in fuel)) return;
@@ -243,6 +266,7 @@ export function createShipDocument({
     }
   };
 
+  fillArrivalDefaults(document);
   assertValidShipDocument(document);
   return document;
 }
@@ -656,7 +680,7 @@ export function migrateShipDocument(input) {
     throw new ShipDocumentValidationError(`unsupported schemaVersion: ${version}`);
   }
   if (version === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
-    const refreshed = refreshSpecificationsFromDesign(cloneJson(input));
+    const refreshed = fillArrivalDefaults(refreshSpecificationsFromDesign(cloneJson(input)));
     assertValidShipDocument(refreshed);
     return refreshed;
   }
@@ -748,7 +772,7 @@ export function migrateShipDocument(input) {
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
-    const refreshed = refreshSpecificationsFromDesign(next);
+    const refreshed = fillArrivalDefaults(refreshSpecificationsFromDesign(next));
     assertValidShipDocument(refreshed);
     return refreshed;
   }

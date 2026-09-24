@@ -245,3 +245,24 @@ test('a broker tip lives on the port call and is spent by one sale', () => {
   assert.equal(beginPortCall(tipped, { systemId: 'b' }).state.portCall.brokerTipDM, 0);
   assertValidShipDocument(tipped);
 });
+
+test('a v7-shaped port call or passenger is filled in on create and on import', () => {
+  const handBuilt = createShipDocument({
+    designKey: 'type-y-yacht', id: 'hand', authority: AUTHORITY,
+    crewAssignments: [{ role: 'pilot', characterId: 'captain', characterName: 'Captain' }],
+    state: {
+      portCall: { systemId: 'a', arrivalDate: null, berthingDueCr: 100, berthingPaid: false },
+      passengerManifest: [{ id: 'p', class: 'middle', originSystemId: 'a', destinationSystemId: 'b', fareCr: 8000 }]
+    }
+  });
+  assert.equal(handBuilt.state.portCall.berth, 'orbit');
+  assert.equal(handBuilt.state.portCall.brokerTipDM, 0);
+  assert.equal(handBuilt.state.passengerManifest[0].endurance, null);
+  const current = structuredClone(handBuilt);
+  delete current.state.portCall.berth;
+  delete current.state.portCall.brokerTipDM;
+  delete current.state.portCallHistory;
+  assert.equal(migrateShipDocument(current).state.portCall.berth, 'orbit');
+  assert.deepEqual(migrateShipDocument(current).state.portCallHistory, []);
+  assert.throws(() => assertValidShipDocument(current), /berth/);
+});
