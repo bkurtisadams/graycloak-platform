@@ -22,10 +22,15 @@ rules citations as Kurt supplies them; the full text is his.
   blows, not shots; a long gun (not a pistol) parries as a cudgel.
 - Untrained weapon usage: -5 attacking, +3 defending. Player characters have
   expertise-0 in every weapon in the book: no penalty, no DM.
+  Graycloak ruling (Kurt, Sep 2026): the +3 applies only in brawling or blade
+  combat against a defender holding a brawling or blade weapon — someone
+  untrained with a sword is no easier to shoot with a rifle.
 
 ## Medical skill (Characters)
 
 - Medical-1: ship's medic. Medical-2+: +1 reviving low passengers (5+).
   Medical-3: doctor; a surgeon also needs DEX 8+.
 - Xeno-medicine: medical expertise applies to non-humans at -2 (a Medical-3
-  doctor treats an alien as Medical-1).
+  doctor treats an alien as Medical-1). In the game (v0.298.0): the attendant
+  counts two levels lower for a non-human patient, ticked from an NPC's
+  species and the referee's to change.

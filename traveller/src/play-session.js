@@ -86,7 +86,7 @@ import { lawCheck, starportLine, atmosphereGear, worldDetail, prohibitedWeaponKe
 import {
   createNpcActorDocument, duplicateNpcActorDocument, updateNpcActorDocument, NPC_ACTOR_KINDS, normalizeFolderPath,
   addNpcActorInventoryItem, updateNpcActorInventoryItem, removeNpcActorInventoryItem,
-  recordNpcActorWounds, restNpcActor, medicalAttentionNpcActor, npcActorIsWounded, npcActorIsSeverelyWounded, npcActorIsDead
+  recordNpcActorWounds, restNpcActor, medicalAttentionNpcActor, npcActorIsNonHuman, npcActorIsWounded, npcActorIsSeverelyWounded, npcActorIsDead
 } from './npc-actor-document.js';
 import { setCombatantCurrent } from './encounter-document.js';
 
@@ -772,10 +772,10 @@ export function weaponExpertiseTag({ skills = {}, playerCharacter = false } = {}
     text = `${skill ?? spec.skillNames[0]}-${level} (+${level})`;
     title = `${skill}-${level}: +${level} on the attack.`;
   } else {
-    text = skill ? `${skill}-0, no DM` : 'expertise \u00bd, no DM';
+    text = skill ? `${skill}-0, no DM` : 'expertise-0, no DM';
     title = skill
       ? `${skill}-0: familiar with it, so no untrained penalty, but no DM.`
-      : 'Book 1 p.33: every player character has expertise \u00bd in every weapon: no untrained penalty, but no DM.';
+      : 'Every player character has expertise-0 in every weapon (The Traveller Book; \u00bd in the 1977 Book 1): no untrained penalty, but no DM.';
   }
   if (exposed) {
     text += spec.parry ? '; foes +3 in melee' : '; foes +3 in melee (no cudgel)';
@@ -873,7 +873,9 @@ function npcActorSheet(actor, resolved, subsector) {
         .filter((entry) => entry.status?.alive !== false && entry.state?.lifeState !== 'dead' && String(entry.identity.name ?? '').trim())
         .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
         .sort((a, b) => (b.level ?? -1) - (a.level ?? -1)),
-      kitSeen: medicalKitSeen(resolved)
+      kitSeen: medicalKitSeen(resolved),
+      // v0.298.0: xeno-medicine, from the NPC's species.
+      nonHuman: npcActorIsNonHuman(actor)
     },
     profile: {
       folder: actor.profile.folder, role: actor.profile.role, faction: actor.profile.faction,
@@ -1948,10 +1950,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     const medicId = value?.medicId ?? null;
     const medic = medicId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === medicId) ?? null : null;
     const level = medic && Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null;
-    return { medic, level, kit: Boolean(value?.kit), facility: Boolean(value?.facility) };
+    return { medic, level, kit: Boolean(value?.kit), facility: Boolean(value?.facility), xeno: Boolean(value?.xeno) };
   }
-  function treatedLine(medic, level, patientName, serious, sameDay) {
-    return `${medic?.identity.name ?? 'Someone'} (Medical-${level}) treats ${patientName}${serious ? ' in a medical facility' : ' with a medical kit'}: back to full strength (Book 1, 1981).${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
+  function treatedLine(medic, level, patientName, serious, sameDay, xeno = false) {
+    return `${medic?.identity.name ?? 'Someone'} (Medical-${level}${xeno ? `, Medical-${level - 2} for a non-human` : ''}) treats ${patientName}${serious ? ' in a medical facility' : ' with a medical kit'}: back to full strength (Book 1, 1981).${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
   }
 
   function treatmentDay(campaign, patientId) {
@@ -2797,13 +2799,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             log('MEDICAL', `${npcPatient.identity.name} rests three days and is back to full strength.`);
             lastMessage = { ok: true, message: `${npcPatient.identity.name} rested three days: full strength.` };
           } else {
-            const { medic, level, kit, facility } = attendance(fight?.value);
-            const result = medicalAttentionNpcActor(npcPatient, { medicalLevel: level, medicalKit: kit, facility });
+            const { medic, level, kit, facility, xeno } = attendance(fight?.value);
+            const result = medicalAttentionNpcActor(npcPatient, { medicalLevel: level, medicalKit: kit, facility, xeno });
             ({ campaign, sameDay } = treatmentDay(campaign, npcPatient.identity.id));
             registry.put(campaign);
             reload();
             persist([result.actor]);
-            const line = treatedLine(medic, level, npcPatient.identity.name, result.serious, sameDay);
+            const line = treatedLine(medic, level, npcPatient.identity.name, result.serious, sameDay, xeno);
             log('MEDICAL', line);
             lastMessage = { ok: true, message: line };
           }
@@ -2825,15 +2827,15 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           log('MEDICAL', `${patient.identity.name} rests three days and is back to full strength.`);
           lastMessage = { ok: true, message: `${patient.identity.name} rested three days: full strength.` };
         } else {
-          const { medic, level, kit, facility } = attendance(fight?.value);
+          const { medic, level, kit, facility, xeno } = attendance(fight?.value);
           // v0.296.0: no throw (1981 Book 1, Kurt's ruling); refused, saying
           // what is missing, before any time passes.
-          const result = medicalAttention(patient, { medicalLevel: level, medicalKit: kit, facility });
+          const result = medicalAttention(patient, { medicalLevel: level, medicalKit: kit, facility, xeno });
           ({ campaign, sameDay } = treatmentDay(campaign, patient.identity.id));
           registry.put(campaign);
           reload();
           persist([result.character]);
-          const line = treatedLine(medic, level, patient.identity.name, result.serious, sameDay);
+          const line = treatedLine(medic, level, patient.identity.name, result.serious, sameDay, xeno);
           log('MEDICAL', line);
           lastMessage = { ok: true, message: line };
         }

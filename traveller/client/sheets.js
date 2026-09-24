@@ -16,7 +16,7 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.297.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.298.0';
 
 const DRAGGED = new Map();
 
@@ -311,15 +311,21 @@ function conditionBlock(sheet, handlers) {
   if (!condition) return null;
   if (condition.dead) return h('p', { class: 'sheet-note is-error', text: 'Dead.' });
   if (!condition.wounded && !condition.severe) return h('p', { class: 'sheet-note', text: 'Unwounded.' });
-  const needed = condition.severe ? 3 : 1;
+  // v0.298.0: xeno-medicine (The Traveller Book) — a non-human patient is
+  // treated two levels lower; ticked from an NPC's species, the referee's
+  // to change.
+  const nonHuman = Boolean(condition.nonHuman);
+  const needed = (condition.severe ? 3 : 1) + (nonHuman ? 2 : 0);
   const qualified = (condition.medics ?? []).filter((entry) => (entry.level ?? -1) >= needed);
   const medic = h('select', { class: 'sheet-select', 'aria-label': 'Attending' },
     (condition.medics ?? []).map((entry) => h('option', { value: entry.id, disabled: (entry.level ?? -1) < needed, text: `${entry.name} \u2014 ${entry.level === null ? 'no Medical' : `Medical-${entry.level}`}` })));
   if (qualified[0]) medic.value = qualified[0].id;
+  const xeno = h('input', { type: 'checkbox', 'aria-label': 'Non-human patient', checked: nonHuman,
+    onchange: (event) => handlers.onMedicalXeno?.(sheet.id, event.currentTarget.checked) });
   const atHand = h('input', { type: 'checkbox', 'aria-label': condition.severe ? 'A medical facility is available' : 'A medical kit is at hand', checked: condition.severe ? false : Boolean(condition.kitSeen) });
   const treat = h('button', { type: 'button', class: 'button is-small is-primary', text: 'Medical attention', disabled: !qualified.length,
     title: qualified.length ? 'Full strength if the attendant and the equipment are at hand; takes the medic\u2019s day' : `Nobody here has Medical-${needed}`,
-    onclick: () => handlers.onMedical?.(sheet.id, medic.value, condition.severe ? { facility: atHand.checked } : { kit: atHand.checked }) });
+    onclick: () => handlers.onMedical?.(sheet.id, medic.value, { ...(condition.severe ? { facility: atHand.checked } : { kit: atHand.checked }), ...(nonHuman ? { xeno: true } : {}) }) });
   return h('div', { class: 'sheet-condition' },
     h('div', { class: 'sheet-section-label', text: 'CONDITION' }),
     h('p', { class: `sheet-note${condition.severe ? ' is-error' : ''}`, text: condition.severe
@@ -330,8 +336,9 @@ function conditionBlock(sheet, handlers) {
       h('span', { class: 'sheet-inline' }, 'Attending ', medic),
       h('label', { class: 'sheet-check', title: condition.severe ? 'Your call: a facility could be anywhere' : (condition.kitSeen ? 'A medical kit is in someone\u2019s gear' : 'Your call: no kit is listed in anyone\u2019s gear') },
         atHand, condition.severe ? ' medical facility available' : ' medical kit at hand'),
+      h('label', { class: 'sheet-check', title: 'Xeno-medicine: the attendant counts two levels lower (The Traveller Book)' }, xeno, ' non-human patient'),
       treat),
-    !sheet.playerSeat && !qualified.length ? h('p', { class: 'sheet-note', text: `Nobody here has Medical-${needed}${condition.severe ? '' : '; rest is the way'}.` }) : null);
+    !sheet.playerSeat && !qualified.length ? h('p', { class: 'sheet-note', text: `Nobody here has Medical-${needed}${nonHuman ? ' (two levels over, for a non-human)' : ''}${condition.severe ? '' : '; rest is the way'}.` }) : null);
 }
 
 function gearTab(sheet, handlers) {

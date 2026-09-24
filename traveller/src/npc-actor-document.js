@@ -435,15 +435,22 @@ export function restNpcActor(document) {
 // v0.296.0: the 1981 Book 1's requirements, no throw (Kurt's ruling) — as a
 // character's: Medical-1 and a medical kit; Medical-3 and a medical facility
 // for the seriously wounded.
-export function medicalAttentionNpcActor(document, { medicalLevel = null, medicalKit = false, facility = false } = {}) {
+// Xeno-medicine: an NPC whose species is not human is treated two levels
+// lower (The Traveller Book).
+export function npcActorIsNonHuman(document) {
+  return String(document?.profile?.species ?? 'Human').trim().toLowerCase() !== 'human';
+}
+
+export function medicalAttentionNpcActor(document, { medicalLevel = null, medicalKit = false, facility = false, xeno = false } = {}) {
   const actor = importNpcActorDocument(document);
   if (npcActorIsDead(actor)) throw new Error(`${actor.identity.name} is dead`);
   const serious = npcActorIsSeverelyWounded(actor);
   if (!npcActorIsWounded(actor) && !serious) throw new Error(`${actor.identity.name} is not wounded`);
-  const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const trained = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const level = trained === null ? null : trained - (xeno ? 2 : 0);
   const needed = serious ? 3 : 1;
   const missing = [];
-  if (level === null || level < needed) missing.push(`an attendant with Medical-${needed} or better`);
+  if (level === null || level < needed) missing.push(`an attendant with Medical-${needed} or better${xeno ? ` (Medical-${needed + 2} for a non-human)` : ''}`);
   if (serious ? !facility : !medicalKit) missing.push(serious ? 'a medical facility' : 'a medical kit');
   if (missing.length) throw new Error(`${actor.identity.name}${serious ? ' is seriously wounded and' : ''} needs ${missing.join(' and ')} (Book 1, 1981)`);
   return { success: true, serious, actor: recoveredNpcActor(actor) };

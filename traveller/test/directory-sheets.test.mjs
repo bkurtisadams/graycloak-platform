@@ -2120,3 +2120,25 @@ test('v0.285.0 the Players tab draws the link, requests, members with Remove, an
   dom.window.close();
   delete globalThis.document;
 });
+
+// v0.298.0: xeno-medicine from an NPC's species; expertise-0 wording.
+test('v0.298.0 a non-human NPC is treated two levels lower; the weapon tag says expertise-0', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const alien = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Vargr Trader' } } }).createdId;
+  const { updateNpcActorDocument } = await import('../src/npc-actor-document.js');
+  const actor = registry.resolveCampaign(campaignId).npcActors.find((entry) => entry.identity.id === alien);
+  registry.put(updateNpcActorDocument(actor, { species: 'Vargr', current: { STR: 2, DEX: actor.characteristics.DEX, END: actor.characteristics.END } }));
+  session.reload();
+  const doc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Dr Imre' } } }).createdId;
+  session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-2' } });
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: alien }] }).sheets;
+  assert.equal(sheet.condition.nonHuman, true);
+  const refused = session.run('character:medical', { fight: { id: alien, value: { medicId: doc, kit: true, xeno: true } } });
+  assert.match(refused.message, /Medical-3 for a non-human/);
+  session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-3' } });
+  const treated = session.run('character:medical', { fight: { id: alien, value: { medicId: doc, kit: true, xeno: true } } });
+  assert.equal(treated.ok, true, treated.message);
+  assert.match(treated.message, /Medical-3, Medical-1 for a non-human/);
+  const { weaponExpertiseTag } = await import('../src/play-session.js');
+  assert.equal(weaponExpertiseTag({ skills: {}, playerCharacter: true }, 'rifle').text, 'expertise-0, no DM');
+});

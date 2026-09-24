@@ -207,6 +207,10 @@ test('medical attention: Medical-1 and a kit for wounds; Medical-3 and a facilit
 
   assert.deepEqual(medicalAttentionNeeds(severe, { medicalLevel: 4, facility: false }).missing, ['a medical facility']);
   assert.equal(medicalAttentionNeeds(wounded, { medicalLevel: 2, medicalKit: true }).met, true);
+  // Xeno-medicine (The Traveller Book): two levels lower for a non-human.
+  assert.throws(() => medicalAttention(wounded, { medicalLevel: 2, medicalKit: true, xeno: true }), /Medical-3 for a non-human/);
+  assert.equal(medicalAttention(wounded, { medicalLevel: 3, medicalKit: true, xeno: true }).success, true, 'a doctor treats an alien as Medical-1');
+  assert.throws(() => medicalAttention(severe, { medicalLevel: 4, facility: true, xeno: true }), /Medical-5 for a non-human/);
 });
 
 test('v0.263.0 Book 1\u2019s skill DMs: +1 a level mostly, Administration +2, Vacc Suit and Forward Observer +4, Forgery against the inspector', async () => {

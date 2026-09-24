@@ -146,6 +146,7 @@ export {
   MEDICAL_KIT_LEVEL,
   MEDICAL_FACILITY_LEVEL,
   medicalAttentionNeeds,
+  XENO_MEDICINE_LEVELS,
   REST_DAYS,
   emptyCharacterRecord,
   CHARACTER_RECORD_TEXT_FIELDS

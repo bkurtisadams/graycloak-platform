@@ -169,7 +169,7 @@ export function skillGuide(name, { weaponNames = [] } = {}) {
     return {
       name, weapon: true, dmPerLevel: 1, untrainedDM: null, stated: true, page: 12, throws: [],
       tagline: 'Weapon expertise',
-      summary: `Expertise with the ${name}: its level is added to the throw to hit, and in brawling or blade combat counts against an attacker. Every player character has \u00bd in all weapons \u2014 enough to avoid the untrained penalty, not enough for a DM.`
+      summary: `Expertise with the ${name}: its level is added to the throw to hit, and in brawling or blade combat counts against an attacker. Every player character has expertise-0 in all weapons (The Traveller Book) \u2014 enough to avoid the untrained penalty, not enough for a DM.`
     };
   }
   if (VEHICLES.has(name)) {

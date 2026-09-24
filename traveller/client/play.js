@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.297.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.297.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.297.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.297.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.297.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.297.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.297.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.297.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.297.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.297.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.298.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.298.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.298.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.298.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.298.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.298.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.298.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.298.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.298.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.298.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -109,6 +109,11 @@ function viewState() {
       staging: ui.stagingSceneId ? { sceneId: ui.stagingSceneId, intruder: ui.stagingIntruder, pressurised: ui.stagingPressurised } : null,
       sheets: ui.openSheets
     });
+    // v0.298.0: the referee's non-human tick, over the species default.
+    if (ui.medicalXeno && Array.isArray(state.sheets)) {
+      state.sheets = state.sheets.map((sheet) => (sheet.condition && Object.hasOwn(ui.medicalXeno, sheet.id)
+        ? { ...sheet, condition: { ...sheet.condition, nonHuman: ui.medicalXeno[sheet.id] } } : sheet));
+    }
     // The declaration being built lives in the page, not the session: the
     // session only knows what has been declared. Overlay what is chosen here
     // so the movement row, the target and the throw all agree before Declare.
@@ -298,9 +303,11 @@ function render() {
     // v0.261.0: recovery, from the character sheet.
     // v0.275.0: resting is the party's, three days once, whoever is ticked.
     onRest: (id) => { if (source.mode === 'live') openRestDialog(id); },
+    // v0.298.0: the referee's override of the non-human tick, per sheet.
+    onMedicalXeno: (id, on) => { ui.medicalXeno = { ...(ui.medicalXeno ?? {}), [id]: on }; render(); },
     onMedical: (id, medicId, atHand = {}) => {
       if (source.mode !== 'live') return;
-      const result = source.session.run('character:medical', { fight: { id, value: { medicId, kit: Boolean(atHand.kit), facility: Boolean(atHand.facility) } } });
+      const result = source.session.run('character:medical', { fight: { id, value: { medicId, kit: Boolean(atHand.kit), facility: Boolean(atHand.facility), xeno: Boolean(atHand.xeno) } } });
       if (!result.ok) window.alert(result.message);
       render();
     },

@@ -642,23 +642,29 @@ export function restCharacter(document) {
 }
 
 // What medical attention needs for this patient, and whether it is met.
-export function medicalAttentionNeeds(document, { medicalLevel = null, medicalKit = false, facility = false } = {}) {
+// Xeno-medicine (The Traveller Book; Kurt's ruling, Sep 2026): expertise
+// applies to non-humans two levels lower — a Medical-3 doctor treats an
+// alien as Medical-1.
+export const XENO_MEDICINE_LEVELS = 2;
+
+export function medicalAttentionNeeds(document, { medicalLevel = null, medicalKit = false, facility = false, xeno = false } = {}) {
   const serious = Boolean(document.status?.severelyWounded);
-  const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const trained = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const level = trained === null ? null : trained - (xeno ? XENO_MEDICINE_LEVELS : 0);
   const needed = serious ? MEDICAL_FACILITY_LEVEL : MEDICAL_KIT_LEVEL;
   const equipment = serious ? 'a medical facility' : 'a medical kit';
   const missing = [];
-  if (level === null || level < needed) missing.push(`an attendant with Medical-${needed} or better`);
+  if (level === null || level < needed) missing.push(`an attendant with Medical-${needed} or better${xeno ? ` (Medical-${needed + XENO_MEDICINE_LEVELS} for a non-human)` : ''}`);
   if (serious ? !facility : !medicalKit) missing.push(equipment);
-  return { serious, needed, equipment, met: missing.length === 0, missing };
+  return { serious, needed, equipment, level, xeno: Boolean(xeno), met: missing.length === 0, missing };
 }
 
 // Medical attention, which brings the patient back to full strength when
 // what it needs is at hand, and is refused, saying what is missing, when not.
-export function medicalAttention(document, { medicalLevel = null, medicalKit = false, facility = false } = {}) {
+export function medicalAttention(document, { medicalLevel = null, medicalKit = false, facility = false, xeno = false } = {}) {
   if (document.status?.alive === false) throw new Error(`${document.identity.name} is dead`);
   if (!characterIsWounded(document) && !document.status?.severelyWounded) throw new Error(`${document.identity.name} is not wounded`);
-  const needs = medicalAttentionNeeds(document, { medicalLevel, medicalKit, facility });
+  const needs = medicalAttentionNeeds(document, { medicalLevel, medicalKit, facility, xeno });
   if (!needs.met) throw new Error(`${document.identity.name}${needs.serious ? ' is seriously wounded and' : ''} needs ${needs.missing.join(' and ')} (Book 1, 1981)`);
   return { success: true, serious: needs.serious, character: recovered(document) };
 }
