@@ -3,6 +3,7 @@ import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE } from './ship-docume
 import {
   getTurretWeapon,
   getTurretMount,
+  getComputerProgram,
   ROUNDS_PER_LAUNCHER,
   MISSILE_PRICE_CR,
   SAND_CANISTER_PRICE_CR
@@ -1242,4 +1243,34 @@ export function purchaseOrdnance(ship, { missiles = 0, sandCanisters = 0, dateLa
   next.state.armament.sandCanisters += sandCanisters;
   assertValidShipDocument(next);
   return Object.freeze({ ship: next, costCr, missiles, sandCanisters });
+}
+
+
+// ---------------------------------------------------------------------------
+// v0.68.0: buying software. Book 2 p.12 prices every program in megacredits;
+// p.33 says characters "can, and should, seek out new and different computer
+// programs". A program is carried once — a second copy does nothing.
+// ---------------------------------------------------------------------------
+
+export function shipCarriesProgram(ship, key) {
+  assertValidShipDocument(ship);
+  return ship.state.computer.programs.includes(key);
+}
+
+export function purchaseComputerProgram(ship, key, { dateLabel = null, priceCr = null } = {}) {
+  assertValidShipDocument(ship);
+  const program = getComputerProgram(key);
+  if (ship.state.computer.programs.includes(program.key)) throw new RangeError(`${program.label} is already carried aboard`);
+  const costCr = priceCr ?? Math.round(program.priceMCr * 1_000_000);
+  if (!Number.isInteger(costCr) || costCr < 0) throw new TypeError('priceCr must be a non-negative integer');
+  if (costCr > ship.state.finances.balanceCr) throw new RangeError(`ship operating account requires Cr${costCr.toLocaleString('en-US')} for ${program.label}`);
+  const next = costCr === 0 ? cloneJson(ship) : appendLedger(ship, {
+    kind: 'software',
+    amountCr: -costCr,
+    description: `${program.label} program (Book 2 p.12)`,
+    dateLabel
+  });
+  next.state.computer.programs.push(program.key);
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, costCr, program: program.key });
 }

@@ -68,12 +68,14 @@ test('dates: DDD-YYYY labels round-trip through the ordinal, including year ends
 
 // ---------------------------------------------------------------- mortgage
 
-test('ship document v5 migrates to v6 with no mortgage', () => {
+test('ship document v5 migrates forward with no mortgage', () => {
   const v5 = { ...freeTrader(), schemaVersion: 5 };
   delete v5.state.finances.mortgage;
-  const v6 = migrateShipDocument(v5);
-  assert.equal(v6.schemaVersion, 6);
-  assert.equal(v6.state.finances.mortgage, null);
+  delete v5.state.computer;
+  delete v5.state.malfunction;
+  const migrated = migrateShipDocument(v5);
+  assert.equal(migrated.schemaVersion, 7);
+  assert.equal(migrated.state.finances.mortgage, null);
 });
 
 test('Book 2 p.5: a financed Free Trader owes 1/240th of the cash price every 30 days from signing', () => {

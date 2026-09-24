@@ -526,6 +526,54 @@ export {
   performMaintenance
 } from './src/starships/operations.js';
 
+// v0.68.0: software, departure and the jump (1982 malfunctions).
+export {
+  BASIC_SOFTWARE_PACKAGE_IS_RAW,
+  flightSoftware,
+  basicSoftwarePackage,
+  softwarePackageCostMCr
+} from './src/starships/software.js';
+
+export {
+  shipCarriesProgram,
+  purchaseComputerProgram
+} from './src/starships/operations.js';
+
+export { MALFUNCTION_DRIVES } from './src/starships/ship-document.js';
+
+export {
+  UNREFINED_FUEL_EQUIPPED_DESIGNS,
+  ENGINEER_TONS_PER_ENGINEER,
+  shipEquippedForUnrefinedFuel,
+  installedDriveTons,
+  shipCrewRequirements,
+  missingEngineers,
+  misjumpDMParts,
+  driveFailureDMParts,
+  departureChecklist,
+  MISJUMP_THROW,
+  MISJUMP_DESTROYED_THROW,
+  JUMP_WEEK_DAYS,
+  hexInDirection,
+  rollMisjump,
+  DRIVE_FAILURE_THROW,
+  DRIVE_SECTION_FAILURE_THROW,
+  DRIVE_REPAIR_THROW,
+  BATTERY_DAYS,
+  rollDriveFailure,
+  applyDriveFailure,
+  attemptDriveRepair,
+  DRIVE_REPAIR_STARPORTS,
+  completeDriveRepair,
+  shipBatteryStatus,
+  HIJACK_THROW,
+  ANTI_HIJACK_BRIDGE_THROW,
+  rollHijackAttempt,
+  rollHijackersReachBridge,
+  beginJump,
+  resolveJumpWeek
+} from './src/starships/jump.js';
+
 // v0.67.0: the game calendar and the campaign clock.
 export {
   DAYS_PER_YEAR,

@@ -8,12 +8,16 @@ import {
   TYPE_S_SCOUT_COURIER_KEY,
   getStandardShipDesign
 } from './standard-designs.js';
-import { TURRET_MOUNTS, TURRET_WEAPONS } from './components.js';
+import { TURRET_MOUNTS, TURRET_WEAPONS, COMPUTER_PROGRAMS } from './components.js';
+import { basicSoftwarePackage } from './software.js';
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 6;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 7;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
+
+// v7: the drive sections a malfunction can stop (1982 drive failure).
+export const MALFUNCTION_DRIVES = Object.freeze(['powerPlant', 'maneuverDrive', 'jumpDrive']);
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
@@ -207,6 +211,13 @@ export function createShipDocument({
         sandCanisters: state.armament?.sandCanisters ?? 0
       },
       damage: state.damage ? cloneJson(state.damage) : emptyDamageState(),
+      // v7: the programs carried aboard (Book 2 p.24 lists them on the data
+      // card), delivered as the basic software package; and a drive
+      // malfunction, null while every drive runs.
+      computer: {
+        programs: cloneJson(state.computer?.programs ?? basicSoftwarePackage(design.drives.jump.rating))
+      },
+      malfunction: state.malfunction ? cloneJson(state.malfunction) : null,
       maintenance: {
         status: state.maintenance?.status ?? 'unknown',
         lastOverhaulDate: state.maintenance?.lastOverhaulDate ?? null,
@@ -473,8 +484,24 @@ function validateState(document, errors) {
   validateExactKeys(state, [
     'operationalStatus', 'currentFuelTons', 'fuelQuality', 'cargoUsedTons',
     'cargoManifest', 'passengerManifest', 'finances', 'portCall', 'maintenance',
-    'armament', 'damage'
+    'armament', 'damage', 'computer', 'malfunction'
   ], 'state', errors);
+  add(errors, isPlainObject(state.computer), 'state.computer must be an object');
+  if (isPlainObject(state.computer)) {
+    validateExactKeys(state.computer, ['programs'], 'state.computer', errors);
+    add(errors, Array.isArray(state.computer.programs), 'state.computer.programs must be an array');
+    if (Array.isArray(state.computer.programs)) {
+      for (const key of state.computer.programs) add(errors, Object.hasOwn(COMPUTER_PROGRAMS, key), `unknown computer program: ${key}`);
+      add(errors, new Set(state.computer.programs).size === state.computer.programs.length, 'state.computer.programs repeats a program');
+    }
+  }
+  add(errors, state.malfunction === null || isPlainObject(state.malfunction), 'state.malfunction must be null or an object');
+  if (isPlainObject(state.malfunction)) {
+    validateExactKeys(state.malfunction, ['failed', 'since', 'patched'], 'state.malfunction', errors);
+    add(errors, Array.isArray(state.malfunction.failed) && state.malfunction.failed.every((drive) => MALFUNCTION_DRIVES.includes(drive)), 'state.malfunction.failed must list drive sections');
+    add(errors, typeof state.malfunction.since === 'string' && /^\d{1,3}-\d{1,5}$/.test(state.malfunction.since), 'state.malfunction.since must be a DDD-YYYY date');
+    add(errors, typeof state.malfunction.patched === 'boolean', 'state.malfunction.patched must be boolean');
+  }
   add(errors, typeof state.operationalStatus === 'string' && state.operationalStatus.length > 0, 'state.operationalStatus must be nonblank');
   add(errors, state.currentFuelTons === null || finiteAtLeast(state.currentFuelTons, 0), 'state.currentFuelTons must be null or a non-negative number');
   if (Number.isFinite(state.currentFuelTons)) {
@@ -631,6 +658,15 @@ export function migrateShipDocument(input) {
     // No mortgage was ever serviced before this version, so no existing ship
     // is known to be financed; financeShip() is the way to say one is.
     next.state.finances.mortgage = null;
+  }
+
+  if (next.schemaVersion === 6) {
+    next.schemaVersion = 7;
+    // No ship recorded its software before this version; each is taken to
+    // carry the basic package it was delivered with. No drive has failed.
+    const design = getStandardShipDesign(next.design.key);
+    next.state.computer = { programs: [...basicSoftwarePackage(design.drives.jump.rating)] };
+    next.state.malfunction = null;
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {

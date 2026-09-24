@@ -28,7 +28,7 @@ test('loader accepts a separate Ship Document', async () => {
   const loaded = loadTravellerDocument(await readExample('Hawkeye.ship.json'));
   assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.SHIP);
   assert.equal(loaded.shipDocument.documentType, 'classic-traveller-ship');
-  assert.equal(loaded.shipDocument.schemaVersion, 6);
+  assert.equal(loaded.shipDocument.schemaVersion, 7);
 });
 
 test('loader rejects unknown typed documents instead of misrouting them as chargen', () => {
