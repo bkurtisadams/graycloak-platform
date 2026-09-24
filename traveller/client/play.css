@@ -1255,6 +1255,11 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .encounter-line { font-size: 14px; }
 .encounter-step { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); }
 .encounter-step-label { font-weight: 700; font-size: 14px; }
+/* v0.307.0: who is out with the party; a kill's carcass. */
+.surface-with { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.surface-with-label { font-size: 13px; color: var(--ink-2); width: 100%; }
+.surface-check { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 14px; }
+.fight-carcass { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .encounter-step-result { font-size: 14px; }
 .encounter-step-result.is-open { color: var(--ink-2); font-style: italic; }
 .encounter-step-actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 6px; }

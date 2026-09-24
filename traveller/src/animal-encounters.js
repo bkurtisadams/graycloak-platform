@@ -2,7 +2,7 @@ import {
   ANIMAL_TERRAIN_TYPES_1982, ANIMAL_TERRAIN_KEYS_1982, ANIMAL_ENCOUNTER_CHECK_1982,
   generateAnimalEncounterTable, rollAnimalTableRow, animalDisplayName, resolveAnimalBehaviour,
   getPersonalWeapon, parseUniversalWorldProfile,
-  TERRAIN_DMS, rollEncounterRange, resolvePersonalSurprise, SURPRISE_DMS
+  TERRAIN_DMS, rollEncounterRange, resolvePersonalSurprise, SURPRISE_DMS, butcherAnimal
 } from '../vendor/classic-traveller-rules/index.js';
 import { createNpcActorDocument } from './npc-actor-document.js';
 
@@ -32,7 +32,26 @@ export function animalTableKey(systemId, terrain) {
 
 export function animalState(campaign) {
   const stored = campaign?.roster?.animals ?? {};
-  return { tables: { ...(stored.tables ?? {}) }, surface: stored.surface ?? null, pending: stored.pending ?? null };
+  return {
+    tables: { ...(stored.tables ?? {}) }, surface: stored.surface ?? null, pending: stored.pending ?? null,
+    // v0.307.0: who is out with the party (null: the whole party), and what
+    // has been butchered, by encounter|combatant.
+    withIds: Array.isArray(stored.withIds) ? [...stored.withIds] : null,
+    butchered: { ...(stored.butchered ?? {}) }
+  };
+}
+
+// v0.307.0: the characters out on the surface. Everyone who joins is in the
+// party, so the referee says who went (Kurt, Sep 2026); unset, the party.
+export function surfaceParty(resolved) {
+  const { withIds } = animalState(resolved.campaign);
+  const ids = withIds ?? resolved.campaign.party?.characterIds ?? [];
+  return ids.map((id) => (resolved.characters ?? []).find((entry) => entry.identity.id === id))
+    .filter((entry) => entry && String(entry.identity.name ?? '').trim() && entry.status?.alive !== false);
+}
+
+export function butcherCarcass(dice, entry, { atmosphere, destroyed }) {
+  return butcherAnimal(dice, entry, { atmosphere, destroyed });
 }
 
 export function withAnimalState(campaign, patch) {
@@ -272,10 +291,15 @@ export function animalSurfaceView(resolved, system) {
   const onThisWorld = surface && system && surface.systemId === system.id ? surface : null;
   let airless = false;
   try { airless = system ? parseUniversalWorldProfile(system.mainWorld.uwp).atmosphere <= 1 : false; } catch { airless = false; }
+  const out = new Set(surfaceParty(resolved).map((entry) => entry.identity.id));
+  const refs = new Set((resolved.campaign.documentRefs?.characters ?? []).map((entry) => entry.id));
   return {
     world: system ? { id: system.id, name: system.name, upp: system.mainWorld.uwp } : null,
     // p.92 Common Sense: airless worlds almost never have life of consequence.
     airless,
+    // v0.307.0: who is with the party, out on the surface.
+    roster: (resolved.characters ?? []).filter((entry) => refs.has(entry.identity.id) && String(entry.identity.name ?? '').trim())
+      .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, with: out.has(entry.identity.id), alive: entry.status?.alive !== false })),
     surface: onThisWorld ? { terrain: onThisWorld.terrain, label: ANIMAL_TERRAIN_TYPES_1982[onThisWorld.terrain]?.label ?? onThisWorld.terrain, key: animalTableKey(onThisWorld.systemId, onThisWorld.terrain), rangeTerrain: animalRangeTerrain(onThisWorld.terrain) } : null,
     terrains: ANIMAL_TERRAIN_CHOICES,
     tables: here.map((table) => ({ key: table.key, terrain: table.terrain, label: table.terrainLabel, dice: table.dice })),

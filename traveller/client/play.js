@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.306.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.306.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.306.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.306.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.306.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.306.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.306.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.306.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.306.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.306.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.307.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.307.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.307.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.307.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.307.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.307.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.307.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.307.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.307.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.307.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1377,7 +1377,18 @@ function openSurfaceDialog() {
         if (!ui.openSheets.some((entry) => entry.kind === 'animals' && entry.id === animals.surface.key)) ui.openSheets = [...ui.openSheets, { kind: 'animals', id: animals.surface.key, compact: true }];
         render();
       } })) : null,
-    animals.tables.length ? h('p', { class: 'signin-why', text: `Tables for ${animals.world.name}: ${animals.tables.map((table) => `${table.label} (${table.dice === 1 ? '1D' : '2D'})`).join(', ')}, in the Journal.` }) : null);
+    animals.tables.length ? h('p', { class: 'signin-why', text: `Tables for ${animals.world.name}: ${animals.tables.map((table) => `${table.label} (${table.dice === 1 ? '1D' : '2D'})`).join(', ')}, in the Journal.` }) : null,
+    // v0.307.0: who went out. Put on the board, surprise and "if more" use
+    // these; the rest stay in port.
+    animals.roster?.length ? h('div', { class: 'surface-with' },
+      h('span', { class: 'surface-with-label', text: 'Out with the party:' }),
+      animals.roster.map((entry) => h('label', { class: 'surface-check' },
+        h('input', { type: 'checkbox', checked: entry.with, disabled: !entry.alive, onchange: (event) => {
+          const ids = animals.roster.filter((other) => (other.id === entry.id ? event.currentTarget.checked : other.with)).map((other) => other.id);
+          if (!ids.length) { event.currentTarget.checked = true; window.alert('At least one character must be out with the party.'); return; }
+          again('with', { ids });
+        } }),
+        ` ${entry.name}${entry.alive ? '' : ' (dead)'}`))) : null);
 
   const parts = [partyBox];
 

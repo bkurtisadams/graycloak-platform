@@ -239,3 +239,15 @@ test('v0.305.0 p.93: a filter draws in at close range on 6+, 1D per 50 kg, weapo
   const miss = resolvePersonalAttack({ attacker: animal, defender: person(), range: 'close', dice: createSequenceDice([2, 3]) });
   assert.equal(miss.success, false);
 });
+
+test('v0.307.0 p.92: butchering — 5+ to be edible, -3 tainted, atmosphere 2-9, no stinger; 1D x 5% meat', async () => {
+  const { butcherAnimal } = await import('../index.js');
+  const grazer = { weightKg: 400, weapons: [{ key: 'hooves' }] };
+  const fed = butcherAnimal(createSequenceDice([3, 2, 4]), grazer, { atmosphere: 6 });
+  assert.equal(fed.edible, true);
+  assert.equal(fed.meatKg, 80);
+  assert.equal(butcherAnimal(createSequenceDice([3, 2]), grazer, { atmosphere: 7 }).edible, false, '5 -3 tainted fails');
+  assert.equal(butcherAnimal(createSequenceDice([]), grazer, { atmosphere: 1 }).edible, false);
+  assert.equal(butcherAnimal(createSequenceDice([]), { weightKg: 50, weapons: [{ key: 'stinger' }] }, { atmosphere: 6 }).edible, false);
+  assert.match(butcherAnimal(createSequenceDice([]), grazer, { destroyed: true }).reason, /destroyed/);
+});

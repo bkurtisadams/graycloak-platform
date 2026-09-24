@@ -248,3 +248,67 @@ test('v0.305.0 an empty setup board with an animal encounter waiting: no reactio
   delete globalThis.document;
   delete globalThis.Node;
 });
+
+async function waitingAnimal(terrain = 'clear') {
+  const fresh = await freshSession();
+  fresh.run('animals:surface', { terrain });
+  const table = Object.values(fresh.registry.resolveCampaign(fresh.campaignId).campaign.roster.animals.tables)[0];
+  for (let tries = 0; tries < 40; tries += 1) {
+    fresh.run('animals:roll', { key: table.key });
+    if (fresh.registry.resolveCampaign(fresh.campaignId).campaign.roster.animals.pending.actorId) break;
+    fresh.run('animals:dismiss');
+  }
+  return { ...fresh, pending: () => fresh.registry.resolveCampaign(fresh.campaignId).campaign.roster.animals.pending };
+}
+
+test('v0.307.0 only those out with the party go on the board, and a board with characters keeps them', async () => {
+  const { session, registry, campaignId, run, pending } = await waitingAnimal();
+  const roster = session.view().animals.roster;
+  assert.ok(roster.length >= 1, 'the fixture has characters');
+  const chosen = roster[0].id;
+  assert.equal(run('animals:with', { ids: [chosen] }).ok, true);
+  assert.equal(run('animals:with', { ids: [] }).ok, false, 'somebody has to go');
+  assert.deepEqual(session.view().animals.roster.filter((entry) => entry.with).map((entry) => entry.id), [chosen]);
+  assert.equal(run('animals:place', { actorId: pending().actorId, count: 1 }).ok, true);
+  const board = registry.resolveCampaign(campaignId).encounters.find((entry) => entry.status === 'setup');
+  assert.deepEqual(board.combatants.filter((entry) => entry.side === 'party').map((entry) => entry.id), [chosen]);
+});
+
+test('v0.307.0 a fleeing animal: let go and logged, or on the board with escape declared', async () => {
+  const first = await waitingAnimal();
+  // Force the throw: a copy of the encounter with its behaviour thrown as flee.
+  const campaign = first.registry.resolveCampaign(first.campaignId).campaign;
+  const fleeing = { ...campaign.roster.animals.pending, behaviour: { action: 'flee', speed: 3, text: 'flees' } };
+  first.registry.put({ ...campaign, roster: { ...campaign.roster, animals: { ...campaign.roster.animals, pending: fleeing } } });
+  const gone = first.run('animals:dismiss', { fled: true });
+  assert.match(gone.message, /fled; the party let (it|them) go/);
+
+  const second = await waitingAnimal();
+  const again = second.registry.resolveCampaign(second.campaignId).campaign;
+  second.registry.put({ ...again, roster: { ...again.roster, animals: { ...again.roster.animals, pending: { ...again.roster.animals.pending, behaviour: { action: 'flee', speed: 3, text: 'flees' }, surprise: { side: null, thrown: null, text: 'neither side has surprise (referee\u2019s call)' } } } } });
+  second.session.reload?.();
+  const placed = second.run('animals:place', { actorId: second.pending()?.actorId ?? again.roster.animals.pending.actorId, count: 1 });
+  assert.equal(placed.ok, true, placed.message);
+  assert.match(placed.message, /fleeing: escape is declared for round 1/);
+  const fight = second.registry.resolveCampaign(second.campaignId).encounters.find((entry) => entry.status === 'active');
+  const beast = fight.combatants.find((entry) => entry.animal);
+  assert.equal(beast.tactics, 'manual');
+  assert.ok(fight.roundState.declaredActions.some((entry) => entry.actorId === beast.id && entry.action === 'escape'));
+});
+
+test('v0.307.0 p.92 butchering a dead animal, once', async () => {
+  const { session, registry, campaignId, run, pending } = await waitingAnimal();
+  const actorId = pending().actorId;
+  run('animals:surprise', { mode: 'party' });
+  run('animals:range', { mode: 'close' });
+  assert.equal(run('animals:place', { actorId, count: 1 }).ok, true);
+  // End it by hand: the animal dead.
+  const fight = registry.resolveCampaign(campaignId).encounters.find((entry) => entry.status === 'active');
+  const beast = fight.combatants.find((entry) => entry.animal);
+  registry.put({ ...fight, combatants: fight.combatants.map((entry) => (entry.id === beast.id ? { ...entry, status: 'dead', animal: { ...entry.animal, woundsTaken: entry.animal.hits.dead } } : entry)) });
+  session.reload?.();
+  const first = run('animals:butcher', { encounterId: fight.identity.id, combatantId: beast.id });
+  assert.equal(first.ok, true, first.message);
+  assert.match(first.message, /(edible|not edible)/);
+  assert.equal(run('animals:butcher', { encounterId: fight.identity.id, combatantId: beast.id }).ok, false, 'once a carcass');
+});

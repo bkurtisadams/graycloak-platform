@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.306.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.306.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.306.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.306.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.307.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.307.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.307.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.307.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.306.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.306.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.306.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.306.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.307.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.307.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.307.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.307.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.306.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.307.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -554,17 +554,21 @@ export function renderAnimalEncounter(animals, act) {
         h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: rangeTerrain ? `Book 1 p.27: 2D plus the ${rangeTerrain.replace(/-/g, ' ')} DM` : 'Book 1 p.27: 2D, no terrain DM for this terrain', onclick: () => act('range', { mode: 'roll' }) }),
         callSelect([['close', 'close'], ['short', 'short'], ['medium', 'medium'], ['long', 'long'], ['very-long', 'very long']], 'range')]),
       step('3. Attack or flee', pending.behaviour?.text ?? null, [
-        h('button', { type: 'button', class: 'button is-small', text: 'Throw', title: 'The Traveller Book p.95, in the animal\u2019s own order, using the surprise above', onclick: () => act('behaviour', { actorId: pending.actorId }) })]));
+        h('button', { type: 'button', class: 'button is-small', text: pending.behaviour ? 'Again' : 'Throw', title: 'The Traveller Book p.95, in the animal\u2019s own order, using the surprise above', onclick: () => act('behaviour', { actorId: pending.actorId }) })]));
   }
+  // v0.307.0: a fleeing animal is let go by default; on the board it runs.
+  const fled = pending.behaviour?.action === 'flee';
+  const idle = pending.behaviour?.action === 'nothing';
   const count = h('input', { type: 'number', min: '1', value: String(row?.quantity ?? 1), 'aria-label': 'How many to place', style: 'width:56px' });
-  const settled = pending.surprise ? 'places them at the range above and begins round 1 with that surprise' : pending.range ? 'places them at the range above; settle surprise on the board' : 'places them two bands off; throw range and surprise on the board';
+  const settled = `${pending.surprise ? 'places them at the range above and begins round 1 with that surprise' : pending.range ? 'places them at the range above; settle surprise on the board' : 'places them two bands off; throw range and surprise on the board'}${fled ? ', fleeing: escape is declared for round 1' : idle ? '; they do nothing unless given orders' : ''}`;
   return h('fieldset', { class: 'time-box encounter-box' }, h('legend', { text: 'Animal encounter' }),
     h('p', { class: 'encounter-head', text: header }),
     ...body,
     h('div', { class: 'surface-row' },
       pending.actorId ? h('label', { class: 'surface-inline' }, 'Place ', count) : null,
-      pending.actorId ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Put on the board', title: `With the party: ${settled}`, onclick: () => act('place', { actorId: pending.actorId, count: Number(count.value) || 1 }) }) : null,
-      h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => act('dismiss', {}) })),
+      fled ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Let it go', title: 'It fled; the encounter is over', onclick: () => act('dismiss', { fled: true }) }) : null,
+      pending.actorId ? h('button', { type: 'button', class: `button is-small${fled ? '' : ' is-primary'}`, text: fled ? 'Put on the board anyway' : 'Put on the board', title: `With the party: ${settled}`, onclick: () => act('place', { actorId: pending.actorId, count: Number(count.value) || 1 }) }) : null,
+      fled ? null : h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => act('dismiss', {}) })),
     pending.actorId ? h('p', { class: 'signin-why', text: `Put on the board ${settled}.` }) : null);
 }
 
@@ -687,7 +691,13 @@ function fightScene(state, handlers) {
       state.concluded ? h('section', { class: 'fight-concluded', role: 'status' },
         h('h3', { text: state.concluded.headline }),
         // Leave the fight is on the header line already.
-        h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` })) : null,
+        h('p', { text: `${state.concluded.rounds} round${state.concluded.rounds === 1 ? '' : 's'}.${state.concluded.casualties.length ? ` ${state.concluded.casualties.map((entry) => `${entry.name} ${entry.status}`).join(', ')}.` : ''}` }),
+        // v0.307.0: The Traveller Book p.92, food from the kill.
+        ...(state.concluded.carcasses ?? []).map((carcass) => h('p', { class: 'fight-carcass' },
+          carcass.butchered ? h('span', { text: carcass.butchered })
+            : carcass.destroyed ? h('span', { text: `${carcass.name}: destroyed, no food or pelt value (p.92).` })
+              : [h('span', { text: `${carcass.name}: dead. ` }),
+                state.live && state.seat !== 'player' ? h('button', { type: 'button', class: 'button is-small', text: 'Butcher', title: 'Edible on 5+ (\u22123 on a tainted atmosphere); 1D \u00d7 5% of its weight is meat (p.92)', onclick: () => handlers.onAnimals?.('butcher', { encounterId: state.concluded.encounterId, combatantId: carcass.id }) }) : null]))) : null,
       wound ? woundPanel(state, handlers) : null,
       morale.length ? h('p', { class: 'hold-note is-morale' }, morale.join(' ')) : null,
       referee && state.live ? moraleSettings(state, handlers) : null,

@@ -672,7 +672,9 @@ export {
   generateAnimalTableEntry,
   generateAnimalEncounterTable,
   rollAnimalTableRow,
-  resolveAnimalBehaviour
+  resolveAnimalBehaviour,
+  TAINTED_ATMOSPHERES,
+  butcherAnimal
 } from './src/encounters/animals-1982.js';
 
 export {

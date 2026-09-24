@@ -54,7 +54,7 @@ import { dataCardLines } from './ship-data-card-text.js';
 import {
   SECONDS_PER_DAY, campaignDayNumber, animalTableKey, animalState, withAnimalState, buildAnimalTable, animalCheck,
   rollOnAnimalTable, describeAnimalRow, runSurfaceChecks, animalBehaviourThrow, describeBehaviour,
-  animalSurpriseThrow, animalRangeThrow, animalRangeTerrain,
+  animalSurpriseThrow, animalRangeThrow, animalRangeTerrain, surfaceParty, butcherCarcass,
   animalTableSheet, animalJournalEntries, animalSurfaceView, animalSheetView
 } from './animal-encounters.js';
 import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
@@ -3830,7 +3830,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const pending = animals.pending;
           if (!pending) throw new Error('no animal encounter is waiting');
           const mode = String(value.mode ?? 'roll');
-          const party = (resolved.campaign.party?.characterIds ?? []).map((id) => (resolved.characters ?? []).find((entry) => entry.identity.id === id)).filter(Boolean);
+          const party = surfaceParty(resolved);
           let patch;
           let message;
           if (command === 'animals:surprise') {
@@ -3867,16 +3867,56 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           return finish(message);
         }
         if (command === 'animals:dismiss') {
+          const gone = animals.pending;
           registry.put(withAnimalState(resolved.campaign, { pending: null }));
           reload();
+          // v0.307.0: an animal that fled is let go, and the log says so.
+          if (value.fled && gone?.actorId) {
+            const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === gone.actorId);
+            const message = `The ${actor?.identity.name?.toLowerCase() ?? 'animal'}${(gone.quantity ?? 1) > 1 ? 's' : ''} fled; the party let ${(gone.quantity ?? 1) > 1 ? 'them' : 'it'} go.`;
+            log('ENCOUNTER', message);
+            return finish(message);
+          }
           return finish('Encounter set aside.');
+        }
+        // v0.307.0: who is out with the party (Kurt, Sep 2026: everyone who
+        // joins is in the party, and they all landed on the board).
+        if (command === 'animals:with') {
+          const refs = new Set((resolved.campaign.documentRefs?.characters ?? []).map((entry) => entry.id));
+          const ids = (Array.isArray(value.ids) ? value.ids : []).filter((id) => refs.has(id));
+          if (!ids.length) throw new Error('at least one character must be out with the party');
+          registry.put(withAnimalState(resolved.campaign, { withIds: [...new Set(ids)] }));
+          reload();
+          const names = surfaceParty(resolved).map((entry) => entry.identity.name);
+          return finish(`With the party: ${names.join(', ')}.`);
+        }
+        // v0.307.0: p.92, food from a kill. Once a carcass.
+        if (command === 'animals:butcher') {
+          const encounter = (resolved.encounters ?? []).find((entry) => entry.identity.id === value.encounterId);
+          const carcass = encounter?.combatants.find((entry) => entry.id === value.combatantId && entry.animal);
+          if (!carcass) throw new Error('choose a dead animal');
+          if (carcass.status !== 'dead') throw new Error(`${carcass.name} is not dead`);
+          const key = `${encounter.identity.id}|${carcass.id}`;
+          if (animals.butchered[key]) throw new Error(`${carcass.name} has been butchered already`);
+          const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === carcass.sourceActorId);
+          let atmosphere = 6;
+          try { atmosphere = parseUniversalWorldProfile(system.mainWorld.uwp).atmosphere; } catch { atmosphere = 6; }
+          const result = butcherCarcass(createDice(), actor?.animal ?? { weightKg: carcass.animal.weightKg, weapons: Object.keys(carcass.animal.weapons).map((k) => ({ key: k })) }, { atmosphere, destroyed: Boolean(carcass.animal.destroyed) });
+          const text = result.edible
+            ? `${carcass.name}: edible (${result.reason}); 1D ${result.die} \u00d7 5% = ${result.meatKg} kg of meat, ${Math.floor(result.meatKg)} person-days (1 kg a day)`
+            : `${carcass.name}: not edible (${result.reason})`;
+          registry.put(withAnimalState(resolved.campaign, { butchered: { ...animals.butchered, [key]: text } }));
+          reload();
+          const message = `${text} (The Traveller Book p.92).`;
+          log('ENCOUNTER', message);
+          return finish(message);
         }
         if (command === 'animals:behaviour') {
           // p.95: attack and flee, in the animal's own order, thrown once for
           // the group; surprise from the fight's own throw or the referee.
           const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.actorId);
           if (!actor?.animal) throw new Error('choose an animal');
-          const preyCount = Math.max(1, (resolved.campaign.party?.characterIds ?? []).length);
+          const preyCount = Math.max(1, surfaceParty(resolved).length);
           const count = animals.pending?.actorId === actor.identity.id ? animals.pending.quantity ?? actor.animal.quantity : actor.animal.quantity;
           // The encounter's own surprise, once settled, unless the sheet says otherwise.
           const settled = animals.pending?.actorId === actor.identity.id ? animals.pending.surprise ?? null : null;
@@ -3908,12 +3948,15 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           }
           let encounter = setupEncounter();
           const gravityFactor = currentGravityFactor(resolved, subsector);
-          const onBoard = new Set(encounter.combatants.map((entry) => entry.sourceActorId ?? entry.id));
-          for (const id of resolved.campaign.party?.characterIds ?? []) {
-            const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
-            if (!character || onBoard.has(id) || !String(character.identity.name ?? '').trim() || character.status?.alive === false) continue;
-            encounter = addEncounterCombatantFromCharacter(encounter, { character, column: 0, row: 0, gravityFactor }).encounter;
+          // v0.307.0: whoever the referee has already put on the board is the
+          // party side; only an empty side is filled, and then with those out
+          // with the party, not every character in the campaign.
+          if (!encounter.combatants.some((entry) => entry.side === 'party')) {
+            for (const character of surfaceParty(resolved)) {
+              encounter = addEncounterCombatantFromCharacter(encounter, { character, column: 0, row: 0, gravityFactor }).encounter;
+            }
           }
+          const before = new Set(encounter.combatants.map((entry) => entry.id));
           const wanted = Math.max(1, Math.round(Number(value.count ?? actor.animal.quantity ?? 1)) || 1);
           const room = 16 - encounter.combatants.filter((entry) => entry.side !== 'party').length;
           const count = Math.max(0, Math.min(wanted, room));
@@ -3923,19 +3966,33 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           // v0.304.0: what the dialog settled is not thrown twice. The range
           // places the animals; a settled surprise begins round 1.
           const carried = animals.pending?.actorId === actor.identity.id ? animals.pending : null;
+          // v0.307.0: an animal that threw flee or nothing does not fight of
+          // its own accord: the referee gives its orders, and a fleeing one
+          // declares escape on round 1 (Book 1 p.29).
+          const action = carried?.behaviour?.action ?? null;
+          const placedIds = encounter.combatants.filter((entry) => !before.has(entry.id)).map((entry) => entry.id);
+          if (action === 'flee' || action === 'nothing') {
+            encounter = { ...encounter, combatants: encounter.combatants.map((entry) => (placedIds.includes(entry.id) ? { ...entry, tactics: 'manual' } : entry)) };
+          }
           let begun = false;
           if (carried?.range?.range) encounter = setEncounterOpeningRange(encounter, { range: carried.range.range, thrown: carried.range.thrown }).encounter ?? encounter;
           if (carried?.surprise && count > 0) {
             const side = carried.surprise.side;
             encounter = beginEncounter(encounter, { surprise: side ?? 'none', thrown: carried.surprise.thrown, dice: createDice() }).encounter;
             begun = true;
+            if (action === 'flee') {
+              for (const id of placedIds) {
+                try { encounter = declareEncounterAction(encounter, { action: 'escape', actorId: id }).encounter ?? encounter; } catch { /* surprised: it cannot act */ }
+              }
+            }
           }
           persist([encounter]);
           if (animals.pending?.actorId === actor.identity.id) {
             registry.put(withAnimalState(resolved.campaign, { pending: null }));
             reload();
           }
-          const message = `${count} ${actor.identity.name}${count === 1 ? '' : 's'} on the board${count < wanted ? ` (of ${wanted}; the board holds 16 a side)` : ''}.${begun ? ' Round 1 begins.' : carried?.range ? ' Settle surprise to begin.' : ' Throw the range, then begin.'}`;
+          const fleeing = action === 'flee' ? (begun ? ' It is fleeing: escape is declared for round 1.' : ' It is fleeing: declare escape on round 1.') : action === 'nothing' ? ' It does nothing unless given orders.' : '';
+          const message = `${count} ${actor.identity.name}${count === 1 ? '' : 's'} on the board${count < wanted ? ` (of ${wanted}; the board holds 16 a side)` : ''}.${begun ? ' Round 1 begins.' : carried?.range ? ' Settle surprise to begin.' : ' Throw the range, then begin.'}${fleeing}`;
           if (begun) log('COMBAT', message);
           return finish(message);
         }
@@ -5264,7 +5321,15 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             ? [{ command: 'fight:dismiss', label: 'Leave the fight' }]
             : live.status === 'setup' ? (writable ? [{ command: 'fight:discard', label: 'Clear board' }] : [])
               : writable ? [{ command: 'fight:end', label: 'End fight' }] : [],
-          concluded: ended ? fightConclusion(ended) : null,
+          concluded: ended ? {
+            ...fightConclusion(ended),
+            // v0.307.0: dead animals, for butchering (p.92).
+            encounterId: ended.identity.id,
+            carcasses: ended.combatants.filter((entry) => entry.animal && entry.status === 'dead').map((entry) => ({
+              id: entry.id, name: entry.name, destroyed: Boolean(entry.animal.destroyed),
+              butchered: animalState(resolved.campaign).butchered[`${ended.identity.id}|${entry.id}`] ?? null
+            }))
+          } : null,
           // v0.254.0: the board is open and being filled; nobody has thrown
           // for surprise and no round has begun.
           setupPhase: live.status === 'setup',

@@ -376,3 +376,22 @@ export function resolveAnimalBehaviour(dice, entry, {
   }
   return Object.freeze({ action: 'nothing', speed: behaviour.speed, steps: Object.freeze(steps) });
 }
+
+// p.92 Special Effects: an animal is edible on 5+ (DM -3 on a tainted
+// atmosphere) where the atmosphere is 2-9 and it has no poison weapon; 1D x 5%
+// of its weight is meat. A destroyed animal (wounds of twice its hits) has
+// lost any food or pelt value. Graycloak reads the stinger as the poison
+// weapon, as the 1977 module did (Kurt to confirm).
+export const TAINTED_ATMOSPHERES = Object.freeze([2, 4, 7, 9]);
+export function butcherAnimal(dice, entry, { atmosphere = 6, destroyed = false } = {}) {
+  requireDice(dice);
+  if (destroyed) return Object.freeze({ edible: false, reason: 'destroyed: no food or pelt value left', meatKg: 0 });
+  if (atmosphere < 2 || atmosphere > 9) return Object.freeze({ edible: false, reason: `atmosphere ${atmosphere}: nothing here is edible`, meatKg: 0 });
+  if ((entry?.weapons ?? []).some((weapon) => (weapon?.key ?? weapon) === 'stinger')) return Object.freeze({ edible: false, reason: 'a poison weapon (stinger)', meatKg: 0 });
+  const tainted = TAINTED_ATMOSPHERES.includes(atmosphere);
+  const roll = roll2D(dice);
+  const total = roll + (tainted ? -3 : 0);
+  if (total < 5) return Object.freeze({ edible: false, roll, tainted, total, reason: `2D ${roll}${tainted ? ' -3 tainted' : ''} = ${total}, needing 5+`, meatKg: 0 });
+  const die = dice.rollD6();
+  return Object.freeze({ edible: true, roll, tainted, total, die, percent: die * 5, meatKg: Math.round(Number(entry.weightKg) * die * 5) / 100, reason: `2D ${roll}${tainted ? ' -3 tainted' : ''} = ${total}` });
+}
