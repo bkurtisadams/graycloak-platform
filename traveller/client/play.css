@@ -74,7 +74,7 @@ button, input, select { font: inherit; color: inherit; }
   height: calc(100vh - 2px);
   display: grid;
   grid-template-columns: var(--now-width) minmax(0, 1fr) 0;
-  grid-template-rows: 56px minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: 'mast mast mast' 'now scene drawer' 'talk talk talk';
 }
 .shell[data-drawer='open'] { grid-template-columns: var(--now-width) minmax(0, 1fr) var(--drawer-width); }
@@ -83,9 +83,11 @@ button, input, select { font: inherit; color: inherit; }
 .mast {
   grid-area: mast;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 24px;
-  padding: 0 16px;
+  gap: 6px 24px;
+  padding: 8px 16px;
+  min-height: 56px;
   background: var(--panel);
   border-bottom: 3px solid var(--brand-rule);
   min-width: 0;
@@ -99,12 +101,22 @@ button, input, select { font: inherit; color: inherit; }
 .mast-save { font-size: 13px; color: var(--ink-2); white-space: nowrap; flex: none; }
 .mast { min-height: 0; }
 .mast > * { flex-shrink: 0; }
-.mast-where { flex: 1 1 0; min-width: 0; }
+/* v0.303.0: the masthead wraps onto a second row rather than hiding what
+   does not fit (Kurt, Sep 2026). */
+.mast-where { flex: 1 1 220px; min-width: 0; }
+.mast-brand { display: grid; line-height: 1.1; }
+.mast-version { font-family: var(--code); font-size: 11px; color: var(--ink-2); letter-spacing: 0.04em; }
+.mast-button { font: inherit; font-size: 14px; padding: 5px 10px; background: transparent; border: 1px solid var(--line); border-radius: 2px; color: var(--ink); cursor: pointer; white-space: nowrap; }
+.mast-button:hover { border-color: var(--ink); }
+.mast-button.is-alert { border-color: var(--red); color: var(--red); font-weight: 700; }
+.mast-button[hidden], .mast-players[hidden] { display: none; }
+.mast-players { font-size: 13px; color: var(--ink-2); white-space: normal; max-width: 320px; }
+.mast-players b { color: var(--ink); }
 .mast-save.is-stale, .mast-save.is-error { color: var(--red); font-weight: 700; }
 .mast-signin { margin-left: 8px; padding: 0; background: none; border: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .notice { padding: 8px 10px; border-left: 3px solid var(--go-border); background: var(--go); color: var(--go-ink); font-size: 14px; }
 .notice.is-error { border-left-color: var(--attention-border); background: var(--attention); color: var(--ink); }
-.mast-chips { display: flex; gap: 8px; }
+.mast-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   display: grid;
   text-align: left;
@@ -254,11 +266,18 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
      follow it, and the scene scrolls. */
   /* The height the column's width needs, as a minimum, so the grid row
      cannot squeeze it (an auto row takes an item's minimum first). */
-  .scene > svg.map { grid-row: 2; height: min(calc(100cqw * var(--map-h, 4) / var(--map-w, 3)), calc(100vh - 150px)); min-height: min(calc(100cqw * var(--map-h, 4) / var(--map-w, 3)), calc(100vh - 150px)); }
+  .scene > svg.map { grid-row: 2; width: calc(100% * var(--map-zoom, 1)); height: calc(min(calc(100cqw * var(--map-h, 4) / var(--map-w, 3)), calc(100vh - 150px)) * var(--map-zoom, 1)); min-height: calc(min(calc(100cqw * var(--map-h, 4) / var(--map-w, 3)), calc(100vh - 150px)) * var(--map-zoom, 1)); }
   .scene > .captions { grid-row: 4; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); padding: 0 20px 12px; }
   .scene > .scene-foot { grid-row: 5; }
 }
-.scene { overflow-y: auto; }
+.scene { overflow-y: auto; overflow-x: auto; }
+/* v0.303.0: map zoom. */
+.map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.map-zoom { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; pointer-events: auto; }
+.map-zoom button { font: inherit; font-size: 13px; min-width: 28px; padding: 2px 8px; background: var(--raise); border: 0; color: var(--ink); cursor: pointer; }
+.map-zoom button + button { border-left: 1px solid var(--line); }
+.map-zoom-level { font-family: var(--code); min-width: 52px; }
+.scene > svg.map { width: calc(100% * var(--map-zoom, 1)); height: calc(100% * var(--map-zoom, 1)); justify-self: start; }
 .caption { pointer-events: auto; width: 300px; padding: 12px 14px; background: var(--raise); border: 1px solid var(--line); border-top: 3px solid var(--ink); display: grid; gap: 6px; }
 .caption-there { border-top-color: var(--signal); }
 .caption-role { font-size: 13px; color: var(--ink-2); }
@@ -510,7 +529,6 @@ a.button { text-decoration: none; color: inherit; }
 /* ----------------------------------------------------------------- narrow */
 @media (max-width: 1100px) {
   :root { --now-width: 320px; --drawer-width: 340px; }
-  .mast-campaign, .mast-detail { display: none; }
   .shell[data-drawer='open'] { grid-template-columns: var(--now-width) 0 minmax(0, 1fr); }
   .shell[data-drawer='open'] .scene { display: none; }
 }
@@ -534,7 +552,7 @@ a.button { text-decoration: none; color: inherit; }
      grows to its content instead, the map comes first at the full width of
      the screen, and the captions follow it. */
   .scene:has(> svg.map) { height: auto; grid-template-rows: auto auto auto auto; }
-  .scene > svg.map { grid-row: 2; width: 100%; height: auto; padding: 8px 8px 12px; aspect-ratio: var(--map-ratio, 3 / 4); }
+  .scene > svg.map { grid-row: 2; width: calc(100% * var(--map-zoom, 1)); height: auto; min-height: 0; padding: 8px 8px 12px; aspect-ratio: var(--map-ratio, 3 / 4); }
   .scene:has(> svg.map) > .captions { grid-row: 3; }
   /* v0.287.0: a system chosen on the map put its card beside "You are here",
      two cards to a phone's width, each squeezed to a column of ellipses
@@ -979,7 +997,7 @@ a.button { text-decoration: none; color: inherit; }
 :root { --sidebar-width: 380px; }
 .shell, .shell[data-drawer='open'] {
   grid-template-columns: var(--now-width) minmax(0, 1fr) var(--sidebar-width);
-  grid-template-rows: 56px minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas: 'mast mast mast' 'now scene drawer';
 }
 .shell[data-sidebar='collapsed'] { grid-template-columns: var(--now-width) minmax(0, 1fr) 34px; }
@@ -1256,7 +1274,7 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .sheet-history-lines { white-space: pre-wrap; font-size: 12px; margin: 6px 0 0; max-height: 240px; overflow: auto; }
 
 /* v0.281.0: the subsector map on the player's page. */
-.seat-map .map { width: 100%; max-height: 62vh; }
+.seat-map .map { width: calc(100% * var(--map-zoom, 1)); max-height: calc(62vh * var(--map-zoom, 1)); }
 .seat-scene { max-width: 980px; }
 
 /* v0.282.0: a watched ship fight has the player's page to itself. */

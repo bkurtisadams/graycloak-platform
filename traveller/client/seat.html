@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.302.0">
+  <link rel="stylesheet" href="./play.css?v=v0.303.0">
   <script>
     try {
       var t = localStorage.getItem('graycloak-traveller-theme');
@@ -20,7 +20,10 @@
        characters, their log, and the shared chat. -->
   <div class="shell is-seat" id="shell" data-drawer="open" data-talk="closed" data-situation="port">
     <header class="mast">
-      <a class="mast-title" href="./enter.html" title="Back to the lobby">Traveller</a>
+      <div class="mast-brand">
+        <a class="mast-title" href="./enter.html" title="Back to the lobby">Traveller</a>
+        <span class="mast-version" id="mast-version"></span>
+      </div>
       <a class="mast-lobby" href="./enter.html">Lobby</a>
       <span class="mast-campaign" id="mast-campaign"></span>
       <div class="mast-where">
@@ -75,6 +78,6 @@
       </div>
     </form>
   </dialog>
-  <script type="module" src="./seat.js?v=v0.302.0"></script>
+  <script type="module" src="./seat.js?v=v0.303.0"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Traveller</title>
   <link rel="icon" href="./favicon.svg">
-  <link rel="stylesheet" href="./play.css?v=v0.302.0">
+  <link rel="stylesheet" href="./play.css?v=v0.303.0">
   <script>
     // Same key the other pages use, applied before first paint.
     try {
@@ -19,7 +19,10 @@
   <div class="shell" id="shell" data-drawer="closed" data-talk="closed">
 
     <header class="mast">
-      <a class="mast-title" href="./enter.html" title="Back to the lobby">Traveller</a>
+      <div class="mast-brand">
+        <a class="mast-title" href="./enter.html" title="Back to the lobby">Traveller</a>
+        <span class="mast-version" id="mast-version"></span>
+      </div>
       <a class="mast-lobby" href="./enter.html">Lobby</a>
       <span class="mast-campaign" id="mast-campaign"></span>
       <div class="mast-where">
@@ -27,6 +30,9 @@
         <span class="mast-detail" id="mast-detail"></span>
       </div>
       <div class="mast-date" title="Campaign date"><span id="mast-date"></span></div>
+      <button class="mast-button" id="mast-time" type="button" hidden>Pass time</button>
+      <button class="mast-button" id="mast-party" type="button" hidden>Party</button>
+      <span class="mast-players" id="mast-players" hidden></span>
       <p class="mast-save" id="mast-save" hidden></p>
       <nav class="mast-chips" id="mast-chips" aria-label="Character, ship and referee"></nav>
       <button class="mast-theme" id="settings" type="button" aria-label="Settings">Settings</button>
@@ -110,6 +116,6 @@
        reads a real campaign, along with play-sample.js. -->
   <div class="preview" id="preview" role="group" aria-label="Preview a situation (sample data)"></div>
 
-  <script type="module" src="./play.js?v=v0.302.0"></script>
+  <script type="module" src="./play.js?v=v0.303.0"></script>
 </body>
 </html>

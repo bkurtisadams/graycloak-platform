@@ -2,19 +2,22 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.302.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.302.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.302.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.302.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.302.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.302.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.302.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.302.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.302.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.302.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.303.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.303.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.303.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.303.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.303.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.303.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.303.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.303.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.303.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.303.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
+// v0.303.0: the build, under the name, read from this module's own ?v=.
+const CLIENT_VERSION = new URL(import.meta.url).searchParams.get('v') ?? '';
+queueMicrotask(() => { const node = document.getElementById('mast-version'); if (node) node.textContent = CLIENT_VERSION; });
 const shell = $('shell');
 
 const params = new URLSearchParams(location.search);
@@ -238,6 +241,7 @@ function renderEmpty() {
   $('drawer').hidden = true;
   $('mast-place').textContent = 'No campaign';
   for (const id of ['mast-campaign', 'mast-detail', 'mast-date']) $(id).textContent = '';
+  for (const id of ['mast-time', 'mast-party', 'mast-players']) $(id).hidden = true;
   $('mast-save').hidden = true;
   $('mast-chips').replaceChildren();
   $('scene').replaceChildren();
@@ -750,12 +754,24 @@ function render() {
   const out = state.animals?.surface;
   const waiting = state.animals?.pending;
   $('mast-detail').textContent = [state.place.detail, out ? `out in ${out.label.toLowerCase()}` : null, waiting ? 'encounter waiting' : null].filter(Boolean).join(' \u00b7 ');
-  const whereBox = $('mast-place').parentElement;
+  // v0.303.0: a Party button, since nobody would guess the world's name was
+  // a control (Kurt, Sep 2026). It says where the party is.
   const canSetWhere = source.mode === 'live' && state.seat !== 'player' && Boolean(state.animals?.world);
-  whereBox.classList.toggle('is-control', canSetWhere);
-  whereBox.classList.toggle('is-alert', Boolean(canSetWhere && waiting));
-  whereBox.title = canSetWhere ? 'Where the party is: in port, or out on the surface (animal encounters)' : '';
-  whereBox.onclick = canSetWhere ? () => openSurfaceDialog() : null;
+  const partyButton = $('mast-party');
+  partyButton.hidden = !canSetWhere;
+  partyButton.textContent = waiting ? 'Party: encounter!' : out ? `Party: out, ${out.label.toLowerCase()}` : 'Party: in port';
+  partyButton.classList.toggle('is-alert', Boolean(waiting));
+  partyButton.title = 'Where the party is: in port, or out on the surface of this world (animal encounters, The Traveller Book p.100)';
+  partyButton.onclick = canSetWhere ? () => openSurfaceDialog() : null;
+  // Who is at the campaign now: seats seen in the last few minutes (a
+  // player's page touches its seat every five).
+  const playing = playersOnline();
+  const playersBox = $('mast-players');
+  playersBox.hidden = !(source.mode === 'live' && state.seat !== 'player' && ui.players);
+  playersBox.replaceChildren(...(playing.length
+    ? [h('span', { text: 'Playing: ' }), ...playing.flatMap((entry, index) => [index ? ', ' : '', h('b', { text: entry })])]
+    : [h('span', { text: 'No players on' })]));
+  playersBox.title = 'Players whose page has been open in the last few minutes';
   $('mast-date').textContent = state.campaign.date;
   // v0.275.0: the referee's clock is behind the date.
   const dateBox = $('mast-date').parentElement;
@@ -763,6 +779,9 @@ function render() {
   dateBox.classList.toggle('is-control', canSetTime);
   dateBox.title = canSetTime ? 'Campaign date: click to pass time or correct the date' : 'Campaign date';
   dateBox.onclick = canSetTime ? () => openTimeDialog() : null;
+  // v0.303.0: and a button that says what it does.
+  $('mast-time').hidden = !canSetTime;
+  $('mast-time').onclick = canSetTime ? () => openTimeDialog() : null;
   const saveLine = $('mast-save');
   saveLine.hidden = !state.save;
   if (state.save) {
@@ -1281,6 +1300,35 @@ function openTimeDialog() {
       return result.ok ? null : result.message;
     }
   });
+}
+
+const ONLINE_WINDOW_MS = 7 * 60000;
+function playersOnline() {
+  const seats = ui.players?.seats ?? [];
+  const campaign = source.session?.resolved?.campaign;
+  const owners = campaign?.ownership?.actors ?? {};
+  const characters = source.session?.resolved?.characters ?? [];
+  const me = cloud.userId();
+  const now = Date.now();
+  const seen = (value) => (typeof value === 'number' ? value : typeof value?.toMillis === 'function' ? value.toMillis() : Number(value) || 0);
+  return seats
+    .filter((seat) => seat.uid !== me && now - seen(seat.lastSeenAt) < ONLINE_WINDOW_MS)
+    .map((seat) => {
+      const names = Object.entries(owners).filter(([, uid]) => uid === seat.uid)
+        .map(([id]) => characters.find((entry) => entry.identity.id === id)?.identity.name).filter(Boolean);
+      return `${seat.name || 'a player'}${names.length ? ` (${names.join(', ')})` : ''}`;
+    });
+}
+// Re-read the seats now and then, quietly, so the masthead's list keeps up.
+setInterval(() => {
+  if (source.mode === 'live' && cloud.userId() && document.visibilityState === 'visible') refreshPlayersQuietly();
+}, 2 * 60000);
+async function refreshPlayersQuietly() {
+  try {
+    const seats = await cloud.listSeats(source.session.resolved.campaign.identity.id);
+    ui.players = { invites: [], joins: [], ...(ui.players ?? {}), seats };
+    render();
+  } catch (error) { console.warn('[traveller] seats:', error?.code ?? error); }
 }
 
 // v0.302.0: where the party is. In port there are no animal checks; out on
