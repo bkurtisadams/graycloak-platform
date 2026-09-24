@@ -729,10 +729,13 @@ function actorSheet(resolved, id, subsector = null) {
       wounded: characterIsWounded(character),
       severe: Boolean(character.status?.severelyWounded),
       dead: character.status?.alive === false,
-      medics: (resolved.characters ?? [])
-        .filter((entry) => entry.status?.alive !== false && String(entry.identity.name ?? '').trim())
+      // v0.296.0: NPC actors with Medical may attend a character too; and a
+      // medical kit is noticed in anyone's gear (the referee may still say).
+      medics: [...(resolved.characters ?? []), ...(resolved.npcActors ?? []).filter((entry) => entry.profile?.kind !== 'statblock')]
+        .filter((entry) => entry.status?.alive !== false && entry.state?.lifeState !== 'dead' && String(entry.identity.name ?? '').trim())
         .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
-        .sort((a, b) => (b.level ?? -1) - (a.level ?? -1))
+        .sort((a, b) => (b.level ?? -1) - (a.level ?? -1)),
+      kitSeen: medicalKitSeen(resolved)
     },
     compactOnly: false,
     editable: true
@@ -794,6 +797,14 @@ function taggedWeaponChoices(who, choices) {
     const tag = weaponExpertiseTag(who, choice.key);
     return tag ? { ...choice, baseName: choice.name, name: `${choice.name} \u2014 ${tag.text}`, tag } : choice;
   });
+}
+
+// v0.296.0: is there a medical kit in anyone's gear? A hint for the
+// referee, who has the last word on what is at hand.
+function medicalKitSeen(resolved) {
+  const kit = /\bmed(ical)?[\s-]*kit\b|\bmedkit\b|\bfirst[\s-]*aid\b/i;
+  return [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])]
+    .some((entry) => (entry.inventory ?? []).some((item) => kit.test(String(item.name ?? ''))));
 }
 
 function sheetSkills(skillsByName) {
@@ -861,7 +872,8 @@ function npcActorSheet(actor, resolved, subsector) {
       medics: [...(resolved.characters ?? []), ...(resolved.npcActors ?? []).filter((entry) => entry.profile?.kind !== 'statblock' && entry.identity.id !== actor.identity.id)]
         .filter((entry) => entry.status?.alive !== false && entry.state?.lifeState !== 'dead' && String(entry.identity.name ?? '').trim())
         .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
-        .sort((a, b) => (b.level ?? -1) - (a.level ?? -1))
+        .sort((a, b) => (b.level ?? -1) - (a.level ?? -1)),
+      kitSeen: medicalKitSeen(resolved)
     },
     profile: {
       folder: actor.profile.folder, role: actor.profile.role, faction: actor.profile.faction,
@@ -1930,6 +1942,18 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // the same patient again is the next day's work, so it moves the clock
   // again. The campaign keeps the date that day of treatment ends on and who
   // was treated; any other movement of the clock leaves it behind.
+  // v0.296.0: who attends, and what is at hand — the referee's call on the
+  // kit and the facility ("a medical facility could be anywhere").
+  function attendance(value = {}) {
+    const medicId = value?.medicId ?? null;
+    const medic = medicId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === medicId) ?? null : null;
+    const level = medic && Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null;
+    return { medic, level, kit: Boolean(value?.kit), facility: Boolean(value?.facility) };
+  }
+  function treatedLine(medic, level, patientName, serious, sameDay) {
+    return `${medic?.identity.name ?? 'Someone'} (Medical-${level}) treats ${patientName}${serious ? ' in a medical facility' : ' with a medical kit'}: back to full strength (Book 1, 1981).${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
+  }
+
   function treatmentDay(campaign, patientId) {
     const marker = campaign.roster?.treatingUntil ?? null;
     const today = marker && marker.year === campaign.time.year && marker.dayOfYear === campaign.time.dayOfYear;
@@ -2773,22 +2797,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             log('MEDICAL', `${npcPatient.identity.name} rests three days and is back to full strength.`);
             lastMessage = { ok: true, message: `${npcPatient.identity.name} rested three days: full strength.` };
           } else {
-            const medicId = fight?.value?.medicId ?? null;
-            const medic = medicId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === medicId) : null;
-            const level = medic ? (Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null) : null;
-            const result = medicalAttentionNpcActor(npcPatient, { medicalLevel: level, xeno: Boolean(fight?.value?.xeno), dice: createDice() });
+            const { medic, level, kit, facility } = attendance(fight?.value);
+            const result = medicalAttentionNpcActor(npcPatient, { medicalLevel: level, medicalKit: kit, facility });
             ({ campaign, sameDay } = treatmentDay(campaign, npcPatient.identity.id));
             registry.put(campaign);
             reload();
             persist([result.actor]);
-            const who = medic ? `${medic.identity.name} (${level === null ? 'no Medical' : `Medical-${level}`})` : 'Nobody trained';
-            const line = `${who} treats ${npcPatient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
-            log('MEDICAL', line, { detail: [
-              `2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll}`,
-              `Medical ${result.skillDM >= 0 ? '+' : '\u2212'}${Math.abs(result.skillDM)}${level === null ? ' (no expertise)' : ''}`,
-              result.xenoDM ? 'Non-human patient \u22122 (1981 xeno-medicine)' : null,
-              `Total ${result.total} against ${result.target}+ \u2014 ${result.success ? 'success' : 'failure'}`
-            ].filter(Boolean).join('\n') });
+            const line = treatedLine(medic, level, npcPatient.identity.name, result.serious, sameDay);
+            log('MEDICAL', line);
             lastMessage = { ok: true, message: line };
           }
           onChange();
@@ -2809,25 +2825,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           log('MEDICAL', `${patient.identity.name} rests three days and is back to full strength.`);
           lastMessage = { ok: true, message: `${patient.identity.name} rested three days: full strength.` };
         } else {
-          const medicId = fight?.value?.medicId ?? null;
-          const medic = medicId ? (resolved.characters ?? []).find((entry) => entry.identity.id === medicId) : null;
-          const level = medic ? (Object.hasOwn(medic.skills ?? {}, 'Medical') ? Number(medic.skills.Medical) : null) : null;
-          const result = medicalAttention(patient, { medicalLevel: level, xeno: Boolean(fight?.value?.xeno), dice: createDice() });
-          // An attempt takes the day, success or not; a failure may be tried
-          // again after it.
+          const { medic, level, kit, facility } = attendance(fight?.value);
+          // v0.296.0: no throw (1981 Book 1, Kurt's ruling); refused, saying
+          // what is missing, before any time passes.
+          const result = medicalAttention(patient, { medicalLevel: level, medicalKit: kit, facility });
           ({ campaign, sameDay } = treatmentDay(campaign, patient.identity.id));
           registry.put(campaign);
           reload();
           persist([result.character]);
-          const who = medic ? `${medic.identity.name} (${level === null ? 'no Medical' : `Medical-${level}`})` : 'Nobody trained';
-          const line = `${who} treats ${patient.identity.name}: ${result.total} vs ${result.target}+ \u2014 ${result.success ? 'back to full strength' : 'no better; try again tomorrow'}.${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`;
-          const detail = [
-            `2D [${result.dice[0]}] [${result.dice[1]}] = ${result.roll}`,
-            `Medical ${result.skillDM >= 0 ? '+' : '\u2212'}${Math.abs(result.skillDM)}${level === null ? ' (no expertise)' : ''}`,
-            result.xenoDM ? `Non-human patient \u22122 (1981 xeno-medicine)` : null,
-            `Total ${result.total} against ${result.target}+ \u2014 ${result.success ? 'success' : 'failure'}`
-          ].filter(Boolean).join('\n');
-          log('MEDICAL', line, { detail });
+          const line = treatedLine(medic, level, patient.identity.name, result.serious, sameDay);
+          log('MEDICAL', line);
           lastMessage = { ok: true, message: line };
         }
         onChange();

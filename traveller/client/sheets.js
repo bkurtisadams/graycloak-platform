@@ -16,7 +16,7 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.295.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.296.0';
 
 const DRAGGED = new Map();
 
@@ -301,30 +301,37 @@ function playTab(sheet, handlers) {
   ].filter(Boolean);
 }
 
-// v0.261.0: Book 1 p.31 — "Return to full strength requires medical
-// attention, or three days of rest"; the severely wounded (two
-// characteristics taken to zero) cannot rest it off. The medical throw is
-// Kurt's ruling: 8+, DM the attending character's Medical, -5 with none.
+// v0.261.0: Book 1 p.31 — three days of rest or medical attention.
+// v0.296.0: medical attention as the 1981 Book 1 has it (Kurt's ruling): no
+// throw; an attendant with Medical-1 and a medical kit, or for the seriously
+// wounded Medical-3 and a medical facility. Whether a kit or a facility is at
+// hand is the referee's call, ticked here.
 function conditionBlock(sheet, handlers) {
   const condition = sheet.condition;
   if (!condition) return null;
   if (condition.dead) return h('p', { class: 'sheet-note is-error', text: 'Dead.' });
   if (!condition.wounded && !condition.severe) return h('p', { class: 'sheet-note', text: 'Unwounded.' });
+  const needed = condition.severe ? 3 : 1;
+  const qualified = (condition.medics ?? []).filter((entry) => (entry.level ?? -1) >= needed);
   const medic = h('select', { class: 'sheet-select', 'aria-label': 'Attending' },
-    condition.medics.map((entry) => h('option', { value: entry.id, text: `${entry.name} \u2014 ${entry.level === null ? 'no Medical (\u22125)' : `Medical-${entry.level}`}` })));
-  const xeno = h('input', { type: 'checkbox', 'aria-label': 'Non-human patient' });
+    (condition.medics ?? []).map((entry) => h('option', { value: entry.id, disabled: (entry.level ?? -1) < needed, text: `${entry.name} \u2014 ${entry.level === null ? 'no Medical' : `Medical-${entry.level}`}` })));
+  if (qualified[0]) medic.value = qualified[0].id;
+  const atHand = h('input', { type: 'checkbox', 'aria-label': condition.severe ? 'A medical facility is available' : 'A medical kit is at hand', checked: condition.severe ? false : Boolean(condition.kitSeen) });
+  const treat = h('button', { type: 'button', class: 'button is-small is-primary', text: 'Medical attention', disabled: !qualified.length,
+    title: qualified.length ? 'Full strength if the attendant and the equipment are at hand; takes the medic\u2019s day' : `Nobody here has Medical-${needed}`,
+    onclick: () => handlers.onMedical?.(sheet.id, medic.value, condition.severe ? { facility: atHand.checked } : { kit: atHand.checked }) });
   return h('div', { class: 'sheet-condition' },
     h('div', { class: 'sheet-section-label', text: 'CONDITION' }),
     h('p', { class: `sheet-note${condition.severe ? ' is-error' : ''}`, text: condition.severe
-      ? 'Severely wounded: only medical attention will bring back full strength (Book 1 p.31).'
-      : 'Wounded: three days of rest, or medical attention, brings back full strength (Book 1 p.31).' }),
-    // v0.277.0: on a player's page, rest and treatment are the referee's to
-    // run; the player reads the condition only.
+      ? 'Seriously wounded: only medical attention brings back full strength — an attendant with Medical-3 and a medical facility (Book 1, 1981).'
+      : 'Wounded: three days of rest, or medical attention — an attendant with Medical-1 and a medical kit (Book 1, 1981).' }),
     sheet.playerSeat ? h('p', { class: 'sheet-note', text: 'Ask the referee to rest the party or arrange treatment.' }) : h('div', { class: 'sheet-actions' },
-      h('button', { type: 'button', class: 'button is-small', disabled: condition.severe, title: condition.severe ? 'Not possible while severely wounded' : 'Choose who rests with them; the date moves three days once', text: 'Rest three days\u2026', onclick: () => handlers.onRest?.(sheet.id) }),
+      h('button', { type: 'button', class: 'button is-small', disabled: condition.severe, title: condition.severe ? 'Not possible while seriously wounded' : 'Choose who rests with them; the date moves three days once', text: 'Rest three days\u2026', onclick: () => handlers.onRest?.(sheet.id) }),
       h('span', { class: 'sheet-inline' }, 'Attending ', medic),
-      h('label', { class: 'sheet-check', title: '1981 xeno-medicine: \u22122 treating a non-human' }, xeno, ' non-human'),
-      h('button', { type: 'button', class: 'button is-small is-primary', text: 'Medical attention (8+)', title: 'Takes a day, success or not', onclick: () => handlers.onMedical?.(sheet.id, medic.value, xeno.checked) })));
+      h('label', { class: 'sheet-check', title: condition.severe ? 'Your call: a facility could be anywhere' : (condition.kitSeen ? 'A medical kit is in someone\u2019s gear' : 'Your call: no kit is listed in anyone\u2019s gear') },
+        atHand, condition.severe ? ' medical facility available' : ' medical kit at hand'),
+      treat),
+    !sheet.playerSeat && !qualified.length ? h('p', { class: 'sheet-note', text: `Nobody here has Medical-${needed}${condition.severe ? '' : '; rest is the way'}.` }) : null);
 }
 
 function gearTab(sheet, handlers) {

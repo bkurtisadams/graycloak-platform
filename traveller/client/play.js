@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.295.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.295.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.295.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.295.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.295.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.295.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.295.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.295.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.295.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.295.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.296.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.296.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.296.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.296.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.296.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.296.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.296.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.296.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.296.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.296.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -298,9 +298,9 @@ function render() {
     // v0.261.0: recovery, from the character sheet.
     // v0.275.0: resting is the party's, three days once, whoever is ticked.
     onRest: (id) => { if (source.mode === 'live') openRestDialog(id); },
-    onMedical: (id, medicId, xeno) => {
+    onMedical: (id, medicId, atHand = {}) => {
       if (source.mode !== 'live') return;
-      const result = source.session.run('character:medical', { fight: { id, value: { medicId, xeno } } });
+      const result = source.session.run('character:medical', { fight: { id, value: { medicId, kit: Boolean(atHand.kit), facility: Boolean(atHand.facility) } } });
       if (!result.ok) window.alert(result.message);
       render();
     },

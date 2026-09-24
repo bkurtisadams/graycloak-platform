@@ -143,7 +143,9 @@ export {
   restCharacter,
   medicalAttention,
   characterIsWounded,
-  MEDICAL_ATTENTION_TARGET,
+  MEDICAL_KIT_LEVEL,
+  MEDICAL_FACILITY_LEVEL,
+  medicalAttentionNeeds,
   REST_DAYS,
   emptyCharacterRecord,
   CHARACTER_RECORD_TEXT_FIELDS

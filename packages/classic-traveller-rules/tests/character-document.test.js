@@ -186,31 +186,27 @@ test('Book 1 p.31: three days of rest restores full strength, but not to the sev
   assert.throws(() => restCharacter(base), /not wounded/);
 });
 
-test('medical attention: 8+ with the medic\u2019s Medical as a DM, -5 with none, -2 for a non-human', async () => {
-  const { medicalAttention, updateCharacterGameplayState, createSequenceDice } = await import('../index.js');
+// Kurt's ruling (Sep 2026), from the 1981 Book 1: no throw, requirements.
+test('medical attention: Medical-1 and a kit for wounds; Medical-3 and a facility for the seriously wounded', async () => {
+  const { medicalAttention, medicalAttentionNeeds, updateCharacterGameplayState } = await import('../index.js');
   const base = createCharacterDocument(completeOneTermCharacter());
+  const wounded = updateCharacterGameplayState(base, { current: { STR: 2, DEX: base.characteristics.DEX, END: base.characteristics.END } });
   const severe = updateCharacterGameplayState(base, { current: { STR: 1, DEX: 1, END: base.characteristics.END }, severelyWounded: true });
 
-  // 3 + 3 = 6, Medical-2 makes 8: success, and it clears the severe wound.
-  const helped = medicalAttention(severe, { medicalLevel: 2, dice: createSequenceDice([3, 3]) });
-  assert.equal(helped.success, true);
-  assert.equal(helped.total, 8);
-  assert.equal(helped.character.current.STR, base.characteristics.STR);
-  assert.equal(helped.character.status.severelyWounded, undefined);
+  assert.throws(() => medicalAttention(wounded, { medicalLevel: null, medicalKit: true }), /needs an attendant with Medical-1 or better/);
+  assert.throws(() => medicalAttention(wounded, { medicalLevel: 1, medicalKit: false }), /needs a medical kit/);
+  const treated = medicalAttention(wounded, { medicalLevel: 1, medicalKit: true });
+  assert.equal(treated.success, true);
+  assert.equal(treated.character.current.STR, base.characteristics.STR);
 
-  // No Medical at all: -5.
-  const untrained = medicalAttention(severe, { medicalLevel: null, dice: createSequenceDice([6, 6]) });
-  assert.equal(untrained.skillDM, -5);
-  assert.equal(untrained.total, 7);
-  assert.equal(untrained.success, false);
-  assert.equal(untrained.character.status.severelyWounded, true, 'a failure changes nothing');
+  assert.throws(() => medicalAttention(severe, { medicalLevel: 2, facility: true }), /seriously wounded and needs an attendant with Medical-3/);
+  assert.throws(() => medicalAttention(severe, { medicalLevel: 3, medicalKit: true }), /needs a medical facility/);
+  const healed = medicalAttention(severe, { medicalLevel: 3, facility: true });
+  assert.equal(healed.character.status.severelyWounded, undefined);
+  assert.equal(healed.character.current.DEX, base.characteristics.DEX);
 
-  // Medical-0 is expertise: no penalty.
-  assert.equal(medicalAttention(severe, { medicalLevel: 0, dice: createSequenceDice([4, 4]) }).success, true);
-  // Xeno-medicine, optional: -2.
-  const alien = medicalAttention(severe, { medicalLevel: 2, xeno: true, dice: createSequenceDice([3, 3]) });
-  assert.equal(alien.xenoDM, -2);
-  assert.equal(alien.success, false);
+  assert.deepEqual(medicalAttentionNeeds(severe, { medicalLevel: 4, facility: false }).missing, ['a medical facility']);
+  assert.equal(medicalAttentionNeeds(wounded, { medicalLevel: 2, medicalKit: true }).met, true);
 });
 
 test('v0.263.0 Book 1\u2019s skill DMs: +1 a level mostly, Administration +2, Vacc Suit and Forward Observer +4, Forgery against the inspector', async () => {

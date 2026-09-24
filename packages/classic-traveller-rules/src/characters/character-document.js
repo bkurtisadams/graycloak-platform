@@ -607,15 +607,16 @@ export function updateCharacterGameplayState(document, { current, alive, conscio
 // A severely wounded character (two characteristics taken to zero) has
 // "recuperation without medical attention ... not possible".
 //
-// Book 1 gives no throw for medical attention: "Medical expertise is generally
-// used as a DM for curing diseases or healing wounds. Exact throws necessary
-// must be generated." Graycloak ruling (Kurt, Sep 2026), following the one
-// medical throw Book 1 does give (p.8: "a basic saving throw of 8+ ... may be
-// modified by the expertise of attending medical personnel") and its usual
-// skill DMs (+1 per level, no expertise -5): throw 8+, DM + the attending
-// character's Medical level, -5 with none. Optionally -2 treating a non-human,
-// from the 1981 edition's xeno-medicine; the 1977 text has no such rule.
-export const MEDICAL_ATTENTION_TARGET = 8;
+// Medical attention, from the 1981 Book 1 (Kurt's ruling, Sep 2026, which
+// replaces his earlier 8+ throw): no throw at all, but requirements.
+// "A return to full strength ... requires medical attention (a medical kit
+// and an individual with at least medical-1 skill)"; the seriously wounded
+// (two characteristics at zero) need "a medical facility and an individual
+// with medical-3 skill; recuperation to full strength without medical
+// attention is not possible". Whether a kit or a facility is at hand is the
+// referee's call — a facility could be anywhere.
+export const MEDICAL_KIT_LEVEL = 1;
+export const MEDICAL_FACILITY_LEVEL = 3;
 export const REST_DAYS = 3;
 
 export function characterIsWounded(document) {
@@ -640,22 +641,26 @@ export function restCharacter(document) {
   return recovered(document);
 }
 
-// The throw for medical attention, and what it does to the patient.
-export function medicalAttention(document, { medicalLevel = null, xeno = false, dice } = {}) {
+// What medical attention needs for this patient, and whether it is met.
+export function medicalAttentionNeeds(document, { medicalLevel = null, medicalKit = false, facility = false } = {}) {
+  const serious = Boolean(document.status?.severelyWounded);
+  const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
+  const needed = serious ? MEDICAL_FACILITY_LEVEL : MEDICAL_KIT_LEVEL;
+  const equipment = serious ? 'a medical facility' : 'a medical kit';
+  const missing = [];
+  if (level === null || level < needed) missing.push(`an attendant with Medical-${needed} or better`);
+  if (serious ? !facility : !medicalKit) missing.push(equipment);
+  return { serious, needed, equipment, met: missing.length === 0, missing };
+}
+
+// Medical attention, which brings the patient back to full strength when
+// what it needs is at hand, and is refused, saying what is missing, when not.
+export function medicalAttention(document, { medicalLevel = null, medicalKit = false, facility = false } = {}) {
   if (document.status?.alive === false) throw new Error(`${document.identity.name} is dead`);
   if (!characterIsWounded(document) && !document.status?.severelyWounded) throw new Error(`${document.identity.name} is not wounded`);
-  if (!dice || typeof dice.rollD6 !== 'function') throw new TypeError('dice are required');
-  const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
-  const skillDM = level === null ? -5 : level;
-  const xenoDM = xeno ? -2 : 0;
-  const rolled = [dice.rollD6(), dice.rollD6()];
-  const roll = rolled[0] + rolled[1];
-  const total = roll + skillDM + xenoDM;
-  const success = total >= MEDICAL_ATTENTION_TARGET;
-  return {
-    success, dice: rolled, roll, skillDM, xenoDM, total, target: MEDICAL_ATTENTION_TARGET,
-    character: success ? recovered(document) : importCharacterDocument(document)
-  };
+  const needs = medicalAttentionNeeds(document, { medicalLevel, medicalKit, facility });
+  if (!needs.met) throw new Error(`${document.identity.name}${needs.serious ? ' is seriously wounded and' : ''} needs ${needs.missing.join(' and ')} (Book 1, 1981)`);
+  return { success: true, serious: needs.serious, character: recovered(document) };
 }
 
 // ---- inventory (schema 4) ----------------------------------------------------

@@ -1185,16 +1185,22 @@ test('v0.261.0 three days of rest restores him and moves the clock', async () =>
   assert.equal(session.run('character:rest', { fight: { id: hawkeye.id } }).ok, false, 'not wounded now');
 });
 
-test('v0.261.0 medical attention throws 8+ with the attendant\u2019s Medical, and says so in chat', async () => {
+// v0.296.0: the 1981 Book 1 (Kurt's ruling): no throw; Medical-1 and a kit.
+test('v0.261.0 medical attention needs Medical-1 and a kit, restores full strength, and says so in chat', async () => {
   const fixture = await foughtFixture();
   const { session, hawkeye } = fixture;
+  const refused = session.run('character:medical', { fight: { id: hawkeye.id, value: { medicId: hawkeye.id, kit: true } } });
+  assert.equal(refused.ok, false, 'Hawkeye has no Medical');
+  assert.match(refused.message, /needs an attendant with Medical-1 or better/);
+  const doc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Dr Imre' } } }).createdId;
+  session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-1' } });
+  const noKit = session.run('character:medical', { fight: { id: hawkeye.id, value: { medicId: doc, kit: false } } });
+  assert.match(noKit.message, /needs a medical kit/);
   const chatBefore = session.view().chat.length;
-  const treated = session.run('character:medical', { fight: { id: hawkeye.id, value: { medicId: hawkeye.id } } });
+  const treated = session.run('character:medical', { fight: { id: hawkeye.id, value: { medicId: doc, kit: true } } });
   assert.equal(treated.ok, true, treated.message);
-  assert.match(treated.message, /treats Hawkeye: -?\d+ vs 8\+ \u2014 (back to full strength|no better; try again tomorrow)\./);
-  const line = session.view().chat.slice(chatBefore).find((entry) => entry.category === 'MEDICAL');
-  assert.ok(line);
-  assert.match(line.detail, /Total -?\d+ against 8\+/);
+  assert.match(treated.message, /^Dr Imre \(Medical-1\) treats Hawkeye with a medical kit: back to full strength \(Book 1, 1981\)\./);
+  assert.ok(session.view().chat.slice(chatBefore).some((entry) => entry.category === 'MEDICAL'));
 });
 
 test('v0.261.0 the sheet shows the condition, with Rest refused to the severely wounded', { skip: !JSDOM }, async () => {
@@ -1211,11 +1217,14 @@ test('v0.261.0 the sheet shows the condition, with Rest refused to the severely 
   assert.match(document.querySelector('main').textContent, /Unwounded\./);
 
   session.run('edit:character:current', { fight: { id, value: { STR: 3 } } });
+  // v0.296.0: an attendant with Medical-1 must be there for the button.
+  const doc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Dr Imre' } } }).createdId;
+  session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-1' } });
   let rested = null;
   let treated = null;
   document.querySelector('main').replaceChildren(renderSheets(sheetOf(), {
     onRest: (who) => { rested = who; },
-    onMedical: (who, medic, xeno) => { treated = { who, medic, xeno }; }
+    onMedical: (who, medic, atHand) => { treated = { who, medic, atHand }; }
   }));
   const block = document.querySelector('.sheet-condition');
   assert.ok(block, 'a wounded character has the recovery controls');
@@ -1224,7 +1233,8 @@ test('v0.261.0 the sheet shows the condition, with Rest refused to the severely 
   buttons.find((button) => /Medical attention/.test(button.textContent)).click();
   assert.equal(rested, id);
   assert.equal(treated.who, id);
-  assert.ok(treated.medic, 'an attending character is chosen');
+  assert.equal(treated.medic, doc, 'the attendant with Medical is chosen');
+  assert.deepEqual(treated.atHand, { kit: false }, 'the kit is the referee\u2019s tick');
   dom.window.close();
   delete globalThis.document;
   delete globalThis.Node;
@@ -1804,16 +1814,15 @@ test('v0.271.0 a severely wounded actor cannot rest it off; medical attention ca
   const rested = session.run('character:rest', { fight: { id: rao } });
   assert.equal(rested.ok, false);
   assert.match(rested.message, /severely wounded/);
-  // Untrained, 8+ at −5 needs 13 on 2D: it cannot succeed. A doctor can.
+  // v0.296.0: seriously wounded — Medical-3 and a medical facility (1981).
   const doc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Dr Imre' } } }).createdId;
   session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-4' } });
   assert.ok(session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.medics.some((entry) => entry.id === doc && entry.level === 4), 'an NPC with Medical can attend');
-  let healed = false;
-  for (let attempt = 0; attempt < 30 && !healed; attempt += 1) {
-    assert.equal(session.run('character:medical', { fight: { id: rao, value: { medicId: doc } } }).ok, true);
-    healed = !session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.wounded;
-  }
-  assert.ok(healed, 'medical attention at 4+ succeeds soon enough');
+  const noFacility = session.run('character:medical', { fight: { id: rao, value: { medicId: doc, kit: true } } });
+  assert.equal(noFacility.ok, false);
+  assert.match(noFacility.message, /seriously wounded and needs a medical facility/);
+  assert.equal(session.run('character:medical', { fight: { id: rao, value: { medicId: doc, facility: true } } }).ok, true);
+  assert.equal(session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.wounded, false);
   assert.equal(session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets[0].condition.severe, false);
 
   // And one killed stays dead.
@@ -2011,25 +2020,29 @@ test('v0.275.0 the party rests together: everyone ticked recovers, and the date 
   assert.equal(session.run('party:rest', { fight: { value: { ids: [first] } } }).ok, false, 'nobody left who needs it');
 });
 
-test('v0.275.0 medical attention takes the medic\u2019s day: the first attempt moves the clock, the rest that day do not', async () => {
+test('v0.275.0 medical attention takes the medic\u2019s day: the first treatment moves the clock, the rest that day do not', async () => {
   const { session, first, copyId, date } = await woundedPairFixture();
+  const doc = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Dr Imre' } } }).createdId;
+  session.run('edit:actor:skills', { fight: { id: doc, value: 'Medical-2' } });
+  const treat = (id) => session.run('character:medical', { fight: { id, value: { medicId: doc, kit: true } } });
   const start = date();
-  assert.equal(session.run('character:medical', { fight: { id: first, value: { medicId: null } } }).ok, true);
+  assert.equal(session.run('character:medical', { fight: { id: first, value: { medicId: null, kit: true } } }).ok, false, 'refused: no time passes');
+  assert.equal(date() - start, 0);
+  assert.equal(treat(first).ok, true);
   assert.equal(date() - start, 1);
-  const second = session.run('character:medical', { fight: { id: copyId, value: { medicId: null } } });
+  const second = treat(copyId);
   assert.equal(second.ok, true);
   assert.equal(date() - start, 1, 'same day of treatment');
   assert.match(second.message, /Same day of treatment/);
-  // The same patient again is tomorrow's attempt, and moves the clock.
-  const again = session.run('character:medical', { fight: { id: copyId, value: { medicId: null } } });
+  // Hurt again the same day, the same patient is tomorrow's work.
+  session.run('edit:character:current', { fight: { id: first, value: { STR: 3 } } });
+  const again = treat(first);
   assert.doesNotMatch(again.message, /Same day of treatment/);
-  assert.equal(date() - start, 2, 'a retry is the next day');
-  const other = session.run('character:medical', { fight: { id: first, value: { medicId: null } } });
-  assert.match(other.message, /Same day of treatment/, 'and the other patient can be seen that day too');
-  assert.equal(date() - start, 2);
+  assert.equal(date() - start, 2, 'the same patient again is the next day');
   // Any other movement of the clock starts a new day.
+  session.run('edit:character:current', { fight: { id: copyId, value: { STR: 3 } } });
   session.run('time:pass', { fight: { value: { amount: 1, unit: 'days' } } });
-  const fresh = session.run('character:medical', { fight: { id: first, value: { medicId: null } } });
+  const fresh = treat(copyId);
   assert.doesNotMatch(fresh.message, /Same day of treatment/);
   assert.equal(date() - start, 4);
 });

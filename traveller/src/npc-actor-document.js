@@ -377,7 +377,6 @@ export function removeNpcActorInventoryItem(document, itemId) {
 // characteristics taken to zero) can only be treated. The schema has no field
 // for severity, so it is kept as an injury effect with this id.
 export const NPC_SEVERE_WOUND_EFFECT_ID = 'effect-severely-wounded';
-const NPC_MEDICAL_TARGET = 8;
 
 export function npcActorIsWounded(document) {
   return ['STR', 'DEX', 'END'].some((key) => Number(document.current?.[key]) < Number(document.characteristics?.[key]));
@@ -433,17 +432,19 @@ export function restNpcActor(document) {
 
 // Kurt's ruling for the throw: 8+, DM the attendant's Medical, -5 with none,
 // optional -2 for a non-human patient (1981).
-export function medicalAttentionNpcActor(document, { medicalLevel = null, xeno = false, dice } = {}) {
+// v0.296.0: the 1981 Book 1's requirements, no throw (Kurt's ruling) — as a
+// character's: Medical-1 and a medical kit; Medical-3 and a medical facility
+// for the seriously wounded.
+export function medicalAttentionNpcActor(document, { medicalLevel = null, medicalKit = false, facility = false } = {}) {
   const actor = importNpcActorDocument(document);
   if (npcActorIsDead(actor)) throw new Error(`${actor.identity.name} is dead`);
-  if (!npcActorIsWounded(actor) && !npcActorIsSeverelyWounded(actor)) throw new Error(`${actor.identity.name} is not wounded`);
-  if (!dice || typeof dice.rollD6 !== 'function') throw new TypeError('dice are required');
+  const serious = npcActorIsSeverelyWounded(actor);
+  if (!npcActorIsWounded(actor) && !serious) throw new Error(`${actor.identity.name} is not wounded`);
   const level = medicalLevel === null || medicalLevel === undefined ? null : Number(medicalLevel);
-  const skillDM = level === null ? -5 : level;
-  const xenoDM = xeno ? -2 : 0;
-  const rolled = [dice.rollD6(), dice.rollD6()];
-  const roll = rolled[0] + rolled[1];
-  const total = roll + skillDM + xenoDM;
-  const success = total >= NPC_MEDICAL_TARGET;
-  return { success, dice: rolled, roll, skillDM, xenoDM, total, target: NPC_MEDICAL_TARGET, actor: success ? recoveredNpcActor(actor) : actor };
+  const needed = serious ? 3 : 1;
+  const missing = [];
+  if (level === null || level < needed) missing.push(`an attendant with Medical-${needed} or better`);
+  if (serious ? !facility : !medicalKit) missing.push(serious ? 'a medical facility' : 'a medical kit');
+  if (missing.length) throw new Error(`${actor.identity.name}${serious ? ' is seriously wounded and' : ''} needs ${missing.join(' and ')} (Book 1, 1981)`);
+  return { success: true, serious, actor: recoveredNpcActor(actor) };
 }
