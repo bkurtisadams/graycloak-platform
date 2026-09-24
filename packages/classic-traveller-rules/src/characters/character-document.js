@@ -7,8 +7,8 @@ import { PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, getPersonalWeapon } from '../co
 import { assessLoad, inventoryLoadGrams, personalWeaponCarriedWeightGrams, personalWeaponWeight } from './load.js';
 
 export const CHARACTER_DOCUMENT_TYPE = 'classic-traveller-character';
-export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 5;
-export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
+export const CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION = 6;
+export const SUPPORTED_CHARACTER_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
 
 // v5 (Graycloak, Sep 2026): the personnel-record fields TAS Form 2 asks for
 // that nothing in generation produces — a noble title, where they were born,
@@ -218,7 +218,10 @@ export function createCharacterDocument(character, { id, aliases = [], notes = '
     chronology: {
       chronologicalAgeMonths: character.chronologicalAgeMonths,
       physicalAgeMonths: character.physicalAgeMonths,
-      nextAgingCheckAgeMonths: character.nextAgingCheckAgeMonths
+      nextAgingCheckAgeMonths: character.nextAgingCheckAgeMonths,
+      // v6: the game date these ages were true on. Null until the character
+      // is anchored to a campaign clock (see play-aging.js).
+      asOfDate: null
     },
     characteristics: { ...character.characteristics },
     current: Object.fromEntries(['STR', 'DEX', 'END'].map((key) => [key, character.characteristics[key]])),
@@ -412,6 +415,8 @@ export function validateCharacterDocument(document) {
     add(errors, integerAtLeast(document.chronology.chronologicalAgeMonths, 18 * 12), 'chronologicalAgeMonths must be at least 216');
     add(errors, integerAtLeast(document.chronology.physicalAgeMonths, 0), 'physicalAgeMonths must be a non-negative integer');
     add(errors, integerAtLeast(document.chronology.nextAgingCheckAgeMonths, 0), 'nextAgingCheckAgeMonths must be a non-negative integer');
+    add(errors, Object.hasOwn(document.chronology, 'asOfDate'), 'chronology.asOfDate is required (null when unanchored)');
+    add(errors, document.chronology.asOfDate === null || (typeof document.chronology.asOfDate === 'string' && /^\d{1,3}-\d{1,5}$/.test(document.chronology.asOfDate)), 'chronology.asOfDate must be null or a DDD-YYYY date');
     if (integerAtLeast(document.chronology.chronologicalAgeMonths, 18 * 12)) {
       add(errors, document.age === Math.floor(document.chronology.chronologicalAgeMonths / 12), 'age must match chronologicalAgeMonths');
     }
@@ -557,6 +562,12 @@ export function migrateCharacterDocument(document) {
     // its own birthworld, and guessing one would be inventing history.
     migrated.record = emptyCharacterRecord();
     migrated.schemaVersion = 5;
+  }
+  if (migrated.schemaVersion === 5) {
+    // v6: an anchor date for the ages. No existing character has one — the
+    // campaign sets it the first time its clock touches the character.
+    migrated.chronology = { ...migrated.chronology, asOfDate: null };
+    migrated.schemaVersion = 6;
   }
   if (migrated.schemaVersion === CURRENT_CHARACTER_DOCUMENT_SCHEMA_VERSION) return migrated;
   throw new CharacterDocumentValidationError(`unsupported character document schemaVersion: ${document.schemaVersion}`);

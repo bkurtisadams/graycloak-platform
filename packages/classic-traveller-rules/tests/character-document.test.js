@@ -82,7 +82,8 @@ test('schema v2 gameplay characters migrate with current health and a usable loa
   delete legacy.loadout;
 
   const migrated = importCharacterDocument(legacy);
-  assert.equal(migrated.schemaVersion, 5);
+  assert.equal(migrated.schemaVersion, 6);
+  assert.equal(migrated.chronology.asOfDate, null, 'v6: unanchored until a campaign clock touches it');
   // v5 (Sep 2026): the record block arrives empty. Nothing already filed
   // knows its own birthworld, and guessing one would be inventing history.
   assert.equal(migrated.record.birthworld, '');

@@ -198,7 +198,7 @@ test('ship document schema v1 migrates through v3 without inventing legacy fuel 
   assert.equal(migrated.state.cargoUsedTons, 0);
   assert.deepEqual(migrated.state.cargoManifest, []);
   assert.deepEqual(migrated.state.passengerManifest, []);
-  assert.deepEqual(migrated.state.finances, { balanceCr: 0, ledger: [] });
+  assert.deepEqual(migrated.state.finances, { balanceCr: 0, ledger: [], mortgage: null });
   assert.equal(migrated.state.portCall, null);
 });
 

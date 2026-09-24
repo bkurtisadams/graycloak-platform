@@ -517,8 +517,46 @@ export {
   shipMortgage,
   MORTGAGE_DOWN_PAYMENT_RATE,
   MORTGAGE_MONTHLY_DIVISOR,
-  MORTGAGE_TERM_MONTHS
+  MORTGAGE_TERM_MONTHS,
+  MORTGAGE_PERIOD_DAYS,
+  financeShip,
+  shipMortgageSchedule,
+  MAINTENANCE_DAYS,
+  shipMaintenanceStatus,
+  performMaintenance
 } from './src/starships/operations.js';
+
+// v0.67.0: the game calendar and the campaign clock.
+export {
+  DAYS_PER_YEAR,
+  DAYS_PER_MONTH,
+  parseGameDate,
+  isGameDate,
+  assertGameDate,
+  formatGameDate,
+  addDays,
+  daysBetween,
+  compareGameDates,
+  earliestGameDate,
+  monthsElapsed,
+  ageMonthsElapsed
+} from './src/time/dates.js';
+
+export {
+  CLOCK_EVENT_KINDS,
+  nextDueDates,
+  advanceClock
+} from './src/time/clock.js';
+
+export {
+  anchorCharacterChronology,
+  characterIsAnchored,
+  characterAgeAt,
+  ageCharacterDocumentTo,
+  characterAgingDue,
+  characterAgingCheckDate,
+  resolveCharacterAging
+} from './src/characters/play-aging.js';
 
 export {
   encodeTravellerDigit,

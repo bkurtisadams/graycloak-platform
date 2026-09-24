@@ -14,6 +14,8 @@ import {
   createTypeSScoutReserveShipForCharacter,
   importCharacterDocument,
   importShipDocument,
+  performMaintenance,
+  shipMaintenanceStatus,
   transferCharacterCreditsToShip,
   bookPassenger,
   availablePassengerCapacity,
@@ -327,7 +329,9 @@ test('Book 2 pp.6-7: upkeep accrues in whole periods and is charged against the 
   const due = shipUpkeepDue(vessel, { dateLabel: '101-4800', sinceLabel: '001-4800', unpaid: [character.identity.id] });
   assert.equal(due.salaryPerPeriodCr, 3000);
   assert.equal(due.salaryPeriods, 3, '100 days is three whole 30-day periods');
-  assert.equal(due.maintenancePeriods, 0, 'not yet a full year');
+  // v0.67.0: maintenance is reported, not owed — it falls due a year on.
+  assert.equal(due.maintenance.dueDate, '001-4801');
+  assert.equal(due.maintenance.overdue, false, 'not yet a full year');
   assert.equal(due.totalDueCr, 9000);
 
   const charged = chargeShipUpkeep(vessel, { dateLabel: '101-4800', sinceLabel: '001-4800', unpaid: [character.identity.id] });
@@ -340,27 +344,45 @@ test('Book 2 pp.6-7: upkeep accrues in whole periods and is charged against the 
   assert.equal(chargeShipUpkeep(charged.ship, { dateLabel: '101-4800', unpaid: [character.identity.id] }).paidCr, 0);
 });
 
-test('a year served brings the overhaul due, and an account that cannot cover it keeps owing', async () => {
+test('a year served brings the overhaul due; it is performed at a class A or B port, not charged by upkeep', async () => {
   const character = await hawkeye();
   let vessel = createTypeSScoutReserveShipForCharacter(character).ship;
   vessel = transferCharacterCreditsToShip(character, vessel, 20000, { dateLabel: '001-4800' }).ship;
 
-  const due = shipUpkeepDue(vessel, { dateLabel: '001-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
-  assert.equal(due.maintenancePeriods, 1);
-  assert.equal(due.maintenancePerPeriodCr, 32490, '0.1% of the Book 2 p.18 price');
+  // v0.67.0: Book 2 p.6 makes the overhaul two weeks at a class A or B
+  // starport, and p.4 hangs drive failure and misjump on skipping it — so it
+  // is an act the ship performs, not money the account quietly loses.
+  const due = shipUpkeepDue(vessel, { dateLabel: '002-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(due.maintenance.overdue, true);
+  assert.equal(due.maintenance.daysOverdue, 1);
+  assert.equal(due.maintenance.costCr, 32490, '0.1% of the Book 2 p.18 price');
+  assert.equal(due.totalDueCr, 0, 'nothing is owed to anyone until the overhaul is done');
 
-  // Cr20,000 will not cover a Cr32,490 overhaul, so nothing is charged and the
-  // whole amount stays outstanding. The ship still flies while it owes.
-  const charged = chargeShipUpkeep(vessel, { dateLabel: '001-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
-  assert.equal(charged.maintenancePeriodsPaid, 0);
-  assert.equal(charged.outstandingCr, 32490);
-  assert.equal(charged.ship.state.finances.balanceCr, 20000);
+  const charged = chargeShipUpkeep(vessel, { dateLabel: '002-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
+  assert.equal(charged.paidCr, 0);
+  assert.equal(charged.ship.state.finances.ledger.some((entry) => entry.kind === 'maintenance'), false);
+  assert.equal(charged.maintenance.overdue, true);
 
-  // Funded, the same call settles it.
-  const funded = transferCharacterCreditsToShip(character, charged.ship, 30000, { dateLabel: '002-4801' }).ship;
-  const settled = chargeShipUpkeep(funded, { dateLabel: '002-4801', sinceLabel: '001-4800', unpaid: [character.identity.id] });
-  assert.equal(settled.maintenancePeriodsPaid, 1);
-  assert.equal(settled.outstandingCr, 0);
+  // Cr20,000 will not cover a Cr32,490 overhaul, and a class C port cannot do
+  // one at all. The ship still flies while it is overdue.
+  assert.throws(() => performMaintenance(vessel, { dateLabel: '002-4801', starport: 'C' }), /class A or B/);
+  assert.throws(() => performMaintenance(vessel, { dateLabel: '002-4801', starport: 'B' }), /requires Cr32,490/);
+
+  // Funded, at a class B port, the overhaul is done: fee, two weeks, and a
+  // new due date a year from the day it was started.
+  const funded = transferCharacterCreditsToShip(character, vessel, 30000, { dateLabel: '002-4801' }).ship;
+  const done = performMaintenance(funded, { dateLabel: '002-4801', starport: 'B' });
+  assert.equal(done.costCr, 32490);
+  assert.equal(done.daysTaken, 14);
+  assert.equal(done.completedOn, '016-4801');
+  assert.equal(done.ship.state.finances.balanceCr, 17510);
+  assert.equal(done.ship.state.maintenance.lastOverhaulDate, '002-4801');
+  assert.equal(shipMaintenanceStatus(done.ship, { dateLabel: '016-4801' }).dueDate, '002-4802');
+
+  // A Scout ship on reserve assignment is overhauled free at a scout base.
+  const free = performMaintenance(funded, { dateLabel: '002-4801', starport: 'B', scoutBase: true });
+  assert.equal(free.costCr, 0);
+  assert.equal(free.ship.state.finances.balanceCr, 50000);
 });
 
 test('the ledger splits into voyages at each departure, and states what each leg made', async () => {

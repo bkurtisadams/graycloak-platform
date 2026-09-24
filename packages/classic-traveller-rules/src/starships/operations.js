@@ -8,6 +8,7 @@ import {
   SAND_CANISTER_PRICE_CR
 } from './components.js';
 import { getStandardShipDesign } from './standard-designs.js';
+import { parseGameDate, assertGameDate, formatGameDate, DAYS_PER_MONTH, DAYS_PER_YEAR } from '../time/dates.js';
 import {
   PASSAGE_FARES_CR,
   STATEROOM_LIFE_SUPPORT_PER_TRIP_CR,
@@ -582,6 +583,167 @@ export function shipMortgage(ship) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// v0.67.0: the mortgage is serviced, not only priced.
+//
+// shipMortgage() above gives the terms for a new purchase. A financed ship
+// carries state.finances.mortgage — the price the bank holds, the monthly
+// figure, how many payments remain from `startedOn` — and its payments are
+// ledger lines of kind 'mortgage', so payments made and payments in arrears
+// are read from the ledger exactly as salaries are. A ship owned outright
+// (a mustered-out Type S) has mortgage: null.
+//
+// Book 2 p.5 says nothing about what an unpaid month does to the ship; p.3
+// says a ship whose captain stops paying has "skipped" and is liable to
+// repossession at each landing. So "skipped" is simply: one or more payment
+// periods have fallen due and were not covered. No flag, no schema field.
+// ---------------------------------------------------------------------------
+
+export const MORTGAGE_PERIOD_DAYS = DAYS_PER_MONTH;
+const MORTGAGE_LEDGER_KIND = 'mortgage';
+
+/**
+ * Put a ship under a mortgage. `termMonths` is the number of payments still
+ * owed from `startedOn`, so a ship acquired part-paid (a mustering-out
+ * benefit read that way) is financed with fewer than the full 480.
+ */
+export function financeShip(ship, {
+  startedOn,
+  cashPriceCr = null,
+  monthlyPaymentCr = null,
+  termMonths = MORTGAGE_TERM_MONTHS
+} = {}) {
+  assertValidShipDocument(ship);
+  assertGameDate(startedOn, 'startedOn');
+  if (ship.state.finances.mortgage) throw new RangeError('ship is already financed');
+  if (!Number.isInteger(termMonths) || termMonths < 1 || termMonths > MORTGAGE_TERM_MONTHS) {
+    throw new RangeError(`termMonths must be an integer from 1 to ${MORTGAGE_TERM_MONTHS}`);
+  }
+  const price = cashPriceCr ?? shipCashPriceCr(ship);
+  if (!Number.isInteger(price) || price < 1) throw new TypeError('cashPriceCr must be a positive integer');
+  const monthly = monthlyPaymentCr ?? Math.round(price / MORTGAGE_MONTHLY_DIVISOR);
+  if (!Number.isInteger(monthly) || monthly < 1) throw new TypeError('monthlyPaymentCr must be a positive integer');
+  const next = cloneJson(ship);
+  next.state.finances.mortgage = { cashPriceCr: price, monthlyPaymentCr: monthly, termMonths, startedOn };
+  assertValidShipDocument(next);
+  return next;
+}
+
+function mortgagePaymentsMade(ship) {
+  return ship.state.finances.ledger.filter((entry) => entry.kind === MORTGAGE_LEDGER_KIND).length;
+}
+
+/** Where the mortgage stands as of `dateLabel`. Always answers; null-safe. */
+export function shipMortgageSchedule(ship, { dateLabel } = {}) {
+  assertValidShipDocument(ship);
+  const now = assertGameDate(dateLabel, 'dateLabel');
+  const mortgage = ship.state.finances.mortgage;
+  if (!mortgage) {
+    return Object.freeze({ financed: false, paidOff: true, paymentsMade: 0, paymentsRemaining: 0, periodsDue: 0, arrearsCr: 0, monthlyPaymentCr: 0, nextDueDate: null });
+  }
+  const paymentsMade = mortgagePaymentsMade(ship);
+  const paymentsRemaining = Math.max(0, mortgage.termMonths - paymentsMade);
+  const paidOff = paymentsRemaining === 0;
+  // Payments fall due every 30 days from startedOn, however late the previous
+  // one was actually made — dating from the last payment would let a late
+  // payer push every later due date back.
+  const start = assertGameDate(mortgage.startedOn, 'mortgage.startedOn');
+  const periodsElapsed = Math.max(0, Math.floor((now - start) / MORTGAGE_PERIOD_DAYS));
+  const periodsFallenDue = Math.min(periodsElapsed, mortgage.termMonths);
+  const periodsDue = paidOff ? 0 : Math.max(0, periodsFallenDue - paymentsMade);
+  const nextDueDate = paidOff ? null : formatGameDate(start + (paymentsMade + 1) * MORTGAGE_PERIOD_DAYS);
+  return Object.freeze({
+    financed: true,
+    paidOff,
+    monthlyPaymentCr: mortgage.monthlyPaymentCr,
+    termMonths: mortgage.termMonths,
+    paymentsMade,
+    paymentsRemaining,
+    periodsDue,
+    arrearsCr: periodsDue * mortgage.monthlyPaymentCr,
+    skipped: periodsDue > 0,
+    nextDueDate
+  });
+}
+
+// ---------------------------------------------------------------------------
+// v0.67.0: maintenance is a thing done at a port, not a charge that falls due.
+//
+// Book 2 p.6: annually, two weeks at a class A or B starport, 0.1% of the
+// cash price. Skipping it is what p.4's drive-failure throw and misjump DM
+// key on, so the overhaul has to be an act the ship performs (or fails to),
+// not money the account quietly loses wherever the ship happens to be.
+// shipUpkeepDue reports it as due or overdue; performMaintenance does it.
+// ---------------------------------------------------------------------------
+
+export const MAINTENANCE_DAYS = MAINTENANCE_WEEKS * 7;
+
+function lastMaintenanceDate(ship) {
+  let latest = null;
+  for (const entry of ship.state.finances.ledger) {
+    if (entry.kind !== 'maintenance') continue;
+    const ordinal = parseGameDate(entry.date);
+    if (ordinal !== null && (latest === null || ordinal > latest)) latest = ordinal;
+  }
+  const recorded = parseGameDate(ship.state.maintenance?.lastOverhaulDate);
+  if (recorded !== null && (latest === null || recorded > latest)) latest = recorded;
+  return latest;
+}
+
+/**
+ * Maintenance standing as of `dateLabel`. `sinceLabel` dates delivery for a
+ * ship that has never been overhauled (a new ship is in warranty for a year
+ * from delivery, in effect). A ship with neither is 'unknown'.
+ */
+export function shipMaintenanceStatus(ship, { dateLabel, sinceLabel = null } = {}) {
+  assertValidShipDocument(ship);
+  const now = assertGameDate(dateLabel, 'dateLabel');
+  const from = lastMaintenanceDate(ship) ?? parseGameDate(sinceLabel);
+  if (from === null) {
+    return Object.freeze({ status: 'unknown', dueDate: null, daysUntilDue: null, daysOverdue: null, overdue: false, costCr: annualMaintenanceCr(ship) });
+  }
+  const due = from + DAYS_PER_YEAR;
+  const overdue = now > due;
+  return Object.freeze({
+    status: overdue ? 'overdue' : 'current',
+    lastOverhaulDate: formatGameDate(from),
+    dueDate: formatGameDate(due),
+    daysUntilDue: Math.max(0, due - now),
+    daysOverdue: Math.max(0, now - due),
+    overdue,
+    costCr: annualMaintenanceCr(ship)
+  });
+}
+
+/**
+ * The annual overhaul, performed. Charges the fee, records the overhaul, and
+ * reports the two weeks the caller must put on the clock. Refused anywhere
+ * but a class A or B starport.
+ */
+export function performMaintenance(ship, { dateLabel, starport, scoutBase = false } = {}) {
+  assertValidShipDocument(ship);
+  assertGameDate(dateLabel, 'dateLabel');
+  const port = String(starport ?? '').toUpperCase();
+  if (!MAINTENANCE_STARPORTS.includes(port)) {
+    throw new RangeError(`annual maintenance requires a class ${MAINTENANCE_STARPORTS.join(' or ')} starport; this is class ${port || '?'}`);
+  }
+  // Book 1: a Scout ship on reserve assignment is maintained free at scout
+  // bases — the privilege the ship document already records.
+  const free = Boolean(scoutBase && port === 'B' && ship.authority.servicePrivileges?.freeMaintenanceAtScoutBasesAtClassBStarports);
+  const costCr = free ? 0 : annualMaintenanceCr(ship);
+  if (costCr > ship.state.finances.balanceCr) throw new RangeError(`ship operating account requires Cr${costCr.toLocaleString('en-US')} for annual maintenance`);
+  const next = appendLedger(ship, {
+    kind: 'maintenance',
+    amountCr: -costCr,
+    description: free
+      ? `Annual overhaul, ${MAINTENANCE_WEEKS} weeks at a scout base, class ${port} starport (Book 1: no charge)`
+      : `Annual overhaul, ${MAINTENANCE_WEEKS} weeks at a class ${port} starport (Book 2 p.6)`,
+    dateLabel
+  });
+  next.state.maintenance = { status: 'current', lastOverhaulDate: dateLabel, monthsPastDue: 0 };
+  return Object.freeze({ ship: next, costCr, daysTaken: MAINTENANCE_DAYS, completedOn: formatGameDate(assertGameDate(dateLabel) + MAINTENANCE_DAYS) });
+}
+
 export function chargeLifeSupportForTrip(ship, { dateLabel = null } = {}) {
   const cost = calculateLifeSupportCostForTrip(ship);
   if (cost.totalCr > ship.state.finances.balanceCr) throw new RangeError(`ship operating account requires Cr${cost.totalCr.toLocaleString('en-US')} for life support`);
@@ -727,15 +889,14 @@ export function sellSpeculativeCargo(ship, cargoId, quote, { dateLabel = null, d
 // the ship still flies while it owes.
 // ---------------------------------------------------------------------------
 
-export const SALARY_PERIOD_DAYS = 30;
-export const MAINTENANCE_PERIOD_DAYS = 365;
+export const SALARY_PERIOD_DAYS = DAYS_PER_MONTH;
+export const MAINTENANCE_PERIOD_DAYS = DAYS_PER_YEAR;
 const SALARY_LEDGER_KIND = 'crew-salaries';
-const MAINTENANCE_LEDGER_KIND = 'maintenance';
 
+// Kept for callers that still use the private name; the date type lives in
+// ../time/dates.js now.
 function dayOrdinal(dateLabel) {
-  const match = /^(\d{1,3})-(\d{1,5})$/.exec(String(dateLabel ?? '').trim());
-  if (!match) return null;
-  return Number(match[2]) * MAINTENANCE_PERIOD_DAYS + Number(match[1]);
+  return parseGameDate(dateLabel);
 }
 
 function lastChargeOrdinal(ship, kind) {
@@ -749,8 +910,11 @@ function lastChargeOrdinal(ship, kind) {
 }
 
 /**
- * What the ship owes as of `dateLabel`, in whole elapsed periods. `sinceLabel`
- * dates the start of liability for a ship that has never been charged.
+ * What the ship owes as of `dateLabel`, in whole elapsed periods: crew
+ * salaries and mortgage payments. `sinceLabel` dates the start of liability
+ * for a ship that has never been charged. Maintenance is reported alongside
+ * (due date, overdue) but is not owed to anyone until performed — see
+ * shipMaintenanceStatus and performMaintenance.
  */
 export function shipUpkeepDue(ship, { dateLabel, sinceLabel = null, skillLevels = {}, unpaid = [] } = {}) {
   assertValidShipDocument(ship);
@@ -758,38 +922,38 @@ export function shipUpkeepDue(ship, { dateLabel, sinceLabel = null, skillLevels 
   if (now === null) throw new TypeError('dateLabel must look like DDD-YYYY');
   const start = dayOrdinal(sinceLabel);
 
-  const periodsFor = (kind, lengthDays) => {
-    const from = lastChargeOrdinal(ship, kind) ?? start;
-    if (from === null) return 0;
-    return Math.max(0, Math.floor((now - from) / lengthDays));
-  };
-
-  const salaryPeriods = periodsFor(SALARY_LEDGER_KIND, SALARY_PERIOD_DAYS);
-  const maintenancePeriods = periodsFor(MAINTENANCE_LEDGER_KIND, MAINTENANCE_PERIOD_DAYS);
+  const salaryFrom = lastChargeOrdinal(ship, SALARY_LEDGER_KIND) ?? start;
+  const salaryPeriods = salaryFrom === null ? 0 : Math.max(0, Math.floor((now - salaryFrom) / SALARY_PERIOD_DAYS));
   const payroll = calculateMonthlyCrewSalaries(ship, { skillLevels, unpaid });
-  const maintenancePerPeriodCr = annualMaintenanceCr(ship);
+  const mortgage = shipMortgageSchedule(ship, { dateLabel });
+  const maintenance = shipMaintenanceStatus(ship, { dateLabel, sinceLabel });
 
+  const salariesDueCr = salaryPeriods * payroll.totalCr;
   return Object.freeze({
     salaryPeriods,
     salaryPerPeriodCr: payroll.totalCr,
-    salariesDueCr: salaryPeriods * payroll.totalCr,
-    maintenancePeriods,
-    maintenancePerPeriodCr,
-    maintenanceDueCr: maintenancePeriods * maintenancePerPeriodCr,
-    totalDueCr: salaryPeriods * payroll.totalCr + maintenancePeriods * maintenancePerPeriodCr
+    salariesDueCr,
+    nextSalaryDate: salaryFrom === null ? null : formatGameDate(salaryFrom + SALARY_PERIOD_DAYS),
+    mortgagePeriods: mortgage.periodsDue,
+    mortgagePerPeriodCr: mortgage.monthlyPaymentCr,
+    mortgageDueCr: mortgage.arrearsCr,
+    mortgageSkipped: mortgage.skipped ?? false,
+    nextMortgageDate: mortgage.nextDueDate,
+    maintenance,
+    totalDueCr: salariesDueCr + mortgage.arrearsCr
   });
 }
 
 /**
  * Charge as many whole periods as the account can cover, oldest first, and
- * leave the rest due. Salaries are settled before maintenance: a crew is owed
- * its wages before a shipyard is owed an overhaul.
+ * leave the rest due. Salaries before the mortgage: a crew is owed its wages
+ * before the bank is owed its month. Maintenance is not charged here.
  */
 export function chargeShipUpkeep(ship, { dateLabel, sinceLabel = null, skillLevels = {}, unpaid = [] } = {}) {
   const due = shipUpkeepDue(ship, { dateLabel, sinceLabel, skillLevels, unpaid });
   let next = cloneJson(ship);
   let salaryPeriodsPaid = 0;
-  let maintenancePeriodsPaid = 0;
+  let mortgagePeriodsPaid = 0;
 
   if (due.salaryPerPeriodCr > 0) {
     for (let index = 0; index < due.salaryPeriods; index += 1) {
@@ -808,24 +972,27 @@ export function chargeShipUpkeep(ship, { dateLabel, sinceLabel = null, skillLeve
     salaryPeriodsPaid = due.salaryPeriods;
   }
 
-  for (let index = 0; index < due.maintenancePeriods; index += 1) {
-    if (next.state.finances.balanceCr < due.maintenancePerPeriodCr) break;
+  for (let index = 0; index < due.mortgagePeriods; index += 1) {
+    if (next.state.finances.balanceCr < due.mortgagePerPeriodCr) break;
+    const schedule = shipMortgageSchedule(next, { dateLabel });
     next = appendLedger(next, {
-      kind: MAINTENANCE_LEDGER_KIND,
-      amountCr: -due.maintenancePerPeriodCr,
-      description: `Annual overhaul, ${MAINTENANCE_WEEKS} weeks at a class ${MAINTENANCE_STARPORTS.join(' or ')} starport (Book 2 p.6)`,
+      kind: MORTGAGE_LEDGER_KIND,
+      amountCr: -due.mortgagePerPeriodCr,
+      description: `Mortgage payment ${schedule.paymentsMade + 1} of ${schedule.termMonths} (Book 2 p.5)`,
       dateLabel
     });
-    maintenancePeriodsPaid += 1;
+    mortgagePeriodsPaid += 1;
   }
 
-  const paidCr = salaryPeriodsPaid * due.salaryPerPeriodCr + maintenancePeriodsPaid * due.maintenancePerPeriodCr;
+  const paidCr = salaryPeriodsPaid * due.salaryPerPeriodCr + mortgagePeriodsPaid * due.mortgagePerPeriodCr;
   return Object.freeze({
     ship: next,
     paidCr,
     salaryPeriodsPaid,
-    maintenancePeriodsPaid,
-    outstandingCr: due.totalDueCr - paidCr
+    mortgagePeriodsPaid,
+    outstandingCr: due.totalDueCr - paidCr,
+    mortgageSkipped: due.mortgagePeriods - mortgagePeriodsPaid > 0,
+    maintenance: due.maintenance
   });
 }
 

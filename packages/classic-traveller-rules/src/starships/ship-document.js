@@ -12,8 +12,8 @@ import { TURRET_MOUNTS, TURRET_WEAPONS } from './components.js';
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 5;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 6;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6]);
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
@@ -196,7 +196,9 @@ export function createShipDocument({
       passengerManifest: cloneJson(state.passengerManifest ?? []),
       finances: {
         balanceCr: state.finances?.balanceCr ?? 0,
-        ledger: cloneJson(state.finances?.ledger ?? [])
+        ledger: cloneJson(state.finances?.ledger ?? []),
+        // v6: null for a ship owned outright; financeShip() sets the rest.
+        mortgage: state.finances?.mortgage ? cloneJson(state.finances.mortgage) : null
       },
       portCall: state.portCall ? cloneJson(state.portCall) : null,
       armament: {
@@ -357,8 +359,17 @@ function validateShipFinances(document, errors) {
   const finances = document.state?.finances;
   add(errors, isPlainObject(finances), 'state.finances must be an object');
   if (!isPlainObject(finances)) return;
-  validateExactKeys(finances, ['balanceCr', 'ledger'], 'state.finances', errors);
+  validateExactKeys(finances, ['balanceCr', 'ledger', 'mortgage'], 'state.finances', errors);
   add(errors, integerAtLeast(finances.balanceCr, 0), 'state.finances.balanceCr must be a non-negative integer');
+  add(errors, finances.mortgage === null || isPlainObject(finances.mortgage), 'state.finances.mortgage must be null or an object');
+  if (isPlainObject(finances.mortgage)) {
+    const mortgage = finances.mortgage;
+    validateExactKeys(mortgage, ['cashPriceCr', 'monthlyPaymentCr', 'termMonths', 'startedOn'], 'state.finances.mortgage', errors);
+    add(errors, integerAtLeast(mortgage.cashPriceCr, 1), 'mortgage.cashPriceCr must be a positive integer');
+    add(errors, integerAtLeast(mortgage.monthlyPaymentCr, 1), 'mortgage.monthlyPaymentCr must be a positive integer');
+    add(errors, integerAtLeast(mortgage.termMonths, 1), 'mortgage.termMonths must be a positive integer');
+    add(errors, typeof mortgage.startedOn === 'string' && /^\d{1,3}-\d{1,5}$/.test(mortgage.startedOn), 'mortgage.startedOn must be a DDD-YYYY date');
+  }
   add(errors, Array.isArray(finances.ledger), 'state.finances.ledger must be an array');
   if (!Array.isArray(finances.ledger)) return;
   let running = 0;
@@ -613,6 +624,13 @@ export function migrateShipDocument(input) {
     // Nothing could damage a ship before this version, so every existing ship
     // is undamaged.
     next.state.damage = emptyDamageState();
+  }
+
+  if (next.schemaVersion === 5) {
+    next.schemaVersion = 6;
+    // No mortgage was ever serviced before this version, so no existing ship
+    // is known to be financed; financeShip() is the way to say one is.
+    next.state.finances.mortgage = null;
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {
