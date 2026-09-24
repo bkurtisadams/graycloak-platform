@@ -13,11 +13,19 @@ import { basicSoftwarePackage } from './software.js';
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 7;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 8;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8]);
 
 // v7: the drive sections a malfunction can stop (1982 drive failure).
 export const MALFUNCTION_DRIVES = Object.freeze(['powerPlant', 'maneuverDrive', 'jumpDrive']);
+
+// v8: arrival (Book 2 pp.2-3, 8, 15). Where a port call is berthed, the
+// calls a repossession throw looks back over, private messages carried, and
+// a ship held against its arrears.
+export const PORT_CALL_BERTHS = Object.freeze(['surface', 'orbit']);
+export const PORT_CALL_HISTORY_LIMIT = 24;
+export const IMPOUND_FORMS = Object.freeze(['papers', 'injunction', 'boarding']);
+const GAME_DATE_PATTERN = /^\d{1,3}-\d{1,5}$/;
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
@@ -198,6 +206,9 @@ export function createShipDocument({
       cargoUsedTons: state.cargoUsedTons ?? 0,
       cargoManifest: cloneJson(state.cargoManifest ?? []),
       passengerManifest: cloneJson(state.passengerManifest ?? []),
+      portCallHistory: cloneJson(state.portCallHistory ?? []),
+      privateMessages: cloneJson(state.privateMessages ?? []),
+      impound: state.impound ? cloneJson(state.impound) : null,
       finances: {
         balanceCr: state.finances?.balanceCr ?? 0,
         ledger: cloneJson(state.finances?.ledger ?? []),
@@ -345,8 +356,12 @@ function validatePassengerManifest(document, errors) {
     add(errors, isPlainObject(entry), 'passenger manifest entry must be an object');
     if (!isPlainObject(entry)) continue;
     validateExactKeys(entry, [
-      'id', 'class', 'originSystemId', 'destinationSystemId', 'fareCr'
+      'id', 'class', 'originSystemId', 'destinationSystemId', 'fareCr', 'endurance'
     ], 'state.passengerManifest entry', errors);
+    // v8: a low passenger's endurance for the revival throw (Book 2 p.2);
+    // null where it was never recorded, and always null in a stateroom.
+    add(errors, entry.endurance === null || (Number.isInteger(entry.endurance) && entry.endurance >= 1 && entry.endurance <= 15), 'passenger endurance must be null or an integer from 1 to 15');
+    if (entry.class !== 'low') add(errors, entry.endurance === null, 'only a low passenger records endurance');
     add(errors, typeof entry.id === 'string' && entry.id.trim().length > 0, 'passenger manifest id must be nonblank');
     if (typeof entry.id === 'string') {
       add(errors, !ids.has(entry.id), `duplicate passenger manifest id: ${entry.id}`);
@@ -375,7 +390,8 @@ function validateShipFinances(document, errors) {
   add(errors, finances.mortgage === null || isPlainObject(finances.mortgage), 'state.finances.mortgage must be null or an object');
   if (isPlainObject(finances.mortgage)) {
     const mortgage = finances.mortgage;
-    validateExactKeys(mortgage, ['cashPriceCr', 'monthlyPaymentCr', 'termMonths', 'startedOn'], 'state.finances.mortgage', errors);
+    validateExactKeys(mortgage, ['cashPriceCr', 'monthlyPaymentCr', 'termMonths', 'startedOn', 'homeSystemId'], 'state.finances.mortgage', errors);
+    add(errors, mortgage.homeSystemId === null || (typeof mortgage.homeSystemId === 'string' && mortgage.homeSystemId.trim().length > 0), 'mortgage.homeSystemId must be null or a nonblank string');
     add(errors, integerAtLeast(mortgage.cashPriceCr, 1), 'mortgage.cashPriceCr must be a positive integer');
     add(errors, integerAtLeast(mortgage.monthlyPaymentCr, 1), 'mortgage.monthlyPaymentCr must be a positive integer');
     add(errors, integerAtLeast(mortgage.termMonths, 1), 'mortgage.termMonths must be a positive integer');
@@ -409,12 +425,54 @@ function validatePortCall(document, errors) {
   const portCall = document.state?.portCall;
   add(errors, portCall === null || isPlainObject(portCall), 'state.portCall must be null or an object');
   if (!isPlainObject(portCall)) return;
-  validateExactKeys(portCall, ['systemId', 'arrivalDate', 'berthingDueCr', 'berthingPaid'], 'state.portCall', errors);
+  validateExactKeys(portCall, ['systemId', 'arrivalDate', 'berthingDueCr', 'berthingPaid', 'berth', 'brokerTipDM'], 'state.portCall', errors);
+  add(errors, PORT_CALL_BERTHS.includes(portCall.berth), `state.portCall.berth must be ${PORT_CALL_BERTHS.join(' or ')}`);
+  add(errors, integerAtLeast(portCall.brokerTipDM, 0), 'state.portCall.brokerTipDM must be a non-negative integer');
   add(errors, typeof portCall.systemId === 'string' && portCall.systemId.trim().length > 0, 'state.portCall.systemId must be nonblank');
   add(errors, portCall.arrivalDate === null || typeof portCall.arrivalDate === 'string', 'state.portCall.arrivalDate must be null or a string');
   add(errors, integerAtLeast(portCall.berthingDueCr, 0), 'state.portCall.berthingDueCr must be a non-negative integer');
   add(errors, typeof portCall.berthingPaid === 'boolean', 'state.portCall.berthingPaid must be boolean');
   if (portCall.berthingDueCr === 0) add(errors, portCall.berthingPaid === true, 'zero-cost berthing must be marked paid');
+}
+
+function validateArrivalState(document, errors) {
+  const state = document.state;
+  add(errors, Array.isArray(state.portCallHistory), 'state.portCallHistory must be an array');
+  if (Array.isArray(state.portCallHistory)) {
+    add(errors, state.portCallHistory.length <= PORT_CALL_HISTORY_LIMIT, `state.portCallHistory keeps at most ${PORT_CALL_HISTORY_LIMIT} calls`);
+    for (const entry of state.portCallHistory) {
+      add(errors, isPlainObject(entry), 'port call history entry must be an object');
+      if (!isPlainObject(entry)) continue;
+      validateExactKeys(entry, ['systemId', 'arrivalDate'], 'state.portCallHistory entry', errors);
+      add(errors, typeof entry.systemId === 'string' && entry.systemId.trim().length > 0, 'port call history systemId must be nonblank');
+      add(errors, typeof entry.arrivalDate === 'string' && GAME_DATE_PATTERN.test(entry.arrivalDate), 'port call history arrivalDate must be a DDD-YYYY date');
+    }
+  }
+  add(errors, Array.isArray(state.privateMessages), 'state.privateMessages must be an array');
+  if (Array.isArray(state.privateMessages)) {
+    const ids = new Set();
+    for (const entry of state.privateMessages) {
+      add(errors, isPlainObject(entry), 'private message must be an object');
+      if (!isPlainObject(entry)) continue;
+      validateExactKeys(entry, ['id', 'carrierId', 'carrierName', 'originSystemId', 'destinationSystemId', 'recipient', 'honorariumCr', 'acceptedOn'], 'state.privateMessages entry', errors);
+      add(errors, typeof entry.id === 'string' && entry.id.trim().length > 0 && !ids.has(entry.id), 'private message id must be nonblank and unique');
+      ids.add(entry.id);
+      for (const key of ['carrierId', 'originSystemId', 'destinationSystemId', 'recipient']) {
+        add(errors, typeof entry[key] === 'string' && entry[key].trim().length > 0, `private message ${key} must be nonblank`);
+      }
+      add(errors, typeof entry.carrierName === 'string', 'private message carrierName must be a string');
+      add(errors, integerAtLeast(entry.honorariumCr, 0), 'private message honorariumCr must be a non-negative integer');
+      add(errors, typeof entry.acceptedOn === 'string' && GAME_DATE_PATTERN.test(entry.acceptedOn), 'private message acceptedOn must be a DDD-YYYY date');
+    }
+  }
+  add(errors, state.impound === null || isPlainObject(state.impound), 'state.impound must be null or an object');
+  if (isPlainObject(state.impound)) {
+    validateExactKeys(state.impound, ['systemId', 'since', 'form', 'arrearsCr'], 'state.impound', errors);
+    add(errors, typeof state.impound.systemId === 'string' && state.impound.systemId.trim().length > 0, 'state.impound.systemId must be nonblank');
+    add(errors, typeof state.impound.since === 'string' && GAME_DATE_PATTERN.test(state.impound.since), 'state.impound.since must be a DDD-YYYY date');
+    add(errors, IMPOUND_FORMS.includes(state.impound.form), `state.impound.form must be ${IMPOUND_FORMS.join(', ')}`);
+    add(errors, integerAtLeast(state.impound.arrearsCr, 0), 'state.impound.arrearsCr must be a non-negative integer');
+  }
 }
 
 // Book 2 p.16: "Weapons are never included in ship plans and specifications,
@@ -484,7 +542,7 @@ function validateState(document, errors) {
   validateExactKeys(state, [
     'operationalStatus', 'currentFuelTons', 'fuelQuality', 'cargoUsedTons',
     'cargoManifest', 'passengerManifest', 'finances', 'portCall', 'maintenance',
-    'armament', 'damage', 'computer', 'malfunction'
+    'armament', 'damage', 'computer', 'malfunction', 'portCallHistory', 'privateMessages', 'impound'
   ], 'state', errors);
   add(errors, isPlainObject(state.computer), 'state.computer must be an object');
   if (isPlainObject(state.computer)) {
@@ -521,6 +579,7 @@ function validateState(document, errors) {
   validateDamageState(document, errors);
   validateShipFinances(document, errors);
   validatePortCall(document, errors);
+  validateArrivalState(document, errors);
   add(errors, isPlainObject(state.maintenance), 'state.maintenance must be an object');
   if (isPlainObject(state.maintenance)) {
     validateExactKeys(state.maintenance, ['status', 'lastOverhaulDate', 'monthsPastDue'], 'state.maintenance', errors);
@@ -667,6 +726,25 @@ export function migrateShipDocument(input) {
     const design = getStandardShipDesign(next.design.key);
     next.state.computer = { programs: [...basicSoftwarePackage(design.drives.jump.rating)] };
     next.state.malfunction = null;
+  }
+
+  if (next.schemaVersion === 7) {
+    next.schemaVersion = 8;
+    // Nothing recorded a berth before this version; a port call is taken to
+    // be where the hull allows (Book 2 p.15: only a streamlined ship lands).
+    // No endurance was kept for a low passenger, so revival throws for it.
+    // No call history, messages or impound existed, and no mortgage named a
+    // home world.
+    const design = getStandardShipDesign(next.design.key);
+    for (const entry of next.state.passengerManifest ?? []) entry.endurance = null;
+    if (next.state.portCall) {
+      next.state.portCall.berth = design.hull.streamlined ? 'surface' : 'orbit';
+      next.state.portCall.brokerTipDM = 0;
+    }
+    if (next.state.finances?.mortgage) next.state.finances.mortgage.homeSystemId = null;
+    next.state.portCallHistory = [];
+    next.state.privateMessages = [];
+    next.state.impound = null;
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {

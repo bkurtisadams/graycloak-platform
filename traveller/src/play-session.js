@@ -48,6 +48,15 @@ import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM,
   shipVectorManeuver, VECTOR_ESCAPE_RANGE
 } from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
+// v0.311.0: build-order step 3 — arrival events live in the rules package.
+import { debitShipAccount, shipMortgageSchedule } from '../vendor/classic-traveller-rules/src/starships/operations.js';
+import {
+  reviveLowPassengers, settleLowPassageLottery, attendingMedicExpertise, rollPassengerEndurance,
+  orbitalTransfer, chargeShuttleFreight, checkRepossession, impoundShip, releaseImpound,
+  rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
+  resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, portCallBrokerTipDM, spendBrokerTip,
+  HAIL_ENCOUNTER_KEYS, INSPECTION_ENCOUNTER_KEYS
+} from '../vendor/classic-traveller-rules/src/starships/arrival.js';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -1695,7 +1704,7 @@ export function compendiumView(resolved, subsector) {
   };
 }
 
-function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
+function portFacts(resolved, subsector, selectedSystemId) {
   const { campaign, ships = [], encounters = [] } = resolved;
   const ship = ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? ships[0] ?? null;
   let system = null;
@@ -1721,13 +1730,17 @@ function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
   // the same lot, the same amount already bought, and the same quotes.
   // v0.232.0: a broker DM is no longer always 0 — a successful merchant
   // hail on arrival (Book 2 p.36) earns a one-time tip on the next resale
-  // quote made at that same system.
+  // quote made at that same system. v0.311.0: kept on the port call.
+  // v0.311.0: Book 2 pp.8, 15 — an unstreamlined ship berths in orbit and
+  // its own goods ride the starport's shuttles at Cr10 a ton (arrival.js).
+  const transfer = ship && profile ? orbitalTransfer(ship, { starport: profile.starport }) : null;
+  const shuttleOf = (tons) => Math.ceil(tons * (transfer?.perTonCr ?? 0));
   let speculation = null;
   if (ship && system && profile) {
     const trader = (resolved.characters ?? []).find((entry) => entry.identity.id === campaign.activeCharacterId)
       ?? (resolved.characters ?? []).find((entry) => (campaign.party?.characterIds ?? []).includes(entry.identity.id)) ?? null;
     const skillDM = Math.max(Number(trader?.skills?.Admin ?? 0), Number(trader?.skills?.Bribery ?? 0));
-    const brokerDM = brokerTip && brokerTip.systemId === system.id ? Number(brokerTip.dm ?? 0) : 0;
+    const brokerDM = portCallBrokerTipDM(ship, system.id);
     const offer = generateSpeculativeTradeOffer(profile, { dice: seededDice(weeklyTradeSeed(campaign, system.id)) });
     const lotKey = offer ? `${weeklyTradeSeed(campaign, system.id)}|${offer.code}` : null;
     const free = Math.max(0, ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons);
@@ -1740,20 +1753,22 @@ function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
       // Taking part of a lot adds a 1% handling fee (Book 2 p.46); the quoted
       // total includes it, and it can tip the last ton out of reach.
       const costOf = (tons) => (tons > 0 ? calculateSpeculativePurchaseCost(offer, tons) : { totalCr: 0, handlingFeeCr: 0 });
-      while (quantity > 0 && costOf(quantity).totalCr > balance) quantity -= 1;
+      if (!transfer?.available) quantity = 0;
+      while (quantity > 0 && costOf(quantity).totalCr + shuttleOf(quantity) > balance) quantity -= 1;
       const cost = costOf(quantity);
       const blocked = quantity > 0 ? null
+        : !transfer?.available ? `Nothing can be brought up from ${system.name}: ${transfer?.reason ?? 'no way to orbit'}.`
         : offer.unit !== 'tons' ? `${offer.name} is sold by the ${String(offer.unit).replace(/s$/, '')}, not the ton; buy it from the current client.`
           : remaining < 1 ? 'This week\u2019s lot is already bought out.'
             : Math.floor(free) < 1 ? 'The hold is full.'
               : `${cr(offer.pricePerUnitCr)} a ton is beyond the ship\u2019s account (${cr(balance)}).`;
-      buy = { offer, lotKey, remaining, quantity, costCr: cost.totalCr, handlingFeeCr: cost.handlingFeeCr, blocked };
+      buy = { offer, lotKey, remaining, quantity, costCr: cost.totalCr + shuttleOf(quantity), handlingFeeCr: cost.handlingFeeCr, shuttleCr: shuttleOf(quantity), blocked };
     }
     const sales = (ship.state.cargoManifest ?? []).map((cargo) => {
       const match = /^speculative:(\d{2})$/.exec(cargo.category ?? '');
       if (!match || cargo.originSystemId === system.id) return null;
       const quote = quoteSpeculativeResale(Number(match[1]), cargo.tons, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM });
-      return quote ? { cargo, quote } : null;
+      return quote ? { cargo, quote, shuttleCr: shuttleOf(cargo.tons), blocked: transfer?.available ? null : transfer?.reason ?? 'no way down' } : null;
     }).filter(Boolean);
     speculation = { buy, sales, skillDM, brokerDM };
   }
@@ -1794,6 +1809,21 @@ function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
       lifeSupport: calculateLifeSupportCostForTrip(ship)
     };
   }
+  // v0.311.0: Book 2 p.8, a private message awaiting transmittal to the
+  // chosen destination — thrown once per port call per destination, seeded so
+  // a reload shows the same offer. None while one for it is already aboard.
+  let privateMessage = null;
+  if (ship && system && portCall && destination?.reachable) {
+    const aboard = ship.state.privateMessages.some((entry) => entry.originSystemId === system.id && entry.destinationSystemId === destination.id);
+    if (!aboard) {
+      const offer = rollPrivateMessage(ship, seededDice(`${campaign.identity.id}|message|${system.id}|${portCall.arrivalDate ?? ''}|${destination.id}`));
+      if (offer.awaiting) {
+        const carrier = (resolved.characters ?? []).find((entry) => entry.identity.id === offer.carrierId) ?? null;
+        privateMessage = { offer, carrier, id: `msg-${campaignDateKey(campaign)}-${system.id}-${destination.id}` };
+      }
+    }
+  }
+  const impound = ship?.state?.impound && ship.state.impound.systemId === system?.id ? ship.state.impound : null;
   // v0.228.0: what Book 3 says beyond the one-line descriptions, and the one
   // reading that is about this party rather than this world — what they are
   // carrying against what the world forbids.
@@ -1818,7 +1848,7 @@ function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
   } : null;
 
   return {
-    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation, world, repair,
+    ship, system, profile, portCall, fuelService, destination, route, exclusive, speculation, world, repair, transfer, privateMessage, impound,
     fuel: { aboard, capacity, missing: Math.max(0, capacity - aboard) },
     berthingOwed: Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0),
     fight: encounters.find((entry) => entry.status === 'active' && entry.location?.systemId === system?.id) ?? null
@@ -1827,19 +1857,35 @@ function portFacts(resolved, subsector, selectedSystemId, brokerTip = null) {
 
 // The port call as one lead card and a list of rows, in the order Book 2 has
 // a ship do them. Only what this version can act on carries a command.
-export function portProcedure(resolved, { subsector, selectedSystemId = null, writable = true, brokerTip = null } = {}) {
-  const facts = portFacts(resolved, subsector, selectedSystemId, brokerTip);
+export function portProcedure(resolved, { subsector, selectedSystemId = null, writable = true } = {}) {
+  const facts = portFacts(resolved, subsector, selectedSystemId);
   const { ship, system, portCall, fuelService, fuel, destination } = facts;
   if (!ship || !system) return { next: { title: 'No ship in port', copy: 'This campaign has no active ship at a mapped world.', actions: [] }, steps: [], done: [] };
   const steps = [];
   const done = [];
   const act = (command, label, note) => (writable ? { command, label, note, primary: true } : null);
 
+  // v0.311.0: Book 2 p.3 — a skipped ship held against its arrears.
+  if (facts.impound) {
+    const arrears = shipMortgageSchedule(ship, { dateLabel: formatCampaignDate(resolved.campaign.time) }).arrearsCr;
+    steps.push({ id: 'impound', title: facts.impound.form === 'boarding' ? 'Repossession party boarding' : 'Held for mortgage arrears', state: 'ready',
+      command: 'impound:pay', verb: 'Pay arrears', figure: `${cr(arrears)} owed, ${cr(ship.state.finances.balanceCr)} in the account`,
+      copy: facts.impound.form === 'boarding'
+        ? 'An armed party has come to take the ship. Fight it on the board; if it is beaten off, mark it repelled. Paying the arrears also ends it.'
+        : `${facts.impound.form === 'papers' ? 'Papers have been served' : 'An injunction holds the ship'} since ${facts.impound.since}. It cannot depart until the arrears are paid.`,
+      cite: 'Book 2 p.3' });
+    if (facts.impound.form === 'boarding') {
+      steps.push({ id: 'impound-repelled', title: 'Boarding party beaten off', state: 'ready', command: 'impound:repelled', verb: 'Repelled',
+        figure: 'the debt stands', copy: 'The ship is free to leave. The arrears are still owed, and the next landing throws again.', cite: 'Book 2 p.3' });
+    }
+  }
+
   if (portCall) {
+    const inOrbit = portCall.berth === 'orbit';
     if (facts.berthingOwed) {
       steps.push({ id: 'berthing', title: 'Pay berthing', figure: cr(portCall.berthingDueCr), state: 'ready', command: 'berthing:pay', verb: 'Pay',
-        copy: `Landing at ${system.name} costs ${cr(portCall.berthingDueCr)} for the first six days. The ship cannot leave until it is paid.`, cite: 'Book 2 p.7' });
-    } else done.push(portCall.berthingDueCr > 0 ? `Berthed, ${cr(portCall.berthingDueCr)}` : 'Berthed');
+        copy: `${inOrbit ? 'Berthing in orbit' : 'Landing'} at ${system.name} costs ${cr(portCall.berthingDueCr)} for the first six days. The ship cannot leave until it is paid.${inOrbit ? ' An unstreamlined hull cannot land (p.15); freight and passengers are handed over in orbit (p.8).' : ''}`, cite: 'Book 2 p.7' });
+    } else done.push(`${inOrbit ? 'In orbit' : 'Berthed'}${portCall.berthingDueCr > 0 ? `, ${cr(portCall.berthingDueCr)}` : ''}`);
   }
 
   if (fuel.missing < 1) done.push(`Tanks full, ${fuel.capacity} t`);
@@ -1893,19 +1939,23 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
   }
 
   if (facts.speculation && !facts.exclusive) {
-    for (const { cargo, quote } of facts.speculation.sales) {
+    for (const { cargo, quote, shuttleCr, blocked } of facts.speculation.sales) {
       const paid = Number(cargo.acquisitionCostCr ?? 0);
-      const result = quote.netCr - paid;
+      const result = quote.netCr - shuttleCr - paid;
+      if (blocked) {
+        steps.push({ id: `sell-${cargo.id}`, title: `Sell ${cargo.tons} t ${quote.name}`, state: 'blocked', figure: `${quote.percentage}% of base`, copy: `It cannot be taken down: ${blocked}.`, cite: 'Book 2 p.8' });
+        continue;
+      }
       steps.push({ id: `sell-${cargo.id}`, title: `Sell ${cargo.tons} t ${quote.name}`, state: 'ready', command: `speculation:sell:${cargo.id}`, verb: 'Sell',
-        figure: `${cr(quote.netCr)}, ${quote.percentage}% of base${paid ? `, ${result >= 0 ? 'up' : 'down'} ${cr(Math.abs(result))}` : ''}`,
-        copy: `Today\u2019s price at ${system.name} is ${quote.percentage}% of base${quote.characterSkillDM ? `, with +${quote.characterSkillDM} for Admin or Bribery` : ''}. It cost ${cr(paid)}. The quote holds for today; it is thrown again on another day.`, cite: 'Book 2 p.47' });
+        figure: `${cr(quote.netCr - shuttleCr)}, ${quote.percentage}% of base${paid ? `, ${result >= 0 ? 'up' : 'down'} ${cr(Math.abs(result))}` : ''}`,
+        copy: `Today\u2019s price at ${system.name} is ${quote.percentage}% of base${quote.characterSkillDM ? `, with +${quote.characterSkillDM} for Admin or Bribery` : ''}${facts.speculation.brokerDM ? `, with +${facts.speculation.brokerDM} for a hail\u2019s broker tip` : ''}. It cost ${cr(paid)}.${shuttleCr ? ` The shuttle down takes ${cr(shuttleCr)} of it (Book 2 p.8).` : ''} The quote holds for today; it is thrown again on another day.`, cite: 'Book 2 p.47' });
     }
     const { buy } = facts.speculation;
     if (buy) {
       steps.push(buy.quantity > 0
         ? { id: 'speculate', title: `Buy ${buy.offer.name} to resell`, state: 'ready', command: 'speculation:buy', verb: `Buy ${buy.quantity} t`,
           figure: `${buy.quantity} t at ${cr(buy.offer.pricePerUnitCr)}, ${cr(buy.costCr)}${buy.handlingFeeCr ? ' with handling' : ''}`,
-          copy: `This week\u2019s lot at ${system.name}: ${buy.remaining} t of ${buy.offer.name} left at ${buy.offer.percentage}% of its ${cr(buy.offer.basePriceCr)} base price. One lot a week${buy.handlingFeeCr ? `; taking part of it adds 1% handling, ${cr(buy.handlingFeeCr)}` : ''}. It sells on another world, for whatever that world throws.`, cite: 'Book 2 p.46' }
+          copy: `This week\u2019s lot at ${system.name}: ${buy.remaining} t of ${buy.offer.name} left at ${buy.offer.percentage}% of its ${cr(buy.offer.basePriceCr)} base price. One lot a week${buy.handlingFeeCr ? `; taking part of it adds 1% handling, ${cr(buy.handlingFeeCr)}` : ''}${buy.shuttleCr ? `; the shuttle up to orbit adds ${cr(buy.shuttleCr)} (Book 2 p.8)` : ''}. It sells on another world, for whatever that world throws.`, cite: 'Book 2 p.46' }
         : { id: 'speculate', title: `${buy.offer.name} to resell`, state: 'blocked', figure: `${buy.offer.percentage}% of base, ${cr(buy.offer.pricePerUnitCr)} a ${String(buy.offer.unit).replace(/s$/, '')}`, copy: buy.blocked, cite: 'Book 2 p.46' });
     }
   }
@@ -1950,8 +2000,19 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
     }
   }
 
+  if (facts.privateMessage) {
+    const { offer, carrier } = facts.privateMessage;
+    steps.push(carrier
+      ? { id: 'private-message', title: `A private message for ${destination.name}`, state: 'ready', command: 'message:carry', verb: 'Carry it',
+        figure: `${cr(offer.honorariumCr)} to ${offer.carrierName || carrier.identity.name}`,
+        copy: `${offer.carrierName || carrier.identity.name} is approached quietly: a message for ${offer.recipient} at ${destination.name}, with ${cr(offer.honorariumCr)} for the trouble. Carrying it is an introduction as someone dependable. Leave it and nothing is lost.`, cite: 'Book 2 p.8' }
+      : { id: 'private-message', title: `A private message for ${destination.name}`, state: 'blocked', figure: `${cr(offer.honorariumCr)}`,
+        copy: `It was offered to ${offer.carrierName || 'a crew member'}, who is not in this campaign.`, cite: 'Book 2 p.8' });
+  }
+
   let jump;
   if (!destination) jump = { figure: 'No destination yet', copy: 'Pick a world on the map first.' };
+  else if (facts.impound) jump = { figure: 'Held by the bank', copy: 'The ship cannot leave until the mortgage arrears are paid.' };
   else if (!destination.reachable) jump = { figure: `${destination.name} is ${destination.distance} parsecs`, copy: `Beyond this ship\u2019s Jump-${ship.specifications.drives.jump.rating}.` };
   else if (destination.fuel && !destination.fuel.allowed) jump = { figure: `${destination.name}: short of fuel`, copy: `The jump needs ${destination.fuel.requirement?.totalTons ?? '?'} t; ${destination.fuel.availableTons ?? fuel.aboard} t aboard.` };
   else if (facts.berthingOwed) jump = { figure: `${destination.name}: berthing unpaid`, copy: 'Pay berthing before departure.' };
@@ -1961,7 +2022,7 @@ export function portProcedure(resolved, { subsector, selectedSystemId = null, wr
     copy: `Ready to go${facts.route?.lifeSupport?.totalCr ? `; life support for the trip will be ${cr(facts.route.lifeSupport.totalCr)}` : ''}. The trip takes a week (Book 2 p.5).` };
   steps.push({ id: 'jump', title: 'Depart', state: jump.command ? 'ready' : 'blocked', cite: 'Book 2 p.5', ...jump });
 
-  const first = steps.find((step) => step.state === 'ready' && (step.id === 'berthing' || step.id === 'fuel'));
+  const first = steps.find((step) => step.state === 'ready' && (step.id === 'impound' || step.id === 'berthing' || step.id === 'fuel'));
   const next = facts.fight
     ? { title: 'A fight is in progress', copy: 'Finish it in the current client. This page leaves the campaign alone while a fight is running.', actions: [] }
     : first
@@ -1997,12 +2058,6 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   // it the moment the last foe fell the screen snapped back to the port call
   // with one line of notice, and the referee never saw how it ended.
   let concludedEncounterId = null;
-  // v0.232.0: a successful merchant hail on arrival (Book 2 p.36) earns a
-  // one-time broker's tip on the next speculative resale quote made at that
-  // same system. Not persisted, same as the arrival encounter and ship
-  // fight above: a reload forgets it, the same as the referee letting the
-  // moment pass.
-  let pendingBrokerTip = null;
   const liveEncounter = () => (resolved.encounters ?? []).find((entry) => entry.status === 'active') ?? null;
   // v0.254.0: a fight being set up by hand — the board is open, tokens are
   // being dragged on, nobody has thrown for surprise yet.
@@ -2573,35 +2628,6 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     } else throw new Error(`${label} is not a character: ${verb} does not apply`);
     persist([next]);
     return message;
-  }
-
-  // classic-traveller-rules exports no generic debit — creditShipAccount is
-  // credit-only (a non-negative amountCr, enforced), and every named charge
-  // it does export (payCurrentBerthing, chargeShipUpkeep, ...) is tied to
-  // its own specific field on the ship document, none of which fit an
-  // arbitrary one-off fee like a patrol's toll. Its own debits (in
-  // starships/operations.js) all go through a private, unexported
-  // appendLedger(); this mirrors that function exactly, using only what the
-  // package exports publicly (assertValidShipDocument), so the ledger entry
-  // this produces validates the same way a vendor-produced one would.
-  function debitShipAccount(ship, amountCr, { kind, description, dateLabel = null }) {
-    if (!Number.isInteger(amountCr) || amountCr < 1) throw new TypeError('debit amount must be a positive integer number of credits');
-    const next = JSON.parse(JSON.stringify(ship));
-    const ledger = next.state.finances.ledger;
-    const balanceCr = next.state.finances.balanceCr - amountCr;
-    if (balanceCr < 0) throw new RangeError('ship operating account has insufficient funds');
-    const compactDate = String(dateLabel ?? 'UNDATED').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'UNDATED';
-    ledger.push({
-      id: `${next.identity.id}:${compactDate}:${kind}:${ledger.length + 1}`,
-      date: dateLabel === null || dateLabel === undefined || dateLabel === '' ? null : dateLabel,
-      kind,
-      amountCr: -amountCr,
-      description,
-      balanceCr
-    });
-    next.state.finances.balanceCr = balanceCr;
-    assertValidShipDocument(next);
-    return next;
   }
 
   // Book 2 p.16's crew positions and the expertise each wants
@@ -4306,7 +4332,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
-      const facts = portFacts(resolved, subsector, selectedSystemId, pendingBrokerTip);
+      const facts = portFacts(resolved, subsector, selectedSystemId);
       if (facts.fight) throw new Error('a fight is in progress; finish it in the current client');
       if (!facts.ship || !facts.system) throw new Error('an active ship at a mapped world is required');
       const shipName = facts.ship.identity.name || 'The ship';
@@ -4400,29 +4426,17 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       } else if (command === 'arrival:hail') {
-        // Book 2 p.36: "Free Traders, if friendly, may serve as a source of
-        // information about other circumstances in the system; Subsidized
-        // Merchants may also provide such information." A Book 3 reaction
-        // throw decides friendly; the reward here is a broker's tip (a DM)
-        // on the next speculative resale made at this same system, your
-        // own call on what "information" is worth in play terms.
-        //
-        // rollReaction() returns no category field, only a numeric total
-        // (2-12) and its REACTION_TABLE description — 9+ (Intrigued and up)
-        // is the friendly half of that table, 2-5 (Violent/Hostile) the
-        // other end, matching arrival:inspect's own thresholds. Free
-        // Trader/Subsidized Merchant is not hostile by default (only the
-        // pirate is, per p.36), but this particular crew's own reaction to
-        // being hailed can still land there — and buildEncounteredShip arms
-        // every encountered ship's first two turrets regardless of type, so
-        // "it opens fire" is a real, not just narrated, possibility here.
+        // Book 2 p.36, read by the rules package (arrival.js resolveHail):
+        // hostile opens fire, friendly is a broker's tip on the next resale
+        // here, kept on the port call so a reload does not lose it.
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
-        if (!['free-trader', 'subsidized-merchant'].includes(pendingArrivalEncounter.key)) throw new Error('this ship has nothing to hail for');
+        if (!HAIL_ENCOUNTER_KEYS.includes(pendingArrivalEncounter.key)) throw new Error('this ship has nothing to hail for');
         if (pendingShipFight) throw new Error('a ship fight is already under way');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|hail`;
         const hailReaction = rollReaction(seededDice(seed));
-        if (hailReaction.tableTotal <= 5) {
+        const hail = resolveHail(pendingArrivalEncounter.key, hailReaction);
+        if (hail.outcome === 'fight') {
           const playerShip = facts.ship;
           pendingShipFight = beginArrivalShipFight({
             opponentIsIntruder: true, playerShip,
@@ -4431,8 +4445,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           message = `${encounterLabel} takes the hail badly and opens fire \u2014 ${hailReaction.description}`;
           pendingArrivalEncounter = null;
           log('SHIP', message);
-        } else if (hailReaction.tableTotal >= 9) {
-          pendingBrokerTip = { systemId: pendingArrivalEncounter.systemId, dm: 1 };
+        } else if (hail.outcome === 'tip') {
+          persist([grantBrokerTip(facts.ship, { dm: hail.brokerTipDM })]);
           message = `${encounterLabel} shares word of a buyer here \u2014 ${hailReaction.description} (a broker's tip on your next resale quote at ${facts.system?.name ?? 'this system'}).`;
           pendingArrivalEncounter = null;
           log('NAV', message);
@@ -4446,19 +4460,18 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       } else if (command === 'arrival:inspect') {
-        // Book 2 p.36: "Patrols may be simple border pickets, or may be a
-        // form of pirate, exacting tolls or penalties." A Book 3 reaction
-        // throw decides which: REACTION_TABLE's own 2-5 is Violent/Hostile,
-        // 9+ is Intrigued and up (the friendly half), and 6-8 (Unreceptive,
-        // Non-committal, Interested) is neither — it wants something first
-        // (arrival:pay-toll / arrival:refuse-toll).
+        // Book 2 p.36, read by the rules package (arrival.js
+        // resolveInspection): hostile fights, friendly waves the ship
+        // through, anything between demands a toll (arrival:pay-toll /
+        // arrival:refuse-toll).
         if (!pendingArrivalEncounter) throw new Error('no arrival encounter is standing');
-        if (pendingArrivalEncounter.key !== 'patrol') throw new Error('only a patrol conducts an inspection');
+        if (!INSPECTION_ENCOUNTER_KEYS.includes(pendingArrivalEncounter.key)) throw new Error('only a patrol conducts an inspection');
         if (pendingShipFight) throw new Error('a ship fight is already under way');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|inspect`;
         const inspectReaction = rollReaction(seededDice(seed));
-        if (inspectReaction.tableTotal <= 5) {
+        const inspection = resolveInspection(pendingArrivalEncounter.key, inspectReaction);
+        if (inspection.outcome === 'fight') {
           const playerShip = facts.ship;
           pendingShipFight = beginArrivalShipFight({
             opponentIsIntruder: true, playerShip,
@@ -4467,17 +4480,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           message = `${encounterLabel} turns hostile during the inspection \u2014 ${inspectReaction.description}`;
           pendingArrivalEncounter = null;
           log('SHIP', message);
-        } else if (inspectReaction.tableTotal >= 9) {
+        } else if (inspection.outcome === 'waved-through') {
           message = `${encounterLabel} waves ${shipName} through \u2014 ${inspectReaction.description}`;
           pendingArrivalEncounter = null;
           log('NAV', message);
         } else {
-          // No formula is given for a toll's size, so this borrows the one
-          // standard fee already in the rules rather than inventing a
-          // number: a day's berthing.
-          const tollCr = calculateBerthingCost(1);
-          pendingArrivalEncounter = { ...pendingArrivalEncounter, tollDemandCr: tollCr };
-          message = `${encounterLabel} demands ${cr(tollCr)} before waving ${shipName} through \u2014 ${inspectReaction.description}`;
+          pendingArrivalEncounter = { ...pendingArrivalEncounter, tollDemandCr: inspection.tollCr };
+          message = `${encounterLabel} demands ${cr(inspection.tollCr)} before waving ${shipName} through \u2014 ${inspectReaction.description}`;
           log('NAV', message);
         }
         lastMessage = { ok: true, message };
@@ -4488,7 +4497,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (!pendingArrivalEncounter?.tollDemandCr) throw new Error('no toll is being demanded');
         const tollCr = pendingArrivalEncounter.tollDemandCr;
         const encounterLabel = pendingArrivalEncounter.label;
-        const ship = debitShipAccount(facts.ship, tollCr, { kind: 'toll', description: `${encounterLabel} inspection toll at ${facts.system?.name ?? 'the port'}`, dateLabel });
+        const ship = payInspectionToll(facts.ship, { tollCr, description: `${encounterLabel} inspection toll at ${facts.system?.name ?? 'the port'}`, dateLabel });
         persist([ship]);
         message = `${shipName} paid ${cr(tollCr)} to ${encounterLabel} and is waved through.`;
         pendingArrivalEncounter = null;
@@ -4868,6 +4877,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (!facts.destination) throw new Error('choose a destination within jump range first');
         if (!facts.destination.reachable) throw new Error(`${facts.destination.name} is ${facts.destination.distance} parsecs; beyond Jump-${facts.ship.specifications.drives.jump.rating}`);
         if (facts.berthingOwed) throw new Error('pay berthing before departure');
+        if (facts.ship.state.impound) throw new Error(`the ship is held at ${facts.system.name} against its mortgage arrears; pay them first`);
         if (facts.route?.passengersElsewhere.length) throw new Error(`passengers aboard for ${facts.route.passengersElsewhere.join(', ')} must be carried there first`);
         if (facts.exclusive && facts.exclusive.destination.systemId !== facts.destination.id) throw new Error(`chartered to ${facts.exclusive.destination.systemName}; deliver or abandon it in the current client first`);
         const fuelCheck = canShipMakeJump(facts.ship, facts.destination.distance);
@@ -4893,11 +4903,25 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         // persist() below rebuilds document refs from resolved.campaign, so
         // the new date and location must be in resolved before it runs.
         reload();
+        // v0.311.0: everything from here happens on arrival, a week after
+        // dateLabel (departure) — deliveries, the port call and upkeep were
+        // all dated the day the ship left.
+        const arrivedOn = formatCampaignDate(campaign.time);
+        const arrivalSeed = `${campaign.identity.id}|arrival|${target.id}|${arrivedOn}`;
 
-        const freightDelivery = deliverFreightAtDestination(ship, target.id, { dateLabel });
+        // Book 2 p.2: every low passenger is revived (5+), the dead included
+        // in the fares — no refunds — and the lottery settled after.
+        const medicalById = Object.fromEntries((resolved.characters ?? []).map((entry) => [entry.identity.id, Number(entry.skills?.Medical ?? 0)]));
+        const revival = reviveLowPassengers(ship, seededDice(`${arrivalSeed}|revival`), { systemId: target.id, medicExpertise: attendingMedicExpertise(ship, medicalById) });
+
+        const freightDelivery = deliverFreightAtDestination(ship, target.id, { dateLabel: arrivedOn });
         ship = freightDelivery.ship;
-        const passengerDelivery = disembarkPassengersAtDestination(ship, target.id, { dateLabel });
+        const passengerDelivery = disembarkPassengersAtDestination(ship, target.id, { dateLabel: arrivedOn });
         ship = passengerDelivery.ship;
+        ship = settleLowPassageLottery(ship, revival.lottery, { dateLabel: arrivedOn });
+        // Book 2 p.8: private messages carried here are handed over.
+        const messages = deliverPrivateMessages(ship, target.id);
+        ship = messages.ship;
 
         // Contracts for this destination: pay out or fail, and release any
         // reserved cargo. Every other contract passes through unchanged.
@@ -4932,12 +4956,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           }
         }
 
-        ship = beginPortCall(ship, { systemId: target.id, arrivalDate: dateLabel, berthingDueCr: targetProfile.starport === 'X' ? 0 : calculateBerthingCost(1) });
+        ship = beginPortCall(ship, { systemId: target.id, arrivalDate: arrivedOn, berthingDueCr: targetProfile.starport === 'X' ? 0 : calculateBerthingCost(1) });
 
         // Book 2 p.38: a throw for shipping encountered on arrival, with the
         // starport's DM. Seeded on the arrival itself so the same arrival
         // always yields the same encounter, and a reload cannot reroll it.
-        const arrivalSeed = `${campaign.identity.id}|arrival|${target.id}|${dateLabel}`;
         const encounterDice = seededDice(arrivalSeed);
         const shipEncounter = rollShipEncounter(encounterDice, { starport: targetProfile.starport });
         let arrival = null;
@@ -4958,23 +4981,50 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             hostileByDefault: Boolean(shipEncounter.hostileByDefault),
             reaction: reaction.description,
             systemId: target.id,
-            dateLabel
+            dateLabel: arrivedOn
           };
         }
-        const upkeep = chargeShipUpkeep(ship, { dateLabel, sinceLabel: ship.state.finances?.ledger?.[0]?.date ?? null, unpaid: ship.authority?.assignedCharacterId ? [ship.authority.assignedCharacterId] : [] });
+        const upkeep = chargeShipUpkeep(ship, { dateLabel: arrivedOn, sinceLabel: ship.state.finances?.ledger?.[0]?.date ?? null, unpaid: ship.authority?.assignedCharacterId ? [ship.authority.assignedCharacterId] : [] });
         ship = upkeep.ship;
+
+        // Book 2 p.3: a ship still behind on its mortgage after upkeep has
+        // skipped, and every landing risks repossession (arrival.js).
+        let hexesFromHome = null;
+        const homeSystemId = ship.state.finances?.mortgage?.homeSystemId ?? null;
+        if (homeSystemId) {
+          try { hexesFromHome = jumpDistanceBetweenSystems(subsector, homeSystemId, target.id); } catch { hexesFromHome = null; }
+        }
+        const repossession = checkRepossession(ship, seededDice(`${arrivalSeed}|repossession`), { systemId: target.id, dateLabel: arrivedOn, hexesFromHome: Number.isInteger(hexesFromHome) ? hexesFromHome : null });
+        if (repossession.attempt) ship = impoundShip(ship, { systemId: target.id, dateLabel: arrivedOn, form: repossession.form });
 
         persist([ship, ...reconciled.contracts]);
         const shipName = facts.ship.identity.name || 'The ship';
         const parts = [`${shipName} arrived at ${target.name} (${target.hex}), ${facts.destination.distance} parsec${facts.destination.distance === 1 ? '' : 's'} from ${origin.name}, fuel ${ship.state.currentFuelTons} t`];
         if (freightDelivery.delivered?.length) parts.push(`${freightDelivery.delivered.length} freight shipment${freightDelivery.delivered.length === 1 ? '' : 's'} delivered, ${cr(freightDelivery.revenueCr)}`);
         if (passengerDelivery.passengers?.length) parts.push(`${passengerDelivery.passengers.length} passenger${passengerDelivery.passengers.length === 1 ? '' : 's'} disembarked, ${cr(passengerDelivery.revenueCr)}`);
+        if (revival.revivals.length) {
+          const lottery = revival.lottery;
+          parts.push(`${revival.survived.length} of ${revival.revivals.length} low passenger${revival.revivals.length === 1 ? '' : 's'} revived${revival.died.length ? `, ${revival.died.length} did not survive` : ''}${revival.medicExpertise >= 2 ? ` (Medical-${revival.medicExpertise} attending)` : ''}`);
+          parts.push(lottery.paidCr ? `low-passage lottery: ${cr(lottery.paidCr)} of the ${cr(lottery.potCr)} pot paid` : `low-passage lottery: no living winner, the ${cr(lottery.potCr)} pot stays with the ship`);
+        }
+        for (const delivered of messages.delivered) parts.push(`${delivered.carrierName || 'a crew member'} delivered a private message to ${delivered.recipient}`);
+        if (ship.state.portCall.berth === 'orbit') parts.push('berthed in orbit (unstreamlined)');
         for (const result of contractResults) parts.push(result.success ? `${result.contract.identity.title} completed, ${cr(result.contract.economics.paymentCr)}` : `${result.contract.identity.title} failed (${result.contract.notes})`);
         if (upkeep.paidCr > 0) parts.push(`upkeep settled, ${cr(upkeep.paidCr)}`);
         if (upkeep.outstandingCr > 0) parts.push(`upkeep outstanding, ${cr(upkeep.outstandingCr)}`);
         if (ship.state.portCall.berthingDueCr > 0) parts.push(`berthing due, ${cr(ship.state.portCall.berthingDueCr)}`);
         message = parts.join('. ');
         log('ARRIVAL', message);
+        if (repossession.attempt) {
+          const held = {
+            papers: `Papers are served on ${shipName} for ${cr(repossession.schedule.arrearsCr)} in mortgage arrears; the ship is held until they are paid.`,
+            injunction: `An injunction holds ${shipName} at ${target.name} until ${cr(repossession.schedule.arrearsCr)} in mortgage arrears are paid.`,
+            boarding: `An armed repossession party moves to board ${shipName} over ${cr(repossession.schedule.arrearsCr)} in mortgage arrears. Put the fight on the board.`
+          }[repossession.form];
+          log('ARRIVAL', `${held} (Book 2 p.3: ${repossession.roll.total} against 12+)`);
+          message = `${message}. ${held}`;
+          lastMessage = { ok: true, message };
+        }
         if (arrival) {
           pendingArrivalEncounter = arrival;
           const seen = `${arrival.label}${arrival.hull ? ` (${arrival.hull})` : ''} encountered at ${target.name}: ${arrival.reaction}`;
@@ -4982,6 +5032,36 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           message = `${message}. ${seen}`;
           lastMessage = { ok: true, message };
         }
+      } else if (command === 'message:carry') {
+        const waiting = facts.privateMessage;
+        if (!waiting) throw new Error('no private message is waiting for that destination');
+        if (!waiting.carrier) throw new Error('the crew member it was offered to is not in this campaign');
+        const taken = acceptPrivateMessage(facts.ship, waiting.carrier, { offer: waiting.offer, id: waiting.id, originSystemId: facts.system.id, destinationSystemId: facts.destination.id, dateLabel });
+        persist([taken.ship, taken.character]);
+        message = `${waiting.offer.carrierName || waiting.carrier.identity.name} takes a private message for ${waiting.offer.recipient} at ${facts.destination.name}, and ${cr(waiting.offer.honorariumCr)}`;
+        log('PORT', message);
+      } else if (command === 'impound:pay' || command === 'impound:repelled') {
+        if (!facts.impound) throw new Error('the ship is not being held here');
+        let ship = facts.ship;
+        if (command === 'impound:repelled') {
+          ship = releaseImpound(ship, { dateLabel, repelled: true });
+          persist([ship]);
+          message = `The repossession party is beaten off; ${shipName} is free to go, still in arrears`;
+        } else {
+          const upkeep = chargeShipUpkeep(ship, { dateLabel, sinceLabel: ship.state.finances?.ledger?.[0]?.date ?? null, unpaid: ship.authority?.assignedCharacterId ? [ship.authority.assignedCharacterId] : [] });
+          ship = upkeep.ship;
+          const owed = shipMortgageSchedule(ship, { dateLabel });
+          if (owed.skipped) {
+            if (!upkeep.paidCr) throw new Error(`${cr(owed.arrearsCr)} in arrears; the account holds ${cr(ship.state.finances.balanceCr)}`);
+            persist([ship]);
+            message = `${shipName} paid ${cr(upkeep.paidCr)} toward what it owes; ${cr(owed.arrearsCr)} in arrears still holds it`;
+          } else {
+            ship = releaseImpound(ship, { dateLabel });
+            persist([ship]);
+            message = `${shipName} paid ${cr(upkeep.paidCr)} in arrears and upkeep and is released`;
+          }
+        }
+        log('PORT', message);
       } else if (command === 'speculation:buy' || command.startsWith('speculation:sell:')) {
         if (facts.exclusive) throw new Error(`exclusive charter active for ${facts.exclusive.destination.systemName}; commercial capacity is committed`);
         if (command === 'speculation:buy') {
@@ -4989,21 +5069,25 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           if (!buy) throw new Error('no speculative trade lot is available');
           if (buy.quantity < 1) throw new Error(buy.blocked);
           const result = purchaseSpeculativeCargo(facts.ship, buy.offer, buy.quantity, { originSystemId: facts.system.id, dateLabel });
+          const shuttle = chargeShuttleFreight(result.ship, { tons: buy.quantity, starport: facts.profile.starport, dateLabel, description: `Shuttle up, ${buy.quantity} t ${buy.offer.name} at ${facts.system.name} (Book 2 p.8)` });
           const campaign = recordSpeculativeLotPurchase(resolved.campaign, { key: buy.lotKey, systemId: facts.system.id, tradeGoodCode: buy.offer.code, quantity: buy.quantity });
           registry.put(campaign);
           reload();
-          persist([result.ship]);
-          message = `${shipName} bought a speculative lot: ${buy.quantity} t ${buy.offer.name} at ${facts.system.name}, ${cr(result.costCr)}${result.handlingFeeCr ? ` including ${cr(result.handlingFeeCr)} handling` : ''}`;
+          persist([shuttle.ship]);
+          message = `${shipName} bought a speculative lot: ${buy.quantity} t ${buy.offer.name} at ${facts.system.name}, ${cr(result.costCr)}${result.handlingFeeCr ? ` including ${cr(result.handlingFeeCr)} handling` : ''}${shuttle.costCr ? `, plus ${cr(shuttle.costCr)} shuttle` : ''}`;
         } else {
           const cargoId = command.slice('speculation:sell:'.length);
           const sale = facts.speculation?.sales.find((entry) => entry.cargo.id === cargoId);
           if (!sale) throw new Error(facts.ship.state.cargoManifest.some((entry) => entry.id === cargoId) ? 'speculative cargo must be carried to another world before resale' : 'that lot is no longer aboard');
+          if (sale.blocked) throw new Error(sale.blocked);
           const result = sellSpeculativeCargo(facts.ship, cargoId, sale.quote, { dateLabel, destinationSystemId: facts.system.id });
-          persist([result.ship]);
-          message = `${sale.cargo.tons} t ${sale.quote.name} sold at ${facts.system.name}, ${cr(result.revenueCr)} net, ${result.profitCr >= 0 ? 'up' : 'down'} ${cr(Math.abs(result.profitCr))}`;
+          const shuttle = chargeShuttleFreight(result.ship, { tons: sale.cargo.tons, starport: facts.profile.starport, dateLabel, description: `Shuttle down, ${sale.cargo.tons} t ${sale.quote.name} at ${facts.system.name} (Book 2 p.8)` });
           // A hail's broker tip (Book 2 p.36) is good for one resale, not
           // the whole port stay.
-          if (pendingBrokerTip && pendingBrokerTip.systemId === facts.system.id) pendingBrokerTip = null;
+          persist([spendBrokerTip(shuttle.ship)]);
+          const netCr = result.revenueCr - shuttle.costCr;
+          const profitCr = result.profitCr - shuttle.costCr;
+          message = `${sale.cargo.tons} t ${sale.quote.name} sold at ${facts.system.name}, ${cr(netCr)} net${shuttle.costCr ? ` after ${cr(shuttle.costCr)} shuttle` : ''}, ${profitCr >= 0 ? 'up' : 'down'} ${cr(Math.abs(profitCr))}`;
         }
         log('TRADE', message);
       } else if (command.startsWith('freight:load:') || command.startsWith('passengers:book:')) {
@@ -5027,8 +5111,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           if (count < 1) throw new Error(entry.waiting < 1 ? `no ${passageClass} passengers are waiting for ${route.target.name}` : `no berths free for ${passageClass} passage`);
           let ship = facts.ship;
           for (let index = 0; index < count; index += 1) {
-            ship = bookPassenger(ship, { id: `pass-${campaignDateKey(resolved.campaign)}-${facts.system.id}-${route.target.id}-${passageClass}-${entry.booked + index + 1}`,
-              passageClass, originSystemId: facts.system.id, destinationSystemId: route.target.id });
+            const passengerId = `pass-${campaignDateKey(resolved.campaign)}-${facts.system.id}-${route.target.id}-${passageClass}-${entry.booked + index + 1}`;
+            // Book 2 p.2: a low passenger's endurance bears on revival.
+            const endurance = passageClass === 'low' ? rollPassengerEndurance(seededDice(`${passengerId}|endurance`)) : null;
+            ship = bookPassenger(ship, { id: passengerId, passageClass, originSystemId: facts.system.id, destinationSystemId: route.target.id, endurance });
           }
           persist([ship]);
           message = `${count} ${passageClass} passenger${count === 1 ? '' : 's'} booked, ${facts.system.name} to ${route.target.name}, fare ${cr(entry.fareCr)} each`;
@@ -5364,7 +5450,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         };
       }
       if (state.situation.kind !== 'port') return { ...state, save, notice: lastMessage };
-      const procedure = portProcedure(resolved, { subsector, selectedSystemId, writable: save.state !== 'stale', brokerTip: pendingBrokerTip });
+      const procedure = portProcedure(resolved, { subsector, selectedSystemId, writable: save.state !== 'stale' });
       // The arrival encounter leads the column while it stands: it is what is
       // happening, and the port business waits behind it.
       const encounter = pendingArrivalEncounter && pendingArrivalEncounter.systemId === resolved.campaign.location?.systemId
@@ -5390,8 +5476,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               // Book 2 p.36's own comment: friendly Free Traders and
               // Subsidized Merchants trade in information; a Patrol may
               // instead want to look the ship over.
-              ...(['free-trader', 'subsidized-merchant'].includes(encounter.key) ? [{ command: 'arrival:hail', label: 'Hail' }] : []),
-              ...(encounter.key === 'patrol' ? [{ command: 'arrival:inspect', label: 'Submit to inspection' }] : [])
+              ...(HAIL_ENCOUNTER_KEYS.includes(encounter.key) ? [{ command: 'arrival:hail', label: 'Hail' }] : []),
+              ...(INSPECTION_ENCOUNTER_KEYS.includes(encounter.key) ? [{ command: 'arrival:inspect', label: 'Submit to inspection' }] : [])
             ]
           }
         : procedure.next;

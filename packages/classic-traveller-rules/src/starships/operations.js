@@ -1,5 +1,5 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
-import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE } from './ship-document.js';
+import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT } from './ship-document.js';
 import {
   getTurretWeapon,
   getTurretMount,
@@ -269,6 +269,28 @@ export function creditShipAccount(ship, amountCr, {
   });
 }
 
+/**
+ * v0.69.0: the debit counterpart of creditShipAccount, for one-off charges no
+ * other function owns (a patrol's toll, a shuttle fare, a lottery payout, a
+ * repair, a referee's correction). Refuses to overdraw.
+ */
+export function debitShipAccount(ship, amountCr, {
+  kind,
+  description,
+  dateLabel = null
+} = {}) {
+  assertValidShipDocument(ship);
+  if (!Number.isInteger(amountCr) || amountCr < 1) throw new TypeError('debit amount must be a positive integer number of credits');
+  if (!String(kind ?? '').trim()) throw new TypeError('ledger kind must be nonblank');
+  if (!String(description ?? '').trim()) throw new TypeError('ledger description must be nonblank');
+  return appendLedger(ship, {
+    kind: String(kind).trim(),
+    amountCr: -amountCr,
+    description: String(description).trim(),
+    dateLabel
+  });
+}
+
 export function transferCharacterCreditsToShip(character, ship, amountCr, { dateLabel = null } = {}) {
   assertValidCharacterDocument(character);
   assertValidShipDocument(ship);
@@ -333,17 +355,31 @@ export function speculativeLotPosition(ship, cargoId, { proceedsCr = null } = {}
   });
 }
 
-export function beginPortCall(ship, { systemId, arrivalDate = null, berthingDueCr = BASE_BERTHING_COST_CR } = {}) {
+// v0.69.0 (ship document v8): Book 2 p.15 — only a streamlined hull enters
+// an atmosphere, so any other ship's port call is an orbital berth, and p.8
+// has it deliver and take on in orbit. Each dated call is kept (the most
+// recent PORT_CALL_HISTORY_LIMIT) for p.3's repossession DM.
+export function beginPortCall(ship, { systemId, arrivalDate = null, berthingDueCr = BASE_BERTHING_COST_CR, berth = null } = {}) {
   assertValidShipDocument(ship);
   if (typeof systemId !== 'string' || !systemId.trim()) throw new TypeError('systemId must be a nonblank string');
   if (!Number.isInteger(berthingDueCr) || berthingDueCr < 0) throw new TypeError('berthingDueCr must be a non-negative integer');
+  const streamlined = Boolean(ship.specifications.hull.streamlined);
+  const where = berth ?? (streamlined ? 'surface' : 'orbit');
+  if (!PORT_CALL_BERTHS.includes(where)) throw new RangeError(`berth must be ${PORT_CALL_BERTHS.join(' or ')}`);
+  if (where === 'surface' && !streamlined) throw new RangeError('an unstreamlined hull cannot land (Book 2 p.15)');
   const next = cloneJson(ship);
+  const date = normalizeDateLabel(arrivalDate);
   next.state.portCall = {
     systemId: systemId.trim(),
-    arrivalDate: normalizeDateLabel(arrivalDate),
+    arrivalDate: date,
     berthingDueCr,
-    berthingPaid: berthingDueCr === 0
+    berthingPaid: berthingDueCr === 0,
+    berth: where,
+    brokerTipDM: 0
   };
+  if (date !== null && parseGameDate(date) !== null) {
+    next.state.portCallHistory = [...next.state.portCallHistory, { systemId: systemId.trim(), arrivalDate: date }].slice(-PORT_CALL_HISTORY_LIMIT);
+  }
   assertValidShipDocument(next);
   return next;
 }
@@ -439,7 +475,8 @@ export function bookPassenger(ship, {
   id,
   passageClass = 'middle',
   originSystemId,
-  destinationSystemId
+  destinationSystemId,
+  endurance = null
 } = {}) {
   assertValidShipDocument(ship);
   if (!['high', 'middle', 'low'].includes(passageClass)) throw new RangeError('passageClass must be high, middle, or low');
@@ -451,6 +488,11 @@ export function bookPassenger(ship, {
   if (!origin || !destination) throw new TypeError('passenger origin and destination must be nonblank');
   if (origin === destination) throw new RangeError('passenger destination must differ from origin');
   if (availablePassengerCapacity(ship, passageClass) < 1) throw new RangeError(`no ${passageClass} passenger capacity available`);
+  // v0.69.0: Book 2 p.2's revival throw reads the low passenger's endurance.
+  if (endurance !== null) {
+    if (passageClass !== 'low') throw new RangeError('only a low passenger records endurance');
+    if (!Number.isInteger(endurance) || endurance < 1 || endurance > 15) throw new RangeError('endurance must be an integer from 1 to 15');
+  }
   if (passageClass === 'high') {
     // Book 2 p.16: at least one steward (Steward-0 or better) per eight high passengers.
     const stewards = ship.crew.assignments.filter((entry) => entry.role.toLowerCase() === 'steward').length;
@@ -466,7 +508,8 @@ export function bookPassenger(ship, {
     class: passageClass,
     originSystemId: origin,
     destinationSystemId: destination,
-    fareCr: PASSAGE_FARES_CR[passageClass]
+    fareCr: PASSAGE_FARES_CR[passageClass],
+    endurance
   });
   assertValidShipDocument(next);
   return next;
@@ -612,7 +655,8 @@ export function financeShip(ship, {
   startedOn,
   cashPriceCr = null,
   monthlyPaymentCr = null,
-  termMonths = MORTGAGE_TERM_MONTHS
+  termMonths = MORTGAGE_TERM_MONTHS,
+  homeSystemId = null
 } = {}) {
   assertValidShipDocument(ship);
   assertGameDate(startedOn, 'startedOn');
@@ -625,7 +669,10 @@ export function financeShip(ship, {
   const monthly = monthlyPaymentCr ?? Math.round(price / MORTGAGE_MONTHLY_DIVISOR);
   if (!Number.isInteger(monthly) || monthly < 1) throw new TypeError('monthlyPaymentCr must be a positive integer');
   const next = cloneJson(ship);
-  next.state.finances.mortgage = { cashPriceCr: price, monthlyPaymentCr: monthly, termMonths, startedOn };
+  // v0.69.0: Book 2 p.3 measures a skipped ship's distance from its home
+  // planet; the bank's world is taken as that home. Null where unknown.
+  if (homeSystemId !== null && (typeof homeSystemId !== 'string' || !homeSystemId.trim())) throw new TypeError('homeSystemId must be null or a nonblank string');
+  next.state.finances.mortgage = { cashPriceCr: price, monthlyPaymentCr: monthly, termMonths, startedOn, homeSystemId: homeSystemId === null ? null : homeSystemId.trim() };
   assertValidShipDocument(next);
   return next;
 }
