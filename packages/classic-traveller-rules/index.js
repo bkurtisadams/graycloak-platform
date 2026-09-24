@@ -532,6 +532,9 @@ export {
   BASIC_SOFTWARE_PACKAGE_IS_RAW,
   flightSoftware,
   basicSoftwarePackage,
+  GENERATE_DELIVERED_DESIGNS,
+  scoutFlightSoftware,
+  deliveredSoftwarePackage,
   softwarePackageCostMCr
 } from './src/starships/software.js';
 
@@ -823,3 +826,15 @@ export {
   getJumpDestinations,
   jumpDistanceBetweenSystems
 } from './src/worlds/subsector.js';
+
+// v0.70.0: charted space lanes (Book 3 p.2-3).
+export {
+  JUMP_ROUTES_TABLE,
+  MAX_ROUTE_DISTANCE,
+  routePairKey,
+  jumpRouteThrow,
+  rollJumpRoutes,
+  subsectorRoutes,
+  laneBetween,
+  lanesFrom
+} from './src/worlds/routes.js';

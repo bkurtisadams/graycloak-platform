@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION } from '../vendor/classic-traveller-rules/index.js';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -101,7 +102,7 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
 
 test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port costs, and persist the ledger', async () => {
   let { character, ship } = await loadFixture();
-  assert.equal(ship.schemaVersion, 8);
+  assert.equal(ship.schemaVersion, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION);
   assert.equal(ship.state.currentFuelTons, null);
 
   const aster = system('aster');

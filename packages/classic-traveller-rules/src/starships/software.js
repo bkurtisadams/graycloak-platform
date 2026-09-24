@@ -52,6 +52,43 @@ export function basicSoftwarePackage(jumpRating, { creditMCr = BASIC_SOFTWARE_PA
   return Object.freeze(chosen);
 }
 
+// Ruling (Graycloak, Sep 2026): a Scout/Courier's work is going where the
+// charted lanes (Book 3 p.2) do not, and Book 2 p.32 sends a ship off the
+// lanes with the Generate program. So the Type S is delivered with Generate
+// in its flight set, in place of Library and Anti-Hijack: Maneuver, Jump-1,
+// Jump-2, Navigation, Generate is MCr 1.7 of the MCr 2 credit, and the
+// MCr 0.3 left buys neither Target nor any defensive program.
+export const GENERATE_DELIVERED_DESIGNS = Object.freeze(['type-s-scout-courier']);
+
+export function scoutFlightSoftware(jumpRating) {
+  if (!Number.isInteger(jumpRating) || jumpRating < 0 || jumpRating > 6) throw new RangeError('jumpRating must be an integer from 0 to 6');
+  const jumps = Array.from({ length: jumpRating }, (_, index) => `jump-${index + 1}`);
+  return Object.freeze(['maneuver', ...jumps, 'navigation', 'generate']);
+}
+
+/** The programs a new ship of this standard design is delivered with. */
+export function deliveredSoftwarePackage(designKey, jumpRating, { creditMCr = BASIC_SOFTWARE_PACKAGE_CREDIT_MCR } = {}) {
+  if (!GENERATE_DELIVERED_DESIGNS.includes(designKey)) return basicSoftwarePackage(jumpRating, { creditMCr });
+  let budget = tenths(creditMCr);
+  const chosen = [];
+  const take = (key) => {
+    const cost = tenths(getComputerProgram(key).priceMCr);
+    if (cost > budget) return false;
+    chosen.push(key);
+    budget -= cost;
+    return true;
+  };
+  for (const key of scoutFlightSoftware(jumpRating)) take(key);
+  take('target');
+  const defensive = Object.values(COMPUTER_PROGRAMS)
+    .filter((program) => program.class === 'defensive')
+    .sort((a, b) => b.priceMCr - a.priceMCr || a.key.localeCompare(b.key));
+  for (const program of defensive) {
+    if (take(program.key)) break;
+  }
+  return Object.freeze(chosen);
+}
+
 export function softwarePackageCostMCr(programKeys) {
   return programKeys.reduce((sum, key) => sum + tenths(getComputerProgram(key).priceMCr), 0) / 10;
 }

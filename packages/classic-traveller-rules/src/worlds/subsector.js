@@ -80,6 +80,26 @@ export function validateAuthoredSubsector(subsector) {
       }
     }
   }
+  // v0.70.0: optional charted lanes (Book 3 p.2; see routes.js).
+  if (subsector.routes !== undefined) {
+    if (!Array.isArray(subsector.routes)) errors.push('subsector.routes must be an array');
+    else if (Array.isArray(subsector.systems)) {
+      const byId = new Map(subsector.systems.filter((system) => system && typeof system === 'object').map((system) => [system.id, system]));
+      const seen = new Set();
+      for (const route of subsector.routes) {
+        const from = byId.get(route?.from);
+        const to = byId.get(route?.to);
+        if (!from || !to) { errors.push(`route ${route?.from ?? '?'}-${route?.to ?? '?'} names a system not in the subsector`); continue; }
+        if (from === to) { errors.push(`route ${route.from} joins a system to itself`); continue; }
+        const key = [route.from, route.to].sort().join('|');
+        if (seen.has(key)) errors.push(`duplicate route ${route.from}-${route.to}`);
+        seen.add(key);
+        try {
+          if (route.distance !== subsectorHexDistance(from.hex, to.hex)) errors.push(`route ${route.from}-${route.to} distance must be ${subsectorHexDistance(from.hex, to.hex)}`);
+        } catch { /* a bad hex is reported above */ }
+      }
+    }
+  }
   return { valid: errors.length === 0, errors };
 }
 

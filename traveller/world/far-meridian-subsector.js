@@ -20,6 +20,10 @@ function system({ id, hex, name, mainWorld, scout = false, naval = false, gasGia
   });
 }
 
+function route(from, to, distance) {
+  return Object.freeze({ from, to, distance });
+}
+
 export const FAR_MERIDIAN_SUBSECTOR = Object.freeze({
   id: 'far-meridian-test-subsector',
   name: 'Far Meridian',
@@ -112,5 +116,26 @@ export const FAR_MERIDIAN_SUBSECTOR = Object.freeze({
       scout: true, gasGiant: false,
       notes: 'Technical and communications outpost known for long-range survey work and route-chart archives.'
     })
+  ]),
+  // Book 3 p.2-3 Route Determination, thrown once (seed
+  // 'far-meridian|book-3-p2-routes', rollJumpRoutes) and kept as map data:
+  // 13 lanes from 23 checks. Cinder, Sable, Tamarind and Lacuna chart none —
+  // their starports and distances leave the table no row or a failed throw —
+  // so leaving them takes the Generate program (Book 2 p.32). Edit freely:
+  // the referee may always impose a lane.
+  routes: Object.freeze([
+    route('heliograph', 'northmark', 2),
+    route('heliograph', 'san-telmo', 4),
+    route('vesper', 'san-telmo', 1),
+    route('san-telmo', 'port-meridian', 1),
+    route('san-telmo', 'orison', 4),
+    route('port-meridian', 'bellona', 2),
+    route('port-meridian', 'aster', 1),
+    route('port-meridian', 'calder', 2),
+    route('pelagos', 'aster', 2),
+    route('pelagos', 'orison', 2),
+    route('aster', 'calder', 1),
+    route('aster', 'orison', 2),
+    route('calder', 'orison', 2)
   ])
 });

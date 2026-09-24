@@ -25,7 +25,7 @@ import {
   checkRepossession, impoundShip, releaseImpound, rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
   resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, HAIL_ENCOUNTER_KEYS, INSPECTION_ENCOUNTER_KEYS,
   completeDriveRepair, DRIVE_REPAIR_STARPORTS,
-  FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, SHUTTLE_SERVICE_STARPORTS
+  FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
 } from '../../vendor/classic-traveller-rules/index.js';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from '../contract-document.js';
@@ -33,12 +33,11 @@ import { campaignDateKey, routeMarketSeed, seededDice } from '../../client/comme
 
 export const TRIP_SITUATIONS = Object.freeze(['port', 'in-jump', 'encounter', 'stranded', 'destroyed', 'halted']);
 
-// RULING (proposed, Sep 2026): no space lanes are authored, and Book 2 p.32
-// sells flight-plan cassettes "for all worlds within jump range, and for
-// which space lanes exist". 'starport' takes a class A-D port as selling one
-// for any world in range; 'always' sells one everywhere; 'never' leaves a
-// ship to its own Generate program.
-export const LANE_RULES = Object.freeze(['starport', 'always', 'never']);
+// Book 2 p.32 sells flight-plan cassettes "for all worlds within jump range,
+// and for which space lanes exist"; Book 3 p.2 charts those lanes on the
+// subsector (subsector.routes, rolled once — see routes.js). 'charted' is
+// the rule; 'always' and 'never' are for testing what the lanes change.
+export const LANE_RULES = Object.freeze(['charted', 'always', 'never']);
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -83,7 +82,7 @@ function event(state, kind, text, data = {}) {
 }
 
 /** A trip from a resolved campaign: { campaign, ships, characters, contracts }. */
-export function createTrip(resolved, { seed = '', lanes = 'starport' } = {}) {
+export function createTrip(resolved, { seed = '', lanes = 'charted' } = {}) {
   if (!LANE_RULES.includes(lanes)) throw new RangeError(`lanes must be ${LANE_RULES.join(', ')}`);
   const campaign = resolved.campaign;
   const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === campaign.activeShipId) ?? resolved.ships?.[0];
@@ -189,7 +188,7 @@ export function portFacts(state, context) {
       if (offer.awaiting && carrier) message = { offer, carrier, id: `msg-${campaignDateKey(campaign)}-${system.id}-${target.id}` };
     }
   }
-  const lane = state.lanes === 'always' || (state.lanes === 'starport' && SHUTTLE_SERVICE_STARPORTS.includes(profile?.starport));
+  const lane = state.lanes === 'always' || (state.lanes === 'charted' && Boolean(system && target && laneBetween(context.subsector, system.id, target.id)));
   const checklist = target && distance ? departureChecklist(ship, { distance, dateLabel, sinceLabel: firstLedgerDate(ship), laneExists: lane }) : null;
   const maintenance = shipMaintenanceStatus(ship, { dateLabel, sinceLabel: firstLedgerDate(ship) });
   const daysInPort = portCall?.arrivalDate ? daysBetween(portCall.arrivalDate, dateLabel) : 0;

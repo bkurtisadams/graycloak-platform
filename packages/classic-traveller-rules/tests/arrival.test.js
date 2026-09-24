@@ -53,7 +53,6 @@ test('ship document v8 migrates a v7 port call, manifest and mortgage', () => {
   delete v7.state.passengerManifest[0].endurance;
   const migrated = migrateShipDocument(v7);
   assert.equal(migrated.schemaVersion, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION);
-  assert.equal(CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION, 8);
   assert.equal(migrated.state.portCall.berth, 'orbit');
   assert.equal(migrated.state.portCall.brokerTipDM, 0);
   assert.equal(migrated.state.passengerManifest[0].endurance, null);

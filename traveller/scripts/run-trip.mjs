@@ -16,7 +16,8 @@
 //   --jumps <n>        arrivals per run (default 10)
 //   --runs <n>         runs, each with its own seed (default 1)
 //   --seed <text>      seed prefix (default "run")
-//   --lanes <rule>     starport | always | never (default starport)
+//   --lanes <rule>     charted | always | never (default charted: the
+//                      subsector's Book 3 lanes)
 //   --balance <cr>     opening ship account (default 500000)
 //   --financed         the ship carries a new Book 2 p.5 mortgage, home at
 //                      --from; with a small --balance it falls into arrears
@@ -40,7 +41,7 @@ const FIXTURE = path.join(here, '..', 'test', 'fixtures', 'Sea-of-Suns-v0.11.2-b
 const HAWKEYE = 'char-04164baa70c3b5a6';
 
 function parseArgs(argv) {
-  const options = { design: 'type-a-free-trader', from: 'aster', jumps: 10, runs: 1, seed: 'run', lanes: 'starport', balance: 500000, financed: false, hail: false, inspect: false, fightPirates: false, verbose: false, json: false };
+  const options = { design: 'type-a-free-trader', from: 'aster', jumps: 10, runs: 1, seed: 'run', lanes: 'charted', balance: 500000, financed: false, hail: false, inspect: false, fightPirates: false, verbose: false, json: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     const value = () => argv[++index];

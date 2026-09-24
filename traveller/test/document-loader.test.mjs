@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION } from '../vendor/classic-traveller-rules/index.js';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +29,7 @@ test('loader accepts a separate Ship Document', async () => {
   const loaded = loadTravellerDocument(await readExample('Hawkeye.ship.json'));
   assert.equal(loaded.kind, TRAVELLER_DOCUMENT_KINDS.SHIP);
   assert.equal(loaded.shipDocument.documentType, 'classic-traveller-ship');
-  assert.equal(loaded.shipDocument.schemaVersion, 8);
+  assert.equal(loaded.shipDocument.schemaVersion, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION);
 });
 
 test('loader rejects unknown typed documents instead of misrouting them as chargen', () => {

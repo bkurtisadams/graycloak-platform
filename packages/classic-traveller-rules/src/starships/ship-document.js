@@ -9,12 +9,12 @@ import {
   getStandardShipDesign
 } from './standard-designs.js';
 import { TURRET_MOUNTS, TURRET_WEAPONS, COMPUTER_PROGRAMS } from './components.js';
-import { basicSoftwarePackage } from './software.js';
+import { deliveredSoftwarePackage, GENERATE_DELIVERED_DESIGNS } from './software.js';
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 8;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 9;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
 // v7: the drive sections a malfunction can stop (1982 drive failure).
 export const MALFUNCTION_DRIVES = Object.freeze(['powerPlant', 'maneuverDrive', 'jumpDrive']);
@@ -249,7 +249,7 @@ export function createShipDocument({
       // card), delivered as the basic software package; and a drive
       // malfunction, null while every drive runs.
       computer: {
-        programs: cloneJson(state.computer?.programs ?? basicSoftwarePackage(design.drives.jump.rating))
+        programs: cloneJson(state.computer?.programs ?? deliveredSoftwarePackage(design.key, design.drives.jump.rating))
       },
       malfunction: state.malfunction ? cloneJson(state.malfunction) : null,
       maintenance: {
@@ -748,7 +748,7 @@ export function migrateShipDocument(input) {
     // No ship recorded its software before this version; each is taken to
     // carry the basic package it was delivered with. No drive has failed.
     const design = getStandardShipDesign(next.design.key);
-    next.state.computer = { programs: [...basicSoftwarePackage(design.drives.jump.rating)] };
+    next.state.computer = { programs: [...deliveredSoftwarePackage(design.key, design.drives.jump.rating)] };
     next.state.malfunction = null;
   }
 
@@ -769,6 +769,16 @@ export function migrateShipDocument(input) {
     next.state.portCallHistory = [];
     next.state.privateMessages = [];
     next.state.impound = null;
+  }
+
+  if (next.schemaVersion === 8) {
+    next.schemaVersion = 9;
+    // A Type S is now delivered with Generate (software.js). One already in
+    // service keeps every program it carries and gains Generate: nothing it
+    // was delivered with is taken back.
+    if (GENERATE_DELIVERED_DESIGNS.includes(next.design.key) && Array.isArray(next.state.computer?.programs) && !next.state.computer.programs.includes('generate')) {
+      next.state.computer.programs.push('generate');
+    }
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSequenceDice } from '../src/dice.js';
-import { createShipDocument, migrateShipDocument } from '../src/starships/ship-document.js';
+import { createShipDocument, migrateShipDocument, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION } from '../src/starships/ship-document.js';
 import { basicSoftwarePackage, softwarePackageCostMCr } from '../src/starships/software.js';
 import {
   creditShipAccount, establishShipFuelState, purchaseComputerProgram, performMaintenance
@@ -61,7 +61,7 @@ test('ship document v6 migrates to v7 carrying the basic package, with no malfun
   delete v6.state.computer;
   delete v6.state.malfunction;
   const v7 = migrateShipDocument(v6);
-  assert.equal(v7.schemaVersion, 8);
+  assert.equal(v7.schemaVersion, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(v7.state.computer.programs, [...basicSoftwarePackage(1)]);
   assert.equal(v7.state.malfunction, null);
 });

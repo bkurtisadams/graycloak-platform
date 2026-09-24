@@ -102,15 +102,28 @@ test('the default policy spends Book 2 p.1\'s six days in port and keeps going',
   }
 });
 
-test('the checklist decides departure: a Scout at a class E port has no flight plan unless lanes are ruled everywhere', async () => {
-  const resolved = await resolvedAt('cinder', { design: 'fixture' });
-  const blocked = runTrip(createTrip(resolved, { lanes: 'starport' }), context, { arrivals: 1 });
-  assert.equal(blocked.stoppedBy, 'halted');
-  assert.equal(blocked.halt.reason, 'departure-checklist');
-  assert.match(blocked.halt.detail, /flight-plan/);
-  const trip = createTrip(resolved, { lanes: 'always', seed: 'lanes' });
-  const facts = portFacts({ ...trip, destinationId: listActions(trip, context).find((entry) => entry.type === 'choose-destination').systemId }, context);
+test('flight plans follow the charted lanes: off-lane worlds need Generate, which a Type S now carries', async () => {
+  // Cinder charts no lane (Book 3 p.3: an E port holds only jump-1 lanes,
+  // and its nearest world is two hexes off). The fixture's Scout migrates
+  // to ship document v9 with Generate, so it can leave anyway.
+  const scout = await resolvedAt('cinder', { design: 'fixture' });
+  assert.ok(scout.ships[0].state.computer.programs.includes('generate'));
+  const trip = createTrip(scout, { seed: 'lanes' });
+  const course = listActions(trip, context).find((entry) => entry.type === 'choose-destination');
+  const facts = portFacts({ ...trip, destinationId: course.systemId }, context);
+  assert.equal(facts.lane, false);
   assert.equal(facts.checklist.rows.find((row) => row.key === 'flight-plan').ok, true);
+  assert.match(facts.checklist.rows.find((row) => row.key === 'flight-plan').detail, /Generate/);
+
+  // A Free Trader carries no Generate: every one-parsec pair in Far Meridian
+  // is laned, so it takes the starport's cassette; with no lanes it stays.
+  const blocked = runTrip(createTrip(await resolvedAt('aster'), { lanes: 'never' }), context, { arrivals: 1 });
+  assert.equal(blocked.stoppedBy, 'halted');
+  assert.match(blocked.halt.detail, /flight-plan/);
+  const onLane = createTrip(await resolvedAt('aster'));
+  const toCalder = portFacts({ ...onLane, destinationId: 'calder' }, context);
+  assert.equal(toCalder.lane, true);
+  assert.equal(toCalder.checklist.rows.find((row) => row.key === 'flight-plan').ok, true);
 });
 
 test('an arrival encounter waits on the policy; a fight halts the trip for a person', async () => {
