@@ -1,4 +1,4 @@
-// @graycloak/battlesystem-engine v0.16.0 - 2026-09-04
+// @graycloak/battlesystem-engine v0.17.0 - 2026-09-24
 // v0.16.0: magic-healing.js adds pure BATTLESYSTEM [14.16] curative-magic recognition:
 //          named cure/heal/raise/wish spells, HD cured per spell level, hp÷4 conversion,
 //          and the cumulative ½-HD Wound-marker threshold. Hosts own targets/state/logs.
@@ -99,6 +99,7 @@ export { BattlesystemMagicDefenses } from './src/magic-defenses.js';
 export { BattlesystemCreatureDefenses } from './src/creature-defenses.js';
 export { BattlesystemMagicMovement } from './src/magic-movement.js';
 export { BattlesystemMagicHealing } from './src/magic-healing.js';
+export { BattlesystemMagicIllusions } from './src/magic-illusions.js';
 export { BattlesystemInnateActions } from './src/innate-actions.js';
 export { BattlesystemSecondaryEffects } from './src/secondary-effects.js';
 export { BattlesystemAerial } from './src/aerial.js';
