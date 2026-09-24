@@ -16,8 +16,8 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.299.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.299.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.300.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.300.0';
 
 const DRAGGED = new Map();
 
@@ -222,6 +222,27 @@ function actorFull(sheet, handlers) {
 
 const KG = (grams) => `${Math.round(grams / 100) / 10} kg`;
 
+// v0.300.0: the band, editable — each characteristic's full score, the
+// wounds on the physical three, cash and age. Every change is logged for the
+// referee in chat.
+function editBand(sheet, handlers) {
+  const number = (label, value, onchange, { min = 0, max = 15, width = 52 } = {}) => h('label', { class: 'sheet-edit-field' },
+    h('span', { class: 'sheet-vital-key', text: label }),
+    h('input', { type: 'number', min: String(min), max: String(max), value: String(value ?? 0), style: `width:${width}px`, 'aria-label': label,
+      onchange: (event) => onchange(event.currentTarget.value) }));
+  const keys = ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC'];
+  return h('div', { class: 'sheet-band is-editing' },
+    h('div', { class: 'sheet-edit-grid' },
+      h('span', { class: 'sheet-label', text: 'Full' }),
+      ...keys.map((key) => number(key, sheet.effective[key].full, (value) => handlers.onEditCharacter?.(sheet.id, 'characteristics', { [key]: value }))),
+      h('span', { class: 'sheet-label', text: 'Now' }),
+      ...['STR', 'DEX', 'END'].map((key) => number(`${key} now`, sheet.effective[key].now, (value) => handlers.onEditCharacter?.(sheet.id, 'current', { [key]: value }))),
+      h('span', { class: 'sheet-note', text: 'wounds; INT, EDU and SOC take none' })),
+    h('div', { class: 'sheet-band-side' },
+      number('Cash, Cr', sheet.cashCr, (value) => handlers.onEditCharacter?.(sheet.id, 'credits', value), { max: 1e12, width: 110 }),
+      number('Age', sheet.aging?.age, (value) => handlers.onEditCharacter?.(sheet.id, 'age', value), { max: 999, width: 60 })));
+}
+
 function vitalsBand(sheet) {
   const cell = (key) => {
     const entry = sheet.effective[key];
@@ -298,9 +319,10 @@ function playTab(sheet, handlers) {
         h('button', { type: 'button', class: 'sheet-skill-info', 'aria-label': `Describe ${skill.name} in chat`, title: 'Describe in chat', text: '\u24d8', onclick: () => handlers.onSkillInfo?.(sheet.id, skill.name) }))))
       : h('p', { class: 'sheet-note', text: 'No skills recorded.' }),
     // An NPC's skills are the referee's to write; a character's come from
-    // generation and are not edited here.
+    // generation, and since v0.300.0 the referee may edit them too.
     sheet.npc ? h('div', { class: 'sheet-rows' }, field('Edit skills', sheet.skillsText ?? '', { onchange: (value) => handlers.onEditSkills?.(sheet.id, value), locked, width: 320 })) : null,
-    sheet.npc ? h('p', { class: 'sheet-note', text: 'Written as Rifle-1, Brawling-1.' }) : null,
+    sheet.character && sheet.editing ? h('div', { class: 'sheet-rows' }, field('Edit skills', sheet.skills.map((skill) => skill.label).join(', '), { onchange: (value) => handlers.onEditCharacter?.(sheet.id, 'skills', value), width: 320 })) : null,
+    sheet.npc || (sheet.character && sheet.editing) ? h('p', { class: 'sheet-note', text: 'Written as Rifle-1, Brawling-1.' }) : null,
     // v0.299.0: the reaction throw (Book 3 p.22-23), the referee's.
     sheet.npc && sheet.reaction && !sheet.playerSeat ? renderReactionPanel(sheet.reaction, handlers, { title: 'Reaction (Book 3 p.23)' }) : null
   ].filter(Boolean);
@@ -544,7 +566,7 @@ function characterBody(sheet, handlers) {
   const tab = sheet.tab && sheet.tabs.includes(sheet.tab) ? sheet.tab : sheet.tabs[0];
   const build = { Play: playTab, Gear: gearTab, Record: recordTab, Profile: profileTab, Notes: sheet.npc ? npcNotesTab : notesTab };
   return [
-    vitalsBand(sheet),
+    sheet.editing && sheet.character ? editBand(sheet, handlers) : vitalsBand(sheet),
     h('div', { class: 'sheet-tabs' },
       sheet.tabs.map((name) => h('button', {
         // Written out rather than passed as a boolean: h() turns `true` into
@@ -552,6 +574,9 @@ function characterBody(sheet, handlers) {
         type: 'button', class: 'sheet-tab', 'aria-pressed': name === tab ? 'true' : 'false', text: name,
         onclick: () => handlers.onSheetTab?.(sheet.kind, sheet.id, name)
       })),
+      // v0.300.0: the referee edits any character's sheet.
+      sheet.character && !sheet.playerSeat ? h('button', { type: 'button', class: `button is-small sheet-edit${sheet.editing ? ' is-primary' : ''}`, text: sheet.editing ? 'Done' : 'Edit',
+        title: sheet.editing ? 'Stop editing' : 'Edit characteristics, wounds, skills, cash and age (the referee\u2019s)', onclick: () => handlers.onSheetEdit?.(sheet.kind, sheet.id, !sheet.editing) }) : null,
       sheet.npc || sheet.playerSeat ? null : h('button', { type: 'button', class: 'button is-small sheet-print', text: 'Print TAS Form 2', onclick: () => handlers.onPrintCharacter?.(sheet.id) })),
     h('div', { class: 'sheet-tab-body' }, build[tab](sheet, handlers))
   ];

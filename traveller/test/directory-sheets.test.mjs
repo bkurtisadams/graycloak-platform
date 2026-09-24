@@ -2203,3 +2203,52 @@ test('v0.299.0 the reaction panel draws on an NPC sheet and in a fight\u2019s se
   dom.window.close();
   delete globalThis.document;
 });
+
+// v0.300.0: the referee edits any character's sheet.
+test('v0.300.0 the referee edits a character\u2019s characteristics, skills, cash and age; wounds keep their place', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const character = () => registry.resolveCampaign(campaignId).characters[0];
+  const id = character().identity.id;
+  session.run('edit:character:current', { fight: { id, value: { STR: 4 } } });
+  const raised = session.run('edit:character:characteristics', { fight: { id, value: { STR: 12, DEX: 9, SOC: 11 } } });
+  assert.equal(raised.ok, true, raised.message);
+  assert.equal(character().characteristics.STR, 12);
+  assert.equal(character().current.STR, 4, 'a wounded score keeps its wounds');
+  assert.equal(character().current.DEX, 9, 'a score at full stays at full');
+  assert.equal(character().upp, 'C9567B');
+  assert.match(raised.message, /STR 10 → 12, DEX 11 → 9, SOC 8 → 11/);
+  assert.equal(session.run('edit:character:characteristics', { fight: { id, value: { INT: 16 } } }).ok, false, 'a UPP digit tops out at F');
+  assert.equal(session.run('edit:character:skills', { fight: { id, value: 'Pilot-2, Medical-1' } }).ok, true);
+  assert.deepEqual(character().skills, { Pilot: 2, Medical: 1 });
+  assert.equal(session.run('edit:character:skills', { fight: { id, value: 'Pilot two' } }).ok, false);
+  assert.equal(session.run('edit:character:credits', { fight: { id, value: '12500' } }).ok, true);
+  assert.equal(character().finances.credits, 12500);
+  assert.equal(session.run('edit:character:age', { fight: { id, value: '42' } }).ok, true);
+  assert.equal(character().age, 42);
+});
+
+test('v0.300.0 the sheet has Edit, which turns the band and the skills into fields', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const edits = [];
+  const toggles = [];
+  const handlers = { onEditCharacter: (...args) => edits.push(args), onSheetEdit: (...args) => toggles.push(args) };
+  let [sheet] = session.view({ sheets: [{ kind: 'actor', id, tab: 'Play' }] }).sheets;
+  document.querySelector('main').replaceChildren(renderSheets([sheet], handlers));
+  document.querySelector('.sheet-edit').click();
+  assert.deepEqual(toggles[0], ['actor', id, true]);
+  [sheet] = session.view({ sheets: [{ kind: 'actor', id, tab: 'Play', editing: true }] }).sheets;
+  document.querySelector('main').replaceChildren(renderSheets([sheet], handlers));
+  const str = document.querySelector('input[aria-label="STR"]');
+  str.value = '12';
+  str.dispatchEvent(new dom.window.Event('change'));
+  assert.deepEqual(edits[0], [id, 'characteristics', { STR: '12' }]);
+  const skills = [...document.querySelectorAll('.sheet-field')].find((node) => node.textContent.startsWith('Edit skills')).querySelector('input');
+  assert.match(skills.value, /Navigation-2/);
+  dom.window.close();
+  delete globalThis.document;
+});

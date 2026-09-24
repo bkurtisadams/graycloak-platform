@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.299.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.299.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.299.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.299.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.299.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.299.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.299.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.299.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.299.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.299.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.300.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.300.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.300.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.300.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.300.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.300.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.300.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.300.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.300.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.300.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -446,8 +446,16 @@ function render() {
       if (source.mode !== 'live') return;
       // Name and loadout already had commands of their own (edit:character);
       // notes is new and goes through the sheet's own group.
-      if (field === 'notes') source.session.run('character:notes', { fight: { id, value } });
-      else source.session.run(`edit:character:${field}`, { fight: { id, value } });
+      const result = field === 'notes'
+        ? source.session.run('character:notes', { fight: { id, value } })
+        : source.session.run(`edit:character:${field}`, { fight: { id, value } });
+      if (result && !result.ok) window.alert(result.message);
+      render();
+    },
+    // v0.300.0: the sheet's Edit / Done.
+    onSheetEdit: (kind, id, on) => {
+      ui.openSheets = ui.openSheets.map((entry) => (entry.kind === kind && entry.id === id ? { ...entry, editing: on, compact: false } : entry));
+      render();
     },
     onEditRecord: (id, patch) => { if (source.mode === 'live') source.session.run('character:record', { fight: { id, value: patch } }); },
     onInventory: (id, verb, itemId, value) => {

@@ -28,7 +28,7 @@ import {
   personalWeaponExpertise, PERSONAL_EXPERTISE_FLOOR, LONG_GUN_PARRY_KEYS,
   ENCOUNTER_RANGE_TABLE, MORALE_DMS, PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE,
   REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE, TERRAIN_DMS,
-  createDice, importCharacterDocument, stableDocumentId, rollReaction, rollShipEncounter, starportFuelService, unloadCargo,
+  createDice, importCharacterDocument, stableDocumentId, rollReaction, formatUPP, rollShipEncounter, starportFuelService, unloadCargo,
   updateCharacterGameplayState, assertValidShipDocument,
   createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
@@ -981,7 +981,7 @@ export function sheetViews(resolved, open = [], { subsector = null } = {}) {
   return open
     .map((entry) => {
       const sheet = build[entry.kind]?.(resolved, entry.id, subsector) ?? null;
-      return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null } : null;
+      return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null, editing: Boolean(entry.editing) } : null;
     })
     .filter(Boolean);
 }
@@ -3171,6 +3171,52 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               armor: value?.armor ?? character.loadout.armor
             });
             message = `${was} now carries ${getPersonalWeapon(next.loadout.weaponKey).name}, ${next.loadout.armor === 'none' ? 'no armor' : next.loadout.armor}`;
+          } else if (field === 'characteristics') {
+            // v0.300.0: the referee edits any character's sheet (Kurt, Sep
+            // 2026). New scores; a physical score at full stays at full, a
+            // wounded one keeps its wounds up to the new ceiling.
+            const scores = { ...character.characteristics };
+            const changes = [];
+            for (const key of ['STR', 'DEX', 'END', 'INT', 'EDU', 'SOC']) {
+              if (value?.[key] === undefined || value[key] === '') continue;
+              const number = Number(value[key]);
+              if (!Number.isInteger(number) || number < 0 || number > 15) throw new RangeError(`${key} must be a whole number from 0 to 15`);
+              if (number !== scores[key]) changes.push(`${key} ${scores[key]} \u2192 ${number}`);
+              scores[key] = number;
+            }
+            const current = { ...character.current };
+            for (const key of ['STR', 'DEX', 'END']) {
+              current[key] = character.current[key] >= character.characteristics[key] ? scores[key] : Math.min(character.current[key], scores[key]);
+            }
+            next = importCharacterDocument({ ...character, characteristics: scores, upp: formatUPP(scores), current });
+            message = `Referee edits ${was}: ${changes.join(', ') || 'no change'}`;
+          } else if (field === 'skills') {
+            const skills = {};
+            for (const part of String(value ?? '').split(',').map((entry) => entry.trim()).filter(Boolean)) {
+              const match = /^(.*?)[-\s]+(\d+)$/.exec(part);
+              if (!match) throw new Error(`"${part}" is not a skill and a level, like Rifle-1`);
+              skills[match[1].trim()] = Number(match[2]);
+            }
+            next = importCharacterDocument({ ...character, skills });
+            message = `Referee edits ${was}'s skills: ${Object.entries(skills).map(([name, level]) => `${name}-${level}`).join(', ') || 'none'}`;
+          } else if (field === 'credits') {
+            const credits = Number(value);
+            if (!Number.isInteger(credits) || credits < 0) throw new RangeError('cash must be a whole number of credits');
+            next = importCharacterDocument({ ...character, finances: { ...character.finances, credits } });
+            message = `Referee edits ${was}'s cash: Cr ${Number(character.finances?.credits ?? 0).toLocaleString('en-US')} \u2192 Cr ${credits.toLocaleString('en-US')}`;
+          } else if (field === 'age') {
+            const age = Number(value);
+            if (!Number.isInteger(age) || age < 18) throw new RangeError('age must be a whole number of 18 or more');
+            // The age is the chronology's years; physical age moves with it,
+            // and the next aging throw is the next one due after the new age
+            // (34, 38, 42 ... ; Book 1 p.18), unless one was already later.
+            const chronology = character.chronology ?? {};
+            const months = age * 12 + ((chronology.chronologicalAgeMonths ?? age * 12) % 12);
+            const shift = months - (chronology.chronologicalAgeMonths ?? months);
+            let nextCheck = chronology.nextAgingCheckAgeMonths ?? 34 * 12;
+            if (nextCheck <= months) { let years = 34; while (years * 12 <= months) years += 4; nextCheck = years * 12; }
+            next = importCharacterDocument({ ...character, age, chronology: { ...chronology, chronologicalAgeMonths: months, physicalAgeMonths: Math.max(18 * 12, (chronology.physicalAgeMonths ?? months) + shift), nextAgingCheckAgeMonths: nextCheck } });
+            message = `Referee edits ${was}'s age: ${character.age} \u2192 ${age}`;
           } else throw new Error(`unknown edit: ${command}`);
           persist([next]);
         } else if (subject === 'actor') {

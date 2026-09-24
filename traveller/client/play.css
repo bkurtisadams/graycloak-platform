@@ -1267,3 +1267,11 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .reaction-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .reaction-controls .sheet-select { width: auto; }
 .fight-setup > .reaction-panel { flex-basis: 100%; padding-top: 4px; border-top: 0; border-bottom: 1px dashed var(--line); }
+
+/* v0.300.0: the referee's sheet editing. */
+.sheet-band.is-editing { align-items: start; }
+.sheet-edit-grid { display: grid; grid-template-columns: auto repeat(6, auto); gap: 4px 6px; align-items: end; }
+.sheet-edit-grid > .sheet-label { align-self: center; }
+.sheet-edit-grid > .sheet-note { grid-column: span 3; align-self: center; font-size: 11px; }
+.sheet-edit-field { display: grid; gap: 2px; font-size: 11px; }
+.sheet-edit { margin-left: auto; }
