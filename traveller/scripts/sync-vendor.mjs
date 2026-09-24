@@ -7,14 +7,24 @@
 // made: `npm test` runs it first, serve-traveller.bat runs it before serving,
 // and the Pages workflow runs it before assembling gcc/traveller/. The vendor
 // directory is git-ignored; packages/classic-traveller-rules stays the source.
+//
+// v0.309.0: PACKAGES lists every package vendored this way. The runner
+// (classic-traveller-runner) lands as a second entry; nothing else changes.
+// The export check below covers every listed package, not only the rules.
 
 import { cp, rm, mkdir, readFile, symlink, lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const source = path.resolve(here, '../../packages/classic-traveller-rules');
-const target = path.resolve(here, '../vendor/classic-traveller-rules');
+const packagesDir = path.resolve(here, '../../packages');
+const vendorDir = path.resolve(here, '../vendor');
+
+// Every package the client imports from ../vendor/<name>/. Add the runner here
+// when it exists; the copy, the link, and the export check all follow the list.
+const PACKAGES = [
+  'classic-traveller-rules'
+];
 
 // v0.114.1: --link points vendor/ at packages/ instead of copying it.
 //
@@ -28,24 +38,31 @@ const target = path.resolve(here, '../vendor/classic-traveller-rules');
 // does not survive being packaged, and graycloak.net/traveller/ has no
 // packages/ directory above it.
 const link = process.argv.includes('--link');
-const pkg = JSON.parse(await readFile(path.join(source, 'package.json'), 'utf8'));
-await rm(target, { recursive: true, force: true });
+const vendored = [];
 
-if (link) {
-  await mkdir(path.dirname(target), { recursive: true });
-  // 'junction' is the Windows type that needs no elevated privileges; it is
-  // ignored on other platforms, which take an ordinary directory symlink.
-  await symlink(source, target, 'junction');
-  const stat = await lstat(target);
-  console.log(`linked ${pkg.name}@${pkg.version} -> ${path.relative(process.cwd(), target)}${stat.isSymbolicLink() ? '' : ' (junction)'}`);
-  console.log('vendor/ now follows packages/ and cannot go stale. Re-run without --link before packaging.');
-} else {
-  await mkdir(target, { recursive: true });
-  for (const entry of ['index.js', 'package.json', 'src']) {
-    await cp(path.join(source, entry), path.join(target, entry), { recursive: true });
+for (const name of PACKAGES) {
+  const source = path.join(packagesDir, name);
+  const target = path.join(vendorDir, name);
+  const pkg = JSON.parse(await readFile(path.join(source, 'package.json'), 'utf8'));
+  await rm(target, { recursive: true, force: true });
+
+  if (link) {
+    await mkdir(path.dirname(target), { recursive: true });
+    // 'junction' is the Windows type that needs no elevated privileges; it is
+    // ignored on other platforms, which take an ordinary directory symlink.
+    await symlink(source, target, 'junction');
+    const stat = await lstat(target);
+    console.log(`linked ${pkg.name}@${pkg.version} -> ${path.relative(process.cwd(), target)}${stat.isSymbolicLink() ? '' : ' (junction)'}`);
+  } else {
+    await mkdir(target, { recursive: true });
+    for (const entry of ['index.js', 'package.json', 'src']) {
+      await cp(path.join(source, entry), path.join(target, entry), { recursive: true });
+    }
+    console.log(`vendored ${pkg.name}@${pkg.version} -> ${path.relative(process.cwd(), target)}`);
   }
-  console.log(`vendored ${pkg.name}@${pkg.version} -> ${path.relative(process.cwd(), target)}`);
+  vendored.push({ name, source, pkg });
 }
+if (link) console.log('vendor/ now follows packages/ and cannot go stale. Re-run without --link before packaging.');
 
 // ---------------------------------------------------------------------------
 // v0.145.0: check the client against the package it just vendored.
@@ -60,36 +77,48 @@ if (link) {
 // moment the mismatch is created.
 // ---------------------------------------------------------------------------
 
-const exported = new Set();
-const indexSource = await readFile(path.join(source, 'index.js'), 'utf8');
-// Both forms the package uses: a re-export block, and a bare export list.
-for (const block of indexSource.matchAll(/export\s*\{([^}]*)\}/g)) {
-  for (const name of block[1].split(',')) {
-    const local = name.trim().split(/\s+as\s+/).pop().trim();
-    if (local) exported.add(local);
+async function exportsOf(source) {
+  const exported = new Set();
+  const indexSource = await readFile(path.join(source, 'index.js'), 'utf8');
+  // Both forms the packages use: a re-export block, and a bare export list.
+  for (const block of indexSource.matchAll(/export\s*\{([^}]*)\}/g)) {
+    for (const name of block[1].split(',')) {
+      const local = name.trim().split(/\s+as\s+/).pop().trim();
+      if (local) exported.add(local);
+    }
   }
-}
-for (const declaration of indexSource.matchAll(/export\s+(?:const|function|class)\s+([A-Za-z0-9_$]+)/g)) {
-  exported.add(declaration[1]);
+  for (const declaration of indexSource.matchAll(/export\s+(?:const|function|class)\s+([A-Za-z0-9_$]+)/g)) {
+    exported.add(declaration[1]);
+  }
+  return exported;
 }
 
 const clientDir = path.join(here, '..', 'client');
-const missing = [];
-for (const file of await readdir(clientDir)) {
-  if (!file.endsWith('.js') && !file.endsWith('.mjs')) continue;
-  const text = await readFile(path.join(clientDir, file), 'utf8');
-  for (const statement of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*'([^']*classic-traveller-rules[^']*)'/g)) {
-    for (const name of statement[1].split(',')) {
-      const wanted = name.trim().split(/\s+as\s+/)[0].trim();
-      if (!wanted || wanted.startsWith('//')) continue;
-      if (!exported.has(wanted)) missing.push(`${file} imports ${wanted}`);
+const clientFiles = (await readdir(clientDir)).filter((file) => file.endsWith('.js') || file.endsWith('.mjs'));
+let failed = false;
+
+for (const { name, source, pkg } of vendored) {
+  const exported = await exportsOf(source);
+  const missing = [];
+  const importFrom = new RegExp(`import\\s*\\{([^}]*)\\}\\s*from\\s*'([^']*${name}[^']*)'`, 'g');
+  for (const file of clientFiles) {
+    const text = await readFile(path.join(clientDir, file), 'utf8');
+    for (const statement of text.matchAll(importFrom)) {
+      for (const entry of statement[1].split(',')) {
+        const wanted = entry.trim().split(/\s+as\s+/)[0].trim();
+        if (!wanted || wanted.startsWith('//')) continue;
+        if (!exported.has(wanted)) missing.push(`${file} imports ${wanted}`);
+      }
     }
+  }
+  if (missing.length) {
+    failed = true;
+    console.error(`\n${pkg.name}@${pkg.version} does not export everything the client imports:\n`);
+    for (const entry of missing) console.error(`  ${entry}`);
   }
 }
 
-if (missing.length) {
-  console.error(`\n${pkg.name}@${pkg.version} does not export everything the client imports:\n`);
-  for (const entry of missing) console.error(`  ${entry}`);
+if (failed) {
   console.error('\nSyncing cannot fix this — the source package does not have these.');
   console.error('A patch spanning packages/ and traveller/ was probably extracted into traveller/ alone.');
   console.error('Re-extract it at the platform root so both halves land, then run this again.\n');

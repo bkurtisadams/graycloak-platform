@@ -1,13 +1,14 @@
 {
   "name": "@graycloak/traveller",
-  "version": "0.308.0",
+  "version": "0.309.0",
   "private": true,
   "type": "module",
   "description": "Graycloak Classic Traveller browser client",
   "scripts": {
     "pretest": "node scripts/sync-vendor.mjs",
     "test": "node --test test/*.test.mjs",
-    "sync-vendor": "node scripts/sync-vendor.mjs"
+    "sync-vendor": "node scripts/sync-vendor.mjs",
+    "bump": "node scripts/bump.mjs"
   },
   "devDependencies": {
     "jsdom": "^24.1.3",
