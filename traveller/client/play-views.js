@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.307.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.307.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.307.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.307.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.308.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.308.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.308.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.308.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.307.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.307.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.307.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.307.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.308.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.308.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.308.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.308.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.307.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.308.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -540,13 +540,14 @@ export function renderAnimalEncounter(animals, act) {
     body.push(h('p', { class: 'encounter-line', text: 'The statblock for this row is gone.' }));
   } else {
     const rangeTerrain = animals.surface?.rangeTerrain;
+    // v0.308.0: the book's line as one line that wraps between its parts,
+    // not a table squeezed into a dialog.
+    const part = (label, value) => h('span', { class: 'encounter-part' }, label ? h('small', { text: label }) : null, h('b', { text: value }));
     body.push(
-      h('div', { style: 'overflow-x:auto' }, h('table', { class: 'animal-table' },
-        h('thead', {}, h('tr', {}, ['Animal', 'Weight', 'Hits', 'Armor', 'Wounds & weapons', ''].map((text) => h('th', { text })))),
-        h('tbody', {}, h('tr', {},
-          h('td', { text: `${row.quantity} ${row.name}` }), h('td', { class: 'num', text: row.weight }), h('td', { class: 'num', text: row.hits }),
-          h('td', { text: row.armor }), h('td', { text: row.weapons }), h('td', { text: row.code }))))),
-      h('p', { class: 'signin-why', text: `${row.code}: ${row.codeText}.${row.type === 'filter' ? ' A filter draws in anything at close range on 6+; escaping is 7+, 1 END a try, +2 per helper (p.93).' : ''}` }),
+      h('p', { class: 'encounter-statline' },
+        part('', `${row.quantity} ${row.name}`), part('', row.weight), part('hits', row.hits),
+        part('armor', row.armor), part('', row.weapons), part('', row.code)),
+      h('p', { class: 'encounter-code', text: `${row.codeText}.${row.type === 'filter' ? ' Draws in anything at close range on 6+; escape 7+, 1 END a try, +2 a helper (p.93).' : ''}` }),
       step('1. Surprise', pending.surprise?.text ?? null, [
         h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: 'Book 1 p.27: 1D a side, surprise at 3 or more higher; the party\u2019s leader, tactics and military DMs', onclick: () => act('surprise', { mode: 'roll' }) }),
         callSelect([['party', 'party has it'], ['opposition', 'animals have it'], ['none', 'neither']], 'surprise')]),
@@ -569,7 +570,7 @@ export function renderAnimalEncounter(animals, act) {
       fled ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Let it go', title: 'It fled; the encounter is over', onclick: () => act('dismiss', { fled: true }) }) : null,
       pending.actorId ? h('button', { type: 'button', class: `button is-small${fled ? '' : ' is-primary'}`, text: fled ? 'Put on the board anyway' : 'Put on the board', title: `With the party: ${settled}`, onclick: () => act('place', { actorId: pending.actorId, count: Number(count.value) || 1 }) }) : null,
       fled ? null : h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => act('dismiss', {}) })),
-    pending.actorId ? h('p', { class: 'signin-why', text: `Put on the board ${settled}.` }) : null);
+    null);
 }
 
 // v0.254.0: the board before round 1. Book 1 p.27's step 1 is surprise and

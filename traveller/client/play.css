@@ -1253,7 +1253,17 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .surface-inline { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
 .encounter-head { font-size: 13px; color: var(--ink-2); }
 .encounter-line { font-size: 14px; }
-.encounter-step { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); }
+/* v0.308.0: flex, not grid — a step wraps its buttons under itself when the
+   box is narrow (the dialog) instead of overlapping. */
+.encounter-step { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 0; border-top: 1px solid var(--line); }
+.encounter-step-label { flex: 0 0 8.5em; }
+.encounter-step-result { flex: 1 1 9em; min-width: 0; }
+.encounter-statline { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 2px 0; font-size: 14px; }
+.encounter-part { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.encounter-part small { font-size: 11px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
+.encounter-code { font-size: 13px; color: var(--ink-2); }
+.surface-intro { font-size: 13px; color: var(--ink-2); cursor: help; }
+.surface-with .surface-with-label { width: auto; }
 .encounter-step-label { font-weight: 700; font-size: 14px; }
 /* v0.307.0: who is out with the party; a kill's carcass. */
 .surface-with { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
@@ -1262,15 +1272,12 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .fight-carcass { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .encounter-step-result { font-size: 14px; }
 .encounter-step-result.is-open { color: var(--ink-2); font-style: italic; }
-.encounter-step-actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.encounter-step-actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 6px; margin-left: auto; }
 .encounter-step-actions select, .encounter-box select { width: auto; font-size: 13px; }
 /* v0.306.0: one line a step (Kurt, Sep 2026: the panel was too tall). */
 .fight-setup > .encounter-box { flex-basis: 100%; max-width: 860px; gap: 4px; }
 .encounter-box .animal-table { margin: 0; }
-@container (max-width: 640px) {
-  .encounter-step { grid-template-columns: 8em minmax(0, 1fr); }
-  .encounter-step-actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
-}
+
 .time-row { display: flex; align-items: center; gap: 8px; }
 .signin-form .time-row input { width: 90px; }
 

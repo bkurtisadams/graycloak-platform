@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.307.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.307.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.307.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.307.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.307.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.307.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.307.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.307.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.307.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.307.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.308.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.308.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.308.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.308.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.308.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.308.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.308.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.308.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.308.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.308.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -1365,23 +1365,23 @@ function openSurfaceDialog() {
   } });
   const guide = h('input', { type: 'number', value: '0', min: '-6', max: '6', 'aria-label': 'DM on the check', style: 'width:56px' });
   const partyBox = h('fieldset', { class: 'time-box' }, h('legend', { text: 'Party' }),
-    h('p', { class: 'signin-why', text: `${animals.world.name} (${animals.world.upp}). Out on the surface, animals are checked twice a day as time passes, 5+ on 1D, and the clock stops at the first encounter (The Traveller Book pp.91, 100).` }),
+    // v0.308.0: one line, the rest in its tooltip.
+    h('p', { class: 'surface-intro', title: 'Out on the surface, animals are checked twice a day as time passes, 5+ on 1D; the clock stops at the first encounter (The Traveller Book pp.91, 100).', text: `${animals.world.name} (${animals.world.upp}) \u00b7 animals twice a day, 5+ (pp.91, 100)` }),
     animals.airless ? h('p', { class: 'signin-status is-error', text: 'An airless world: these almost never have any life of consequence (p.92). Your call.' }) : null,
     h('div', { class: 'surface-row' }, where, set),
     formatRow,
     animals.surface ? h('div', { class: 'surface-row' },
       h('button', { type: 'button', class: 'button is-small', text: 'Check now', title: 'One throw: 5+ on 1D', onclick: () => again('check', { dm: Number(guide.value) || 0 }) }),
       h('label', { class: 'surface-inline', title: 'A guide hunting a specific animal: +2 or more (p.92)' }, 'DM ', guide),
-      h('button', { type: 'button', class: 'button is-small', text: 'Open the table', onclick: () => {
+      h('button', { type: 'button', class: 'button is-small', text: 'Open the table', title: 'Every table for this world is in the Journal', onclick: () => {
         close();
         if (!ui.openSheets.some((entry) => entry.kind === 'animals' && entry.id === animals.surface.key)) ui.openSheets = [...ui.openSheets, { kind: 'animals', id: animals.surface.key, compact: true }];
         render();
       } })) : null,
-    animals.tables.length ? h('p', { class: 'signin-why', text: `Tables for ${animals.world.name}: ${animals.tables.map((table) => `${table.label} (${table.dice === 1 ? '1D' : '2D'})`).join(', ')}, in the Journal.` }) : null,
     // v0.307.0: who went out. Put on the board, surprise and "if more" use
     // these; the rest stay in port.
     animals.roster?.length ? h('div', { class: 'surface-with' },
-      h('span', { class: 'surface-with-label', text: 'Out with the party:' }),
+      h('span', { class: 'surface-with-label', text: 'With the party:' }),
       animals.roster.map((entry) => h('label', { class: 'surface-check' },
         h('input', { type: 'checkbox', checked: entry.with, disabled: !entry.alive, onchange: (event) => {
           const ids = animals.roster.filter((other) => (other.id === entry.id ? event.currentTarget.checked : other.with)).map((other) => other.id);
