@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.298.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.298.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.298.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.298.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.298.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.298.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.298.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.298.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.298.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.298.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.299.0';
+import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.299.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.299.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.299.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.299.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.299.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.299.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.299.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.299.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.299.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -363,6 +363,19 @@ function render() {
           result = source.session.run('fight:place', { fight: { value: { ...data, column: band, asStatblock: true } } });
         } else if (actor && /already on the board/.test(result.message)) { render(); return; }
       }
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
+    // v0.299.0: the reaction throw (Book 3 p.22-23).
+    onReaction: (value) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('reaction:throw', { fight: { value } });
+      if (!result.ok) window.alert(result.message);
+      render();
+    },
+    onReactionAttack: (value) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('reaction:attack', { fight: { value } });
       if (!result.ok) window.alert(result.message);
       render();
     },
@@ -826,7 +839,7 @@ function render() {
     showAll: ui.showAllNotices,
     onShowAll: () => { ui.showAllNotices = true; render(); },
     categories: state.fighters?.length || state.setupPhase
-      ? (ui.settings.combatMessages === 'verbose' ? ['COMBAT', 'MOVEMENT'] : ['COMBAT'])
+      ? (ui.settings.combatMessages === 'verbose' ? ['COMBAT', 'MOVEMENT', 'ENCOUNTER'] : ['COMBAT', 'ENCOUNTER'])
       : undefined
   }));
   if (wasAtBottom) log.scrollTop = log.scrollHeight;

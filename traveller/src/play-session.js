@@ -631,6 +631,7 @@ function actorSheet(resolved, id, subsector = null) {
     // an NPC. A statblock stays compact (Kurt, Sep 2026).
     if (!statblock) return npcActorSheet(actor, resolved, subsector);
     return {
+      reaction: reactionView(resolved, `actor:${id}`, actor.identity.name),
       kind: 'actor', id, statblock,
       title: actor.identity.name,
       subtitle: statblock ? 'Statblock' : [actor.profile.role, actor.profile.faction].filter(Boolean).join(' \u00b7 ') || 'Actor',
@@ -835,6 +836,7 @@ function npcActorSheet(actor, resolved, subsector) {
   }
   return {
     kind: 'actor', id: actor.identity.id, statblock: false, character: false, npc: true,
+    reaction: reactionView(resolved, `actor:${actor.identity.id}`, actor.identity.name),
     title: actor.identity.name,
     subtitle: [actor.profile.role, actor.profile.faction].filter(Boolean).join(' \u00b7 ') || 'Actor',
     tabs: ['Play', 'Gear', 'Profile', 'Notes'],
@@ -1588,6 +1590,49 @@ function currentWorldProfile(resolved, subsector) {
   let system = null;
   try { system = getSubsectorSystem(subsector, resolved.campaign.location?.systemId); } catch { /* off the map, or in jump */ }
   return system ? { system, profile: parseUniversalWorldProfile(system.mainWorld.uwp) } : { system: null, profile: null };
+}
+
+// ---- v0.299.0: reactions (Book 3 p.22-23) -------------------------------
+// "When an encounter occurs, throw two dice and consult the reaction table."
+// Natural 2 and 12 stand; otherwise DMs apply and the result is kept to 3-12.
+// General DMs: +1 if the character dealing with them has served 5 or more
+// terms in the army, navy, marines or scouts; -1 if the planetary population
+// is 11 or greater. "Other DMs can and should be created": Admin or Bribery in
+// a deal (Book 3 names both), and the referee's own. One throw for a whole
+// group, once, on meeting; thrown again after very bad treatment or an
+// unusually dangerous task. The result is the referee's, kept on the campaign.
+const MILITARY_REACTION_SERVICES = new Set(['army', 'navy', 'marines', 'scouts']);
+export function reactionModifiers({ speaker = null, population = null, deal = false, refereeDM = 0 } = {}) {
+  const parts = [];
+  if (speaker && MILITARY_REACTION_SERVICES.has(String(speaker.career?.service ?? '').toLowerCase()) && Number(speaker.career?.terms ?? 0) >= 5) {
+    parts.push({ label: `${speaker.identity.name}\u2019s ${speaker.career.terms} terms in the ${speaker.career.service}`, dm: REACTION_DMS.fiveOrMoreMilitaryTerms });
+  }
+  if (Number.isInteger(population) && population >= 11) parts.push({ label: `population ${population}`, dm: REACTION_DMS.planetaryPopulation11Plus });
+  if (deal && speaker) {
+    const skills = speaker.skills ?? {};
+    const admin = Number(skills.Admin ?? skills.Administration ?? 0);
+    const bribery = Number(skills.Bribery ?? 0);
+    const best = Math.max(admin, bribery);
+    if (best > 0) parts.push({ label: `${admin >= bribery ? 'Admin' : 'Bribery'}-${best} in a deal`, dm: best });
+  }
+  if (Number.isInteger(refereeDM) && refereeDM) parts.push({ label: 'referee', dm: refereeDM });
+  return { parts, dm: parts.reduce((sum, part) => sum + part.dm, 0) };
+}
+
+// What a sheet or the fight shows: the last throw, and whom the party can
+// put forward to deal with them.
+function reactionView(resolved, key, label) {
+  return {
+    key, label,
+    current: resolved.campaign.roster?.reactions?.[key] ?? null,
+    speakers: (resolved.characters ?? [])
+      .filter((entry) => (resolved.campaign.party?.characterIds ?? []).includes(entry.identity.id))
+      .map((entry) => ({ id: entry.identity.id, name: entry.identity.name || '(unnamed)' }))
+  };
+}
+
+function reactionAttackTarget(tableTotal) {
+  return tableTotal === 3 ? 5 : tableTotal === 4 ? 8 : null;
 }
 
 export function compendiumView(resolved, subsector) {
@@ -3557,6 +3602,50 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // which gives them the log's cloud sync, its campaign dates and its
       // per-entry visibility for free, and puts them in the same stream as
       // the notices the log already writes.
+      // v0.299.0: the reaction throw (Book 3 p.22-23), for one NPC actor or a
+      // statblock, or for a fight's whole opposition ("one throw is
+      // sufficient to determine the reaction of an entire group").
+      if (command === 'reaction:throw' || command === 'reaction:attack') {
+        const value = fight?.value ?? {};
+        const key = String(value.key ?? '');
+        if (!/^(actor|fight):.+/.test(key)) throw new Error('throw a reaction for whom?');
+        const label = value.label ? String(value.label) : key;
+        const reactions = { ...(resolved.campaign.roster?.reactions ?? {}) };
+        let message;
+        if (command === 'reaction:throw') {
+          const speaker = value.speakerId ? (resolved.characters ?? []).find((entry) => entry.identity.id === value.speakerId) ?? null : null;
+          const { profile } = currentWorldProfile(resolved, subsector);
+          const modifiers = reactionModifiers({ speaker, population: profile?.population ?? null, deal: Boolean(value.deal), refereeDM: Number.parseInt(value.dm ?? 0, 10) || 0 });
+          const result = rollReaction(createDice(), { dm: modifiers.dm });
+          const previous = reactions[key] ?? null;
+          const date = formatCampaignDate(resolved.campaign.time);
+          reactions[key] = {
+            label, speakerName: speaker?.identity.name ?? null, date, dice: [...result.dice], roll: result.roll,
+            dm: modifiers.dm, parts: modifiers.parts, total: result.total, tableTotal: result.tableTotal,
+            description: result.description, attackOn: reactionAttackTarget(result.tableTotal), attack: null,
+            throws: (previous?.throws ?? 0) + 1
+          };
+          const dmText = modifiers.parts.length ? ` ${modifiers.parts.map((part) => `${part.dm > 0 ? '+' : '\u2212'}${Math.abs(part.dm)} ${part.label}`).join(', ')}` : '';
+          const natural = result.roll === 2 || result.roll === 12 ? ' (a natural ' + result.roll + ': no DMs)' : '';
+          message = `Reaction \u00b7 ${label}${speaker ? `, dealing with ${speaker.identity.name}` : ''}: 2D [${result.dice.join(' ')}] = ${result.roll}${dmText}${natural} \u2192 ${result.tableTotal}: ${result.description}${previous ? ' (thrown again)' : ''} (Book 3 p.23)`;
+        } else {
+          const current = reactions[key];
+          if (!current?.attackOn) throw new Error('that reaction does not call for an attack throw');
+          const dice = createDice();
+          const roll = dice.roll2D6();
+          const attacks = roll.total >= current.attackOn;
+          reactions[key] = { ...current, attack: { dice: [...roll.dice], total: roll.total, attacks } };
+          message = `Reaction \u00b7 ${label}: hostile, attacks on ${current.attackOn}+ \u2014 2D [${roll.dice.join(' ')}] = ${roll.total}: ${attacks ? 'they attack.' : 'they hold off, for now.'}`;
+        }
+        registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, reactions } });
+        reload();
+        // The referee's to know; the players see what the NPCs do.
+        log('ENCOUNTER', message, { visibility: 'referee' });
+        lastMessage = { ok: true, message, reaction: reactions[key] };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       // v0.285.0: a player's character leaves the campaign — removed by the
       // referee, or its player gone. It goes home with its published sheet;
       // the campaign may keep a copy, unowned, as the referee's own. Not in
@@ -4829,6 +4918,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           // for surprise and no round has begun.
           setupPhase: live.status === 'setup',
           // v0.271.0: Book 1 p.27's range, while the board is being set.
+          // v0.299.0: the opposition's reaction, one throw for the group.
+          fightReaction: reactionView(resolved, `fight:${live.identity.id}`, 'the opposition'),
           openingRange: live.status === 'setup' ? (() => {
             const party = fight.fighters.filter((entry) => entry.side === 'party');
             const foes = fight.fighters.filter((entry) => entry.side !== 'party');

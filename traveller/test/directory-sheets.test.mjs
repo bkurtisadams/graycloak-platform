@@ -640,7 +640,7 @@ test('v0.253.0 the chat folds all but COMBAT and ARRIVAL notices into one line t
   // v0.261.0 adds MEDICAL: a rest or a treatment is worth seeing.
   // v0.263.0 adds SKILL: a skill described from the sheet.
   // v0.264.0 adds GEAR: buying and being given things.
-  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL', 'MEDICAL', 'SKILL', 'GEAR']);
+  assert.deepEqual([...CHAT_NOTICE_DEFAULTS], ['COMBAT', 'ARRIVAL', 'MEDICAL', 'SKILL', 'GEAR', 'ENCOUNTER'], 'v0.299.0 adds ENCOUNTER: reaction throws');
 
   const chat = [
     { kind: 'notice', category: 'PORT', text: 'Berthed at Cinder, Cr 100.', dateLabel: '106-4800' },
@@ -2141,4 +2141,65 @@ test('v0.298.0 a non-human NPC is treated two levels lower; the weapon tag says 
   assert.match(treated.message, /Medical-3, Medical-1 for a non-human/);
   const { weaponExpertiseTag } = await import('../src/play-session.js');
   assert.equal(weaponExpertiseTag({ skills: {}, playerCharacter: true }, 'rifle').text, 'expertise-0, no DM');
+});
+
+// ------------------------------------------------------------ v0.299.0
+// The reaction throw, Book 3 p.22-23.
+test('v0.299.0 reaction DMs: five military terms +1, population 11+ \u22121, Admin or Bribery in a deal, the referee\u2019s own', async () => {
+  const { reactionModifiers } = await import('../src/play-session.js');
+  const scout = { identity: { name: 'Hawkeye' }, career: { service: 'scouts', terms: 5 }, skills: { Bribery: 1, Admin: 2 } };
+  const merchant = { identity: { name: 'Farah' }, career: { service: 'merchants', terms: 6 }, skills: {} };
+  assert.deepEqual(reactionModifiers({ speaker: scout }).dm, 1);
+  assert.equal(reactionModifiers({ speaker: merchant }).dm, 0, 'merchants are not the military services');
+  assert.equal(reactionModifiers({ speaker: scout, population: 11 }).dm, 0);
+  assert.equal(reactionModifiers({ speaker: scout, deal: true }).dm, 3, '+1 terms, +2 Admin (the better of Admin and Bribery)');
+  assert.equal(reactionModifiers({ refereeDM: -2 }).dm, -2);
+  assert.match(reactionModifiers({ speaker: scout, deal: true }).parts.map((part) => part.label).join(', '), /5 terms in the scouts, Admin-2 in a deal/);
+});
+
+test('v0.299.0 a reaction is thrown for an NPC, kept on the campaign, told to the referee only, and thrown again on demand', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const hawkeye = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const rao = session.run('actor:create', { fight: { value: { kind: 'actor', name: 'Sanjay Rao' } } }).createdId;
+  const [before] = session.view({ sheets: [{ kind: 'actor', id: rao }] }).sheets;
+  assert.equal(before.reaction.current, null);
+  assert.ok(before.reaction.speakers.some((entry) => entry.id === hawkeye));
+  const thrown = session.run('reaction:throw', { fight: { value: { key: `actor:${rao}`, label: 'Sanjay Rao', speakerId: hawkeye } } });
+  assert.equal(thrown.ok, true, thrown.message);
+  assert.match(thrown.message, /^Reaction · Sanjay Rao, dealing with Hawkeye: 2D \[\d \d\] = \d+ .*→ \d+: .+\(Book 3 p\.23\)$/);
+  const reaction = registry.resolveCampaign(campaignId).campaign.roster.reactions[`actor:${rao}`];
+  assert.ok(reaction.tableTotal >= 2 && reaction.tableTotal <= 12);
+  if (reaction.roll !== 2 && reaction.roll !== 12) assert.ok(reaction.tableTotal >= 3, 'a modified result is kept to 3-12');
+  const line = session.view().chat.at(-1);
+  assert.equal(line.visibility, 'referee');
+  const again = session.run('reaction:throw', { fight: { value: { key: `actor:${rao}`, label: 'Sanjay Rao' } } });
+  assert.match(again.message, /thrown again/);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.reactions[`actor:${rao}`].throws, 2);
+  // A hostile "attacks on N+" result offers its throw; others refuse it.
+  const current = registry.resolveCampaign(campaignId).campaign.roster.reactions[`actor:${rao}`];
+  const attack = session.run('reaction:attack', { fight: { value: { key: `actor:${rao}`, label: 'Sanjay Rao' } } });
+  assert.equal(attack.ok, Boolean(current.attackOn));
+});
+
+test('v0.299.0 the reaction panel draws on an NPC sheet and in a fight\u2019s setup', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, me, thug } = await setupFixture();
+  const asked = [];
+  const handlers = { onReaction: (value) => asked.push(value) };
+  const [sheet] = session.view({ sheets: [{ kind: 'actor', id: thug }] }).sheets;
+  document.querySelector('main').replaceChildren(renderSheets([sheet], handlers));
+  const button = [...document.querySelectorAll('.reaction-panel button')].find((node) => node.textContent === 'Throw reaction');
+  assert.ok(button, 'a statblock has the group\u2019s reaction');
+  button.click();
+  assert.equal(asked[0].key, `actor:${thug}`);
+  const { renderScene } = await import('../client/play-views.js');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 4 } } });
+  document.querySelector('main').replaceChildren(...renderScene({ ...session.view(), live: true }, handlers));
+  assert.match(document.querySelector('main').textContent, /Their reaction \(Book 3 p\.23\): one throw for the group/);
+  dom.window.close();
+  delete globalThis.document;
 });

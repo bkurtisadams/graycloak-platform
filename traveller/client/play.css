@@ -1256,3 +1256,14 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .players-heading { margin: 0 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
 .players-section .entries .entry { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
 .players-section .seat-actions { margin-left: auto; display: inline-flex; gap: 4px; }
+
+/* v0.299.0: the reaction throw. */
+.reaction-panel { display: grid; gap: 6px; padding: 8px 0; border-top: 1px dashed var(--line); }
+.reaction-title { font-size: 11px; letter-spacing: .08em; color: var(--ink-2); text-transform: uppercase; }
+.reaction-result { padding: 6px 8px; border-left: 3px solid var(--line); background: var(--paper, transparent); }
+.reaction-result.is-hostile { border-left-color: var(--red); }
+.reaction-result.is-friendly { border-left-color: var(--green, #3b7a3b); }
+.reaction-detail, .reaction-none { font-size: 12px; color: var(--ink-2); margin: 0; }
+.reaction-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.reaction-controls .sheet-select { width: auto; }
+.fight-setup > .reaction-panel { flex-basis: 100%; padding-top: 4px; border-top: 0; border-bottom: 1px dashed var(--line); }

@@ -16,7 +16,8 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.298.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.299.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.299.0';
 
 const DRAGGED = new Map();
 
@@ -174,6 +175,8 @@ function actorCompact(sheet, handlers) {
       h('span', { class: 'sheet-note', text: 'One person: one sheet, one set of wounds.' }),
       h('button', { type: 'button', class: 'button is-small', text: 'Put on the board', onclick: () => handlers.onStageDocument?.('actor', sheet.id, 1) })));
   }
+  // v0.299.0: a statblock's group reaction, thrown once for the lot.
+  if (sheet.statblock && sheet.reaction && !sheet.playerSeat) parts.push(renderReactionPanel(sheet.reaction, handlers, { title: 'Reaction (Book 3 p.23)' }));
   return parts.filter(Boolean);
 }
 
@@ -297,7 +300,9 @@ function playTab(sheet, handlers) {
     // An NPC's skills are the referee's to write; a character's come from
     // generation and are not edited here.
     sheet.npc ? h('div', { class: 'sheet-rows' }, field('Edit skills', sheet.skillsText ?? '', { onchange: (value) => handlers.onEditSkills?.(sheet.id, value), locked, width: 320 })) : null,
-    sheet.npc ? h('p', { class: 'sheet-note', text: 'Written as Rifle-1, Brawling-1.' }) : null
+    sheet.npc ? h('p', { class: 'sheet-note', text: 'Written as Rifle-1, Brawling-1.' }) : null,
+    // v0.299.0: the reaction throw (Book 3 p.22-23), the referee's.
+    sheet.npc && sheet.reaction && !sheet.playerSeat ? renderReactionPanel(sheet.reaction, handlers, { title: 'Reaction (Book 3 p.23)' }) : null
   ].filter(Boolean);
 }
 

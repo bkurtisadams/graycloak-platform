@@ -7,18 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.298.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.298.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.298.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.299.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.299.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.299.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.299.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.298.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.298.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.298.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.298.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.299.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.299.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.299.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.299.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -33,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.298.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.299.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -507,6 +508,8 @@ function setupStrip(state, handlers) {
     opening.set ? h('span', { class: 'fight-setup-note', text: opening.set }) : null) : null;
   return h('section', { class: 'fight-setup', 'aria-label': 'Setting up the fight' },
     rangeLine,
+    // v0.299.0: the opposition's reaction, one throw for the group.
+    state.fightReaction && state.live ? renderReactionPanel(state.fightReaction, handlers, { title: 'Their reaction (Book 3 p.23): one throw for the group' }) : null,
     h('span', { class: 'fight-setup-count', text: ready
       ? `${party} party, ${foes} opposition. Surprise, then begin (p.26):`
       : 'Drag characters and actors from the Actors tab onto a band. Right-click a token to remove it.' }),
@@ -596,6 +599,9 @@ function fightScene(state, handlers) {
       wound ? woundPanel(state, handlers) : null,
       morale.length ? h('p', { class: 'hold-note is-morale' }, morale.join(' ')) : null,
       referee && state.live ? moraleSettings(state, handlers) : null,
+      // v0.299.0: what the opposition made of the party, and the attack
+      // throw a hostile result calls for.
+      referee && state.live && !state.setupPhase && state.fightReaction?.current ? renderReactionPanel(state.fightReaction, handlers, { title: 'Their reaction (Book 3 p.23)' }) : null,
       h('div', { class: 'fight-board' }, bandsScene(state, handlers)),
       h('section', { class: 'fight-orders', 'aria-label': 'Declarations' },
         h('table', { class: 'tracker sheet' },
@@ -1924,7 +1930,8 @@ export function renderDrawer(kind, state, referee, handlers = {}) {
 // were the whole of the old Journal tab. Notices are what Kurt called noise:
 // COMBAT and ARRIVAL show by default, and the rest fold into one line that
 // expands in place. The log keeps everything either way.
-export const CHAT_NOTICE_DEFAULTS = Object.freeze(['COMBAT', 'ARRIVAL', 'MEDICAL', 'SKILL', 'GEAR']);
+// v0.299.0: ENCOUNTER — reaction throws — shows too.
+export const CHAT_NOTICE_DEFAULTS = Object.freeze(['COMBAT', 'ARRIVAL', 'MEDICAL', 'SKILL', 'GEAR', 'ENCOUNTER']);
 
 // v0.262.0: the campaign date, as a divider where it changes rather than on
 // every line (Kurt, Sep 2026) — a fight's thirty lines share one day, and a
