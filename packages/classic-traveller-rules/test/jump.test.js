@@ -61,7 +61,7 @@ test('ship document v6 migrates to v7 carrying the basic package, with no malfun
   delete v6.state.computer;
   delete v6.state.malfunction;
   const v7 = migrateShipDocument(v6);
-  assert.equal(v7.schemaVersion, 7);
+  assert.equal(v7.schemaVersion, 8);
   assert.deepEqual(v7.state.computer.programs, [...basicSoftwarePackage(1)]);
   assert.equal(v7.state.malfunction, null);
 });

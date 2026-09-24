@@ -74,7 +74,7 @@ test('ship document v5 migrates forward with no mortgage', () => {
   delete v5.state.computer;
   delete v5.state.malfunction;
   const migrated = migrateShipDocument(v5);
-  assert.equal(migrated.schemaVersion, 7);
+  assert.equal(migrated.schemaVersion, 8);
   assert.equal(migrated.state.finances.mortgage, null);
 });
 

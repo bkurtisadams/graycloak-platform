@@ -484,6 +484,7 @@ export {
   consumeJumpFuel,
   transferCharacterCreditsToShip,
   creditShipAccount,
+  debitShipAccount,
   beginPortCall,
   payCurrentBerthing,
   skimGasGiantToCapacity,
@@ -573,6 +574,53 @@ export {
   beginJump,
   resolveJumpWeek
 } from './src/starships/jump.js';
+
+// v0.69.0: arrival (Book 2 pp.2-3, 8, 15, 36).
+export {
+  uniformInteger,
+  LOW_BERTH_REVIVAL_THROW,
+  attendingMedicExpertise,
+  lowBerthRevivalDMParts,
+  rollLowBerthRevival,
+  rollPassengerEndurance,
+  LOTTERY_STAKE_PER_LOW_PASSAGE_CR,
+  rollLowPassageLottery,
+  settleLowPassageLottery,
+  reviveLowPassengers,
+  SHUTTLE_FARE_RATE,
+  SHUTTLE_FREIGHT_PER_TON_CR,
+  SHUTTLE_SERVICE_STARPORTS,
+  shuttleFareCr,
+  shipCarriesSmallCraft,
+  orbitalTransfer,
+  shuttleFreightCostCr,
+  chargeShuttleFreight,
+  REPOSSESSION_AVOID_THROW,
+  REPOSSESSION_FORMS,
+  repossessionDMParts,
+  rollRepossession,
+  checkRepossession,
+  impoundShip,
+  shipImpound,
+  releaseImpound,
+  PRIVATE_MESSAGE_RECIPIENTS,
+  rollPrivateMessage,
+  acceptPrivateMessage,
+  deliverPrivateMessages,
+  SHIP_REACTION_HOSTILE_MAX,
+  SHIP_REACTION_FRIENDLY_MIN,
+  HAIL_ENCOUNTER_KEYS,
+  INSPECTION_ENCOUNTER_KEYS,
+  HAIL_BROKER_TIP_DM,
+  shipReactionStance,
+  resolveHail,
+  inspectionTollCr,
+  resolveInspection,
+  payInspectionToll,
+  grantBrokerTip,
+  portCallBrokerTipDM,
+  spendBrokerTip
+} from './src/starships/arrival.js';
 
 // v0.67.0: the game calendar and the campaign clock.
 export {
