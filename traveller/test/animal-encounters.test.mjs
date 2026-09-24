@@ -211,3 +211,36 @@ test('v0.304.0 surprise, then range, then attack/flee, and the board takes what 
   assert.equal(fight.surprise.surpriseSideId, 'opposition');
   assert.equal(registry.resolveCampaign(campaignId).campaign.roster.animals.pending, null);
 });
+
+test('v0.305.0 an empty setup board with an animal encounter waiting: no reaction table for people, the encounter shown', { skip: !JSDOM }, async () => {
+  const { session, registry, campaignId, run } = await freshSession();
+  run('animals:surface', { terrain: 'forest' });
+  const table = Object.values(registry.resolveCampaign(campaignId).campaign.roster.animals.tables)[0];
+  const animalRow = table.rows.find((row) => row.actorId);
+  // Roll straight onto an animal row: all-random until one lands.
+  for (let tries = 0; tries < 30; tries += 1) {
+    run('animals:roll', { key: table.key });
+    if (registry.resolveCampaign(campaignId).campaign.roster.animals.pending.actorId) break;
+    run('animals:dismiss');
+  }
+  assert.ok(animalRow);
+  assert.equal(session.run('fight:setup').ok, true);
+  const view = session.view();
+  assert.equal(view.setupPhase, true);
+  assert.equal(view.fightReaction, null, 'animals answer to p.95, not the reaction table');
+  assert.equal(view.animals.surface.rangeTerrain, 'forest');
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderScene, renderMastChips } = await import('../client/play-views.js');
+  const scene = renderScene({ ...view, live: true, seat: 'referee' }, { onAnimals: () => null });
+  const holder = dom.window.document.createElement('div');
+  holder.append(...[scene].flat(Infinity).filter(Boolean));
+  assert.match(holder.textContent, /Animal encounter/);
+  assert.match(holder.textContent, /1\. Surprise/);
+  const chips = dom.window.document.createElement('div');
+  chips.append(...[renderMastChips({ ...view, seat: 'referee' }, { openDrawer: () => null, drawer: null })].flat(Infinity).filter(Boolean));
+  assert.match(chips.textContent, /Board open, setting up/);
+  delete globalThis.document;
+  delete globalThis.Node;
+});

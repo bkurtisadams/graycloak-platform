@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.304.0';
-import { h, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.304.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.304.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.304.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.304.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.304.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.304.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.304.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.304.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.304.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.305.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.305.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.305.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.305.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.305.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.305.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.305.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.305.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.305.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.305.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -133,7 +133,7 @@ function viewState() {
         ui.sheetRound = state.round;
       }
       const focus = ui.sheetFocus ?? ui.selectedMarker;
-      const withSetting = { ...state, autoTarget: Boolean(ui.settings.autoTarget), bandsShown: ui.bandsShown, viewSettings: ui.settings, woundDraft: ui.woundDraft ?? null, lastTerrain: ui.lastTerrain ?? null };
+      const withSetting = { ...state, autoTarget: Boolean(ui.settings.autoTarget), bandsShown: ui.bandsShown, viewSettings: ui.settings, woundDraft: ui.woundDraft ?? null, lastTerrain: ui.lastTerrain ?? state.animals?.surface?.rangeTerrain ?? null };
       return { ...withSetting, sheetRows: sheetRows(withSetting, ui.sheet), sheetFocus: focus, scene: { ...state.scene, selected: focus ?? state.scene.selected } };
     }
     if (!state.next?.declare) {
@@ -1381,51 +1381,11 @@ function openSurfaceDialog() {
 
   const parts = [partyBox];
 
-  // --- Encounter: the book's line, then surprise, range, attack/flee. ----
-  const pending = animals.pending;
-  if (pending) {
-    const row = pending.row;
-    const when = { travelling: 'while travelling', halted: 'while halted', now: 'on a check now', called: 'called by the referee' }[pending.when] ?? '';
-    const header = `${pending.terrain}, ${pending.worldName} \u00b7 ${pending.date} ${when} \u00b7 ${pending.thrown === pending.die ? '' : `thrown ${pending.thrown}, `}row ${pending.die}`;
-    const step = (label, result, buttons) => h('div', { class: 'encounter-step' },
-      h('span', { class: 'encounter-step-label', text: label }),
-      h('span', { class: `encounter-step-result${result ? '' : ' is-open'}`, text: result ?? 'not yet' }),
-      h('span', { class: 'encounter-step-actions' }, buttons));
-    const callSelect = (options, command) => h('select', { 'aria-label': `Call the ${command}`, onchange: (event) => { if (event.target.value) again(command, { mode: event.target.value }); } },
-      h('option', { value: '', text: 'or call it\u2026' }), options.map(([value, text]) => h('option', { value, text })));
-    const body = [];
-    if (pending.category === 'event') {
-      body.push(h('p', { class: 'encounter-line', text: `Event: ${pending.event || 'nothing written for this row yet; write it on the table.'}` }));
-    } else if (!row || row.missing) {
-      body.push(h('p', { class: 'encounter-line', text: 'The statblock for this row is gone.' }));
-    } else {
-      body.push(
-        h('div', { style: 'overflow-x:auto' }, h('table', { class: 'animal-table' },
-          h('thead', {}, h('tr', {}, ['Animal', 'Weight', 'Hits', 'Armor', 'Wounds & weapons', ''].map((text) => h('th', { text })))),
-          h('tbody', {}, h('tr', {},
-            h('td', { text: `${row.quantity} ${row.name}` }), h('td', { class: 'num', text: row.weight }), h('td', { class: 'num', text: row.hits }),
-            h('td', { text: row.armor }), h('td', { text: row.weapons }), h('td', { text: row.code }))))),
-        h('p', { class: 'signin-why', text: `${row.code}: ${row.codeText}.` }),
-        step('1. Surprise', pending.surprise?.text ?? null, [
-          h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: 'Book 1 p.27: 1D a side, surprise at 3 or more higher; the party\u2019s leader, tactics and military DMs', onclick: () => again('surprise', { mode: 'roll' }) }),
-          callSelect([['party', 'party has it'], ['opposition', 'animals have it'], ['none', 'neither']], 'surprise')]),
-        step('2. Range', pending.range?.text ?? null, [
-          h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: animals.surface?.rangeTerrain ? `Book 1 p.27: 2D plus the ${animals.surface.rangeTerrain.replace(/-/g, ' ')} DM` : 'Book 1 p.27: 2D, no terrain DM for this terrain', onclick: () => again('range', { mode: 'roll' }) }),
-          callSelect([['close', 'close'], ['short', 'short'], ['medium', 'medium'], ['long', 'long'], ['very-long', 'very long']], 'range')]),
-        step('3. Attack or flee', pending.behaviour?.text ?? null, [
-          h('button', { type: 'button', class: 'button is-small', text: 'Throw', title: 'The Traveller Book p.95, in the animal\u2019s own order, using the surprise above', onclick: () => again('behaviour', { actorId: pending.actorId }) })]));
-    }
-    const count = h('input', { type: 'number', min: '1', value: String(row?.quantity ?? 1), 'aria-label': 'How many to place', style: 'width:56px' });
-    const settled = pending.surprise ? 'places them at the range above and begins round 1 with that surprise' : pending.range ? 'places them at the range above; settle surprise on the board' : 'places them two bands off; throw range and surprise on the board';
-    parts.push(h('fieldset', { class: 'time-box' }, h('legend', { text: 'Encounter' }),
-      h('p', { class: 'encounter-head', text: header }),
-      ...body,
-      h('div', { class: 'surface-row' },
-        pending.actorId ? h('label', { class: 'surface-inline' }, 'Place ', count) : null,
-        pending.actorId ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Put on the board', title: `With the party: ${settled}`, onclick: () => { if (run('place', { actorId: pending.actorId, count: Number(count.value) || 1 })) close(); } }) : null,
-        h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => again('dismiss', {}) })),
-      pending.actorId ? h('p', { class: 'signin-why', text: `Put on the board ${settled}.` }) : null));
-  }
+  // --- Encounter: shared with the setup board (play-views.js). ----------
+  if (animals.pending) parts.push(renderAnimalEncounter(animals, (command, value) => {
+    if (command === 'place') { if (run(command, value)) close(); return; }
+    again(command, value);
+  }));
   modal('Where is the party?', parts, { submitLabel: 'Done', onSubmit: () => null });
 }
 

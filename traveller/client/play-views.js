@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.304.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.304.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.304.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.304.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.305.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.305.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.305.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.305.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.304.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.304.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.304.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.304.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.305.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.305.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.305.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.305.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.304.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.305.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -88,7 +88,9 @@ export function renderMastChips(state, { openDrawer, drawer }) {
   // the foot of the port column. A running fight already owns the screen, so
   // the chip reports the round; with none, it opens the drawer that starts one.
   if (state.seat === 'referee') {
-    const fighting = Boolean(state.fighters?.length) || Boolean(state.shipFight);
+    const fighting = (Boolean(state.fighters?.length) && !state.setupPhase) || Boolean(state.shipFight);
+    // v0.305.0: an open board in setup said "No fight" while it had the screen.
+    const settingUp = Boolean(state.setupPhase);
     chips.push(h('button', {
       class: `chip${fighting ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'combat',
       title: fighting ? 'A fight is running; it has the screen' : 'Put the party on the board against someone',
@@ -97,7 +99,7 @@ export function renderMastChips(state, { openDrawer, drawer }) {
       onclick: () => (fighting ? null : openDrawer('combat-board'))
     },
     h('span', { class: 'chip-name', text: 'Combat' }),
-    h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '').replace('Ship fight, ', 'Ship, ') : 'No fight' })));
+    h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '').replace('Ship fight, ', 'Ship, ') : settingUp ? 'Board open, setting up' : 'No fight' })));
     // v0.253.0: no Referee chip. Its directories are the sidebar's tabs,
     // always on screen, so a chip that opened them has nothing to open.
   }
@@ -250,7 +252,7 @@ function gearRow(reader, state, handlers) {
   const weaponKey = declaring ? (d.weaponKey ?? reader.weaponKey) : reader.weaponKey;
   const weapon = getPersonalWeapon(weaponKey);
   const beast = reader.animal;
-  const beastWound = (key) => (beast.woundMode === 'rolled' ? 'rolled' : String(beast.weapons[key]?.wound ?? ''));
+  const beastWound = (key) => (beast.filter ? `${beast.filter.woundDice}D, filter` : beast.woundMode === 'rolled' ? 'rolled' : String(beast.weapons[key]?.wound ?? ''));
   const dice = beast ? beastWound(weaponKey) : woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 });
   const label = (key) => {
     if (beast) return `${(reader.weaponChoices ?? []).find((choice) => choice.key === key)?.name ?? key}  ${beastWound(key)}`;
@@ -515,6 +517,57 @@ function encounterStepStrip(state, handlers) {
       }) : null)));
 }
 
+// v0.305.0: a waiting animal encounter (The Traveller Book pp.91-95), drawn
+// the same in the Party dialog and on the setup board: the book's line, the
+// code in words, then Book 1's order — surprise, range — and the animals'
+// attack/flee, each thrown or called; then onto the board. `act` runs one
+// animals:* command.
+export function renderAnimalEncounter(animals, act) {
+  const pending = animals.pending;
+  const row = pending.row;
+  const when = { travelling: 'while travelling', halted: 'while halted', now: 'on a check now', called: 'called by the referee' }[pending.when] ?? '';
+  const header = `${pending.terrain}, ${pending.worldName} \u00b7 ${pending.date} ${when} \u00b7 ${pending.thrown === pending.die ? '' : `thrown ${pending.thrown}, `}row ${pending.die}`;
+  const step = (label, result, buttons) => h('div', { class: 'encounter-step' },
+    h('span', { class: 'encounter-step-label', text: label }),
+    h('span', { class: `encounter-step-result${result ? '' : ' is-open'}`, text: result ?? 'not yet' }),
+    h('span', { class: 'encounter-step-actions' }, buttons));
+  const callSelect = (options, command) => h('select', { 'aria-label': `Call the ${command}`, onchange: (event) => { if (event.target.value) act(command, { mode: event.target.value }); } },
+    h('option', { value: '', text: 'or call it\u2026' }), options.map(([value, text]) => h('option', { value, text })));
+  const body = [];
+  if (pending.category === 'event') {
+    body.push(h('p', { class: 'encounter-line', text: `Event: ${pending.event || 'nothing written for this row yet; write it on the table.'}` }));
+  } else if (!row || row.missing) {
+    body.push(h('p', { class: 'encounter-line', text: 'The statblock for this row is gone.' }));
+  } else {
+    const rangeTerrain = animals.surface?.rangeTerrain;
+    body.push(
+      h('div', { style: 'overflow-x:auto' }, h('table', { class: 'animal-table' },
+        h('thead', {}, h('tr', {}, ['Animal', 'Weight', 'Hits', 'Armor', 'Wounds & weapons', ''].map((text) => h('th', { text })))),
+        h('tbody', {}, h('tr', {},
+          h('td', { text: `${row.quantity} ${row.name}` }), h('td', { class: 'num', text: row.weight }), h('td', { class: 'num', text: row.hits }),
+          h('td', { text: row.armor }), h('td', { text: row.weapons }), h('td', { text: row.code }))))),
+      h('p', { class: 'signin-why', text: `${row.code}: ${row.codeText}.${row.type === 'filter' ? ' A filter draws in anything at close range on 6+; escaping is 7+, 1 END a try, +2 per helper (p.93).' : ''}` }),
+      step('1. Surprise', pending.surprise?.text ?? null, [
+        h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: 'Book 1 p.27: 1D a side, surprise at 3 or more higher; the party\u2019s leader, tactics and military DMs', onclick: () => act('surprise', { mode: 'roll' }) }),
+        callSelect([['party', 'party has it'], ['opposition', 'animals have it'], ['none', 'neither']], 'surprise')]),
+      step('2. Range', pending.range?.text ?? null, [
+        h('button', { type: 'button', class: 'button is-small', text: 'Roll', title: rangeTerrain ? `Book 1 p.27: 2D plus the ${rangeTerrain.replace(/-/g, ' ')} DM` : 'Book 1 p.27: 2D, no terrain DM for this terrain', onclick: () => act('range', { mode: 'roll' }) }),
+        callSelect([['close', 'close'], ['short', 'short'], ['medium', 'medium'], ['long', 'long'], ['very-long', 'very long']], 'range')]),
+      step('3. Attack or flee', pending.behaviour?.text ?? null, [
+        h('button', { type: 'button', class: 'button is-small', text: 'Throw', title: 'The Traveller Book p.95, in the animal\u2019s own order, using the surprise above', onclick: () => act('behaviour', { actorId: pending.actorId }) })]));
+  }
+  const count = h('input', { type: 'number', min: '1', value: String(row?.quantity ?? 1), 'aria-label': 'How many to place', style: 'width:56px' });
+  const settled = pending.surprise ? 'places them at the range above and begins round 1 with that surprise' : pending.range ? 'places them at the range above; settle surprise on the board' : 'places them two bands off; throw range and surprise on the board';
+  return h('fieldset', { class: 'time-box encounter-box' }, h('legend', { text: 'Animal encounter' }),
+    h('p', { class: 'encounter-head', text: header }),
+    ...body,
+    h('div', { class: 'surface-row' },
+      pending.actorId ? h('label', { class: 'surface-inline' }, 'Place ', count) : null,
+      pending.actorId ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Put on the board', title: `With the party: ${settled}`, onclick: () => act('place', { actorId: pending.actorId, count: Number(count.value) || 1 }) }) : null,
+      h('button', { type: 'button', class: 'button is-small', text: 'Set aside', onclick: () => act('dismiss', {}) })),
+    pending.actorId ? h('p', { class: 'signin-why', text: `Put on the board ${settled}.` }) : null);
+}
+
 // v0.254.0: the board before round 1. Book 1 p.27's step 1 is surprise and
 // step 2 range; placing the tokens is step 2, and Kurt's call on step 1 for a
 // fight set up by hand is that the referee decides whether to roll at all.
@@ -540,12 +593,14 @@ function setupStrip(state, handlers) {
     stated,
     opening.set ? h('span', { class: 'fight-setup-note', text: opening.set }) : null) : null;
   return h('section', { class: 'fight-setup', 'aria-label': 'Setting up the fight' },
+    // v0.305.0: an animal encounter waiting is what this board is for.
+    state.animals?.pending && state.live && state.seat !== 'player' ? renderAnimalEncounter(state.animals, (command, value) => handlers.onAnimals?.(command, value)) : null,
     rangeLine,
     // v0.299.0: the opposition's reaction, one throw for the group.
-    state.fightReaction && state.live ? renderReactionPanel(state.fightReaction, handlers, { title: 'Their reaction (Book 3 p.23): one throw for the group' }) : null,
+    state.fightReaction && state.live ? renderReactionPanel(state.fightReaction, handlers, { title: 'Their reaction (Book 3 p.23; The Traveller Book p.101): one throw for the group' }) : null,
     h('span', { class: 'fight-setup-count', text: ready
       ? `${party} party, ${foes} opposition. Surprise, then begin (p.26):`
-      : 'Drag characters and actors from the Actors tab onto a band. Right-click a token to remove it.' }),
+      : 'Both sides are needed before surprise. Right-click a token to remove it.' }),
     h('button', { type: 'button', class: 'button is-small is-primary', disabled: !ready, text: 'Roll surprise', onclick: () => begin('roll') }),
     h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Party has it', onclick: () => begin('party') }),
     h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Opposition has it', onclick: () => begin('opposition') }),

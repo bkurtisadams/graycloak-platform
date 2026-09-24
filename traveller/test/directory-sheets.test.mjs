@@ -2199,7 +2199,7 @@ test('v0.299.0 the reaction panel draws on an NPC sheet and in a fight\u2019s se
   session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
   session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 4 } } });
   document.querySelector('main').replaceChildren(...renderScene({ ...session.view(), live: true }, handlers));
-  assert.match(document.querySelector('main').textContent, /Their reaction \(Book 3 p\.23\): one throw for the group/);
+  assert.match(document.querySelector('main').textContent, /Their reaction \(Book 3 p\.23; The Traveller Book p\.101\): one throw for the group/);
   dom.window.close();
   delete globalThis.document;
 });

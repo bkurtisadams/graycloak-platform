@@ -1439,7 +1439,8 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
       const spec = getPersonalWeapon(entry.weaponKey);
       const modifier = spec.damageModifier ?? 0;
       weaponLabel = beast
-        ? `${animalWeaponName(entry.weaponKey, beast.weapons[entry.weaponKey]?.dm)} ${beast.woundMode === 'rolled' ? 'rolled' : beast.weapons[entry.weaponKey]?.wound}`
+        ? (beast.filter ? `Filter ${beast.filter.woundDice}D, close only`
+          : `${animalWeaponName(entry.weaponKey, beast.weapons[entry.weaponKey]?.dm)} ${beast.woundMode === 'rolled' ? 'rolled' : beast.weapons[entry.weaponKey]?.wound}`)
         : `${spec.name} ${spec.damageDice}D${modifier ? (modifier > 0 ? `+${modifier}` : `\u2212${Math.abs(modifier)}`) : ''}`;
     } catch { /* an unknown weapon key keeps its raw name */ }
     return {
@@ -1453,6 +1454,7 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
         hits: { ...beast.hits }, woundsTaken: beast.woundsTaken, destroyed: Boolean(beast.destroyed),
         woundMode: beast.woundMode, woundAlteration: beast.woundAlteration ? { ...beast.woundAlteration } : null,
         weapons: JSON.parse(JSON.stringify(beast.weapons)),
+        filter: beast.filter ? { ...beast.filter } : null,
         status: entry.status
       } : null,
       tactics: entry.tactics,
@@ -5268,7 +5270,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           setupPhase: live.status === 'setup',
           // v0.271.0: Book 1 p.27's range, while the board is being set.
           // v0.299.0: the opposition's reaction, one throw for the group.
-          fightReaction: reactionView(resolved, `fight:${live.identity.id}`, 'the opposition'),
+          // v0.305.0: animals answer to their own attack/flee throw (The
+          // Traveller Book p.95), not to the reaction table for people.
+          fightReaction: (() => {
+            const foes = fight.fighters.filter((entry) => entry.side !== 'party');
+            const pendingAnimals = Boolean(animalState(resolved.campaign).pending?.actorId);
+            if (foes.length ? foes.every((entry) => entry.animal) : pendingAnimals) return null;
+            return reactionView(resolved, `fight:${live.identity.id}`, 'the opposition');
+          })(),
           openingRange: live.status === 'setup' ? (() => {
             const party = fight.fighters.filter((entry) => entry.side === 'party');
             const foes = fight.fighters.filter((entry) => entry.side !== 'party');

@@ -278,9 +278,24 @@ export function createAnimalCombatant({ id, name, side, entry, weaponKey = null,
     animal: {
       type: entry.type, category: entry.category, weightKg: entry.weightKg,
       hits: { unconscious: entry.hits.unconscious, dead: entry.hits.dead, destroyed: entry.hits.destroyed },
-      woundsTaken: 0, destroyed: false, woundMode, woundAlteration: entry.woundAlteration ? { ...entry.woundAlteration } : null, weapons
+      woundsTaken: 0, destroyed: false, woundMode, woundAlteration: entry.woundAlteration ? { ...entry.woundAlteration } : null, weapons,
+      // p.93: a filter draws in anything at close range on 6+, for 1D per
+      // 50 kg of its mass, its weapons and wound alteration aside.
+      filter: entry.type === 'filter' ? { woundDice: Math.max(1, Math.ceil(Number(entry.weightKg) / 50)), attackThrow: 6 } : null
     }
   };
+}
+
+// The Traveller Book p.93, a filter's reflex: close range only, 6+, no DMs;
+// each of its dice is a wound group.
+function filterAttack(attacker, range, dice) {
+  if (range !== 'close') throw new Error(`${attacker.name} is a filter: it reaches only at close range`);
+  const diceRoll = [dice.rollD6(), dice.rollD6()];
+  const roll = diceRoll[0] + diceRoll[1];
+  const success = roll >= attacker.animal.filter.attackThrow;
+  const damageDice = success ? Array.from({ length: attacker.animal.filter.woundDice }, () => dice.rollD6()) : [];
+  const total = damageDice.reduce((sum, die) => sum + die, 0);
+  return { diceRoll, roll, success, damageDice, total };
 }
 
 function animalStatus(animal) {
@@ -733,6 +748,19 @@ export function blowsRemaining(combatant) {
 // referee can see what an attack would need before declaring it. Returns null
 // for `target` when the weapon cannot reach that range.
 export function previewPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, surprise = false, weakened = false, special = false } = {}) {
+  if (attacker?.animal?.filter) {
+    // p.93: 6+ at close range, no DMs, 1D per 50 kg.
+    const n = attacker.animal.filter.woundDice;
+    return {
+      weaponKey: attacker.weaponKey, weaponName: 'Filter', range, armor: defender.armor, target: range === 'close' ? attacker.animal.filter.attackThrow : null,
+      blowClass: 'combat', fatigueDM: 0, blowsRemaining: null,
+      skillDM: 0, characteristicDM: 0, untrainedDM: 0, parryDM: 0, evasionDM: 0, defenderUntrainedDM: 0, situationalDM: 0, defenderDM: 0, weaponDM: 0, armorDM: 0, totalDM: 0,
+      fixedWound: null, filter: true,
+      woundRange: Object.freeze({ min: n, max: n * 6 }),
+      canAttack: range === 'close',
+      requiredRoll: range === 'close' ? attacker.animal.filter.attackThrow : null
+    };
+  }
   const spec = getPersonalWeapon(attacker.weaponKey);
   if (!PERSONAL_ARMOR_TYPES.includes(defender.armor)) throw new RangeError(`unknown personal armor: ${defender.armor}`);
   const target = weaponTargetNumber(attacker.weaponKey, defender.armor, range);
@@ -778,6 +806,20 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
 // whole round rolls every attack first and applies the damage afterwards.
 export function rollPersonalAttack({ attacker, defender, range, situationalDM = 0, defenderDM = 0, surprise = false, weakened = false, special = false, dice } = {}) {
   requireDice(dice);
+  // v0.305.0: a filter does not use the weapons matrix at all (p.93).
+  if (attacker?.animal?.filter) {
+    const reflex = filterAttack(attacker, range, dice);
+    const nextAttacker = clone(attacker);
+    nextAttacker.evading = false;
+    return {
+      attacker: nextAttacker, attackerId: attacker.id, blowClass: 'combat', fatigueDM: 0, blowsRemaining: null, defenderId: defender.id,
+      weaponKey: attacker.weaponKey, weaponName: 'Filter', range, armor: defender.armor, target: attacker.animal.filter.attackThrow,
+      dice: reflex.diceRoll, roll: reflex.roll,
+      skillDM: 0, characteristicDM: 0, untrainedDM: 0, parryDM: 0, evasionDM: 0, defenderUntrainedDM: 0, situationalDM: 0, defenderDM: 0, totalDM: 0,
+      total: reflex.roll, weaponDM: 0, armorDM: 0, success: reflex.success, damageDice: [],
+      damageTotal: reflex.total, damageModifier: 0, woundTotal: reflex.total, woundGroups: reflex.success ? [...reflex.damageDice] : null, filter: true
+    };
+  }
   if (attacker?.status !== 'active') throw new Error('attacker is not active');
   if (defender?.status !== 'active') throw new Error('defender is not active');
   const spec = getPersonalWeapon(attacker.weaponKey);

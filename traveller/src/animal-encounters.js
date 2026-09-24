@@ -88,6 +88,12 @@ export function buildAnimalTable({ system, terrain, format = '2D', dice, date = 
   };
 }
 
+// v0.305.0: p.93, a filter's wound is 1D per 50 kg, its weapons aside.
+export function animalWoundsText(a, joiner = ', ') {
+  if (a.type === 'filter') return `${Math.max(1, Math.ceil(Number(a.weightKg) / 50))}D (filter)`;
+  return a.weapons.map((weapon) => `${weapon.wound} ${weapon.label}`).join(joiner);
+}
+
 // p.91: "throw 5 or 6 on one die".
 export function animalCheck(dice, { dm = 0 } = {}) {
   const die = dice.rollD6();
@@ -108,7 +114,7 @@ export function describeAnimalRow(row, actor) {
   if (!actor?.animal) return 'an animal whose statblock is gone';
   const a = actor.animal;
   const count = row.quantity ?? a.quantity ?? 1;
-  return `${count} ${animalDisplayName(a.type, a.attribute, count)}, ${a.weightKg} kg, ${a.hits.unconscious}/${a.hits.further} hits, ${a.armor.label}, ${a.weapons.map((weapon) => `${weapon.wound} ${weapon.label}`).join(' and ')}, ${a.behaviour.code}`;
+  return `${count} ${animalDisplayName(a.type, a.attribute, count)}, ${a.weightKg} kg, ${a.hits.unconscious}/${a.hits.further} hits, ${a.armor.label}, ${animalWoundsText(a, ' and ')}, ${a.behaviour.code}`;
 }
 
 /**
@@ -223,7 +229,7 @@ function rowView(row, actorsById) {
     die: row.die, category: row.category, actorId: row.actorId, quantity: count,
     name: animalDisplayName(a.type, a.attribute, count),
     weight: `${a.weightKg} kg`, hits: `${a.hits.unconscious}/${a.hits.further}`, armor: a.armor.label === 'none' ? 'none' : a.armor.label,
-    weapons: a.weapons.map((weapon) => `${weapon.wound} ${weapon.label}`).join(', '),
+    weapons: animalWoundsText(a),
     code: a.behaviour.code,
     codeText: explainBehaviourCode(a.behaviour),
     type: a.type

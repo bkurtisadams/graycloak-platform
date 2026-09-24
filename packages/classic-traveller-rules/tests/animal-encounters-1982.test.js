@@ -225,3 +225,17 @@ test('rolled wounds: 0 or less is no wound', () => {
   assert.equal(result.noEffect, true);
   assert.equal(result.defender.firstBlood, true);
 });
+
+test('v0.305.0 p.93: a filter draws in at close range on 6+, 1D per 50 kg, weapons aside', () => {
+  const filter = { ...beast, type: 'filter', category: 'herbivore', weightKg: 120 };
+  const animal = createAnimalCombatant({ id: 'f1', name: 'Filter', side: 'opposition', entry: filter });
+  assert.deepEqual(animal.animal.filter, { woundDice: 3, attackThrow: 6 });
+  assert.equal(previewPersonalAttack({ attacker: animal, defender: person(), range: 'short' }).canAttack, false);
+  assert.throws(() => resolvePersonalAttack({ attacker: animal, defender: person(), range: 'short', dice: createSequenceDice([6, 6]) }), /only at close range/);
+  const hit = resolvePersonalAttack({ attacker: animal, defender: person(), range: 'close', dice: createSequenceDice([3, 3, 2, 2, 2, 1]) });
+  assert.equal(hit.success, true);
+  assert.equal(hit.woundTotal, 6);
+  assert.equal(hit.filter, true);
+  const miss = resolvePersonalAttack({ attacker: animal, defender: person(), range: 'close', dice: createSequenceDice([2, 3]) });
+  assert.equal(miss.success, false);
+});
