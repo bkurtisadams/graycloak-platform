@@ -16,8 +16,8 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.301.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.301.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.302.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.302.0';
 
 const DRAGGED = new Map();
 
@@ -628,6 +628,87 @@ function dragging(panel, handle, key) {
   });
 }
 
+// v0.302.0: an animal statblock, as The Traveller Book prints the line (p.95):
+// weight, hits, armor, wounds and weapons, and the A F S code.
+function animalCompact(sheet, handlers) {
+  const a = sheet.animal;
+  const stat = (label, value) => h('span', {}, h('small', { text: label }), h('b', { text: String(value) }));
+  const count = h('input', { type: 'number', min: '1', value: String(a.quantity), 'aria-label': 'How many to place', style: 'width:56px' });
+  const surprise = h('input', { type: 'checkbox' });
+  const surprised = h('input', { type: 'checkbox' });
+  const live = !sheet.playerSeat;
+  return [
+    h('div', { class: 'sheet-compact-head' },
+      actorBadge('statblock', { side: 'opposition', size: 38 }),
+      h('div', {},
+        h('div', { class: 'sheet-upp-line', text: `${a.attribute} ${a.type.toLowerCase()}, ${a.category.toLowerCase()}` }),
+        h('div', { class: 'sheet-note', text: [a.world, a.terrain ? `${a.terrain} terrain` : null, `usually ${a.quantity}`].filter(Boolean).join(' \u00b7 ') }))),
+    h('div', { class: 'animal-stats' },
+      stat('Weight', `${a.weightKg} kg`),
+      stat('Hits', `${a.hits.unconscious}/${a.hits.dead - a.hits.unconscious}`),
+      stat('Armor', a.armor),
+      stat('Code', a.code)),
+    h('p', { class: 'sheet-note', text: `Unconscious at ${a.hits.unconscious} hits, dead at ${a.hits.dead}, destroyed (no meat or pelt) at ${a.hits.destroyed} (p.92).` }),
+    h('table', { class: 'animal-table' },
+      h('thead', {}, h('tr', {}, h('th', { text: 'Weapon' }), h('th', { text: 'Book 1' }), h('th', { text: 'Wound' }))),
+      h('tbody', {}, a.weapons.map((weapon) => h('tr', {},
+        h('td', { text: weapon.label }), h('td', { text: weapon.base }),
+        h('td', { class: 'num', text: a.woundMode === 'rolled' ? 'rolled' : String(weapon.wound) }))))),
+    h('p', { class: 'sheet-note', text: `Size alters its wounds ${a.alteration}.` }),
+    ...a.specials.map((text) => h('p', { class: 'sheet-note', text })),
+    live ? h('label', { class: 'sheet-check' },
+      h('input', { type: 'checkbox', checked: a.woundMode === 'rolled', onchange: (event) => handlers.onAnimals?.('wound-mode', { actorId: sheet.id, woundMode: event.currentTarget.checked ? 'rolled' : 'fixed' }) }),
+      ' Roll its wound every hit, not the fixed number (p.92)') : null,
+    live ? h('label', { class: 'sheet-check' },
+      h('input', { type: 'checkbox', checked: sheet.numberTokens, onchange: (event) => handlers.onNumberTokens?.(sheet.id, event.currentTarget.checked) }),
+      ' Number the tokens') : null,
+    live ? h('div', { class: 'sheet-actions' },
+      h('label', { class: 'sheet-check' }, surprise, ' They have surprise'),
+      h('label', { class: 'sheet-check' }, surprised, ' They are surprised'),
+      h('button', { type: 'button', class: 'button is-small', text: 'Throw attack / flee', onclick: () => handlers.onAnimals?.('behaviour', { actorId: sheet.id, surprise: surprise.checked, surprised: surprised.checked }) })) : null,
+    sheet.behaviour ? h('p', { class: 'sheet-note', text: `Thrown: ${sheet.behaviour.text}.` }) : null,
+    live ? h('div', { class: 'sheet-actions' },
+      h('label', { class: 'sheet-inline' }, 'Place ', count),
+      h('button', { type: 'button', class: 'button is-small', text: 'Put on the board', onclick: () => handlers.onAnimals?.('place', { actorId: sheet.id, count: Number(count.value) || 1 }) })) : null
+  ].filter(Boolean);
+}
+
+// v0.302.0: one terrain's encounter table, laid out as the book's Regina
+// example (p.95), with the referee's hands on it.
+function animalTableBody(sheet, handlers) {
+  const table = sheet.table;
+  const rows = table.rows.map((row) => {
+    if (row.category === 'event') {
+      return h('tr', {},
+        h('td', { class: 'num', text: String(row.die) }),
+        h('td', { colspan: '5' }, h('input', {
+          type: 'text', value: row.event, placeholder: 'Event: write what happens (p.96 has ideas)', 'aria-label': `Event on ${row.die}`,
+          onchange: (event) => handlers.onAnimals?.('event', { key: table.key, die: row.die, text: event.currentTarget.value })
+        })),
+        h('td', {}));
+    }
+    if (row.missing) return h('tr', {}, h('td', { class: 'num', text: String(row.die) }), h('td', { colspan: '6', text: 'statblock gone' }));
+    return h('tr', {},
+      h('td', { class: 'num', text: String(row.die) }),
+      h('td', {}, h('button', { type: 'button', class: 'link-button', text: `${row.quantity} ${row.name}`, title: 'Open the statblock', onclick: () => handlers.onOpenSheet?.('actor', row.actorId) })),
+      h('td', { class: 'num', text: row.weight }),
+      h('td', { class: 'num', text: row.hits }),
+      h('td', { text: row.armor }),
+      h('td', { text: row.weapons }),
+      h('td', { text: row.code }));
+  });
+  return [
+    h('p', { class: 'sheet-note', text: `${table.dice === 1 ? 'One die' : 'Two dice'}. Built ${table.created}. Hidden from the players (p.90).${table.here ? ' The party is out in this terrain.' : ''}` }),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'animal-table' },
+      h('thead', {}, h('tr', {}, ['Die', 'Animal', 'Weight', 'Hits', 'Armor', 'Wounds & weapons', ''].map((text) => h('th', { text })))),
+      h('tbody', {}, rows))),
+    h('div', { class: 'sheet-actions' },
+      h('button', { type: 'button', class: 'button is-small', text: 'Roll on this table', title: 'An encounter the referee calls, no 5+ check', onclick: () => handlers.onAnimals?.('roll', { key: table.key }) }),
+      h('button', { type: 'button', class: 'button is-small', text: 'Build it again', title: 'A new table; the old statblocks are archived', onclick: () => { if (window.confirm('Replace this table with a new one?')) handlers.onAnimals?.('table', { terrain: table.terrain, format: table.dice === 1 ? '1D' : '2D' }); } }),
+      h('button', { type: 'button', class: 'button is-small', text: 'Where is the party?', onclick: () => handlers.onOpenSurface?.() }))
+  ];
+}
+
 /**
  * sheets: the array play-session.js's sheetViews() returned.
  * handlers: { onCloseSheet(kind,id), onCompactSheet(kind,id,compact),
@@ -642,7 +723,9 @@ export function renderSheets(sheets, handlers = {}) {
     const compact = Boolean(sheet.compact);
     const body = sheet.kind === 'ship' ? shipBody(sheet, handlers)
       : sheet.kind === 'scene' ? sceneBody(sheet, handlers)
-        : compact ? actorCompact(sheet, handlers) : (sheet.tabs ? characterBody(sheet, handlers) : actorFull(sheet, handlers));
+        : sheet.kind === 'animals' ? animalTableBody(sheet, handlers)
+          : sheet.animal ? animalCompact(sheet, handlers)
+            : compact ? actorCompact(sheet, handlers) : (sheet.tabs ? characterBody(sheet, handlers) : actorFull(sheet, handlers));
     const bar = h('div', { class: 'sheet-bar' },
       h('button', { type: 'button', class: 'sheet-back', 'aria-label': 'Back', text: '\u2190', onclick: () => handlers.onCloseSheet?.(sheet.kind, sheet.id) }),
       h('span', { class: 'sheet-title', text: sheet.title }),

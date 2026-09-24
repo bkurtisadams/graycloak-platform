@@ -1212,6 +1212,19 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 
 /* v0.275.0: the referee's clock and the party's rest. */
 .mast-date.is-control { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+/* v0.302.0: where the party is, for the animal checks. */
+.mast-where.is-control { cursor: pointer; }
+.mast-where.is-control .mast-place { text-decoration: underline dotted; text-underline-offset: 3px; }
+.mast-where.is-alert .mast-detail { color: var(--danger, #b3261e); font-weight: 600; }
+.animal-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.animal-table th, .animal-table td { padding: 3px 5px; text-align: left; border-bottom: 1px solid var(--line, rgba(127,127,127,.25)); vertical-align: top; }
+.animal-table th { font-weight: 600; opacity: .75; }
+.animal-table td.num { text-align: right; white-space: nowrap; }
+.animal-table tr.is-here td:first-child { font-weight: 700; }
+.animal-table input { width: 100%; box-sizing: border-box; }
+.animal-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 6px 0; }
+.animal-stats span { display: flex; flex-direction: column; border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 6px; padding: 4px 6px; }
+.animal-stats small { opacity: .7; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
 .time-box { display: grid; gap: 8px; border: 1px solid var(--line); padding: 8px 10px; }
 .time-box legend { font-size: 13px; color: var(--ink-2); padding: 0 4px; }
 .time-row { display: flex; align-items: center; gap: 8px; }

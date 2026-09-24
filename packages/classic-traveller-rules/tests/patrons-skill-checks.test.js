@@ -73,9 +73,8 @@ test('Book 3 p.27: natural 2 and 12 ignore DMs; modified results floor at 3 and 
   assert.equal(modifiedReactionTotal(11, 4), 12);
   assert.equal(modifiedReactionTotal(7, 1), 8);
   assert.equal(REACTION_DMS.fiveOrMoreMilitaryTerms, 1);
-  // Book 3 p.27 prints "If planetary population is 11 or greater, DM -1";
-  // the key is named for the printed threshold.
-  assert.equal(REACTION_DMS.planetaryPopulation11Plus, -1);
+  // The Traveller Book p.101: population 9 or greater, DM -1.
+  assert.equal(REACTION_DMS.planetaryPopulation9Plus, -1);
   const rolled = rollReaction(createSequenceDice([1, 1]), { dm: 3 });
   assert.equal(rolled.total, 2);
   assert.equal(rolled.description, 'Violent. Immediate attack.');

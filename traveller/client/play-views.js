@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.301.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.301.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.301.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.301.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.302.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.302.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.302.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.302.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.301.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.301.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.301.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.301.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.302.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.302.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.302.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.302.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.301.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.302.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -142,6 +142,8 @@ function hitLine(attacker, defender, weaponKey = attacker.weaponKey) {
 }
 
 function woundText(preview) {
+  // v0.302.0: an animal's wound is a number fixed when it was generated.
+  if (preview.fixedWound !== null && preview.fixedWound !== undefined) return `${preview.fixedWound} (fixed)`;
   const modifier = preview.damageModifier ? (preview.damageModifier > 0 ? `+${preview.damageModifier}` : `\u2212${Math.abs(preview.damageModifier)}`) : '';
   return `${preview.damageDice}D${modifier}`;
 }
@@ -159,6 +161,8 @@ function dmSum(preview) {
   add('their evasion', preview.evasionDM);
   add('they are untrained', preview.defenderUntrainedDM);
   add('weakened blow', preview.fatigueDM);
+  add('its weapon', preview.weaponDM);
+  add('their armor', preview.armorDM);
   add('situation', preview.situationalDM);
   // 2D cannot roll under 2, so a required throw at or below 2 is a certainty
   // and printing it ("-1+") is meaningless.
@@ -175,10 +179,30 @@ function dmBreakdown(preview) {
 }
 
 function isDown(fighter) {
+  if (fighter.animal) return Boolean(fighter.down);
   return fighter.down || ['STR', 'DEX', 'END'].some((key) => fighter.characteristics[key] <= 0);
 }
 
+// v0.302.0: an animal has a hits track (The Traveller Book p.92), not
+// characteristics.
+function animalCondition(animal) {
+  if (animal.destroyed) return 'Destroyed';
+  if (animal.woundsTaken >= animal.hits.dead) return 'Dead';
+  if (animal.woundsTaken >= animal.hits.unconscious) return 'Unconscious';
+  return animal.woundsTaken > 0 ? 'Wounded' : 'Unwounded';
+}
+
+function statCells(fighter) {
+  if (fighter.animal) {
+    const a = fighter.animal;
+    return [h('span', { class: a.woundsTaken > 0 ? 'is-hurt' : '', title: `Hits taken; unconscious at ${a.hits.unconscious}, dead at ${a.hits.dead}`, text: `${a.woundsTaken}/${a.hits.dead}` })];
+  }
+  return ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
+    h('span', { class: fighter.characteristics[key] < fighter.full[key] ? 'is-hurt' : '', text: String(fighter.characteristics[key]) })]);
+}
+
 function condition(fighter) {
+  if (fighter.animal) return animalCondition(fighter.animal);
   const zeros = ['STR', 'DEX', 'END'].filter((key) => fighter.characteristics[key] <= 0).length;
   if (zeros === 3) return 'Dead';
   if (zeros === 2) return 'Seriously wounded';
@@ -208,7 +232,7 @@ function orderOf(fighter, state) {
 }
 
 function orderText(fighter, state) {
-  if (isDown(fighter)) return { Dead: 'dead', 'Seriously wounded': 'serious wound', Unconscious: 'unconscious' }[condition(fighter)];
+  if (isDown(fighter)) return { Dead: 'dead', Destroyed: 'destroyed', 'Seriously wounded': 'serious wound', Unconscious: 'unconscious' }[condition(fighter)] ?? 'down';
   const order = orderOf(fighter, state);
   if (!order) return 'undeclared';
   const target = order.targetId ? state.fighters.find((entry) => entry.id === order.targetId) : null;
@@ -225,19 +249,24 @@ function gearRow(reader, state, handlers) {
   const declaring = d && d.actorId === reader.id && !isDown(reader);
   const weaponKey = declaring ? (d.weaponKey ?? reader.weaponKey) : reader.weaponKey;
   const weapon = getPersonalWeapon(weaponKey);
-  const dice = woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 });
-  const label = (key) => { const spec = getPersonalWeapon(key); return `${spec.name}  ${woundText({ damageDice: spec.damageDice, damageModifier: spec.damageModifier ?? 0 })}`; };
+  const beast = reader.animal;
+  const beastWound = (key) => (beast.woundMode === 'rolled' ? 'rolled' : String(beast.weapons[key]?.wound ?? ''));
+  const dice = beast ? beastWound(weaponKey) : woundText({ damageDice: weapon.damageDice, damageModifier: weapon.damageModifier ?? 0 });
+  const label = (key) => {
+    if (beast) return `${(reader.weaponChoices ?? []).find((choice) => choice.key === key)?.name ?? key}  ${beastWound(key)}`;
+    const spec = getPersonalWeapon(key); return `${spec.name}  ${woundText({ damageDice: spec.damageDice, damageModifier: spec.damageModifier ?? 0 })}`;
+  };
   const left = blowsRemaining(reader);
   return h('div', { class: 'sel-gear' },
     h('label', { class: 'sel-stat is-gear' }, h('small', { text: 'In hand' }),
       declaring && reader.weapons.length > 1
         ? h('select', { class: 'gear-select', onchange: (event) => handlers.onPickWeapon(event.target.value) },
           reader.weapons.map((key) => h('option', { value: key, selected: key === weaponKey, text: label(key) })))
-        : h('b', { text: `${weapon.name}  ${dice}` })),
-    h('span', { class: 'sel-stat is-gear' }, h('small', { text: 'Armor' }), h('b', { text: reader.armor === 'none' ? 'None' : reader.armor[0].toUpperCase() + reader.armor.slice(1) })),
+        : h('b', { text: beast ? label(weaponKey) : `${weapon.name}  ${dice}` })),
+    h('span', { class: 'sel-stat is-gear' }, h('small', { text: 'Armor' }), h('b', { text: reader.armor === 'none' ? 'None' : `${reader.armor[0].toUpperCase()}${reader.armor.slice(1)}${reader.armorDM ? `+${reader.armorDM}` : ''}` })),
     reader.encumbrance ? h('span', { class: 'sel-stat is-hurt', title: `Book 1 p.33: carrying ${reader.encumbrance === -2 ? 'to three times strength, as part of a military force' : 'more than their strength in kilograms'}, ${reader.name} counts ${reader.encumbrance === -2 ? 'two' : 'one'} less on STR, DEX and END for all purposes\u2014including wounds and strength advantage.` },
       h('small', { text: 'Laden' }), h('b', { text: String(reader.encumbrance) })) : null,
-    weapon.melee ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: reader.blowsFromWounds
+    weapon.melee && !beast ? h('span', { class: `sel-stat${left <= 0 ? ' is-hurt' : ''}`, title: reader.blowsFromWounds
         ? `Combat blows before every swing is weakened. ${reader.name} entered this fight already wounded, so the allowance is the endurance carried in (${reader.blowAllowance}), not the full ${reader.full.END} (Book 1 p.32).`
         : 'Combat blows before every swing is weakened. The allowance is the endurance the fight began with and does not fall as wounds land (Book 1 p.32).' },
       h('small', { text: reader.blowsFromWounds ? 'Blows (hurt)' : 'Blows' }), h('b', { text: `${left}/${reader.blowAllowance}` })) : null);
@@ -254,11 +283,15 @@ function selectedPanel(reader, state, handlers) {
       h('div', {}, h('h2', { text: reader.name }), reader.service ? h('p', { text: reader.service }) : h('p', { text: reader.side === 'party' ? 'Party' : 'Opposition' })),
       reader.upp ? h('span', { class: 'sel-upp', text: reader.upp }) : null),
     h('div', { class: 'sel-stats' },
-      ['STR', 'DEX', 'END'].map((key) => {
-        const now = reader.characteristics[key];
-        const full = reader.full[key];
-        return h('span', { class: `sel-stat${now < full ? ' is-hurt' : ''}` }, h('small', { text: key }), h('b', { text: now < full ? `${now}/${full}` : String(now) }));
-      })),
+      reader.animal
+        ? [h('span', { class: `sel-stat${reader.animal.woundsTaken ? ' is-hurt' : ''}` }, h('small', { text: 'Hits taken' }), h('b', { text: String(reader.animal.woundsTaken) })),
+          h('span', { class: 'sel-stat' }, h('small', { text: 'Out at' }), h('b', { text: String(reader.animal.hits.unconscious) })),
+          h('span', { class: 'sel-stat' }, h('small', { text: 'Dead at' }), h('b', { text: String(reader.animal.hits.dead) }))]
+        : ['STR', 'DEX', 'END'].map((key) => {
+          const now = reader.characteristics[key];
+          const full = reader.full[key];
+          return h('span', { class: `sel-stat${now < full ? ' is-hurt' : ''}` }, h('small', { text: key }), h('b', { text: now < full ? `${now}/${full}` : String(now) }));
+        })),
     gearRow(reader, state, handlers),
     h('dl', { class: 'sel-lines' },
       h('dt', { text: 'Status' }),
@@ -311,8 +344,7 @@ function trackerRow(fighter, reader, state, handlers) {
     return line.preview && Number.isFinite(line.preview.requiredRoll) ? `${line.preview.requiredRoll}+` : '\u2014';
   };
   const range = fighter === reader ? '' : { Close: 'C', Short: 'S', Medium: 'M', Long: 'L', 'Very long': 'VL', 'Out of range': 'out' }[rangeBetween(reader, fighter).name];
-  const stats = ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
-    h('span', { class: fighter.characteristics[key] < fighter.full[key] ? 'is-hurt' : '', text: String(fighter.characteristics[key]) })]);
+  const stats = statCells(fighter);
   const order = orderText(fighter, state);
   return h('tr', { class: `is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-reader' : ''}`,
     onclick: (event) => { if (!event.target.closest('button')) handlers.onSelectMarker(fighter.id); } },
@@ -401,11 +433,12 @@ function armorName(key) {
 
 function sheetRow(row, state, handlers, focusId) {
   const { fighter } = row;
-  const stats = ['STR', 'DEX', 'END'].map((key, index) => [index ? '\u00b7' : '',
-    h('span', { class: fighter.characteristics[key] < fighter.full[key] ? 'is-hurt' : '', text: String(fighter.characteristics[key]) })]);
+  const stats = statCells(fighter);
   // One characteristic at zero is unconscious (p.30), so the figure that
-  // matters is how close the lowest one is.
-  const lowest = Math.min(...['STR', 'DEX', 'END'].map((key) => fighter.characteristics[key]));
+  // matters is how close the lowest one is. An animal's is its hits to spare.
+  const lowest = fighter.animal
+    ? fighter.animal.hits.unconscious - fighter.animal.woundsTaken
+    : Math.min(...['STR', 'DEX', 'END'].map((key) => fighter.characteristics[key]));
   const brink = !row.down && lowest > 0 && lowest <= 2;
   // A concluded fight is shown, not played: its orders are read-only.
   const live = Boolean(state.live) && !row.down && !state.concluded;
@@ -676,7 +709,7 @@ function fightColumn(state, handlers) {
       focus.target && focus.line && !focus.line.preview?.canAttack ? h('p', { class: `odds${focus.move === 'Close' ? '' : ' is-warning'}`, text: `${getPersonalWeapon(focus.fighter.weaponKey).name} cannot reach ${focus.target.name} at ${focus.line.range.name.toLowerCase()} range${focus.move === 'Close' ? '; closing one band this round.' : '. Close the range, or this order does nothing.'}` }) : null,
       focus.reason ? h('p', { class: 'odds', text: `Suggested: ${focus.reason}. Change the row to overrule it.` }) : null,
       focus.source === 'declared' ? h('p', { class: 'odds', text: 'Already declared this round; changing the row replaces it.' }) : null,
-      state.live && state.seat !== 'player' ? h('form', { class: 'editor-row', onsubmit: (event) => {
+      state.live && state.seat !== 'player' && !focus.fighter.animal ? h('form', { class: 'editor-row', onsubmit: (event) => {
         event.preventDefault();
         const form = event.currentTarget;
         const read = (key) => form.querySelector(`[name="${key}"]`)?.value ?? '';

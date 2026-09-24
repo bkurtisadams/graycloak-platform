@@ -100,7 +100,10 @@ export function createNpcActorDocument({
   effects = [],
   state = {},
   publicNotes = '',
-  refereeNotes = ''
+  refereeNotes = '',
+  // v0.302.0: an animal from The Traveller Book's encounter tables (pp.90-95).
+  // Its whole statline lives here; the characteristics above are unused.
+  animal = null
 } = {}) {
   const scores = normalizedCharacteristics(characteristics);
   const robotic = bodyModel === 'robotic';
@@ -147,6 +150,7 @@ export function createNpcActorDocument({
     notes: { public: String(publicNotes), referee: String(refereeNotes) },
     provenance: { rulesBasis: 'classic-traveller-books-1-3-core', setting: 'Sea of Suns' }
   };
+  if (animal) document.animal = clone(animal);
   assertValidNpcActorDocument(document);
   return document;
 }
@@ -190,6 +194,17 @@ export function validateNpcActorDocument(document) {
   }
   add(errors, typeof document.notes?.public === 'string' && typeof document.notes?.referee === 'string', 'notes are invalid');
   add(errors, nonblank(document.provenance?.rulesBasis) && nonblank(document.provenance?.setting), 'provenance is invalid');
+  if (document.animal !== undefined) {
+    const animal = document.animal;
+    add(errors, plain(animal) && nonblank(animal.type) && nonblank(animal.category), 'animal must name its category and type');
+    add(errors, plain(animal?.hits) && ['unconscious', 'dead', 'destroyed'].every((key) => Number.isInteger(animal.hits[key]) && animal.hits[key] >= 0), 'animal hits are invalid');
+    add(errors, Array.isArray(animal?.weapons) && animal.weapons.length > 0 && animal.weapons.every((weapon) => {
+      try { getPersonalWeapon(weapon?.key); } catch { return false; }
+      return Number.isInteger(weapon.wound) && Array.isArray(weapon.woundGroups);
+    }), 'animal weapons are invalid');
+    add(errors, plain(animal?.armor) && PERSONAL_ARMOR_TYPES.includes(animal.armor.key), 'animal armor is invalid');
+    add(errors, plain(animal?.behaviour) && nonblank(animal.behaviour.code), 'animal behaviour is invalid');
+  }
   return errors;
 }
 
@@ -250,7 +265,8 @@ export function updateNpcActorDocument(document, patch = {}) {
     effects: patch.effects ?? current.effects,
     state: patch.state ?? current.state,
     publicNotes: patch.publicNotes ?? current.notes.public,
-    refereeNotes: patch.refereeNotes ?? current.notes.referee
+    refereeNotes: patch.refereeNotes ?? current.notes.referee,
+    animal: patch.animal === undefined ? current.animal ?? null : patch.animal
   });
 }
 
@@ -305,7 +321,8 @@ export function duplicateNpcActorDocument(document, { name = null } = {}) {
     skills: source.skills, weaponKey: source.loadout?.weaponKey, armor: source.loadout?.armor, inventory: source.inventory ?? [],
     credits: source.finances?.credits ?? 0, retirementPayAnnual: source.finances?.retirementPayAnnual ?? 0,
     effects: source.effects ?? [], state: { ...source.state, archived: false },
-    publicNotes: source.notes?.public ?? '', refereeNotes: source.notes?.referee ?? ''
+    publicNotes: source.notes?.public ?? '', refereeNotes: source.notes?.referee ?? '',
+    animal: source.animal ?? null
   });
 }
 

@@ -270,9 +270,11 @@ export function createAnimalCombatant({ id, name, side, entry, weaponKey = null,
   if (!PERSONAL_ARMOR_TYPES.includes(armor)) throw new RangeError(`unknown personal armor: ${armor}`);
   return {
     id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: false, encumbrance: 0,
-    rolled: null, characteristics: null, current: null, skills: {},
+    // An animal has no characteristics. These placeholders keep the shape a
+    // combatant has everywhere else; nothing reads them while `animal` is set.
+    rolled: null, characteristics: { STR: 1, DEX: 1, END: 1, INT: 1 }, current: { STR: 1, DEX: 1, END: 1 }, skills: {},
     armor, armorDM: integer(entry.armor?.dm ?? 0, 'armor dm'), weaponKey: chosen,
-    status: 'active', firstBlood: false, surpriseDM: 0, evading: false, blows: 0, blowAllowance: null, blowsUsed: 0, hitsTaken: 0,
+    status: 'active', firstBlood: false, surpriseDM: 0, evading: false, blows: 0, blowAllowance: 1, blowsUsed: 0, hitsTaken: 0,
     animal: {
       type: entry.type, category: entry.category, weightKg: entry.weightKg,
       hits: { unconscious: entry.hits.unconscious, dead: entry.hits.dead, destroyed: entry.hits.destroyed },

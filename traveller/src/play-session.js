@@ -51,6 +51,11 @@ import {
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
+import {
+  SECONDS_PER_DAY, campaignDayNumber, animalTableKey, animalState, withAnimalState, buildAnimalTable, animalCheck,
+  rollOnAnimalTable, describeAnimalRow, runSurfaceChecks, animalBehaviourThrow, describeBehaviour,
+  animalTableSheet, animalJournalEntries, animalSurfaceView, animalSheetView
+} from './animal-encounters.js';
 import { spaceSceneCombatPlan, spaceSceneLink, writeSpaceCombatToScene, OWN_SHIP_PARTICIPANT_ID, SPACE_COMBAT_SIDES } from './space-scene-combat.js';
 import {
   shipDamagedLocations, assemblyCostCr, rollRepairCost, fullyRepairLocation, SHIPYARD_STARPORTS, REPAIR_PARTS_CREW_DM
@@ -309,7 +314,9 @@ function journalEntries(resolved) {
   // which do not exist yet, so it is empty rather than a second copy of the
   // log. The old listing is kept below for when journal documents land and
   // the log's own history wants a read-only home.
-  return [];
+  // v0.302.0: the first real Journal documents — each world's animal
+  // encounter tables (The Traveller Book p.95), the referee's alone.
+  return animalJournalEntries(resolved);
   // eslint-disable-next-line no-unreachable
   const log = (resolved.activityLogs ?? [])[0];
   // Newest first, and filed by the campaign date they happened on.
@@ -630,6 +637,15 @@ function actorSheet(resolved, id, subsector = null) {
     // where a character's Record does, holding what the referee writes about
     // an NPC. A statblock stays compact (Kurt, Sep 2026).
     if (!statblock) return npcActorSheet(actor, resolved, subsector);
+    // v0.302.0: an animal's statblock is its Traveller Book statline.
+    if (actor.animal) {
+      return {
+        kind: 'actor', id, statblock: true, compactOnly: true, editable: true,
+        title: actor.identity.name, subtitle: 'Animal',
+        animal: animalSheetView(actor), folder: actor.profile.folder, numberTokens: actor.profile.numberTokens,
+        behaviour: animalState(resolved.campaign).pending?.actorId === id ? animalState(resolved.campaign).pending.behaviour ?? null : null
+      };
+    }
     return {
       reaction: reactionView(resolved, `actor:${id}`, actor.identity.name),
       kind: 'actor', id, statblock,
@@ -793,6 +809,15 @@ export function weaponExpertiseTag({ skills = {}, playerCharacter = false } = {}
 }
 
 // A weapon's name with what it means in this combatant's hands.
+// The Traveller Book p.92: an animal's weapon as the table prints it, "teeth+1",
+// "as pike".
+const AS_WEAPON_KEYS = new Set(['blade', 'pike', 'broadsword', 'body-pistol']);
+export function animalWeaponName(key, dm = 0) {
+  let name = key;
+  try { name = getPersonalWeapon(key).name.toLowerCase(); } catch { /* raw key */ }
+  return `${AS_WEAPON_KEYS.has(key) ? 'as ' : ''}${name}${dm ? `+${dm}` : ''}`;
+}
+
 function taggedWeaponChoices(who, choices) {
   return choices.map((choice) => {
     const tag = weaponExpertiseTag(who, choice.key);
@@ -977,7 +1002,7 @@ function sceneSheet(resolved, id) {
 
 /** The open sheets, in the order the referee opened them. */
 export function sheetViews(resolved, open = [], { subsector = null } = {}) {
-  const build = { ship: shipSheet, actor: actorSheet, scene: sceneSheet };
+  const build = { ship: shipSheet, actor: actorSheet, scene: sceneSheet, animals: (source, id) => animalTableSheet(source, id) };
   return open
     .map((entry) => {
       const sheet = build[entry.kind]?.(resolved, entry.id, subsector) ?? null;
@@ -1405,18 +1430,30 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
     // v0.267.0: or from an NPC actor's, now that an actor has one.
     const holder = source ?? actorById.get(entry.sourceActorId ?? entry.id) ?? null;
     const carried = (holder?.inventory ?? []).filter((item) => item.carried && item.weaponKey).map((item) => item.weaponKey);
-    const weapons = [...new Set([entry.weaponKey, ...carried, 'hands'])];
+    // v0.302.0: an animal fights only with what it grew.
+    const beast = entry.animal ?? null;
+    const weapons = beast ? Object.keys(beast.weapons) : [...new Set([entry.weaponKey, ...carried, 'hands'])];
     let weaponLabel = entry.weaponKey;
     try {
       const spec = getPersonalWeapon(entry.weaponKey);
       const modifier = spec.damageModifier ?? 0;
-      weaponLabel = `${spec.name} ${spec.damageDice}D${modifier ? (modifier > 0 ? `+${modifier}` : `\u2212${Math.abs(modifier)}`) : ''}`;
-    } catch { /* an animal's natural weapon may not be in the table */ }
+      weaponLabel = beast
+        ? `${animalWeaponName(entry.weaponKey, beast.weapons[entry.weaponKey]?.dm)} ${beast.woundMode === 'rolled' ? 'rolled' : beast.weapons[entry.weaponKey]?.wound}`
+        : `${spec.name} ${spec.damageDice}D${modifier ? (modifier > 0 ? `+${modifier}` : `\u2212${Math.abs(modifier)}`) : ''}`;
+    } catch { /* an unknown weapon key keeps its raw name */ }
     return {
       id: entry.id,
       name: entry.name,
       weaponLabel,
-      armorLabel: entry.armor === 'none' ? 'no armor' : entry.armor,
+      armorLabel: entry.armor === 'none' ? 'no armor' : `${entry.armor}${entry.armorDM ? `+${entry.armorDM}` : ''}`,
+      armorDM: Number(entry.armorDM ?? 0),
+      animal: beast ? {
+        type: beast.type, category: beast.category, weightKg: beast.weightKg,
+        hits: { ...beast.hits }, woundsTaken: beast.woundsTaken, destroyed: Boolean(beast.destroyed),
+        woundMode: beast.woundMode, woundAlteration: beast.woundAlteration ? { ...beast.woundAlteration } : null,
+        weapons: JSON.parse(JSON.stringify(beast.weapons)),
+        status: entry.status
+      } : null,
       tactics: entry.tactics,
       side: entry.side === 'party' ? 'party' : 'foe',
       band: line ? entry.position.column : null,
@@ -1433,6 +1470,7 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
       // pistol used in brawling as a club, and lets an unloaded rifle or
       // carbine serve as a cudgel (never a laser). Named for the gun it is.
       weaponChoices: (() => {
+        if (beast) return weapons.map((key) => ({ key, name: animalWeaponName(key, beast.weapons[key]?.dm) }));
         const held = [...new Set([entry.weaponKey, ...carried, 'hands'])].filter(Boolean);
         const named = held.map((key) => { try { return { key, name: getPersonalWeapon(key).name }; } catch { return null; } }).filter(Boolean);
         for (const swung of improvisedMeleeWeapons([...new Set([entry.weaponKey, ...carried])])) {
@@ -1443,14 +1481,14 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
         // v0.270.0: each named with what it means in this combatant's hands.
         return taggedWeaponChoices({ skills: entry.skills, playerCharacter: Boolean(entry.playerCharacter) }, named);
       })(),
-      weaponTag: weaponExpertiseTag({ skills: entry.skills, playerCharacter: Boolean(entry.playerCharacter) }, entry.weaponKey),
+      weaponTag: beast ? null : weaponExpertiseTag({ skills: entry.skills, playerCharacter: Boolean(entry.playerCharacter) }, entry.weaponKey),
       skills: { ...entry.skills },
       blowAllowance: entry.blowAllowance,
       // Book 1 p.32: wounds do not reduce the blow allowance during a fight,
       // but they do in subsequent combats — the allowance is the endurance the
       // combatant arrived with. A thug who walked in already hurt therefore has
       // fewer swings than its characteristic suggests, which is worth saying.
-      blowsFromWounds: entry.blowAllowance < entry.characteristics.END,
+      blowsFromWounds: !beast && entry.blowAllowance < entry.characteristics.END,
       // v0.251.0: Book 1 p.33. The scores above are already reduced, so the
       // screen has to say why, or a player sees a DEX they never rolled.
       encumbrance: Number(entry.encumbrance ?? 0),
@@ -1597,7 +1635,7 @@ function currentWorldProfile(resolved, subsector) {
 // Natural 2 and 12 stand; otherwise DMs apply and the result is kept to 3-12.
 // General DMs: +1 if the character dealing with them has served 5 or more
 // terms in the army, navy, marines or scouts; -1 if the planetary population
-// is 11 or greater. "Other DMs can and should be created": Admin or Bribery in
+// is 9 or greater (The Traveller Book p.101; 1977's 11+ could never apply). "Other DMs can and should be created": Admin or Bribery in
 // a deal (Book 3 names both), and the referee's own. One throw for a whole
 // group, once, on meeting; thrown again after very bad treatment or an
 // unusually dangerous task. The result is the referee's, kept on the campaign.
@@ -1607,7 +1645,7 @@ export function reactionModifiers({ speaker = null, population = null, deal = fa
   if (speaker && MILITARY_REACTION_SERVICES.has(String(speaker.career?.service ?? '').toLowerCase()) && Number(speaker.career?.terms ?? 0) >= 5) {
     parts.push({ label: `${speaker.identity.name}\u2019s ${speaker.career.terms} terms in the ${speaker.career.service}`, dm: REACTION_DMS.fiveOrMoreMilitaryTerms });
   }
-  if (Number.isInteger(population) && population >= 11) parts.push({ label: `population ${population}`, dm: REACTION_DMS.planetaryPopulation11Plus });
+  if (Number.isInteger(population) && population >= 9) parts.push({ label: `population ${population}`, dm: REACTION_DMS.planetaryPopulation9Plus });
   if (deal && speaker) {
     const skills = speaker.skills ?? {};
     const admin = Number(skills.Admin ?? skills.Administration ?? 0);
@@ -2792,21 +2830,59 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const unit = { hours: 3600, days: 86400, weeks: 604800 }[value.unit];
         if (!unit) throw new Error('pass hours, days or weeks');
         if (!Number.isInteger(amount) || amount < 1 || amount > 5200) throw new RangeError('pass a whole number of them, 1 or more');
-        const seconds = amount * unit;
+        let seconds = amount * unit;
         const before = formatCampaignDate(resolved.campaign.time);
+        // v0.302.0: The Traveller Book p.100, animals twice a day while the
+        // party is out on the surface. The clock stops on the first day an
+        // encounter comes up (Kurt, Sep 2026); the rest stays unpassed.
+        const animals = animalState(resolved.campaign);
+        const { system: here } = currentWorldProfile(resolved, subsector);
+        const surface = animals.surface && here && animals.surface.systemId === here.id ? animals.surface : null;
+        if (surface && animals.pending) throw new Error('an animal encounter is waiting: put it on the board or set it aside first');
+        const surfaceTable = surface ? animals.tables[animalTableKey(surface.systemId, surface.terrain)] ?? null : null;
+        let animalPatch = null;
+        let animalNote = null;
+        if (surface && surfaceTable) {
+          const beforeDay = campaignDayNumber(resolved.campaign.time);
+          const endDay = campaignDayNumber(advanceCampaignSeconds(resolved.campaign, seconds).time);
+          const fromDay = Math.max(Number(surface.lastCheckedDay ?? beforeDay) + 1, beforeDay + 1);
+          const dice = createDice();
+          const run = runSurfaceChecks(dice, { fromDay, toDay: endDay });
+          const thrown = run.throws.map((entry) => `${entry.when} ${entry.die}`).join(', ');
+          if (run.hitDay !== null) {
+            seconds = SECONDS_PER_DAY - resolved.campaign.time.secondsOfDay + (run.hitDay - beforeDay - 1) * SECONDS_PER_DAY;
+            const landed = rollOnAnimalTable(dice, surfaceTable, resolved.npcActors ?? []);
+            const date = formatCampaignDate(advanceCampaignSeconds(resolved.campaign, seconds).time);
+            animalPatch = {
+              surface: { ...surface, lastCheckedDay: run.hitDay },
+              pending: {
+                date, when: run.when, key: surfaceTable.key, terrain: surfaceTable.terrainLabel, worldName: surfaceTable.worldName,
+                thrown: landed.thrown, die: landed.die, category: landed.row?.category ?? null,
+                actorId: landed.row?.actorId ?? null, quantity: landed.row?.quantity ?? null, event: landed.row?.event ?? null, behaviour: null
+              }
+            };
+            animalNote = `Animal encounter on ${date}, ${run.when === 'halted' ? 'while halted' : 'while travelling'} (${surfaceTable.terrainLabel}, ${surfaceTable.worldName}): ${surfaceTable.dice === 1 ? '1D' : '2D'} ${landed.thrown} \u2192 ${landed.die}: ${describeAnimalRow(landed.row, landed.actor)}. The clock stopped here (The Traveller Book p.91). Checks thrown: ${thrown}.`;
+          } else {
+            animalPatch = { surface: { ...surface, lastCheckedDay: Math.max(endDay, Number(surface.lastCheckedDay ?? 0)) } };
+            if (run.throws.length) animalNote = `No animals (${surfaceTable.terrainLabel}, ${surfaceTable.worldName}): ${run.throws.length} checks, needing 5+ \u2014 ${thrown}.`;
+          }
+        }
         let rested = [];
         let skipped = [];
         let changed = [];
         if (value.resting && seconds >= REST_DAYS * 86400) {
           ({ changed, rested, skipped } = restTogether(restCandidates().filter((entry) => entry.canRest).map((entry) => entry.id)));
         }
-        registry.put(advanceCampaignSeconds(resolved.campaign, seconds));
+        const advanced = advanceCampaignSeconds(resolved.campaign, seconds);
+        registry.put(animalPatch ? withAnimalState(advanced, animalPatch) : advanced);
         reload();
         persist(changed);
+        const stopped = seconds < amount * unit;
         const span = `${amount} ${amount === 1 ? value.unit.replace(/s$/, '') : value.unit}`;
         const reason = String(value.reason ?? '').trim();
-        const message = `${span} pass${amount === 1 ? 'es' : ''}${reason ? `: ${reason}` : ''} (${before} to ${formatCampaignDate(resolved.campaign.time)}).${rested.length ? ` Rested to full strength: ${rested.join(', ')}.` : ''}`;
+        const message = `${stopped ? `Time passes, stopping short of the ${span} asked for an encounter` : `${span} pass${amount === 1 ? 'es' : ''}`}${reason ? `: ${reason}` : ''} (${before} to ${formatCampaignDate(resolved.campaign.time)}).${rested.length ? ` Rested to full strength: ${rested.join(', ')}.` : ''}${value.resting && stopped && !rested.length ? ' Not three full days, so nobody rested back to strength.' : ''}`;
         log('TIME', message, skipped.length ? { detail: `Not rested: ${skipped.join('; ')}` } : {});
+        if (animalNote) log('ENCOUNTER', animalNote, { visibility: 'referee' });
         lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
@@ -2819,7 +2895,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (!Number.isInteger(year) || year < 0) throw new RangeError('the year is a whole number');
         if (!Number.isInteger(dayOfYear) || dayOfYear < 1 || dayOfYear > DAYS_IN_YEAR) throw new RangeError(`the day is 1 to ${DAYS_IN_YEAR}`);
         const before = formatCampaignDate(resolved.campaign.time);
-        registry.put(updateCampaignTime(resolved.campaign, { year, dayOfYear }));
+        let reset = updateCampaignTime(resolved.campaign, { year, dayOfYear });
+        // v0.302.0: a corrected date is not time spent on the surface; the
+        // animal checks pick up from the new day.
+        const surfaceNow = animalState(reset).surface;
+        if (surfaceNow) reset = withAnimalState(reset, { surface: { ...surfaceNow, lastCheckedDay: campaignDayNumber(reset.time) } });
+        registry.put(reset);
         reload();
         const message = `The referee sets the date: ${before} to ${formatCampaignDate(resolved.campaign.time)}.`;
         log('TIME', message);
@@ -3648,6 +3729,168 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // which gives them the log's cloud sync, its campaign dates and its
       // per-entry visibility for free, and puts them in the same stream as
       // the notices the log already writes.
+      // v0.302.0: animal encounters, The Traveller Book pp.90-95. The
+      // referee says where the party is; tables are built per terrain of the
+      // world they are on, each animal a statblock; the clock (time:pass)
+      // throws the checks, and these are the referee's own hands on it.
+      if (command.startsWith('animals:')) {
+        const value = fight?.value ?? {};
+        const { system } = currentWorldProfile(resolved, subsector);
+        const animals = animalState(resolved.campaign);
+        const today = formatCampaignDate(resolved.campaign.time);
+        const finish = (message, extra = {}) => {
+          lastMessage = { ok: true, message, ...extra };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        };
+        const makeTable = (terrain, format = '2D') => {
+          if (!system) throw new Error('the party is not at a world');
+          const built = buildAnimalTable({ system, terrain, format: format === '1D' ? '1D' : '2D', dice: createDice(), date: today });
+          let campaign = resolved.campaign;
+          for (const actor of built.actors) campaign = addNpcActorToCampaign(campaign, actor);
+          // A table built again replaces the old one; its statblocks are
+          // archived, not deleted, in case a fight still names them.
+          const old = animals.tables[built.table.key];
+          const retired = (old?.rows ?? []).map((row) => row.actorId).filter(Boolean)
+            .map((id) => (resolved.npcActors ?? []).find((entry) => entry.identity.id === id)).filter(Boolean)
+            .map((actor) => updateNpcActorDocument(actor, { state: { ...actor.state, archived: true } }));
+          campaign = withAnimalState(campaign, { tables: { ...animalState(campaign).tables, [built.table.key]: built.table } });
+          registry.putAll([...built.actors, ...retired, campaign]);
+          reload();
+          return built.table;
+        };
+        const pendingFrom = (table, landed, when) => ({
+          date: today, when, key: table.key, terrain: table.terrainLabel, worldName: table.worldName,
+          thrown: landed.thrown, die: landed.die, category: landed.row?.category ?? null,
+          actorId: landed.row?.actorId ?? null, quantity: landed.row?.quantity ?? null, event: landed.row?.event ?? null, behaviour: null
+        });
+        if (command === 'animals:table') {
+          const table = makeTable(String(value.terrain ?? ''), value.format);
+          log('ENCOUNTER', `Animal encounter table built: ${table.terrainLabel} terrain on ${table.worldName} (${table.dice === 1 ? '1D' : '2D'}, The Traveller Book p.95).`, { visibility: 'referee' });
+          return finish(`${table.terrainLabel} table built for ${table.worldName}.`, { key: table.key });
+        }
+        if (command === 'animals:surface') {
+          if (value.terrain === null || value.terrain === '' || value.terrain === undefined) {
+            registry.put(withAnimalState(resolved.campaign, { surface: null }));
+            reload();
+            log('ENCOUNTER', 'The party is back in port: no animal checks.', { visibility: 'referee' });
+            return finish('In port: no animal checks.');
+          }
+          if (!system) throw new Error('the party is not at a world');
+          const terrain = String(value.terrain);
+          const key = animalTableKey(system.id, terrain);
+          if (!animals.tables[key]) makeTable(terrain, value.format);
+          const table = animalState(resolved.campaign).tables[key];
+          registry.put(withAnimalState(resolved.campaign, { surface: { systemId: system.id, worldName: system.name, terrain, lastCheckedDay: campaignDayNumber(resolved.campaign.time) } }));
+          reload();
+          const message = `The party is out on ${system.name}, ${table.terrainLabel.toLowerCase()} terrain: animals are checked twice a day as time passes.`;
+          log('ENCOUNTER', message, { visibility: 'referee' });
+          return finish(message);
+        }
+        if (command === 'animals:event') {
+          const table = animals.tables[String(value.key ?? '')];
+          if (!table) throw new Error('unknown table');
+          const die = Number(value.die);
+          if (!table.rows.some((row) => row.die === die && row.category === 'event')) throw new Error('that row is not an event');
+          const rows = table.rows.map((row) => (row.die === die ? { ...row, event: String(value.text ?? '').trim() } : row));
+          registry.put(withAnimalState(resolved.campaign, { tables: { ...animals.tables, [table.key]: { ...table, rows } } }));
+          reload();
+          return finish('Event written.');
+        }
+        if (command === 'animals:check' || command === 'animals:roll') {
+          // check: one throw now, 5+ (p.91), on the terrain the party is in.
+          // roll: straight onto a table, for an encounter the referee calls.
+          const key = String(value.key ?? '') || (animals.surface && system && animals.surface.systemId === system.id ? animalTableKey(animals.surface.systemId, animals.surface.terrain) : '');
+          const table = animals.tables[key];
+          if (!table) throw new Error(command === 'animals:check' ? 'set where the party is first' : 'unknown table');
+          const dice = createDice();
+          if (command === 'animals:check') {
+            const check = animalCheck(dice, { dm: Number.parseInt(value.dm ?? 0, 10) || 0 });
+            if (!check.hit) {
+              const message = `Animal check (${table.terrainLabel}, ${table.worldName}): 1D ${check.die}${check.dm ? ` ${check.dm > 0 ? '+' : ''}${check.dm}` : ''}, needing 5+ \u2014 nothing.`;
+              log('ENCOUNTER', message, { visibility: 'referee' });
+              return finish(message);
+            }
+          }
+          const landed = rollOnAnimalTable(dice, table, resolved.npcActors ?? []);
+          const pending = pendingFrom(table, landed, command === 'animals:check' ? 'now' : 'called');
+          registry.put(withAnimalState(resolved.campaign, { pending }));
+          reload();
+          const message = `Animal encounter (${table.terrainLabel}, ${table.worldName}): ${table.dice === 1 ? '1D' : '2D'} ${landed.thrown} \u2192 ${landed.die}: ${describeAnimalRow(landed.row, landed.actor)}.`;
+          log('ENCOUNTER', message, { visibility: 'referee' });
+          return finish(message);
+        }
+        if (command === 'animals:dismiss') {
+          registry.put(withAnimalState(resolved.campaign, { pending: null }));
+          reload();
+          return finish('Encounter set aside.');
+        }
+        if (command === 'animals:behaviour') {
+          // p.95: attack and flee, in the animal's own order, thrown once for
+          // the group; surprise from the fight's own throw or the referee.
+          const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.actorId);
+          if (!actor?.animal) throw new Error('choose an animal');
+          const preyCount = Math.max(1, (resolved.campaign.party?.characterIds ?? []).length);
+          const count = animals.pending?.actorId === actor.identity.id ? animals.pending.quantity ?? actor.animal.quantity : actor.animal.quantity;
+          const result = animalBehaviourThrow(createDice(), actor, { surprise: Boolean(value.surprise), surprised: Boolean(value.surprised), preyCount, animalCount: count });
+          const text = describeBehaviour(result);
+          const behaviour = { action: result.action, speed: result.speed, text, date: today };
+          if (animals.pending?.actorId === actor.identity.id) {
+            registry.put(withAnimalState(resolved.campaign, { pending: { ...animals.pending, behaviour } }));
+            reload();
+          }
+          const message = `${actor.identity.name} (${actor.animal.behaviour.code}) ${text} (The Traveller Book p.95).`;
+          log('ENCOUNTER', message, { visibility: 'referee' });
+          return finish(message, { behaviour });
+        }
+        if (command === 'animals:place') {
+          // One click from the encounter to the board: the party at one end,
+          // the animals two bands off, and the Book 1 range throw still the
+          // referee's to make before the fight begins.
+          const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.actorId);
+          if (!actor?.animal) throw new Error('choose an animal');
+          if (liveEncounter()) throw new Error('a fight is already running');
+          if (!setupEncounter()) {
+            const opened = createEncounterDocument({ campaign: resolved.campaign, characters: [], opponents: [], spatialMode: 'range-line', range: 'medium', setup: true, date: resolved.campaign.time, dice: createDice() });
+            registry.put(opened);
+            registry.put(addEncounterToCampaign(resolved.campaign, opened));
+            reload();
+          }
+          let encounter = setupEncounter();
+          const gravityFactor = currentGravityFactor(resolved, subsector);
+          const onBoard = new Set(encounter.combatants.map((entry) => entry.sourceActorId ?? entry.id));
+          for (const id of resolved.campaign.party?.characterIds ?? []) {
+            const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+            if (!character || onBoard.has(id) || !String(character.identity.name ?? '').trim() || character.status?.alive === false) continue;
+            encounter = addEncounterCombatantFromCharacter(encounter, { character, column: 0, row: 0, gravityFactor }).encounter;
+          }
+          const wanted = Math.max(1, Math.round(Number(value.count ?? actor.animal.quantity ?? 1)) || 1);
+          const room = 16 - encounter.combatants.filter((entry) => entry.side !== 'party').length;
+          const count = Math.max(0, Math.min(wanted, room));
+          for (let index = 0; index < count; index += 1) {
+            encounter = addEncounterCombatantFromActor(encounter, { actor, side: 'opposition', column: Math.min(2, encounter.map.columns - 1), row: 0, gravityFactor }).encounter;
+          }
+          persist([encounter]);
+          if (animals.pending?.actorId === actor.identity.id) {
+            registry.put(withAnimalState(resolved.campaign, { pending: null }));
+            reload();
+          }
+          const message = `${count} ${actor.identity.name}${count === 1 ? '' : 's'} on the board${count < wanted ? ` (of ${wanted}; the board holds 16 a side)` : ''}. Throw the range, then begin.`;
+          return finish(message);
+        }
+        if (command === 'animals:wound-mode') {
+          // p.92: rolled once when generated, or every hit if the referee
+          // wishes to take the trouble.
+          const actor = (resolved.npcActors ?? []).find((entry) => entry.identity.id === value.actorId);
+          if (!actor?.animal) throw new Error('choose an animal');
+          const woundMode = value.woundMode === 'rolled' ? 'rolled' : 'fixed';
+          registry.put(updateNpcActorDocument(actor, { animal: { ...actor.animal, woundMode } }));
+          reload();
+          return finish(woundMode === 'rolled' ? `${actor.identity.name} rolls its wounds every hit.` : `${actor.identity.name} inflicts its fixed wound.`);
+        }
+        throw new Error(`unknown command: ${command}`);
+      }
       // v0.299.0: the reaction throw (Book 3 p.22-23), for one NPC actor or a
       // statblock, or for a fight's whole opposition ("one throw is
       // sufficient to determine the reaction of an entire group").
@@ -4706,6 +4949,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.chat = mergedChat(state.chat ?? []);
       state.compendium = compendiumView(resolved, subsector);
+      // v0.302.0: where the party is, for the animal checks (referee only).
+      state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating
@@ -4907,7 +5152,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             // only the dice before, and play.html drew no controls at all.
             wound: {
               key: wound.key, defenderId: wound.defender?.id ?? null, defenderName: wound.defender?.name ?? null,
-              attackerName: wound.attackerName, damageDice: [...wound.damageDice], modifier: wound.modifier,
+              attackerName: wound.attackerName, damageDice: [...wound.damageDice], modifier: wound.modifier, woundGroups: wound.woundGroups ? [...wound.woundGroups] : null,
               weaponName: wound.weaponName, current: { ...(wound.defender?.current ?? {}) }, remaining: wound.remaining ?? 1
             },
             actions: []

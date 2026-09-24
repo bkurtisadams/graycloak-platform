@@ -7,6 +7,7 @@ import {
   inventoryLoadGrams,
   getPersonalWeapon,
   createPersonalCombatant,
+  createAnimalCombatant,
   resolvePersonalSurprise,
   resolvePersonalAttack,
   rollPersonalAttack,
@@ -379,6 +380,12 @@ export function validateEncounterDocument(document) {
     add(errors, typeof entry.tokenLabel === 'string' && entry.tokenLabel.length <= 3, `combatant ${entry.name ?? ''} tokenLabel is invalid`);
     add(errors, Array.isArray(entry.conditions) && entry.conditions.every((condition) => ENCOUNTER_CONDITIONS[entry.bodyModel]?.includes(condition)), `combatant ${entry.name ?? ''} conditions are invalid`);
     add(errors, Array.isArray(entry.contactIds) && entry.contactIds.every(nonblank), `combatant ${entry.name ?? ''} contacts are invalid`);
+    if (entry.animal !== undefined) {
+      const animal = entry.animal;
+      add(errors, plain(animal) && plain(animal.hits) && ['unconscious', 'dead', 'destroyed'].every((key) => Number.isInteger(animal.hits[key])), `combatant ${entry.name ?? ''} animal hits are invalid`);
+      add(errors, Number.isInteger(animal?.woundsTaken) && animal.woundsTaken >= 0, `combatant ${entry.name ?? ''} animal wounds are invalid`);
+      add(errors, plain(animal?.weapons) && Object.hasOwn(animal.weapons, entry.weaponKey), `combatant ${entry.name ?? ''} is an animal fighting with a weapon it does not have`);
+    }
   }
   if (Array.isArray(document.combatants)) {
     add(errors, document.status === 'setup' || document.combatants.some((entry) => entry.side === 'party'), 'combatants require a party side');
@@ -599,10 +606,13 @@ function attackText(result) {
   const roll = `2D [${result.dice.join('] [')}] = ${result.roll}`;
   const defence = result.parryDM + result.evasionDM + result.defenderUntrainedDM + result.defenderDM;
   const signed = (value) => `${value >= 0 ? '+' : ''}${value}`;
-  const dms = `SKILL ${signed(result.skillDM)} / CHAR ${signed(result.characteristicDM)} / UNTRAINED ${signed(result.untrainedDM)} / DEF ${signed(defence)} / SITUATION ${signed(result.situationalDM)}`;
+  // v0.302.0: an animal's weapon (teeth+1) and armor (cmbt+4) DMs.
+  const beast = result.weaponDM || result.armorDM ? ` / WEAPON ${signed(result.weaponDM ?? 0)} / ARMOR ${signed(result.armorDM ?? 0)}` : '';
+  const dms = `SKILL ${signed(result.skillDM)} / CHAR ${signed(result.characteristicDM)} / UNTRAINED ${signed(result.untrainedDM)} / DEF ${signed(defence)} / SITUATION ${signed(result.situationalDM)}${beast}`;
   const placement = result.firstBloodRoll ? ` / WOUND LOCATION [${result.firstBloodRoll}]` : '';
   const modifier = result.damageModifier ? (result.damageModifier > 0 ? ` +${result.damageModifier}` : ` ${result.damageModifier}`) : '';
-  const dice = result.damageDice.map((die) => `[${die}]`).join(' ');
+  // A fixed animal wound has no dice to show (The Traveller Book p.92).
+  const dice = result.damageDice.length ? result.damageDice.map((die) => `[${die}]`).join(' ') : 'fixed wound';
   const total = result.woundTotal ?? result.damageTotal;
   // Book 1 p.30: a hit whose wound totals zero or less connects but inflicts
   // nothing, which is not the same as a miss.
@@ -761,8 +771,20 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
   if (sideCount >= sideLimit) throw new RangeError(`${side} supports at most ${sideLimit} combatants`);
   if (!Number.isInteger(column) || column < 0 || column >= next.map.columns || !Number.isInteger(row) || row < 0 || row >= next.map.rows) throw new RangeError('map position is outside the encounter workspace');
   const weaponKey = actor.loadout?.weaponKey ?? 'hands';
+  // v0.302.0: an animal (The Traveller Book pp.90-95) fights from its own
+  // statline: a hits track, not characteristics.
+  const base = actor.animal
+    ? withCurrentState(createAnimalCombatant({
+      id: stableDocumentId('participant', `${next.identity.id}|${copyKey}`),
+      name: copyName,
+      side,
+      entry: actor.animal,
+      weaponKey: actor.animal.weapons.some((weapon) => weapon.key === weaponKey) ? weaponKey : null,
+      woundMode: actor.animal.woundMode === 'rolled' ? 'rolled' : 'fixed'
+    }))
+    : null;
   const combatant = {
-    ...withCurrentState(createPersonalCombatant({
+    ...(base ?? withCurrentState(createPersonalCombatant({
       id: stableDocumentId('participant', `${next.identity.id}|${copyKey}`),
       name: copyName,
       side,
@@ -772,7 +794,7 @@ export function addEncounterCombatantFromActor(document, { actor, side = 'opposi
       weaponKey,
       surpriseDM: 0,
       encumbrance: npcActorEncumbrance(actor, { gravityFactor })
-    }), actor.current),
+    }), actor.current)),
     position: { column, row },
     cover: 'none',
     foldingStock: false,
@@ -1087,6 +1109,7 @@ export function setCombatantWeapon(document, { combatantId, weaponKey } = {}) {
   if (combatant.status !== 'active') throw new Error(`${combatant.name} is ${combatant.status}`);
   const weapon = getPersonalWeapon(weaponKey);
   if (combatant.weaponKey === weaponKey) return { encounter: next, entry: null };
+  if (combatant.animal && !Object.hasOwn(combatant.animal.weapons, weaponKey)) throw new Error(`${combatant.name} has no ${weapon.name.toLowerCase()}`);
   combatant.weaponKey = weaponKey;
   const entry = { round: next.round, kind: 'weapon', side: combatant.side, combatantId, text: `${combatant.name} fights with ${weapon.name.toLowerCase()}.` };
   next.history.push(entry);
@@ -1319,6 +1342,8 @@ export function resolveDeclaredRound(document, { dice, date, playerAllocatesWoun
     defenderId: wound.defenderId,
     damageDice: [...wound.damageDice],
     modifier: wound.result.damageModifier ?? 0,
+    // v0.302.0: an animal's wound arrives already made into groups.
+    woundGroups: wound.result.woundGroups ? [...wound.result.woundGroups] : null,
     weaponName: wound.result.weaponName,
     entryIndex: entries.findIndex((entry) => entry.kind === 'attack' && entry.detail === wound.result)
   }));
@@ -1328,8 +1353,13 @@ export function resolveDeclaredRound(document, { dice, date, playerAllocatesWoun
 // Whether the wounded player has a choice to make: not the first wound (p.30
 // puts that on one random characteristic), not a wound that inflicts nothing,
 // and not a combatant already out of the fight.
+function pendingWoundTotal(wound) {
+  if (Array.isArray(wound.woundGroups)) return wound.woundGroups.reduce((sum, group) => sum + group, 0);
+  return wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier;
+}
+
 function woundNeedsAllocation(defender, wound) {
-  const total = wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier;
+  const total = pendingWoundTotal(wound);
   return Boolean(defender && defender.status === 'active' && defender.playerCharacter && !defender.firstBlood && total > 0);
 }
 
@@ -1354,10 +1384,11 @@ function settleRoundWounds(next, entries, live, wounds, fromIndex, { dice, date,
     // Book 1 p.30: the weapon's constant is part of the wound, and a result of
     // zero or less has no effect - so it is not a wound received, and must not
     // consume the first-blood roll.
-    const inflicts = wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier > 0;
+    const inflicts = pendingWoundTotal(wound) > 0;
     const firstBloodRoll = inflicts && defender.firstBlood ? dice.rollD6() : null;
     const damage = applyPersonalDamage(defender, wound.damageDice, firstBloodRoll, {
       modifier: wound.modifier,
+      woundGroups: wound.woundGroups ?? null,
       allocation: choice?.allocation ?? null,
       targets: choice?.targets ?? null
     });
@@ -1389,9 +1420,12 @@ export function pendingWoundAllocation(document) {
     attacker,
     attackerName: attacker?.name ?? result?.attackerId ?? 'attacker',
     weaponName: wound.weaponName,
-    damageDice: [...wound.damageDice],
+    // An animal's fixed wound shows its groups where dice would be; the
+    // groups themselves are what land (woundGroups).
+    damageDice: wound.woundGroups ? [...wound.woundGroups] : [...wound.damageDice],
     modifier: wound.modifier,
-    total: wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier,
+    woundGroups: wound.woundGroups ? [...wound.woundGroups] : null,
+    total: pendingWoundTotal(wound),
     remaining: resolution.wounds.length - resolution.nextIndex
   };
 }
@@ -1402,7 +1436,7 @@ export function pendingWoundAllocation(document) {
 export function previewWoundAllocation(document, { allocation = null, targets = null } = {}) {
   const pending = pendingWoundAllocation(document);
   if (!pending) throw new Error('no wound is waiting to be allocated');
-  const damage = applyPersonalDamage(clone(pending.defender), pending.damageDice, null, { modifier: pending.modifier, allocation, targets });
+  const damage = applyPersonalDamage(clone(pending.defender), pending.damageDice, null, { modifier: pending.modifier, woundGroups: pending.woundGroups, allocation, targets });
   return { combatant: damage.combatant, allocations: damage.allocations, status: damage.status, wound: damage.wound ?? null };
 }
 

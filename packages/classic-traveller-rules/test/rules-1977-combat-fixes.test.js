@@ -81,7 +81,7 @@ test('Book 1 p.27: 1977 terrain rows present, 1981 situation DMs flagged', () =>
   assert.ok(SURPRISE_DMS_NOT_1977.includes('battleDress'));
 });
 
-test('Book 3 p.23: reaction DM keys off population 11+', () => {
-  assert.equal(REACTION_DMS.planetaryPopulation11Plus, -1);
-  assert.equal(REACTION_DMS.planetaryPopulation9Plus, undefined);
+test('The Traveller Book p.101: reaction DM keys off population 9+, not 1977\'s unreachable 11+', () => {
+  assert.equal(REACTION_DMS.planetaryPopulation9Plus, -1);
+  assert.equal(REACTION_DMS.planetaryPopulation11Plus, undefined);
 });

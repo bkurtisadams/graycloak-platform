@@ -91,9 +91,11 @@ function publishedPendingWound(encounter) {
     defenderName: defender.name,
     attackerName: combatantName(encounter, wound.attackerId),
     weaponName: wound.weaponName ?? null,
-    damageDice: [...wound.damageDice],
+    // v0.302.0: an animal's fixed wound arrives as groups, shown as its dice.
+    damageDice: wound.woundGroups ? [...wound.woundGroups] : [...wound.damageDice],
     modifier: wound.modifier,
-    total: wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier,
+    woundGroups: wound.woundGroups ? [...wound.woundGroups] : null,
+    total: wound.woundGroups ? wound.woundGroups.reduce((sum, group) => sum + group, 0) : wound.damageDice.reduce((sum, die) => sum + die, 0) + wound.modifier,
     // The wounded character's own current values, so the page can show what
     // each choice would leave. Their sheet already carries these.
     current: { STR: defender.current.STR, DEX: defender.current.DEX, END: defender.current.END },

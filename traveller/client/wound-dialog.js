@@ -10,7 +10,7 @@
 // preview and the rules behind them live here rather than twice. The caller
 // owns the dialog element and what to do with the answer; this owns what the
 // player sees and what the choice would do.
-import { applyPersonalDamage } from '../vendor/classic-traveller-rules/index.js?v=v0.301.0';
+import { applyPersonalDamage } from '../vendor/classic-traveller-rules/index.js?v=v0.302.0';
 
 export const WOUND_CHARACTERISTICS = Object.freeze(['STR', 'DEX', 'END']);
 
@@ -71,6 +71,7 @@ export function previewWoundDraft(prompt, draft) {
   try {
     const damage = applyPersonalDamage(combatant, prompt.damageDice, null, {
       modifier: prompt.modifier,
+      woundGroups: prompt.woundGroups ?? null,
       allocation: prompt.modifier ? draft.shares : null,
       targets: draft.targets
     });
