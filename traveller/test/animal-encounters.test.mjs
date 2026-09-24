@@ -238,6 +238,10 @@ test('v0.305.0 an empty setup board with an animal encounter waiting: no reactio
   holder.append(...[scene].flat(Infinity).filter(Boolean));
   assert.match(holder.textContent, /Animal encounter/);
   assert.match(holder.textContent, /1\. Surprise/);
+  // v0.306.0: the board's own range and surprise are not repeated beside it.
+  assert.doesNotMatch(holder.textContent, /Throw range/);
+  assert.doesNotMatch(holder.textContent, /Roll surprise/);
+  assert.match(holder.textContent, /Put the encounter on the board, or drag/);
   const chips = dom.window.document.createElement('div');
   chips.append(...[renderMastChips({ ...view, seat: 'referee' }, { openDrawer: () => null, drawer: null })].flat(Infinity).filter(Boolean));
   assert.match(chips.textContent, /Board open, setting up/);

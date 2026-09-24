@@ -1253,12 +1253,19 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .surface-inline { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--ink-2); white-space: nowrap; }
 .encounter-head { font-size: 13px; color: var(--ink-2); }
 .encounter-line { font-size: 14px; }
-.encounter-step { display: grid; grid-template-columns: 9.5em minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.encounter-step { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; padding: 4px 0; border-top: 1px solid var(--line); }
 .encounter-step-label { font-weight: 700; font-size: 14px; }
 .encounter-step-result { font-size: 14px; }
 .encounter-step-result.is-open { color: var(--ink-2); font-style: italic; }
-.encounter-step-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }
-.encounter-step-actions select { font-size: 13px; }
+.encounter-step-actions { display: flex; flex-wrap: nowrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.encounter-step-actions select, .encounter-box select { width: auto; font-size: 13px; }
+/* v0.306.0: one line a step (Kurt, Sep 2026: the panel was too tall). */
+.fight-setup > .encounter-box { flex-basis: 100%; max-width: 860px; gap: 4px; }
+.encounter-box .animal-table { margin: 0; }
+@container (max-width: 640px) {
+  .encounter-step { grid-template-columns: 8em minmax(0, 1fr); }
+  .encounter-step-actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
+}
 .time-row { display: flex; align-items: center; gap: 8px; }
 .signin-form .time-row input { width: 90px; }
 

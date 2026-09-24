@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.305.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.305.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.305.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.305.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.306.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.306.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.306.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.306.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.305.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.305.0';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.305.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.305.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.306.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.306.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.306.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.306.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.305.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.306.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -575,6 +575,7 @@ function setupStrip(state, handlers) {
   const party = state.fighters.filter((entry) => entry.side === 'party').length;
   const foes = state.fighters.filter((entry) => entry.side !== 'party').length;
   const ready = party > 0 && foes > 0;
+  const encounterWaiting = Boolean(state.animals?.pending && state.live && state.seat !== 'player');
   const begin = (surprise) => handlers.onBeginFight?.(surprise);
   // v0.271.0: Book 1 p.27, the range the parties met at. Thrown with the
   // terrain DM or stated; either moves the opposition that far off. Dragging
@@ -594,17 +595,20 @@ function setupStrip(state, handlers) {
     opening.set ? h('span', { class: 'fight-setup-note', text: opening.set }) : null) : null;
   return h('section', { class: 'fight-setup', 'aria-label': 'Setting up the fight' },
     // v0.305.0: an animal encounter waiting is what this board is for.
-    state.animals?.pending && state.live && state.seat !== 'player' ? renderAnimalEncounter(state.animals, (command, value) => handlers.onAnimals?.(command, value)) : null,
-    rangeLine,
+    encounterWaiting ? renderAnimalEncounter(state.animals, (command, value) => handlers.onAnimals?.(command, value)) : null,
+    // v0.306.0: while the encounter's own surprise and range stand ready and
+    // the board is empty, the board's copies of them only confuse.
+    encounterWaiting && !ready ? null : rangeLine,
     // v0.299.0: the opposition's reaction, one throw for the group.
     state.fightReaction && state.live ? renderReactionPanel(state.fightReaction, handlers, { title: 'Their reaction (Book 3 p.23; The Traveller Book p.101): one throw for the group' }) : null,
     h('span', { class: 'fight-setup-count', text: ready
       ? `${party} party, ${foes} opposition. Surprise, then begin (p.26):`
-      : 'Both sides are needed before surprise. Right-click a token to remove it.' }),
-    h('button', { type: 'button', class: 'button is-small is-primary', disabled: !ready, text: 'Roll surprise', onclick: () => begin('roll') }),
-    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Party has it', onclick: () => begin('party') }),
-    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Opposition has it', onclick: () => begin('opposition') }),
-    h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Nobody', onclick: () => begin('none') }));
+      : encounterWaiting ? 'Put the encounter on the board, or drag characters and actors onto a band.' : 'Both sides are needed before surprise. Right-click a token to remove it.' }),
+    ...(encounterWaiting && !ready ? [] : [
+      h('button', { type: 'button', class: 'button is-small is-primary', disabled: !ready, text: 'Roll surprise', onclick: () => begin('roll') }),
+      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Party has it', onclick: () => begin('party') }),
+      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Opposition has it', onclick: () => begin('opposition') }),
+      h('button', { type: 'button', class: 'button is-small', disabled: !ready, text: 'Nobody', onclick: () => begin('none') })]));
 }
 
 // v0.255.0: Kurt's review of v0.254.0 — the band line was still the
