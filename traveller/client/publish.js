@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.294.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.294.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.295.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.295.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -74,7 +74,8 @@ async function initFirestore() {
 
 export async function publishCampaign(published) {
   const db = await ensureFirestore();
-  await db.collection('travellerCampaigns').doc(published.campaignId).set(published, { merge: true });
+  // v0.295.0: fields replaced whole, as saveCampaignHome does.
+  await db.collection('travellerCampaigns').doc(published.campaignId).set(published, { mergeFields: Object.keys(published) });
   return published.campaignId;
 }
 
@@ -456,7 +457,14 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
       throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision });
     }
     transaction.set(ref, next);
-    transaction.set(envelopeRef, { ...envelope, homeRevision: next.revision, homeSavedAt: next.savedAt }, { merge: true });
+    // v0.295.0: each field the envelope carries is replaced whole. A plain
+    // merge merged the ownership map key by key, so a character removed from
+    // the campaign stayed "owned" in the envelope for good — the rules still
+    // let its old player declare for it, and a rejoining player's page took
+    // it for already in (Kurt's diagnostics, Sep 2026). Fields this save does
+    // not carry (a rename's name, say) are still left alone.
+    const payload = { ...envelope, homeRevision: next.revision, homeSavedAt: next.savedAt };
+    transaction.set(envelopeRef, payload, { mergeFields: Object.keys(payload) });
     written = next.revision;
   });
   return written;

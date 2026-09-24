@@ -2068,6 +2068,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         revision = home.revision;
         reload();
         setSave('cloud', `Loaded from the cloud, revision ${home.revision}`);
+        // v0.295.0: publish once on opening, so the players' copy of the
+        // campaign (who owns what, which characters are in it) is current
+        // even if nothing changes this visit — an old envelope had kept a
+        // removed character as owned.
+        setTimeout(() => { saveToCloud(); }, 0);
       } else {
         revision = null;
         setSave('cloud', 'Signed in. The first change will create the cloud copy.');
