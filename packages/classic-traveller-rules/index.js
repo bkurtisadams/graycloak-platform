@@ -644,8 +644,36 @@ export {
   MORALE_DMS,
   moraleDMParts,
   resolvePersonalMorale,
-  endPersonalCombatRecovery
+  endPersonalCombatRecovery,
+  ANIMAL_WOUND_MODES,
+  createAnimalCombatant
 } from './src/combat/personal-combat.js';
+
+export {
+  ANIMAL_TERRAIN_TYPES_1982,
+  ANIMAL_TERRAIN_KEYS_1982,
+  ANIMAL_ENCOUNTER_COLUMNS_1982,
+  ANIMAL_CATEGORIES_1982,
+  ANIMAL_TYPES_1982,
+  ANIMAL_ATTRIBUTES_1982,
+  ANIMAL_SIZES_1982,
+  ANIMAL_WEAPONS_1982,
+  ANIMAL_ARMOR_1982,
+  ANIMAL_WEAPON_DMS_1982,
+  ANIMAL_ARMOR_DMS_1982,
+  ANIMAL_CHARACTERISTICS_1982,
+  ANIMAL_ENCOUNTER_CHECK_1982,
+  animalAttributeDM,
+  animalPlanetSizeDM,
+  animalBehaviourCode,
+  animalDisplayName,
+  fixedAnimalWound,
+  rollAnimalWound,
+  generateAnimalTableEntry,
+  generateAnimalEncounterTable,
+  rollAnimalTableRow,
+  resolveAnimalBehaviour
+} from './src/encounters/animals-1982.js';
 
 export {
   SUBSECTOR_COLUMNS,

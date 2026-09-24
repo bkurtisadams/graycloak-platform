@@ -173,6 +173,8 @@ export const PERSONAL_EXPERTISE_FLOOR = 0.5;
 
 export function personalWeaponExpertise(combatant, weaponKey) {
   const spec = getPersonalWeapon(weaponKey);
+  // The Traveller Book p.92: an animal's weapon, even "as blade", is its own.
+  if (combatant?.animal) return PERSONAL_EXPERTISE_FLOOR;
   const skills = combatant?.skills ?? {};
   let expertise = combatant?.playerCharacter || spec.naturalWeapon ? PERSONAL_EXPERTISE_FLOOR : 0;
   for (const name of spec.skillNames) {
@@ -192,7 +194,7 @@ export function personalWeaponSkillLevel(combatant, weaponKey) {
 
 export function weaponCharacteristicDM(combatant, weaponKey) {
   const spec = getPersonalWeapon(weaponKey);
-  if (spec.characteristic === null) return 0;
+  if (spec.characteristic === null || combatant?.animal) return 0;
   const value = Number(combatant.characteristics?.[spec.characteristic] ?? 0);
   if (value <= spec.lowMax) return spec.lowDM;
   if (value >= spec.highMin) return spec.highDM;
@@ -239,6 +241,86 @@ export function createPersonalCombatant({ id, name, side, characteristics, skill
   // start of the encounter. Wounds taken during the fight do not reduce it;
   // wounds taken before it do, because they reduced endurance first.
   return { id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: Boolean(playerCharacter), encumbrance: penalty, rolled: clone(rolled), characteristics: clone(base), current: { STR: base.STR, DEX: base.DEX, END: base.END }, skills: clone(skills), armor, weaponKey, status: 'active', firstBlood: true, surpriseDM: integer(surpriseDM, 'surpriseDM'), evading: false, blows: 0, blowAllowance: base.END, blowsUsed: 0, hitsTaken: 0 };
+}
+
+// ---------------------------------------------------------------------------
+// The Traveller Book (1982) p.92 animals in Book 1 combat. An animal has a
+// hits track, not characteristics: unconscious at the first hits throw, dead
+// at the total, destroyed (no food or pelt) at twice the total. Its wound is
+// rolled once when the animal is generated (0 or less is 1) unless the
+// referee rolls every hit (0 or less is 0). teeth+1 and cmbt+4 are DMs on the
+// combat roll, the second made by whoever attacks the armored animal.
+// ---------------------------------------------------------------------------
+export const ANIMAL_WOUND_MODES = Object.freeze(['fixed', 'rolled']);
+
+export function createAnimalCombatant({ id, name, side, entry, weaponKey = null, woundMode = 'fixed' } = {}) {
+  if (typeof id !== 'string' || !id.trim()) throw new TypeError('combatant id must be a nonblank string');
+  if (typeof name !== 'string' || !name.trim()) throw new TypeError('combatant name must be a nonblank string');
+  if (typeof side !== 'string' || !side.trim()) throw new TypeError('combatant side must be a nonblank string');
+  if (!entry?.hits || !Array.isArray(entry.weapons) || !entry.weapons.length) throw new TypeError('entry must be a generated animal');
+  if (!ANIMAL_WOUND_MODES.includes(woundMode)) throw new RangeError(`unknown animal wound mode: ${woundMode}`);
+  const weapons = {};
+  for (const weapon of entry.weapons) {
+    getPersonalWeapon(weapon.key);
+    weapons[weapon.key] = { dm: integer(weapon.dm ?? 0, 'weapon dm'), wound: integer(weapon.wound, 'weapon wound'), woundGroups: [...weapon.woundGroups] };
+  }
+  const chosen = weaponKey ?? entry.weapons[0].key;
+  if (!Object.hasOwn(weapons, chosen)) throw new RangeError(`${name} has no ${chosen}`);
+  const armor = entry.armor?.key ?? 'none';
+  if (!PERSONAL_ARMOR_TYPES.includes(armor)) throw new RangeError(`unknown personal armor: ${armor}`);
+  return {
+    id: id.trim(), name: name.trim(), side: side.trim(), playerCharacter: false, encumbrance: 0,
+    rolled: null, characteristics: null, current: null, skills: {},
+    armor, armorDM: integer(entry.armor?.dm ?? 0, 'armor dm'), weaponKey: chosen,
+    status: 'active', firstBlood: false, surpriseDM: 0, evading: false, blows: 0, blowAllowance: null, blowsUsed: 0, hitsTaken: 0,
+    animal: {
+      type: entry.type, category: entry.category, weightKg: entry.weightKg,
+      hits: { unconscious: entry.hits.unconscious, dead: entry.hits.dead, destroyed: entry.hits.destroyed },
+      woundsTaken: 0, destroyed: false, woundMode, woundAlteration: entry.woundAlteration ? { ...entry.woundAlteration } : null, weapons
+    }
+  };
+}
+
+function animalStatus(animal) {
+  if (animal.woundsTaken >= animal.hits.dead) return 'dead';
+  if (animal.woundsTaken >= animal.hits.unconscious) return 'unconscious';
+  return 'active';
+}
+
+// Each die stays its own Book 1 wound group; a -nD alteration is a negative
+// modifier taken from the largest groups first, and xN multiplies every group.
+export function rollAnimalWound(dice, weaponKey, wounds = null) {
+  requireDice(dice);
+  const spec = getPersonalWeapon(weaponKey);
+  const extra = wounds?.dice > 0 ? wounds.dice : 0;
+  const rolled = Array.from({ length: spec.damageDice + extra }, () => dice.rollD6());
+  const minus = wounds?.dice < 0 ? -Array.from({ length: -wounds.dice }, () => dice.rollD6()).reduce((a, b) => a + b, 0) : 0;
+  const modifier = (spec.damageModifier ?? 0) + minus;
+  const times = wounds?.times ?? 1;
+  const groups = spreadWoundModifier(rolled, modifier).map((group) => group * times);
+  const total = Math.max(0, (rolled.reduce((a, b) => a + b, 0) + modifier) * times);
+  return Object.freeze({ dice: Object.freeze(rolled), modifier, times, groups: Object.freeze(total > 0 ? groups.filter((group) => group > 0) : []), total });
+}
+
+function spreadWoundModifier(rolled, modifier) {
+  const groups = [...rolled];
+  let remaining = modifier;
+  while (remaining !== 0) {
+    const step = remaining > 0 ? 1 : -1;
+    const candidates = groups.map((group, index) => ({ group, index })).filter((entry) => step > 0 || entry.group > 0);
+    if (!candidates.length) break;
+    candidates.sort((a, b) => (step > 0 ? a.group - b.group : b.group - a.group) || a.index - b.index);
+    groups[candidates[0].index] += step;
+    remaining -= step;
+  }
+  return groups;
+}
+
+function animalAttackDMs(attacker, defender) {
+  return {
+    weaponDM: Number(attacker?.animal?.weapons?.[attacker.weaponKey]?.dm ?? 0),
+    armorDM: Number(defender?.armorDM ?? 0)
+  };
 }
 
 export function resolvePersonalSurprise({ sides, dice } = {}) {
@@ -409,10 +491,30 @@ function inflictWound(current, preferred, amount, allocations, extra = {}) {
   return remaining;
 }
 
-export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null, { modifier = 0, allocation = null, targets = null } = {}) {
-  const wound = personalWoundGroups(damageDice, modifier, allocation);
+// woundGroups: an animal's wound, already made into groups (p.92), in place
+// of dice and a modifier.
+function fixedWoundGroups(groups) {
+  if (!Array.isArray(groups) || groups.some((group) => !Number.isInteger(group) || group < 0)) throw new TypeError('woundGroups must be non-negative integers');
+  const kept = groups.filter((group) => group > 0);
+  const total = kept.reduce((sum, group) => sum + group, 0);
+  if (total <= 0) return Object.freeze({ dice: [], rolled: 0, modifier: 0, total: 0, groups: [], noEffect: true, fixed: true });
+  return Object.freeze({ dice: [], rolled: total, modifier: 0, total, shares: Object.freeze(kept.map(() => 0)), groups: Object.freeze(kept), groupTotal: total, noEffect: false, fixed: true });
+}
+
+export function applyPersonalDamage(combatant, damageDice, firstBloodRoll = null, { modifier = 0, allocation = null, targets = null, woundGroups = null } = {}) {
+  const wound = woundGroups ? fixedWoundGroups(woundGroups) : personalWoundGroups(damageDice, modifier, allocation);
   const next = clone(combatant);
   const allocations = [];
+
+  if (next.animal) {
+    if (wound.noEffect) return { combatant: next, wound, allocations, status: next.status, noEffect: true };
+    next.animal.woundsTaken += wound.total;
+    next.animal.destroyed = next.animal.woundsTaken >= next.animal.hits.destroyed;
+    next.hitsTaken += 1;
+    next.status = animalStatus(next.animal);
+    allocations.push({ hits: wound.total, woundsTaken: next.animal.woundsTaken });
+    return { combatant: next, wound, allocations, status: next.status, noEffect: false };
+  }
 
   // A wound of zero is not a wound received: first blood is not spent on it and
   // it is not counted as a hit taken. (Judgement call - p.30 says such a result
@@ -613,12 +715,15 @@ export function classifyBlow(attacker, weaponKey, { surprise = false, weakened =
   if (!spec.melee) return { blowClass: null, fatigueDM: 0, spendsAllowance: false };
   if (special) return { blowClass: 'special', fatigueDM: 0, spendsAllowance: false };
   if (surprise) return { blowClass: 'surprise', fatigueDM: 0, spendsAllowance: false };
+  // An animal has no endurance to tire; the book gives it no blow allowance.
+  if (attacker?.animal) return { blowClass: 'combat', fatigueDM: 0, spendsAllowance: false };
   const remaining = Math.max(0, Number(attacker.blowAllowance ?? attacker.current?.END ?? 0) - Number(attacker.blowsUsed ?? 0));
   if (weakened || remaining <= 0) return { blowClass: 'weakened', fatigueDM: spec.fatigueDM ?? 0, spendsAllowance: false };
   return { blowClass: 'combat', fatigueDM: 0, spendsAllowance: true };
 }
 
 export function blowsRemaining(combatant) {
+  if (combatant?.animal) return null;
   return Math.max(0, Number(combatant.blowAllowance ?? combatant.current?.END ?? 0) - Number(combatant.blowsUsed ?? 0));
 }
 
@@ -642,17 +747,20 @@ export function previewPersonalAttack({ attacker, defender, range, situationalDM
   const evasionDM = defender.evading ? evasionDefenseDM(range) : 0;
   const defenderUntrainedDM = untrainedDefenderDM(defender, spec);
   const blow = classifyBlow(attacker, attacker.weaponKey, { surprise, weakened, special });
-  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM;
+  const { weaponDM, armorDM } = animalAttackDMs(attacker, defender);
+  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM + weaponDM + armorDM;
+  const fixedWound = attacker.animal && attacker.animal.woundMode !== 'rolled' ? attacker.animal.weapons[attacker.weaponKey]?.wound ?? null : null;
   return {
     weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target,
     blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(attacker),
-    skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM,
+    skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, weaponDM, armorDM, totalDM,
+    fixedWound,
     damageDice: spec.damageDice,
     damageModifier: spec.damageModifier ?? 0,
     // Book 1 p.30: the wound is the dice total plus the weapon's constant, and
     // a result of zero or less has no effect. Show the span so a player can see
     // that e.g. a body pistol (3D-8) may inflict nothing at all.
-    woundRange: Object.freeze({
+    woundRange: fixedWound !== null ? Object.freeze({ min: fixedWound, max: fixedWound }) : Object.freeze({
       min: Math.max(0, spec.damageDice + (spec.damageModifier ?? 0)),
       max: Math.max(0, spec.damageDice * 6 + (spec.damageModifier ?? 0))
     }),
@@ -688,15 +796,26 @@ export function rollPersonalAttack({ attacker, defender, range, situationalDM = 
   const blow = classifyBlow(attacker, attacker.weaponKey, { surprise, weakened, special });
   const diceRoll = [dice.rollD6(), dice.rollD6()];
   const roll = diceRoll[0] + diceRoll[1];
-  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM;
+  const { weaponDM, armorDM } = animalAttackDMs(attacker, defender);
+  const totalDM = skillDM + characteristicDM + untrainedDM + parryDM + evasionDM + defenderUntrainedDM + situationalDM + defenderDM + blow.fatigueDM + weaponDM + armorDM;
   const total = roll + totalDM;
   const success = total >= target;
-  const damageDice = success ? Array.from({ length: spec.damageDice }, () => dice.rollD6()) : [];
+  let animalWound = null;
+  if (success && attacker.animal) {
+    const own = attacker.animal.weapons[attacker.weaponKey];
+    animalWound = attacker.animal.woundMode === 'rolled'
+      ? rollAnimalWound(dice, attacker.weaponKey, attacker.animal.type === 'filter' ? null : attacker.animal.woundAlteration)
+      : { dice: [], groups: own.woundGroups, total: own.wound };
+  }
+  const damageDice = animalWound ? [...animalWound.dice] : success ? Array.from({ length: spec.damageDice }, () => dice.rollD6()) : [];
   const nextAttacker = clone(attacker);
   if (spec.melee) nextAttacker.blows += 1;
   if (blow.spendsAllowance) nextAttacker.blowsUsed = Number(nextAttacker.blowsUsed ?? 0) + 1;
   nextAttacker.evading = false;
-  return { attacker: nextAttacker, attackerId: attacker.id, blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(nextAttacker), defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, success, damageDice, damageTotal: damageDice.reduce((sum, die) => sum + die, 0), damageModifier: spec.damageModifier ?? 0, woundTotal: damageDice.reduce((sum, die) => sum + die, 0) + (spec.damageModifier ?? 0) };
+  return { attacker: nextAttacker, attackerId: attacker.id, blowClass: blow.blowClass, fatigueDM: blow.fatigueDM, blowsRemaining: blowsRemaining(nextAttacker), defenderId: defender.id, weaponKey: attacker.weaponKey, weaponName: spec.name, range, armor: defender.armor, target, dice: diceRoll, roll, skillDM, characteristicDM, untrainedDM, parryDM, evasionDM, defenderUntrainedDM, situationalDM, defenderDM, totalDM, total, weaponDM, armorDM, success, damageDice,
+    ...(animalWound
+      ? { damageTotal: animalWound.total, damageModifier: 0, woundTotal: animalWound.total, woundGroups: [...animalWound.groups] }
+      : { damageTotal: damageDice.reduce((sum, die) => sum + die, 0), damageModifier: spec.damageModifier ?? 0, woundTotal: damageDice.reduce((sum, die) => sum + die, 0) + (spec.damageModifier ?? 0), woundGroups: null }) };
 }
 
 // Roll and apply in one step. Kept for single exchanges outside a round
@@ -710,7 +829,7 @@ export function resolvePersonalAttack({ attacker, defender, range, situationalDM
   const wounds = result.success && result.woundTotal > 0;
   const firstBloodRoll = wounds && defender.firstBlood ? dice.rollD6() : null;
   const damage = result.success
-    ? applyPersonalDamage(defender, result.damageDice, firstBloodRoll, { modifier: result.damageModifier })
+    ? applyPersonalDamage(defender, result.damageDice, firstBloodRoll, { modifier: result.damageModifier, woundGroups: result.woundGroups })
     : { combatant: clone(defender), allocations: [], status: defender.status, wound: null, noEffect: false };
   return { ...result, defender: damage.combatant, firstBloodRoll, wound: damage.wound ?? null, allocations: damage.allocations, defenderStatus: damage.status, noEffect: Boolean(damage.noEffect) };
 }
@@ -760,6 +879,8 @@ export function resolvePersonalMorale({ casualties, originalStrength, moraleTarg
 export function endPersonalCombatRecovery(combatant) {
   const next = clone(combatant);
   next.blowsUsed = 0;
+  // The book says nothing of an animal waking; it stays where it fell.
+  if (next.animal) return next;
   if (next.status === 'unconscious') {
     const zeroes = PHYSICAL_KEYS.filter((key) => next.current[key] <= 0).length;
     if (zeroes === 1) for (const key of PHYSICAL_KEYS) next.current[key] = Math.max(1, Math.floor((next.current[key] + next.characteristics[key]) / 2));

@@ -65,10 +65,12 @@ test('Graycloak ruling: a pistol cannot fend off a blow; a long gun can', () => 
   // if he actually uses the gun as a brawling weapon (as a club, for
   // example)" without distinguishing pistols. Ruled (Sep 2026): a pistol is
   // too short to block or swing with, so club expertise buys nothing with one
-  // in hand; a long gun still defends as a club.
+  // in hand; a long gun still defends, as a cudgel (ruled Sep 2026), so
+  // the expertise that counts is Cudgel's.
   assert.equal(parryExpertise(combatant({ weaponKey: 'revolver', skills: { Brawling: 1, Club: 1 } })), 0);
   assert.equal(parryExpertise(combatant({ weaponKey: 'body-pistol', skills: { Club: 2 } })), 0);
-  assert.equal(parryExpertise(combatant({ weaponKey: 'rifle', skills: { Club: 1 } })), 1);
+  assert.equal(parryExpertise(combatant({ weaponKey: 'rifle', skills: { Club: 1 } })), 0);
+  assert.equal(parryExpertise(combatant({ weaponKey: 'rifle', skills: { Cudgel: 1 } })), 1);
 });
 
 test('Book 1 p.27: 1977 terrain rows present, 1981 situation DMs flagged', () => {
