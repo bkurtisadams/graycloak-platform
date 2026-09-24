@@ -4905,9 +4905,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         reload();
         // v0.311.0: everything from here happens on arrival, a week after
         // dateLabel (departure) — deliveries, the port call and upkeep were
-        // all dated the day the ship left.
+        // all dated the day the ship left. The seed still names the arrival
+        // by its departure date: either identifies it, and keeping it keeps
+        // every earlier arrival rolling as it always has.
         const arrivedOn = formatCampaignDate(campaign.time);
-        const arrivalSeed = `${campaign.identity.id}|arrival|${target.id}|${arrivedOn}`;
+        const arrivalSeed = `${campaign.identity.id}|arrival|${target.id}|${dateLabel}`;
 
         // Book 2 p.2: every low passenger is revived (5+), the dead included
         // in the fares — no refunds — and the lottery settled after.
@@ -4981,7 +4983,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             hostileByDefault: Boolean(shipEncounter.hostileByDefault),
             reaction: reaction.description,
             systemId: target.id,
-            dateLabel: arrivedOn
+            // Seeds the hail and inspection throws; departure-dated, as above.
+            dateLabel
           };
         }
         const upkeep = chargeShipUpkeep(ship, { dateLabel: arrivedOn, sinceLabel: ship.state.finances?.ledger?.[0]?.date ?? null, unpaid: ship.authority?.assignedCharacterId ? [ship.authority.assignedCharacterId] : [] });
