@@ -4,7 +4,7 @@ import { createSequenceDice } from '../src/dice.js';
 import { jumpRouteThrow, rollJumpRoutes, laneBetween, lanesFrom, routePairKey } from '../src/worlds/routes.js';
 import { validateAuthoredSubsector } from '../src/worlds/subsector.js';
 import { deliveredSoftwarePackage, basicSoftwarePackage, softwarePackageCostMCr } from '../src/starships/software.js';
-import { createShipDocument, migrateShipDocument } from '../src/starships/ship-document.js';
+import { createShipDocument, migrateShipDocument, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION } from '../src/starships/ship-document.js';
 
 const world = (id, uwp) => ({ id: `${id}-main`, name: id, uwp });
 const system = (id, hex, uwp) => ({ id, hex, name: id, mainWorld: world(id, uwp) });
@@ -62,7 +62,7 @@ test('ship document v9: a new Type S carries Generate; a Type S in service gains
   v8.schemaVersion = 8;
   v8.state.computer.programs = [...basicSoftwarePackage(2)];
   const migrated = migrateShipDocument(v8);
-  assert.equal(migrated.schemaVersion, 9);
+  assert.equal(migrated.schemaVersion, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(migrated.state.computer.programs, [...basicSoftwarePackage(2), 'generate']);
   const trader = { ...createShipDocument({ designKey: 'type-a-free-trader', id: 't', authority, crewAssignments }), schemaVersion: 8 };
   assert.equal(migrateShipDocument(trader).state.computer.programs.includes('generate'), false);

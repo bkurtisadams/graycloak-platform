@@ -54,7 +54,7 @@ import {
   reviveLowPassengers, settleLowPassageLottery, attendingMedicExpertise, rollPassengerEndurance,
   orbitalTransfer, chargeShuttleFreight, checkRepossession, impoundShip, releaseImpound,
   rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
-  resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, portCallBrokerTipDM, spendBrokerTip,
+  resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, portCallBrokerTipDM, spendBrokerTip, shipEncounterReactionDMParts,
   HAIL_ENCOUNTER_KEYS, INSPECTION_ENCOUNTER_KEYS
 } from '../vendor/classic-traveller-rules/src/starships/arrival.js';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
@@ -4434,8 +4434,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (pendingShipFight) throw new Error('a ship fight is already under way');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|hail`;
-        const hailReaction = rollReaction(seededDice(seed));
-        const hail = resolveHail(pendingArrivalEncounter.key, hailReaction);
+        const hailReaction = { description: pendingArrivalEncounter.reaction };
+        const hail = resolveHail(pendingArrivalEncounter.key, { tableTotal: pendingArrivalEncounter.reactionTotal }, { dice: seededDice(seed) });
         if (hail.outcome === 'fight') {
           const playerShip = facts.ship;
           pendingShipFight = beginArrivalShipFight({
@@ -4469,8 +4469,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (pendingShipFight) throw new Error('a ship fight is already under way');
         const encounterLabel = pendingArrivalEncounter.label;
         const seed = `${resolved.campaign.identity.id}|arrival|${pendingArrivalEncounter.systemId}|${pendingArrivalEncounter.dateLabel}|inspect`;
-        const inspectReaction = rollReaction(seededDice(seed));
-        const inspection = resolveInspection(pendingArrivalEncounter.key, inspectReaction);
+        const inspectReaction = { description: pendingArrivalEncounter.reaction };
+        const inspection = resolveInspection(pendingArrivalEncounter.key, { tableTotal: pendingArrivalEncounter.reactionTotal }, { dice: seededDice(seed) });
         if (inspection.outcome === 'fight') {
           const playerShip = facts.ship;
           pendingShipFight = beginArrivalShipFight({
@@ -4967,7 +4967,11 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const shipEncounter = rollShipEncounter(encounterDice, { starport: targetProfile.starport });
         let arrival = null;
         if (shipEncounter.type) {
-          const reaction = rollReaction(seededDice(`${arrivalSeed}|reaction`));
+          // Book 3 p.23: one reaction for the encounter, with its DMs; hail
+          // and inspection read this throw rather than making their own.
+          const party = (resolved.characters ?? []).filter((entry) => (resolved.campaign.party?.characterIds ?? []).includes(entry.identity.id));
+          const reactionDM = shipEncounterReactionDMParts({ characters: party, population: targetProfile.population }).reduce((sum, part) => sum + part.dm, 0);
+          const reaction = rollReaction(seededDice(`${arrivalSeed}|reaction`), { dm: reactionDM });
           arrival = {
             type: shipEncounter.type,
             // Two more fields alongside the display ones already here: `key`
@@ -4982,6 +4986,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             hull: shipEncounter.hull?.label ?? null,
             hostileByDefault: Boolean(shipEncounter.hostileByDefault),
             reaction: reaction.description,
+            reactionTotal: reaction.tableTotal,
             systemId: target.id,
             // Seeds the hail and inspection throws; departure-dated, as above.
             dateLabel
@@ -5008,7 +5013,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (revival.revivals.length) {
           const lottery = revival.lottery;
           parts.push(`${revival.survived.length} of ${revival.revivals.length} low passenger${revival.revivals.length === 1 ? '' : 's'} revived${revival.died.length ? `, ${revival.died.length} did not survive` : ''}${revival.medicExpertise >= 2 ? ` (Medical-${revival.medicExpertise} attending)` : ''}`);
-          parts.push(lottery.paidCr ? `low-passage lottery: ${cr(lottery.paidCr)} of the ${cr(lottery.potCr)} pot paid` : `low-passage lottery: no living winner, the ${cr(lottery.potCr)} pot stays with the ship`);
+          parts.push(!lottery ? 'no low-passage lottery: no steward aboard to run it (Book 2 p.2)'
+            : lottery.paidCr ? `low-passage lottery: ${cr(lottery.paidCr)} of the ${cr(lottery.potCr)} pot paid` : `low-passage lottery: no living winner, the ${cr(lottery.potCr)} pot stays with the ship`);
         }
         for (const delivered of messages.delivered) parts.push(`${delivered.carrierName || 'a crew member'} delivered a private message to ${delivered.recipient}`);
         if (ship.state.portCall.berth === 'orbit') parts.push('berthed in orbit (unstreamlined)');

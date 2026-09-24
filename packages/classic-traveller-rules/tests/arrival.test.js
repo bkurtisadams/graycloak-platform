@@ -14,7 +14,7 @@ import {
   settleLowPassageLottery, reviveLowPassengers, shuttleFareCr, shipCarriesSmallCraft, orbitalTransfer, chargeShuttleFreight,
   repossessionDMParts, rollRepossession, checkRepossession, impoundShip, releaseImpound,
   rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
-  shipReactionStance, resolveHail, resolveInspection, inspectionTollCr, payInspectionToll,
+  shipReactionStance, resolveHail, resolveInspection, inspectionTollCr, payInspectionToll, shipEncounterReactionDMParts,
   grantBrokerTip, portCallBrokerTipDM, spendBrokerTip
 } from '../src/starships/arrival.js';
 
@@ -135,7 +135,11 @@ test('lottery: exact guesses split the pot, a dead winner forfeits to the ship',
 });
 
 test('reviveLowPassengers throws endurance only where none was kept', () => {
-  let carrier = bookPassenger(ship(), { id: 'l1', passageClass: 'low', originSystemId: 'a', destinationSystemId: 'b', endurance: 8 });
+  const withSteward = ship('type-a-free-trader', [
+    { role: 'pilot', characterId: 'captain', characterName: 'Captain' },
+    { role: 'steward', characterId: 'purser', characterName: 'Purser' }
+  ]);
+  let carrier = bookPassenger(withSteward, { id: 'l1', passageClass: 'low', originSystemId: 'a', destinationSystemId: 'b', endurance: 8 });
   carrier = bookPassenger(carrier, { id: 'l2', passageClass: 'low', originSystemId: 'a', destinationSystemId: 'b' });
   // l1 revival 3+3; l2 endurance 2+2=4, revival 3+2-1=4 dies; lottery guesses 0-2: 1, 1.
   const result = reviveLowPassengers(carrier, scripted([3, 3, 2, 2, 3, 2, 2, 2]), { systemId: 'b' });
@@ -145,6 +149,14 @@ test('reviveLowPassengers throws endurance only where none was kept', () => {
   assert.equal(result.lottery.survivors, 1);
   assert.deepEqual(result.lottery.paidTo, ['l1']);
   assert.equal(result.lottery.paidCr, 10);
+});
+
+test('no steward, no lottery (Book 2 p.2: "administered by the ship\'s steward")', () => {
+  const carrier = bookPassenger(ship(), { id: 'l1', passageClass: 'low', originSystemId: 'a', destinationSystemId: 'b', endurance: 8 });
+  const result = reviveLowPassengers(carrier, scripted([3, 3]), { systemId: 'b' });
+  assert.deepEqual(result.survived, ['l1']);
+  assert.equal(result.lottery, null);
+  assert.equal(settleLowPassageLottery(creditShipAccount(carrier, 10, { description: 'seed' }), result.lottery).state.finances.balanceCr, 10);
 });
 
 test('shuttles: Cr10 a ton from orbit, free for a landed ship or one with its own boat', () => {
@@ -199,7 +211,7 @@ test('an impounded ship is released only when paid, or a boarding party is repel
   assert.equal(releaseImpound(boarded, { dateLabel: '040-1105', repelled: true }).state.impound, null);
 });
 
-test('private messages: 9+, a random crew member, 1D x Cr20, paid to him, delivered at the far end', () => {
+test('private messages: 9+, a random crew member, 2D x Cr10, paid to him, delivered at the far end', () => {
   const hawkeye = importCharacterDocument(readFileSync(new URL('./fixtures/Hawkeye-v0.6.character.json', import.meta.url), 'utf8'));
   const crew = [
     { role: 'pilot', characterId: 'captain', characterName: 'Captain' },
@@ -207,14 +219,15 @@ test('private messages: 9+, a random crew member, 1D x Cr20, paid to him, delive
   ];
   const carrier = ship('type-a-free-trader', crew);
   assert.equal(rollPrivateMessage(carrier, scripted([4, 4])).awaiting, false);
-  const offer = rollPrivateMessage(carrier, scripted([5, 4, 2, 3, 5]));
+  // 9 on 2D; carrier die 2 of two crew; honorarium 3+5 = 8 x Cr10; recipient 5.
+  const offer = rollPrivateMessage(carrier, scripted([5, 4, 2, 3, 5, 5]));
   assert.equal(offer.awaiting, true);
   assert.equal(offer.carrierId, hawkeye.identity.id);
-  assert.equal(offer.honorariumCr, 60);
+  assert.equal(offer.honorariumCr, 80);
   assert.equal(offer.recipient, 'a tavern keeper');
   const before = hawkeye.finances.credits;
   const taken = acceptPrivateMessage(carrier, hawkeye, { offer, id: 'msg-1', originSystemId: 'a', destinationSystemId: 'b', dateLabel: '010-1105' });
-  assert.equal(taken.character.finances.credits, before + 60);
+  assert.equal(taken.character.finances.credits, before + 80);
   assert.equal(taken.ship.state.privateMessages.length, 1);
   assert.equal(deliverPrivateMessages(taken.ship, 'c').delivered.length, 0);
   const handed = deliverPrivateMessages(taken.ship, 'b');
@@ -222,17 +235,34 @@ test('private messages: 9+, a random crew member, 1D x Cr20, paid to him, delive
   assert.equal(handed.ship.state.privateMessages.length, 0);
 });
 
-test('hail and inspection read the reaction table the same way', () => {
+test('hail and inspection read the encounter\'s one reaction: 7+ favourable, hostile attacks only on the table\'s own throw', () => {
   assert.equal(shipReactionStance({ tableTotal: 5 }), 'hostile');
-  assert.equal(shipReactionStance({ tableTotal: 8 }), 'neutral');
-  assert.equal(shipReactionStance({ tableTotal: 9 }), 'friendly');
-  assert.deepEqual(resolveHail('free-trader', { tableTotal: 10 }), { stance: 'friendly', outcome: 'tip', brokerTipDM: 1 });
-  assert.equal(resolveHail('subsidized-merchant', { tableTotal: 3 }).outcome, 'fight');
+  assert.equal(shipReactionStance({ tableTotal: 6 }), 'neutral');
+  assert.equal(shipReactionStance({ tableTotal: 7 }), 'friendly');
+  assert.equal(resolveHail('free-trader', { tableTotal: 7 }).outcome, 'tip');
+  assert.equal(resolveHail('free-trader', { tableTotal: 6 }).outcome, 'nothing');
   assert.throws(() => resolveHail('yacht', { tableTotal: 10 }), /answers a hail/);
-  assert.equal(resolveInspection('patrol', { tableTotal: 7 }).tollCr, inspectionTollCr());
-  assert.equal(resolveInspection('patrol', { tableTotal: 12 }).outcome, 'waved-through');
+  // 2 attacks at once; 3 on 5+, 4 on 8+, 5 on 11+ (ruling), on 2D.
+  assert.equal(resolveHail('free-trader', { tableTotal: 2 }).outcome, 'fight');
+  assert.equal(resolveHail('free-trader', { tableTotal: 3 }, { dice: scripted([2, 3]) }).outcome, 'fight');
+  assert.equal(resolveHail('free-trader', { tableTotal: 3 }, { dice: scripted([2, 2]) }).outcome, 'nothing');
+  assert.equal(resolveHail('free-trader', { tableTotal: 4 }, { dice: scripted([3, 4]) }).outcome, 'nothing');
+  assert.equal(resolveHail('free-trader', { tableTotal: 5 }, { dice: scripted([5, 6]) }).attack.ruling, true);
+  assert.throws(() => resolveHail('free-trader', { tableTotal: 4 }), /dice/);
+  // A patrol that is hostile but holds fire, or unreceptive, wants a toll.
+  assert.equal(resolveInspection('patrol', { tableTotal: 4 }, { dice: scripted([1, 1]) }).outcome, 'toll');
+  assert.equal(resolveInspection('patrol', { tableTotal: 6 }).tollCr, inspectionTollCr());
+  assert.equal(resolveInspection('patrol', { tableTotal: 7 }).outcome, 'waved-through');
+  assert.equal(resolveInspection('patrol', { tableTotal: 3 }, { dice: scripted([6, 6]) }).outcome, 'fight');
   const funded = creditShipAccount(ship(), 500, { description: 'seed' });
   assert.equal(payInspectionToll(funded, { tollCr: 100 }).state.finances.ledger.at(-1).kind, 'toll');
+});
+
+test('Book 3 p.23 reaction DMs: +1 for a 5-term veteran, -1 at population 9+', () => {
+  const scout = { identity: { name: 'Hawkeye' }, career: { service: 'scouts', terms: 5 } };
+  const merchant = { identity: { name: 'Mara' }, career: { service: 'merchants', terms: 6 } };
+  assert.deepEqual(shipEncounterReactionDMParts({ characters: [merchant, scout], population: 9 }).map((part) => part.dm), [1, -1]);
+  assert.deepEqual(shipEncounterReactionDMParts({ characters: [merchant], population: 8 }), []);
 });
 
 test('a broker tip lives on the port call and is spent by one sale', () => {

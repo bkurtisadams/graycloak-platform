@@ -16,6 +16,8 @@ import { assertValidShipDocument, shipCrewMemberRoles } from './ship-document.js
 import { assertValidCharacterDocument } from '../characters/character-document.js';
 import { calculateBerthingCost, debitShipAccount, shipMortgageSchedule } from './operations.js';
 import { PASSAGE_FARES_CR } from '../trade/commerce.js';
+import { privateMessageHonorarium } from '../trade/contracts.js';
+import { REACTION_DMS } from '../encounters/patrons.js';
 import { assertGameDate, parseGameDate } from '../time/dates.js';
 
 function cloneJson(value) {
@@ -146,8 +148,13 @@ export function settleLowPassageLottery(ship, lottery, { dateLabel = null } = {}
  * Revive every low passenger bound for `systemId` and hold the lottery.
  * Leaves the manifest alone: disembarkPassengersAtDestination takes them all
  * off, and credits every fare, since Book 2 p.2 allows no refund for a
- * passenger who does not survive.
+ * passenger who does not survive. The lottery is null with no steward.
  */
+/** Book 2 p.2: "The lottery is administered by the ship's steward." */
+export function shipHasSteward(ship) {
+  return ship.crew.assignments.some((entry) => String(entry.role).toLowerCase() === 'steward');
+}
+
 export function reviveLowPassengers(ship, dice, { systemId, medicExpertise = 0 } = {}) {
   assertValidShipDocument(ship);
   requireDice(dice);
@@ -161,7 +168,8 @@ export function reviveLowPassengers(ship, dice, { systemId, medicExpertise = 0 }
       const roll = rollLowBerthRevival(dice, { endurance, medicExpertise });
       return Object.freeze({ id: entry.id, endurance, enduranceRolled: !recorded, ...roll });
     });
-  const lottery = rollLowPassageLottery(dice, revivals);
+  // No steward, no lottery: the custom needs someone to administer it.
+  const lottery = shipHasSteward(ship) ? rollLowPassageLottery(dice, revivals) : null;
   return Object.freeze({
     revivals: Object.freeze(revivals),
     survived: Object.freeze(revivals.filter((entry) => entry.survived).map((entry) => entry.id)),
@@ -330,7 +338,6 @@ export function releaseImpound(ship, { dateLabel, repelled = false } = {}) {
 // -------------------------------------------------------- private messages
 
 export const PRIVATE_MESSAGE_THROW = 9;
-export const PRIVATE_MESSAGE_HONORARIUM_STEP_CR = 20;
 // RULING: the recipient is one of p.8's own two examples, 1D.
 export const PRIVATE_MESSAGE_RECIPIENTS = Object.freeze({
   1: "the Travellers' Aid Society", 2: "the Travellers' Aid Society", 3: "the Travellers' Aid Society",
@@ -339,8 +346,8 @@ export const PRIVATE_MESSAGE_RECIPIENTS = Object.freeze({
 
 /**
  * Book 2 p.8: throw 9+ for a private message awaiting transmittal; a crew
- * member chosen at random is approached; the honorarium is Cr20 to 120
- * (1D x 20).
+ * member chosen at random is approached; the honorarium is Cr20 to 120.
+ * RULING (Sep 2026): 2D x 10, the old job board's privateMessageHonorarium.
  */
 export function rollPrivateMessage(ship, dice) {
   assertValidShipDocument(ship);
@@ -351,7 +358,7 @@ export function rollPrivateMessage(ship, dice) {
     return Object.freeze({ dice: rolled.dice, total: rolled.total, awaiting: false, carrierId: null, carrierName: null, recipient: null, honorariumCr: 0 });
   }
   const carrier = crew[uniformInteger(dice, crew.length - 1)];
-  const honorariumCr = dice.rollD6() * PRIVATE_MESSAGE_HONORARIUM_STEP_CR;
+  const honorariumCr = privateMessageHonorarium(dice).amountCr;
   const recipient = PRIVATE_MESSAGE_RECIPIENTS[dice.rollD6()];
   return Object.freeze({ dice: rolled.dice, total: rolled.total, awaiting: true, carrierId: carrier.characterId, carrierName: carrier.characterName, recipient, honorariumCr });
 }
@@ -400,12 +407,33 @@ export function deliverPrivateMessages(ship, systemId) {
 
 // --------------------------------------------------- hail and inspection
 
-// Book 3's reaction table: 2-5 Violent/Hostile, 9+ Intrigued and up.
+// Book 3 (1977) p.23: one reaction throw per encounter, made "once, upon
+// initial encounter", for the whole group. Hail and inspection read that
+// throw; they never make their own.
 export const SHIP_REACTION_HOSTILE_MAX = 5;
-export const SHIP_REACTION_FRIENDLY_MIN = 9;
+// Book 3 p.21: "generally, a throw of 7+ on the reaction table is
+// sufficient" — the table's one stated line for a favourable reaction.
+export const SHIP_REACTION_FRIENDLY_MIN = 7;
 export const HAIL_ENCOUNTER_KEYS = Object.freeze(['free-trader', 'subsidized-merchant']);
 export const INSPECTION_ENCOUNTER_KEYS = Object.freeze(['patrol']);
 export const HAIL_BROKER_TIP_DM = 1;
+// The table's own attack throws on 2D: 2 attacks at once, 3 on 5+, 4 on 8+.
+// 5 "may attack": RULING (non-RAW, flagged) 11+ when no referee decides.
+export const REACTION_ATTACK_THROWS = Object.freeze({ 2: 2, 3: 5, 4: 8, 5: 11 });
+const MILITARY_SERVICES = Object.freeze(['army', 'navy', 'marines', 'scouts']);
+
+/**
+ * Book 3 p.23 reaction DMs for a ship encounter: +1 if any of the party
+ * served 5 or more terms in the army, navy, marines or scouts; -1 at a
+ * world of population 9+ (the 1982 figure, Graycloak ruling).
+ */
+export function shipEncounterReactionDMParts({ characters = [], population = null } = {}) {
+  const parts = [];
+  const veteran = characters.find((character) => MILITARY_SERVICES.includes(String(character?.career?.service ?? '').toLowerCase()) && Number(character?.career?.terms ?? 0) >= 5);
+  if (veteran) parts.push({ dm: REACTION_DMS.fiveOrMoreMilitaryTerms, why: `${veteran.identity?.name ?? 'a veteran'}: 5+ terms` });
+  if (Number.isInteger(population) && population >= 9) parts.push({ dm: REACTION_DMS.planetaryPopulation9Plus, why: `population ${population}` });
+  return Object.freeze(parts);
+}
 
 export function shipReactionStance(reaction) {
   const total = Number(reaction?.tableTotal);
@@ -415,16 +443,28 @@ export function shipReactionStance(reaction) {
   return 'neutral';
 }
 
+/** Whether a hostile reaction turns into an attack, by the table's own throw. */
+export function rollReactionAttack(dice, reaction) {
+  const total = Number(reaction?.tableTotal);
+  const needed = REACTION_ATTACK_THROWS[total];
+  if (!needed) return Object.freeze({ hostile: false, attacks: false, needed: null, dice: [], total: null });
+  if (total === 2) return Object.freeze({ hostile: true, attacks: true, needed: null, dice: [], total: null, immediate: true });
+  requireDice(dice);
+  const rolled = dice.roll2D6();
+  return Object.freeze({ hostile: true, attacks: rolled.total >= needed, needed, dice: rolled.dice, total: rolled.total, ruling: total === 5 });
+}
+
 /**
  * Book 2 p.36: free traders and subsidized merchants "may serve as a source
- * of information". RULING: a friendly hail is a broker's tip (+1) on the next
- * speculative resale at this port; a hostile one opens fire.
+ * of information". A hostile ship attacks on its own throw; a favourable one
+ * (7+) gives a broker's tip (+1) on the next resale at this port.
  */
-export function resolveHail(encounterKey, reaction) {
+export function resolveHail(encounterKey, reaction, { dice = null } = {}) {
   if (!HAIL_ENCOUNTER_KEYS.includes(encounterKey)) throw new RangeError('only a free trader or subsidized merchant answers a hail');
   const stance = shipReactionStance(reaction);
-  const outcome = stance === 'hostile' ? 'fight' : stance === 'friendly' ? 'tip' : 'nothing';
-  return Object.freeze({ stance, outcome, brokerTipDM: outcome === 'tip' ? HAIL_BROKER_TIP_DM : 0 });
+  const attack = stance === 'hostile' ? rollReactionAttack(dice, reaction) : null;
+  const outcome = attack?.attacks ? 'fight' : stance === 'friendly' ? 'tip' : 'nothing';
+  return Object.freeze({ stance, attack, outcome, brokerTipDM: outcome === 'tip' ? HAIL_BROKER_TIP_DM : 0 });
 }
 
 /** RULING: no toll size is given; a day's berthing is the one fee on hand. */
@@ -434,14 +474,16 @@ export function inspectionTollCr() {
 
 /**
  * Book 2 p.36: patrols "may be simple border pickets, or may be a form of
- * pirate, exacting tolls or penalties". Hostile fights, friendly waves the
- * ship through, anything between demands a toll.
+ * pirate, exacting tolls or penalties". A hostile patrol attacks on its own
+ * throw; one that doesn't, or an unreceptive one (6), demands a toll; 7+
+ * waves the ship through.
  */
-export function resolveInspection(encounterKey, reaction) {
+export function resolveInspection(encounterKey, reaction, { dice = null } = {}) {
   if (!INSPECTION_ENCOUNTER_KEYS.includes(encounterKey)) throw new RangeError('only a patrol conducts an inspection');
   const stance = shipReactionStance(reaction);
-  const outcome = stance === 'hostile' ? 'fight' : stance === 'friendly' ? 'waved-through' : 'toll';
-  return Object.freeze({ stance, outcome, tollCr: outcome === 'toll' ? inspectionTollCr() : 0 });
+  const attack = stance === 'hostile' ? rollReactionAttack(dice, reaction) : null;
+  const outcome = attack?.attacks ? 'fight' : stance === 'friendly' ? 'waved-through' : 'toll';
+  return Object.freeze({ stance, attack, outcome, tollCr: outcome === 'toll' ? inspectionTollCr() : 0 });
 }
 
 export function payInspectionToll(ship, { tollCr, description, dateLabel = null } = {}) {

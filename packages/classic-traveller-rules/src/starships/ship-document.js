@@ -13,8 +13,8 @@ import { deliveredSoftwarePackage, GENERATE_DELIVERED_DESIGNS } from './software
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 9;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 10;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
 
 // v7: the drive sections a malfunction can stop (1982 drive failure).
 export const MALFUNCTION_DRIVES = Object.freeze(['powerPlant', 'maneuverDrive', 'jumpDrive']);
@@ -158,6 +158,7 @@ function fillArrivalDefaults(document) {
   if (!Object.hasOwn(state, 'privateMessages')) state.privateMessages = [];
   if (!Object.hasOwn(state, 'impound')) state.impound = null;
   if (isPlainObject(state.finances?.mortgage) && !Object.hasOwn(state.finances.mortgage, 'homeSystemId')) state.finances.mortgage.homeSystemId = null;
+  if (isPlainObject(state.finances?.mortgage) && !Object.hasOwn(state.finances.mortgage, 'subsidized')) state.finances.mortgage.subsidized = false;
   return document;
 }
 
@@ -414,7 +415,8 @@ function validateShipFinances(document, errors) {
   add(errors, finances.mortgage === null || isPlainObject(finances.mortgage), 'state.finances.mortgage must be null or an object');
   if (isPlainObject(finances.mortgage)) {
     const mortgage = finances.mortgage;
-    validateExactKeys(mortgage, ['cashPriceCr', 'monthlyPaymentCr', 'termMonths', 'startedOn', 'homeSystemId'], 'state.finances.mortgage', errors);
+    validateExactKeys(mortgage, ['cashPriceCr', 'monthlyPaymentCr', 'termMonths', 'startedOn', 'homeSystemId', 'subsidized'], 'state.finances.mortgage', errors);
+    add(errors, typeof mortgage.subsidized === 'boolean', 'mortgage.subsidized must be boolean');
     add(errors, mortgage.homeSystemId === null || (typeof mortgage.homeSystemId === 'string' && mortgage.homeSystemId.trim().length > 0), 'mortgage.homeSystemId must be null or a nonblank string');
     add(errors, integerAtLeast(mortgage.cashPriceCr, 1), 'mortgage.cashPriceCr must be a positive integer');
     add(errors, integerAtLeast(mortgage.monthlyPaymentCr, 1), 'mortgage.monthlyPaymentCr must be a positive integer');
@@ -779,6 +781,12 @@ export function migrateShipDocument(input) {
     if (GENERATE_DELIVERED_DESIGNS.includes(next.design.key) && Array.isArray(next.state.computer?.programs) && !next.state.computer.programs.includes('generate')) {
       next.state.computer.programs.push('generate');
     }
+  }
+
+  if (next.schemaVersion === 9) {
+    next.schemaVersion = 10;
+    // Book 2 p.5 subsidies: no ship was subsidized before this version.
+    if (next.state.finances?.mortgage) next.state.finances.mortgage.subsidized = false;
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {

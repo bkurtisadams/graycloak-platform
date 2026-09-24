@@ -24,7 +24,8 @@ import {
   reviveLowPassengers, settleLowPassageLottery, attendingMedicExpertise, rollPassengerEndurance,
   checkRepossession, impoundShip, releaseImpound, rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
   resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, HAIL_ENCOUNTER_KEYS, INSPECTION_ENCOUNTER_KEYS,
-  completeDriveRepair, DRIVE_REPAIR_STARPORTS,
+  DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, quoteStarportDriveRepair, repairDrivesAtStarport,
+  shipEncounterReactionDMParts, debitShipAccount,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
 } from '../../vendor/classic-traveller-rules/index.js';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
@@ -71,10 +72,19 @@ function skillOf(state, characterId, skill) {
   return Number(character?.skills?.[skill] ?? 0) || 0;
 }
 
-function bestCrewSkill(state, role, skill) {
-  const holders = state.ship.crew.assignments.filter((entry) => String(entry.role).toLowerCase() === role);
-  if (!holders.length) return null;
-  return Math.max(...holders.map((entry) => skillOf(state, entry.characterId, skill)));
+// Book 2 p.6: salaries "+10% for each level of expertise above level-1", in
+// the skill the post uses. One level per person (the salary table takes one);
+// a doubled-up crewman is paid on the better of his two.
+const ROLE_SKILLS = Object.freeze({ pilot: 'Pilot', navigator: 'Navigation', engineer: 'Engineering', steward: 'Steward', medic: 'Medical', gunner: 'Gunnery' });
+
+function crewSkillLevels(state) {
+  const levels = {};
+  for (const entry of state.ship.crew.assignments) {
+    const skill = ROLE_SKILLS[String(entry.role).toLowerCase()];
+    if (!skill) continue;
+    levels[entry.characterId] = Math.max(levels[entry.characterId] ?? 0, skillOf(state, entry.characterId, skill));
+  }
+  return levels;
 }
 
 function event(state, kind, text, data = {}) {
@@ -101,7 +111,10 @@ export function createTrip(resolved, { seed = '', lanes = 'charted' } = {}) {
     destinationId: null,
     lastSystemId: null,
     encounter: null,
+    departure: null,
     jump: null,
+    landing: null,
+    pendingBrokerTipDM: 0,
     halt: null,
     arrivals: 0
   };
@@ -119,6 +132,7 @@ function passDays(state, days, reason) {
   const clock = advanceClock({ dateLabel: from, ships: [state.ship], characters: state.characters }, to, {
     dice: seeded(state, `${state.campaign.identity.id}|clock|${from}|${to}`),
     unpaid: { [state.ship.identity.id]: unpaidCrew(state.ship) },
+    skillLevels: { [state.ship.identity.id]: crewSkillLevels(state) },
     sinceLabels: since ? { [state.ship.identity.id]: since } : {}
   });
   const next = { ...state, ship: clock.ships[0], characters: clock.characters };
@@ -192,8 +206,15 @@ export function portFacts(state, context) {
   const checklist = target && distance ? departureChecklist(ship, { distance, dateLabel, sinceLabel: firstLedgerDate(ship), laneExists: lane }) : null;
   const maintenance = shipMaintenanceStatus(ship, { dateLabel, sinceLabel: firstLedgerDate(ship) });
   const daysInPort = portCall?.arrivalDate ? daysBetween(portCall.arrivalDate, dateLabel) : 0;
+  // Book 2 p.7: "CR 100 to land and remain for up to six days; thereafter,
+  // a CR 100 per day fee". The first six are the berthing already due.
+  const overstayCr = portCall && portCall.berthingDueCr > 0 ? Math.max(0, calculateBerthingCost(Math.max(1, daysInPort)) - calculateBerthingCost(1)) : 0;
+  // Book 2 p.18 priced (ruling): one quote per port call, so it holds.
+  const driveRepair = ship.state.malfunction?.failed?.length && DRIVE_REPAIR_STARPORTS.includes(profile?.starport)
+    ? quoteStarportDriveRepair(ship, seeded(state, `${campaign.identity.id}|drive-repair|${system?.id}|${portCall?.arrivalDate ?? dateLabel}`))
+    : null;
   return {
-    system, profile, portCall, fuelService, destinations, target, distance, route, message, checklist, maintenance, lane, daysInPort,
+    system, profile, portCall, fuelService, destinations, target, distance, route, message, checklist, maintenance, lane, daysInPort, overstayCr, driveRepair,
     fuel: { aboard, capacity, missing: Math.max(0, capacity - aboard) },
     berthingOwed: Boolean(portCall && !portCall.berthingPaid && portCall.berthingDueCr > 0),
     impound: ship.state.impound && ship.state.impound.systemId === system?.id ? ship.state.impound : null,
@@ -220,7 +241,8 @@ export function listActions(state, context) {
     return [
       { type: 'let-pass', label: 'Let it pass' },
       { type: 'fight', label: 'Fight' },
-      ...(HAIL_ENCOUNTER_KEYS.includes(encounter.key) ? [{ type: 'hail', label: 'Hail' }] : []),
+      // A hail's news is about the system being entered; leaving, it is moot.
+      ...(HAIL_ENCOUNTER_KEYS.includes(encounter.key) && encounter.phase === 'inbound' ? [{ type: 'hail', label: 'Hail' }] : []),
       ...(INSPECTION_ENCOUNTER_KEYS.includes(encounter.key) ? [{ type: 'inspect', label: 'Submit to inspection' }] : [])
     ];
   }
@@ -238,8 +260,8 @@ export function listActions(state, context) {
   if (facts.berthingOwed && balance >= facts.portCall.berthingDueCr) actions.push({ type: 'pay-berthing', label: `Pay berthing ${cr(facts.portCall.berthingDueCr)}` });
   // 1982: a malfunction is patched in flight; "more complete repairs" wait
   // for a starport with repair facilities (class A-C).
-  if (ship.state.malfunction?.failed?.length && DRIVE_REPAIR_STARPORTS.includes(facts.profile?.starport)) {
-    actions.push({ type: 'repair-drives', label: `Repair ${ship.state.malfunction.failed.join(', ')}` });
+  if (facts.driveRepair && facts.driveRepair.costCr <= balance) {
+    actions.push({ type: 'repair-drives', label: `Repair ${ship.state.malfunction.failed.join(', ')} for ${cr(facts.driveRepair.costCr)}`, costCr: facts.driveRepair.costCr });
   }
   if (facts.portCall) actions.push({ type: 'wait', label: 'Spend a day in port', days: 1, daysInPort: facts.daysInPort });
   if (['A', 'B'].includes(facts.profile?.starport) && facts.maintenance.status !== 'unknown' && facts.maintenance.costCr <= balance) {
@@ -294,9 +316,9 @@ const HANDLERS = {
 
   'repair-drives'(state, action, context) {
     const facts = portFacts(state, context);
-    const failed = [...state.ship.state.malfunction.failed];
-    state.ship = completeDriveRepair(state.ship, { starport: facts.profile.starport });
-    return one(state, [event(state, 'port', `${failed.join(', ')} repaired at the class ${facts.profile.starport} starport`)]);
+    const result = repairDrivesAtStarport(state.ship, { starport: facts.profile.starport, quote: facts.driveRepair, dateLabel: tripDate(state) });
+    state.ship = result.ship;
+    return one(state, [event(state, 'port', `${facts.driveRepair.parts.map((part) => `${part.label} ${part.percent}%`).join(', ')} repaired at the class ${facts.profile.starport} starport, ${cr(result.costCr)} (Book 2 p.18)`)]);
   },
 
   wait(state, action) {
@@ -372,12 +394,7 @@ const HANDLERS = {
 
   depart(state, action, context) {
     const facts = portFacts(state, context);
-    const events = [];
-    const refuse = (reason, detail) => {
-      state.halt = { reason, detail, from: 'port' };
-      state.situation = 'halted';
-      return one(state, [event(state, 'halt', `departure blocked — ${detail}`, { reason })]);
-    };
+    const refuse = (reason, detail) => halt(state, [], reason, `departure blocked — ${detail}`, 'port');
     const elsewhere = state.ship.state.passengerManifest.filter((entry) => entry.destinationSystemId !== facts.target.id);
     if (elsewhere.length) return refuse('passengers-elsewhere', `passengers aboard for ${[...new Set(elsewhere.map((entry) => entry.destinationSystemId))].join(', ')}`);
     const exclusive = exclusiveContract(state);
@@ -387,47 +404,29 @@ const HANDLERS = {
       return refuse('departure-checklist', blocked.map((row) => `${row.key}: ${row.detail}`).join('; '));
     }
     const lifeSupport = calculateLifeSupportCostForTrip(state.ship);
-    if (lifeSupport.totalCr > state.ship.state.finances.balanceCr) return refuse('life-support', `life support needs ${cr(lifeSupport.totalCr)}`);
-
+    if (lifeSupport.totalCr + facts.overstayCr > state.ship.state.finances.balanceCr) {
+      return refuse('life-support', `life support ${cr(lifeSupport.totalCr)}${facts.overstayCr ? ` and berthing ${cr(facts.overstayCr)}` : ''} against ${cr(state.ship.state.finances.balanceCr)}`);
+    }
     const dateLabel = tripDate(state);
-    state.ship = chargeLifeSupportForTrip(state.ship, { dateLabel }).ship;
-    const jump = beginJump(state.ship, {
-      dice: seeded(state, `${state.campaign.identity.id}|jump|${facts.system.id}|${facts.target.id}|${dateLabel}`),
-      distance: facts.distance, fromHex: facts.system.hex, toHex: facts.target.hex, dateLabel,
-      sinceLabel: firstLedgerDate(state.ship), laneExists: facts.lane
-    });
-    state.ship = jump.ship;
-    const destination = jump.destination;
-    const landedSystem = destination.planned ? facts.target : (destination.inSubsector ? context.subsector.systems.find((system) => system.hex === destination.hex) ?? null : null);
-    state.jump = {
-      fromSystemId: facts.system.id, toSystemId: facts.target.id, startedOn: dateLabel,
-      weeks: jump.weeksInJump ?? 0, weeksDone: 0,
-      misjump: jump.misjump.misjump, destroyed: jump.destroyed,
-      landedHex: destination.hex ?? `${destination.column},${destination.row}`, landedSystemId: landedSystem?.id ?? null
-    };
+    const events = [];
+    if (facts.overstayCr) {
+      state.ship = debitShipAccount(state.ship, facts.overstayCr, { kind: 'berthing', description: `${facts.system.name} berthing, ${facts.daysInPort - 6} days past six (Book 2 p.7)`, dateLabel });
+      events.push(event(state, 'port', `berthing past six days, ${cr(facts.overstayCr)}`));
+    }
+    state.departure = { fromSystemId: facts.system.id, toSystemId: facts.target.id, distance: facts.distance, lane: facts.lane, leftOn: dateLabel };
     state.destinationId = null;
-    events.push(event(state, 'depart', `jumped for ${facts.target.name}, ${jump.fuelConsumedTons} t fuel, life support ${cr(lifeSupport.totalCr)}`));
-    if (jump.destroyed) {
-      state.situation = 'destroyed';
-      events.push(event(state, 'misjump', `misjump ${jump.misjump.total} (16+): the ship is lost in jump space`, { destroyed: true }));
-      return one(state, events);
-    }
-    if (jump.misjump.misjump) {
-      events.push(event(state, 'misjump', `misjump ${jump.misjump.total}: ${jump.misjump.distanceHexes} hexes, direction ${jump.misjump.direction}, ${jump.weeksInJump} weeks in jump — ${landedSystem ? `emerging at ${landedSystem.name}` : 'emerging in empty space'}`, { distanceHexes: jump.misjump.distanceHexes }));
-    }
-    state.situation = 'in-jump';
-    if (jump.hijack.attempt) {
-      state.halt = { reason: 'hijack', detail: `hijack attempt on day ${jump.hijack.day} of the voyage (Book 2 p.3)`, from: 'in-jump' };
-      state.situation = 'halted';
-      events.push(event(state, 'halt', `a passenger attempts a hijacking (3D: ${jump.hijack.total})`, { reason: 'hijack' }));
-    }
-    return one(state, events);
+    events.push(event(state, 'depart', `lifting from ${facts.system.name} for ${facts.target.name}`));
+    // Book 2 p.3: pirates and patrols meet ships "entering or leaving a
+    // system"; p.36's table, keyed on this world's starport.
+    const outbound = rollShipEncounter(seeded(state, `${state.campaign.identity.id}|departure|${facts.system.id}|${dateLabel}`), { starport: facts.profile.starport });
+    if (outbound.type) return one(state, [...events, openEncounter(state, outbound, { phase: 'outbound', system: facts.system, seedBase: `${state.campaign.identity.id}|departure|${facts.system.id}|${dateLabel}` })]);
+    return launch(state, events, context);
   },
 
   'jump-week'(state, action, context) {
     const weekStartsOn = tripDate(state);
     const week = state.jump.weeksDone + 1;
-    const engineeringSkill = bestCrewSkill(state, 'engineer', 'Engineering');
+    const engineeringSkill = attendingEngineerExpertise(state.ship, Object.fromEntries(state.characters.map((entry) => [entry.identity.id, Number(entry.skills?.Engineering ?? 0)])));
     const result = resolveJumpWeek(state.ship, {
       dice: seeded(state, `${state.campaign.identity.id}|jump-week|${state.jump.startedOn}|${week}`),
       weekStartsOn, sinceLabel: firstLedgerDate(state.ship), engineeringSkill
@@ -453,54 +452,123 @@ const HANDLERS = {
     return arrive(state, events, context);
   },
 
-  'let-pass'(state) {
+  'let-pass'(state, action, context) {
     const label = state.encounter.label;
-    state.encounter = null;
-    state.situation = 'port';
-    return one(state, [event(state, 'encounter', `${label} let pass`)]);
+    return afterEncounter(state, [event(state, 'encounter', `${label} let pass`)], context);
   },
 
   fight(state) {
     return haltForFight(state, `${state.encounter.label}: the party chose to fight`);
   },
 
-  hail(state) {
+  hail(state, action, context) {
     const encounter = state.encounter;
-    const reaction = rollReaction(seeded(state, `${state.campaign.identity.id}|arrival|${encounter.systemId}|${encounter.dateLabel}|hail`));
-    const hail = resolveHail(encounter.key, reaction);
-    if (hail.outcome === 'fight') return haltForFight(state, `${encounter.label} takes the hail badly and opens fire — ${reaction.description}`);
-    if (hail.outcome === 'tip') state.ship = grantBrokerTip(state.ship, { dm: hail.brokerTipDM });
-    state.encounter = null;
-    state.situation = 'port';
-    return one(state, [event(state, 'encounter', hail.outcome === 'tip' ? `${encounter.label} shares word of a buyer (broker tip +${hail.brokerTipDM})` : `${encounter.label} trades pleasantries`)]);
+    const hail = resolveHail(encounter.key, { tableTotal: encounter.reactionTotal }, { dice: seeded(state, `${encounter.seedBase}|hail-attack`) });
+    if (hail.outcome === 'fight') return haltForFight(state, `${encounter.label} answers the hail with fire (${encounter.reaction.replace(/\.$/, '')}; ${hail.attack.immediate ? 'immediate attack' : `attack throw ${hail.attack.total} against ${hail.attack.needed}+`})`);
+    if (hail.outcome === 'tip') state.pendingBrokerTipDM = hail.brokerTipDM;
+    return afterEncounter(state, [event(state, 'encounter', hail.outcome === 'tip' ? `${encounter.label} shares word of a buyer (broker tip +${hail.brokerTipDM} here)` : `${encounter.label} trades pleasantries`)], context);
   },
 
-  inspect(state) {
+  inspect(state, action, context) {
     const encounter = state.encounter;
-    const reaction = rollReaction(seeded(state, `${state.campaign.identity.id}|arrival|${encounter.systemId}|${encounter.dateLabel}|inspect`));
-    const inspection = resolveInspection(encounter.key, reaction);
-    if (inspection.outcome === 'fight') return haltForFight(state, `${encounter.label} turns hostile during the inspection — ${reaction.description}`);
+    const inspection = resolveInspection(encounter.key, { tableTotal: encounter.reactionTotal }, { dice: seeded(state, `${encounter.seedBase}|inspect-attack`) });
+    if (inspection.outcome === 'fight') return haltForFight(state, `${encounter.label} opens fire during the inspection (${encounter.reaction.replace(/\.$/, '')}; ${inspection.attack.immediate ? 'immediate attack' : `attack throw ${inspection.attack.total} against ${inspection.attack.needed}+`})`);
     if (inspection.outcome === 'toll') {
       state.encounter = { ...encounter, tollDemandCr: inspection.tollCr };
       return one(state, [event(state, 'encounter', `${encounter.label} demands ${cr(inspection.tollCr)}`)]);
     }
-    state.encounter = null;
-    state.situation = 'port';
-    return one(state, [event(state, 'encounter', `${encounter.label} waves the ship through`)]);
+    return afterEncounter(state, [event(state, 'encounter', `${encounter.label} waves the ship through`)], context);
   },
 
-  'pay-toll'(state) {
+  'pay-toll'(state, action, context) {
     const encounter = state.encounter;
     state.ship = payInspectionToll(state.ship, { tollCr: encounter.tollDemandCr, description: `${encounter.label} inspection toll`, dateLabel: tripDate(state) });
-    state.encounter = null;
-    state.situation = 'port';
-    return one(state, [event(state, 'encounter', `paid ${cr(encounter.tollDemandCr)} toll to ${encounter.label}`)]);
+    return afterEncounter(state, [event(state, 'encounter', `paid ${cr(encounter.tollDemandCr)} toll to ${encounter.label}`)], context);
   },
 
   'refuse-toll'(state) {
     return haltForFight(state, `refused ${state.encounter.label}'s toll; it opens fire`);
   }
 };
+
+function halt(state, events, reason, detail, from) {
+  state.halt = { reason, detail, from };
+  state.situation = 'halted';
+  return one(state, [...events, event(state, 'halt', detail, { reason })]);
+}
+
+// Book 3 p.23: one reaction per encounter, with its DMs, kept on the
+// encounter so hail and inspection read it rather than throwing again.
+function openEncounter(state, rolled, { phase, system, seedBase }) {
+  const population = system ? parseUniversalWorldProfile(system.mainWorld.uwp).population : null;
+  const dmParts = shipEncounterReactionDMParts({ characters: state.characters, population });
+  const dm = dmParts.reduce((sum, part) => sum + part.dm, 0);
+  const reaction = rollReaction(seeded(state, `${seedBase}|reaction`), { dm });
+  state.encounter = {
+    key: rolled.type, label: rolled.label, hull: rolled.hull?.label ?? null, phase,
+    hostileByDefault: Boolean(rolled.hostileByDefault), reaction: reaction.description, reactionTotal: reaction.tableTotal,
+    reactionDM: dm, systemId: system?.id ?? null, seedBase, tollDemandCr: null
+  };
+  state.situation = 'encounter';
+  return event(state, 'encounter', `${rolled.label}${rolled.hull ? ` (${rolled.hull.label})` : ''} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal });
+}
+
+function afterEncounter(state, events, context) {
+  const phase = state.encounter?.phase;
+  state.encounter = null;
+  if (phase === 'outbound') return launch(state, events, context);
+  if (phase === 'inbound') return land(state, events, context);
+  state.situation = 'port';
+  return one(state, events);
+}
+
+// The trip out: about 20 hours to 100 diameters (Book 2 p.1), taken as a
+// day, then life support is posted and the jump made.
+function launch(state, events, context) {
+  const departure = state.departure;
+  const passed = passDays(state, 1, 'transit to the jump point');
+  state = passed.state;
+  events.push(...passed.events);
+  if (state.situation === 'halted') return one(state, events);
+  const from = systemOf(context, departure.fromSystemId);
+  const target = systemOf(context, departure.toSystemId);
+  const dateLabel = tripDate(state);
+  const lifeSupport = calculateLifeSupportCostForTrip(state.ship);
+  if (lifeSupport.totalCr > state.ship.state.finances.balanceCr) return halt(state, events, 'life-support', `cannot post life support (${cr(lifeSupport.totalCr)})`, 'outbound');
+  state.ship = chargeLifeSupportForTrip(state.ship, { dateLabel }).ship;
+  let jump;
+  try {
+    jump = beginJump(state.ship, {
+      dice: seeded(state, `${state.campaign.identity.id}|jump|${from.id}|${target.id}|${dateLabel}`),
+      distance: departure.distance, fromHex: from.hex, toHex: target.hex, dateLabel,
+      sinceLabel: firstLedgerDate(state.ship), laneExists: departure.lane
+    });
+  } catch (error) {
+    return halt(state, events, 'departure-checklist', `jump refused — ${error.message}`, 'outbound');
+  }
+  state.ship = jump.ship;
+  const destination = jump.destination;
+  const landedSystem = destination.planned ? target : (destination.inSubsector ? context.subsector.systems.find((system) => system.hex === destination.hex) ?? null : null);
+  state.jump = {
+    fromSystemId: from.id, toSystemId: target.id, startedOn: departure.leftOn,
+    weeks: jump.weeksInJump ?? 0, weeksDone: 0,
+    misjump: jump.misjump.misjump, destroyed: jump.destroyed,
+    landedHex: destination.hex ?? `${destination.column},${destination.row}`, landedSystemId: landedSystem?.id ?? null
+  };
+  state.departure = null;
+  events.push(event(state, 'jump', `jumped for ${target.name}, ${jump.fuelConsumedTons} t fuel, life support ${cr(lifeSupport.totalCr)}`));
+  if (jump.destroyed) {
+    state.situation = 'destroyed';
+    events.push(event(state, 'misjump', `misjump ${jump.misjump.total} (16+): the ship is lost in jump space`, { destroyed: true }));
+    return one(state, events);
+  }
+  if (jump.misjump.misjump) {
+    events.push(event(state, 'misjump', `misjump ${jump.misjump.total}: ${jump.misjump.distanceHexes} hexes, direction ${jump.misjump.direction}, ${jump.weeksInJump} weeks in jump — ${landedSystem ? `emerging at ${landedSystem.name}` : 'emerging in empty space'}`, { distanceHexes: jump.misjump.distanceHexes }));
+  }
+  state.situation = 'in-jump';
+  if (jump.hijack.attempt) return halt(state, events, 'hijack', `a passenger attempts a hijacking (3D: ${jump.hijack.total}) on day ${jump.hijack.day} of the voyage (Book 2 p.3)`, 'in-jump');
+  return one(state, events);
+}
 
 function haltForFight(state, detail) {
   state.halt = { reason: 'ship-fight', detail, from: 'encounter', encounter: state.encounter };
@@ -511,6 +579,10 @@ function haltForFight(state, detail) {
 
 // ------------------------------------------------------------------ arrival
 
+// Book 2 p.3: shipping meets a ship "entering" a system, so the encounter
+// comes on approach — cargo and sleeping passengers still aboard — and the
+// landing (p.2 revival "after the ship has landed", p.3 repossession "on
+// each world landing") follows it.
 function arrive(state, events, context) {
   const jump = state.jump;
   const target = jump.landedSystemId ? systemOf(context, jump.landedSystemId) : null;
@@ -520,12 +592,26 @@ function arrive(state, events, context) {
     events.push(event(state, 'stranded', `emerged in empty space at ${jump.landedHex}; no world, no port`));
     return one(state, events);
   }
+  state.campaign = updateCampaignLocation(state.campaign, { systemId: target.id, systemName: target.name, worldId: target.mainWorld.id, worldName: target.mainWorld.name });
+  state.landing = { fromSystemId: jump.fromSystemId, systemId: target.id, startedOn: jump.startedOn, misjump: jump.misjump };
+  const targetProfile = parseUniversalWorldProfile(target.mainWorld.uwp);
+  // Seeded on the departure date, as play-session.js does.
+  const seedBase = `${state.campaign.identity.id}|arrival|${target.id}|${jump.startedOn}`;
+  const inbound = rollShipEncounter(seeded(state, seedBase), { starport: targetProfile.starport });
+  if (inbound.type) {
+    events.push(openEncounter(state, inbound, { phase: 'inbound', system: target, seedBase }));
+    return one(state, events);
+  }
+  return land(state, events, context);
+}
+
+function land(state, events, context) {
+  const landing = state.landing;
+  state.landing = null;
+  const target = systemOf(context, landing.systemId);
   const arrivedOn = tripDate(state);
   const targetProfile = parseUniversalWorldProfile(target.mainWorld.uwp);
-  // Seeded on the departure date, as play-session.js does, so the same trip
-  // meets the same traffic in either.
-  const arrivalSeed = `${state.campaign.identity.id}|arrival|${target.id}|${jump.startedOn}`;
-  state.campaign = updateCampaignLocation(state.campaign, { systemId: target.id, systemName: target.name, worldId: target.mainWorld.id, worldName: target.mainWorld.name });
+  const arrivalSeed = `${state.campaign.identity.id}|arrival|${target.id}|${landing.startedOn}`;
 
   const medicalById = Object.fromEntries(state.characters.map((entry) => [entry.identity.id, Number(entry.skills?.Medical ?? 0)]));
   const revival = reviveLowPassengers(state.ship, seeded(state, `${arrivalSeed}|revival`), { systemId: target.id, medicExpertise: attendingMedicExpertise(state.ship, medicalById) });
@@ -561,48 +647,34 @@ function arrive(state, events, context) {
   state.contracts = reconciled.contracts;
 
   state.ship = beginPortCall(state.ship, { systemId: target.id, arrivalDate: arrivedOn, berthingDueCr: targetProfile.starport === 'X' ? 0 : calculateBerthingCost(1) });
-  state.lastSystemId = jump.fromSystemId;
+  if (state.pendingBrokerTipDM) {
+    state.ship = grantBrokerTip(state.ship, { dm: state.pendingBrokerTipDM });
+    state.pendingBrokerTipDM = 0;
+  }
+  state.lastSystemId = landing.fromSystemId;
   state.arrivals += 1;
+  state.situation = 'port';
 
-  const parts = [`arrived at ${target.name}${jump.misjump ? ' (misjumped)' : ''}, ${state.ship.state.portCall.berth === 'orbit' ? 'in orbit' : 'landed'}`];
+  const lottery = revival.lottery;
+  const parts = [`arrived at ${target.name}${landing.misjump ? ' (misjumped)' : ''}, ${state.ship.state.portCall.berth === 'orbit' ? 'in orbit' : 'landed'}`];
   if (freight.delivered.length) parts.push(`${freight.delivered.length} freight delivered, ${cr(freight.revenueCr)}`);
   if (passengers.passengers.length) parts.push(`${passengers.passengers.length} passengers disembarked, ${cr(passengers.revenueCr)}`);
-  if (revival.revivals.length) parts.push(`${revival.survived.length} of ${revival.revivals.length} low passengers revived; lottery ${revival.lottery.paidCr ? `paid ${cr(revival.lottery.paidCr)}` : 'kept'}`);
+  if (revival.revivals.length) parts.push(`${revival.survived.length} of ${revival.revivals.length} low passengers revived; ${lottery ? `lottery ${lottery.paidCr ? `paid ${cr(lottery.paidCr)}` : 'kept'}` : 'no steward, no lottery'}`);
   for (const delivered of messages.delivered) parts.push(`message delivered to ${delivered.recipient}`);
   for (const result of contractResults) parts.push(`${result.contract.identity.title} ${result.success ? 'completed' : 'failed'}`);
   events.push(event(state, 'arrival', parts.join('; '), {
-    systemId: target.id, misjumped: jump.misjump, freightCr: freight.revenueCr, passageCr: passengers.revenueCr,
-    lowRevived: revival.survived.length, lowDied: revival.died.length, lotteryPaidCr: revival.lottery?.paidCr ?? 0, messagesDelivered: messages.delivered.length
+    systemId: target.id, misjumped: landing.misjump, freightCr: freight.revenueCr, passageCr: passengers.revenueCr,
+    lowRevived: revival.survived.length, lowDied: revival.died.length, lotteryPaidCr: lottery?.paidCr ?? 0, lotteryHeld: Boolean(lottery), messagesDelivered: messages.delivered.length
   }));
 
-  const repossession = checkRepossession(state.ship, seeded(state, `${arrivalSeed}|repossession`), { systemId: target.id, dateLabel: arrivedOn,
-    hexesFromHome: (() => {
-      const home = state.ship.state.finances?.mortgage?.homeSystemId;
-      if (!home || !systemOf(context, home)) return null;
-      return getJumpDestinations(context.subsector, home, 99).find((entry) => entry.system.id === target.id)?.distance ?? (home === target.id ? 0 : null);
-    })() });
+  const home = state.ship.state.finances?.mortgage?.homeSystemId;
+  const hexesFromHome = !home || !systemOf(context, home) ? null
+    : home === target.id ? 0 : getJumpDestinations(context.subsector, home, 99).find((entry) => entry.system.id === target.id)?.distance ?? null;
+  const repossession = checkRepossession(state.ship, seeded(state, `${arrivalSeed}|repossession`), { systemId: target.id, dateLabel: arrivedOn, hexesFromHome });
   if (repossession.attempt) {
     state.ship = impoundShip(state.ship, { systemId: target.id, dateLabel: arrivedOn, form: repossession.form });
     events.push(event(state, 'repossession', `repossession attempt (${repossession.roll.total} against 12+): ${repossession.form}`, { form: repossession.form }));
-    if (repossession.form === 'boarding') {
-      state.situation = 'halted';
-      state.halt = { reason: 'repossession-boarding', detail: 'an armed repossession party boards (Book 2 p.3)', from: 'port' };
-      return one(state, events);
-    }
-  }
-
-  const shipEncounter = rollShipEncounter(seeded(state, arrivalSeed), { starport: targetProfile.starport });
-  if (shipEncounter.type) {
-    const reaction = rollReaction(seeded(state, `${arrivalSeed}|reaction`));
-    state.encounter = {
-      key: shipEncounter.type, label: shipEncounter.label, hull: shipEncounter.hull?.label ?? null,
-      hostileByDefault: Boolean(shipEncounter.hostileByDefault), reaction: reaction.description,
-      systemId: target.id, dateLabel: jump.startedOn, tollDemandCr: null
-    };
-    state.situation = 'encounter';
-    events.push(event(state, 'encounter', `${shipEncounter.label}${shipEncounter.hull ? ` (${shipEncounter.hull.label})` : ''} encountered: ${reaction.description}`, { key: shipEncounter.type }));
-  } else {
-    state.situation = 'port';
+    if (repossession.form === 'boarding') return halt(state, events, 'repossession-boarding', 'an armed repossession party boards (Book 2 p.3)', 'port');
   }
   return one(state, events);
 }

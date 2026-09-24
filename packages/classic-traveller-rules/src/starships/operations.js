@@ -651,16 +651,36 @@ const MORTGAGE_LEDGER_KIND = 'mortgage';
  * owed from `startedOn`, so a ship acquired part-paid (a mustering-out
  * benefit read that way) is financed with fewer than the full 480.
  */
+// Book 2 p.5: the bank wants "an economic plan detailing the projected
+// activity which will guarantee that monthly payments are made", which
+// "will generally rule out purchases (at least financed purchases) of
+// yachts, military vessels, or exploratory vessels" unless the buyer has
+// "some form of guaranteed income". Refused here unless the caller says so.
+export const FINANCING_RESTRICTED_DESIGNS = Object.freeze(['type-y-yacht', 'type-c-cruiser', 'type-s-scout-courier']);
+// Book 2 p.5 Subsidies: "larger commercial vessels (built on type 600 hulls
+// or larger)". The government makes the payments and takes "50% of the
+// gross receipts of the ship while in service".
+export const SUBSIDY_MINIMUM_HULL_TONS = 600;
+export const SUBSIDY_GROSS_RECEIPTS_SHARE = 0.5;
+
 export function financeShip(ship, {
   startedOn,
   cashPriceCr = null,
   monthlyPaymentCr = null,
   termMonths = MORTGAGE_TERM_MONTHS,
-  homeSystemId = null
+  homeSystemId = null,
+  subsidized = false,
+  guaranteedIncome = false
 } = {}) {
   assertValidShipDocument(ship);
   assertGameDate(startedOn, 'startedOn');
   if (ship.state.finances.mortgage) throw new RangeError('ship is already financed');
+  if (FINANCING_RESTRICTED_DESIGNS.includes(ship.design.key) && !guaranteedIncome) {
+    throw new RangeError(`a bank will not generally finance a ${ship.design.name} without guaranteed income (Book 2 p.5)`);
+  }
+  if (subsidized && ship.specifications.hull.tons < SUBSIDY_MINIMUM_HULL_TONS) {
+    throw new RangeError(`subsidies are for type ${SUBSIDY_MINIMUM_HULL_TONS} hulls or larger (Book 2 p.5)`);
+  }
   if (!Number.isInteger(termMonths) || termMonths < 1 || termMonths > MORTGAGE_TERM_MONTHS) {
     throw new RangeError(`termMonths must be an integer from 1 to ${MORTGAGE_TERM_MONTHS}`);
   }
@@ -672,7 +692,7 @@ export function financeShip(ship, {
   // v0.69.0: Book 2 p.3 measures a skipped ship's distance from its home
   // planet; the bank's world is taken as that home. Null where unknown.
   if (homeSystemId !== null && (typeof homeSystemId !== 'string' || !homeSystemId.trim())) throw new TypeError('homeSystemId must be null or a nonblank string');
-  next.state.finances.mortgage = { cashPriceCr: price, monthlyPaymentCr: monthly, termMonths, startedOn, homeSystemId: homeSystemId === null ? null : homeSystemId.trim() };
+  next.state.finances.mortgage = { cashPriceCr: price, monthlyPaymentCr: monthly, termMonths, startedOn, homeSystemId: homeSystemId === null ? null : homeSystemId.trim(), subsidized: Boolean(subsidized) };
   assertValidShipDocument(next);
   return next;
 }
@@ -688,6 +708,17 @@ export function shipMortgageSchedule(ship, { dateLabel } = {}) {
   const mortgage = ship.state.finances.mortgage;
   if (!mortgage) {
     return Object.freeze({ financed: false, paidOff: true, paymentsMade: 0, paymentsRemaining: 0, periodsDue: 0, arrearsCr: 0, monthlyPaymentCr: 0, nextDueDate: null });
+  }
+  if (mortgage.subsidized) {
+    // The government pays the bank; the ship owes nothing monthly and cannot
+    // skip. Title passes when the term has run.
+    const start = assertGameDate(mortgage.startedOn, 'mortgage.startedOn');
+    const elapsed = Math.max(0, Math.floor((now - start) / MORTGAGE_PERIOD_DAYS));
+    return Object.freeze({
+      financed: true, subsidized: true, paidOff: elapsed >= mortgage.termMonths,
+      monthlyPaymentCr: 0, termMonths: mortgage.termMonths, paymentsMade: Math.min(elapsed, mortgage.termMonths),
+      paymentsRemaining: Math.max(0, mortgage.termMonths - elapsed), periodsDue: 0, arrearsCr: 0, skipped: false, nextDueDate: null
+    });
   }
   const paymentsMade = mortgagePaymentsMade(ship);
   const paymentsRemaining = Math.max(0, mortgage.termMonths - paymentsMade);
@@ -805,6 +836,20 @@ export function chargeLifeSupportForTrip(ship, { dateLabel = null } = {}) {
   return Object.freeze({ ship: next, ...cost });
 }
 
+/**
+ * Book 2 p.5: a subsidized merchant pays the government half its gross
+ * receipts while the subsidy runs. Applied to freight and passage revenue.
+ */
+export function applySubsidyShare(ship, grossCr, { dateLabel = null, description = 'Government share of gross receipts' } = {}) {
+  assertValidShipDocument(ship);
+  const mortgage = ship.state.finances.mortgage;
+  if (!mortgage?.subsidized || !Number.isInteger(grossCr) || grossCr <= 0) return cloneJson(ship);
+  const label = normalizeDateLabel(dateLabel);
+  if (label !== null && shipMortgageSchedule(ship, { dateLabel: label }).paidOff) return cloneJson(ship);
+  const shareCr = Math.round(grossCr * SUBSIDY_GROSS_RECEIPTS_SHARE);
+  return appendLedger(ship, { kind: 'subsidy', amountCr: -shareCr, description: `${description}, 50% of Cr${grossCr.toLocaleString('en-US')} (Book 2 p.5)`, dateLabel });
+}
+
 export function deliverFreightAtDestination(ship, systemId, { dateLabel = null } = {}) {
   assertValidShipDocument(ship);
   const destination = String(systemId ?? '').trim();
@@ -826,6 +871,7 @@ export function deliverFreightAtDestination(ship, systemId, { dateLabel = null }
       dateLabel
     });
   }
+  next = applySubsidyShare(next, revenueCr, { dateLabel, description: 'Government share of freight' });
   assertValidShipDocument(next);
   return Object.freeze({ ship: next, delivered: Object.freeze(delivered), revenueCr });
 }
@@ -846,6 +892,7 @@ export function disembarkPassengersAtDestination(ship, systemId, { dateLabel = n
       description: `${delivered.length} passenger${delivered.length === 1 ? '' : 's'} delivered`,
       dateLabel
     });
+    next = applySubsidyShare(next, revenueCr, { dateLabel, description: 'Government share of passage' });
   }
   return Object.freeze({ ship: next, passengers: Object.freeze(delivered), revenueCr });
 }

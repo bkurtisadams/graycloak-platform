@@ -135,7 +135,7 @@ function tally(totals, outcome, startBalance, startDate) {
   if (outcome.halt) {
     bump(totals.halts, outcome.halt.reason);
     if (outcome.halt.reason === 'departure-checklist') {
-      for (const part of outcome.halt.detail.split('; ')) bump(totals.checklistBlocks, part.split(':')[0]);
+      for (const part of outcome.halt.detail.replace(/^departure blocked — /, '').split('; ')) bump(totals.checklistBlocks, part.split(':')[0]);
     }
   }
   if (outcome.stoppedBy === 'destroyed') totals.destroyed += 1;

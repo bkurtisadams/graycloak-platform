@@ -34,3 +34,24 @@ rules citations as Kurt supplies them; the full text is his.
   doctor treats an alien as Medical-1). In the game (v0.298.0): the attendant
   counts two levels lower for a non-human patient, ticked from an NPC's
   species and the referee's to change.
+
+## Starship malfunctions (adopted wholesale in place of Book 2 p.4)
+
+- Starships need continuing maintenance and an annual overhaul. Ships that
+  are undercrewed — without enough dedicated or full-time skilled engineers
+  — or that avoid or delay the overhaul risk malfunction.
+- Drive failure: each week, 13+ on 2D. DMs: +1 using unrefined fuel when not
+  equipped for it; +1 per engineer missing from the crew list; +1 per week
+  past the annual overhaul date.
+- On a malfunction, 7+ for each drive in use (jump, maneuver, power plant)
+  decides which fail. A failed drive stops completely: no thrust, no jump,
+  no power. Batteries give life support and basic lighting for 10 days.
+- Temporary repair: 10+ per day spent on repairs, DM + engineering skill of
+  the attending engineers. More complete repairs must be made at a starport
+  by qualified personnel.
+- Graycloak rulings (Kurt, Sep 2026): a crewman doubling as engineer fills
+  the post (no missing-engineer DM) but throws repairs without his
+  expertise (Book 2 p.17); only engineers attempt repairs; the starport
+  repair is class A–C (Book 3's starport table) and priced by Book 2 p.18
+  Repair Parts, 2D × 10% of each failed drive's cost. No flushing step:
+  the unrefined DM applies while unrefined fuel is in use.

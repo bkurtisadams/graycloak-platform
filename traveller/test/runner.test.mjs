@@ -71,17 +71,29 @@ test('one jump: a week in jump space, arrival at the course set, a new port call
   trip = applyAction(trip, { type: 'choose-destination', systemId: 'calder' }, context).state;
   const departed = applyAction(trip, { type: 'depart' }, context);
   trip = departed.state;
-  assert.equal(trip.situation, 'in-jump');
   assert.ok(departed.events.some((entry) => entry.kind === 'depart'));
+  // Book 2 p.3: traffic may be met leaving; let it pass.
+  if (trip.situation === 'encounter') {
+    assert.equal(trip.encounter.phase, 'outbound');
+    trip = applyAction(trip, { type: 'let-pass' }, context).state;
+  }
+  assert.equal(trip.situation, 'in-jump');
+  assert.equal(tripDate(trip), '107-4800', 'a day to 100 diameters (Book 2 p.1)');
   assert.ok(trip.ship.state.currentFuelTons < 30);
-  const arrived = applyAction(trip, { type: 'jump-week' }, context);
+  let arrived = applyAction(trip, { type: 'jump-week' }, context);
   trip = arrived.state;
   assert.equal(trip.campaign.location.systemId, 'calder');
-  assert.equal(tripDate(trip), '113-4800');
+  if (trip.situation === 'encounter') {
+    assert.equal(trip.encounter.phase, 'inbound');
+    assert.equal(trip.ship.state.portCall.systemId, 'aster', 'the encounter comes before landing');
+    arrived = applyAction(trip, { type: 'let-pass' }, context);
+    trip = arrived.state;
+  }
+  assert.equal(tripDate(trip), '114-4800');
   assert.equal(trip.ship.state.portCall.systemId, 'calder');
-  assert.equal(trip.ship.state.portCall.arrivalDate, '113-4800');
+  assert.equal(trip.ship.state.portCall.arrivalDate, '114-4800');
   assert.equal(trip.arrivals, 1);
-  assert.ok(['port', 'encounter'].includes(trip.situation));
+  assert.equal(trip.situation, 'port');
   assert.ok(arrived.events.some((entry) => entry.kind === 'arrival'));
 });
 
@@ -99,6 +111,8 @@ test('the default policy spends Book 2 p.1\'s six days in port and keeps going',
     assert.equal(outcome.state.arrivals, 3);
     const departures = outcome.events.filter((entry) => entry.kind === 'depart').map((entry) => entry.date);
     assert.equal(departures[0], '112-4800', 'six days after the opening port call');
+    const jumps = outcome.events.filter((entry) => entry.kind === 'jump').map((entry) => entry.date);
+    assert.equal(jumps[0], '113-4800', 'a day later at the jump point');
   }
 });
 
@@ -140,14 +154,22 @@ test('an arrival encounter waits on the policy; a fight halts the trip for a per
 });
 
 test('a failed drive blocks departure until a class A-C starport repairs it', async () => {
-  let trip = createTrip(await resolvedAt('aster', { shipState: { malfunction: { failed: ['jumpDrive'], since: '100-4800', patched: false } } }));
+  const rich = { balanceCr: 20_000_000, ledger: [{ id: 'opening', date: '106-4800', kind: 'transfer', description: 'Opening balance', amountCr: 20_000_000, balanceCr: 20_000_000 }] };
+  let trip = createTrip(await resolvedAt('aster', { shipState: { finances: rich, malfunction: { failed: ['jumpDrive'], since: '100-4800', patched: false } } }));
   trip = applyAction(trip, { type: 'choose-destination', systemId: 'calder' }, context).state;
-  assert.equal(portFacts(trip, context).checklist.rows.find((row) => row.key === 'drives').ok, false);
+  const facts = portFacts(trip, context);
+  assert.equal(facts.checklist.rows.find((row) => row.key === 'drives').ok, false);
+  // Book 2 p.18: 2D x 10% of the jump drive's MCr 10.
+  assert.ok(facts.driveRepair.costCr >= 2_000_000 && facts.driveRepair.costCr <= 12_000_000);
   const policy = createDefaultPolicy({ portDays: 0 });
   assert.equal(policy(trip, listActions(trip, context), context).type, 'repair-drives');
   trip = applyAction(trip, { type: 'repair-drives' }, context).state;
   assert.equal(trip.ship.state.malfunction, null);
+  assert.equal(trip.ship.state.finances.balanceCr, 20_000_000 - facts.driveRepair.costCr);
   assert.equal(portFacts(trip, context).checklist.ok, true);
+  // At the free trader's own Cr500,000 the same repair is out of reach.
+  const poor = createTrip(await resolvedAt('aster', { shipState: { malfunction: { failed: ['jumpDrive'], since: '100-4800', patched: false } } }));
+  assert.equal(listActions(poor, context).some((entry) => entry.type === 'repair-drives'), false);
 });
 
 test('time in port goes through the clock: a financed ship pays its mortgage on the day it falls due', async () => {

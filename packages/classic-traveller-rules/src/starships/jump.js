@@ -23,9 +23,9 @@
 // Pure: ship documents in, ship documents out, rolls through the dice given.
 
 import { createDice, requireDice } from '../dice.js';
-import { assertValidShipDocument, MALFUNCTION_DRIVES } from './ship-document.js';
+import { assertValidShipDocument, MALFUNCTION_DRIVES, shipCrewMemberRoles } from './ship-document.js';
 import { POWER_PLANTS, MANEUVER_DRIVES, JUMP_DRIVES } from './components.js';
-import { canShipMakeJump, consumeJumpFuel, shipMaintenanceStatus, shipGunnerRequirement, HIGH_PASSENGERS_PER_STEWARD } from './operations.js';
+import { canShipMakeJump, consumeJumpFuel, shipMaintenanceStatus, shipGunnerRequirement, HIGH_PASSENGERS_PER_STEWARD, debitShipAccount } from './operations.js';
 import { assertGameDate, addDays, daysBetween } from '../time/dates.js';
 import { SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, formatSubsectorHex, parseSubsectorHex } from '../worlds/subsector.js';
 
@@ -309,6 +309,42 @@ export function attemptDriveRepair(ship, dice, { engineeringSkill = 0, dateLabel
   return Object.freeze({ ship: next, dice: rolled.dice, dm: engineeringSkill, total, success, repaired: success ? [...failed] : [] });
 }
 
+/**
+ * The Engineering DM for repairs in jump space: the best among the ship's
+ * engineers, where one doubling in a second post counts as 0 (Book 2 p.17:
+ * no expertise DMs in either position). Null with no engineer — 1982 has
+ * "attending engineers" throw, so nobody else tries.
+ */
+export function attendingEngineerExpertise(ship, engineeringById = {}) {
+  assertValidShipDocument(ship);
+  const engineers = ship.crew.assignments.filter((entry) => String(entry.role).toLowerCase() === 'engineer');
+  if (!engineers.length) return null;
+  return Math.max(...engineers.map((entry) => (shipCrewMemberRoles(ship, entry.characterId).appliesExpertise ? Number(engineeringById[entry.characterId] ?? 0) || 0 : 0)));
+}
+
+// RULING (Sep 2026): the 1982 "more complete repairs" are priced by Book 2
+// p.18 Repair Parts — 2D x 10% of each failed drive's own price, installed by
+// the starport (no crew DM).
+const DRIVE_PRICE_TABLES = Object.freeze({
+  powerPlant: { table: POWER_PLANTS, spec: 'powerPlant', label: 'power plant' },
+  maneuverDrive: { table: MANEUVER_DRIVES, spec: 'maneuver', label: 'maneuver drive' },
+  jumpDrive: { table: JUMP_DRIVES, spec: 'jump', label: 'jump drive' }
+});
+
+export function quoteStarportDriveRepair(ship, dice) {
+  assertValidShipDocument(ship);
+  requireDice(dice);
+  const failed = ship.state.malfunction?.failed ?? [];
+  const parts = failed.map((drive) => {
+    const entry = DRIVE_PRICE_TABLES[drive];
+    const letter = ship.specifications.drives[entry.spec].letter;
+    const assemblyCr = Math.round(entry.table[letter].priceMCr * 1_000_000);
+    const rolled = dice.roll2D6();
+    return Object.freeze({ drive, label: entry.label, assemblyCr, dice: rolled.dice, percent: rolled.total * 10, costCr: Math.round(assemblyCr * rolled.total / 10) });
+  });
+  return Object.freeze({ parts: Object.freeze(parts), costCr: parts.reduce((sum, part) => sum + part.costCr, 0) });
+}
+
 /** Complete repairs "made at a starport by qualified personnel": class A-C. */
 export const DRIVE_REPAIR_STARPORTS = Object.freeze(['A', 'B', 'C']);
 
@@ -320,6 +356,23 @@ export function completeDriveRepair(ship, { starport } = {}) {
   next.state.malfunction = null;
   assertValidShipDocument(next);
   return next;
+}
+
+/** Complete repairs at a class A-C starport, charged at the quote given. */
+export function repairDrivesAtStarport(ship, { starport, quote, dateLabel = null } = {}) {
+  assertValidShipDocument(ship);
+  if (!quote || !Array.isArray(quote.parts)) throw new TypeError('a repair quote is required');
+  const failed = ship.state.malfunction?.failed ?? [];
+  if (!failed.length) throw new RangeError('no drive has failed');
+  let next = completeDriveRepair(ship, { starport });
+  if (quote.costCr > 0) {
+    next = debitShipAccount(next, quote.costCr, {
+      kind: 'repair',
+      description: `Starport drive repair: ${quote.parts.map((part) => `${part.label} ${part.percent}%`).join(', ')} (Book 2 p.18)`,
+      dateLabel
+    });
+  }
+  return Object.freeze({ ship: next, costCr: quote.costCr });
 }
 
 /** 1982: with the power plant down, batteries hold life support for 10 days. */

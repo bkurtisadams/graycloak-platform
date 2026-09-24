@@ -524,7 +524,11 @@ export {
   shipMortgageSchedule,
   MAINTENANCE_DAYS,
   shipMaintenanceStatus,
-  performMaintenance
+  performMaintenance,
+  FINANCING_RESTRICTED_DESIGNS,
+  SUBSIDY_MINIMUM_HULL_TONS,
+  SUBSIDY_GROSS_RECEIPTS_SHARE,
+  applySubsidyShare
 } from './src/starships/operations.js';
 
 // v0.68.0: software, departure and the jump (1982 malfunctions).
@@ -569,6 +573,9 @@ export {
   attemptDriveRepair,
   DRIVE_REPAIR_STARPORTS,
   completeDriveRepair,
+  attendingEngineerExpertise,
+  quoteStarportDriveRepair,
+  repairDrivesAtStarport,
   shipBatteryStatus,
   HIJACK_THROW,
   ANTI_HIJACK_BRIDGE_THROW,
@@ -589,6 +596,7 @@ export {
   LOTTERY_STAKE_PER_LOW_PASSAGE_CR,
   rollLowPassageLottery,
   settleLowPassageLottery,
+  shipHasSteward,
   reviveLowPassengers,
   SHUTTLE_FARE_RATE,
   SHUTTLE_FREIGHT_PER_TON_CR,
@@ -615,7 +623,10 @@ export {
   HAIL_ENCOUNTER_KEYS,
   INSPECTION_ENCOUNTER_KEYS,
   HAIL_BROKER_TIP_DM,
+  REACTION_ATTACK_THROWS,
+  shipEncounterReactionDMParts,
   shipReactionStance,
+  rollReactionAttack,
   resolveHail,
   inspectionTollCr,
   resolveInspection,
