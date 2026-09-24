@@ -574,6 +574,8 @@ export {
   DRIVE_REPAIR_STARPORTS,
   completeDriveRepair,
   attendingEngineerExpertise,
+  REPAIR_PARTS_CREW_INSTALL_DM,
+  REPAIR_PARTS_MAX_PERCENT,
   quoteStarportDriveRepair,
   repairDrivesAtStarport,
   shipBatteryStatus,

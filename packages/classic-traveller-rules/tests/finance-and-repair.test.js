@@ -73,6 +73,22 @@ test('repairs in jump space: engineers only, and a doubled engineer throws witho
   assert.equal(attendingEngineerExpertise(doubled, { captain: 2 }), 0);
 });
 
+test('p.18 discounts: -2 when an engineer installs the parts, and never more than a new drive', () => {
+  const failed = { malfunction: { failed: ['jumpDrive'], since: '001-1105', patched: false } };
+  const crewed = ship('type-a-free-trader', [
+    { role: 'pilot', characterId: 'captain', characterName: 'Captain' },
+    { role: 'engineer', characterId: 'chief', characterName: 'Chief' }
+  ], failed);
+  const byCrew = quoteStarportDriveRepair(crewed, createSequenceDice([3, 4]));
+  assert.equal(byCrew.crewInstalls, true);
+  assert.equal(byCrew.parts[0].percent, 50);
+  assert.equal(quoteStarportDriveRepair(crewed, createSequenceDice([1, 1])).costCr, 0, '2 - 2 is 0%: inconsequential');
+  const yard = quoteStarportDriveRepair(ship('type-a-free-trader', undefined, failed), createSequenceDice([6, 6]));
+  assert.equal(yard.parts[0].percent, 100);
+  assert.equal(yard.parts[0].replaced, true);
+  assert.equal(yard.costCr, 10_000_000);
+});
+
 test('starport drive repair is priced by Book 2 p.18: 2D x 10% of each failed drive, at class A-C', () => {
   const broken = creditShipAccount(ship('type-a-free-trader', undefined, {
     malfunction: { failed: ['jumpDrive', 'powerPlant'], since: '001-1105', patched: false }

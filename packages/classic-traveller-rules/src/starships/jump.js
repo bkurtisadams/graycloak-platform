@@ -323,26 +323,35 @@ export function attendingEngineerExpertise(ship, engineeringById = {}) {
 }
 
 // RULING (Sep 2026): the 1982 "more complete repairs" are priced by Book 2
-// p.18 Repair Parts — 2D x 10% of each failed drive's own price, installed by
-// the starport (no crew DM).
+// p.18 Repair Parts — 2D x 10% of each failed drive's own price. p.18's own
+// two discounts apply: DM -2 when the ship's crew installs the parts (it
+// "should have appropriate expertise levels": an engineer aboard), and since
+// "complete replacement of the item is sometimes cheaper", no repair costs
+// more than a new drive (capped at 100%). 0% or less is free.
+export const REPAIR_PARTS_CREW_INSTALL_DM = -2;
+export const REPAIR_PARTS_MAX_PERCENT = 100;
 const DRIVE_PRICE_TABLES = Object.freeze({
   powerPlant: { table: POWER_PLANTS, spec: 'powerPlant', label: 'power plant' },
   maneuverDrive: { table: MANEUVER_DRIVES, spec: 'maneuver', label: 'maneuver drive' },
   jumpDrive: { table: JUMP_DRIVES, spec: 'jump', label: 'jump drive' }
 });
 
-export function quoteStarportDriveRepair(ship, dice) {
+export function quoteStarportDriveRepair(ship, dice, { crewInstalls = null } = {}) {
   assertValidShipDocument(ship);
   requireDice(dice);
+  const byCrew = crewInstalls ?? ship.crew.assignments.some((entry) => String(entry.role).toLowerCase() === 'engineer');
+  const dm = byCrew ? REPAIR_PARTS_CREW_INSTALL_DM : 0;
   const failed = ship.state.malfunction?.failed ?? [];
   const parts = failed.map((drive) => {
     const entry = DRIVE_PRICE_TABLES[drive];
     const letter = ship.specifications.drives[entry.spec].letter;
     const assemblyCr = Math.round(entry.table[letter].priceMCr * 1_000_000);
     const rolled = dice.roll2D6();
-    return Object.freeze({ drive, label: entry.label, assemblyCr, dice: rolled.dice, percent: rolled.total * 10, costCr: Math.round(assemblyCr * rolled.total / 10) });
+    const thrown = Math.max(0, rolled.total + dm) * 10;
+    const percent = Math.min(REPAIR_PARTS_MAX_PERCENT, thrown);
+    return Object.freeze({ drive, label: entry.label, assemblyCr, dice: rolled.dice, dm, percent, replaced: thrown > REPAIR_PARTS_MAX_PERCENT, costCr: Math.round(assemblyCr * percent / 100) });
   });
-  return Object.freeze({ parts: Object.freeze(parts), costCr: parts.reduce((sum, part) => sum + part.costCr, 0) });
+  return Object.freeze({ crewInstalls: byCrew, parts: Object.freeze(parts), costCr: parts.reduce((sum, part) => sum + part.costCr, 0) });
 }
 
 /** Complete repairs "made at a starport by qualified personnel": class A-C. */
@@ -368,7 +377,7 @@ export function repairDrivesAtStarport(ship, { starport, quote, dateLabel = null
   if (quote.costCr > 0) {
     next = debitShipAccount(next, quote.costCr, {
       kind: 'repair',
-      description: `Starport drive repair: ${quote.parts.map((part) => `${part.label} ${part.percent}%`).join(', ')} (Book 2 p.18)`,
+      description: `Drive repair at the starport, ${quote.crewInstalls ? 'installed by the crew' : 'by the shipyard'}: ${quote.parts.map((part) => `${part.label} ${part.replaced ? 'replaced (100%)' : `${part.percent}%`}`).join(', ')} (Book 2 p.18)`,
       dateLabel
     });
   }

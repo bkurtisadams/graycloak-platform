@@ -225,7 +225,7 @@ Side doors from PORT-CALL: SHIPYARD, SURFACE, PERSONAL-FIGHT, IDLE.
 | pass-time | any:party | clock advance; rest is a party act (3 days, once); medical attention takes the medic's day; stops at the first event |
 | carry-message | the approached crew member | Book 2 p.8: 9+ per destination per port call, a random crew carrier, honorarium to him on acceptance; delivered on arrival |
 | impound | referee / nobody | a held ship (see ARRIVAL) pays its arrears here; papers and injunction lift on payment, a boarding party repelled lifts without it |
-| drive repair | seat:engineer | 1982 "more complete repairs": class A–C (Book 3 starport table), priced by Book 2 p.18 Repair Parts — 2D × 10% of each failed drive's cost, quoted once per port call. A failed Free Trader jump drive is Cr2–12M: a ship with no engineer to patch in flight can be stranded by it |
+| drive repair | seat:engineer | 1982 "more complete repairs": class A–C (Book 3 starport table), priced by the 1977 Book 2 p.18 Repair Parts rule — 2D × 10% of each failed drive's cost, −2 when the crew installs (an engineer aboard), capped at 100% ("complete replacement… sometimes cheaper"), 0% free; quoted once per port call. 1982's "minor malfunctions" DM is not used: a drive failure stops the drive completely. A failed Free Trader jump drive is Cr2–10M by shipyard: a ship with no engineer to patch in flight can be stranded by it |
 | depart | each:party | every player seat ready (referee can force); runs `departureChecklist` |
 
 Depart settles berthing past six days (Cr100 a day, p.7) and, at the jump
