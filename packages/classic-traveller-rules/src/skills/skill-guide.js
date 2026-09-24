@@ -95,9 +95,12 @@ export const SKILL_GUIDE = Object.freeze({
   }),
   'Medical': guide({
     tagline: 'Treating the sick and wounded',
-    summary: 'Trained in medicine. Level 1 qualifies as a ship\u2019s medic; 2 helps revive low passengers; 3 is a licensed doctor, and a surgeon with DEX 8+. A DM for curing disease and healing wounds.',
+    // v0.297.0: medical attention has no throw (1981 Book 1 and The Traveller
+    // Book, Kurt's ruling): Medical-1 and a kit, Medical-3 and a facility for
+    // the seriously wounded. The old 8+ house throw is retired.
+    summary: 'Trained in medicine. Level 1 qualifies as a ship\u2019s medic and, with a medical kit, restores the wounded to full strength; 2 helps revive low passengers; 3 is a licensed doctor, and with a medical facility restores the seriously wounded; a surgeon needs DEX 8+. Treating non-humans counts two levels lower.',
     page: 20,
-    throws: [{ label: 'Medical attention (house ruling, with \u22125 untrained)', target: 8 }, { label: 'Revive a low passenger (+1 at Medical-2)', target: 5 }]
+    throws: [{ label: 'Revive a low passenger (+1 at Medical-2)', target: 5 }]
   }),
   'Navigation': guide({
     tagline: 'Plotting courses; finding position',
