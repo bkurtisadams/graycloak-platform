@@ -137,6 +137,11 @@ test('v0.249.0 a ship sheet carries Book 2 p.24\u2019s card, and a scene sheet w
   assert.match(sheet.lines[0], /Type S/);
   assert.ok(sheet.lines.some((line) => /M-Drive/.test(line)));
   assert.ok(sheet.lines.some((line) => /Model\/1/.test(line)), 'the computer sits in the card\u2019s right column');
+  // v0.314.2: the card lists the programs the ship carries; a Scout in
+  // service has Generate since ship document v9.
+  const carried = sheet.lines.find((line) => line.startsWith('Carried: '));
+  assert.ok(carried, 'the ship\u2019s own software is on the card');
+  assert.match(carried, /Generate/);
   assert.equal(sheet.editable, true, 'Kurt, Sep 2026: editable, because mistakes are made');
 
   session.run('scene:create', { fight: { value: { name: 'Aster Approach', boardKind: 'vector' } } });

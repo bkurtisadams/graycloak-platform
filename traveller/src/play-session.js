@@ -614,13 +614,14 @@ function shipSheet(resolved, id) {
   const view = shipView(ship);
   // Book 2 p.24's card, from the rules package's own shipDataCard, through
   // the participant shape it expects. A ship sitting in the directory is not
-  // in a fight, so it has no stations, skills or loaded programs beyond what
-  // the document itself carries.
+  // in a fight, so it has no stations, skills or loaded programs; what it
+  // carries is the document's own state.computer.programs (v0.314.2: this
+  // was an empty list, so no ship ever showed its software).
   const participant = {
     id: ship.identity.id, name: ship.identity.name, ship,
     stations: { pilot: null, gunners: {} }, skills: { pilot: 0, gunnery: {} },
     pressurisedSections: [], disposition: 'neutral', escaped: false, surrendered: false, fled: false,
-    computer: { carried: [], loaded: [] }
+    computer: { carried: [...(ship.state?.computer?.programs ?? [])], loaded: [] }
   };
   let card = null;
   try { card = shipDataCard(participant); } catch { card = null; }
@@ -628,7 +629,7 @@ function shipSheet(resolved, id) {
     kind: 'ship', id, title: ship.identity.name || 'Ship',
     subtitle: [ship.design?.name, `Type ${ship.design?.typeCode}`].filter(Boolean).join(' \u00b7 '),
     tabs: ['Data card', 'Cargo & crew', 'Finances'],
-    card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.name ?? key }) : [],
+    card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.label ?? key }) : [],
     ship: view,
     // Kurt, Sep 2026: editable, because mistakes are made and the referee
     // needs a way to correct them. Not while a fight is writing to the same
