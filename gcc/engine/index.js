@@ -1,4 +1,7 @@
-// @graycloak/battlesystem-engine v0.17.1 - 2026-09-24
+// @graycloak/battlesystem-engine v0.17.2 - 2026-09-25
+// v0.17.2: Improved/Spectral/Permanent phantasms and both class versions of
+//          Hallucinatory Terrain expose their PHB range, area, sensory,
+//          concentration, persistence, contact-ending, and dispel contracts.
 // v0.17.1: Phantasmal Force distinguishes Illusionist 1 / Magic-User 3 and
 //          exposes class/level range, square area, visual-only concentration,
 //          movable-area, and casting-time metadata for the board host.

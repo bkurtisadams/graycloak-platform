@@ -1,4 +1,4 @@
-// @graycloak/battlesystem-engine magic-illusions.js v0.2.0 - 2026-09-24
+// @graycloak/battlesystem-engine magic-illusions.js v0.3.0 - 2026-09-25
 // Pure BATTLESYSTEM [14.14] illusion recognition and disbelief procedure.
 // Hosts own battlefield markers, morale/save rolls, state mutation, logs, and UI.
 
@@ -69,34 +69,36 @@ function illusionProfile(entry = {}, opts = {}) {
     saveEffect: 'negates',
     label: `${name} · illusion [14.14] · Missile & Magic Phase only · disbelief uses Morale then save vs Spell`
   };
-  if (textKey(name) !== 'phantasmal force') return base;
+  const key = textKey(name);
+  const metaClass = String(entry?.phbMeta?.class || entry?.spellClass || '').toLowerCase();
+  if (!metaClass) return base;
+  const casterLevel = Math.max(1, Math.round(Number(opts.casterLevel) || 1));
+  if (key === 'hallucinatory terrain') {
+    const illusionist = metaClass === 'illusionist', sourceLength = illusionist ? 4 + casterLevel : casterLevel, rangeIn = illusionist ? 2 + 2 * casterLevel : 2 * casterLevel;
+    return {...base,hallucinatoryTerrain:true,sourceClass:metaClass,casterLevel,rangeIn,shape:'square',sourceLength,saveType:'none',concentration:false,movableArea:false,terrainContactEnds:true,dispellable:true,castingTimeText:illusionist?'5 rounds':'1 turn',durationText:'Until dispelled or contacted by an intelligent creature',sensory:['visual'],label:`Hallucinatory Terrain · ${illusionist?'Illusionist 3':'Magic-User 4'} · range ${rangeIn}″ · ${sourceLength}″ × ${sourceLength}″ source square · no save · ends on intelligent contact or Dispel Magic`};
+  }
+  if (!['phantasmal force','improved phantasmal force','spectral force','permanent illusion'].includes(key)) return base;
 
   // PHB Phantasmal Force exists as Illusionist 1 and Magic-User 3.  Its listed
   // area is a number of square game-inches, so expose an equal-area square;
   // the host applies BATTLESYSTEM Table 17 to that square's linear side.
-  const metaClass = String(entry?.phbMeta?.class || entry?.spellClass || '').toLowerCase();
-  if (!metaClass) return base;
-  const illusionist = metaClass === 'illusionist' || (!metaClass && Number(entry?.level) === 1);
-  const casterLevel = Math.max(1, Math.round(Number(opts.casterLevel) || 1));
-  const sourceAreaSqIn = (illusionist ? 4 : 8) + casterLevel;
-  const rangeIn = (illusionist ? 6 : 8) + casterLevel;
-  const castingTimeSegments = illusionist ? 1 : 3;
+  const basic=key==='phantasmal force',improved=key==='improved phantasmal force',spectral=key==='spectral force',permanent=key==='permanent illusion',illusionist=metaClass==='illusionist';
+  const sourceAreaSqIn=(basic&&!illusionist?8:4)+casterLevel,rangeIn=permanent?casterLevel:(basic&&!illusionist?8:6)+casterLevel,castingTimeSegments=permanent?6:spectral?3:improved?2:illusionist?1:3,sensory=spectral||permanent?['visual','sound','smell','thermal']:improved?['visual','minor-sound']:['visual'],postConcentrationRounds=spectral?3:improved?2:0;
   return {
     ...base,
     phantasmalForce: true,
+    phantasmalFamily:key,
     sourceClass: illusionist ? 'illusionist' : 'magic-user',
     casterLevel,
     rangeIn,
     shape: 'square',
     sourceAreaSqIn,
     sourceLength: Math.sqrt(sourceAreaSqIn),
-    concentration: true,
-    movableArea: true,
-    visualOnly: true,
+    concentration:!permanent,minimalConcentration:improved||spectral,concentrationMoveFactor:(improved||spectral)?0.5:0,postConcentrationRounds,permanent,dispellable:permanent,movableArea:!permanent,visualOnly:basic,sensory,
     castingTimeSegments,
     castingTimeText: `${castingTimeSegments} segment${castingTimeSegments === 1 ? '' : 's'}`,
-    durationText: 'Special · concentration',
-    label: `Phantasmal Force · ${illusionist ? 'Illusionist 1' : 'Magic-User 3'} · range ${rangeIn}″ · ${sourceAreaSqIn} square game-inches · visual only · concentration`
+    durationText:permanent?'Permanent · dispellable':`Special · concentration${postConcentrationRounds?` + ${postConcentrationRounds} rounds`:''}`,
+    label:`${name} · range ${rangeIn}″ · ${sourceAreaSqIn} square game-inches · ${sensory.join('/')} · ${permanent?'permanent':improved||spectral?`minimal concentration; half move; +${postConcentrationRounds} rounds`:'concentration'}`
   };
 }
 
