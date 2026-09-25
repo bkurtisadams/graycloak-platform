@@ -153,6 +153,12 @@ export function createTrip(resolved, { seed = '', lanes = 'charted' } = {}) {
 
 // Days pass through the step 1 clock, so salaries, the mortgage and aging
 // fall on their own dates. An aging crisis halts the trip.
+// v0.315.6: exported as passTripDays for the page's Pass time, so days spent
+// in port that way bill and age the same as a Wait.
+export function passTripDays(state, days, reason) {
+  return passDays(cloneJson(state), days, reason);
+}
+
 function passDays(state, days, reason) {
   if (days <= 0) return { state, events: [] };
   const from = tripDate(state);
@@ -751,6 +757,12 @@ function land(state, events, context) {
   });
   const reconciled = reconcileContractDeadlines(state.contracts, state.campaign.time);
   state.contracts = reconciled.contracts;
+  // v0.315.6: a contract that failed on its deadline anywhere releases the
+  // hold it had reserved, as the old port copy did.
+  for (const contract of reconciled.failed ?? []) {
+    const cargoId = `${contract.identity.id}:cargo`;
+    if (state.ship.state.cargoManifest.some((entry) => entry.id === cargoId)) state.ship = unloadCargo(state.ship, cargoId).ship;
+  }
 
   state.ship = beginPortCall(state.ship, { systemId: target.id, arrivalDate: arrivedOn, berthingDueCr: targetProfile.starport === 'X' ? 0 : calculateBerthingCost(1) });
   if (state.pendingBrokerTipDM) {

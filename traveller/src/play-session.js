@@ -56,7 +56,8 @@ import {
 import { dataCardLines } from './ship-data-card-text.js';
 // v0.315.0: the port call, the jump and the arrival, from the runner.
 import {
-  tripFromDocuments, tripRecord, tripDate, listActions as listTripActions, applyAction as applyTripAction, portFacts as tripPortFacts
+  tripFromDocuments, tripRecord, tripDate, listActions as listTripActions, applyAction as applyTripAction, portFacts as tripPortFacts,
+  passTripDays
 } from './runner/trip.js';
 import { ACTIVITY_VISIBILITY } from './activity-log-document.js';
 import {
@@ -2192,8 +2193,8 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
     const halt = trip.halt;
     const guidance = {
       'ship-fight': fightLive ? '' : ' The fight is over. Say how the trip goes on.',
-      hijack: ' Put it on the board: a personal fight between the crew and the hijackers. When it is settled, go on with the jump.',
-      'repossession-boarding': ' An armed party has come to take the ship. Fight it on the board; if it is beaten off, the ship is free and the arrears still stand. Paying them also ends it.',
+      hijack: ' Put it on the board below: the party against the hijackers. When it is settled, go on with the jump.',
+      'repossession-boarding': ' An armed party has come to take the ship. Fight it on the board below; if it is beaten off, the ship is free and the arrears still stand. Paying them also ends it.',
       'aging-crisis': ' Settle the crisis on the character\u2019s sheet, then go on.',
       'batteries-exhausted': ' Life support has failed with the power plant down. What becomes of the crew is the referee\u2019s call.',
       'life-support': ' The account cannot post life support for the jump.'
@@ -2203,6 +2204,11 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
       next: { title: HALT_TITLES[halt.reason] ?? 'The trip is waiting', copy: `${halt.detail}.${guidance}`, cite: halt.reason === 'repossession-boarding' ? 'Book 2 p.3' : halt.reason === 'hijack' ? 'Book 2 p.3' : '',
         actions: buttons(actions) },
       steps: [], done: [],
+      // v0.315.6: a hijacking or a boarding party is a personal fight; the
+      // Start a fight panel comes up here, the party already ticked, rather
+      // than in the Combat drawer.
+      boardFight: writable && ['hijack', 'repossession-boarding'].includes(halt.reason)
+        ? { reason: halt.reason, opponents: halt.reason === 'hijack' ? 'the hijackers' : 'the repossession party' } : null,
       scene: trip.jump ? jumpSceneFor(trip, seat) : null
     };
   }
@@ -2943,6 +2949,13 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   });
   const sentence = (text) => { const value = String(text ?? '').trim(); return value ? `${value[0].toUpperCase()}${value.slice(1)}${/[.!?]$/.test(value) ? '' : '.'}` : ''; };
 
+  function logTripEvents(events) {
+    for (const entry of events) {
+      // 1982/Book 2 p.4: a misjump is the referee's until the ship comes out.
+      log(TRIP_LOG_CATEGORIES[entry.kind] ?? 'NAV', sentence(entry.text), entry.kind === 'misjump' ? { visibility: ACTIVITY_VISIBILITY.REFEREE } : {});
+    }
+  }
+
   function runTripCommand(command) {
     if (liveEncounter() || setupEncounter()) throw new Error('a fight is in progress; finish it first');
     if (pendingShipFight) throw new Error('a ship fight is under way; finish it first');
@@ -2954,10 +2967,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     // A departure the runner refuses is a message, not a halt.
     if (action.type === 'depart' && result.state.situation === 'halted' && result.state.halt?.from === 'port') throw new Error(result.state.halt.detail);
     commitTrip(result.state);
-    for (const entry of result.events) {
-      // 1982/Book 2 p.4: a misjump is the referee's until the ship comes out.
-      log(TRIP_LOG_CATEGORIES[entry.kind] ?? 'NAV', sentence(entry.text), entry.kind === 'misjump' ? { visibility: ACTIVITY_VISIBILITY.REFEREE } : {});
-    }
+    logTripEvents(result.events);
     if (result.state.situation === 'halted' && result.state.halt?.reason === 'ship-fight') beginShipFightFromHalt(result.state.halt);
     const shown = result.events.filter((entry) => entry.kind !== 'misjump').map((entry) => sentence(entry.text));
     return shown.join(' ') || sentence(action.label);
@@ -3109,6 +3119,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (!Number.isInteger(amount) || amount < 1 || amount > 5200) throw new RangeError('pass a whole number of them, 1 or more');
         let seconds = amount * unit;
         const before = formatCampaignDate(resolved.campaign.time);
+        // v0.315.6: away from port the trip keeps its own time — a week in
+        // jump is the jump's button, an encounter waits on its answer. Pass
+        // time here would move the date under the trip without billing or
+        // ageing anyone. The referee can still set the date by fiat.
+        const trip = safeTrip(resolved);
+        if (trip && trip.situation !== 'port') {
+          throw new Error(`the ship is ${trip.situation === 'in-jump' ? 'in jump space' : trip.situation === 'encounter' ? 'meeting another ship' : trip.situation}; time passes with the trip there (the referee can still set the date)`);
+        }
         // v0.302.0: The Traveller Book p.100, animals twice a day while the
         // party is out on the surface. The clock stops on the first day an
         // encounter comes up (Kurt, Sep 2026); the rest stays unpassed.
@@ -3144,16 +3162,31 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             if (run.throws.length) animalNote = `No animals (${surfaceTable.terrainLabel}, ${surfaceTable.worldName}): ${run.throws.length} checks, needing 5+ \u2014 ${thrown}.`;
           }
         }
+        let advanced = advanceCampaignSeconds(resolved.campaign, seconds);
+        // v0.315.6: whole days spent in port go through the ship's clock, as
+        // a Wait does — salaries, the mortgage and aging on their own dates
+        // (it was only the campaign's date that moved). An aging crisis stops
+        // the clock where it falls.
+        const days = daysBetween(resolved.campaign.time, advanced.time);
+        let clock = null;
+        if (trip && days > 0) {
+          clock = passTripDays(trip, days, 'time passing');
+          if (clock.state.situation === 'halted') {
+            advanced = { ...advanced, time: clock.state.campaign.time, roster: { ...advanced.roster, trip: tripRecord(clock.state) } };
+            seconds = Math.max(0, daysBetween(resolved.campaign.time, advanced.time)) * 86400;
+          }
+          persist([clock.state.ship, ...clock.state.characters]);
+        }
         let rested = [];
         let skipped = [];
         let changed = [];
         if (value.resting && seconds >= REST_DAYS * 86400) {
           ({ changed, rested, skipped } = restTogether(restCandidates().filter((entry) => entry.canRest).map((entry) => entry.id)));
         }
-        const advanced = advanceCampaignSeconds(resolved.campaign, seconds);
-        registry.put(animalPatch ? withAnimalState(advanced, animalPatch) : advanced);
+        registry.put(animalPatch ? withAnimalState({ ...advanced, documentRefs: resolved.campaign.documentRefs }, animalPatch) : { ...advanced, documentRefs: resolved.campaign.documentRefs });
         reload();
         persist(changed);
+        if (clock) logTripEvents(clock.events);
         const stopped = seconds < amount * unit;
         const span = `${amount} ${amount === 1 ? value.unit.replace(/s$/, '') : value.unit}`;
         const reason = String(value.reason ?? '').trim();

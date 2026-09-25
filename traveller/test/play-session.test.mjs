@@ -1446,3 +1446,41 @@ test('v0.315.3 every button and port row has a kind: owed, travel, money, option
   assert.equal(kinds.law, 'danger', 'the law row has no button but is coloured as a risk');
   assert.equal(kinds.jump, 'travel');
 });
+
+// ---------------------------------------------------------------- v0.315.6
+import { financeShip } from '../vendor/classic-traveller-rules/index.js';
+
+test('v0.315.6 Pass time in port runs the ship\u2019s clock; away from port it is refused', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  registry.put(financeShip(ship, { startedOn: '106-4800', homeSystemId: 'aster' }));
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const passed = session.run('time:pass', { fight: { value: { amount: 31, unit: 'days' } } });
+  assert.equal(passed.ok, true, passed.message);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(formatCampaignDate(after.campaign.time), '137-4800');
+  assert.ok(after.ships[0].state.finances.ledger.some((entry) => entry.kind === 'mortgage' && entry.date === '136-4800'), 'the mortgage fell due and was paid');
+
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  if (session.view().situation.kind === 'encounter') session.run('trip:let-pass');
+  const date = formatCampaignDate(registry.resolveCampaign(campaignId).campaign.time);
+  const refused = session.run('time:pass', { fight: { value: { amount: 1, unit: 'days' } } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /in jump space/);
+  assert.equal(formatCampaignDate(registry.resolveCampaign(campaignId).campaign.time), date);
+});
+
+test('v0.315.6 a hijacking halts the trip with the Start a fight panel, the party ready to take the field', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, trip: {
+    situation: 'halted', halt: { reason: 'hijack', detail: 'a passenger attempts a hijacking (3D: 18) on day 3 of the voyage (Book 2 p.3)', from: 'in-jump' },
+    jump: { fromSystemId: 'aster', toSystemId: 'calder', startedOn: '106-4800', weeks: 1, weeksDone: 0, misjump: false, destroyed: false, landedHex: '0606', landedSystemId: 'calder' }
+  } } });
+  const view = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view();
+  assert.equal(view.situation.kind, 'halted');
+  assert.deepEqual(view.boardFight, { reason: 'hijack', opponents: 'the hijackers' });
+  assert.ok(view.partyChoices.length >= 1);
+  assert.deepEqual(view.next.actions.map((action) => action.command), ['trip:resume:continue']);
+});

@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
-import { createShipDocument, financeShip } from '../vendor/classic-traveller-rules/index.js';
+import { createShipDocument, financeShip, loadCargo } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { createTrip, listActions, applyAction, tripDate, portFacts, tripRecord, tripFromDocuments } from '../src/runner/trip.js';
 import { runTrip } from '../src/runner/run.js';
@@ -225,4 +225,18 @@ test('v0.315.0 a boarding party is beaten off or paid off, and the ship is back 
   assert.equal(repelled.situation, 'port');
   assert.equal(repelled.ship.state.impound, null);
   assert.equal(repelled.halt, null);
+});
+
+test('v0.315.6 a contract that fails on its deadline elsewhere releases its reserved hold on the next landing', async () => {
+  const resolved = await resolvedAt('aster');
+  const accepted = resolved.contracts.find((entry) => entry.status === 'accepted');
+  const contract = { ...accepted, destination: { systemId: 'orison', systemName: 'Orison' }, requirements: { ...accepted.requirements, cargoTons: 5, exclusiveShip: false }, timing: { ...accepted.timing, deadlineDate: { year: 4800, dayOfYear: 100 } } };
+  let trip = createTrip({ ...resolved, contracts: [contract] });
+  trip.ship = loadCargo(trip.ship, { id: `${contract.identity.id}:cargo`, category: 'contract', description: 'reserved', tons: 5, originSystemId: 'aster', destinationSystemId: 'orison', acquisitionCostCr: 0 });
+  trip = { ...trip, situation: 'in-jump', jump: { fromSystemId: 'aster', toSystemId: 'calder', startedOn: '106-4800', weeks: 1, weeksDone: 0, misjump: false, destroyed: false, landedHex: '0606', landedSystemId: 'calder' } };
+  let result = applyAction(trip, { type: 'jump-week' }, context);
+  while (result.state.situation === 'encounter') result = applyAction(result.state, { type: 'let-pass' }, context);
+  assert.equal(result.state.situation, 'port');
+  assert.equal(result.state.contracts[0].status, 'failed');
+  assert.equal(result.state.ship.state.cargoManifest.some((entry) => entry.id === `${contract.identity.id}:cargo`), false);
 });

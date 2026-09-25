@@ -7,19 +7,20 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.5';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.315.5';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.5';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.5';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.6';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.315.6';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.6';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.6';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.315.5';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.5';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.315.5';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.5';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.315.6';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.6';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.315.6';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.315.6';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.6';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +35,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.5';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.6';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -793,30 +794,9 @@ function fightColumn(state, handlers) {
   ];
 }
 
-// v0.315.3: a button's kind is its colour and its icon (play.css .kind-*),
-// never colour alone. Plain has no icon.
-const KIND_ICONS = Object.freeze({
-  owed: [['path', { d: 'M3 2h10v12l-2-1.5L9 14l-2-1.5L5 14l-2-1.5z' }], ['path', { d: 'M6 6h4M6 9h4' }]],
-  travel: [['path', { d: 'M2 8h11M9 4l4 4-4 4' }]],
-  money: [['path', { d: 'M8 2v7M5 6l3 3 3-3M2 10v4h12v-4' }]],
-  optional: [['circle', { cx: 8, cy: 8, r: 6 }], ['path', { d: 'M8 4.5V8l2.5 1.5' }]],
-  danger: [['circle', { cx: 8, cy: 8, r: 5.5 }], ['path', { d: 'M8 1v4M8 11v4M1 8h4M11 8h4' }]]
-});
-export function kindIcon(kind) {
-  const parts = KIND_ICONS[kind];
-  if (!parts) return null;
-  const svg = createSvgNode('svg', { class: 'kind-icon', width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
-    'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
-  for (const [tag, attributes] of parts) svg.append(createSvgNode(tag, attributes));
-  return svg;
-}
-export function kindButton(action, { small = false, onclick = null } = {}) {
-  const kind = action.kind ?? 'neutral';
-  const label = action.note
-    ? h('span', { class: 'button-text' }, h('span', { text: action.label }), h('small', { text: action.note }))
-    : h('span', { text: action.label });
-  return h('button', { type: 'button', class: `button kind-${kind}${action.primary ? ' is-lead' : ''}${small ? ' is-small' : ''}`, onclick }, kindIcon(kind), label);
-}
+// v0.315.6: kindButton and kindIcon live in kind-button.js, shared with the
+// vector fight.
+export { kindButton, kindIcon };
 
 function leadCard(next, state, handlers) {
   if (!next) return h('section', { class: 'lead' }, h('h2', { text: 'Nothing pending' }), h('p', { text: 'The port call is complete. Depart when you are ready.' }));
@@ -929,6 +909,11 @@ export function renderNow(state, handlers = {}) {
   if (state.notice) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }));
   parts.push(leadCard(state.next, state, handlers));
   if (state.checklist) parts.push(checklistPanel(state.checklist));
+  // v0.315.6: a hijacking or a boarding halts the trip for a personal fight.
+  if (state.boardFight) {
+    parts.push(startFight(state, handlers, { open: true })
+      ?? h('p', { class: 'empty', text: `There are no actors to put against the party yet. Add ${state.boardFight.opponents} as a statblock in the Actors tab, then start the fight here.` }));
+  }
   if (state.hold) parts.push(h('p', { class: 'hold-note', text: state.hold }));
   if (state.roster?.length) parts.push(h('ul', { class: 'roster', 'aria-label': 'Who is fighting' }, state.roster.map(rosterRow)));
   const open = (state.steps ?? []).filter((step) => step.state !== 'done');

@@ -105,12 +105,12 @@ test('renderVectorFight draws the plotting form when awaiting the player\u2019s 
   assert.deepEqual(events.thrust, { x: 1.5, y: 0 });
 
   // Commit passes the exact thrust object typed, not a re-derived one.
-  document.querySelector('.vfv-thrust-actions button.is-primary').click();
+  document.querySelector('.vfv-thrust-actions button.is-lead').click();
   assert.deepEqual(events.committed, { x: 1.5, y: 0 }, 'v0.264.0: the form holds what was typed without waiting on a re-render');
   assert.match(document.querySelector('.vfv-g-readout').textContent, /0\.75 G of 2 G/, 'the readout repaints in place');
 
   // Coast is offered as a separate, always-available action.
-  document.querySelector('.vfv-thrust-actions button:not(.is-primary)').click();
+  document.querySelector('.vfv-thrust-actions button:not(.is-lead)').click();
   assert.equal(events.coasted, true);
 
   dom.window.close();

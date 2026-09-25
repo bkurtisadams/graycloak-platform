@@ -29,6 +29,7 @@
 //   - No gravity, no planet, no ordnance drawing. shipfight:vector-start has
 //     nothing that stages a planet yet either, so there is nothing to test
 //     this against in the UI even if it were built.
+import { kindButton } from './kind-button.js?v=v0.315.6';
 
 const NS = 'http://www.w3.org/2000/svg';
 function h(tag, attributes = {}, ...children) {
@@ -180,7 +181,7 @@ export function renderVectorFight(shipFight, handlers = {}) {
   } else if (v.awaitingMovement) {
     const over = () => Math.hypot(thrust.x, thrust.y) / 2 > v.player.maxG + 1e-9;
     const readout = h('span', { class: 'vfv-g-readout' });
-    const commit = h('button', { type: 'button', class: 'button is-primary', text: 'Commit maneuver', onclick: () => handlers.onCommit?.({ ...thrust }) });
+    const commit = kindButton({ label: 'Commit maneuver', kind: 'travel', primary: true }, { onclick: () => handlers.onCommit?.({ ...thrust }) });
     const warning = h('p', { class: 'vfv-note is-error', text: `Exceeds the functioning ${v.player.maxG} G drive.`, hidden: true });
     const field = (axis) => h('input', {
       type: 'number', step: '0.1', value: String(thrust[axis]), 'aria-label': `Thrust ${axis.toUpperCase()}`,
@@ -216,7 +217,7 @@ export function renderVectorFight(shipFight, handlers = {}) {
       readout,
       h('div', { class: 'vfv-thrust-actions' },
         commit,
-        h('button', { type: 'button', class: 'button', text: 'Coast (no thrust)', onclick: () => handlers.onCoast?.() }))),
+        kindButton({ label: 'Coast (no thrust)', kind: 'travel' }, { onclick: () => handlers.onCoast?.() }))),
       h('p', { class: 'vfv-note', text: 'Click inside the ring to plot an endpoint, or type the thrust in inches (2" is 1 G). +Y is 000\u00b0.' }),
       warning);
   } else if (shipFight.outcome === 'in-progress') {
@@ -228,19 +229,19 @@ export function renderVectorFight(shipFight, handlers = {}) {
         : v.fireBlockedReason ? `Nothing to fire: ${v.fireBlockedReason}.`
         : 'No operational turret can fire.';
       parts.push(h('p', { class: 'vfv-note', text: why }));
-      if (v.canFire) row.push(h('button', { type: 'button', class: 'button is-primary', text: 'Fire lasers', onclick: () => handlers.onFire?.() }));
+      if (v.canFire) row.push(kindButton({ label: 'Fire lasers', kind: 'danger', primary: true }, { onclick: () => handlers.onFire?.() }));
     } else if (v.phaseKey === 'laser-fire' || v.phaseKey === 'return-fire') {
       parts.push(h('p', { class: 'vfv-note', text: 'Advancing will resolve the opponent\u2019s own shot automatically, if it has one to take.' }));
     } else if (v.phasingSide !== v.playerSide) {
       parts.push(h('p', { class: 'vfv-note', text: `${v.phasingSide === 'intruder' ? 'The intruder' : 'The native'} side is phasing; nothing for you to plot this turn.` }));
     }
-    row.push(h('button', { type: 'button', class: `button${v.canFire ? '' : ' is-primary'}`, text: 'Advance', onclick: () => handlers.onAdvance?.() }));
+    row.push(kindButton({ label: 'Advance', kind: 'neutral', primary: !v.canFire }, { onclick: () => handlers.onAdvance?.() }));
     parts.push(h('div', { class: 'vfv-actions' }, row));
   }
 
   if (!shipFight.readOnly && (shipFight.actions ?? []).length) {
     parts.push(h('div', { class: 'vfv-actions' }, shipFight.actions.map((action) =>
-      h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))));
+      kindButton(action, { small: !action.primary, onclick: () => handlers.onCommand?.(action.command) }))));
   }
 
   root.append(...parts);
