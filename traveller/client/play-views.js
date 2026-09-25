@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.315.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.2';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.315.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.2';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.2';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.315.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.1';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.315.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.315.2';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.2';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.315.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.2';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.2';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -909,7 +909,7 @@ export function renderNow(state, handlers = {}) {
 
 // ------------------------------------------------------------------ scenes
 
-function worldCaption(system, { role, label, onChoose = null, world = null, note = null } = {}) {
+function worldCaption(system, { role, label, world = null, note = null } = {}) {
   const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
   // v0.227.0: Book 3's PLANETARY CHARACTERISTICS, in the order and under the
   // names the book prints them, with the UWP digit each is read from. The
@@ -967,8 +967,8 @@ function worldCaption(system, { role, label, onChoose = null, world = null, note
     // step outside: both change what the party does here, so neither hides.
     world?.starport ? h('p', { class: 'caption-facility', text: world.starport }) : null,
     world?.gear ? h('p', { class: 'caption-gear', text: world.gear }) : null,
-    // Book 3 p.8, against what the party is actually carrying.
-    world?.law?.text ? h('p', { class: 'caption-law', text: world.law.text }) : null,
+    // v0.315.2: Book 3 p.8's check against what the party carries is a row
+    // in the port column now; on the caption it grew with every character.
     (() => {
       // Book 3 pp.21-22: the classifications a world's own profile earns it.
       let trade = [];
@@ -978,7 +978,7 @@ function worldCaption(system, { role, label, onChoose = null, world = null, note
       return notes.length ? h('p', { class: 'caption-bases', text: notes.join(' \u00b7 ') }) : null;
     })(),
     note ? h('p', { class: `caption-lane${note.warn ? ' is-warning' : ''}`, text: note.text }) : null,
-    onChoose ? h('button', { type: 'button', class: 'button is-primary', onclick: onChoose }, h('span', { text: `Set course for ${system.name}` })) : null);
+    null);
 }
 
 // v0.303.0: the map's zoom (Kurt, Sep 2026: a narrow scene put the selected
@@ -987,6 +987,33 @@ function worldCaption(system, { role, label, onChoose = null, world = null, note
 const MAP_ZOOMS = Object.freeze([0.4, 0.5, 0.6, 0.75, 0.9, 1, 1.25, 1.5, 2]);
 function savedMapZoom() {
   try { const saved = Number(globalThis.localStorage?.getItem('traveller.mapZoom')); return MAP_ZOOMS.includes(saved) ? saved : 1; } catch { return 1; }
+}
+
+// v0.315.2: the lanes can be turned off (Kurt, Sep 2026), and say what they
+// are. Like the zoom, a view setting kept in the browser.
+function savedLanesShown() {
+  try { return globalThis.localStorage?.getItem('traveller.mapLanes') !== 'off'; } catch { return true; }
+}
+
+function lanesToggle(svg) {
+  const button = h('button', { type: 'button', class: 'button is-small map-lanes', 'aria-pressed': String(savedLanesShown()), title: 'Show or hide the charted space lanes', text: 'Lanes' });
+  button.onclick = () => {
+    const on = svg.classList.toggle('hide-lanes') === false;
+    button.setAttribute('aria-pressed', String(on));
+    try { globalThis.localStorage?.setItem('traveller.mapLanes', on ? 'on' : 'off'); } catch { /* private window */ }
+  };
+  return button;
+}
+
+function lanesLegend() {
+  const row = (kind, text) => h('li', {}, h('span', { class: `legend-swatch is-${kind}`, 'aria-hidden': 'true' }), h('span', { text }));
+  return h('details', { class: 'map-legend' },
+    h('summary', { text: 'Key' }),
+    h('ul', {},
+      row('lane', 'Charted lane: the starport sells a flight-plan cassette for it (Book 3 p.2, Book 2 p.32)'),
+      row('here', 'The same, for a lane from the world the ship is at'),
+      row('reach', 'In jump range'),
+      row('off', 'In jump range but off the lanes: needs the Generate program')));
 }
 
 function mapZoomControl(svg) {
@@ -1028,6 +1055,7 @@ export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = 
     onSelect: scene.kind === 'subsector' ? (system) => onSelectSystem(system.id === current.id ? null : system.id) : null
   });
   svg.classList.add('map');
+  if (!savedLanesShown()) svg.classList.add('hide-lanes');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   const inJump = scene.kind === 'jump';
   const captions = inJump ? [] : [worldCaption(current, { role: 'here', label: 'You are here', world: scene.world })];
@@ -1039,11 +1067,9 @@ export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = 
       : offLane.has(selected.id)
         ? { warn: !scene.generate, text: scene.generate ? 'Off the charted lanes: the Generate program plots the jump (Book 2 p.32).' : 'Off the charted lanes: no cassette is sold for it, and this ship does not carry the Generate program (Book 2 p.32).' }
         : { warn: false, text: 'On a charted lane: the starport sells the flight-plan cassette (Book 2 p.32).' };
-    const onChoose = inJump || course ? null
-      : scene.canSetCourse ? () => onCommand?.(`trip:choose-destination:${selected.id}`)
-        : readOnly ? null : () => {};
+    // v0.315.2: the course is set from the map head or the column, not here.
     captions.push(Number.isFinite(distance)
-      ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, onChoose, note })
+      ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, note })
       : h('div', { class: 'caption caption-there' }, h('p', { class: 'caption-role', text: 'Out of range' }),
         h('h2', { text: selected.name }), h('p', { class: 'caption-facts', text: `Beyond Jump-${scene.jump} from ${current.name}.` })));
   }
@@ -1053,6 +1079,8 @@ export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = 
   const parts = [
     h('div', { class: 'scene-title map-head' }, h('span', { text: `${subsector.name} subsector` }),
       chosen ? h('button', { type: 'button', class: 'button is-primary is-small map-course', onclick: () => onCommand?.(`trip:choose-destination:${selected.id}`) }, h('span', { text: `Set course for ${selected.name}` })) : null,
+      lanes.length ? lanesLegend() : null,
+      lanes.length ? lanesToggle(svg) : null,
       mapZoomControl(svg)),
     svg,
     h('div', { class: 'captions' }, captions)

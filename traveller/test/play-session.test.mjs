@@ -120,7 +120,9 @@ test('the port procedure leads with what is owed and lists the rest', async () =
   const procedure = portProcedure(registry.resolveCampaign(campaignId), { subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.equal(procedure.next.title, 'Pay berthing');
   assert.deepEqual(procedure.next.actions.map((action) => action.command), ['trip:pay-berthing']);
-  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['wait', 'optional'], ['jump', 'blocked']]);
+  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['law', 'blocked'], ['wait', 'optional'], ['jump', 'blocked']]);
+  // v0.315.2: Book 3 p.8 against what the party carries, as a row, not a caption block.
+  assert.match(procedure.steps.find((step) => step.id === 'law').copy, /prohibited outside the starport/);
   assert.match(procedure.steps.find((step) => step.id === 'fuel').figure, /^30 t refined, Cr 15,000$/);
 });
 

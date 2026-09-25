@@ -1974,6 +1974,15 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
     }
   }
 
+  // v0.315.2: Book 3 p.8, against what the party carries — a row here rather
+  // than a red block on the world's caption, which grew with every character.
+  if (facts.world?.law?.caught?.length) {
+    const { law } = facts.world;
+    steps.push({ id: 'law', title: `Law level ${law.level}`, state: 'blocked',
+      figure: `${law.caught.length} weapon${law.caught.length === 1 ? '' : 's'} prohibited off-port`,
+      copy: law.text, cite: 'Book 3 p.8' });
+  }
+
   const target = port.target;
   if (target && port.distance) done.push(`Course set for ${target.name}, ${port.distance} parsec${port.distance === 1 ? '' : 's'}${port.lane ? ', on a charted lane' : ', off the lanes'}`);
 
