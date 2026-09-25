@@ -9,7 +9,7 @@
 // atmosphere 0); hydrographics 2D-7+size (size 0 or 1, hydrographics 0;
 // atmosphere 0, 1 or A+, DM -4); population 2D-2; government 2D-7+population;
 // law 2D-7+government; tech 1D plus the technological index matrix (p.9).
-// Gas giants are not thrown in Book 3; see GAS_GIANT_PRESENT_MAX.
+// Gas giants by The Traveller Book (1982); see GAS_GIANT_PRESENT_MAX.
 // ---------------------------------------------------------------------------
 
 import { requireDice } from '../dice.js';
@@ -25,8 +25,9 @@ export const WORLD_PRESENT_MIN = 4;
 export const STARPORT_TABLE = Object.freeze({ 2: 'A', 3: 'A', 4: 'A', 5: 'B', 6: 'B', 7: 'C', 8: 'C', 9: 'D', 10: 'E', 11: 'E', 12: 'X' });
 export const NAVAL_BASE_THROW = Object.freeze({ A: 8, B: 8 });
 export const SCOUT_BASE_THROW = Object.freeze({ A: 10, B: 9, C: 8, D: 7 });
-// Ruling (Sep 2026, to confirm): Book 3 (1977) throws no gas giants; a gas
-// giant is present on 2D 9 or less, as later Traveller has it.
+// Book 3 (1977) throws no gas giants. The Traveller Book (1982), adopted
+// (Kurt, Sep 2026): "throw 10+ for a gas giant not to be present" — present
+// on 2D 9 or less.
 export const GAS_GIANT_PRESENT_MAX = 9;
 
 // p.9, the technological index matrix.
