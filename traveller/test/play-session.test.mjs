@@ -1686,3 +1686,43 @@ test('v0.317.0 the fight never loads a program the CPU can never run', async () 
   const loaded = shipCombatLoadout({ ...ship, state: { ...ship.state, computer: { programs: ['target', 'predict-5', 'predict-3', 'return-fire'] } } }).loaded;
   assert.deepEqual(loaded, ['target', 'return-fire', 'predict-3']);
 });
+
+// ---------------------------------------------------------------- v0.318.0
+import { personEncounterRecord, describePersonEncounter, personState } from '../src/play-session.js';
+import { createSequenceDice, rollPersonEncounter } from '../vendor/classic-traveller-rules/index.js';
+
+test('v0.318.0 police who meet a party carrying what the law forbids throw the law level to avoid arrest', () => {
+  const police = rollPersonEncounter(createSequenceDice([2, 3, 4, 3, 3, 4, 4, 5, 5, 6, 6, 6, 6, 1]));
+  const law = { level: 7, caught: [{ name: 'Hawkeye', weaponName: 'Laser Rifle' }] };
+  const arrested = personEncounterRecord(createSequenceDice([3, 2]), police, { date: '106-4800', worldName: 'Orison', law });
+  assert.deepEqual(arrested.law, { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 5, avoided: false });
+  const waved = personEncounterRecord(createSequenceDice([4, 4]), police, { date: '106-4800', worldName: 'Orison', law });
+  assert.equal(waved.law.avoided, true);
+  assert.equal(personEncounterRecord(createSequenceDice([]), police, { date: '106-4800', worldName: 'Orison', law: null }).law, null, 'nothing forbidden, nothing to throw');
+  assert.equal(describePersonEncounter(arrested), '4 police with a vehicle (automatic pistols, cloth armour)');
+});
+
+test('v0.318.0 a person encounter waits on the campaign, goes on the board as statblocks, and is set aside', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  let pending = null;
+  for (let tries = 0; tries < 40 && !pending; tries += 1) {
+    assert.equal(session.run('persons:roll').ok, true);
+    pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+  }
+  assert.ok(pending, 'the table gives a group within forty throws');
+  const view = session.view();
+  assert.equal(view.personEncounter.type, pending.type);
+  assert.deepEqual(view.personEncounter.actions.map((action) => [action.command, action.kind]), [['persons:board', 'danger'], ['persons:clear', 'neutral']]);
+  assert.equal(session.run('persons:roll').ok, false, 'one at a time');
+  assert.equal(session.run('persons:board').ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  const ids = personState(after.campaign).pending.actorIds;
+  assert.equal(ids.length, pending.quantity);
+  const actor = after.npcActors.find((entry) => entry.identity.id === ids.at(-1));
+  assert.equal(actor.characteristics.STR, pending.characteristics.strength);
+  assert.equal(actor.loadout.weaponKey, pending.weapon);
+  assert.deepEqual(session.view().personEncounter.actions.map((action) => action.command), ['persons:clear']);
+  assert.equal(session.run('persons:clear').ok, true);
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).pending, null);
+});

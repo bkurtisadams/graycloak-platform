@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.317.2';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.317.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.2';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.317.2';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.318.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.318.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.318.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.318.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.317.2';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.317.2';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.317.2';
-import { renderSectionStrip } from './section-strip.js?v=v0.317.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.318.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.318.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.318.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.318.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.317.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.317.2';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.318.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.318.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.317.2';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.318.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -927,7 +927,28 @@ function rosterRow(entry) {
 
 // A fight has to be startable from here, or the page is a dead end: pick who
 // the party is up against and the range they meet at (Book 1 p.27).
-function startFight(state, handlers, { open = false } = {}) {
+// v0.318.0: Book 3 pp.19-21 — who was met, armed how, their reaction, and
+// for police the law's throw against what the party carries (p.7).
+function personEncounterCard(p, state, handlers) {
+  const c = p.characteristics;
+  const law = p.law;
+  return h('section', { class: 'person-encounter', 'aria-label': 'Person encounter' },
+    h('p', { class: 'eyebrow', text: `Person encounter \u00b7 ${p.date} \u00b7 ${p.worldName}` }),
+    h('h3', { text: `${p.quantity} ${p.type}` }),
+    h('dl', { class: 'pairs' },
+      h('dt', { text: 'Armed' }), h('dd', { text: `${p.weaponry ?? 'unarmed'}${p.armor ? `; ${p.armor.toLowerCase()} armour` : ''}${p.extraordinary ? `; one carries a ${p.extraordinary.replace(/-/g, ' ')}` : ''}` }),
+      h('dt', { text: 'Each' }), h('dd', { text: `Str ${c.strength}, Dex ${c.dexterity}, End ${c.endurance}; weapon skill 1` }),
+      p.vehicle ? [h('dt', { text: 'Vehicle' }), h('dd', { text: 'yes, suited to the world and the terrain' })] : null,
+      h('dt', { text: 'Reaction' }), h('dd', { text: `${p.reaction.total}: ${p.reaction.description}` })),
+    law ? h('p', { class: `person-law${law.avoided ? '' : ' is-arrest'}` },
+      kindIcon(law.avoided ? 'neutral' : 'danger'),
+      h('span', { text: `Law level ${law.level}: ${law.violations.join(', ')} ${law.violations.length === 1 ? 'is' : 'are'} prohibited here. Throw ${law.level}+ to avoid arrest: ${law.total} \u2014 ${law.avoided ? 'waved on' : 'ARREST'} (Book 3 p.7).` })) : null,
+    p.actions?.length ? h('div', { class: 'lead-actions' }, p.actions.map((action) => kindButton(action, { onclick: () => handlers.onCommand?.(action.command) }))) : null,
+    p.actorIds?.length ? startFight(state, handlers, { open: true, foeIds: p.actorIds }) : null,
+    h('p', { class: 'cite', text: 'Book 3 pp.19-21; reaction p.23' }));
+}
+
+function startFight(state, handlers, { open = false, foeIds = null } = {}) {
   const foes = state.opponents ?? [];
   if (!state.live || !foes.length) return null;
   const party = state.partyChoices ?? [];
@@ -938,7 +959,7 @@ function startFight(state, handlers, { open = false } = {}) {
       h('input', { type: 'checkbox', value: member.id, 'data-party': member.id, checked: member.eligible, disabled: !member.eligible }),
       ` ${member.name}${member.note ? ` (${member.note})` : ''}`))) : null,
     h('div', { class: 'foes' }, h('span', { class: 'foes-label', text: 'Against' }), foes.map((foe) => h('label', { class: 'check' },
-      h('input', { type: 'checkbox', value: foe.id, 'data-foe': foe.id }), ` ${foe.name}${foe.note ? ` (${foe.note})` : ''}`))),
+      h('input', { type: 'checkbox', value: foe.id, 'data-foe': foe.id, checked: Boolean(foeIds?.includes(foe.id)) }), ` ${foe.name}${foe.note ? ` (${foe.note})` : ''}`))),
     h('div', { class: 'row' },
       h('select', { 'data-range': true, 'aria-label': 'Range they meet at' },
         ['close', 'short', 'medium', 'long', 'very-long'].map((range) => h('option', { value: range, selected: range === 'medium', text: range.replace('-', ' ') }))),
@@ -977,6 +998,8 @@ export function renderNow(state, handlers = {}) {
     parts.push(h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))));
   }
   if (state.notice) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }));
+  // v0.318.0: a person encounter met on the surface leads the column.
+  if (state.personEncounter) parts.push(personEncounterCard(state.personEncounter, state, handlers));
   parts.push(leadCard(state.next, state, handlers));
   if (state.checklist) parts.push(checklistPanel(state.checklist));
   // v0.315.6: a hijacking or a boarding halts the trip for a personal fight.

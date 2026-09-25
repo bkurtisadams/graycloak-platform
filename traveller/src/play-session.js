@@ -34,7 +34,7 @@ import {
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
-  refitComputerSpecification
+  refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -1940,6 +1940,42 @@ function checklistView(port, ship) {
 // software is sold at the same ports). Turrets into empty hardpoints (Book 2
 // p.15, a ton of hold each for fire control), weapons into turrets (p.16),
 // programs (p.12). All instant, like buying fuel.
+// v0.318.0 ------------------------------------------- person encounters
+// Book 3 (1977) pp.19-21: once a day while the party is out on the surface,
+// a group met on 5-6 (1D). Kept on the campaign beside the animals
+// (roster.persons.pending), like them until the referee sets it aside.
+export function personState(campaign) {
+  const persons = campaign?.roster?.persons ?? {};
+  return { pending: persons.pending ?? null };
+}
+
+export function withPersonState(campaign, patch) {
+  return { ...campaign, roster: { ...campaign.roster, persons: { ...personState(campaign), ...patch } } };
+}
+
+// What the encounter is, and, for an enforcement agent, the law check
+// against what the party carries (Book 3 p.7; not at the starport).
+export function personEncounterRecord(dice, encounter, { date, worldName, law = null }) {
+  const record = {
+    date, worldName, code: encounter.code, type: encounter.type, quantity: encounter.quantity, quantityDice: encounter.quantityDice,
+    vehicle: encounter.vehicle, weaponry: encounter.weaponry, armor: encounter.armor, weapon: encounter.weapon, armorKey: encounter.armorKey,
+    characteristics: { ...encounter.characteristics }, extraordinary: encounter.extraordinary ? encounter.extraordinary.weapon : null,
+    reaction: { total: encounter.reaction.total, dice: [...encounter.reaction.dice], description: encounter.reaction.description },
+    enforcement: encounter.enforcement, law: null, actorIds: []
+  };
+  if (encounter.enforcement && law?.caught?.length) {
+    const arrest = lawArrestThrow(dice, { lawLevel: law.level });
+    record.law = { level: law.level, violations: law.caught.map((entry) => `${entry.name}\u2019s ${entry.weaponName}`), total: arrest.total, avoided: arrest.avoided };
+  }
+  return record;
+}
+
+export function describePersonEncounter(pending) {
+  const armed = [pending.weaponry ? pending.weaponry.toLowerCase() : 'unarmed', pending.armor ? `${pending.armor.toLowerCase()} armour` : null].filter(Boolean).join(', ');
+  const odd = pending.extraordinary ? `; one carries a ${pending.extraordinary.replace(/-/g, ' ')}` : '';
+  return `${pending.quantity} ${pending.type.toLowerCase()}${pending.vehicle ? ' with a vehicle' : ''} (${armed}${odd})`;
+}
+
 export const SHIPYARD_FITTING_STARPORTS = Object.freeze(['A', 'B']);
 
 // v0.316.4: a program this ship can never run, and why (Kurt bought Jump-4
@@ -3300,6 +3336,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const { system: here } = currentWorldProfile(resolved, subsector);
         const surface = animals.surface && here && animals.surface.systemId === here.id ? animals.surface : null;
         if (surface && animals.pending) throw new Error('an animal encounter is waiting: put it on the board or set it aside first');
+        if (surface && personState(resolved.campaign).pending) throw new Error('a person encounter is waiting: put it on the board or set it aside first');
         const surfaceTable = surface ? animals.tables[animalTableKey(surface.systemId, surface.terrain)] ?? null : null;
         let animalPatch = null;
         let animalNote = null;
@@ -3328,7 +3365,44 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             if (run.throws.length) animalNote = `No animals (${surfaceTable.terrainLabel}, ${surfaceTable.worldName}): ${run.throws.length} checks, needing 5+ \u2014 ${thrown}.`;
           }
         }
+        // v0.318.0: Book 3 p.19, a person encounter point once a day while out
+        // on the surface (5-6 on 1D), independent of the animal checks. The
+        // clock stops at whichever comes first; on the same day the animals
+        // were checked first.
+        let personNote = null;
+        let personPatch = null;
+        if (surface && !personState(resolved.campaign).pending) {
+          const beforeDay = campaignDayNumber(resolved.campaign.time);
+          const endDay = campaignDayNumber(advanceCampaignSeconds(resolved.campaign, seconds).time);
+          const animalDay = animalPatch?.pending ? Number(animalPatch.surface.lastCheckedDay) : null;
+          const dice = createDice();
+          const fromDay = Math.max(Number(surface.lastPersonDay ?? beforeDay) + 1, beforeDay + 1);
+          const thrown = [];
+          let hitDay = null;
+          for (let day = fromDay; day <= endDay && (animalDay === null || day < animalDay); day += 1) {
+            const check = personEncounterCheck(dice);
+            thrown.push(check.die);
+            if (check.hit) { hitDay = day; break; }
+          }
+          const lastDay = hitDay ?? (animalDay !== null ? animalDay : endDay);
+          animalPatch = { ...(animalPatch ?? {}), surface: { ...(animalPatch?.surface ?? surface), lastPersonDay: lastDay } };
+          if (hitDay !== null) {
+            const encounter = rollPersonEncounter(dice);
+            seconds = SECONDS_PER_DAY - resolved.campaign.time.secondsOfDay + (hitDay - beforeDay - 1) * SECONDS_PER_DAY;
+            const date = formatCampaignDate(advanceCampaignSeconds(resolved.campaign, seconds).time);
+            if (animalPatch.pending) delete animalPatch.pending;
+            animalPatch.surface = { ...animalPatch.surface, lastCheckedDay: hitDay };
+            if (encounter.blank) {
+              personNote = `Person encounter point on ${date}: 1D ${thrown.at(-1)} \u2014 the table\u2019s blank row ${encounter.code}, no encounter (Book 3 p.20).`;
+            } else {
+              const law = portExtras(resolved, subsector).world?.law ?? null;
+              personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: surface.worldName, law }) };
+              personNote = `Person encounter on ${date} (${surface.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21). The clock stopped here.`;
+            }
+          }
+        }
         let advanced = advanceCampaignSeconds(resolved.campaign, seconds);
+        if (personPatch) advanced = withPersonState(advanced, personPatch);
         // v0.315.6: whole days spent in port go through the ship's clock, as
         // a Wait does — salaries, the mortgage and aging on their own dates
         // (it was only the campaign's date that moved). An aging crisis stops
@@ -3359,6 +3433,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const message = `${stopped ? `Time passes, stopping short of the ${span} asked for an encounter` : `${span} pass${amount === 1 ? 'es' : ''}`}${reason ? `: ${reason}` : ''} (${before} to ${formatCampaignDate(resolved.campaign.time)}).${rested.length ? ` Rested to full strength: ${rested.join(', ')}.` : ''}${value.resting && stopped && !rested.length ? ' Not three full days, so nobody rested back to strength.' : ''}`;
         log('TIME', message, skipped.length ? { detail: `Not rested: ${skipped.join('; ')}` } : {});
         if (animalNote) log('ENCOUNTER', animalNote, { visibility: 'referee' });
+        if (personNote) log('ENCOUNTER', personNote);
         lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
@@ -4219,6 +4294,81 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // referee says where the party is; tables are built per terrain of the
       // world they are on, each animal a statblock; the clock (time:pass)
       // throws the checks, and these are the referee's own hands on it.
+      // v0.318.0: Book 3 pp.19-21 person encounters, called or thrown now.
+      if (command.startsWith('persons:')) {
+        const { system } = currentWorldProfile(resolved, subsector);
+        const today = formatCampaignDate(resolved.campaign.time);
+        const pending = personState(resolved.campaign).pending;
+        const finish = (message) => {
+          lastMessage = { ok: true, message };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        };
+        if (command === 'persons:check' || command === 'persons:roll') {
+          if (!system) throw new Error('the party is not at a world');
+          if (pending) throw new Error('a person encounter is already waiting: put it on the board or set it aside');
+          const dice = createDice();
+          if (command === 'persons:check') {
+            const check = personEncounterCheck(dice);
+            if (!check.hit) {
+              const message = `Person encounter check on ${system.name}: 1D ${check.die}, needing 5+ \u2014 nobody (Book 3 p.19).`;
+              log('ENCOUNTER', message, { visibility: 'referee' });
+              return finish(message);
+            }
+          }
+          const encounter = rollPersonEncounter(dice);
+          if (encounter.blank) {
+            const message = `Person encounter on ${system.name}: row ${encounter.code} is blank \u2014 no encounter (Book 3 p.20).`;
+            log('ENCOUNTER', message, { visibility: 'referee' });
+            return finish(message);
+          }
+          const law = portExtras(resolved, subsector).world?.law ?? null;
+          const record = personEncounterRecord(dice, encounter, { date: today, worldName: system.name, law });
+          registry.put(withPersonState(resolved.campaign, { pending: record }));
+          reload();
+          const message = `Person encounter on ${system.name}: ${describePersonEncounter(record)}, ${record.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21).`;
+          log('ENCOUNTER', message);
+          return finish(message);
+        }
+        if (!pending) throw new Error('no person encounter is waiting');
+        if (command === 'persons:clear') {
+          registry.put(withPersonState(resolved.campaign, { pending: null }));
+          reload();
+          log('ENCOUNTER', `The ${pending.type.toLowerCase()} are left behind.`, { visibility: 'referee' });
+          return finish(`${pending.type} set aside.`);
+        }
+        if (command === 'persons:board') {
+          // One statblock each, all alike (p.20: "all individuals in an
+          // encountered group have the same characteristics"), weapon skill 1;
+          // the extraordinary weapon goes to the first.
+          if (pending.actorIds.length) return finish('They are already in the Actors directory, ready to fight.');
+          const skillFor = (key) => {
+            const name = key && key !== 'hands' ? getPersonalWeapon(key).skillNames?.[0] : null;
+            return name ? { [name]: 1 } : {};
+          };
+          let campaign = resolved.campaign;
+          const actors = Array.from({ length: pending.quantity }, (_, index) => {
+            const weaponKey = index === 0 && pending.extraordinary ? pending.extraordinary : pending.weapon;
+            return createNpcActorDocument({
+            name: `${pending.type.replace(/s$/, '')} ${index + 1}`,
+            role: pending.type, folder: `Encounters/${pending.date} ${pending.type}`,
+            characteristics: { STR: pending.characteristics.strength, DEX: pending.characteristics.dexterity, END: pending.characteristics.endurance, INT: 7, EDU: 7, SOC: 7 },
+            skills: skillFor(weaponKey),
+            weaponKey,
+            armor: pending.armorKey, numberTokens: false,
+            refereeNotes: `Book 3 p.21 row ${pending.code}, met ${pending.date} on ${pending.worldName}.`
+            });
+          });
+          for (const actor of actors) campaign = addNpcActorToCampaign(campaign, actor);
+          campaign = withPersonState(campaign, { pending: { ...pending, actorIds: actors.map((actor) => actor.identity.id) } });
+          registry.putAll([...actors, campaign]);
+          reload();
+          log('ENCOUNTER', `${pending.quantity} ${pending.type.toLowerCase()} are ready to put on the board.`, { visibility: 'referee' });
+          return finish(`${pending.quantity} ${pending.type} added to the Actors directory; start the fight below.`);
+        }
+        throw new Error(`unknown command: ${command}`);
+      }
       if (command.startsWith('animals:')) {
         const value = fight?.value ?? {};
         const { system } = currentWorldProfile(resolved, subsector);
@@ -5272,6 +5422,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       state.compendium = compendiumView(resolved, subsector);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
+      // v0.318.0: a person encounter waiting, for the column.
+      const personPending = personState(resolved.campaign).pending;
+      state.personEncounter = personPending ? {
+        ...personPending,
+        summary: describePersonEncounter(personPending),
+        actions: save.state === 'stale' || seat === 'player' ? [] : [
+          personPending.actorIds.length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
+          { command: 'persons:clear', label: personPending.actorIds.length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean(personPending.actorIds.length) }
+        ].filter(Boolean)
+      } : null;
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating

@@ -343,6 +343,9 @@ party or already on the board take part.
 
 leave-port (who, vehicle, terrain; law level now applies) → day (animal
 checks twice a day from the world's private table, person check once) →
+[As built v0.318.0: the person check rides the existing surface clock —
+once a day, 5-6 on 1D, independent of the animals; the clock stops at the
+first encounter of either kind; a blank 6x row is no encounter.]
 encounter (referee/policy; attack pushes PERSONAL-FIGHT) → pursue-job
 (referee-authored; deliberately thin under the policy) → return → end.
 
@@ -502,7 +505,7 @@ situation renderer embedded.
 | 3 | arrival: revival + lottery, orbit/land + shuttle, repossession, message delivery; hail/submit/toll out of `play.js` | done, rules 0.69.0, client v0.311.2; RAW fixes from the Book 2/3 review in rules 0.71.0, client v0.314.0 |
 | 4 | runner: situation machine + policy + headless trip script (fixture Free Trader, 3-world authored subsector, ten trips, ledger balances) | done, client v0.312.0 — on the 14-system Far Meridian map rather than a 3-world one; `--runs N` totals |
 | 5 | shipyard: turret at empty hardpoint, repair bridge, computer trade-in | done: turrets, weapons, software (rules 0.72.0, client v0.316.0), computer retrofit with trade-in (rules 0.73.0, client v0.317.0) |
-| 6 | person encounters + law harassment | |
+| 6 | person encounters + law harassment | first slice (rules 0.75.0, client v0.318.0): Book 3 pp.19-21 person encounters once a day on the surface, the p.7 arrest throw for police meeting a party carrying what the law forbids; groups go on the board as statblocks. Open: customs at the starport edge, what an arrest does, patrons |
 | 7 | dice injection for the quick-NPC stack | |
 | 8 | world generation: star mapping, UWP, tech, lanes, private reveal | lanes done early (rules 0.70.0, client v0.313.0): Book 3 p.3 table, Far Meridian thrown once |
 | 9 | self-improvement programs, passenger bumping, working-passage counter | |

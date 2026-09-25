@@ -863,3 +863,14 @@ export {
   laneBetween,
   lanesFrom
 } from './src/worlds/routes.js';
+
+// v0.75.0: Book 3 (1977) pp.7, 19-21 random person encounters and the law
+// level's throw to avoid arrest.
+export {
+  RANDOM_PERSON_ENCOUNTERS,
+  EXTRAORDINARY_WEAPONS,
+  personEncounterCheck,
+  rollExtraordinaryWeapon,
+  rollPersonEncounter,
+  lawArrestThrow
+} from './src/encounters/persons.js';

@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.317.2';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.317.2';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.317.2';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.317.2';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.317.2';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.317.2';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.317.2';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.317.2';
-import { createPlayCloud } from './play-cloud.js?v=v0.317.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.2';
+import { copyDiagnostics } from './diagnostics.js?v=v0.318.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.318.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.318.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.318.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.318.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.318.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.318.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.318.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.318.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.318.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -303,11 +303,55 @@ document.addEventListener('pointerup', releasePress, true);
 document.addEventListener('pointercancel', releasePress, true);
 window.addEventListener('blur', releasePress);
 
+// v0.318.0: a week in jump space plays out a day at a time — each box of the
+// jump clock fills half a second apart and the masthead date moves with it —
+// before the week is actually run (Kurt, Sep 2026: the boxes just sat empty).
+// Nothing else can be pressed while it plays; the week itself is one command.
+const JUMP_DAY_MS = 500;
+function addDaysToLabel(label, days) {
+  const match = /^(\d{3})-(\d+)$/.exec(String(label));
+  if (!match) return label;
+  let day = Number(match[1]) + days;
+  let year = Number(match[2]);
+  while (day > 365) { day -= 365; year += 1; }
+  return `${String(day).padStart(3, '0')}-${year}`;
+}
+function withJumpAnimation(state) {
+  const playing = ui.jumpAnimation;
+  if (!playing || state.scene?.kind !== 'jump') return state;
+  return {
+    ...state,
+    scene: { ...state.scene, day: playing.shown },
+    campaign: { ...state.campaign, date: addDaysToLabel(playing.date, playing.shown - playing.from) },
+    next: state.next ? { ...state.next, actions: [], copy: `${state.next.copy ?? ''} The week passes\u2026`.trim() } : state.next
+  };
+}
+function playJumpWeek(command) {
+  const state = viewState();
+  if (ui.jumpAnimation || state.scene?.kind !== 'jump') return false;
+  const from = state.scene.day;
+  const to = Math.min(state.scene.days, from + 7);
+  ui.jumpAnimation = { from, to, shown: from, date: state.campaign.date };
+  const tick = () => {
+    ui.jumpAnimation.shown += 1;
+    render();
+    if (ui.jumpAnimation.shown < to) { setTimeout(tick, JUMP_DAY_MS); return; }
+    setTimeout(() => {
+      ui.jumpAnimation = null;
+      source.session.run(command, { selectedSystemId: ui.selectedSystemId });
+      render();
+    }, JUMP_DAY_MS);
+  };
+  render();
+  setTimeout(tick, JUMP_DAY_MS);
+  return true;
+}
+
 function render() {
   if (press.held) { press.owed = true; return; }
   if (source.mode === 'empty') { renderEmpty(); return; }
   try { syncMultiplayer(); } catch (error) { console.warn('[traveller] multiplayer:', error); }
-  const state = viewState();
+  const state = withJumpAnimation(viewState());
   document.title = `${state.place.name} | ${state.campaign.name} | Traveller`;
   shell.dataset.situation = state.situation.kind;
   shell.dataset.drawer = 'open';
@@ -757,6 +801,8 @@ function render() {
     },
     onCommand: (command) => {
       if (source.mode !== 'live' || !command) return;
+      if (ui.jumpAnimation) return;
+      if (command === 'trip:jump-week' && playJumpWeek(command)) return;
       // A fight command carries the declaration the screen is showing.
       const fight = command.startsWith('fight:')
         ? { actorId: viewState().next?.declare?.actorId ?? ui.selectedMarker ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }
@@ -1419,6 +1465,13 @@ function openSurfaceDialog() {
         ` ${entry.name}${entry.alive ? '' : ' (dead)'}`))) : null);
 
   const parts = [partyBox];
+  // v0.318.0: Book 3 p.19 — a person encounter point, thrown now (5-6), or
+  // straight onto the table for one the referee calls. Time passing on the
+  // surface throws it once a day by itself.
+  parts.push(h('div', { class: 'surface-persons' },
+    h('span', { class: 'surface-with-label', text: 'People:' }),
+    h('button', { type: 'button', class: 'button is-small', text: 'Person check (5+)', title: 'Book 3 p.19: one die, 5 or 6 meets a group', onclick: () => { const result = source.session.run('persons:check'); if (!result.ok) window.alert(result.message); close(); render(); } }),
+    h('button', { type: 'button', class: 'button is-small', text: 'Roll on the table', title: 'Book 3 p.21: straight onto the random person encounter table', onclick: () => { const result = source.session.run('persons:roll'); if (!result.ok) window.alert(result.message); close(); render(); } })));
 
   // --- Encounter: shared with the setup board (play-views.js). ----------
   if (animals.pending) parts.push(renderAnimalEncounter(animals, (command, value) => {

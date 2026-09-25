@@ -1496,3 +1496,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .checklist .check-body { display: grid; gap: 6px; padding: 0 12px 10px; }
 .checklist.is-blocked > summary { background: var(--danger-wash); color: var(--danger-ink); border-left: 3px solid var(--danger-edge); }
 .checklist.is-risk > summary { background: var(--owed-wash); color: var(--owed-ink); border-left: 3px solid var(--owed-edge); }
+
+/* v0.318.0: a person encounter on the surface. */
+.person-encounter { display: grid; gap: 8px; padding: 12px 14px; background: var(--raise); border-top: 3px solid var(--danger-edge); }
+.person-encounter h3 { margin: 0; font-size: 19px; }
+.person-encounter .eyebrow { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.person-law { display: flex; gap: 6px; align-items: flex-start; margin: 0; padding: 6px 8px; font-size: 13px; background: var(--raise); border-left: 3px solid var(--line); }
+.person-law.is-arrest { background: var(--danger-wash); color: var(--danger-ink); border-left-color: var(--danger-edge); font-weight: 700; }
