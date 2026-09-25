@@ -115,6 +115,13 @@ export function tripFromDocuments(resolved, record = null, options = {}) {
     if (record[key] !== undefined && record[key] !== null) trip[key] = cloneJson(record[key]);
   }
   if (!TRIP_SITUATIONS.includes(trip.situation)) trip.situation = 'port';
+  // v0.316.1: a pirate met before its attack throw existed (v0.315.7) throws
+  // it now, on the same seed, rather than being let pass for free.
+  const standing = trip.encounter;
+  if (standing?.hostileByDefault && standing.attackThrow === undefined) {
+    const attack = pirateAttack(trip, standing);
+    trip.encounter = { ...standing, attacking: Boolean(attack?.attacks), attackThrow: describeAttack(attack) };
+  }
   trip.arrivals = Number.isInteger(trip.arrivals) ? trip.arrivals : 0;
   trip.pendingBrokerTipDM = Number(trip.pendingBrokerTipDM) || 0;
   return trip;
@@ -623,6 +630,17 @@ function halt(state, events, reason, detail, from) {
   return one(state, [...events, event(state, 'halt', detail, { reason })]);
 }
 
+// v0.315.7: a hostile pirate attacks on the reaction table's own throw.
+function pirateAttack(state, { hostileByDefault, reactionTotal, seedBase }) {
+  if (!hostileByDefault || !Number.isInteger(reactionTotal) || shipReactionStance({ tableTotal: reactionTotal }) !== 'hostile') return null;
+  return rollReactionAttack(seeded(state, `${seedBase}|pirate-attack`), { tableTotal: reactionTotal });
+}
+
+function describeAttack(attack) {
+  if (!attack) return null;
+  return attack.immediate ? 'attacks at once (reaction 2)' : `attack throw ${attack.total} against ${attack.needed}+`;
+}
+
 // Book 3 p.23: one reaction per encounter, with its DMs, kept on the
 // encounter so hail and inspection read it rather than throwing again.
 function openEncounter(state, rolled, { phase, system, seedBase }) {
@@ -633,14 +651,13 @@ function openEncounter(state, rolled, { phase, system, seedBase }) {
   // v0.315.7: a hostile pirate attacks on the table's own throw (2 at once,
   // 3 on 5+, 4 on 8+, 5 on 11+ as a ruling); letting it pass was the party's
   // choice when it should have been the pirate's.
-  const attack = rolled.hostileByDefault && shipReactionStance({ tableTotal: reaction.tableTotal }) === 'hostile'
-    ? rollReactionAttack(seeded(state, `${seedBase}|pirate-attack`), { tableTotal: reaction.tableTotal }) : null;
+  const attack = pirateAttack(state, { hostileByDefault: rolled.hostileByDefault, reactionTotal: reaction.tableTotal, seedBase });
   state.encounter = {
     key: rolled.type, label: rolled.label, hull: rolled.hull?.label ?? null, hullKey: rolled.hull?.hull ?? rolled.type, phase,
     hostileByDefault: Boolean(rolled.hostileByDefault), reaction: reaction.description, reactionTotal: reaction.tableTotal,
     reactionDM: dm, systemId: system?.id ?? null, seedBase, tollDemandCr: null,
     attacking: Boolean(attack?.attacks),
-    attackThrow: attack ? (attack.immediate ? 'attacks at once (reaction 2)' : `attack throw ${attack.total} against ${attack.needed}+`) : null
+    attackThrow: describeAttack(attack)
   };
   state.situation = 'encounter';
   const attackText = attack ? (attack.attacks ? `; it attacks (${state.encounter.attackThrow})` : `; it holds off (${state.encounter.attackThrow})`) : '';

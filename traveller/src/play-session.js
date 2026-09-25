@@ -2174,7 +2174,9 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
     steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => ({ ...step, kind: stepKind(step) }))
       .map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)),
     done, world: facts.world, checklist: checklistView(port, ship), destinationId: trip.destinationId,
-    shipyard: facts.fight ? null : shipyardView(ship, facts.profile, { writable })
+    shipyard: facts.fight ? null : shipyardView(ship, facts.profile, { writable }),
+    // v0.316.1: for the masthead's Shipyard chip, which says why there is none.
+    shipyardAt: facts.profile?.starport ?? null
   };
 }
 
@@ -2207,8 +2209,8 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
       next: encounter.tollDemandCr
         ? { title: `${encounter.label} demands a toll`, cite: 'Book 2 p.36', actions: buttons(actions),
           copy: `${cr(encounter.tollDemandCr)}, or it becomes a fight. Book 2 p.36: patrols "may be a form of pirate, exacting tolls or penalties".` }
-        : { title: `${encounter.label} ${encounter.attacking ? 'attacks ' : ''}${encounter.phase === 'outbound' ? 'as the ship leaves' : 'on the approach to'} ${where}`, cite: 'Book 2 p.36; Book 3 p.23', actions: buttons(actions),
-          copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${String(encounter.reaction).replace(/\.$/, '')}${encounter.reactionDM ? ` (reaction DM ${signed(encounter.reactionDM)})` : ''}.${encounter.attacking ? ` It attacks (${encounter.attackThrow}): it cannot be let pass. Run, and it takes its escape shots at you (Book 2 p.37); or stand and fight.` : encounter.attackThrow ? ` It holds off (${encounter.attackThrow}).` : encounter.hostileByDefault ? ' A pirate is hostile by the table itself.' : ''}${encounter.phase === 'inbound' ? ' Cargo and sleeping passengers are still aboard.' : ''}` },
+        : { title: `${encounter.label} ${encounter.attacking ? 'attacks ' : encounter.attackThrow ? 'holds off ' : ''}${encounter.phase === 'outbound' ? 'as the ship leaves' : 'on the approach to'} ${where}`, cite: 'Book 2 p.36; Book 3 p.23', actions: buttons(actions),
+          copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${String(encounter.reaction).replace(/\.$/, '')}${encounter.reactionDM ? ` (reaction DM ${signed(encounter.reactionDM)})` : ''}.${encounter.attacking ? ` It attacks (${encounter.attackThrow}): it cannot be let pass. Run, and it takes its escape shots at you (Book 2 p.37); or stand and fight.` : encounter.attackThrow ? ` Hostile, but its ${encounter.attackThrow} failed: it holds off this time, and may be let pass (Book 3 p.23).` : encounter.hostileByDefault ? ' A pirate is hostile by the table itself.' : ''}${encounter.phase === 'inbound' ? ' Cargo and sleeping passengers are still aboard.' : ''}` },
       steps: [], done: []
     };
   }
