@@ -2,16 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.316.1';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.316.1';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.316.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.316.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.316.1';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.316.1';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.316.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.316.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.316.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.316.1';
+import { copyDiagnostics } from './diagnostics.js?v=v0.316.2';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.316.2';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.316.2';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.316.2';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.316.2';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.316.2';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.316.2';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.316.2';
+import { createPlayCloud } from './play-cloud.js?v=v0.316.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.316.2';
+// v0.316.2: whether a button is being held down (see render()).
+const press = { held: false, owed: false };
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -276,7 +278,33 @@ function renderEmpty() {
   $('now').replaceChildren(...parts.filter(Boolean));
 }
 
+// v0.316.2: the click that needed a second try (Kurt, Sep 2026). The page is
+// redrawn whole, and it is redrawn by things the user did not just do: a
+// cloud save finishing, a chat or seat listener, a field's change event
+// firing as it loses focus to the button being pressed. When that redraw
+// lands between the button's mousedown and its mouseup, the button pressed
+// is gone and a new one stands in its place, and the browser sends the click
+// to neither. So while a button is held down, redraws wait; the one owed
+// runs after the click has been delivered.
+const CLICKABLE = 'button, a[href], summary, select, [role="button"], label, input[type="checkbox"], input[type="radio"]';
+document.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || !event.target?.closest?.(CLICKABLE)) return;
+  press.held = true;
+}, true);
+function releasePress() {
+  if (!press.held) return;
+  press.held = false;
+  if (!press.owed) return;
+  press.owed = false;
+  // After this event's click has been dispatched, not before.
+  setTimeout(() => render(), 0);
+}
+document.addEventListener('pointerup', releasePress, true);
+document.addEventListener('pointercancel', releasePress, true);
+window.addEventListener('blur', releasePress);
+
 function render() {
+  if (press.held) { press.owed = true; return; }
   if (source.mode === 'empty') { renderEmpty(); return; }
   try { syncMultiplayer(); } catch (error) { console.warn('[traveller] multiplayer:', error); }
   const state = viewState();
