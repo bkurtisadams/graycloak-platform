@@ -433,6 +433,8 @@ export {
   shipGunnerRequirement,
   armShipTurret,
   stripShipTurret,
+  fitShipTurret,
+  shipHardpoints,
   magazineCapacity,
   purchaseOrdnance
 } from './src/starships/operations.js';
@@ -442,6 +444,8 @@ export {
   CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION,
   SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS,
   ShipDocumentValidationError,
+  applyRefit,
+  REFIT_FIRE_CONTROL_TONS,
   createShipDocument,
   validateShipDocument,
   assertValidShipDocument,

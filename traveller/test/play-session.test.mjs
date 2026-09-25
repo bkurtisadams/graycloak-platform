@@ -1484,3 +1484,52 @@ test('v0.315.6 a hijacking halts the trip with the Start a fight panel, the part
   assert.ok(view.partyChoices.length >= 1);
   assert.deepEqual(view.next.actions.map((action) => action.command), ['trip:resume:continue']);
 });
+
+// ---------------------------------------------------------------- v0.316.0
+test('v0.316.0 at a class A or B port the shipyard fits a turret, a laser and the Target program', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  const rich = { balanceCr: 5_000_000, ledger: [{ id: 'opening', date: '106-4800', kind: 'transfer', description: 'Opening balance', amountCr: 5_000_000, balanceCr: 5_000_000 }], mortgage: null };
+  registry.put({ ...ship, state: { ...ship.state, finances: rich, computer: { programs: ship.state.computer.programs.filter((key) => key !== 'target') } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const yard = session.view().shipyard;
+  assert.ok(yard, 'Aster (class A) has a shipyard');
+  assert.deepEqual(yard.hardpoints, { total: 2, fitted: 0, empty: 2 });
+  assert.deepEqual(yard.mounts.map((entry) => entry.command), ['shipyard:turret:single', 'shipyard:turret:double', 'shipyard:turret:triple']);
+  assert.equal(session.run('shipyard:turret:double').ok, true);
+  let after = registry.resolveCampaign(campaignId).ships[0];
+  assert.equal(after.specifications.armament.turrets[0].id, 'T-1');
+  assert.equal(after.specifications.cargo.capacityTons, 81);
+  assert.equal(session.run('shipyard:weapon:T-1:beam-laser').ok, true);
+  const target = session.view().shipyard.software.find((entry) => entry.command === 'shipyard:software:target');
+  assert.match(target.note, /cannot fire without it/, 'Target is flagged once a laser is fitted');
+  assert.equal(session.view().shipyard.software[0].command, 'shipyard:software:target', 'and leads the list');
+  assert.equal(session.run('shipyard:software:target').ok, true);
+  after = registry.resolveCampaign(campaignId).ships[0];
+  assert.deepEqual(after.state.armament.turrets, [{ id: 'T-1', weapons: ['beam-laser'] }]);
+  assert.ok(after.state.computer.programs.includes('target'));
+  assert.equal(after.state.finances.balanceCr, 5_000_000 - 500_000 - 1_000_000 - 1_000_000);
+});
+
+test('v0.316.0 a class C, D or E port has no shipyard for fitting out', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, location: { systemId: 'cinder', systemName: 'Cinder', worldId: 'cinder-main', worldName: 'Cinder' } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().shipyard, null);
+  assert.match(session.run('shipyard:software:target').message, /class A or B only/);
+});
+
+test('v0.315.7 an attacking pirate offers Run or Fight; running starts the fight already breaking off', async () => {
+  const { registry, campaignId } = await armedScoutAtAster();
+  standEncounter(registry, campaignId, { attacking: true, attackThrow: 'attack throw 9 against 8+' });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const view = session.view();
+  assert.match(view.next.title, /^Pirate attacks as the ship leaves Aster/);
+  assert.deepEqual(view.next.actions.map((action) => [action.command, action.kind]), [['trip:run', 'travel'], ['trip:fight', 'danger']]);
+  assert.equal(session.run('trip:let-pass').ok, false);
+  assert.equal(session.run('trip:run').ok, true);
+  const fight = registry.resolveCampaign(campaignId).campaign.roster.shipFight.encounter;
+  assert.equal(fight.participants.find((entry) => entry.id === 'player').fled, true);
+  assert.match(session.view().shipFight.log.join(' '), /breaks off and runs/);
+});

@@ -13,8 +13,8 @@ import { deliveredSoftwarePackage, GENERATE_DELIVERED_DESIGNS } from './software
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
 export const SHIP_DOCUMENT_TYPE = 'classic-traveller-ship';
-export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 10;
-export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+export const CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION = 11;
+export const SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS = Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
 // v7: the drive sections a malfunction can stop (1982 drive failure).
 export const MALFUNCTION_DRIVES = Object.freeze(['powerPlant', 'maneuverDrive', 'jumpDrive']);
@@ -29,8 +29,28 @@ const GAME_DATE_PATTERN = /^\d{1,3}-\d{1,5}$/;
 
 const TOP_LEVEL_KEYS = new Set([
   'documentType', 'schemaVersion', 'identity', 'design', 'specifications',
-  'authority', 'crew', 'state', 'notes', 'provenance'
+  'authority', 'crew', 'state', 'notes', 'provenance', 'refit'
 ]);
+
+// v11 (rules 0.72.0): a shipyard refit. The specifications still have to be
+// the canonical design — with the refit laid over it, and nothing else. A
+// turret fitted into an empty hardpoint (Book 2 p.15) takes its ton of fire
+// control from the hold, so the refit also lowers the cargo capacity; a
+// stored copy that disagrees with design-plus-refit is still rejected.
+export const REFIT_FIRE_CONTROL_TONS = 1;
+
+export function applyRefit(specifications, refit) {
+  const next = cloneJson(specifications);
+  for (const turret of refit?.turrets ?? []) {
+    next.armament.turrets.push({ id: turret.id, mount: turret.mount, fireControlInstalled: true, fireControlTons: REFIT_FIRE_CONTROL_TONS, weapons: [] });
+    next.cargo.capacityTons -= REFIT_FIRE_CONTROL_TONS;
+  }
+  return next;
+}
+
+function emptyRefit() {
+  return { turrets: [] };
+}
 
 export class ShipDocumentValidationError extends Error {
   constructor(errors) {
@@ -264,7 +284,8 @@ export function createShipDocument({
       source: 'classic-traveller-book-2-standard-design',
       sourceDesign: design.key,
       sourceReferences: [...design.sources]
-    }
+    },
+    refit: emptyRefit()
   };
 
   fillArrivalDefaults(document);
@@ -285,8 +306,28 @@ function validateSpecifications(document, design, errors) {
   const specs = document.specifications;
   add(errors, isPlainObject(specs), 'specifications must be an object');
   if (!isPlainObject(specs)) return;
-  const expected = specsFromDesign(design);
-  add(errors, jsonEqual(specs, expected), 'specifications must match the canonical standard design');
+  const refit = document.refit;
+  add(errors, isPlainObject(refit), 'refit must be an object');
+  if (!isPlainObject(refit)) return;
+  validateExactKeys(refit, ['turrets'], 'refit', errors);
+  add(errors, Array.isArray(refit.turrets), 'refit.turrets must be an array');
+  if (!Array.isArray(refit.turrets)) return;
+  const designIds = design.armament.turrets.map((turret) => turret.id);
+  for (const [index, turret] of refit.turrets.entries()) {
+    const path = `refit.turrets[${index}]`;
+    add(errors, isPlainObject(turret), `${path} must be an object`);
+    if (!isPlainObject(turret)) continue;
+    validateExactKeys(turret, ['id', 'mount', 'fittedOn'], path, errors);
+    add(errors, typeof turret.id === 'string' && turret.id.trim().length > 0 && !designIds.includes(turret.id), `${path}.id must be a new turret id`);
+    add(errors, Boolean(TURRET_MOUNTS[turret.mount]), `${path}.mount must be single, double or triple`);
+    add(errors, turret.fittedOn === null || (typeof turret.fittedOn === 'string' && GAME_DATE_PATTERN.test(turret.fittedOn)), `${path}.fittedOn must be a game date or null`);
+  }
+  const ids = refit.turrets.map((turret) => turret?.id);
+  add(errors, new Set(ids).size === ids.length, 'refit.turrets repeats a turret id');
+  add(errors, design.armament.turrets.length + refit.turrets.length <= design.armament.hardpoints, 'refit fits more turrets than the hull has hardpoints (Book 2 p.15)');
+  let expected;
+  try { expected = applyRefit(specsFromDesign(design), refit); } catch { return; }
+  add(errors, jsonEqual(specs, expected), 'specifications must match the canonical standard design and its refit');
 }
 
 function validateAuthority(authority, errors) {
@@ -787,6 +828,12 @@ export function migrateShipDocument(input) {
     next.schemaVersion = 10;
     // Book 2 p.5 subsidies: no ship was subsidized before this version.
     if (next.state.finances?.mortgage) next.state.finances.mortgage.subsidized = false;
+  }
+
+  if (next.schemaVersion === 10) {
+    next.schemaVersion = 11;
+    // No ship had been refitted before this version.
+    next.refit = emptyRefit();
   }
 
   if (next.schemaVersion === CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION) {

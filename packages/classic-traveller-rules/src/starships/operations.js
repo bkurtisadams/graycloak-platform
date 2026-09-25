@@ -1,5 +1,5 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
-import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT } from './ship-document.js';
+import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT, REFIT_FIRE_CONTROL_TONS } from './ship-document.js';
 import {
   getTurretWeapon,
   getTurretMount,
@@ -1214,6 +1214,48 @@ export function shipGunnerRequirement(ship) {
     gunners,
     shortfall: Math.max(0, armedTurrets - gunners)
   });
+}
+
+/**
+ * v0.72.0: the hardpoints a hull has and the turrets already fitted to them.
+ * Book 2 p.15: "one hardpoint per 100 tons of ship"; each takes one turret.
+ */
+export function shipHardpoints(ship) {
+  assertValidShipDocument(ship);
+  const total = ship.specifications.armament.hardpoints;
+  const fitted = ship.specifications.armament.turrets.length;
+  return Object.freeze({ total, fitted, empty: Math.max(0, total - fitted) });
+}
+
+/**
+ * v0.72.0: a shipyard fits a new turret into an empty hardpoint (Book 2 p.15:
+ * single MCr 0.2, double 0.5, triple 1.0), empty of weapons — those are
+ * bought after (p.16, armShipTurret). Its ton of fire control comes out of
+ * the hold, so the hold must have the ton free. Specifications change only
+ * here: the refit is recorded on the document and laid over the design.
+ */
+export function fitShipTurret(ship, { mount, dateLabel = null, priceCr = null } = {}) {
+  assertValidShipDocument(ship);
+  const entry = getTurretMount(mount);
+  const hardpoints = shipHardpoints(ship);
+  if (hardpoints.empty < 1) throw new RangeError(`every hardpoint already carries a turret (${hardpoints.total} on a ${ship.specifications.hull.tons}-ton hull)`);
+  const capacity = ship.specifications.cargo.capacityTons - REFIT_FIRE_CONTROL_TONS;
+  if (capacity < ship.state.cargoUsedTons) throw new RangeError(`the fire control needs ${REFIT_FIRE_CONTROL_TONS} t of hold; the hold is full`);
+  const costCr = priceCr ?? Math.round(entry.priceMCr * 1_000_000);
+  if (!Number.isInteger(costCr) || costCr < 0) throw new TypeError('priceCr must be a non-negative integer');
+  if (costCr > ship.state.finances.balanceCr) throw new RangeError(`ship operating account requires Cr${costCr.toLocaleString('en-US')} for a ${entry.mount} turret`);
+  const used = new Set(ship.specifications.armament.turrets.map((turret) => turret.id));
+  let index = 1;
+  while (used.has(`T-${index}`)) index += 1;
+  const id = `T-${index}`;
+  const next = costCr === 0 ? cloneJson(ship) : appendLedger(ship, {
+    kind: 'armament', amountCr: -costCr, description: `${entry.mount[0].toUpperCase()}${entry.mount.slice(1)} turret ${id} fitted at a hardpoint (Book 2 p.15)`, dateLabel
+  });
+  next.refit.turrets.push({ id, mount: entry.mount, fittedOn: dateLabel });
+  next.specifications.armament.turrets.push({ id, mount: entry.mount, fireControlInstalled: true, fireControlTons: REFIT_FIRE_CONTROL_TONS, weapons: [] });
+  next.specifications.cargo.capacityTons -= REFIT_FIRE_CONTROL_TONS;
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, turretId: id, mount: entry.mount, costCr });
 }
 
 /**

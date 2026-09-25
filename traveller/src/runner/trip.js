@@ -28,7 +28,7 @@ import {
   checkRepossession, impoundShip, releaseImpound, rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
   resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, HAIL_ENCOUNTER_KEYS, INSPECTION_ENCOUNTER_KEYS,
   DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, quoteStarportDriveRepair, repairDrivesAtStarport,
-  shipEncounterReactionDMParts, debitShipAccount,
+  shipEncounterReactionDMParts, debitShipAccount, shipReactionStance, rollReactionAttack,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
 } from '../../vendor/classic-traveller-rules/index.js';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
@@ -301,6 +301,15 @@ export function listActions(state, context) {
         { type: 'refuse-toll', label: 'Refuse' }
       ];
     }
+    // v0.315.7: a pirate that means to attack is not the party's to let
+    // pass. Its reaction (Book 3 p.23) and the table's own attack throw
+    // decided it; what is left is to run under p.37's escape shots, or fight.
+    if (encounter.attacking) {
+      return [
+        { type: 'run', label: 'Run (break off)' },
+        { type: 'fight', label: 'Fight' }
+      ];
+    }
     return [
       { type: 'let-pass', label: 'Let it pass' },
       { type: 'fight', label: 'Fight' },
@@ -524,7 +533,14 @@ const HANDLERS = {
   // Ruling (Sep 2026): whoever initiated intrudes. A pirate is hostile by
   // the p.36 roll itself; anything else the party chose to fight.
   fight(state) {
+    if (state.encounter.attacking) return haltForFight(state, `${state.encounter.label} attacks; the party stands and fights`, { opponentInitiated: true });
     return haltForFight(state, `${state.encounter.label}: the party chose to fight`, { opponentInitiated: Boolean(state.encounter.hostileByDefault) });
+  },
+
+  // Book 2 p.37: a ship that breaks off is shot at until it is out of range.
+  // The fight still happens — the party's side only runs.
+  run(state) {
+    return haltForFight(state, `${state.encounter.label} attacks; the party breaks off and runs`, { opponentInitiated: true, running: true });
   },
 
   hail(state, action, context) {
@@ -614,13 +630,21 @@ function openEncounter(state, rolled, { phase, system, seedBase }) {
   const dmParts = shipEncounterReactionDMParts({ characters: state.characters, population });
   const dm = dmParts.reduce((sum, part) => sum + part.dm, 0);
   const reaction = rollReaction(seeded(state, `${seedBase}|reaction`), { dm });
+  // v0.315.7: a hostile pirate attacks on the table's own throw (2 at once,
+  // 3 on 5+, 4 on 8+, 5 on 11+ as a ruling); letting it pass was the party's
+  // choice when it should have been the pirate's.
+  const attack = rolled.hostileByDefault && shipReactionStance({ tableTotal: reaction.tableTotal }) === 'hostile'
+    ? rollReactionAttack(seeded(state, `${seedBase}|pirate-attack`), { tableTotal: reaction.tableTotal }) : null;
   state.encounter = {
     key: rolled.type, label: rolled.label, hull: rolled.hull?.label ?? null, hullKey: rolled.hull?.hull ?? rolled.type, phase,
     hostileByDefault: Boolean(rolled.hostileByDefault), reaction: reaction.description, reactionTotal: reaction.tableTotal,
-    reactionDM: dm, systemId: system?.id ?? null, seedBase, tollDemandCr: null
+    reactionDM: dm, systemId: system?.id ?? null, seedBase, tollDemandCr: null,
+    attacking: Boolean(attack?.attacks),
+    attackThrow: attack ? (attack.immediate ? 'attacks at once (reaction 2)' : `attack throw ${attack.total} against ${attack.needed}+`) : null
   };
   state.situation = 'encounter';
-  return event(state, 'encounter', `${rolled.label}${rolled.hull ? ` (${rolled.hull.label})` : ''} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description.replace(/\.$/, '')}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal });
+  const attackText = attack ? (attack.attacks ? `; it attacks (${state.encounter.attackThrow})` : `; it holds off (${state.encounter.attackThrow})`) : '';
+  return event(state, 'encounter', `${rolled.label}${rolled.hull ? ` (${rolled.hull.label})` : ''} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description.replace(/\.$/, '')}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}${attackText}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal, attacking: Boolean(attack?.attacks) });
 }
 
 function afterEncounter(state, events, context) {
@@ -680,8 +704,8 @@ function launch(state, events, context) {
   return one(state, events);
 }
 
-function haltForFight(state, detail, { opponentInitiated = true } = {}) {
-  state.halt = { reason: 'ship-fight', detail, from: 'encounter', encounter: state.encounter, opponentInitiated };
+function haltForFight(state, detail, { opponentInitiated = true, running = false } = {}) {
+  state.halt = { reason: 'ship-fight', detail, from: 'encounter', encounter: state.encounter, opponentInitiated, running };
   state.encounter = null;
   state.situation = 'halted';
   return one(state, [event(state, 'halt', detail, { reason: 'ship-fight' })]);

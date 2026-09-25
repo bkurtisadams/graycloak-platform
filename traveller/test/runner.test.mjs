@@ -240,3 +240,18 @@ test('v0.315.6 a contract that fails on its deadline elsewhere releases its rese
   assert.equal(result.state.contracts[0].status, 'failed');
   assert.equal(result.state.ship.state.cargoManifest.some((entry) => entry.id === `${contract.identity.id}:cargo`), false);
 });
+
+test('v0.315.7 a pirate that attacks cannot be let pass: run or fight, and either is a fight', async () => {
+  const trip = { ...createTrip(await resolvedAt('aster')), situation: 'encounter',
+    departure: { fromSystemId: 'aster', toSystemId: 'calder', distance: 1, lane: true, leftOn: '106-4800' },
+    encounter: { key: 'pirate', label: 'Pirate', hull: 'Type S', hullKey: 'type-s-scout-courier', phase: 'outbound', hostileByDefault: true,
+      reaction: 'Hostile.', reactionTotal: 4, reactionDM: 0, systemId: 'aster', seedBase: 's', tollDemandCr: null, attacking: true, attackThrow: 'attack throw 9 against 8+' } };
+  assert.deepEqual(listActions(trip, context).map((entry) => entry.type), ['run', 'fight']);
+  assert.throws(() => applyAction(trip, { type: 'let-pass' }, context), /not legal/);
+  const ran = applyAction(trip, { type: 'run' }, context).state;
+  assert.equal(ran.halt.reason, 'ship-fight');
+  assert.equal(ran.halt.running, true);
+  assert.equal(createDefaultPolicy()(trip, listActions(trip, context), context).type, 'run');
+  const holding = { ...trip, encounter: { ...trip.encounter, attacking: false } };
+  assert.equal(listActions(holding, context)[0].type, 'let-pass', 'a pirate that holds off can still be let pass');
+});

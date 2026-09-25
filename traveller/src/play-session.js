@@ -31,7 +31,8 @@ import {
   assertValidShipDocument, createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire,
   resolveLaserFire, PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
-  shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus
+  shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
+  TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -1824,11 +1825,12 @@ export const ACTION_KINDS = Object.freeze(['owed', 'travel', 'money', 'optional'
 const COMMAND_KINDS = Object.freeze([
   [/^trip:(pay-berthing|pay-arrears|pay-toll|repair-drives|fuel-fill|maintain)$/, 'owed'],
   [/^repair:(crew|shipyard):/, 'owed'],
-  [/^trip:(choose-destination|depart|jump-week|resume)(:|$)/, 'travel'],
+  [/^trip:(choose-destination|depart|jump-week|resume|run)(:|$)/, 'travel'],
   [/^shipfight:flee$/, 'travel'],
   [/^trip:(load-freight|book-passengers|carry-message)(:|$)/, 'money'],
   [/^speculation:sell:/, 'money'],
   [/^trip:(wait|fuel-skim)$/, 'optional'],
+  [/^shipyard:/, 'optional'],
   [/^speculation:buy$/, 'optional'],
   [/^shipfight:(repair:|cancel-repair)/, 'optional'],
   [/^trip:(fight|refuse-toll)$/, 'danger'],
@@ -1880,6 +1882,53 @@ function checklistView(port, ship) {
     // Book 2 p.1 and 1982: the runner always runs out to 100 diameters (about
     // a day) before jumping; a jump inside it is the misjump rule's to punish.
     diameters: 'Jump from 100 diameters: the ship runs out a day first. Inside 100 diameters the misjump throw is +5; inside 10, +15 — and 16+ destroys the ship.'
+  };
+}
+
+// v0.316.0: the shipyard, at a class A or B starport (ruling, Sep 2026: fitting
+// a turret is not building a ship, so B's "non-starships" shipyard does it;
+// software is sold at the same ports). Turrets into empty hardpoints (Book 2
+// p.15, a ton of hold each for fire control), weapons into turrets (p.16),
+// programs (p.12). All instant, like buying fuel.
+export const SHIPYARD_FITTING_STARPORTS = Object.freeze(['A', 'B']);
+
+function shipyardView(ship, profile, { writable = true } = {}) {
+  if (!ship || !profile || !SHIPYARD_FITTING_STARPORTS.includes(profile.starport)) return null;
+  const balance = Number(ship.state.finances?.balanceCr ?? 0);
+  const freeHold = ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons;
+  const hardpoints = shipHardpoints(ship);
+  const priceOf = (mcr) => Math.round(mcr * 1_000_000);
+  const why = (costCr, extra = null) => extra ?? (costCr > balance ? `the account holds ${cr(balance)}` : null);
+  const offer = (command, label, costCr, blocked = null) => ({ command: writable && !blocked ? command : null, label, costCr, figure: cr(costCr), blocked, kind: 'optional' });
+  const mounts = hardpoints.empty > 0
+    ? Object.values(TURRET_MOUNTS).map((mount) => {
+      const costCr = priceOf(mount.priceMCr);
+      return offer(`shipyard:turret:${mount.mount}`, `${sentenceCase(mount.mount)} turret (${mount.weapons} weapon${mount.weapons === 1 ? '' : 's'})`, costCr,
+        why(costCr, freeHold < REFIT_FIRE_CONTROL_TONS ? `its fire control needs ${REFIT_FIRE_CONTROL_TONS} t of hold` : null));
+    })
+    : [];
+  const turrets = ship.specifications.armament.turrets.map((turret) => {
+    const fitted = turretWeapons(ship, turret.id);
+    const room = TURRET_MOUNTS[turret.mount].weapons - fitted.length;
+    return {
+      id: turret.id, mount: turret.mount,
+      weapons: fitted.map((key) => TURRET_WEAPONS[key]?.label ?? key),
+      room,
+      offers: room > 0 ? Object.values(TURRET_WEAPONS).map((weapon) => offer(`shipyard:weapon:${turret.id}:${weapon.key}`, weapon.label, priceOf(weapon.priceMCr), why(priceOf(weapon.priceMCr)))) : []
+    };
+  });
+  const carried = ship.state.computer?.programs ?? [];
+  const armed = turrets.some((turret) => turret.weapons.length);
+  const software = Object.values(COMPUTER_PROGRAMS).filter((program) => !carried.includes(program.key)).map((program) => ({
+    ...offer(`shipyard:software:${program.key}`, program.label, priceOf(program.priceMCr), why(priceOf(program.priceMCr))),
+    group: program.class, space: program.space,
+    note: program.key === 'target' && armed ? 'the ship\u2019s lasers cannot fire without it' : program.key === 'generate' ? 'plots a jump off the charted lanes' : null
+  })).map((entry) => ({ ...entry, rank: entry.command?.endsWith(':target') && armed ? 0 : entry.note ? 1 : 2 }))
+    .sort((a, b) => a.rank - b.rank || a.costCr - b.costCr);
+  return {
+    starport: profile.starport, balanceCr: balance, freeHold,
+    hardpoints: { ...hardpoints }, mounts, turrets, software, carried: carried.map((key) => COMPUTER_PROGRAMS[key]?.label ?? key),
+    cite: 'Book 2 pp.12, 15-16'
   };
 }
 
@@ -2124,7 +2173,8 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
     next,
     steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => ({ ...step, kind: stepKind(step) }))
       .map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)),
-    done, world: facts.world, checklist: checklistView(port, ship), destinationId: trip.destinationId
+    done, world: facts.world, checklist: checklistView(port, ship), destinationId: trip.destinationId,
+    shipyard: facts.fight ? null : shipyardView(ship, facts.profile, { writable })
   };
 }
 
@@ -2157,8 +2207,8 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
       next: encounter.tollDemandCr
         ? { title: `${encounter.label} demands a toll`, cite: 'Book 2 p.36', actions: buttons(actions),
           copy: `${cr(encounter.tollDemandCr)}, or it becomes a fight. Book 2 p.36: patrols "may be a form of pirate, exacting tolls or penalties".` }
-        : { title: `${encounter.label} ${encounter.phase === 'outbound' ? 'as the ship leaves' : 'on the approach to'} ${where}`, cite: 'Book 2 p.36; Book 3 p.23', actions: buttons(actions),
-          copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${String(encounter.reaction).replace(/\.$/, '')}${encounter.reactionDM ? ` (reaction DM ${signed(encounter.reactionDM)})` : ''}.${encounter.hostileByDefault ? ' A pirate is hostile by the table itself.' : ''}${encounter.phase === 'inbound' ? ' Cargo and sleeping passengers are still aboard.' : ''}` },
+        : { title: `${encounter.label} ${encounter.attacking ? 'attacks ' : ''}${encounter.phase === 'outbound' ? 'as the ship leaves' : 'on the approach to'} ${where}`, cite: 'Book 2 p.36; Book 3 p.23', actions: buttons(actions),
+          copy: `${encounter.hull ? `${encounter.hull}. ` : ''}${String(encounter.reaction).replace(/\.$/, '')}${encounter.reactionDM ? ` (reaction DM ${signed(encounter.reactionDM)})` : ''}.${encounter.attacking ? ` It attacks (${encounter.attackThrow}): it cannot be let pass. Run, and it takes its escape shots at you (Book 2 p.37); or stand and fight.` : encounter.attackThrow ? ` It holds off (${encounter.attackThrow}).` : encounter.hostileByDefault ? ' A pirate is hostile by the table itself.' : ''}${encounter.phase === 'inbound' ? ' Cargo and sleeping passengers are still aboard.' : ''}` },
       steps: [], done: []
     };
   }
@@ -2929,10 +2979,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     const playerShip = activeShip();
     if (!encounter || !playerShip) throw new Error('no ship encounter to fight');
     const opponentIsIntruder = halt.opponentInitiated !== false;
-    setShipFight(beginArrivalShipFight({
+    const begun = beginArrivalShipFight({
       encounter, opponentIsIntruder, playerShip,
       intruderNote: opponentIsIntruder ? `${encounter.label} initiated.` : `${playerShip.identity.name || 'The party'} chose to engage ${encounter.label}.`
-    }));
+    });
+    // v0.315.7: running is breaking off from the first phase (Book 2 p.37):
+    // the escape shots are the pirate's to take before the ship is clear.
+    if (halt.running && begun.encounter.outcome === 'in-progress') {
+      const dice = createDice();
+      let fight = fleeShipFight(begun.encounter, 'player');
+      if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight, { dice });
+      const step = autoAdvanceShipFight(fight, dice, { playerSide: begun.playerSide });
+      const narrated = [...narrateShots(step.shots, step.encounter), ...narrateDamageControl(step.newLogEntries, step.encounter)];
+      setShipFight({ ...begun, encounter: step.encounter, log: [...begun.log, `${playerShip.identity.name || 'The ship'} breaks off and runs.`, ...narrated].slice(-40) });
+      return;
+    }
+    setShipFight(begun);
   }
 
   // The trip's own fields go on the campaign; the documents it changed are
@@ -4621,7 +4683,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         saveToCloud();
         return lastMessage;
       }
-      if ((command.startsWith('speculation:') || command.startsWith('repair:')) && safeTrip(resolved)?.situation !== 'port') {
+      if ((command.startsWith('speculation:') || command.startsWith('repair:') || command.startsWith('shipyard:')) && safeTrip(resolved)?.situation !== 'port') {
         throw new Error('the ship is not in port');
       }
       const facts = portExtras(resolved, subsector);
@@ -4630,7 +4692,29 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       const shipName = facts.ship.identity.name || 'The ship';
       const dateLabel = formatCampaignDate(resolved.campaign.time);
       let message;
-      if (command.startsWith('repair:crew:') || command.startsWith('repair:shipyard:')) {
+      if (command.startsWith('shipyard:')) {
+        // v0.316.0: fitting out the ship (shipyardView).
+        if (!SHIPYARD_FITTING_STARPORTS.includes(facts.profile?.starport)) throw new Error(`the class ${facts.profile?.starport ?? '?'} starport at ${facts.system.name} fits no turrets and sells no software (class A or B only)`);
+        const [, what, first, second] = command.split(':');
+        let ship;
+        if (what === 'turret') {
+          const result = fitShipTurret(facts.ship, { mount: first, dateLabel });
+          ship = result.ship;
+          message = `${shipName} has a ${result.mount} turret, ${result.turretId}, fitted at ${facts.system.name}, ${cr(result.costCr)}; its fire control takes ${REFIT_FIRE_CONTROL_TONS} t of the hold (Book 2 p.15).`;
+        } else if (what === 'weapon') {
+          const priceCr = Math.round((TURRET_WEAPONS[second]?.priceMCr ?? 0) * 1_000_000);
+          if (priceCr > facts.ship.state.finances.balanceCr) throw new Error(`the account holds ${cr(facts.ship.state.finances.balanceCr)}; ${TURRET_WEAPONS[second]?.label ?? second} costs ${cr(priceCr)}`);
+          const result = armShipTurret(facts.ship, { turretId: first, weapon: second, dateLabel });
+          ship = result.ship;
+          message = `${shipName} has a ${result.weapon.label} installed in turret ${first} at ${facts.system.name}, ${cr(result.priceCr)} (Book 2 p.16).${result.gunners.shortfall ? ` ${result.gunners.armedTurrets} armed turret${result.gunners.armedTurrets === 1 ? '' : 's'}, ${result.gunners.gunners} gunner${result.gunners.gunners === 1 ? '' : 's'}: unmanned turrets still fire, without a gunner\u2019s skill (p.17).` : ''}`;
+        } else if (what === 'software') {
+          const result = purchaseComputerProgram(facts.ship, first, { dateLabel });
+          ship = result.ship;
+          message = `${shipName} buys the ${COMPUTER_PROGRAMS[result.program].label} program at ${facts.system.name}, ${cr(result.costCr)} (Book 2 p.12).`;
+        } else throw new Error(`unknown command: ${command}`);
+        persist([ship]);
+        log('SHIP', message);
+      } else if (command.startsWith('repair:crew:') || command.startsWith('repair:shipyard:')) {
         // Book 2 p.18: "the cost of the repair is based on the cost of the
         // original assembly... roll two dice: this indicates the cost of
         // replacement of the item in 10% increments; DMs: -2 if the repair

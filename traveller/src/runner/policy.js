@@ -33,6 +33,9 @@ export function createDefaultPolicy(options = {}) {
     if (state.situation === 'encounter') {
       const encounter = state.encounter;
       if (encounter.tollDemandCr) return first(actions, 'pay-toll') ?? first(actions, 'refuse-toll');
+      // v0.315.7: an attacking pirate cannot be let pass; either answer is a
+      // fight, which halts a headless run for a person.
+      if (encounter.attacking) return first(actions, settings.fightPirates ? 'fight' : 'run');
       if (encounter.hostileByDefault && settings.fightPirates) return first(actions, 'fight');
       if (settings.inspect && first(actions, 'inspect')) return first(actions, 'inspect');
       if (settings.hail && first(actions, 'hail')) return first(actions, 'hail');
