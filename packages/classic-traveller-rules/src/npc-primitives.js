@@ -3,18 +3,19 @@
  * Low-level dice, names, and identifiers for NPC generation.
  * No dependencies. Pure functions.
  */
+import { npcRandom } from './npc-random.js';
 
-export const roll1D = () => Math.floor(Math.random() * 6) + 1;
+export const roll1D = () => Math.floor(npcRandom() * 6) + 1;
 export const roll2D = () => roll1D() + roll1D();
-export const rollD = (sides) => Math.floor(Math.random() * sides) + 1;
-export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+export const rollD = (sides) => Math.floor(npcRandom() * sides) + 1;
+export const pick = (arr) => arr[Math.floor(npcRandom() * arr.length)];
 
 export function rollRange(min, max) {
-  return min + Math.floor(Math.random() * (max - min + 1));
+  return min + Math.floor(npcRandom() * (max - min + 1));
 }
 
 export function generateId(prefix = 'actor') {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  return `${prefix}-${Date.now().toString(36)}-${npcRandom().toString(36).slice(2, 7)}`;
 }
 
 // Traveller-flavored names — expand or replace with your own tables
@@ -42,7 +43,7 @@ const NICKNAMES = [
 export function generateName(style = 'full') {
   const given = pick(GIVEN);
   const surname = pick(SURNAMES);
-  const nickname = Math.random() < 0.15 ? ` "${pick(NICKNAMES)}"` : '';
+  const nickname = npcRandom() < 0.15 ? ` "${pick(NICKNAMES)}"` : '';
   if (style === 'short') return `${given}${nickname}`;
   return `${given}${nickname} ${surname}`;
 }

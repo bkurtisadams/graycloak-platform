@@ -4,6 +4,7 @@
  * Each bundle defines skill pools, typical gear, and credit ranges.
  * These are simplified shortcuts — not full Book 1 service tables.
  */
+import { npcRandom } from './npc-random.js';
 
 export const QUICK_CAREERS = {
   navy: {
@@ -14,9 +15,9 @@ export const QUICK_CAREERS = {
     ranks: ['Starman','Ensign','Sublieutenant','Lieutenant','Lt Commander','Commander','Captain','Admiral'],
     weaponPool: ['body-pistol','auto-pistol','blade','revolver'],
     armorPool: ['none','jack'],
-    credits: () => 1000 + (Math.floor(Math.random() * 6) + 1) * 500,
+    credits: () => 1000 + (Math.floor(npcRandom() * 6) + 1) * 500,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 4) + 1) * 2, // 18-26
+    ageVar: () => (Math.floor(npcRandom() * 4) + 1) * 2, // 18-26
     description: 'Naval spacer with discipline and shipboard skills.'
   },
   marines: {
@@ -27,9 +28,9 @@ export const QUICK_CAREERS = {
     ranks: ['Marine','Lance Corporal','Corporal','Lance Sergeant','Sergeant','Gunnery Sergeant','Leading Sergeant','Sergeant Major'],
     weaponPool: ['auto-pistol','auto-rifle','blade','SMG','shotgun'],
     armorPool: ['jack','mesh','combat'],
-    credits: () => 500 + (Math.floor(Math.random() * 6) + 1) * 300,
+    credits: () => 500 + (Math.floor(npcRandom() * 6) + 1) * 300,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 4) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 4) + 1) * 2,
     description: 'Ground combat specialist, aggressive and fit.'
   },
   army: {
@@ -40,9 +41,9 @@ export const QUICK_CAREERS = {
     ranks: ['Private','Lance Corporal','Corporal','Lance Sergeant','Sergeant','Staff Sergeant','Leading Sergeant','Sergeant Major'],
     weaponPool: ['auto-pistol','carbine','rifle','blade','SMG'],
     armorPool: ['jack','mesh','cloth'],
-    credits: () => 400 + (Math.floor(Math.random() * 6) + 1) * 250,
+    credits: () => 400 + (Math.floor(npcRandom() * 6) + 1) * 250,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 4) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 4) + 1) * 2,
     description: 'Planetary soldier, used to rough conditions.'
   },
   scouts: {
@@ -53,9 +54,9 @@ export const QUICK_CAREERS = {
     ranks: ['Scout','—','—','—','—','—','—','—'],
     weaponPool: ['body-pistol','auto-pistol','carbine','blade','revolver'],
     armorPool: ['none','jack'],
-    credits: () => 200 + (Math.floor(Math.random() * 6) + 1) * 200,
+    credits: () => 200 + (Math.floor(npcRandom() * 6) + 1) * 200,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 6) + 1) * 2, // scouts range wider
+    ageVar: () => (Math.floor(npcRandom() * 6) + 1) * 2, // scouts range wider
     description: 'Independent explorer, comfortable alone on the frontier.'
   },
   merchants: {
@@ -66,9 +67,9 @@ export const QUICK_CAREERS = {
     ranks: ['Crewman','—','4th Officer','3rd Officer','2nd Officer','1st Officer','Captain','—'],
     weaponPool: ['body-pistol','auto-pistol','blade','revolver'],
     armorPool: ['none','jack'],
-    credits: () => 800 + (Math.floor(Math.random() * 6) + 1) * 400,
+    credits: () => 800 + (Math.floor(npcRandom() * 6) + 1) * 400,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 5) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 5) + 1) * 2,
     description: 'Spacer trader, knows ports and prices.'
   },
   other: {
@@ -79,9 +80,9 @@ export const QUICK_CAREERS = {
     ranks: ['Civilian','—','—','—','—','—','—','—'],
     weaponPool: ['body-pistol','auto-pistol','blade','dagger','revolver'],
     armorPool: ['none','jack'],
-    credits: () => (Math.floor(Math.random() * 6) + 1) * 100,
+    credits: () => (Math.floor(npcRandom() * 6) + 1) * 100,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 6) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 6) + 1) * 2,
     description: 'Civilian with a mixed background.'
   },
   pirate: {
@@ -92,9 +93,9 @@ export const QUICK_CAREERS = {
     ranks: ['Rookie','—','Crew','—','Mate','—','Captain','—'],
     weaponPool: ['auto-pistol','carbine','blade','SMG','shotgun'],
     armorPool: ['jack','mesh','cloth'],
-    credits: () => (Math.floor(Math.random() * 6) + 1) * 200,
+    credits: () => (Math.floor(npcRandom() * 6) + 1) * 200,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 5) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 5) + 1) * 2,
     description: 'Predatory spacer, living outside the law.'
   },
   agent: {
@@ -105,9 +106,9 @@ export const QUICK_CAREERS = {
     ranks: ['Agent','—','—','—','—','—','—','—'],
     weaponPool: ['body-pistol','auto-pistol','blade','dagger'],
     armorPool: ['none','jack','mesh'],
-    credits: () => 600 + (Math.floor(Math.random() * 6) + 1) * 300,
+    credits: () => 600 + (Math.floor(npcRandom() * 6) + 1) * 300,
     ageBase: 22,
-    ageVar: () => (Math.floor(Math.random() * 4) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 4) + 1) * 2,
     description: 'Operative or investigator, trained to observe and manipulate.'
   },
   scholar: {
@@ -118,9 +119,9 @@ export const QUICK_CAREERS = {
     ranks: ['Student','—','—','—','—','—','—','—'],
     weaponPool: ['body-pistol','dagger'],
     armorPool: ['none'],
-    credits: () => 300 + (Math.floor(Math.random() * 6) + 1) * 200,
+    credits: () => 300 + (Math.floor(npcRandom() * 6) + 1) * 200,
     ageBase: 22,
-    ageVar: () => (Math.floor(Math.random() * 5) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 5) + 1) * 2,
     description: 'Academic or researcher, more comfortable with data than danger.'
   },
   drifter: {
@@ -131,9 +132,9 @@ export const QUICK_CAREERS = {
     ranks: ['—','—','—','—','—','—','—','—'],
     weaponPool: ['dagger','blade','body-pistol','revolver'],
     armorPool: ['none','jack'],
-    credits: () => (Math.floor(Math.random() * 6) + 1) * 50,
+    credits: () => (Math.floor(npcRandom() * 6) + 1) * 50,
     ageBase: 18,
-    ageVar: () => (Math.floor(Math.random() * 8) + 1) * 2,
+    ageVar: () => (Math.floor(npcRandom() * 8) + 1) * 2,
     description: 'Itinerant worker, down on luck or running from something.'
   }
 };

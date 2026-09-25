@@ -8,21 +8,35 @@ function integerInRange(value, min, max, label) {
   return value;
 }
 
-export function formatSubsectorHex(column, row) {
-  integerInRange(column, 1, SUBSECTOR_COLUMNS, 'column');
-  integerInRange(row, 1, SUBSECTOR_ROWS, 'row');
+// v0.78.0: a map of any size in the same numbering — a subsector is 8x10, a
+// sector (16 subsectors, 4x4) is 32x40 — so a sector can be one grid on which
+// every existing function (distance, jump reach, lanes) simply works.
+export const SECTOR_COLUMNS = 32;
+export const SECTOR_ROWS = 40;
+
+function boundsOf(bounds) {
+  return { columns: bounds?.columns ?? SUBSECTOR_COLUMNS, rows: bounds?.rows ?? SUBSECTOR_ROWS };
+}
+
+export function formatSubsectorHex(column, row, bounds = null) {
+  const { columns, rows } = boundsOf(bounds);
+  integerInRange(column, 1, columns, 'column');
+  integerInRange(row, 1, rows, 'row');
   return `${String(column).padStart(2, '0')}${String(row).padStart(2, '0')}`;
 }
 
-export function parseSubsectorHex(hex) {
+export function parseSubsectorHex(hex, bounds = null) {
   const value = String(hex ?? '').trim();
   if (!/^\d{4}$/.test(value)) throw new TypeError('subsector hex must be a four-digit string such as 0405');
   const column = Number.parseInt(value.slice(0, 2), 10);
   const row = Number.parseInt(value.slice(2), 10);
-  integerInRange(column, 1, SUBSECTOR_COLUMNS, 'column');
-  integerInRange(row, 1, SUBSECTOR_ROWS, 'row');
+  const { columns, rows } = boundsOf(bounds);
+  integerInRange(column, 1, columns, 'column');
+  integerInRange(row, 1, rows, 'row');
   return { column, row };
 }
+
+const ANY_MAP = Object.freeze({ columns: SECTOR_COLUMNS, rows: SECTOR_ROWS });
 
 // Traveller subsector maps use vertical columns of pointy-topped hexes. This
 // converts the printed 0101-style odd-column offset coordinates to cube space
@@ -35,8 +49,8 @@ function oddColumnOffsetToCube({ column, row }) {
 }
 
 export function subsectorHexDistance(a, b) {
-  const ac = oddColumnOffsetToCube(typeof a === 'string' ? parseSubsectorHex(a) : a);
-  const bc = oddColumnOffsetToCube(typeof b === 'string' ? parseSubsectorHex(b) : b);
+  const ac = oddColumnOffsetToCube(typeof a === 'string' ? parseSubsectorHex(a, ANY_MAP) : a);
+  const bc = oddColumnOffsetToCube(typeof b === 'string' ? parseSubsectorHex(b, ANY_MAP) : b);
   return Math.max(
     Math.abs(ac.x - bc.x),
     Math.abs(ac.y - bc.y),
@@ -64,8 +78,8 @@ export function validateAuthoredSubsector(subsector) {
       else if (ids.has(system.id)) errors.push(`duplicate system id: ${system.id}`);
       else ids.add(system.id);
       try {
-        const parsedHex = parseSubsectorHex(system.hex);
-        const normalizedHex = formatSubsectorHex(parsedHex.column, parsedHex.row);
+        const parsedHex = parseSubsectorHex(system.hex, subsector);
+        const normalizedHex = formatSubsectorHex(parsedHex.column, parsedHex.row, subsector);
         if (hexes.has(normalizedHex)) errors.push(`duplicate system hex: ${normalizedHex}`);
         hexes.add(normalizedHex);
       } catch (error) {

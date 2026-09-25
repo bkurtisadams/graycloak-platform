@@ -255,3 +255,17 @@ test('v0.315.7 a pirate that attacks cannot be let pass: run or fight, and eithe
   const holding = { ...trip, encounter: { ...trip.encounter, attacking: false } };
   assert.equal(listActions(holding, context)[0].type, 'let-pass', 'a pirate that holds off can still be let pass');
 });
+
+// ---------------------------------------------------------------- v0.320.0
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js';
+import { sectorMap, getJumpDestinations as reachOf, jumpDistanceBetweenSystems } from '../vendor/classic-traveller-rules/index.js';
+
+test('v0.320.0 Far Meridian sits at F in Meridian Reach: its worlds on sector hexes, its lanes and distances unchanged', () => {
+  const map = sectorMap({ id: MERIDIAN_REACH_SECTOR.id, name: MERIDIAN_REACH_SECTOR.name, subsectors: { ...MERIDIAN_REACH_SECTOR.authored }, routes: MERIDIAN_REACH_SECTOR.routes });
+  const sanTelmo = map.systems.find((system) => system.id === 'san-telmo');
+  assert.deepEqual({ hex: sanTelmo.hex, localHex: sanTelmo.localHex, subsector: sanTelmo.subsector }, { hex: '1115', localHex: '0305', subsector: 'F' });
+  assert.equal(map.systems.length, FAR_MERIDIAN_SUBSECTOR.systems.length);
+  assert.equal(map.routes.length, FAR_MERIDIAN_SUBSECTOR.routes.length);
+  for (const route of FAR_MERIDIAN_SUBSECTOR.routes) assert.equal(jumpDistanceBetweenSystems(map, route.from, route.to), route.distance);
+  assert.deepEqual(reachOf(map, 'orison', 2).map((entry) => entry.system.id), reachOf(FAR_MERIDIAN_SUBSECTOR, 'orison', 2).map((entry) => entry.system.id));
+});

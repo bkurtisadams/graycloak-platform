@@ -886,3 +886,12 @@ export {
   rumorCheck,
   rollRumor
 } from './src/encounters/persons.js';
+
+// v0.78.0: Book 3 (1977) star mapping and world creation; sectors.
+export {
+  WORLD_PRESENT_MIN, STARPORT_TABLE, NAVAL_BASE_THROW, SCOUT_BASE_THROW, GAS_GIANT_PRESENT_MAX,
+  techLevelDMs, rollStarport, generateWorldProfile, rollBases, generateWorldName, generateSubsector,
+  SUBSECTOR_LETTERS, subsectorOffset, sectorHex, subsectorOfSectorHex, neighbouringSubsectors, sectorMap, rollNewLanes
+} from './src/worlds/generation.js';
+export { SECTOR_COLUMNS, SECTOR_ROWS } from './src/worlds/subsector.js';
+export { npcRandom, withNpcRandom } from './src/npc-random.js';

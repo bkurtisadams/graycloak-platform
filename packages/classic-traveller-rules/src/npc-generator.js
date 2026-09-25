@@ -13,6 +13,7 @@
  *   - Encounter setup: [ GENERATE OPPOSITION ]
  *   - Campaign menu: [ GENERATE PATRON ]
  */
+import { npcRandom, withNpcRandom } from './npc-random.js';
 
 import { roll1D, roll2D, pick, rollRange, generateId, generateName, generateDescription } from './npc-primitives.js';
 import { QUICK_CAREERS, CAREER_KEYS } from './npc-careers.js';
@@ -47,11 +48,11 @@ function assignSkills(skillPool, count, levelCap = 2) {
   const skills = {};
   const pool = [...skillPool];
   for (let i = 0; i < count && pool.length > 0; i++) {
-    const idx = Math.floor(Math.random() * pool.length);
+    const idx = Math.floor(npcRandom() * pool.length);
     const skill = pool.splice(idx, 1)[0];
     const current = skills[skill] || 0;
     // 70% chance to grant level 1, 30% level 2 if cap allows
-    const increment = (current < levelCap && Math.random() < 0.3) ? 2 : 1;
+    const increment = (current < levelCap && npcRandom() < 0.3) ? 2 : 1;
     skills[skill] = clamp(current + increment, 0, levelCap);
   }
   return skills;
@@ -126,6 +127,11 @@ function buildActorDocument(base) {
  *   levelCap    max skill level (default 2)
  */
 export function generateQuickNPC(opts = {}) {
+  // v0.78.0: opts.random, the caller's seeded source (step 7).
+  return withNpcRandom(opts.random, () => quickNPC(opts));
+}
+
+function quickNPC(opts) {
   const careerKey = opts.careerKey || pick(CAREER_KEYS);
   const career = QUICK_CAREERS[careerKey];
   if (!career) throw new Error(`Unknown career: ${careerKey}`);
@@ -138,7 +144,7 @@ export function generateQuickNPC(opts = {}) {
   // Grant one rank if they have a relevant skill and random chance
   let rank = null;
   let rankTitle = null;
-  if (career.ranks && career.ranks.length > 1 && Math.random() < 0.4) {
+  if (career.ranks && career.ranks.length > 1 && npcRandom() < 0.4) {
     const maxRankIdx = clamp(Math.floor(age / 6) - 2, 0, career.ranks.length - 1);
     const rankIdx = rollRange(0, maxRankIdx);
     rank = rankIdx;
@@ -338,6 +344,10 @@ function generateFullNPCFallback(careerKey, opts) {
  * @returns {ActorDocument[]}
  */
 export function generateOppositionGroup(templateKey, count, opts = {}) {
+  return withNpcRandom(opts.random, () => oppositionGroup(templateKey, count, opts));
+}
+
+function oppositionGroup(templateKey, count, opts) {
   const template = OPPOSITION_TEMPLATES[templateKey];
   if (!template) throw new Error(`Unknown opposition template: ${templateKey}`);
 
