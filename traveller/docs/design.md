@@ -354,10 +354,9 @@ building, so B's non-starship yard does it), a turret into an empty
 hardpoint (`fitShipTurret`, p.15 prices, a ton of hold for fire control),
 a weapon into a turret (`armShipTurret`, p.16), a program (`purchaseComputerProgram`,
 p.12); all instant, charged to the ship's account. Battle-damage repair was
-already in the port column (p.18, crew anywhere or shipyard at A/C). Not
-yet: computer trade-in (the computer block is refreshed from the design on
-load, so a refit of it needs the same treatment as turrets), turret swap and
-resale, ordnance, new construction.
+already in the port column (p.18, crew anywhere or shipyard at A/C). v0.317.0
+adds the computer retrofit (Book 2 p.15, 25% trade-in). Not yet: turret swap
+and resale, ordnance, new construction.
 
 
 repair (2D × 10% of component cost, −2 crew-installed) · arm (fit a turret
@@ -502,7 +501,7 @@ situation renderer embedded.
 | 2 | departure gates, misjump, drive failure, hijack | done, rules 0.68.0 |
 | 3 | arrival: revival + lottery, orbit/land + shuttle, repossession, message delivery; hail/submit/toll out of `play.js` | done, rules 0.69.0, client v0.311.2; RAW fixes from the Book 2/3 review in rules 0.71.0, client v0.314.0 |
 | 4 | runner: situation machine + policy + headless trip script (fixture Free Trader, 3-world authored subsector, ten trips, ledger balances) | done, client v0.312.0 — on the 14-system Far Meridian map rather than a 3-world one; `--runs N` totals |
-| 5 | shipyard: turret at empty hardpoint, repair bridge, computer trade-in | turrets, weapons and software done (rules 0.72.0, client v0.316.0); computer trade-in open |
+| 5 | shipyard: turret at empty hardpoint, repair bridge, computer trade-in | done: turrets, weapons, software (rules 0.72.0, client v0.316.0), computer retrofit with trade-in (rules 0.73.0, client v0.317.0) |
 | 6 | person encounters + law harassment | |
 | 7 | dice injection for the quick-NPC stack | |
 | 8 | world generation: star mapping, UWP, tech, lanes, private reveal | lanes done early (rules 0.70.0, client v0.313.0): Book 3 p.3 table, Far Meridian thrown once |
@@ -579,6 +578,11 @@ berthing past six days, salaries) reach `play.html` with it.
   the drive or the computer's limit, or a program too large for the CPU
   (fire control counted beside Target). The referee may take a program off
   the card; software has no resale, so any refund is by fiat (Sep 2026).
+- A computer may be retrofitted at a class A or B starport (Book 2 p.15),
+  the old one traded in at 25% of its price, the tonnage difference taken
+  from (or given back to) the hold. The 1977 books tie no jump limit to the
+  computer model, so a refit keeps the design's figure (ruling, Sep 2026;
+  rules 0.73.0, ship refit.computer).
 - A hostile pirate attacks on the reaction table's own throw and cannot then
   be let pass; the party may run (p.37 escape shots) or fight (Sep 2026).
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,

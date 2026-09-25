@@ -33,7 +33,7 @@ import {
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
-  damageReport, speculativeTonsPerUnit, speculativeCargoUnits
+  damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -2006,8 +2006,21 @@ function shipyardView(ship, profile, { writable = true } = {}) {
   const attention = [];
   if (armed && !carried.includes('target')) attention.push('a laser is fitted but the Target program is not carried: it cannot fire');
   if (profile.starport === 'A' && shipDamagedLocations(ship).length) attention.push('battle damage the shipyard can repair (in the port column)');
+  // v0.317.0: a computer retrofitted in place of the installed one (Book 2
+  // p.15), the old traded in at 25%; the tonnage difference from the hold.
+  const installed = ship.specifications.computer;
+  const computers = Object.values(COMPUTER_MODELS).filter((entry) => entry.model !== installed.model).map((entry) => {
+    const quote = quoteComputerRefit(ship, { model: entry.model });
+    const blocked = quote.possible ? null : quote.reasons.join('; ');
+    return {
+      ...offer(`shipyard:computer:${entry.model}`, `Model/${entry.model}`, quote.costCr, blocked),
+      detail: `CPU ${entry.cpu}, storage ${entry.storage ?? 'none'} \u00b7 ${entry.tons} t${quote.deltaTons ? ` (${quote.deltaTons > 0 ? `${quote.deltaTons} t from` : `${-quote.deltaTons} t back to`} the hold)` : ''} \u00b7 Cr ${quote.priceCr.toLocaleString('en-US')} less Cr ${quote.tradeInCr.toLocaleString('en-US')} trade-in`,
+      upgrade: entry.cpu > installed.cpu
+    };
+  });
   return {
     attention,
+    computer: { model: installed.model, cpu: installed.cpu, storage: installed.storage, tons: installed.tons, maximumSupportedJump: installed.maximumSupportedJump, offers: computers },
     starport: profile.starport, balanceCr: balance, freeHold,
     hardpoints: { ...hardpoints }, mounts, turrets, software,
     carried: carried.map((key) => `${COMPUTER_PROGRAMS[key]?.label ?? key}${unusable(key) ? ' (unusable here)' : ''}`),
@@ -4804,6 +4817,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const result = armShipTurret(facts.ship, { turretId: first, weapon: second, dateLabel });
           ship = result.ship;
           message = `${shipName} has a ${result.weapon.label} installed in turret ${first} at ${facts.system.name}, ${cr(result.priceCr)} (Book 2 p.16).${result.gunners.shortfall ? ` ${result.gunners.armedTurrets} armed turret${result.gunners.armedTurrets === 1 ? '' : 's'}, ${result.gunners.gunners} gunner${result.gunners.gunners === 1 ? '' : 's'}: unmanned turrets still fire, without a gunner\u2019s skill (p.17).` : ''}`;
+        } else if (what === 'computer') {
+          const result = refitShipComputer(facts.ship, { model: first, dateLabel });
+          ship = result.ship;
+          message = `${shipName} has a Model/${result.model} computer fitted at ${facts.system.name} in place of the Model/${result.was}, ${cr(result.costCr)} after ${cr(result.tradeInCr)} trade-in (Book 2 p.15)${result.deltaTons ? `; the hold is ${result.deltaTons > 0 ? `${result.deltaTons} t smaller` : `${-result.deltaTons} t larger`}` : ''}.`;
         } else if (what === 'software') {
           const reason = programUnusable(facts.ship, first);
           if (reason) throw new Error(`${COMPUTER_PROGRAMS[first]?.label ?? first} would never run: ${reason}`);

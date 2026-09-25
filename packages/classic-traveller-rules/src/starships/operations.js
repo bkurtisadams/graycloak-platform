@@ -1,12 +1,13 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
-import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT, REFIT_FIRE_CONTROL_TONS } from './ship-document.js';
+import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT, REFIT_FIRE_CONTROL_TONS, refitComputerSpecification } from './ship-document.js';
 import {
   getTurretWeapon,
   getTurretMount,
   getComputerProgram,
   ROUNDS_PER_LAUNCHER,
   MISSILE_PRICE_CR,
-  SAND_CANISTER_PRICE_CR
+  SAND_CANISTER_PRICE_CR,
+  COMPUTER_MODELS
 } from './components.js';
 import { getStandardShipDesign } from './standard-designs.js';
 import { parseGameDate, assertGameDate, formatGameDate, DAYS_PER_MONTH, DAYS_PER_YEAR } from '../time/dates.js';
@@ -1282,6 +1283,52 @@ export function fitShipTurret(ship, { mount, dateLabel = null, priceCr = null } 
   next.specifications.cargo.capacityTons -= REFIT_FIRE_CONTROL_TONS;
   assertValidShipDocument(next);
   return Object.freeze({ ship: next, turretId: id, mount: entry.mount, costCr });
+}
+
+// Book 2 p.15: "in retrofitting situations, the old model of computer can
+// generally be traded in at 25% of original cost."
+export const COMPUTER_TRADE_IN_RATE = 0.25;
+
+/** v0.73.0: what retrofitting a computer model would cost and take. */
+export function quoteComputerRefit(ship, { model } = {}) {
+  assertValidShipDocument(ship);
+  const entry = COMPUTER_MODELS[model];
+  if (!entry) throw new RangeError(`unknown computer model: ${model}`);
+  const current = ship.specifications.computer;
+  const installed = COMPUTER_MODELS[current.model];
+  const priceCr = Math.round(entry.priceMCr * 1_000_000);
+  const tradeInCr = Math.round(installed.priceMCr * 1_000_000 * COMPUTER_TRADE_IN_RATE);
+  const deltaTons = entry.tons - current.tons;
+  const freeHold = ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons;
+  const reasons = [];
+  if (entry.model === current.model) reasons.push(`a Model/${entry.model} is already installed`);
+  if (deltaTons > freeHold) reasons.push(`it needs ${deltaTons} t more than the Model/${current.model}; ${freeHold} t of hold is free`);
+  const costCr = Math.max(0, priceCr - tradeInCr);
+  if (costCr > ship.state.finances.balanceCr) reasons.push(`the account holds Cr${ship.state.finances.balanceCr.toLocaleString('en-US')}`);
+  return Object.freeze({
+    model: entry.model, priceCr, tradeInCr, costCr, deltaTons, cpu: entry.cpu, storage: entry.storage,
+    possible: reasons.length === 0, reasons: Object.freeze(reasons)
+  });
+}
+
+/**
+ * v0.73.0: retrofits a computer model (Book 2 p.15), trading the old one in
+ * at 25% of its price. The refit is recorded and laid over the design.
+ */
+export function refitShipComputer(ship, { model, dateLabel = null } = {}) {
+  const quote = quoteComputerRefit(ship, { model });
+  if (!quote.possible) throw new RangeError(`cannot fit a Model/${model}: ${quote.reasons.join('; ')}`);
+  const was = ship.specifications.computer.model;
+  const next = quote.costCr === 0 ? cloneJson(ship) : appendLedger(ship, {
+    kind: 'refit', amountCr: -quote.costCr,
+    description: `Model/${quote.model} computer fitted, Model/${was} traded in at 25% (Book 2 p.15)`, dateLabel
+  });
+  const design = getStandardShipDesign(next.design.key);
+  next.refit.computer = quote.model === design.computer.model ? null : { model: quote.model, fittedOn: dateLabel };
+  next.specifications.cargo.capacityTons -= quote.deltaTons;
+  next.specifications.computer = next.refit.computer ? refitComputerSpecification(design.computer, quote.model) : cloneJson(design.computer);
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, ...quote, was });
 }
 
 /**

@@ -437,6 +437,9 @@ export {
   speculativeCargoUnits,
   stripShipTurret,
   fitShipTurret,
+  quoteComputerRefit,
+  refitShipComputer,
+  COMPUTER_TRADE_IN_RATE,
   shipHardpoints,
   magazineCapacity,
   purchaseOrdnance
@@ -448,6 +451,7 @@ export {
   SUPPORTED_SHIP_DOCUMENT_SCHEMA_VERSIONS,
   ShipDocumentValidationError,
   applyRefit,
+  refitComputerSpecification,
   REFIT_FIRE_CONTROL_TONS,
   createShipDocument,
   validateShipDocument,

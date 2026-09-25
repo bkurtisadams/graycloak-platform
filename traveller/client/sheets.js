@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.5';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.316.5';
-import { renderSectionStrip } from './section-strip.js?v=v0.316.5';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.317.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.317.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.317.0';
 
 const DRAGGED = new Map();
 
@@ -121,6 +121,27 @@ function programsPanel(sheet, handlers) {
   return panel;
 }
 
+function shipGauge(label, { now, full, note }, unit, { inverse = false } = {}) {
+  const ratio = full ? now / full : 0;
+  return h('div', { class: 'gauge' },
+    h('div', { class: 'gauge-head' }, h('span', { text: label }), h('b', { text: `${now} of ${full}${unit}` })),
+    h('div', { class: `gauge-bar${!inverse && ratio < 0.5 ? ' is-low' : ''}` }, h('span', { style: `width:${Math.round(ratio * 100)}%` })),
+    note ? h('p', { class: 'sheet-note', text: note }) : null);
+}
+
+function shipStatus(ship) {
+  return h('div', { class: 'sheet-status' },
+    h('dl', { class: 'pairs' },
+      h('dt', { text: 'Ship\u2019s account' }), h('dd', { text: `Cr ${Number(ship.accountCr ?? 0).toLocaleString('en-US')}` }),
+      ship.upkeep ? [h('dt', { text: 'Upkeep' }), h('dd', { text: ship.upkeep })] : null,
+      h('dt', { text: 'Armament' }), h('dd', { text: ship.armament })),
+    h('div', { class: 'sheet-gauges' },
+      shipGauge('Fuel', ship.fuel, ' t'),
+      shipGauge('Hold', ship.hold, ' t', { inverse: true }),
+      shipGauge('Staterooms', ship.berths, '', { inverse: true })),
+    ship.crew?.length ? h('dl', { class: 'pairs sheet-crew' }, ship.crew.flatMap((member) => [h('dt', { text: member.name }), h('dd', { text: member.roles })])) : null);
+}
+
 function shipBody(sheet, handlers) {
   const parts = [];
   if (!sheet.editable) {
@@ -128,6 +149,9 @@ function shipBody(sheet, handlers) {
   }
   // v0.316.3: the sections at a glance, lit by hits and repairs.
   if (sheet.strip?.length) parts.push(renderSectionStrip(sheet.strip, { label: `${sheet.title}: sections` }));
+  // v0.317.0: what the right-hand Ship panel showed, now here — one place for
+  // the ship, opened from the masthead chip or the Vehicles tab alike.
+  if (sheet.ship) parts.push(shipStatus(sheet.ship));
   parts.push(h('div', { class: 'sheet-section-label', text: 'BOOK 2 P.24 DATA CARD' }));
   parts.push(sheet.lines.length
     ? h('pre', { class: 'sheet-card', text: sheet.lines.join('\n') })

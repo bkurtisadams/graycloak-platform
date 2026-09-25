@@ -1478,3 +1478,8 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .program-row.is-unusable .program-name { color: var(--ink-2); text-decoration: line-through; }
 .program-remove { grid-column: 3; grid-row: 1; font: inherit; font-size: 13px; line-height: 1; padding: 1px 6px; border: 1px solid var(--line); background: none; color: var(--ink-2); cursor: pointer; }
 .program-remove:hover { border-color: var(--danger-edge); color: var(--danger-ink); }
+
+/* v0.317.0: the ship sheet's status block (was the right-hand Ship panel). */
+.sheet-status { display: grid; gap: 8px; }
+.sheet-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sheet-status .pairs { font-size: 13px; }

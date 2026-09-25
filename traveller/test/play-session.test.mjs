@@ -1649,3 +1649,32 @@ test('v0.316.4 an Air/Raft lot is sold each at 4 t of hold; a scout\u2019s 3 t c
   assert.match(blocked.copy, /One Air\/Raft takes 4 t of hold; 3 t is free/);
   assert.match(blocked.figure, /Cr 4,200,000 each$/);
 });
+
+// ---------------------------------------------------------------- v0.317.0
+test('v0.317.0 the Shipyard retrofits a bigger computer, the old traded in, and the programs it frees become usable', async () => {
+  const { registry, campaignId } = await armedScoutAtAster();
+  const rich = { balanceCr: 20_000_000, ledger: [{ id: 'opening', date: '106-4800', kind: 'transfer', description: 'Opening balance', amountCr: 20_000_000, balanceCr: 20_000_000 }], mortgage: null };
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  registry.put({ ...ship, state: { ...ship.state, finances: rich } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const offers = session.view().shipyard.computer.offers;
+  const two = offers.find((entry) => entry.label === 'Model/2');
+  assert.equal(two.command, 'shipyard:computer:2');
+  assert.equal(two.costCr, 8_500_000);
+  assert.match(offers.find((entry) => entry.label === 'Model/5').blocked, /needs 4 t more/);
+  assert.match(programUnusable(registry.resolveCampaign(campaignId).ships[0], 'predict-5'), /too large/);
+  assert.equal(session.run('shipyard:computer:2').ok, true);
+  const after = registry.resolveCampaign(campaignId).ships[0];
+  assert.equal(after.specifications.computer.model, '2');
+  assert.equal(after.specifications.cargo.capacityTons, 2);
+  assert.equal(programUnusable(after, 'predict-5'), null, 'Predict 5 (2 space) runs beside Target in CPU 3');
+  assert.equal(session.view().shipyard.computer.model, '2');
+});
+
+test('v0.317.0 the fight never loads a program the CPU can never run', async () => {
+  const { shipCombatLoadout } = await import('../src/ship-arrival-combat.js');
+  const { registry, campaignId } = await armedScoutAtAster();
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  const loaded = shipCombatLoadout({ ...ship, state: { ...ship.state, computer: { programs: ['target', 'predict-5', 'predict-3', 'return-fire'] } } }).loaded;
+  assert.deepEqual(loaded, ['target', 'return-fire', 'predict-3']);
+});

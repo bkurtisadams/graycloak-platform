@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.316.5';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.316.5';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.316.5';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.316.5';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.316.5';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.316.5';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.316.5';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.316.5';
-import { createPlayCloud } from './play-cloud.js?v=v0.316.5';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.316.5';
+import { copyDiagnostics } from './diagnostics.js?v=v0.317.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.317.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.317.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.317.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.317.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.317.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.317.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.317.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.317.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -820,7 +820,7 @@ function render() {
       state.save.state === 'cloud' || state.save.state === 'error' ? h('button', { type: 'button', class: 'mast-signin', text: 'Account', onclick: () => openAccount() }) : null,
       state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
   }
-  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer }));
+  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer, openSheet: source.mode === 'live' ? (kind, id) => handlers.onOpenSheet(kind, id) : null, openSheets: ui.openSheets }));
 
   $('now').replaceChildren(...renderNow(state, handlers));
   $('scene').replaceChildren(...renderScene(state, handlers));

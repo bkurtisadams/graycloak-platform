@@ -8,7 +8,7 @@ import {
   TYPE_S_SCOUT_COURIER_KEY,
   getStandardShipDesign
 } from './standard-designs.js';
-import { TURRET_MOUNTS, TURRET_WEAPONS, COMPUTER_PROGRAMS } from './components.js';
+import { TURRET_MOUNTS, TURRET_WEAPONS, COMPUTER_PROGRAMS, COMPUTER_MODELS } from './components.js';
 import { deliveredSoftwarePackage, GENERATE_DELIVERED_DESIGNS } from './software.js';
 import { emptyDamageState, applyHitToDamage, selectTurretHit, rollHitLocation, releaseFuelFromHit, MISSILE_HIT_LOCATION_DM } from './damage.js';
 
@@ -39,8 +39,28 @@ const TOP_LEVEL_KEYS = new Set([
 // stored copy that disagrees with design-plus-refit is still rejected.
 export const REFIT_FIRE_CONTROL_TONS = 1;
 
+// v0.73.0: a computer retrofitted in place of the design's (Book 2 p.15:
+// "larger or smaller computer models may be installed or retrofitted to a
+// starship, regardless of the model originally called for"). The difference
+// in its tonnage comes out of the hold, or goes back to it. Ruling (Sep
+// 2026): the 1977 books tie no jump limit to the computer model — the
+// design's figure is from its own description — so a refit keeps it.
+export function refitComputerSpecification(designComputer, model) {
+  const entry = COMPUTER_MODELS[model];
+  if (!entry) throw new RangeError(`unknown computer model: ${model}`);
+  return {
+    model: entry.model, tons: entry.tons, cpu: entry.cpu, storage: entry.storage,
+    maximumSupportedJump: designComputer.maximumSupportedJump
+  };
+}
+
 export function applyRefit(specifications, refit) {
   const next = cloneJson(specifications);
+  if (refit?.computer) {
+    const computer = refitComputerSpecification(next.computer, refit.computer.model);
+    next.cargo.capacityTons -= computer.tons - next.computer.tons;
+    next.computer = computer;
+  }
   for (const turret of refit?.turrets ?? []) {
     next.armament.turrets.push({ id: turret.id, mount: turret.mount, fireControlInstalled: true, fireControlTons: REFIT_FIRE_CONTROL_TONS, weapons: [] });
     next.cargo.capacityTons -= REFIT_FIRE_CONTROL_TONS;
@@ -49,7 +69,7 @@ export function applyRefit(specifications, refit) {
 }
 
 function emptyRefit() {
-  return { turrets: [] };
+  return { turrets: [], computer: null };
 }
 
 export class ShipDocumentValidationError extends Error {
@@ -147,7 +167,9 @@ function refreshSpecificationsFromDesign(document) {
   const design = getStandardShipDesign(document?.design?.key);
   if (!design || !isPlainObject(document.specifications)) return document;
   document.specifications.economics = cloneJson(design.economics);
-  document.specifications.computer = cloneJson(design.computer);
+  document.specifications.computer = document.refit?.computer
+    ? refitComputerSpecification(design.computer, document.refit.computer.model)
+    : cloneJson(design.computer);
   renameLegacyFuelAllowanceKey(document.specifications.fuel);
   return document;
 }
@@ -164,6 +186,8 @@ function refreshSpecificationsFromDesign(document) {
 // have safe defaults, so creation and import fill them in rather than
 // rejecting the document; validation itself stays strict.
 function fillArrivalDefaults(document) {
+  // v0.73.0: refit.computer joined v11 after the first refits were saved.
+  if (isPlainObject(document?.refit) && !Object.hasOwn(document.refit, 'computer')) document.refit.computer = null;
   const state = document?.state;
   if (!isPlainObject(state)) return document;
   const streamlined = Boolean(document.specifications?.hull?.streamlined);
@@ -309,7 +333,16 @@ function validateSpecifications(document, design, errors) {
   const refit = document.refit;
   add(errors, isPlainObject(refit), 'refit must be an object');
   if (!isPlainObject(refit)) return;
-  validateExactKeys(refit, ['turrets'], 'refit', errors);
+  validateExactKeys(refit, ['turrets', 'computer'], 'refit', errors);
+  if (refit.computer !== null) {
+    add(errors, isPlainObject(refit.computer), 'refit.computer must be an object or null');
+    if (isPlainObject(refit.computer)) {
+      validateExactKeys(refit.computer, ['model', 'fittedOn'], 'refit.computer', errors);
+      add(errors, Boolean(COMPUTER_MODELS[refit.computer.model]), 'refit.computer.model must be a Book 2 computer model');
+      add(errors, refit.computer.fittedOn === null || (typeof refit.computer.fittedOn === 'string' && GAME_DATE_PATTERN.test(refit.computer.fittedOn)), 'refit.computer.fittedOn must be a game date or null');
+      if (COMPUTER_MODELS[refit.computer.model]) add(errors, design.cargo.capacityTons - (COMPUTER_MODELS[refit.computer.model].tons - design.computer.tons) - (refit.turrets?.length ?? 0) >= 0, 'refit leaves the hold below zero tons');
+    }
+  }
   add(errors, Array.isArray(refit.turrets), 'refit.turrets must be an array');
   if (!Array.isArray(refit.turrets)) return;
   const designIds = design.armament.turrets.map((turret) => turret.id);

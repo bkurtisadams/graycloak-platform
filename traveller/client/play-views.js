@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.316.5';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.316.5';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.316.5';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.316.5';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.317.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.317.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.317.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.316.5';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.316.5';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.316.5';
-import { renderSectionStrip } from './section-strip.js?v=v0.316.5';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.317.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.317.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.317.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.317.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.316.5';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.316.5';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.317.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.317.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.316.5';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.317.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -73,7 +73,7 @@ function entryThumb(markup) {
 
 // ---------------------------------------------------------------- masthead
 
-export function renderMastChips(state, { openDrawer, drawer }) {
+export function renderMastChips(state, { openDrawer, drawer, openSheet = null, openSheets = [] }) {
   const chips = [];
   const c = state.character;
   if (c) {
@@ -83,7 +83,10 @@ export function renderMastChips(state, { openDrawer, drawer }) {
   }
   const s = state.ship;
   if (s) {
-    chips.push(h('button', { class: `chip${s.damage ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'ship', onclick: () => openDrawer('ship') },
+    // v0.317.0: the ship chip opens the ship's sheet — the one place for the
+    // ship, as the Vehicles tab does — not a second, different panel.
+    const open = openSheets.some((entry) => entry.kind === 'ship' && entry.id === s.id);
+    chips.push(h('button', { class: `chip${s.damage ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': open, onclick: () => (openSheet ? openSheet('ship', s.id) : openDrawer('ship')) },
       h('span', { class: 'chip-name', text: s.name }),
       h('span', { class: 'chip-line', text: `Fuel ${s.fuel.now}/${s.fuel.full}  Hold ${s.hold.full - s.hold.now} t free` })));
   }
@@ -834,6 +837,11 @@ function shipyardPanel(yard, handlers) {
     yard.turrets.map((turret) => h('div', { class: 'yard-turret' },
       h('p', {}, h('b', { text: `Turret ${turret.id}` }), ` ${turret.mount}: ${turret.weapons.length ? turret.weapons.join(', ') : 'empty'}${turret.room ? `, room for ${turret.room}` : ', full'}`),
       turret.offers.length ? h('ul', { class: 'yard-list' }, turret.offers.map((entry) => row(entry.label, null, buy(entry, 'Install')))) : null)),
+    yard.computer ? [
+      h('h4', { text: `Computer \u2014 Model/${yard.computer.model}, CPU ${yard.computer.cpu}, storage ${yard.computer.storage ?? 'none'}` }),
+      h('p', { class: 'cite', text: `Retrofit in place of the installed model; the old one is traded in at 25% of its price (Book 2 p.15). Jumps stay limited to ${yard.computer.maximumSupportedJump}, as the design is (and to the drive).` }),
+      h('ul', { class: 'yard-list' }, yard.computer.offers.filter((entry) => entry.upgrade || entry.command).map((entry) => row(entry.label, entry.detail, buy(entry, 'Fit'))))
+    ] : null,
     h('h4', { text: 'Software' }),
     h('p', { class: 'cite', text: `Carried: ${yard.carried.join(', ') || 'nothing'}.` }),
     h('ul', { class: 'yard-list' }, yard.software.map((entry) => row(entry.label, [`${entry.group}, ${entry.space} space`, entry.note].filter(Boolean).join(' \u2014 '), buy(entry, 'Buy')))));

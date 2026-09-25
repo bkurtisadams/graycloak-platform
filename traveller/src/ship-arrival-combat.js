@@ -109,9 +109,15 @@ export function shipCombatLoadout(ship) {
   const carried = [...new Set(ship.state?.computer?.programs ?? [])].filter((key) => COMPUTER_PROGRAMS[key]);
   const loaded = [];
   let used = 0;
+  const cpu = model?.cpu ?? 2;
   for (const key of COMBAT_LOAD_ORDER) {
     if (!carried.includes(key)) continue;
     const space = COMPUTER_PROGRAMS[key].space;
+    // v0.317.0: never load what the CPU can never run — a fire-control
+    // program must fit beside Target (Book 2 p.31); it would only take the
+    // room of one that can.
+    const besideTarget = (COMPUTER_PROGRAMS[key].class === 'offensive' && key !== 'target') || key === 'return-fire';
+    if (space + (besideTarget ? COMPUTER_PROGRAMS.target.space : 0) > cpu) continue;
     if (used + space > room) continue;
     loaded.push(key);
     used += space;
