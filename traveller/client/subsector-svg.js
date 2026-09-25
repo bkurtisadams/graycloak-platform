@@ -1,6 +1,6 @@
 const SQRT3 = Math.sqrt(3);
 
-import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.325.1';
+import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.326.0';
 
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,
@@ -416,12 +416,17 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
     const layer = createSvgNode('g', { class: 'subsector-border-layer', 'aria-hidden': 'true' });
     const { radius } = SUBSECTOR_SVG_GEOMETRY;
     const { height } = hexDimensions(radius);
+    // v0.326.0: every edge measured from an odd column, so two subsectors'
+    // shared edge is one line. The bottom corner was read from the eighth
+    // (even) column, half a hex lower, which drew each shared top and bottom
+    // edge twice, half a hex apart.
     for (const border of borders) {
       const topLeft = subsectorHexCenter(border.firstColumn - firstColumn + 1, border.firstRow - firstRow + 1, SUBSECTOR_SVG_GEOMETRY);
       const bottomRight = subsectorHexCenter(border.firstColumn - firstColumn + 8, border.firstRow - firstRow + 10, SUBSECTOR_SVG_GEOMETRY);
+      const bottomOdd = subsectorHexCenter(border.firstColumn - firstColumn + 1, border.firstRow - firstRow + 10, SUBSECTOR_SVG_GEOMETRY);
       const x = topLeft.x - radius * 0.75;
       const y = topLeft.y - height / 2;
-      layer.append(createSvgNode('rect', { x, y, width: bottomRight.x + radius * 0.75 - x, height: bottomRight.y + height / 2 - y, class: 'subsector-border' }));
+      layer.append(createSvgNode('rect', { x, y, width: bottomRight.x + radius * 0.75 - x, height: bottomOdd.y + height / 2 - y, class: 'subsector-border' }));
       const label = createSvgNode('text', { x: x + 6, y: y + 14, class: 'subsector-border-label' });
       label.textContent = `${border.letter} \u00b7 ${border.name}`;
       layer.append(label);

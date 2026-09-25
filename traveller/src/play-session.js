@@ -37,7 +37,7 @@ import {
   refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
-  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo
+  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -5456,6 +5456,44 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         saveToCloud();
         return lastMessage;
       }
+      if (command.startsWith('referee:')) {
+        // v0.326.0: the referee's hand (Kurt, Sep 2026: a ship stuck with no
+        // way on). Move the ship to any world, set the trip back to a plain
+        // port call, clear waiting encounters. Logged for the referee.
+        const [, what, ...rest] = command.split(':');
+        const arg = rest.join(':');
+        const campaign = resolved.campaign;
+        const roster = { ...campaign.roster };
+        const clearTrip = () => { delete roster.trip; delete roster.shipFight; };
+        let message;
+        if (what === 'move') {
+          const system = getSubsectorSystem(subsector, arg);
+          const ship = activeShip();
+          clearTrip();
+          if (roster.animals?.surface || roster.animals?.pending) roster.animals = { ...roster.animals, surface: null, pending: null };
+          registry.put({ ...campaign, roster, location: { systemId: system.id, systemName: system.name, worldId: system.mainWorld.id, worldName: system.mainWorld.name } });
+          reload();
+          if (ship) persist([beginPortCall(ship, { systemId: system.id, arrivalDate: formatCampaignDate(campaign.time), berthingDueCr: 0 })]);
+          chartAndVisit();
+          message = `Referee: ${ship?.identity.name ?? 'the ship'} moved to ${system.name} (${system.hex}), berthed, the trip cleared.`;
+        } else if (what === 'clear-trip') {
+          clearTrip();
+          registry.put({ ...campaign, roster });
+          reload();
+          message = 'Referee: the trip is back to a port call here — course, encounter, halt and any ship fight cleared.';
+        } else if (what === 'clear-encounters') {
+          roster.persons = { ...(roster.persons ?? {}), pending: null, patron: null };
+          if (roster.animals) roster.animals = { ...roster.animals, pending: null };
+          registry.put({ ...campaign, roster });
+          reload();
+          message = 'Referee: waiting person, legal, animal and patron encounters cleared.';
+        } else throw new Error(`unknown command: ${command}`);
+        log('NAV', message, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('sector:rechart:')) {
         // v0.325.0: a charted subsector thrown again (sparse), while testing —
         // not one where the party is, is going, or has a job.
@@ -5998,7 +6036,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.personEncounter = personPending ? {
         ...personPending,
         summary: describePersonEncounter(personPending),
-        actions: save.state === 'stale' || seat === 'player' ? [] : (personPending.law && !personPending.law.avoided && !personPending.actorIds.length
+        actions: save.state === 'stale' || seat === 'player' ? [] : (personPending.law && !personPending.law.avoided && !(personPending.actorIds ?? []).length
           ? [
             { command: 'persons:jail', label: `Serve ${personPending.law.jailDays} day${personPending.law.jailDays === 1 ? '' : 's'} in jail`, kind: 'owed', primary: true },
             { command: 'persons:board', label: 'Resist arrest', kind: 'danger' },
@@ -6006,8 +6044,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             mode === 'game' ? null : { command: 'persons:clear', label: 'Let them off (referee)', kind: 'neutral' }
           ].filter(Boolean)
           : [
-            personPending.actorIds.length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
-            { command: 'persons:clear', label: personPending.actorIds.length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean(personPending.actorIds.length) }
+            (personPending.actorIds ?? []).length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
+            { command: 'persons:clear', label: (personPending.actorIds ?? []).length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean((personPending.actorIds ?? []).length) }
           ].filter(Boolean))
       } : null;
       state.referee = refereeView(resolved, referee);
@@ -6339,6 +6377,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         // v0.321.0: the map the scene draws (sector as charted, or subsector).
         map: mapView(subsector, { seat, visited: sectorState(resolved.campaign).visited }),
         sector: Boolean(sector),
+        // v0.326.0: the referee's tools on the map (move the ship).
+        referee: seat !== 'player' && save.state !== 'stale',
         // v0.325.0: the charted subsectors the referee may throw again.
         recharts: sector && seat !== 'player' ? Object.entries(sectorState(resolved.campaign).charted).map(([letter, entry]) => ({ letter, name: entry.name, worlds: entry.systems.length, density: entry.density ?? 'standard', block: rechartBlock(resolved, sector, letter) })).sort((a, b) => a.letter.localeCompare(b.letter)) : [],
         lanes: lanesOn,

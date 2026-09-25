@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.325.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.325.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.325.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.325.1';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.326.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.326.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.326.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.326.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.325.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.325.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.325.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.325.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.326.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.326.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.326.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.326.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.325.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.325.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.326.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.326.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.325.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.326.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1446,6 +1446,11 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
       ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, note })
       : h('div', { class: 'caption caption-there' }, h('p', { class: 'caption-role', text: 'Out of range' }),
         h('h2', { text: selected.name }), h('p', { class: 'caption-facts', text: `Beyond Jump-${scene.jump} from ${current.name}.` })));
+    // v0.326.0: the referee may put the ship anywhere.
+    if (scene.referee && onCommand) {
+      captions.at(-1).append(kindButton({ label: 'Move the ship here (referee)', kind: 'neutral' }, { small: true,
+        onclick: () => { if (globalThis.confirm?.(`Move the ship to ${selected.name}? The trip is cleared and it arrives berthed, with no encounter.`) ?? true) onCommand(`referee:move:${selected.id}`); } }));
+    }
   }
   // v0.315.1: the course button also sits in the map's head, which is always
   // on screen; the caption's own copy can be below the fold.
@@ -2409,7 +2414,13 @@ function settingsDrawer(state, handlers) {
       h('label', { class: 'setting-choice' },
         h('input', { type: 'checkbox', checked: Boolean(settings.autoTarget), onchange: (event) => handlers.onSetting?.('autoTarget', event.currentTarget.checked) }),
         h('span', {}, h('b', { text: 'Auto-target' }), h('small', { text: 'Fill each row with the nearest enemy, and NPCs with their own choice.' })))),
-    h('p', { class: 'cite', text: 'Saved in this browser only.' })
+    h('p', { class: 'cite', text: 'Saved in this browser only.' }),
+    // v0.326.0: the referee's hand, for a campaign in a knot.
+    state.live && handlers.onCommand ? h('fieldset', { class: 'setting referee-tools' },
+      h('legend', { text: 'Referee tools' }),
+      h('p', { class: 'cite', text: 'To move the ship, pick any world on the map and use Move the ship here.' }),
+      kindButton({ label: 'Reset the trip to a port call here', kind: 'neutral' }, { small: true, onclick: () => { if (globalThis.confirm?.('Clear the course, any encounter, halt, jump or ship fight, and leave the ship in port where it is?') ?? true) handlers.onCommand('referee:clear-trip'); } }),
+      kindButton({ label: 'Clear waiting encounters', kind: 'neutral' }, { small: true, onclick: () => handlers.onCommand('referee:clear-encounters') })) : null
   ];
 }
 

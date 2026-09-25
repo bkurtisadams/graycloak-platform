@@ -1993,3 +1993,25 @@ test('v0.325.1 a save asked for during another waits for it and then saves, rath
   release();
   assert.equal(await second, (await first) + 1, 'the follow-up save lands, one revision on');
 });
+
+// ---------------------------------------------------------------- v0.326.0
+test('v0.326.0 referee tools: move the ship to any world, reset a stuck trip, clear waiting encounters', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster,
+    trip: { situation: 'halted', halt: { reason: 'departure-checklist', detail: 'stuck', from: 'outbound' }, departure: { fromSystemId: 'orison', toSystemId: 'pelagos', distance: 2, lane: true, leftOn: '106-4800' } },
+    persons: { pending: { type: 'Police' }, patron: { type: 'Spy' } } } });
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  assert.equal(session.view().situation.kind, 'halted');
+  assert.equal(session.run('referee:clear-trip').ok, true);
+  assert.equal(session.view().situation.kind, 'port');
+  assert.equal(session.run('referee:clear-encounters').ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.persons.pending, null);
+  assert.equal(session.run('referee:move:cinder').ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(after.campaign.location.systemId, 'cinder');
+  assert.equal(after.ships[0].state.portCall.systemId, 'cinder');
+  assert.equal(session.view().next.title === 'Pay berthing', false, 'moved in berthed, nothing owed');
+  assert.ok(after.activityLogs[0].entries.some((entry) => /^Referee: .* moved to Cinder/.test(entry.message)));
+  assert.equal(session.view().scene.referee, true);
+});
