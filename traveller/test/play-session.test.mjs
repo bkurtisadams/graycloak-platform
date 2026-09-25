@@ -1948,3 +1948,29 @@ test('v0.322.1 on the sector, a jump between sector hexes goes (Aster to Orison)
   assert.equal(registry.resolveCampaign(campaignId).campaign.roster.trip.halt?.reason ?? null, null, seen.join(' '));
   assert.equal(registry.resolveCampaign(campaignId).campaign.location.systemId, 'orison');
 });
+
+// ---------------------------------------------------------------- v0.325.0
+import { sectorState as sectorOf, rechartBlock } from '../src/play-session.js';
+
+test('v0.325.0 subsectors are charted sparse, and one the campaign is not holding can be thrown again', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  assert.equal(session.run('sector:chart:K').ok, true);
+  let k = sectorOf(registry.resolveCampaign(campaignId).campaign).charted.K;
+  assert.equal(k.density, 'sparse');
+  assert.ok(k.systems.length < 40, `sparse: about a third of 80 hexes (got ${k.systems.length})`);
+  const before = k.systems.map((system) => system.name).join(',');
+  assert.equal(rechartBlock(session.resolved, MERIDIAN_REACH_SECTOR, 'K'), null);
+  assert.equal(session.run('sector:rechart:K').ok, true);
+  k = sectorOf(registry.resolveCampaign(campaignId).campaign).charted.K;
+  assert.equal(k.generation, 1);
+  assert.notEqual(k.systems.map((system) => system.name).join(','), before, 'thrown again, not the same throw');
+  assert.match(session.run('sector:rechart:F').message, /drawn by hand/);
+  // A subsector holding the party's course keeps its map.
+  const target = k.systems[0];
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, trip: { ...(r.campaign.roster.trip ?? {}), situation: 'port', destinationId: target.id } } });
+  const held = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  assert.match(held.run('sector:rechart:K').message, /holding on to/);
+  assert.ok(held.view().scene.recharts.some((entry) => entry.letter === 'K' && entry.block));
+});

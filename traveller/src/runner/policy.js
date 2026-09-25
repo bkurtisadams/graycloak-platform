@@ -59,7 +59,9 @@ export function createDefaultPolicy(options = {}) {
     if (skim) return skim;
 
     if (!state.destinationId) {
-      const courses = actions.filter((entry) => entry.type === 'choose-destination');
+      // v0.325.0: a course the ship can plot, when there is one.
+      const all = actions.filter((entry) => entry.type === 'choose-destination');
+      const courses = all.some((entry) => entry.plottable) ? all.filter((entry) => entry.plottable) : all;
       const fresh = courses.filter((entry) => entry.systemId !== state.lastSystemId);
       const pool = fresh.length ? fresh : courses;
       // Nearest first, then the one the seed prefers, so runs vary.

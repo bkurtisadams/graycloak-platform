@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { createShipDocument, financeShip, loadCargo } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
+import { laneBetween } from '../vendor/classic-traveller-rules/index.js';
 import { createTrip, listActions, applyAction, tripDate, portFacts, tripRecord, tripFromDocuments } from '../src/runner/trip.js';
 import { runTrip } from '../src/runner/run.js';
 import { createDefaultPolicy } from '../src/runner/policy.js';
@@ -117,13 +118,14 @@ test('the default policy spends Book 2 p.1\'s six days in port and keeps going',
 });
 
 test('flight plans follow the charted lanes: off-lane worlds need Generate, which a Type S now carries', async () => {
-  // Cinder charts no lane (Book 3 p.3: an E port holds only jump-1 lanes,
-  // and its nearest world is two hexes off). The fixture's Scout migrates
-  // to ship document v9 with Generate, so it can leave anyway.
+  // From Cinder, an off-lane world (Book 3 p.3: an E port holds only jump-1
+  // lanes). The fixture's Scout migrates to ship document v9 with Generate,
+  // so it can go anyway. (v0.325.0: Far Meridian's added worlds gave Cinder
+  // a lane or two, so the course is picked as the first world off them.)
   const scout = await resolvedAt('cinder', { design: 'fixture' });
   assert.ok(scout.ships[0].state.computer.programs.includes('generate'));
   const trip = createTrip(scout, { seed: 'lanes' });
-  const course = listActions(trip, context).find((entry) => entry.type === 'choose-destination');
+  const course = listActions(trip, context).find((entry) => entry.type === 'choose-destination' && !laneBetween(FAR_MERIDIAN_SUBSECTOR, 'cinder', entry.systemId));
   const facts = portFacts({ ...trip, destinationId: course.systemId }, context);
   assert.equal(facts.lane, false);
   assert.equal(facts.checklist.rows.find((row) => row.key === 'flight-plan').ok, true);
@@ -268,4 +270,10 @@ test('v0.320.0 Far Meridian sits at F in Meridian Reach: its worlds on sector he
   assert.equal(map.routes.length, FAR_MERIDIAN_SUBSECTOR.routes.length);
   for (const route of FAR_MERIDIAN_SUBSECTOR.routes) assert.equal(jumpDistanceBetweenSystems(map, route.from, route.to), route.distance);
   assert.deepEqual(reachOf(map, 'orison', 2).map((entry) => entry.system.id), reachOf(FAR_MERIDIAN_SUBSECTOR, 'orison', 2).map((entry) => entry.system.id));
+});
+
+
+test('v0.325.0 Far Meridian holds 28 worlds, about the sparse density round it; its first thirteen lanes unchanged', () => {
+  assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.length, 28);
+  for (const [from, to] of [['heliograph', 'northmark'], ['vesper', 'san-telmo'], ['calder', 'orison']]) assert.ok(laneBetween(FAR_MERIDIAN_SUBSECTOR, from, to));
 });

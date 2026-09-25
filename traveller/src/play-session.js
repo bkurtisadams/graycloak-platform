@@ -2508,20 +2508,50 @@ export function campaignSectorMap(campaign, sector) {
   return Object.freeze({ ...map, sectorId: sector.id, sectorName: sector.name, subsectorNames: Object.freeze(names) });
 }
 
-/** A subsector charted (Book 3 p.12), seeded by campaign and letter, its lanes thrown against its charted neighbours. */
-export function chartSubsector(campaign, sector, letter) {
+// v0.325.0 (Kurt, Sep 2026): newly charted subsectors are sparse — Book 3's
+// DM -1 on the world throw, about a third of hexes settled — to sit with Far
+// Meridian rather than crowd it. The density is kept with the subsector.
+export const CHARTING_DENSITY = Object.freeze({ key: 'sparse', dm: -1 });
+
+/** A subsector charted (Book 3 p.12), seeded by campaign, letter and charting, its lanes thrown against its charted neighbours. */
+export function chartSubsector(campaign, sector, letter, { generation = 0 } = {}) {
   if (!SUBSECTOR_LETTERS.includes(letter)) throw new RangeError(`subsector letter must be A-P: ${letter}`);
   const state = sectorState(campaign);
   if (sector.authored[letter] || state.charted[letter]) return null;
-  const dice = seededDice(`${campaign.identity.id}|${sector.id}|${letter}`);
+  const dice = seededDice(`${campaign.identity.id}|${sector.id}|${letter}${generation ? `|${generation}` : ''}`);
   const current = campaignSectorMap(campaign, sector);
   const taken = new Set(current.systems.map((system) => system.name));
   let name = generateWorldName(dice);
   while (taken.has(name)) name = generateWorldName(dice);
-  const subsector = JSON.parse(JSON.stringify(generateSubsector(dice, { id: `${sector.id}-${letter.toLowerCase()}`, name, taken })));
+  const subsector = { ...JSON.parse(JSON.stringify(generateSubsector(dice, { id: `${sector.id}-${letter.toLowerCase()}`, name, taken, densityDM: CHARTING_DENSITY.dm }))), density: CHARTING_DENSITY.key, generation };
   const subsectors = { ...state.charted, ...sector.authored, [letter]: subsector };
   const lanes = rollNewLanes({ id: sector.id, name: sector.name, subsectors, routes: [...(sector.routes ?? []), ...state.routes] }, letter, dice);
   return { letter, subsector, routes: lanes.routes.map((route) => ({ ...route })) };
+}
+
+// The worlds the campaign is holding on to: where the party is and is going,
+// and every open job's ends. A subsector with one of them in it keeps its map.
+export function heldSystemIds(resolved) {
+  const trip = resolved.campaign.roster?.trip ?? {};
+  const held = new Set([resolved.campaign.location?.systemId, trip.destinationId, trip.departure?.toSystemId, trip.jump?.toSystemId, trip.jump?.landedSystemId, trip.landing?.systemId].filter(Boolean));
+  for (const contract of resolved.contracts ?? []) {
+    if (contract.status !== 'accepted') continue;
+    if (contract.origin?.systemId) held.add(contract.origin.systemId);
+    if (contract.destination?.systemId) held.add(contract.destination.systemId);
+  }
+  for (const mission of Object.values(resolved.campaign.roster?.persons?.missions ?? {})) if (mission.destinationSystemId) held.add(mission.destinationSystemId);
+  return held;
+}
+
+/** Why a charted subsector cannot be thrown again, or null if it can. */
+export function rechartBlock(resolved, sector, letter) {
+  const state = sectorState(resolved.campaign);
+  if (sector.authored[letter]) return 'it is drawn by hand';
+  const subsector = state.charted[letter];
+  if (!subsector) return 'it is not charted';
+  const held = heldSystemIds(resolved);
+  const kept = subsector.systems.find((system) => held.has(system.id));
+  return kept ? `the campaign is holding on to ${kept.name}` : null;
 }
 
 /** The uncharted subsectors a ship at systemId could reach with its jump rating. */
@@ -5417,6 +5447,31 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         saveToCloud();
         return lastMessage;
       }
+      if (command.startsWith('sector:rechart:')) {
+        // v0.325.0: a charted subsector thrown again (sparse), while testing —
+        // not one where the party is, is going, or has a job.
+        if (!sector) throw new Error('this campaign has no sector');
+        const letter = command.split(':')[2];
+        const block = rechartBlock(resolved, sector, letter);
+        if (block) throw new Error(`subsector ${letter} cannot be charted again: ${block}`);
+        const campaign = resolved.campaign;
+        const state = sectorState(campaign);
+        const old = state.charted[letter];
+        const oldIds = new Set(old.systems.map((system) => system.id));
+        const charted = { ...state.charted };
+        delete charted[letter];
+        const routes = state.routes.filter((route) => !oldIds.has(route.from) && !oldIds.has(route.to));
+        const visited = state.visited.filter((id) => !oldIds.has(id));
+        const bare = { ...campaign, roster: { ...campaign.roster, sector: { ...state, charted, routes, visited } } };
+        const result = chartSubsector(bare, sector, letter, { generation: Number(old.generation ?? 0) + 1 });
+        registry.put({ ...bare, roster: { ...bare.roster, sector: { charted: { ...charted, [letter]: result.subsector }, routes: [...routes, ...result.routes], visited } } });
+        reload();
+        log('NAV', `Subsector ${letter} charted again (${CHARTING_DENSITY.key}): ${result.subsector.name}, ${result.subsector.systems.length} worlds, ${result.routes.length} lanes, in place of ${old.name}.`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+        lastMessage = { ok: true, message: `Subsector ${letter} is now ${result.subsector.name}, ${result.subsector.systems.length} worlds.` };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('trip:')) {
         lastMessage = { ok: true, message: runTripCommand(command) };
         onChange();
@@ -6275,6 +6330,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         // v0.321.0: the map the scene draws (sector as charted, or subsector).
         map: mapView(subsector, { seat, visited: sectorState(resolved.campaign).visited }),
         sector: Boolean(sector),
+        // v0.325.0: the charted subsectors the referee may throw again.
+        recharts: sector && seat !== 'player' ? Object.entries(sectorState(resolved.campaign).charted).map(([letter, entry]) => ({ letter, name: entry.name, worlds: entry.systems.length, density: entry.density ?? 'standard', block: rechartBlock(resolved, sector, letter) })).sort((a, b) => a.letter.localeCompare(b.letter)) : [],
         lanes: lanesOn,
         generate: Boolean(ship?.state?.computer?.programs?.includes('generate'))
       };

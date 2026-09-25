@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.324.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.324.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.324.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.324.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.325.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.325.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.325.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.325.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.324.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.324.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.324.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.324.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.325.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.325.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.325.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.325.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.324.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.324.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.325.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.325.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.324.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.325.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1449,6 +1449,16 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
       chosen ? h('span', { class: 'map-course' }, kindButton({ label: `Set course for ${selected.name}`, kind: 'travel', primary: true }, { small: true, onclick: () => onCommand?.(`trip:choose-destination:${selected.id}`) })) : null,
       mapKey(lanes.length > 0),
       lanes.length ? lanesToggle(svg) : null,
+      // v0.325.0: the referee throws a charted subsector again (sparse).
+      scene.recharts?.length && onCommand ? h('select', { class: 'map-rechart', 'aria-label': 'Chart a subsector again', title: 'Throw a charted subsector again at the sparse density (testing)',
+        onchange: (event) => {
+          const letter = event.target.value;
+          event.target.value = '';
+          const entry = scene.recharts.find((item) => item.letter === letter);
+          if (entry && (globalThis.confirm?.(`Throw subsector ${letter}, ${entry.name}, again? Its ${entry.worlds} worlds and their lanes are replaced.`) ?? true)) onCommand(`sector:rechart:${letter}`);
+        } },
+      h('option', { value: '', text: 'Re-chart\u2026' }),
+      scene.recharts.map((entry) => h('option', { value: entry.letter, disabled: Boolean(entry.block), text: `${entry.letter} \u00b7 ${entry.name} (${entry.worlds}, ${entry.density})${entry.block ? ` \u2014 ${entry.block}` : ''}` }))) : null,
       scene.sector && onExportSector ? h('button', { type: 'button', class: 'button is-small', text: 'Export', title: 'The sector as charted, in Traveller Map\u2019s tab-delimited format (travellermap.com Poster Maker)', onclick: () => onExportSector() }) : null,
       mapZoomControl(camera, { onCentre: () => camera.centreOn(here) })),
     svg,

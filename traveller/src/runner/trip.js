@@ -353,8 +353,13 @@ export function listActions(state, context) {
   if (facts.fuel.missing >= 1 && facts.system?.gasGiant && ship.specifications.hull.streamlined) {
     actions.push({ type: 'fuel-skim', label: `Skim ${facts.fuel.missing} t unrefined`, days: 7 });
   }
+  // v0.325.0: whether a flight plan can be had for it — a lane (the
+  // starport's cassette) or the Generate program aboard (Book 2 p.32).
+  const generate = (ship.state.computer?.programs ?? []).includes('generate');
   for (const entry of facts.destinations) {
-    if (entry.system.id !== state.destinationId) actions.push({ type: 'choose-destination', systemId: entry.system.id, distance: entry.distance, label: `Set course for ${entry.system.name}` });
+    if (entry.system.id === state.destinationId) continue;
+    const lane = state.lanes === 'always' || (state.lanes === 'charted' && Boolean(facts.system && laneBetween(context.subsector, facts.system.id, entry.system.id)));
+    actions.push({ type: 'choose-destination', systemId: entry.system.id, distance: entry.distance, lane, plottable: lane || generate, label: `Set course for ${entry.system.name}` });
   }
   if (facts.route && !exclusiveContract(state)) {
     for (const offer of facts.route.freight) {
@@ -685,8 +690,13 @@ function launch(state, events, context) {
   const target = systemOf(context, departure.toSystemId);
   const dateLabel = tripDate(state);
   const lifeSupport = calculateLifeSupportCostForTrip(state.ship);
-  if (lifeSupport.totalCr > state.ship.state.finances.balanceCr) return halt(state, events, 'life-support', `cannot post life support (${cr(lifeSupport.totalCr)})`, 'outbound');
-  state.ship = chargeLifeSupportForTrip(state.ship, { dateLabel }).ship;
+  // v0.322.1: charged once per departure, even if the jump is retried after
+  // a halt (it was charged again on every Go on).
+  if (!departure.lifeSupportPaid) {
+    if (lifeSupport.totalCr > state.ship.state.finances.balanceCr) return halt(state, events, 'life-support', `cannot post life support (${cr(lifeSupport.totalCr)})`, 'outbound');
+    state.ship = chargeLifeSupportForTrip(state.ship, { dateLabel }).ship;
+    state.departure = { ...departure, lifeSupportPaid: true };
+  }
   let jump;
   try {
     jump = beginJump(state.ship, {

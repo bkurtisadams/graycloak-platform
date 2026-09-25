@@ -1565,3 +1565,6 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .scene > svg.map { touch-action: none; }
 .scene > svg.map.is-panning { cursor: grabbing; }
 .map-zoom .map-centre { font-size: 15px; }
+
+/* v0.325.0: Re-chart in the map head. */
+.map-head .map-rechart { font: inherit; font-size: 13px; padding: 3px 6px; background: var(--raise); color: var(--ink); border: 1px solid var(--line); }

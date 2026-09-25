@@ -115,6 +115,97 @@ export const FAR_MERIDIAN_SUBSECTOR = Object.freeze({
       mainWorld: world('heliograph-main', 'Heliograph', 'B584443-A'),
       scout: true, gasGiant: false,
       notes: 'Technical and communications outpost known for long-range survey work and route-chart archives.'
+    }),
+    // v0.325.0 (Kurt, Sep 2026): fourteen hand-made worlds left Far Meridian
+    // at 18% settled, sparser than Book 3's sparse setting (DM -1, about a
+    // third) that the charted subsectors round it now use. Each empty hex was
+    // thrown once for a world on 6 (seed 'far-meridian|book-3-fill|v0.325.0'),
+    // and each world found created by the p.12 checklist, bringing the
+    // subsector to 28 worlds, 35%. Names, notes and zones are the referee's
+    // to change.
+    system({
+      id: 'gribainol', hex: '0106', name: 'Gribainol',
+      mainWorld: world('gribainol-main', 'Gribainol', 'A345553-F'),
+      naval: true, gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Agricultural, Non-Industrial).'
+    }),
+    system({
+      id: 'zaegaecor', hex: '0308', name: 'Zaegaecor',
+      mainWorld: world('zaegaecor-main', 'Zaegaecor', 'D552888-6'),
+      scout: true, gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Poor).'
+    }),
+    system({
+      id: 'baegro', hex: '0401', name: 'Baegro',
+      mainWorld: world('baegro-main', 'Baegro', 'B667433-6'),
+      gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Industrial).'
+    }),
+    system({
+      id: 'greafucost', hex: '0403', name: 'Greafucost',
+      mainWorld: world('greafucost-main', 'Greafucost', 'A410795-9'),
+      gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Agricultural).'
+    }),
+    system({
+      id: 'fiobys', hex: '0404', name: 'Fiobys',
+      mainWorld: world('fiobys-main', 'Fiobys', 'C24078C-6'),
+      gasGiant: false,
+      notes: 'Charted by Book 3 (1977) world creation (Poor).'
+    }),
+    system({
+      id: 'ycest', hex: '0408', name: 'Ycest',
+      mainWorld: world('ycest-main', 'Ycest', 'B361377-9'),
+      gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Industrial).'
+    }),
+    system({
+      id: 'staega', hex: '0506', name: 'Staega',
+      mainWorld: world('staega-main', 'Staega', 'C66A449-6'),
+      scout: true, gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Industrial).'
+    }),
+    system({
+      id: 'fodrizund', hex: '0508', name: 'Fodrizund',
+      mainWorld: world('fodrizund-main', 'Fodrizund', 'D120652-7'),
+      gasGiant: false,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Agricultural, Non-Industrial, Poor).'
+    }),
+    system({
+      id: 'triotreand', hex: '0603', name: 'Triotreand',
+      mainWorld: world('triotreand-main', 'Triotreand', 'B440766-A'),
+      naval: true, gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Poor).'
+    }),
+    system({
+      id: 'dreavidrand', hex: '0701', name: 'Dreavidrand',
+      mainWorld: world('dreavidrand-main', 'Dreavidrand', 'C8A7575-A'),
+      gasGiant: false,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Industrial).'
+    }),
+    system({
+      id: 'fiozaisust', hex: '0705', name: 'Fiozaisust',
+      mainWorld: world('fiozaisust-main', 'Fiozaisust', 'C433653-8'),
+      gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Agricultural, Non-Industrial, Poor).'
+    }),
+    system({
+      id: 'greagu', hex: '0803', name: 'Greagu',
+      mainWorld: world('greagu-main', 'Greagu', 'A500666-9'),
+      naval: true, gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Agricultural, Non-Industrial).'
+    }),
+    system({
+      id: 'hiipaim', hex: '0808', name: 'Hiipaim',
+      mainWorld: world('hiipaim-main', 'Hiipaim', 'A8B1221-C'),
+      scout: true, gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Industrial).'
+    }),
+    system({
+      id: 'fyshael', hex: '0810', name: 'Fyshael',
+      mainWorld: world('fyshael-main', 'Fyshael', 'C614540-5'),
+      gasGiant: true,
+      notes: 'Charted by Book 3 (1977) world creation (Non-Industrial).'
     })
   ]),
   // Book 3 p.2-3 Route Determination, thrown once (seed
@@ -136,6 +227,53 @@ export const FAR_MERIDIAN_SUBSECTOR = Object.freeze({
     route('pelagos', 'orison', 2),
     route('aster', 'calder', 1),
     route('aster', 'orison', 2),
-    route('calder', 'orison', 2)
+    route('calder', 'orison', 2),
+    // v0.325.0: the added worlds' lanes, thrown with them (Book 3 p.3; 89 checks,
+    // 45 charted); the original thirteen above are unchanged.
+    route('heliograph', 'greafucost', 3),
+    route('gribainol', 'san-telmo', 2),
+    route('gribainol', 'port-meridian', 3),
+    route('gribainol', 'ycest', 4),
+    route('tamarind', 'ycest', 2),
+    route('northmark', 'baegro', 1),
+    route('northmark', 'greafucost', 2),
+    route('northmark', 'triotreand', 3),
+    route('san-telmo', 'greafucost', 2),
+    route('san-telmo', 'fiobys', 1),
+    route('san-telmo', 'staega', 2),
+    route('san-telmo', 'triotreand', 3),
+    route('zaegaecor', 'bellona', 1),
+    route('zaegaecor', 'ycest', 1),
+    route('baegro', 'greafucost', 2),
+    route('baegro', 'fiobys', 3),
+    route('greafucost', 'fiobys', 1),
+    route('greafucost', 'port-meridian', 2),
+    route('greafucost', 'pelagos', 1),
+    route('greafucost', 'aster', 2),
+    route('greafucost', 'staega', 3),
+    route('greafucost', 'triotreand', 2),
+    route('greafucost', 'orison', 3),
+    route('greafucost', 'fiozaisust', 3),
+    route('fiobys', 'port-meridian', 1),
+    route('fiobys', 'aster', 1),
+    route('fiobys', 'triotreand', 2),
+    route('port-meridian', 'staega', 1),
+    route('port-meridian', 'triotreand', 3),
+    route('bellona', 'ycest', 1),
+    route('pelagos', 'triotreand', 1),
+    route('aster', 'staega', 1),
+    route('aster', 'fiozaisust', 2),
+    route('aster', 'greagu', 3),
+    route('staega', 'calder', 1),
+    route('triotreand', 'calder', 2),
+    route('triotreand', 'orison', 1),
+    route('triotreand', 'greagu', 2),
+    route('calder', 'fiozaisust', 1),
+    route('dreavidrand', 'greagu', 3),
+    route('orison', 'greagu', 1),
+    route('fiozaisust', 'greagu', 2),
+    route('sable', 'hiipaim', 1),
+    route('cinder', 'greagu', 1),
+    route('hiipaim', 'fyshael', 2)
   ])
 });
