@@ -7,20 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.316.2';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.316.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.316.2';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.316.2';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.316.3';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.316.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.316.3';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.316.3';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.316.2';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.316.2';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.316.2';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.316.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.316.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.316.3';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.316.3';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.316.3';
+import { renderSectionStrip } from './section-strip.js?v=v0.316.3';
+export { renderSectionStrip };
+import { actorBadge, shipBadge } from './sheets.js?v=v0.316.3';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.316.3';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -35,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.316.2';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.316.3';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -112,11 +114,12 @@ export function renderMastChips(state, { openDrawer, drawer }) {
     const line = yard
       ? [`class ${yard.starport}`, yard.hardpoints.empty ? `${yard.hardpoints.empty} empty hardpoint${yard.hardpoints.empty === 1 ? '' : 's'}` : null].filter(Boolean).join(' \u00b7 ')
       : `none at a class ${state.shipyardAt ?? '?'} port`;
-    chips.push(h('button', { class: 'chip', type: 'button', 'aria-pressed': drawer === 'shipyard', disabled: !yard,
-      title: yard ? 'Turrets, weapons and software (Book 2 pp.12, 15-16)' : 'Turrets, weapons and software are fitted at class A or B starports',
+    const attention = yard?.attention ?? [];
+    chips.push(h('button', { class: `chip${attention.length ? ' is-owed' : ''}`, type: 'button', 'aria-pressed': drawer === 'shipyard', disabled: !yard,
+      title: yard ? (attention.length ? `The shipyard can put right: ${attention.join('; ')}` : 'Turrets, weapons and software (Book 2 pp.12, 15-16)') : 'Turrets, weapons and software are fitted at class A or B starports',
       onclick: yard ? () => openDrawer('shipyard') : null },
-    h('span', { class: 'chip-name', text: 'Shipyard' }),
-    h('span', { class: 'chip-line', text: line })));
+    h('span', { class: 'chip-name' }, attention.length ? kindIcon('owed') : null, ' Shipyard'),
+    h('span', { class: 'chip-line', text: attention.length ? `${line} \u00b7 needs attention` : line })));
   }
   return chips;
 }
@@ -822,6 +825,7 @@ function shipyardPanel(yard, handlers) {
     yard.turrets.some((turret) => turret.room > 0) ? 'turret room' : null, 'software'].filter(Boolean).join(' \u00b7 ');
   return h('div', { class: 'shipyard' },
     h('header', { class: 'drawer-head' }, h('h2', { text: 'Shipyard' }), h('p', { text: summary })),
+    yard.attention?.length ? h('ul', { class: 'yard-attention' }, yard.attention.map((text) => h('li', {}, kindIcon('owed'), h('span', { text: `${text[0].toUpperCase()}${text.slice(1)}.` })))) : null,
     h('p', { class: 'cite', text: `Account ${cr(yard.balanceCr)}, hold ${yard.freeHold} t free. Fitted at once, charged to the ship. ${yard.cite}.` }),
     h('h4', { text: `Turrets \u2014 ${hardpoints.fitted} of ${hardpoints.total} hardpoints fitted` }),
     yard.mounts.length
@@ -1441,7 +1445,7 @@ export function shipFightScene(fight, handlers) {
   const roster = h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
     h('span', { class: 'entry-name', text: ship.name }),
     h('span', { class: 'entry-note', text: `${ship.armedTurrets} armed turret${ship.armedTurrets === 1 ? '' : 's'}${ship.adrift ? ', adrift' : ''}${ship.decompressed ? ', hull breached' : ''}${ship.fled && !ship.escaped ? `, fleeing (${ship.shotsRemainingBeforeEscape} shot${ship.shotsRemainingBeforeEscape === 1 ? '' : 's'} left)` : ''}${ship.escaped ? ', escaped' : ''}${ship.surrendered ? ', surrendered' : ''}` }),
-    ship.damage?.length ? h('span', { class: 'entry-damage', text: `Damage: ${ship.damage.join(', ')}` }) : null,
+    renderSectionStrip(ship.strip, { label: `${ship.name}: sections` }),
     ship.repairing ? h('span', { class: 'entry-note', text: `Repairing: ${ship.repairing} (Book 2 p.35)` }) : null,
     ship.toothless ? h('span', { class: 'entry-flag', text: 'TOOTHLESS' }) : null)));
   // An empty log renders nothing: a bare null handed to replaceChildren is
@@ -1571,6 +1575,7 @@ function shipDrawer(s, state, handlers) {
   const live = Boolean(state.live);
   return [
     h('header', { class: 'drawer-head' }, h('h2', { text: s.name }), h('p', { text: `${s.kind}, ${s.registry}` })),
+    renderSectionStrip(s.strip),
     h('dl', { class: 'pairs' }, h('dt', { text: 'Ship’s account' }), h('dd', { text: cr(s.accountCr) }), h('dt', { text: 'Upkeep' }), h('dd', { text: s.upkeep })),
     gauge('Fuel', s.fuel, ' t'),
     gauge('Hold', s.hold, ' t', { inverse: true }),

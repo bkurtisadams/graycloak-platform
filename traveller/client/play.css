@@ -1446,3 +1446,19 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .yard-title small { font-size: 12px; color: var(--ink-2); }
 .yard-blocked { font-size: 12px; color: var(--ink-2); text-align: right; max-width: 18ch; }
 .yard-turret p { font-size: 14px; }
+
+/* v0.316.3: the ship section strip — running plain, hit amber, out red,
+   under repair blue and dashed; each with a mark, never colour alone. */
+.section-strip { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.section-cell { display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: baseline; padding: 3px 6px; border: 1px solid var(--line); font-size: 12px; min-width: 56px; }
+.section-label { font-weight: 700; }
+.section-mark { font-weight: 700; text-align: right; }
+.section-detail { grid-column: 1 / -1; font-size: 11px; color: var(--ink-2); }
+.section-cell.is-hit { background: var(--owed-wash); border-color: var(--owed-edge); color: var(--owed-ink); }
+.section-cell.is-out { background: var(--danger-wash); border-color: var(--danger-edge); color: var(--danger-ink); }
+.section-cell.is-repairing { background: var(--travel-wash); border: 1px dashed var(--travel-edge); color: var(--travel-ink); }
+.section-cell.is-hit .section-detail, .section-cell.is-out .section-detail, .section-cell.is-repairing .section-detail { color: inherit; }
+.chip.is-owed { background: var(--owed-wash); border-color: var(--owed-edge); color: var(--owed-ink); }
+.chip .kind-icon { vertical-align: -2px; }
+.yard-attention { display: grid; gap: 4px; padding: 6px 8px; background: var(--owed-wash); border: 1px solid var(--owed-edge); color: var(--owed-ink); font-size: 13px; }
+.yard-attention li { display: flex; gap: 6px; align-items: flex-start; }

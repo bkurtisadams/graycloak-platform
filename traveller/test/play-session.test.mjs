@@ -1561,3 +1561,31 @@ test('v0.316.1 the Shipyard is a masthead drawer, and the data card names the we
   const sheet = session.view({ sheets: [{ kind: 'ship', id: session.resolved.ships[0].identity.id }] }).sheets[0];
   assert.ok(sheet.lines.some((line) => /^T-1 \(B\) Gunner-0 \u2014 beam laser, double turret$/.test(line)), sheet.lines.join('\n'));
 });
+
+// ---------------------------------------------------------------- v0.316.3
+import { shipSectionStrip } from '../src/play-session.js';
+
+test('v0.316.3 the section strip lights hits, destroyed sections and a declared repair', async () => {
+  const { registry, campaignId } = await armedScoutAtAster();
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  const clean = shipSectionStrip(ship);
+  assert.deepEqual(clean.map((cell) => cell.key), ['maneuver-drive', 'jump-drive', 'power-plant', 'fuel', 'hold', 'computer', 'hull', 'turret-T-1']);
+  assert.ok(clean.every((cell) => cell.state === 'ok'));
+  const hurt = { ...ship, state: { ...ship.state, damage: { ...ship.state.damage, hold: 1, turrets: ['T-1'] } } };
+  const strip = shipSectionStrip(hurt, { repairing: { location: 'hold', turretId: null } });
+  assert.equal(strip.find((cell) => cell.key === 'hold').state, 'repairing');
+  assert.equal(strip.find((cell) => cell.key === 'turret-T-1').state, 'out');
+  const view = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view({ sheets: [{ kind: 'ship', id: ship.identity.id }] });
+  assert.equal(view.sheets[0].strip.length, 8);
+  assert.equal(view.ship.strip.length, 8);
+});
+
+test('v0.316.3 the Shipyard chip asks for attention only when the yard can put something right', async () => {
+  const { registry, campaignId } = await armedScoutAtAster({ target: false });
+  let yard = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view().shipyard;
+  assert.match(yard.attention.join(' '), /Target program is not carried/);
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  registry.put({ ...ship, state: { ...ship.state, computer: { programs: [...ship.state.computer.programs, 'target'] } } });
+  yard = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view().shipyard;
+  assert.deepEqual(yard.attention, [], 'a good port with nothing wrong: plain');
+});

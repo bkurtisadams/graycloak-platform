@@ -32,7 +32,8 @@ import {
   resolveLaserFire, PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
-  TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS
+  TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
+  damageReport
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -241,6 +242,41 @@ export function shipView(document) {
     upkeep: document.authority?.assignmentType === 'reserve' ? `On loan from the ${document.authority.controllingAuthority ?? 'service'}` : sentenceCase(state.maintenance?.status ?? ''),
     damage: damage.length ? damage.join(', ') : null
   };
+}
+
+// v0.316.3: the ship as a strip of its sections — the data card's own
+// divisions (Book 2 p.24) — each lit by its state: running, hit, out, or
+// under repair (Book 2 p.35 damage control, declared in a fight). A glance
+// at what is wrong, without reading the damage line.
+export function shipSectionStrip(ship, { repairing = null } = {}) {
+  if (!ship?.state?.damage) return [];
+  let report;
+  try { report = damageReport(ship); } catch { return []; }
+  const under = (location, turretId = null) => Boolean(repairing && repairing.location === location && (repairing.turretId ?? null) === turretId);
+  const cell = (key, label, { hits = 0, out = false, detail = null, location = key, turretId = null } = {}) => ({
+    key, label, hits, detail,
+    state: under(location, turretId) ? 'repairing' : out ? 'out' : hits > 0 ? 'hit' : 'ok'
+  });
+  const drive = (key, label, index, unit) => {
+    const entry = report.drives[index];
+    const detail = entry.hits ? `${unit}${entry.designPotential} \u2192 ${entry.destroyed ? 'destroyed' : `${unit}${entry.potential}`}` : `${unit}${entry.designPotential}`;
+    return cell(key, label, { hits: entry.hits, out: entry.destroyed || !entry.functional, detail });
+  };
+  const cells = [
+    drive('maneuver-drive', 'M-Drive', 1, 'G-'),
+    drive('jump-drive', 'J-Drive', 2, 'J-'),
+    drive('power-plant', 'Power', 0, 'P-'),
+    cell('fuel', 'Fuel', { hits: report.fuel.hits, out: report.fuel.maneuverDisabled || report.fuel.jumpDisabled, detail: report.fuel.hits ? `${report.fuel.hits} hit${report.fuel.hits === 1 ? '' : 's'}` : null }),
+    cell('hold', 'Hold', { hits: report.holdHits }),
+    cell('computer', 'Computer', { hits: report.computer.hits, out: Boolean(report.computer.permanentlyFailed), detail: report.computer.hits ? `\u2212${report.computer.hits} to operate` : null }),
+    cell('hull', 'Hull', { hits: ship.state.damage.hull ?? 0, detail: report.decompressed ? 'decompressed' : null })
+  ];
+  for (const turret of ship.specifications?.armament?.turrets ?? []) {
+    const out = (ship.state.damage.turrets ?? []).includes(turret.id);
+    cells.push(cell(`turret-${turret.id}`, turret.id, { hits: out ? 1 : 0, out, location: 'turret', turretId: turret.id,
+      detail: (ship.state.armament?.turrets ?? []).find((entry) => entry.id === turret.id)?.weapons?.map((key) => TURRET_WEAPONS[key]?.label ?? key).join(', ') || 'empty' }));
+  }
+  return cells;
 }
 
 export function jobViews(contracts, now) {
@@ -624,6 +660,7 @@ function shipSheet(resolved, id) {
     subtitle: [ship.design?.name, `Type ${ship.design?.typeCode}`].filter(Boolean).join(' \u00b7 '),
     tabs: ['Data card', 'Cargo & crew', 'Finances'],
     card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.label ?? key }) : [],
+    strip: shipSectionStrip(ship),
     ship: view,
     // Kurt, Sep 2026: editable, because mistakes are made and the referee
     // needs a way to correct them. Not while a fight is writing to the same
@@ -1925,7 +1962,13 @@ function shipyardView(ship, profile, { writable = true } = {}) {
     note: program.key === 'target' && armed ? 'the ship\u2019s lasers cannot fire without it' : program.key === 'generate' ? 'plots a jump off the charted lanes' : null
   })).map((entry) => ({ ...entry, rank: entry.command?.endsWith(':target') && armed ? 0 : entry.note ? 1 : 2 }))
     .sort((a, b) => a.rank - b.rank || a.costCr - b.costCr);
+  // v0.316.3: what the yard can put right. The masthead chip turns amber for
+  // these only; in a good port with nothing wrong it stays plain.
+  const attention = [];
+  if (armed && !carried.includes('target')) attention.push('a laser is fitted but the Target program is not carried: it cannot fire');
+  if (profile.starport === 'A' && shipDamagedLocations(ship).length) attention.push('battle damage the shipyard can repair (in the port column)');
   return {
+    attention,
     starport: profile.starport, balanceCr: balance, freeHold,
     hardpoints: { ...hardpoints }, mounts, turrets, software, carried: carried.map((key) => COMPUTER_PROGRAMS[key]?.label ?? key),
     cite: 'Book 2 pp.12, 15-16'
@@ -5170,6 +5213,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const liveShip = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player')?.ship;
         if (liveShip && liveShip.identity.id === state.ship.id) state.ship = shipView(liveShip);
       }
+      // v0.316.3: an open sheet of the ship in a fight shows the fight's own
+      // copy of it — the hits and the repair declared — not the document the
+      // fight has not written back yet.
+      if (pendingShipFight) {
+        const player = pendingShipFight.encounter.participants.find((entry) => entry.id === 'player');
+        if (player) {
+          state.sheets = state.sheets.map((sheet) => (sheet.kind === 'ship' && sheet.id === player.ship.identity.id
+            ? { ...sheet, strip: shipSectionStrip(player.ship, { repairing: player.damageControl ?? null }) } : sheet));
+        }
+      }
+      if (state.ship) {
+        const shipDoc = activeShip();
+        const player = pendingShipFight?.encounter.participants.find((entry) => entry.id === 'player');
+        state.ship = { ...state.ship, strip: player && player.ship.identity.id === shipDoc?.identity.id
+          ? shipSectionStrip(player.ship, { repairing: player.damageControl ?? null }) : shipSectionStrip(shipDoc) };
+      }
       // v0.246.0: staging a scene is what is happening, the same way a fight
       // is. It was a row inside the 420px referee drawer, where a 400" board
       // got 361px and every control appeared twice (the imported board draws
@@ -5198,7 +5257,10 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         const ended = encounter.outcome !== 'in-progress';
         const player = encounter.participants.find((entry) => entry.id === 'player');
         const canFlee = Boolean(player) && !player.fled && !player.escaped && !player.surrendered;
-        const roster = shipFightRoster(encounter);
+        const roster = shipFightRoster(encounter).map((row) => {
+          const participant = encounter.participants.find((entry) => entry.id === row.shipId);
+          return { ...row, strip: participant ? shipSectionStrip(participant.ship, { repairing: participant.damageControl ?? null }) : [] };
+        });
         const isVector = encounter.spatialMode === 'vector';
         // The vector view's own plot: positions, velocities, range, and
         // whether the player's ship is the one waiting to move this

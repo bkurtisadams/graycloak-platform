@@ -16,8 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.2';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.316.2';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.3';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.316.3';
+import { renderSectionStrip } from './section-strip.js?v=v0.316.3';
 
 const DRAGGED = new Map();
 
@@ -99,6 +100,8 @@ function shipBody(sheet, handlers) {
   if (!sheet.editable) {
     parts.push(h('p', { class: 'sheet-note is-error', text: 'A fight is writing to this ship. Corrections go through the fight, or wait until it ends.' }));
   }
+  // v0.316.3: the sections at a glance, lit by hits and repairs.
+  if (sheet.strip?.length) parts.push(renderSectionStrip(sheet.strip, { label: `${sheet.title}: sections` }));
   parts.push(h('div', { class: 'sheet-section-label', text: 'BOOK 2 P.24 DATA CARD' }));
   parts.push(sheet.lines.length
     ? h('pre', { class: 'sheet-card', text: sheet.lines.join('\n') })
