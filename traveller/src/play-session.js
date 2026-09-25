@@ -2568,7 +2568,7 @@ export function mapView(map, { seat = 'referee', visited = [] } = {}) {
     : system);
   const systems = map.systems.map(hide);
   if (!letters.length) {
-    return { ...map, systems, frame: { firstColumn: 1, firstRow: 1, columns: map.columns ?? 8, rows: map.rows ?? 10 }, borders: [] };
+    return { ...map, systems, frame: { firstColumn: 1, firstRow: 1, columns: map.columns ?? 8, rows: map.rows ?? 10 }, borders: [], edges: [] };
   }
   const offsets = letters.map((letter) => ({ letter, ...subsectorOffset(letter) }));
   const minColumn = Math.min(...offsets.map((entry) => entry.columns));
@@ -2578,7 +2578,24 @@ export function mapView(map, { seat = 'referee', visited = [] } = {}) {
   return {
     ...map, systems,
     frame: { firstColumn: minColumn + 1, firstRow: minRow + 1, columns: maxColumn - minColumn + 8, rows: maxRow - minRow + 10 },
-    borders: offsets.map((entry) => ({ letter: entry.letter, name: map.subsectorNames?.[entry.letter] ?? entry.letter, firstColumn: entry.columns + 1, firstRow: entry.rows + 1 }))
+    borders: offsets.map((entry) => ({ letter: entry.letter, name: map.subsectorNames?.[entry.letter] ?? entry.letter, firstColumn: entry.columns + 1, firstRow: entry.rows + 1 })),
+    // v0.323.0: the uncharted neighbours outside the frame, named on its edge.
+    edges: offsets.flatMap((entry) => {
+      const index = SUBSECTOR_LETTERS.indexOf(entry.letter);
+      const col = index % 4;
+      const row = Math.floor(index / 4);
+      return [['top', 0, -1], ['bottom', 0, 1], ['left', -1, 0], ['right', 1, 0]].flatMap(([side, dc, dr]) => {
+        const c = col + dc;
+        const r = row + dr;
+        if (c < 0 || c > 3 || r < 0 || r > 3) return [];
+        const letter = SUBSECTOR_LETTERS[r * 4 + c];
+        if (letters.includes(letter)) return [];
+        const offset = subsectorOffset(letter);
+        const inside = offset.columns >= minColumn && offset.columns <= maxColumn && offset.rows >= minRow && offset.rows <= maxRow;
+        if (inside) return [];
+        return [{ side, letter, name: map.subsectorNames?.[letter] ?? null, firstColumn: entry.columns + 1, firstRow: entry.rows + 1 }];
+      });
+    })
   };
 }
 

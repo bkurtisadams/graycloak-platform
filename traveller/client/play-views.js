@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.322.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.322.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.322.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.322.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.323.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.323.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.323.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.323.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.322.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.322.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.322.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.322.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.323.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.323.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.323.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.323.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.322.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.322.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.323.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.323.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.322.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.323.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1202,15 +1202,49 @@ function lanesToggle(svg) {
   return button;
 }
 
-function lanesLegend() {
-  const row = (kind, text) => h('li', {}, h('span', { class: `legend-swatch is-${kind}`, 'aria-hidden': 'true' }), h('span', { text }));
+// v0.323.0: the whole map key, as on the published maps.
+function mapKey(withLanes) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const icon = (build, w = 30, hgt = 24) => {
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', w); svg.setAttribute('height', hgt); svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`); svg.setAttribute('aria-hidden', 'true');
+    svg.classList.add('key-icon');
+    build(svg, (tag, attrs) => { const node = document.createElementNS(ns, tag); for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value)); svg.append(node); return node; });
+    return svg;
+  };
+  const row = (glyph, text) => h('li', {}, glyph, h('span', { text }));
+  const group = (title, rows) => [h('li', { class: 'key-group', text: title }), ...rows];
+  const star = (cx, cy, r) => Array.from({ length: 10 }, (_, i) => { const rr = i % 2 === 0 ? r : r * 0.43; const a = Math.PI / 2 + (i * Math.PI) / 5; return `${(cx + rr * Math.cos(a)).toFixed(1)},${(cy - rr * Math.sin(a)).toFixed(1)}`; }).join(' ');
+  const hexPoints = (cx, cy, r) => [[cx - r, cy], [cx - r / 2, cy - r * 0.866], [cx + r / 2, cy - r * 0.866], [cx + r, cy], [cx + r / 2, cy + r * 0.866], [cx - r / 2, cy + r * 0.866]].map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const arc = (kind) => icon((svg, add) => { add('text', { x: 15, y: 12, 'text-anchor': 'middle', class: 'world-starport' }).textContent = 'C'; add('circle', { cx: 15, cy: 17, r: 3.5, class: 'world-dot is-water' }); add('path', { d: 'M 3.2 19.9 A 12 12 0 1 1 26.8 19.9', class: `world-zone is-${kind}` }); }, 30, 26);
   return h('details', { class: 'map-legend' },
     h('summary', { text: 'Key' }),
     h('ul', {},
-      row('lane', 'Charted lane: the starport sells a flight-plan cassette for it (Book 3 p.2, Book 2 p.32)'),
-      row('here', 'The same, for a lane from the world the ship is at'),
-      row('reach', 'In jump range'),
-      row('off', 'In jump range but off the lanes: needs the Generate program')));
+      group('Worlds', [
+        row(icon((svg, add) => add('circle', { cx: 15, cy: 12, r: 6, class: 'world-dot is-water' })), 'Water present'),
+        row(icon((svg, add) => add('circle', { cx: 15, cy: 12, r: 6, class: 'world-dot is-dry' })), 'No water present'),
+        row(icon((svg, add) => { for (const [dx, dy] of [[-6, -3], [0, -6], [6, -2], [-3, 3], [4, 5], [-7, 6], [1, 1]]) add('circle', { cx: 15 + dx, cy: 12 + dy, r: 1.6, class: 'world-belt-dot' }); }), 'Asteroid belt'),
+        row(icon((svg, add) => add('circle', { cx: 15, cy: 12, r: 6, class: 'world-dot is-unknown' })), 'Not yet visited'),
+        row(icon((svg, add) => { add('text', { x: 15, y: 17, 'text-anchor': 'middle', class: 'world-starport is-key' }).textContent = 'B'; }), 'Starport type, A\u2013E or X'),
+        row(icon((svg, add) => { add('circle', { cx: 12, cy: 14, r: 5, class: 'world-dot is-water' }); add('circle', { cx: 23, cy: 7, r: 2.8, class: 'world-gas-giant' }); }), 'Gas giant in the system')
+      ]),
+      group('Bases', [
+        row(icon((svg, add) => add('polygon', { points: star(15, 12, 7), class: 'world-base' })), 'Naval base'),
+        row(icon((svg, add) => add('polygon', { points: '9,17 21,17 15,6', class: 'world-base' })), 'Scout base')
+      ]),
+      group('Population', [
+        row(h('span', { class: 'key-name', text: 'Aster' }), 'Under a billion'),
+        row(h('span', { class: 'key-name is-major', text: 'PORT M.' }), 'A billion or more')
+      ]),
+      group('Travel zones', [row(arc('amber'), 'Amber zone'), row(arc('red'), 'Red zone')]),
+      group('Routes and the ship', [
+        withLanes ? row(icon((svg, add) => add('line', { x1: 2, y1: 12, x2: 28, y2: 12, class: 'subsector-lane' })), 'Charted lane: a flight-plan cassette is sold for it') : null,
+        withLanes ? row(icon((svg, add) => add('line', { x1: 2, y1: 12, x2: 28, y2: 12, class: 'subsector-lane is-here' })), 'Lane from the world the ship is at') : null,
+        row(icon((svg, add) => add('polygon', { points: hexPoints(15, 12, 10), class: 'key-hex is-current' })), 'Where the ship is'),
+        row(icon((svg, add) => add('polygon', { points: hexPoints(15, 12, 10), class: 'key-hex is-reach' })), 'In jump range'),
+        withLanes ? row(icon((svg, add) => add('polygon', { points: hexPoints(15, 12, 10), class: 'key-hex is-off-lane' })), 'In range, off the lanes: needs Generate') : null,
+        row(icon((svg, add) => add('polygon', { points: hexPoints(15, 12, 10), class: 'key-hex is-course' })), 'Course set')
+      ].filter(Boolean))));
 }
 
 function mapZoomControl(svg) {
@@ -1252,6 +1286,8 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
   const offLane = new Set([...reachable.keys()].filter((id) => !onLane(id)));
   const svg = renderSubsectorMap({
     subsector, columns: frame.columns, rows: frame.rows, firstColumn: frame.firstColumn, firstRow: frame.firstRow, borders: scene.map?.borders ?? [],
+    // v0.323.0: the published maps' way of drawing worlds (approved mockup).
+    worldStyle: 'book', edges: scene.map?.edges ?? [],
     current, selected, reachable, lanes, offLane,
     onSelect: scene.kind === 'subsector' ? (system) => onSelectSystem(system.id === current.id ? null : system.id) : null
   });
@@ -1289,7 +1325,7 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
     h('div', { class: 'scene-title map-head' }, h('span', { text: scene.map?.sectorName ? `${scene.map.sectorName} sector \u00b7 ${current.subsector ? `${scene.map.subsectorNames?.[current.subsector] ?? current.subsector} subsector` : ''}` : `${subsector.name} subsector` }),
       clock,
       chosen ? h('span', { class: 'map-course' }, kindButton({ label: `Set course for ${selected.name}`, kind: 'travel', primary: true }, { small: true, onclick: () => onCommand?.(`trip:choose-destination:${selected.id}`) })) : null,
-      lanes.length ? lanesLegend() : null,
+      mapKey(lanes.length > 0),
       lanes.length ? lanesToggle(svg) : null,
       scene.sector && onExportSector ? h('button', { type: 'button', class: 'button is-small', text: 'Export', title: 'The sector as charted, in Traveller Map\u2019s tab-delimited format (travellermap.com Poster Maker)', onclick: () => onExportSector() }) : null,
       mapZoomControl(svg)),

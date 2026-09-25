@@ -1,6 +1,6 @@
 const SQRT3 = Math.sqrt(3);
 
-import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.322.1';
+import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.323.0';
 
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,
@@ -133,8 +133,87 @@ function appendBaseMarkers(group, system, center) {
 // v0.321.0: a frame onto a larger map — firstColumn/firstRow are the map
 // hexes drawn top-left (a sector is 32x40 in the same numbering) — and the
 // borders of the subsectors in it, each { letter, name, firstColumn, firstRow }.
-export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set(), firstColumn = 1, firstRow = 1, borders = [] } = {}) {
-  const viewBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
+// v0.323.0: `worldStyle: 'book'` draws each world the way the published
+// Traveller maps do (Kurt approved the mockup, Sep 2026): starport letter
+// above, the world dot by water (filled, red for none, a scatter for a
+// belt, hollow when not yet known), a gas giant dot, star and triangle for
+// naval and scout bases, names in capitals for a billion or more, amber and
+// red zone arcs round the top, the hex number at the top centre. `edges` are
+// the neighbouring subsectors' names round the outside, each
+// { side, letter, name, firstColumn, firstRow }. The classic style stays the
+// default for the other pages.
+function appendBookWorld(group, system, center) {
+  const k = SUBSECTOR_SVG_GEOMETRY.radius / 44;
+  const { x, y } = center;
+  const uwp = String(system.mainWorld?.uwp ?? '');
+  const digit = (ch) => (/[0-9]/.test(ch) ? Number(ch) : /[A-Z]/.test(ch) ? ch.charCodeAt(0) - 55 : null);
+  const size = digit(uwp[1]);
+  const hydro = digit(uwp[3]);
+  const population = digit(uwp[4]);
+  const hidden = Boolean(system.hidden) || size === null;
+  if (!hidden && size === 0) {
+    const belt = createSvgNode('g', { class: 'world-belt' });
+    for (const [dx, dy] of [[-6, -3], [0, -6], [6, -2], [-3, 3], [4, 5], [-7, 6], [1, 1]]) belt.append(createSvgNode('circle', { cx: x + dx * k, cy: y + dy * k, r: 1.8 * k }));
+    group.append(belt);
+  } else {
+    group.append(createSvgNode('circle', { cx: x, cy: y, r: 7 * k, class: `world-dot ${hidden ? 'is-unknown' : hydro > 0 ? 'is-water' : 'is-dry'}` }));
+  }
+  const port = createSvgNode('text', { x, y: y - 12 * k, class: 'world-starport', 'text-anchor': 'middle' });
+  port.textContent = uwp[0] ?? '?';
+  group.append(port);
+  if (system.gasGiant) group.append(createSvgNode('circle', { cx: x + 17 * k, cy: y - 10 * k, r: 3.2 * k, class: 'world-gas-giant' }));
+  const bases = system.bases ?? {};
+  if (bases.naval) {
+    const cx = x - 18 * k;
+    const cy = y - 10 * k;
+    const points = Array.from({ length: 10 }, (_, i) => {
+      const radius = (i % 2 === 0 ? 6 : 2.6) * k;
+      const angle = Math.PI / 2 + (i * Math.PI) / 5;
+      return `${(cx + radius * Math.cos(angle)).toFixed(1)},${(cy - radius * Math.sin(angle)).toFixed(1)}`;
+    }).join(' ');
+    const star = createSvgNode('polygon', { points, class: 'world-base is-naval' });
+    const title = createSvgNode('title');
+    title.textContent = 'Naval base';
+    star.append(title);
+    group.append(star);
+  }
+  if (bases.scout) {
+    const cx = x - 18 * k;
+    const cy = y + (bases.naval ? 4 : -10) * k;
+    const triangle = createSvgNode('polygon', { points: `${cx - 5 * k},${cy + 4 * k} ${cx + 5 * k},${cy + 4 * k} ${cx},${cy - 5 * k}`, class: 'world-base is-scout' });
+    const title = createSvgNode('title');
+    title.textContent = 'Scout base';
+    triangle.append(title);
+    group.append(triangle);
+  }
+  const major = !hidden && population !== null && population >= 9;
+  splitSystemName(major ? system.name.toUpperCase() : system.name).forEach((line, index) => {
+    const label = createSvgNode('text', { x, y: y + 24 * k + index * 10, class: `subsector-system-name${major ? ' is-major' : ''}`, 'text-anchor': 'middle' });
+    label.textContent = line;
+    group.append(label);
+  });
+}
+
+// The zone arc as the book draws it: round the top of the hex, open at the
+// bottom for the name, so the letter, gas giant and bases sit inside it.
+function zoneArc(system, center) {
+  if (!['amber', 'red'].includes(system.travelZone)) return null;
+  const k = SUBSECTOR_SVG_GEOMETRY.radius / 44;
+  const r = 32 * k;
+  const oy = center.y + 6 * k;
+  const a = (5 * Math.PI) / 180;
+  const x0 = center.x - r * Math.cos(a);
+  const x1 = center.x + r * Math.cos(a);
+  const y0 = oy - r * Math.sin(a);
+  return createSvgNode('path', { d: `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 1 1 ${x1.toFixed(1)} ${y0.toFixed(1)}`, class: `world-zone is-${system.travelZone}` });
+}
+
+export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set(), firstColumn = 1, firstRow = 1, borders = [], worldStyle = 'classic', edges = [] } = {}) {
+  const book = worldStyle === 'book';
+  const baseBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
+  // Room round the outside for the neighbours' names.
+  const margin = book && edges.length ? 22 : 0;
+  const viewBox = { x: -margin, y: -margin, width: baseBox.width + margin * 2, height: baseBox.height + margin * 2 };
   const svg = createSvgNode('svg', {
     class: 'subsector-svg',
     viewBox: `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`,
@@ -166,7 +245,12 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       const polygon = createSvgNode('polygon', { points, class: 'subsector-hex-shape' });
       group.append(polygon);
 
-      const coordinate = createSvgNode('text', {
+      const coordinate = createSvgNode('text', book ? {
+        x: center.x,
+        y: center.y - (Math.sqrt(3) * SUBSECTOR_SVG_GEOMETRY.radius) / 2 + 8,
+        class: 'subsector-hex-coordinate',
+        'text-anchor': 'middle'
+      } : {
         x: center.x - SUBSECTOR_SVG_GEOMETRY.radius * 0.63,
         y: center.y - (Math.sqrt(3) * SUBSECTOR_SVG_GEOMETRY.radius) / 2 + 9,
         class: 'subsector-hex-coordinate'
@@ -211,37 +295,43 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}${objective}`;
       group.append(title);
 
-      const marker = createSvgNode('text', {
-        x: center.x,
-        y: center.y + 3,
-        class: 'subsector-system-marker',
-        'text-anchor': 'middle'
-      });
-      marker.textContent = current?.id === system.id ? '◆' : '●';
-      group.append(marker);
-
-      const lines = splitSystemName(system.name);
-      lines.forEach((line, index) => {
-        const label = createSvgNode('text', {
+      if (book) {
+        const arc = zoneArc(system, center);
+        if (arc) group.append(arc);
+        appendBookWorld(group, system, center);
+      } else {
+        const marker = createSvgNode('text', {
           x: center.x,
-          y: center.y + 17 + index * 10,
-          class: 'subsector-system-name',
+          y: center.y + 3,
+          class: 'subsector-system-marker',
           'text-anchor': 'middle'
         });
-        label.textContent = line;
-        group.append(label);
-      });
+        marker.textContent = current?.id === system.id ? '◆' : '●';
+        group.append(marker);
 
-      // The destination carries its own ring so it reads at a glance without
-      // depending on stroke weight alone, which is easy to miss at low zoom.
-      if (selected?.id === system.id) {
-        group.append(createSvgNode('circle', {
-          cx: center.x, cy: center.y, r: SUBSECTOR_SVG_GEOMETRY.radius * 0.62,
-          class: 'subsector-destination-ring'
-        }));
+        const lines = splitSystemName(system.name);
+        lines.forEach((line, index) => {
+          const label = createSvgNode('text', {
+            x: center.x,
+            y: center.y + 17 + index * 10,
+            class: 'subsector-system-name',
+            'text-anchor': 'middle'
+          });
+          label.textContent = line;
+          group.append(label);
+        });
+
+        // The destination carries its own ring so it reads at a glance without
+        // depending on stroke weight alone, which is easy to miss at low zoom.
+        if (selected?.id === system.id) {
+          group.append(createSvgNode('circle', {
+            cx: center.x, cy: center.y, r: SUBSECTOR_SVG_GEOMETRY.radius * 0.62,
+            class: 'subsector-destination-ring'
+          }));
+        }
+
+        appendBaseMarkers(group, system, center);
       }
-
-      appendBaseMarkers(group, system, center);
 
       if (onSelect) {
         const select = () => onSelect(system);
@@ -299,6 +389,28 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
     }
     svg.append(layer);
   }
+  // The neighbours' names round the outside (book style).
+  if (book && edges.length) {
+    const layer = createSvgNode('g', { class: 'subsector-edge-layer', 'aria-hidden': 'true' });
+    for (const edge of edges) {
+      const a = subsectorHexCenter(edge.firstColumn - firstColumn + 1, edge.firstRow - firstRow + 1, SUBSECTOR_SVG_GEOMETRY);
+      const b = subsectorHexCenter(edge.firstColumn - firstColumn + 8, edge.firstRow - firstRow + 10, SUBSECTOR_SVG_GEOMETRY);
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      const text = `${edge.letter} \u00b7 ${edge.name ? edge.name.toUpperCase() : 'UNCHARTED'}`;
+      const at = {
+        top: { x: midX, y: -margin / 2 + 4, rotate: 0 },
+        bottom: { x: midX, y: baseBox.height + margin / 2 + 4, rotate: 0 },
+        left: { x: -margin / 2 + 4, y: midY, rotate: -90 },
+        right: { x: baseBox.width + margin / 2 - 4, y: midY, rotate: 90 }
+      }[edge.side];
+      const label = createSvgNode('text', { x: at.x, y: at.y, class: `subsector-edge-label${edge.name ? '' : ' is-uncharted'}`, 'text-anchor': 'middle', transform: at.rotate ? `rotate(${at.rotate} ${at.x} ${at.y})` : '' });
+      label.textContent = text;
+      layer.append(label);
+    }
+    svg.append(layer);
+  }
+
   // Subsector borders and names, over everything but the jump line.
   if (borders.length > 1) {
     const layer = createSvgNode('g', { class: 'subsector-border-layer', 'aria-hidden': 'true' });

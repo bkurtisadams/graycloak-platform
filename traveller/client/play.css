@@ -6,6 +6,9 @@
    navy, the same inks. Only the layout is new. */
 
 :root {
+  /* v0.323.0: the map's own two colours, the published maps' red for a
+     world with no water (and red zones) and an amber for amber zones. */
+  --map-dry: #a02828; --map-amber: #b07d12;
   /* v0.315.3: the action kinds (play-session.js ACTION_KINDS): wash, edge
      and ink for an outlined button, fill and ink for the lead one. */
   --owed-wash: #eadfaa; --owed-edge: #7d7340; --owed-ink: #101210; --owed-fill: #d9b646; --owed-fill-ink: #101210; --owed-lead-edge: #5f5520;
@@ -42,6 +45,7 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
+  --map-dry: #e5534b; --map-amber: #e8a84c;
   --owed-wash: #2e2812; --owed-edge: #e8a84c; --owed-ink: #f3c274; --owed-fill: #e8a84c; --owed-fill-ink: #10141a; --owed-lead-edge: #e8a84c;
   --travel-wash: #17242e; --travel-edge: #63a9c7; --travel-ink: #9fd0e6; --travel-fill: #63a9c7; --travel-fill-ink: #0b0f14; --travel-lead-edge: #63a9c7;
   --money-wash: #13241a; --money-edge: #6fb886; --money-ink: #a9dcb6; --money-fill: #6fb886; --money-fill-ink: #0b0f14; --money-lead-edge: #6fb886;
@@ -1522,3 +1526,36 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .subsector-border-layer { pointer-events: none; }
 .subsector-border { fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-dasharray: 6 4; opacity: 0.6; }
 .subsector-border-label { font: 700 12px var(--display); fill: var(--ink-2); letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* v0.323.0: worlds as the published maps draw them (subsector-svg.js
+   worldStyle 'book'), and the full map key. */
+.world-dot.is-water { fill: var(--ink); }
+.world-dot.is-dry { fill: var(--map-dry); }
+.world-dot.is-unknown { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+.world-belt circle, .world-belt-dot { fill: var(--ink); }
+.world-starport { font: 700 11px var(--code); fill: var(--ink); }
+.world-starport.is-key { font-size: 15px; }
+.world-gas-giant { fill: var(--ink); }
+.world-base { fill: var(--ink); }
+.subsector-svg .subsector-system-name { font: 600 8.5px var(--display); fill: var(--ink); }
+.subsector-svg .subsector-system-name.is-major { font-weight: 700; letter-spacing: 0.06em; }
+.world-zone { fill: none; stroke-width: 2.6; stroke-linecap: round; }
+.world-zone.is-amber { stroke: var(--map-amber); }
+.world-zone.is-red { stroke: var(--map-dry); }
+.subsector-edge-layer { pointer-events: none; }
+.subsector-edge-label { font: 700 11px var(--display); fill: var(--ink-2); letter-spacing: 0.12em; }
+.subsector-edge-label.is-uncharted { opacity: 0.7; }
+/* The ship's world: a heavy outline in ink, not red — red now means no water. */
+.system-hex.current .subsector-hex-shape { stroke: var(--ink); stroke-width: 3.5; }
+.system-hex.current .subsector-system-name, .system-hex.current .subsector-hex-coordinate { fill: var(--ink); }
+.system-hex.selected .subsector-hex-shape { stroke: var(--travel-edge); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.map-legend li.key-group { display: block; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.map-legend .key-icon { overflow: visible; }
+.map-legend .key-name { font: 600 11px var(--display); }
+.map-legend .key-name.is-major { font-weight: 700; letter-spacing: 0.06em; }
+.key-hex { fill: none; stroke: var(--line); stroke-width: 1; }
+.key-hex.is-current { stroke: var(--ink); stroke-width: 3; }
+.key-hex.is-reach { fill: var(--signal-wash); stroke: var(--signal); }
+.key-hex.is-off-lane { fill: var(--signal-wash); stroke: var(--signal); stroke-dasharray: 3 2; }
+.key-hex.is-course { stroke: var(--travel-edge); stroke-width: 2.5; stroke-dasharray: 4 3; }
+.map-legend ul { max-height: 70vh; overflow-y: auto; }

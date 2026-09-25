@@ -29,7 +29,7 @@
 //   - No gravity, no planet, no ordnance drawing. shipfight:vector-start has
 //     nothing that stages a planet yet either, so there is nothing to test
 //     this against in the UI even if it were built.
-import { kindButton } from './kind-button.js?v=v0.322.1';
+import { kindButton } from './kind-button.js?v=v0.323.0';
 
 const NS = 'http://www.w3.org/2000/svg';
 function h(tag, attributes = {}, ...children) {
