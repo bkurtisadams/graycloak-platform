@@ -365,8 +365,14 @@ export function listActions(state, context) {
     for (const offer of facts.route.freight) {
       if (offer.tons <= facts.route.freeHold + 1e-9) actions.push({ type: 'load-freight', offerId: offer.id, tons: offer.tons, revenueCr: offer.revenueCr, label: `Load ${offer.tons} t freight` });
     }
+    // v0.326.1: no booking for this course while passengers aboard are bound
+    // somewhere else. A ship may not leave with passengers for another
+    // world, so passengers for two worlds at once could never be carried:
+    // Kurt's Marisol held one for Dradern and one for Cheahiogean, and no
+    // course was left that she could depart on.
+    const boundElsewhere = ship.state.passengerManifest.some((entry) => entry.destinationSystemId !== facts.target.id);
     for (const entry of facts.route.classes) {
-      if (entry.count > 0 && !entry.blocked) actions.push({ type: 'book-passengers', passageClass: entry.passageClass, count: entry.count, label: `Book ${entry.count} ${entry.passageClass}` });
+      if (entry.count > 0 && !entry.blocked && !boundElsewhere) actions.push({ type: 'book-passengers', passageClass: entry.passageClass, count: entry.count, label: `Book ${entry.count} ${entry.passageClass}` });
     }
   }
   if (facts.message) actions.push({ type: 'carry-message', label: `Carry a message (${cr(facts.message.offer.honorariumCr)})` });

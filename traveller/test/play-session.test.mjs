@@ -2015,3 +2015,18 @@ test('v0.326.0 referee tools: move the ship to any world, reset a stuck trip, cl
   assert.ok(after.activityLogs[0].entries.some((entry) => /^Referee: .* moved to Cinder/.test(entry.message)));
   assert.equal(session.view().scene.referee, true);
 });
+
+// ---------------------------------------------------------------- v0.326.1
+test('v0.326.1 passengers bound for another world stop any more being booked, and the referee can put them ashore', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  session.run('trip:choose-destination:calder');
+  assert.equal(session.run('trip:book-passengers:middle').ok, true);
+  session.run('trip:choose-destination:port-meridian');
+  assert.equal(session.view().steps.some((step) => step.command?.startsWith('trip:book-passengers')), false, 'no booking for a second world');
+  assert.equal(session.run('trip:book-passengers:middle').ok, false);
+  assert.match(session.view().steps.find((step) => step.id === 'jump').figure, /Passengers aboard for Calder/);
+  assert.equal(session.run('referee:passengers-ashore').ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).ships[0].state.passengerManifest.length, 0);
+  assert.equal(session.view().steps.find((step) => step.id === 'jump').state, 'ready');
+});

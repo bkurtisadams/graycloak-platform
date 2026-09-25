@@ -2336,7 +2336,12 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
   else if (port.berthingOwed) jump = { figure: `${target.name}: berthing unpaid`, copy: 'Pay berthing before departure.' };
   else if (!depart) jump = { figure: `${target.name}: not cleared`, copy: 'Nothing can depart from here now.' };
   else if (blockedRows.length) jump = { figure: `${target.name}: ${blockedRows.map((row) => checklistLabel(row.key).toLowerCase()).join(', ')}`, copy: blockedRows.map((row) => row.detail).join('. ') };
-  else if (elsewhere.length) jump = { figure: `Passengers aboard for ${elsewhere.join(', ')}`, copy: 'Passengers already booked must be carried to their own destination first.' };
+  else if (elsewhere.length) {
+    const bound = new Set(ship.state.passengerManifest.map((entry) => entry.destinationSystemId));
+    jump = { figure: `Passengers aboard for ${elsewhere.join(', ')}`, copy: bound.size > 1
+      ? `Passengers are booked for ${bound.size} different worlds, and a ship may not leave with passengers for another world: no course can be flown. The referee can put them ashore (Settings, Referee tools).`
+      : 'Passengers already booked must be carried to their own destination first.' };
+  }
   else if (facts.exclusive && facts.exclusive.destination.systemId !== target.id) jump = { figure: `Chartered to ${facts.exclusive.destination.systemName}`, copy: 'An exclusive charter goes to its own destination. Deliver it, or abandon it in the current client.' };
   else {
     const lifeSupport = calculateLifeSupportCostForTrip(ship).totalCr;
@@ -5481,6 +5486,16 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           registry.put({ ...campaign, roster });
           reload();
           message = 'Referee: the trip is back to a port call here — course, encounter, halt and any ship fight cleared.';
+        } else if (what === 'passengers-ashore') {
+          // v0.326.1: passengers put off here, their fares unpaid (fares are
+          // paid on delivery), for a ship holding passengers it cannot carry.
+          const ship = activeShip();
+          const count = ship?.state?.passengerManifest?.length ?? 0;
+          if (!count) throw new Error('there are no passengers aboard');
+          const next = JSON.parse(JSON.stringify(ship));
+          next.state.passengerManifest = [];
+          persist([next]);
+          message = `Referee: ${count} passenger${count === 1 ? '' : 's'} put ashore at ${resolved.campaign.location?.systemName ?? 'this world'}, no fares paid.`;
         } else if (what === 'clear-encounters') {
           roster.persons = { ...(roster.persons ?? {}), pending: null, patron: null };
           if (roster.animals) roster.animals = { ...roster.animals, pending: null };
