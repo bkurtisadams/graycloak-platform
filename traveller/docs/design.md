@@ -10,17 +10,17 @@ the 1982 Traveller Book adopted wholesale where noted.
 | layer | lives in | status |
 |---|---|---|
 | **Rules** — pure functions: tables, throws, documents, costing, combat | `packages\classic-traveller-rules` (source of truth; `traveller\vendor\` is a git-ignored copy made by `scripts\sync-vendor.mjs`) | extended in place, never rewritten |
-| **Runner** — situation state machine, policy, clock walking, parties, montage, rendezvous | `traveller\src\runner\` (inside the client tree: one consumer, no second vendor copy; moves out if another game needs it) | trip machine, default policy and `scripts\run-trip.mjs` built (v0.312.0); parties, montage, rendezvous not yet |
+| **Runner** — situation state machine, policy, clock walking, parties, montage, rendezvous | `traveller\src\runner\` (inside the client tree: one consumer, no second vendor copy; moves out if another game needs it) | trip machine, default policy and `scripts\run-trip.mjs` built (v0.312.0); `play.html` runs on it (v0.315.0); parties, montage, rendezvous not yet |
 | **Client** — two shells over one Firestore state | `traveller\client-v3\` (name open) | new |
 | **Storage** — Firestore, one project, one login | existing rules file + emulator tests | extended (`private/` subtree) |
 
 `play.html` and the old referee client keep serving until the new client
 passes them feature for feature. Read them for layout and engine calls; do
 not refactor them. Logic that leaked into the old client moves into rules or
-runner. Hail/submit/toll now lives in `starships/arrival.js` (v0.311.0) and
-`play-session.js` calls it; the port and arrival sequence exists twice —
-`play-session.js` and `runner/trip.js` — until the client moves onto the
-runner and the session copy is deleted.
+runner. Hail/submit/toll lives in `starships/arrival.js` (v0.311.0). Since
+v0.315.0 the port and arrival sequence exists once, in `runner/trip.js`:
+`play-session.js` carries its actions as `trip:<action>` commands and keeps
+only what the runner does not do (speculation, battle-damage repair, fights).
 
 ### Principles
 
@@ -127,9 +127,17 @@ destroyed | halted, the campaign, ship, party characters and contracts, the
 chosen course, the standing encounter (with any toll), the jump in progress,
 and a `halt` {reason, detail} for what only a person or the combat engine
 can settle. `listActions(state)` / `applyAction(state, action)` →
-`{state, events}`; every throw is seeded, so a trip replays exactly. Mapping
-it onto `situation` + `private/hidden` (and the stack) is the client slice's
-first job; nothing is persisted yet.
+`{state, events}`; every throw is seeded, so a trip replays exactly.
+
+As persisted (v0.315.0): the trip's own fields (`tripRecord` — situation,
+course, encounter, departure, jump, landing, broker tip, halt, arrivals, seed,
+lane rule) sit on the campaign at `roster.trip`; `tripFromDocuments` rebuilds
+the rest from the live documents on every step, so a fight's damage or a
+referee's fiat is never overwritten by a stale copy. A live ship fight sits
+beside it at `roster.shipFight`, written on every change, and a reload picks
+it up where it was. A halt offers `resume` actions (continue / return,
+repelled / pay, …); a refused departure is an error, not a halt. Mapping this
+onto `situation` + `private/hidden` (and the stack) is still to come.
 
 ### Scene
 
@@ -263,8 +271,7 @@ p.21's "generally 7+"): a hail's broker tip, a patrol waving the ship
 through. 2–5 are hostile, but attack only on the table's own throw (2 at
 once, 3 on 2D 5+, 4 on 8+, 5 "may attack" — 11+ as a ruling); a hostile
 patrol that holds fire, or an unreceptive one (6), demands the toll. The
-hail is offered inbound only. `play-session.js` has the one-throw reaction
-and DMs but still no outbound encounter until it moves onto the runner.
+hail is offered inbound only.
 | jump-point | nobody | `beginJump`: burns fuel, rolls misjump and hijack, result private until arrival |
 
 ### IN-JUMP
@@ -291,8 +298,8 @@ Salaries and mortgage are clock events and fire mid-jump if due.
 
 Order (settled by Book 2 p.3 "entering", p.2 revival "after the ship has
 landed", p.3 repossession "on each world landing"): approach encounter
-first, then land. The runner does this (v0.314.0); `play-session.js` still
-rolls shipping after landing until the client moves onto the runner.
+first, then land. The runner does this (v0.314.0), and so does `play.html`
+since v0.315.0.
 
 ### SHIP-FIGHT (abbreviated default; vector optional)
 
@@ -301,7 +308,11 @@ ordnance, reprogramming; then native; interphase for damage control (9+ +
 skill, one per turn, destroyed drives excluded) and escape-shot count. The
 intruder is whoever initiated (referee-overridable). Pilot chooses CPU
 contents per phase from `state.computer.programs`; gunners target per
-turret. Ends when a side can't fire, a fleeing ship's shots run out, or a
+turret. As built (v0.315.0): each ship carries exactly its own
+`state.computer.programs`, loaded fire control first (Target, Return Fire,
+Maneuver, Predict, Gunner Interact, Evade…) as the computer holds them; no
+Target in the computer, no laser fire (Book 2 p.33), and the screen says so.
+An encountered ship armed by the referee also carries Target (ruling). Ends when a side can't fire, a fleeing ship's shots run out, or a
 jump completes. Boarding pushes PERSONAL-FIGHT. Hulk: referee decides
 (policy: pirates loot cargo and leave). NPC intent follows the Book 3
 attack/flee shape (non-RAW, flagged).
@@ -476,12 +487,13 @@ situation renderer embedded.
 Then: Firestore `private/` rules and tests; player shell in loop order;
 referee shell; rendezvous.
 
-Decided (Sep 2026): the client moves onto the runner next, ahead of steps
-5–10, to end the duplication — `play-session.js`'s port and arrival copy is
-deleted, jump-space screens are added and lanes are drawn on the map. RAW
-fixes to sequence (encounter order, outbound encounter, transit day,
-berthing past six days, salaries) went into the runner only in v0.314.0;
-`play.html` catches up when it moves.
+Done (v0.315.0): the client moved onto the runner ahead of steps 5–10 —
+`play-session.js`'s port and arrival copy is deleted, the trip and a live
+ship fight persist on the campaign, `play.html` has encounter, jump-space,
+halted, stranded and lost screens and the departure checklist, and the map
+draws the charted lanes with off-lane worlds marked as needing Generate. The
+v0.314.0 sequence fixes (encounter order, outbound encounter, transit day,
+berthing past six days, salaries) reach `play.html` with it.
 
 ## 8. Rulings index (made in the design sessions)
 
@@ -528,5 +540,9 @@ berthing past six days, salaries) went into the runner only in v0.314.0;
 - Engineers missing: one per 35 tons of drives, hulls over 100 tons.
 - Crew gates: pilot, navigator (>200t), medic (>100t), steward (per 8 high)
   block departure; engineers are a DM; gunners advisory.
+- An encountered ship the referee arms (two beam lasers, p.36 hulls) also
+  carries Target: whoever armed it bought the program that fires them. A
+  Type S is otherwise delivered without it (Sep 2026).
+- A live ship fight picks up where it left off after a reload (Sep 2026).
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,
   membership) are recorded with their slices and stand.

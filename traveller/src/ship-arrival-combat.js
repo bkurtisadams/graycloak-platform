@@ -17,7 +17,7 @@ import {
   createShipDocument, armShipTurret, createShipCombatEncounter, COMPUTER_MODELS, COMPUTER_PROGRAMS,
   actingSide, currentPhase, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   turretOperational, turretWeapons, getTurretWeapon, shipCombatIntent, participantStatus,
-  declareFlight, creditShotAgainstEscape
+  declareFlight, creditShotAgainstEscape, cpuFireOptions
 } from '../vendor/classic-traveller-rules/index.js';
 
 // Book 2 p.36 names the hull; these are the standard designs it resolves to.
@@ -79,34 +79,54 @@ export function buildEncounteredShip({ designKey, name, key = null } = {}) {
     },
     crewAssignments: [{ role: 'pilot', characterId: captainId, characterName: captainName }]
   });
-  for (const turret of ship.specifications.armament.turrets.slice(0, 2)) {
+  const turrets = ship.specifications.armament.turrets.slice(0, 2);
+  for (const turret of turrets) {
     ship = armShipTurret(ship, { turretId: turret.id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  }
+  // Ruling (Sep 2026): an owner who armed the ship bought Target too; without
+  // it no laser fires (Book 2 p.33). A Type S is delivered without it.
+  const programs = ship.state.computer?.programs ?? [];
+  if (turrets.length && !programs.includes('target')) {
+    ship = { ...ship, state: { ...ship.state, computer: { ...ship.state.computer, programs: [...programs, 'target'] } } };
   }
   return { ship, captainId };
 }
 
-// A Model/1 holds six points: CPU 2 plus storage 4 (Book 2 p.14), and p.31's
-// own worked example fills it with exactly these six. Launch is carried and
-// goes in where there is room (p.23 phase E swaps it in otherwise).
+// A Model/1 holds six points: CPU 2 plus storage 4 (Book 2 p.14).
 //
-// v0.246.0: the port from client/app.js dropped Maneuver and Launch. The
-// abbreviated fight never noticed, since it never thrusts; a vector fight
-// could not thrust at all (p.32: Maneuver is "required to allow the use of
-// Maneuver drive"), for either side.
-const DEFAULT_COMBAT_LOADOUT = ['target', 'return-fire', 'predict-1', 'gunner-interact', 'auto-evade', 'maneuver'];
-const DEFAULT_COMBAT_STORAGE = ['launch'];
+// v0.315.0: what a ship carries is its own state.computer.programs; the
+// fight used to hand every ship the same seven, bought or not. What goes into
+// the computer is taken from what is carried, fire control first, as room
+// allows; the rest stays in the library. No Target, no laser fire.
+const COMBAT_LOAD_ORDER = Object.freeze([
+  'target', 'return-fire', 'maneuver', 'predict-5', 'predict-4', 'predict-3', 'predict-2', 'predict-1', 'gunner-interact',
+  'auto-evade', 'maneuver-evade-6', 'maneuver-evade-5', 'maneuver-evade-4', 'maneuver-evade-3', 'maneuver-evade-2', 'maneuver-evade-1',
+  'multi-target-4', 'multi-target-3', 'multi-target-2', 'selective-3', 'selective-2', 'selective-1', 'launch', 'anti-missile', 'ecm'
+]);
 export function shipCombatLoadout(ship) {
   const model = COMPUTER_MODELS?.[ship.specifications.computer.model];
   const room = (model?.cpu ?? 2) + (model?.storage ?? 0);
+  const carried = [...new Set(ship.state?.computer?.programs ?? [])].filter((key) => COMPUTER_PROGRAMS[key]);
   const loaded = [];
   let used = 0;
-  for (const key of [...DEFAULT_COMBAT_LOADOUT, ...DEFAULT_COMBAT_STORAGE]) {
+  for (const key of COMBAT_LOAD_ORDER) {
+    if (!carried.includes(key)) continue;
     const space = COMPUTER_PROGRAMS[key].space;
     if (used + space > room) continue;
     loaded.push(key);
     used += space;
   }
-  return { carried: [...DEFAULT_COMBAT_LOADOUT, ...DEFAULT_COMBAT_STORAGE], loaded };
+  return { carried, loaded };
+}
+
+// Why a ship's lasers cannot fire this phase for want of software, in the
+// engine's words, or null when the computer can run the fire.
+export function laserSoftwareBlock(participant, { returnFire = false } = {}) {
+  const turret = participant.ship.specifications.armament.turrets.find((entry) => turretWeapons(participant.ship, entry.id).some((key) => getTurretWeapon(key).fires === 'laser'));
+  if (!turret) return null;
+  const options = cpuFireOptions(participant, turret.id, { returnFire });
+  if (options.possible) return null;
+  return options.missing.length ? `no ${options.missing.map((key) => COMPUTER_PROGRAMS[key]?.label ?? key).join(' or ')} program in the computer` : 'the computer cannot run the fire programs together';
 }
 
 // Every operational turret carrying a laser fires at the one foe. A 1-v-1
@@ -121,9 +141,11 @@ export function laserAllocationAgainstSingleFoe(encounter, shipId, foeId) {
   const shooter = encounter.participants.find((entry) => entry.id === shipId);
   if (!shooter) return [];
   if (currentPhase(encounter).key === 'return-fire' && !shooter.wasFiredAtBy.includes(foeId)) return [];
+  const returnFire = currentPhase(encounter).key === 'return-fire';
   const allocations = [];
   for (const turret of shooter.ship.specifications.armament.turrets) {
     if (!turretOperational(shooter.ship, turret.id)) continue;
+    if (!cpuFireOptions(shooter, turret.id, { returnFire }).possible) continue;
     if (!turretWeapons(shooter.ship, turret.id).some((key) => getTurretWeapon(key).fires === 'laser')) continue;
     allocations.push({ shipId, turretId: turret.id, targetId: foeId });
   }

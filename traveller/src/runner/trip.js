@@ -2,12 +2,15 @@
 //
 // v0.312.0. Build-order step 4. No DOM, no registry, no cloud: documents in,
 // documents out, every throw seeded so the same state and action always give
-// the same result. The client moves onto this in the next slice; until then
-// play-session.js keeps its own copy of the port and arrival logic.
+// the same result. v0.315.0: play.html runs on it (play-session.js's own copy
+// is gone); the trip is saved as tripRecord() and rebuilt around the live
+// documents with tripFromDocuments().
 //
 //   createTrip(resolved, options)          the state, from a resolved campaign
 //   listActions(state, context)            what may be done now
 //   applyAction(state, action, context)    { state, events }
+//   tripRecord(state)                      the trip's own fields, to persist
+//   tripFromDocuments(resolved, record)    a trip rebuilt around the documents
 //
 // Situations: port, in-jump, encounter, stranded, destroyed, halted. A
 // halted trip waits for something only a person or the combat engine can
@@ -89,6 +92,32 @@ function crewSkillLevels(state) {
 
 function event(state, kind, text, data = {}) {
   return Object.freeze({ date: tripDate(state), kind, text, ...data });
+}
+
+// v0.315.0: what a trip is beyond its documents. The client keeps this on
+// the campaign (roster.trip) and rebuilds the rest from the documents on
+// every step, so a change made elsewhere (a fight's damage, a referee's
+// fiat) is never overwritten by a stale copy.
+export const TRIP_RECORD_KEYS = Object.freeze([
+  'seed', 'lanes', 'situation', 'destinationId', 'lastSystemId', 'encounter', 'departure', 'jump', 'landing',
+  'pendingBrokerTipDM', 'halt', 'arrivals'
+]);
+
+export function tripRecord(state) {
+  return cloneJson(Object.fromEntries(TRIP_RECORD_KEYS.map((key) => [key, state[key] ?? null])));
+}
+
+export function tripFromDocuments(resolved, record = null, options = {}) {
+  const trip = createTrip(resolved, { seed: record?.seed ?? options.seed ?? '', lanes: record?.lanes ?? options.lanes ?? 'charted' });
+  if (!record) return trip;
+  for (const key of TRIP_RECORD_KEYS) {
+    if (key === 'seed' || key === 'lanes') continue;
+    if (record[key] !== undefined && record[key] !== null) trip[key] = cloneJson(record[key]);
+  }
+  if (!TRIP_SITUATIONS.includes(trip.situation)) trip.situation = 'port';
+  trip.arrivals = Number.isInteger(trip.arrivals) ? trip.arrivals : 0;
+  trip.pendingBrokerTipDM = Number(trip.pendingBrokerTipDM) || 0;
+  return trip;
 }
 
 /** A trip from a resolved campaign: { campaign, ships, characters, contracts }. */
@@ -228,7 +257,35 @@ function exclusiveContract(state) {
 
 // -------------------------------------------------------------- listActions
 
+// v0.315.0: a halt waits for a person, then goes on. What going on means
+// depends on what stopped it; a headless run never reaches these (run.js
+// stops on any halt), so the policy is unchanged.
+
+function haltActions(state, context) {
+  const halt = state.halt;
+  if (!halt) return [];
+  const resume = (how, label) => ({ type: 'resume', how, label });
+  switch (halt.reason) {
+    case 'ship-fight': {
+      if (halt.encounter?.phase === 'outbound') return [resume('continue', 'Go on to the jump point'), resume('return', 'Turn back to port')];
+      const landing = state.landing ? systemOf(context, state.landing.systemId) : null;
+      return [resume('continue', landing ? `Go on in to ${landing.name}` : 'Go on')];
+    }
+    case 'hijack': return [resume('continue', 'Hijacking settled; go on with the jump')];
+    case 'repossession-boarding': {
+      const arrears = shipMortgageSchedule(state.ship, { dateLabel: tripDate(state) }).arrearsCr;
+      return [
+        resume('repelled', 'Boarding party beaten off'),
+        ...(state.ship.state.finances.balanceCr >= arrears ? [resume('pay', `Pay ${cr(arrears)} arrears`)] : [])
+      ];
+    }
+    case 'life-support': return [resume('continue', 'Try the jump again'), resume('return', 'Turn back to port')];
+    default: return [resume('continue', 'Go on')];
+  }
+}
+
 export function listActions(state, context) {
+  if (state.situation === 'halted') return haltActions(state, context);
   if (state.situation === 'in-jump') return [{ type: 'jump-week', label: `A week in jump space (${state.jump.weeksDone + 1} of ${state.jump.weeks})` }];
   if (state.situation === 'encounter') {
     const encounter = state.encounter;
@@ -298,7 +355,8 @@ export function applyAction(state, action, context) {
   const match = legal.find((entry) => entry.type === type
     && (entry.systemId === undefined || entry.systemId === action.systemId)
     && (entry.offerId === undefined || entry.offerId === action.offerId)
-    && (entry.passageClass === undefined || entry.passageClass === action.passageClass));
+    && (entry.passageClass === undefined || entry.passageClass === action.passageClass)
+    && (entry.how === undefined || entry.how === action.how));
   if (!match) throw new Error(`${type ?? 'no action'} is not legal while ${state.situation}`);
   const handler = HANDLERS[type];
   return handler(cloneJson(state), action, context);
@@ -457,14 +515,16 @@ const HANDLERS = {
     return afterEncounter(state, [event(state, 'encounter', `${label} let pass`)], context);
   },
 
+  // Ruling (Sep 2026): whoever initiated intrudes. A pirate is hostile by
+  // the p.36 roll itself; anything else the party chose to fight.
   fight(state) {
-    return haltForFight(state, `${state.encounter.label}: the party chose to fight`);
+    return haltForFight(state, `${state.encounter.label}: the party chose to fight`, { opponentInitiated: Boolean(state.encounter.hostileByDefault) });
   },
 
   hail(state, action, context) {
     const encounter = state.encounter;
     const hail = resolveHail(encounter.key, { tableTotal: encounter.reactionTotal }, { dice: seeded(state, `${encounter.seedBase}|hail-attack`) });
-    if (hail.outcome === 'fight') return haltForFight(state, `${encounter.label} answers the hail with fire (${encounter.reaction.replace(/\.$/, '')}; ${hail.attack.immediate ? 'immediate attack' : `attack throw ${hail.attack.total} against ${hail.attack.needed}+`})`);
+    if (hail.outcome === 'fight') return haltForFight(state, `${encounter.label} answers the hail with fire (${encounter.reaction.replace(/\.$/, '')}; ${hail.attack.immediate ? 'immediate attack' : `attack throw ${hail.attack.total} against ${hail.attack.needed}+`})`, { opponentInitiated: true });
     if (hail.outcome === 'tip') state.pendingBrokerTipDM = hail.brokerTipDM;
     return afterEncounter(state, [event(state, 'encounter', hail.outcome === 'tip' ? `${encounter.label} shares word of a buyer (broker tip +${hail.brokerTipDM} here)` : `${encounter.label} trades pleasantries`)], context);
   },
@@ -472,7 +532,7 @@ const HANDLERS = {
   inspect(state, action, context) {
     const encounter = state.encounter;
     const inspection = resolveInspection(encounter.key, { tableTotal: encounter.reactionTotal }, { dice: seeded(state, `${encounter.seedBase}|inspect-attack`) });
-    if (inspection.outcome === 'fight') return haltForFight(state, `${encounter.label} opens fire during the inspection (${encounter.reaction.replace(/\.$/, '')}; ${inspection.attack.immediate ? 'immediate attack' : `attack throw ${inspection.attack.total} against ${inspection.attack.needed}+`})`);
+    if (inspection.outcome === 'fight') return haltForFight(state, `${encounter.label} opens fire during the inspection (${encounter.reaction.replace(/\.$/, '')}; ${inspection.attack.immediate ? 'immediate attack' : `attack throw ${inspection.attack.total} against ${inspection.attack.needed}+`})`, { opponentInitiated: true });
     if (inspection.outcome === 'toll') {
       state.encounter = { ...encounter, tollDemandCr: inspection.tollCr };
       return one(state, [event(state, 'encounter', `${encounter.label} demands ${cr(inspection.tollCr)}`)]);
@@ -487,7 +547,51 @@ const HANDLERS = {
   },
 
   'refuse-toll'(state) {
-    return haltForFight(state, `refused ${state.encounter.label}'s toll; it opens fire`);
+    return haltForFight(state, `refused ${state.encounter.label}'s toll; it opens fire`, { opponentInitiated: true });
+  },
+
+  resume(state, action, context) {
+    const halt = state.halt;
+    state.halt = null;
+    // launch() and passDays() read a halted situation as a fresh halt.
+    state.situation = 'port';
+    const events = [];
+    const back = (text) => { state.situation = 'port'; return one(state, [event(state, 'port', text)]); };
+    if (halt.reason === 'repossession-boarding') {
+      if (action.how === 'repelled') {
+        state.ship = releaseImpound(state.ship, { dateLabel: tripDate(state), repelled: true });
+        return back('the repossession party is beaten off; the arrears still stand');
+      }
+      const dateLabel = tripDate(state);
+      const upkeep = chargeShipUpkeep(state.ship, { dateLabel, sinceLabel: firstLedgerDate(state.ship), unpaid: unpaidCrew(state.ship) });
+      state.ship = upkeep.ship;
+      if (shipMortgageSchedule(state.ship, { dateLabel }).skipped) return back(`paid ${cr(upkeep.paidCr)}; still held`);
+      state.ship = releaseImpound(state.ship, { dateLabel });
+      return back(`arrears paid (${cr(upkeep.paidCr)}); released`);
+    }
+    if (action.how === 'return') {
+      state.departure = null;
+      state.landing = null;
+      return back('turned back to port');
+    }
+    if (halt.reason === 'ship-fight') {
+      if (halt.encounter?.phase === 'outbound') return launch(state, events, context);
+      if (halt.encounter?.phase === 'inbound' && state.landing) return land(state, events, context);
+      state.situation = 'port';
+      return one(state, events);
+    }
+    // A halt on the way out (life support, an aging crisis in transit) picks
+    // the departure up where it stopped.
+    if (state.departure) return launch(state, events, context);
+    if (state.jump) {
+      state.situation = 'in-jump';
+      if (state.jump.weeksDone >= state.jump.weeks) return arrive(state, events, context);
+      return one(state, [event(state, 'jump', `the voyage goes on, week ${state.jump.weeksDone + 1} of ${state.jump.weeks}`)]);
+    }
+    if (state.landing) return land(state, events, context);
+    state.situation = TRIP_SITUATIONS.includes(halt.from) && halt.from !== 'halted' ? halt.from : 'port';
+    if (state.situation === 'encounter' && !state.encounter) state.situation = 'port';
+    return one(state, events);
   }
 };
 
@@ -505,12 +609,12 @@ function openEncounter(state, rolled, { phase, system, seedBase }) {
   const dm = dmParts.reduce((sum, part) => sum + part.dm, 0);
   const reaction = rollReaction(seeded(state, `${seedBase}|reaction`), { dm });
   state.encounter = {
-    key: rolled.type, label: rolled.label, hull: rolled.hull?.label ?? null, phase,
+    key: rolled.type, label: rolled.label, hull: rolled.hull?.label ?? null, hullKey: rolled.hull?.hull ?? rolled.type, phase,
     hostileByDefault: Boolean(rolled.hostileByDefault), reaction: reaction.description, reactionTotal: reaction.tableTotal,
     reactionDM: dm, systemId: system?.id ?? null, seedBase, tollDemandCr: null
   };
   state.situation = 'encounter';
-  return event(state, 'encounter', `${rolled.label}${rolled.hull ? ` (${rolled.hull.label})` : ''} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal });
+  return event(state, 'encounter', `${rolled.label}${rolled.hull ? ` (${rolled.hull.label})` : ''} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description.replace(/\.$/, '')}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal });
 }
 
 function afterEncounter(state, events, context) {
@@ -570,8 +674,8 @@ function launch(state, events, context) {
   return one(state, events);
 }
 
-function haltForFight(state, detail) {
-  state.halt = { reason: 'ship-fight', detail, from: 'encounter', encounter: state.encounter };
+function haltForFight(state, detail, { opponentInitiated = true } = {}) {
+  state.halt = { reason: 'ship-fight', detail, from: 'encounter', encounter: state.encounter, opponentInitiated };
   state.encounter = null;
   state.situation = 'halted';
   return one(state, [event(state, 'halt', detail, { reason: 'ship-fight' })]);
@@ -588,6 +692,8 @@ function arrive(state, events, context) {
   const target = jump.landedSystemId ? systemOf(context, jump.landedSystemId) : null;
   state.jump = null;
   if (!target) {
+    // Kept so a reload can still say where the ship came out.
+    state.landing = { systemId: null, hex: jump.landedHex, fromSystemId: jump.fromSystemId, startedOn: jump.startedOn, misjump: jump.misjump };
     state.situation = 'stranded';
     events.push(event(state, 'stranded', `emerged in empty space at ${jump.landedHex}; no world, no port`));
     return one(state, events);

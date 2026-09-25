@@ -1,6 +1,6 @@
 const SQRT3 = Math.sqrt(3);
 
-import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.314.1';
+import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.315.0';
 
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,
@@ -127,7 +127,10 @@ function appendBaseMarkers(group, system, center) {
 // v0.70.0: the subsector hex map, lifted from the referee client so the
 // player page draws the same one. `reachable` is a Map of systemId -> parsecs
 // (empty for a read-only map); with no `onSelect` the hexes are not buttons.
-export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null } = {}) {
+// v0.315.0: `lanes` are the subsector's charted routes (Book 3 p.2, kept as
+// map data), drawn world to world; `offLane` marks the worlds in range that
+// no lane reaches from here, which need the Generate program (Book 2 p.32).
+export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set() } = {}) {
   const viewBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
   const svg = createSvgNode('svg', {
     class: 'subsector-svg',
@@ -175,6 +178,7 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       group.classList.add('system-hex');
       centerBySystemId.set(system.id, center);
       if (current && reachable.has(system.id)) group.classList.add('reachable');
+      if (current && reachable.has(system.id) && offLane.has?.(system.id)) group.classList.add('off-lane');
       if (current?.id === system.id) group.classList.add('current');
       if (selected?.id === system.id) group.classList.add('selected');
       // v0.102.0: where an accepted contract has to be delivered. A job the
@@ -184,7 +188,7 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       const relation = current?.id === system.id
         ? 'current system'
         : reachable.has(system.id)
-          ? `${reachable.get(system.id)} parsecs, in range`
+          ? `${reachable.get(system.id)} parsecs, in range${offLane.has?.(system.id) ? ', off the charted lanes, needs Generate' : ''}`
           : current
             ? 'out of range'
             : 'available starting system';
@@ -245,6 +249,28 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       }
       svg.append(group);
     }
+  }
+
+  // Lanes run centre to centre, stopped short of each world's marker so the
+  // marker and its name stay readable. Under the jump line, over the hexes.
+  if (lanes.length) {
+    const layer = createSvgNode('g', { class: 'subsector-lane-layer', 'aria-hidden': 'true' });
+    const trim = SUBSECTOR_SVG_GEOMETRY.radius * 0.38;
+    for (const lane of lanes) {
+      const a = centerBySystemId.get(lane.from);
+      const b = centerBySystemId.get(lane.to);
+      if (!a || !b) continue;
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      if (length <= trim * 2) continue;
+      const ux = (b.x - a.x) / length;
+      const uy = (b.y - a.y) / length;
+      const touches = current && (lane.from === current.id || lane.to === current.id);
+      layer.append(createSvgNode('line', {
+        x1: a.x + ux * trim, y1: a.y + uy * trim, x2: b.x - ux * trim, y2: b.y - uy * trim,
+        class: `subsector-lane${touches ? ' is-here' : ''}`
+      }));
+    }
+    svg.append(layer);
   }
 
   // The jump line is drawn last so it sits over the hexes, and takes no

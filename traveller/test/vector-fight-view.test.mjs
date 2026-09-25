@@ -30,6 +30,8 @@ async function stagedVectorFight({ intruder = 'party' } = {}) {
     state: { currentFuelTons: 40 }
   });
   ship = armShipTurret(ship, { turretId: ship.specifications.armament.turrets[0].id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  // v0.315.0: a fight loads what the ship carries; an armed ship needs Target.
+  ship = { ...ship, state: { ...ship.state, computer: { programs: [...ship.state.computer.programs, 'target'] } } };
   bundle.documents.ships[0] = ship;
 
   const registry = createDocumentRegistry({ storage: createMemoryStorage() });
@@ -313,12 +315,15 @@ test('v0.246.0 the plot is y-up, like the staging board and its own bearing read
   assert.equal(Number(tokens[1].getAttribute('cy')), -10, 'a ship at +10 is drawn above the origin, not below it');
 });
 
-test('v0.246.0 the default combat loadout is p.31\u2019s own six, Maneuver included, so a vector fight can thrust', async () => {
+test('v0.315.0 a fight loads what the ship carries, Maneuver included, so a vector fight can thrust', async () => {
   const { shipCombatLoadout } = await import('../src/ship-arrival-combat.js');
   const session = await stagedVectorFight({ intruder: 'party' });
-  const loadout = shipCombatLoadout(session.resolved.ships[0]);
+  const ship = session.resolved.ships[0];
+  const loadout = shipCombatLoadout(ship);
   assert.ok(loadout.loaded.includes('maneuver'), 'Book 2 p.32: Maneuver is required to allow the use of Maneuver drive');
-  assert.ok(loadout.carried.includes('launch'));
+  assert.ok(loadout.loaded.includes('target'));
+  assert.deepEqual(loadout.carried, ship.state.computer.programs, 'nothing it did not buy');
+  assert.equal(loadout.carried.includes('launch'), false);
   const moved = session.run('shipfight:vector-move', { fight: { shipId: 'player', acceleration: { x: 2, y: 2 } } });
   assert.equal(moved.ok, true, moved.message);
 });

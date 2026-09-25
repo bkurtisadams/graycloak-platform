@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
 import { createShipDocument, financeShip } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
-import { createTrip, listActions, applyAction, tripDate, portFacts } from '../src/runner/trip.js';
+import { createTrip, listActions, applyAction, tripDate, portFacts, tripRecord, tripFromDocuments } from '../src/runner/trip.js';
 import { runTrip } from '../src/runner/run.js';
 import { createDefaultPolicy } from '../src/runner/policy.js';
 
@@ -150,7 +150,33 @@ test('an arrival encounter waits on the policy; a fight halts the trip for a per
   const fought = applyAction(trip, { type: 'fight' }, context).state;
   assert.equal(fought.situation, 'halted');
   assert.equal(fought.halt.reason, 'ship-fight');
-  assert.deepEqual(listActions(fought, context), []);
+  assert.equal(fought.halt.opponentInitiated, false, 'the party chose to fight a patrol');
+  // v0.315.0: a halt waits for a person, then goes on.
+  assert.deepEqual(listActions(fought, context).map((entry) => entry.type), ['resume']);
+});
+
+test('v0.315.0 a trip survives as its record plus the documents, and a fight on the way out resumes to the jump', async () => {
+  const resolved = await resolvedAt('aster');
+  let trip = createTrip(resolved);
+  trip = applyAction(trip, { type: 'choose-destination', systemId: 'calder' }, context).state;
+  const record = tripRecord(trip);
+  assert.equal(record.destinationId, 'calder');
+  assert.equal(Object.hasOwn(record, 'ship'), false, 'the documents are not copied into the record');
+  const rebuilt = tripFromDocuments(resolved, JSON.parse(JSON.stringify(record)));
+  assert.equal(rebuilt.destinationId, 'calder');
+  assert.deepEqual(listActions(rebuilt, context).map((entry) => entry.type), listActions(trip, context).map((entry) => entry.type));
+
+  const outbound = { ...trip, situation: 'encounter', departure: { fromSystemId: 'aster', toSystemId: 'calder', distance: 1, lane: true, leftOn: '106-4800' },
+    encounter: { key: 'pirate', label: 'Pirate', hull: 'Type S', hullKey: 'type-s-scout-courier', phase: 'outbound', hostileByDefault: true, reaction: 'x', reactionTotal: 4, systemId: 'aster', seedBase: 's', tollDemandCr: null } };
+  const fought = applyAction(outbound, { type: 'fight' }, context).state;
+  assert.equal(fought.halt.opponentInitiated, true);
+  assert.deepEqual(listActions(fought, context).map((entry) => entry.how), ['continue', 'return']);
+  const on = applyAction(fought, { type: 'resume', how: 'continue' }, context).state;
+  assert.ok(['in-jump', 'halted', 'destroyed'].includes(on.situation));
+  assert.equal(on.departure, null);
+  const back = applyAction(fought, { type: 'resume', how: 'return' }, context).state;
+  assert.equal(back.situation, 'port');
+  assert.equal(back.departure, null);
 });
 
 test('a failed drive blocks departure until a class A-C starport repairs it', async () => {
@@ -188,4 +214,15 @@ test('a misjump into empty space leaves the ship stranded', async () => {
   assert.equal(result.state.jump, null);
   assert.ok(result.events.some((entry) => entry.kind === 'stranded'));
   assert.deepEqual(listActions(result.state, context), []);
+});
+
+test('v0.315.0 a boarding party is beaten off or paid off, and the ship is back in port either way', async () => {
+  const trip = createTrip(await resolvedAt('aster', { financed: true }));
+  const held = { ...trip, situation: 'halted', halt: { reason: 'repossession-boarding', detail: 'boarding', from: 'port' },
+    ship: { ...trip.ship, state: { ...trip.ship.state, impound: { systemId: 'aster', since: '106-4800', form: 'boarding', arrearsCr: 0 } } } };
+  assert.deepEqual(listActions(held, context).map((entry) => entry.how), ['repelled', 'pay']);
+  const repelled = applyAction(held, { type: 'resume', how: 'repelled' }, context).state;
+  assert.equal(repelled.situation, 'port');
+  assert.equal(repelled.ship.state.impound, null);
+  assert.equal(repelled.halt, null);
 });

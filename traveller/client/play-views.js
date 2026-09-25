@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.314.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.314.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.314.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.314.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.315.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.0';
 import {
-  SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile,
+  SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.314.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.314.1';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.314.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.314.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.315.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.315.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.314.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -804,6 +804,25 @@ function leadCard(next, state, handlers) {
     next.cite ? h('p', { class: 'cite', text: next.cite }) : null);
 }
 
+// v0.315.0: departureChecklist's rows, before the Depart button. A failing
+// gate blocks; a risk is only a risk, and the misjump row is loud.
+function checklistPanel(list) {
+  const mark = (row) => (row.ok ? '\u2713' : row.blocking ? '\u2717' : '!');
+  const notes = [
+    `Life support ${cr(list.lifeSupportCr)}${list.overstayCr ? `, berthing past six days ${cr(list.overstayCr)}` : ''}, charged on the way out.`,
+    list.driveFailureParts.length ? `Weekly drive-failure throw DM +${list.driveFailureDM}: ${list.driveFailureParts.join('; ')}.` : null
+  ].filter(Boolean);
+  return h('section', { class: `checklist${list.ok ? ' is-clear' : ''}`, 'aria-label': 'Departure checklist' },
+    h('h3', { text: list.target ? `Before the jump to ${list.target.name}` : 'Before the jump' }),
+    h('ul', { class: 'check-rows' }, list.rows.map((row) => h('li', { class: `check-row ${row.ok ? 'is-ok' : row.blocking ? 'is-blocking' : 'is-risk'}${row.loud ? ' is-loud' : ''}` },
+      h('span', { class: 'check-mark', 'aria-hidden': 'true', text: mark(row) }),
+      h('span', { class: 'check-label', text: row.label }),
+      h('span', { class: 'check-detail', text: row.detail })))),
+    notes.map((text) => h('p', { class: 'check-note', text })),
+    h('p', { class: 'check-note is-loud', text: list.diameters }),
+    h('p', { class: 'cite', text: 'Book 2 pp.4, 6, 17, 32; The Traveller Book (1982)' }));
+}
+
 function stepRow(step, handlers = {}) {
   const row = h('li', { class: `step is-${step.state}` });
   const head = h('button', { type: 'button', class: 'step-head', 'aria-expanded': 'false',
@@ -878,6 +897,7 @@ export function renderNow(state, handlers = {}) {
   }
   if (state.notice) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }));
   parts.push(leadCard(state.next, state, handlers));
+  if (state.checklist) parts.push(checklistPanel(state.checklist));
   if (state.hold) parts.push(h('p', { class: 'hold-note', text: state.hold }));
   if (state.roster?.length) parts.push(h('ul', { class: 'roster', 'aria-label': 'Who is fighting' }, state.roster.map(rosterRow)));
   const open = (state.steps ?? []).filter((step) => step.state !== 'done');
@@ -889,7 +909,7 @@ export function renderNow(state, handlers = {}) {
 
 // ------------------------------------------------------------------ scenes
 
-function worldCaption(system, { role, label, onChoose = null, world = null } = {}) {
+function worldCaption(system, { role, label, onChoose = null, world = null, note = null } = {}) {
   const profile = parseUniversalWorldProfile(system.mainWorld.uwp);
   // v0.227.0: Book 3's PLANETARY CHARACTERISTICS, in the order and under the
   // names the book prints them, with the UWP digit each is read from. The
@@ -957,6 +977,7 @@ function worldCaption(system, { role, label, onChoose = null, world = null } = {
       const notes = [...labels, ...bases];
       return notes.length ? h('p', { class: 'caption-bases', text: notes.join(' \u00b7 ') }) : null;
     })(),
+    note ? h('p', { class: `caption-lane${note.warn ? ' is-warning' : ''}`, text: note.text }) : null,
     onChoose ? h('button', { type: 'button', class: 'button is-primary', onclick: onChoose }, h('span', { text: `Set course for ${system.name}` })) : null);
 }
 
@@ -987,15 +1008,23 @@ function mapZoomControl(svg) {
     h('button', { type: 'button', title: 'Zoom in', 'aria-label': 'Zoom in', text: '+', onclick: () => step(1) }));
 }
 
-export function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
+export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = false) {
   const subsector = FAR_MERIDIAN_SUBSECTOR;
   let current;
   try { current = getSubsectorSystem(subsector, scene.currentId ?? scene.fromId); } catch { current = null; }
   if (!current) return [h('p', { class: 'scene-title', text: `${subsector.name} subsector. This campaign's location is not on it.` })];
-  const selected = (scene.selectedId ?? scene.toId) ? getSubsectorSystem(subsector, scene.selectedId ?? scene.toId) : null;
-  const reachable = new Map(getJumpDestinations(subsector, current.id, scene.jump).map((entry) => [entry.system.id, entry.distance]));
+  const selectedId = scene.selectedId ?? scene.toId ?? scene.courseId ?? null;
+  let selected = null;
+  try { selected = selectedId ? getSubsectorSystem(subsector, selectedId) : null; } catch { selected = null; }
+  const reachable = new Map(getJumpDestinations(subsector, current.id, scene.jump ?? 0).map((entry) => [entry.system.id, entry.distance]));
+  // v0.315.0: the charted lanes (Book 3 p.2) and, from here, the worlds in
+  // range none of them reaches, which need the Generate program (Book 2 p.32).
+  const rule = scene.lanes ?? 'charted';
+  const lanes = rule === 'never' ? [] : (subsector.routes ?? []);
+  const onLane = (id) => rule === 'always' || (rule === 'charted' && laneBetween(subsector, current.id, id));
+  const offLane = new Set([...reachable.keys()].filter((id) => !onLane(id)));
   const svg = renderSubsectorMap({
-    subsector, columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS, current, selected, reachable,
+    subsector, columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS, current, selected, reachable, lanes, offLane,
     onSelect: scene.kind === 'subsector' ? (system) => onSelectSystem(system.id === current.id ? null : system.id) : null
   });
   svg.classList.add('map');
@@ -1004,9 +1033,17 @@ export function subsectorScene(scene, { onSelectSystem }, readOnly = false) {
   const captions = inJump ? [] : [worldCaption(current, { role: 'here', label: 'You are here', world: scene.world })];
   if (selected && selected.id !== current.id) {
     const distance = reachable.get(selected.id);
-    const away = `${distance} parsec${distance === 1 ? '' : 's'} away`;
+    const course = selected.id === scene.courseId;
+    const away = `${course ? 'Course set, ' : ''}${distance} parsec${distance === 1 ? '' : 's'} away`;
+    const note = inJump || !Number.isFinite(distance) ? null
+      : offLane.has(selected.id)
+        ? { warn: !scene.generate, text: scene.generate ? 'Off the charted lanes: the Generate program plots the jump (Book 2 p.32).' : 'Off the charted lanes: no cassette is sold for it, and this ship does not carry the Generate program (Book 2 p.32).' }
+        : { warn: false, text: 'On a charted lane: the starport sells the flight-plan cassette (Book 2 p.32).' };
+    const onChoose = inJump || course ? null
+      : scene.canSetCourse ? () => onCommand?.(`trip:choose-destination:${selected.id}`)
+        : readOnly ? null : () => {};
     captions.push(Number.isFinite(distance)
-      ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, onChoose: inJump || readOnly ? null : () => {} })
+      ? worldCaption(selected, { role: 'there', label: inJump ? `Bound for, ${scene.days - scene.day} days out` : away, onChoose, note })
       : h('div', { class: 'caption caption-there' }, h('p', { class: 'caption-role', text: 'Out of range' }),
         h('h2', { text: selected.name }), h('p', { class: 'caption-facts', text: `Beyond Jump-${scene.jump} from ${current.name}.` })));
   }
@@ -1305,6 +1342,7 @@ export function shipFightScene(fight, handlers) {
     h('p', { text: fight.outcome === 'in-progress'
       ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
       : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` }));
+  const blocked = fight.fireBlocked && fight.outcome === 'in-progress' ? h('p', { class: 'notice is-warning', text: fight.fireBlocked }) : null;
   const roster = h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
     h('span', { class: 'entry-name', text: ship.name }),
     h('span', { class: 'entry-note', text: `${ship.armedTurrets} armed turret${ship.armedTurrets === 1 ? '' : 's'}${ship.adrift ? ', adrift' : ''}${ship.decompressed ? ', hull breached' : ''}${ship.fled && !ship.escaped ? `, fleeing (${ship.shotsRemainingBeforeEscape} shot${ship.shotsRemainingBeforeEscape === 1 ? '' : 's'} left)` : ''}${ship.escaped ? ', escaped' : ''}${ship.surrendered ? ', surrendered' : ''}` }),
@@ -1328,7 +1366,7 @@ export function shipFightScene(fight, handlers) {
       h('div', { class: 'ship-fight-main' }, centre),
       h('aside', { class: 'ship-fight-side', 'aria-label': 'Ship data cards and log' }, renderDataCards(fight), roster, log))];
   }
-  return [lead, roster, log, centre].filter(Boolean);
+  return [lead, blocked, roster, log, centre].filter(Boolean);
 }
 
 // ----------------------------------------------------------------- drawers

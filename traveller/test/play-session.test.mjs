@@ -119,8 +119,9 @@ test('the port procedure leads with what is owed and lists the rest', async () =
   const { registry, campaignId } = await atOrison();
   const procedure = portProcedure(registry.resolveCampaign(campaignId), { subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.equal(procedure.next.title, 'Pay berthing');
-  assert.deepEqual(procedure.next.actions.map((action) => action.command), ['berthing:pay']);
-  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['jump', 'blocked']]);  assert.match(procedure.steps[0].figure, /^30 t refined, Cr 15,000$/);
+  assert.deepEqual(procedure.next.actions.map((action) => action.command), ['trip:pay-berthing']);
+  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['maintain', 'optional'], ['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['wait', 'optional'], ['jump', 'blocked']]);
+  assert.match(procedure.steps.find((step) => step.id === 'fuel').figure, /^30 t refined, Cr 15,000$/);
 });
 
 test('paying berthing and filling the tanks change the ship, the ledger and the log', async () => {
@@ -128,11 +129,11 @@ test('paying berthing and filling the tanks change the ship, the ledger and the 
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   const before = session.resolved.ships[0].state.finances.balanceCr;
 
-  assert.deepEqual(session.run('berthing:pay'), { ok: true, message: 'Marisol paid Cr 100 berthing at Orison' });
+  assert.deepEqual(session.run('trip:pay-berthing'), { ok: true, message: 'Berthing paid, Cr100.' });
   assert.equal(session.resolved.ships[0].state.portCall.berthingPaid, true);
   assert.equal(session.resolved.ships[0].state.finances.balanceCr, before - 100);
 
-  const filled = session.run('fuel:fill');
+  const filled = session.run('trip:fuel-fill');
   assert.equal(filled.ok, true);
   assert.equal(session.resolved.ships[0].state.currentFuelTons, 40);
   assert.equal(session.resolved.ships[0].state.finances.balanceCr, before - 100 - 15000);
@@ -140,7 +141,7 @@ test('paying berthing and filling the tanks change the ship, the ledger and the 
   // It is in the registry, not only in the session: a fresh resolve sees it.
   const fresh = registry.resolveCampaign(campaignId);
   assert.equal(fresh.ships[0].state.currentFuelTons, 40);
-  assert.deepEqual(fresh.activityLogs[0].entries.slice(-2).map((entry) => entry.category), ['PORT', 'SHIP']);
+  assert.deepEqual(fresh.activityLogs[0].entries.slice(-2).map((entry) => entry.category), ['PORT', 'PORT']);
 
   const view = session.view();
   assert.equal(view.next.title, 'Choose a destination');
@@ -151,20 +152,53 @@ test('a refused command changes nothing', async () => {
   const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   const before = JSON.stringify(registry.resolveCampaign(campaignId).ships[0]);
-  assert.deepEqual(session.run('fuel:fill'), { ok: false, message: 'fuel tanks are already full' });
+  assert.deepEqual(session.run('trip:fuel-fill'), { ok: false, message: 'that is not possible in port now' });
   assert.equal(session.run('warp:nine').ok, false);
   assert.equal(JSON.stringify(registry.resolveCampaign(campaignId).ships[0]), before);
 });
 
-test('a chosen destination is checked for reach and fuel', async () => {
+test('v0.315.0 a course is the runner\u2019s, set once and kept; the checklist says what it needs', async () => {
   const { registry, campaignId } = await atOrison({ fuel: 10, berthingPaid: true });
-  const resolved = registry.resolveCampaign(campaignId);
-  const jump = (selectedSystemId) => portProcedure(resolved, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId }).steps.find((step) => step.id === 'jump');
-  assert.equal(jump(null).figure, 'No destination yet');
-  assert.match(jump('cinder').figure, /short of fuel/);
-  assert.match(jump('heliograph').figure, /parsecs$/);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const jump = () => session.view().steps.find((step) => step.id === 'jump');
+  assert.equal(jump().figure, 'No course yet');
+  assert.equal(session.view().checklist, null);
+  assert.equal(session.run('trip:choose-destination:heliograph').ok, false, 'beyond jump range is no course');
+  assert.equal(session.run('trip:choose-destination:pelagos').ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.trip.destinationId, 'pelagos', 'the course is kept on the campaign');
+  // A second session (a reload) sees the same course.
+  const reloaded = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view();
+  assert.equal(reloaded.scene.courseId, 'pelagos');
+  assert.match(jump().figure, /^Pelagos: fuel/);
+  const checklist = session.view().checklist;
+  assert.equal(checklist.ok, false);
+  assert.equal(checklist.rows.find((row) => row.key === 'fuel').ok, false);
+  assert.equal(checklist.rows.find((row) => row.key === 'flight-plan').ok, true);
+  assert.match(checklist.diameters, /100 diameters/);
 });
 
+test('v0.315.0 off the lanes a course needs the Generate program', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const scout = registry.resolveCampaign(campaignId).ships[0];
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().scene.generate, true, 'a Type S is delivered with Generate');
+  const lanes = new Set(FAR_MERIDIAN_SUBSECTOR.routes.filter((route) => route.from === 'orison' || route.to === 'orison').map((route) => (route.from === 'orison' ? route.to : route.from)));
+  const reachable = getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, 'orison', 2).map((entry) => entry.system.id);
+  const onLane = reachable.find((id) => lanes.has(id));
+  const offLane = reachable.find((id) => !lanes.has(id));
+  assert.ok(onLane && offLane, 'Orison has worlds in range both on and off its lanes');
+  session.run(`trip:choose-destination:${offLane}`);
+  assert.equal(session.view().checklist.rows.find((row) => row.key === 'flight-plan').ok, true, 'Generate plots it');
+
+  registry.put({ ...scout, state: { ...scout.state, computer: { programs: scout.state.computer.programs.filter((key) => key !== 'generate') } } });
+  const bare = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const row = () => bare.view().checklist.rows.find((entry) => entry.key === 'flight-plan');
+  assert.equal(row().ok, false);
+  assert.match(row().detail, /Generate/);
+  assert.equal(bare.view().steps.find((step) => step.id === 'jump').state, 'blocked');
+  bare.run(`trip:choose-destination:${onLane}`);
+  assert.equal(row().ok, true, 'a charted lane sells its cassette here');
+});
 test('signed out, changes stay in the browser; signed in, they are saved by revision', async () => {
   const local = await atOrison();
   const offline = createPlaySession({ ...local, subsector: FAR_MERIDIAN_SUBSECTOR });
@@ -176,9 +210,9 @@ test('signed out, changes stay in the browser; signed in, they are saved by revi
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
   await session.connect();
   assert.equal(session.revision, null, 'no cloud copy yet');
-  session.run('berthing:pay');
+  session.run('trip:pay-berthing');
   await settle();
-  session.run('fuel:fill');
+  session.run('trip:fuel-fill');
   await settle();
   assert.deepEqual(cloud.calls.map((call) => [call.expectedRevision, call.revision]), [[null, 1], [1, 2]]);
   assert.equal(session.save.state, 'cloud');
@@ -190,14 +224,14 @@ test('a campaign changed elsewhere stops the page rather than overwrite it', asy
   const cloud = fakeCloud();
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
   await session.connect();
-  session.run('berthing:pay');
+  session.run('trip:pay-berthing');
   await settle();
   cloud.bump(); // another browser saved revision 2
-  session.run('fuel:fill');
+  session.run('trip:fuel-fill');
   await settle();
   assert.equal(session.save.state, 'stale');
   assert.equal(cloud.calls.length, 1, 'the stale write never landed');
-  assert.deepEqual(session.run('fuel:fill'), { ok: false, message: 'this campaign was changed elsewhere; reload first' });
+  assert.deepEqual(session.run('trip:fuel-fill'), { ok: false, message: 'this campaign was changed elsewhere; reload first' });
   assert.equal(session.view().steps.every((step) => !step.command), true);
 });
 
@@ -206,7 +240,7 @@ test('opening signed in adopts the cloud copy and its revision', async () => {
   const cloud = fakeCloud();
   const writer = createPlaySession({ ...first, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
   await writer.connect();
-  writer.run('berthing:pay');
+  writer.run('trip:pay-berthing');
   await settle();
 
   const second = await atOrison(); // a browser that has not seen the payment
@@ -227,7 +261,7 @@ test('the page leaves a campaign alone while a fight is running there', async ()
 
 // ---------------------------------------------------------------- v0.208.0
 import { routeMarketSeed, seededDice, campaignDateKey } from '../client/commerce-market.js';
-import { generateFreightOffers, parseUniversalWorldProfile, getSubsectorSystem } from '../vendor/classic-traveller-rules/index.js';
+import { generateFreightOffers, parseUniversalWorldProfile, getSubsectorSystem, getJumpDestinations } from '../vendor/classic-traveller-rules/index.js';
 
 // A trader with room: the fixture's scout has a 3 t hold, which no freight
 // lot fits, and ship documents must match a canonical design, so swap in a
@@ -238,7 +272,8 @@ async function traderAtAster({ steward = false } = {}) {
   const bundle = JSON.parse(await readFile(fixture, 'utf8'));
   bundle.campaign.location = { systemId: 'aster', systemName: 'Aster', worldId: 'aster-main', worldName: 'Aster' };
   const old = bundle.documents.ships[0];
-  const crewAssignments = [{ role: 'pilot', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' }];
+  // v0.315.0: a 200-ton hull needs a medic to depart (Book 2 p.17); Hawkeye doubles.
+  const crewAssignments = [{ role: 'pilot', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' }, { role: 'medic', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' }];
   if (steward) crewAssignments.push({ role: 'steward', characterId: 'char-04164baa70c3b5a6', characterName: 'Hawkeye' });
   bundle.documents.ships[0] = createShipDocument({
     designKey: 'type-a-free-trader', id: old.identity.id, name: 'Marisol', registry: 'A-1', authority: old.authority, crewAssignments,
@@ -254,15 +289,16 @@ async function traderAtAster({ steward = false } = {}) {
 test('a chosen destination lists its freight and passengers; berthing and fuel still lead', async () => {
   const { registry, campaignId } = await traderAtAster();
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.equal(session.view().steps.some((step) => step.id.startsWith('freight')), false, 'nothing is offered until a destination is chosen');
-  const view = session.view({ selectedSystemId: 'calder' });
+  assert.equal(session.view().steps.some((step) => step.id.startsWith('freight')), false, 'nothing is offered until a course is set');
+  session.run('trip:choose-destination:calder');
+  const view = session.view();
   assert.equal(view.next.title, 'Bound for Calder');
-  const freight = view.steps.filter((step) => step.command?.startsWith('freight:load:'));
+  const freight = view.steps.filter((step) => step.command?.startsWith('trip:load-freight:'));
   assert.ok(freight.length >= 1 && freight.length <= 4);
-  assert.ok(view.steps.some((step) => step.command === 'passengers:book:middle'));
+  assert.ok(view.steps.some((step) => step.command === 'trip:book-passengers:middle'));
   // No steward: high passage is never bookable, and any waiting are turned
   // away in one quiet row that gives the reason.
-  assert.equal(view.steps.some((step) => step.command === 'passengers:book:high'), false);
+  assert.equal(view.steps.some((step) => step.command === 'trip:book-passengers:high'), false);
   const turned = view.steps.find((step) => step.id === 'pass-turned-away');
   if (turned && /high/.test(turned.figure)) assert.match(turned.copy, /steward/);
 });
@@ -276,61 +312,60 @@ test('the offers are the ones the current client generates: same seed, same ids'
     destinationTravelZone: getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'calder').travelZone,
     dice: seededDice(routeMarketSeed(campaign, 'aster', 'calder', 'freight')),
     idPrefix: `freight-${campaignDateKey(campaign)}-aster-calder`
-  }).offers.filter((offer) => offer.tons <= 82).slice(0, 4).map((offer) => `freight:load:${offer.id}`);
-  const shown = session.view({ selectedSystemId: 'calder' }).steps.filter((step) => step.command?.startsWith('freight:load:')).map((step) => step.command);
+  }).offers.filter((offer) => offer.tons <= 82).slice(0, 4).map((offer) => `trip:load-freight:${offer.id}`);
+  session.run('trip:choose-destination:calder');
+  const shown = session.view().steps.filter((step) => step.command?.startsWith('trip:load-freight:')).map((step) => step.command);
   assert.deepEqual(shown, expected);
 });
 
 test('loading freight and booking passengers fill the ship and leave the offer board', async () => {
   const { registry, campaignId } = await traderAtAster({ steward: true });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  const at = { selectedSystemId: 'calder' };
-  const lot = session.view(at).steps.find((step) => step.command?.startsWith('freight:load:'));
-  assert.equal(session.run(lot.command, at).ok, true);
+  session.run('trip:choose-destination:calder');
+  const lot = session.view().steps.find((step) => step.command?.startsWith('trip:load-freight:'));
+  assert.equal(session.run(lot.command).ok, true);
   const ship = () => registry.resolveCampaign(campaignId).ships[0];
   assert.equal(ship().state.cargoManifest.length, 1);
   assert.equal(ship().state.cargoManifest[0].destinationSystemId, 'calder');
   assert.ok(ship().state.cargoUsedTons > 0);
-  assert.equal(session.view(at).steps.some((step) => step.command === lot.command), false, 'a loaded lot is no longer offered');
-  assert.equal(session.run(lot.command, at).ok, false, 'and cannot be loaded twice');
+  assert.equal(session.view().steps.some((step) => step.command === lot.command), false, 'a loaded lot is no longer offered');
+  assert.equal(session.run(lot.command).ok, false, 'and cannot be loaded twice');
 
   const before = ship().state.finances.balanceCr;
-  const middle = session.view(at).steps.find((step) => step.command === 'passengers:book:middle');
+  const middle = session.view().steps.find((step) => step.command === 'trip:book-passengers:middle');
   const count = Number(middle.verb.replace('Book ', ''));
-  assert.equal(session.run('passengers:book:middle', at).ok, true);
+  assert.equal(session.run('trip:book-passengers:middle').ok, true);
   assert.equal(ship().state.passengerManifest.filter((entry) => entry.class === 'middle').length, count);
   assert.equal(ship().state.finances.balanceCr, before, 'the engine credits fares on delivery, not at booking');
   assert.equal(ship().state.passengerManifest[0].fareCr, 8000);
-  assert.ok(session.view(at).done.some((line) => /middle passage booked for Calder/.test(line)));
-  assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.at(-1).category, 'TRADE');
+  assert.ok(session.view().done.some((line) => /middle passage booked for Calder/.test(line)));
 
-  // With passengers aboard for Aster, another destination cannot be jumped to.
-  const jump = session.view({ selectedSystemId: 'port-meridian' }).steps.find((step) => step.id === 'jump');
+  // With passengers aboard for Calder, another course cannot be flown.
+  session.run('trip:choose-destination:port-meridian');
+  const jump = session.view().steps.find((step) => step.id === 'jump');
   assert.match(jump.figure, /Passengers aboard for Calder/);
 });
 
-test('freight and passengers need a destination in range, and an exclusive charter refuses them', async () => {
+test('freight and passengers need a course, and an exclusive charter refuses them', async () => {
   const { registry, campaignId } = await traderAtAster();
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.deepEqual(session.run('passengers:book:middle'), { ok: false, message: 'choose a destination within jump range first' });
-  assert.equal(session.run('passengers:book:middle', { selectedSystemId: 'heliograph' }).ok, false);
+  assert.equal(session.run('trip:book-passengers:middle').ok, false);
 
   const resolved = registry.resolveCampaign(campaignId);
   const charter = { ...resolved.contracts.find((entry) => entry.status === 'accepted'), requirements: { cargoTons: 0, exclusiveShip: true, description: '' } };
-  // A destination other than the charter's own (Calder): commerce and the
-  // jump itself both refuse, since the charter must be delivered first.
-  const procedure = portProcedure({ ...resolved, contracts: [charter] }, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId: 'port-meridian' });
-  assert.equal(procedure.steps.some((step) => step.command), false);
+  const course = (systemId) => ({ ...resolved, contracts: [charter], campaign: { ...resolved.campaign, roster: { ...resolved.campaign.roster, trip: { situation: 'port', destinationId: systemId } } } });
+  // A course other than the charter's own (Calder): commerce and the jump
+  // itself both refuse, since the charter must be delivered first.
+  const procedure = portProcedure(course('port-meridian'), { subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(procedure.steps.some((step) => step.command?.startsWith('trip:load-freight') || step.command?.startsWith('trip:book-passengers') || step.command === 'trip:depart'), false);
   assert.match(procedure.steps.find((step) => step.id === 'commerce').figure, /^Chartered to /);
   assert.match(procedure.steps.find((step) => step.id === 'jump').figure, /^Chartered to /);
 
-  // Departing for the charter's own destination is allowed: Depart appears
-  // as the lead action and the jump row is ready.
-  const toCharter = portProcedure({ ...resolved, contracts: [charter] }, { subsector: FAR_MERIDIAN_SUBSECTOR, selectedSystemId: 'calder' });
-  assert.equal(toCharter.next.actions[0]?.command, 'depart');
+  // Departing for the charter's own destination is allowed.
+  const toCharter = portProcedure(course('calder'), { subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(toCharter.next.actions[0]?.command, 'trip:depart');
   assert.equal(toCharter.steps.find((step) => step.id === 'jump').state, 'ready');
 });
-
 // ---------------------------------------------------------------- v0.208.3
 import { weeklyTradeSeed } from '../client/commerce-market.js';
 import { generateSpeculativeTradeOffer } from '../vendor/classic-traveller-rules/index.js';
@@ -440,201 +475,216 @@ test('the carrying limit follows the world the character is on, and is unadjuste
 });
 
 // ---------------------------------------------------------------- v0.210.0
-test('departure advances a week, burns the whole jump fuel allowance, and opens a new port call', async () => {
+// ---------------------------------------------------------------- v0.315.0
+// The trip: depart, the encounter on the way out, the transit day, the jump
+// as weeks, the encounter on the way in, and the landing — the runner's, with
+// every step written back to the campaign.
+function playTo(session, systemId, { limit = 20 } = {}) {
+  const seen = [];
+  for (let step = 0; step < limit; step += 1) {
+    const view = session.view();
+    seen.push(view.situation.kind);
+    if (view.situation.kind === 'port' && session.resolved.campaign.location.systemId === systemId) return seen;
+    const lead = view.situation.kind === 'encounter'
+      ? view.next.actions.find((action) => /let-pass|pay-toll/.test(action.command)) ?? view.next.actions[0]
+      : view.next.actions[0];
+    if (!lead) return seen;
+    const result = session.run(lead.command);
+    if (!result.ok) throw new Error(result.message);
+  }
+  return seen;
+}
+
+test('departure lifts, jumps for a week and opens a new port call, each step kept on the campaign', async () => {
   const { registry, campaignId } = await traderAtAster({ steward: true });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   const before = session.resolved;
   const beforeDate = before.campaign.time;
   const beforeFuel = before.ships[0].state.currentFuelTons;
 
-  assert.deepEqual(session.run('depart'), { ok: false, message: 'choose a destination within jump range first' });
-  const at = { selectedSystemId: 'calder' };
-  const result = session.run('depart', at);
-  assert.equal(result.ok, true);
-  assert.match(result.message, /arrived at Calder/);
+  assert.equal(session.run('trip:depart').ok, false, 'no course, no departure');
+  session.run('trip:choose-destination:calder');
+  assert.equal(session.run('trip:depart').ok, true);
+  const trip = registry.resolveCampaign(campaignId).campaign.roster.trip;
+  assert.ok(['encounter', 'in-jump'].includes(trip.situation), 'the trip is on the campaign');
 
+  const seen = playTo(session, 'calder');
+  assert.ok(seen.includes('jump'), 'the jump had a screen of its own');
   const after = registry.resolveCampaign(campaignId);
-  assert.equal(after.campaign.time.dayOfYear, beforeDate.dayOfYear + 7);
+  // Book 2 p.1: about a day to 100 diameters, then the week in jump.
+  assert.equal(after.campaign.time.dayOfYear, beforeDate.dayOfYear + 8);
   assert.equal(after.campaign.location.systemId, 'calder');
   const ship = after.ships[0];
-  // A free trader with a Jump-1 drive burns its whole jump-fuel allowance
-  // (Book 2 p.6) regardless of the one-parsec distance actually jumped.
   assert.ok(ship.state.currentFuelTons < beforeFuel);
   assert.equal(ship.state.portCall.systemId, 'calder');
   assert.equal(ship.state.portCall.berthingPaid, false);
-  // ARRIVAL is always logged; a NAV entry follows it when the arrival throw
-  // turns up shipping (Book 2 p.38), so check ARRIVAL is among the last two.
-  assert.ok(after.activityLogs[0].entries.slice(-2).some((entry) => entry.category === 'ARRIVAL'));
+  assert.ok(after.activityLogs[0].entries.some((entry) => entry.category === 'ARRIVAL'));
+  assert.equal(after.campaign.roster.trip.situation, 'port');
+});
 
-  // Cannot depart twice without a new destination in range of the new port.
-  assert.equal(session.run('depart', at).ok, false);
+test('a reload in jump space finds the ship still in jump space', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  if (session.view().situation.kind === 'encounter') session.run('trip:let-pass');
+  const view = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view();
+  assert.equal(view.situation.kind, 'jump');
+  assert.equal(view.scene.kind, 'jump');
+  assert.equal(view.scene.toId, 'calder');
+  assert.deepEqual(view.next.actions.map((action) => action.command), ['trip:jump-week']);
+  assert.equal(view.steps.some((step) => step.id === 'jump-drives'), true);
+  assert.equal(view.checklist, undefined, 'no port business shows in jump');
 });
 
 test('freight and passengers loaded for the destination are delivered and paid on arrival', async () => {
   const { registry, campaignId } = await traderAtAster({ steward: true });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  const at = { selectedSystemId: 'calder' };
-  const lot = session.view(at).steps.find((step) => step.command?.startsWith('freight:load:'));
-  session.run(lot.command, at);
-  session.run('passengers:book:middle', at);
+  session.run('trip:choose-destination:calder');
+  const lot = session.view().steps.find((step) => step.command?.startsWith('trip:load-freight:'));
+  session.run(lot.command);
+  session.run('trip:book-passengers:middle');
   const before = session.resolved.ships[0].state.finances.balanceCr;
-
-  const result = session.run('depart', at);
-  assert.equal(result.ok, true);
-  assert.match(result.message, /freight shipment.*delivered/);
-  assert.match(result.message, /passenger.*disembarked/);
-
+  session.run('trip:depart');
+  playTo(session, 'calder');
   const ship = registry.resolveCampaign(campaignId).ships[0];
   assert.equal(ship.state.cargoManifest.some((entry) => entry.destinationSystemId === 'calder'), false);
   assert.equal(ship.state.passengerManifest.length, 0);
-  assert.ok(ship.state.finances.balanceCr > before, 'freight revenue and passenger fares were credited');
+  assert.ok(ship.state.finances.balanceCr > before, 'freight revenue and passenger fares were credited, net of life support');
+  assert.ok(registry.resolveCampaign(campaignId).activityLogs[0].entries.some((entry) => /freight delivered/.test(entry.message)));
 });
 
-test('an accepted contract for the destination pays out on arrival; one overdue elsewhere fails', async () => {
+test('an accepted contract for the destination pays out on arrival', async () => {
   const { registry, campaignId } = await traderAtAster({ steward: true });
   const resolved = registry.resolveCampaign(campaignId);
-  const contracts = resolved.contracts.map((contract) => (contract.status === 'accepted'
+  registry.putAll(resolved.contracts.map((contract) => (contract.status === 'accepted'
     ? { ...contract, destination: { ...contract.destination, systemId: 'calder', systemName: 'Calder' }, timing: { ...contract.timing, deadlineDate: { year: 4900, dayOfYear: 1 } } }
-    : contract));
-  registry.putAll(contracts);
+    : contract)));
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  const before = session.resolved.ships[0].state.finances.balanceCr;
-  const result = session.run('depart', { selectedSystemId: 'calder' });
-  assert.equal(result.ok, true);
-  assert.match(result.message, /completed, Cr/);
-
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  playTo(session, 'calder');
   const after = registry.resolveCampaign(campaignId);
-  const completed = after.contracts.filter((entry) => entry.status === 'completed');
-  assert.ok(completed.length >= 1);
-  assert.ok(after.ships[0].state.finances.balanceCr > before);
+  assert.ok(after.contracts.some((entry) => entry.status === 'completed'));
 });
 
 test('departure is refused when berthing is owed, fuel is short, or an exclusive charter binds elsewhere', async () => {
   const { registry: unpaidRegistry, campaignId: unpaidId } = await traderAtAster({ steward: true });
   const unpaidResolved = unpaidRegistry.resolveCampaign(unpaidId);
   unpaidRegistry.put({ ...unpaidResolved.ships[0], state: { ...unpaidResolved.ships[0].state, portCall: { ...unpaidResolved.ships[0].state.portCall, berthingPaid: false } } });
-  const unpaidSession = createPlaySession({ registry: unpaidRegistry, campaignId: unpaidId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.deepEqual(unpaidSession.run('depart', { selectedSystemId: 'calder' }), { ok: false, message: 'pay berthing before departure' });
+  const unpaid = createPlaySession({ registry: unpaidRegistry, campaignId: unpaidId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  unpaid.run('trip:choose-destination:calder');
+  assert.equal(unpaid.run('trip:depart').ok, false);
+  assert.match(unpaid.view().steps.find((step) => step.id === 'jump').figure, /berthing unpaid/);
 
   const { registry: dryRegistry, campaignId: dryId } = await traderAtAster({ steward: true });
   const dryResolved = dryRegistry.resolveCampaign(dryId);
   dryRegistry.put({ ...dryResolved.ships[0], state: { ...dryResolved.ships[0].state, currentFuelTons: 0 } });
-  const drySession = createPlaySession({ registry: dryRegistry, campaignId: dryId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.match(drySession.run('depart', { selectedSystemId: 'calder' }).message, /insufficient fuel/);
+  const dry = createPlaySession({ registry: dryRegistry, campaignId: dryId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  dry.run('trip:choose-destination:calder');
+  assert.match(dry.run('trip:depart').message, /fuel/);
+  assert.equal(dryRegistry.resolveCampaign(dryId).campaign.roster.trip.situation, 'port', 'a refusal is not a halt');
 
   const { registry, campaignId } = await traderAtAster({ steward: true });
   const resolved = registry.resolveCampaign(campaignId);
-  const charter = { ...resolved.contracts.find((entry) => entry.status === 'accepted'), destination: { systemId: 'port-meridian', systemName: 'Port Meridian' }, requirements: { cargoTons: 0, exclusiveShip: true, description: '' } };
-  registry.put(charter);
+  registry.put({ ...resolved.contracts.find((entry) => entry.status === 'accepted'), destination: { systemId: 'port-meridian', systemName: 'Port Meridian' }, requirements: { cargoTons: 0, exclusiveShip: true, description: '' } });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.match(session.run('depart', { selectedSystemId: 'calder' }).message, /chartered to Port Meridian/);
-  assert.equal(session.run('depart', { selectedSystemId: 'port-meridian' }).ok, true);
+  session.run('trip:choose-destination:calder');
+  assert.match(session.run('trip:depart').message, /chartered to Port Meridian/);
 });
 
-// ---------------------------------------------------------------- v0.211.0
-test('arrival throws for shipping, leads the column with it, and lets it be dismissed', async () => {
+// A standing encounter, written straight onto the trip.
+function standEncounter(registry, campaignId, encounter = {}) {
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, trip: {
+    situation: 'encounter', destinationId: null,
+    departure: { fromSystemId: 'aster', toSystemId: 'calder', distance: 1, lane: true, leftOn: '106-4800' },
+    encounter: { key: 'pirate', label: 'Pirate', hull: 'Type S', hullKey: 'type-s-scout-courier', phase: 'outbound', hostileByDefault: true,
+      reaction: 'Hostile.', reactionTotal: 4, reactionDM: 0, systemId: 'aster', seedBase: 'test', tollDemandCr: null, ...encounter }
+  } } });
+}
+
+async function armedScoutAtAster({ target = true } = {}) {
   const { registry, campaignId } = await traderAtAster({ steward: true });
-  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.equal(session.arrivalEncounter, null, 'nothing is standing before a jump');
-
-  const result = session.run('depart', { selectedSystemId: 'calder' });
-  assert.equal(result.ok, true);
-  const encounter = session.arrivalEncounter;
-
-  if (encounter) {
-    // The throw found shipping: it leads the column until it is dismissed.
-    assert.equal(encounter.systemId, 'calder');
-    assert.ok(typeof encounter.label === 'string' && encounter.label.length > 0);
-    assert.ok(typeof encounter.reaction === 'string' && encounter.reaction.length > 0);
-    const view = session.view();
-    assert.match(view.next.title, new RegExp(encounter.label));
-    assert.equal(view.next.actions[0].command, 'arrival:dismiss');
-    assert.equal(view.arrivalEncounter.label, encounter.label);
-    // Port business is still listed behind it.
-    assert.ok(view.steps.some((step) => step.id === 'berthing' || step.id === 'fuel'));
-
-    assert.equal(session.run('arrival:dismiss').ok, true);
-    assert.equal(session.arrivalEncounter, null);
-    assert.equal(new RegExp(encounter.label).test(session.view().next.title), false);
-    assert.equal(session.run('arrival:dismiss').ok, false, 'nothing left to dismiss');
-  } else {
-    // The throw found nothing: the port call proceeds as usual.
-    assert.equal(session.view().arrivalEncounter, null);
-    assert.equal(session.run('arrival:dismiss').ok, false);
-  }
-});
-
-test('the arrival encounter is seeded on the arrival, so it does not reroll', async () => {
-  const roll = async () => {
-    const { registry, campaignId } = await traderAtAster({ steward: true });
-    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-    session.run('depart', { selectedSystemId: 'calder' });
-    return session.arrivalEncounter;
-  };
-  const first = await roll();
-  const second = await roll();
-  assert.deepEqual(first, second, 'the same arrival always yields the same encounter');
-});
-
-// ---------------------------------------------------------------- v0.230.0
-test('an arrival encounter can be fought — lasers only, abbreviated, to a real outcome', async () => {
-  // Aster -> Calder is seeded to a Free Trader with a hostile reaction (a
-  // fixed fact of this fixture, checked by hand before writing this test —
-  // see the "does not reroll" test above for why that is safe to rely on).
-  //
-  // The fixture ship is a Type A Free Trader, whose own design ships with
-  // armament: { hardpoints: 2, turrets: [] } — the hardpoints are a number,
-  // not turret records, and nothing in the rules package fits a NEW turret
-  // into one (armShipTurret only arms a turret mount the design already
-  // specifies). So a Free Trader cannot be armed at all yet, by anyone, in
-  // this engine — a real gap, unrelated to this slice, worth its own look.
-  // Swapped in a Type S Scout/Courier here purely so this test can arm a
-  // ship and actually exercise a fight.
-  const { registry, campaignId } = await traderAtAster({ steward: true });
-  const resolved = registry.resolveCampaign(campaignId);
-  const oldShip = resolved.ships[0];
+  const oldShip = registry.resolveCampaign(campaignId).ships[0];
   let ship = createShipDocument({ designKey: 'type-s-scout-courier', id: oldShip.identity.id, name: oldShip.identity.name, authority: oldShip.authority, crewAssignments: oldShip.crew.assignments, state: { ...oldShip.state, currentFuelTons: 40 } });
   ship = armShipTurret(ship, { turretId: ship.specifications.armament.turrets[0].id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
+  const programs = ship.state.computer.programs.filter((key) => key !== 'target');
+  ship = { ...ship, state: { ...ship.state, computer: { programs: target ? [...programs, 'target'] : programs } } };
   registry.put(ship);
+  return { registry, campaignId };
+}
 
+test('an encounter leads the column, can be let pass, and the trip goes on', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  standEncounter(registry, campaignId, { key: 'free-trader', label: 'Free Trader', hull: null, hullKey: 'free-trader', hostileByDefault: false });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
-  assert.equal(session.run('depart', { selectedSystemId: 'calder' }).ok, true);
-  assert.ok(session.arrivalEncounter, 'this route is seeded to an encounter');
-  assert.equal(session.view().shipFight, undefined, 'nothing is fighting yet');
+  const view = session.view();
+  assert.equal(view.situation.kind, 'encounter');
+  assert.match(view.next.title, /Free Trader as the ship leaves Aster/);
+  assert.deepEqual(view.next.actions.map((action) => action.command), ['trip:let-pass', 'trip:fight'], 'a hail is for the way in only');
+  assert.equal(view.steps.length, 0, 'no port business behind it');
+  assert.equal(session.run('trip:let-pass').ok, true);
+  assert.equal(session.view().situation.kind, 'jump');
+});
 
+test('an encounter can be fought — lasers only, abbreviated — survives a reload, and the trip goes on after', async () => {
+  const { registry, campaignId } = await armedScoutAtAster();
+  standEncounter(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().shipFight, undefined, 'nothing is fighting yet');
   assert.equal(session.run('shipfight:fire').ok, false, 'no fight to fire in yet');
 
-  const started = session.run('arrival:fight');
-  assert.equal(started.ok, true);
-  assert.equal(session.arrivalEncounter, null, 'the encounter is consumed into the fight, not left standing behind it');
-  assert.equal(session.run('arrival:fight').ok, false, 'a second fight cannot start over the first');
+  assert.equal(session.run('trip:fight').ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.trip.situation, 'halted');
+  assert.ok(registry.resolveCampaign(campaignId).campaign.roster.shipFight, 'the fight is kept on the campaign');
+  assert.equal(session.run('trip:fight').ok, false, 'a second fight cannot start over the first');
 
   let view = session.view();
   assert.ok(view.shipFight, 'the fight takes the screen');
   assert.equal(view.shipFight.roster.length, 2);
-  assert.ok(view.shipFight.roster.some((entry) => entry.name === ship.identity.name));
+  const turn = view.shipFight.gameTurn;
 
-  // Fire every round until it resolves one way or another — real dice, so the
-  // number of rounds is not fixed, but Book 2 combat with an armed party ship
-  // against an unarmed-by-default encounter resolves quickly.
+  // A reload picks the fight up where it left off.
+  const reloaded = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(reloaded.view().shipFight.gameTurn, turn);
+  assert.deepEqual(reloaded.view().shipFight.log, view.shipFight.log);
+
   let guard = 0;
-  while (session.view().shipFight.outcome === 'in-progress' && guard < 40) {
+  while (reloaded.view().shipFight.outcome === 'in-progress' && guard < 60) {
     guard += 1;
-    const result = session.run('shipfight:fire');
-    assert.equal(result.ok, true);
+    assert.equal(reloaded.run(reloaded.view().shipFight.actions[0].command).ok, true);
   }
-  view = session.view();
-  assert.notEqual(view.shipFight.outcome, 'in-progress', 'the fight reached a real conclusion within a sane number of rounds');
-  assert.ok(view.shipFight.log.length > 0, 'shots were narrated');
+  view = reloaded.view();
+  assert.notEqual(view.shipFight.outcome, 'in-progress', 'the fight reached a real conclusion');
   assert.deepEqual(view.shipFight.actions, [{ command: 'shipfight:end', label: 'End fight', primary: true }]);
+  assert.equal(reloaded.run('shipfight:end').ok, true);
+  assert.equal(reloaded.view().shipFight, undefined, 'the fight is over and off the screen');
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.shipFight, undefined);
+  assert.equal(reloaded.run('shipfight:end').ok, false, 'nothing left to end');
 
-  const ended = session.run('shipfight:end');
-  assert.equal(ended.ok, true);
-  assert.equal(session.view().shipFight, undefined, 'the fight is over and off the screen');
-  assert.equal(session.run('shipfight:end').ok, false, 'nothing left to end');
+  const after = reloaded.view();
+  assert.equal(after.situation.kind, 'halted');
+  assert.deepEqual(after.next.actions.map((action) => action.command), ['trip:resume:continue', 'trip:resume:return']);
+  assert.equal(reloaded.run('trip:resume:return').ok, true);
+  assert.equal(reloaded.view().situation.kind, 'port');
   assert.equal(registry.resolveCampaign(campaignId).activityLogs[0].entries.some((entry) => entry.category === 'SHIP'), true);
 });
 
+test('v0.315.0 no Target program, no laser fire', async () => {
+  const { registry, campaignId } = await armedScoutAtAster({ target: false });
+  standEncounter(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  session.run('trip:fight');
+  const fight = session.view().shipFight;
+  assert.equal(fight.actions.some((action) => action.command === 'shipfight:fire'), false);
+  assert.match(fight.fireBlocked, /Target/);
+  const combat = registry.resolveCampaign(campaignId).campaign.roster.shipFight.encounter;
+  assert.equal(combat.participants.find((entry) => entry.id === 'player').computer.carried.includes('target'), false, 'the ship carries what it bought');
+  assert.equal(combat.participants.find((entry) => entry.id === 'opponent').computer.loaded.includes('target'), true, 'an armed encountered ship carries Target');
+});
+// ---------------------------------------------------------------- v0.211.0
+// ---------------------------------------------------------------- v0.230.0
 // ---------------------------------------------------------------- v0.212.0
 import { createEncounterDocument, endEncounterByReferee } from '../src/encounter-document.js';
 import { addEncounterToCampaign } from '../src/campaign-document.js';
@@ -1217,19 +1267,14 @@ test('v0.281.0 players\u2019 chat lines carry ISO times and sit in time order am
 // v0.282.0: Kurt — the player saw nothing of a ship fight, and the referee's
 // Clear did not reach the player's chat.
 test('v0.282.0 a ship fight is published for players with no controls, and gone when it ends', async () => {
-  const { registry, campaignId } = await traderAtAster({ steward: true });
-  const resolved = registry.resolveCampaign(campaignId);
-  const oldShip = resolved.ships[0];
-  let ship = createShipDocument({ designKey: 'type-s-scout-courier', id: oldShip.identity.id, name: oldShip.identity.name, authority: oldShip.authority, crewAssignments: oldShip.crew.assignments, state: { ...oldShip.state, currentFuelTons: 40 } });
-  ship = armShipTurret(ship, { turretId: ship.specifications.armament.turrets[0].id, weapon: 'beam-laser', pricePerWeaponCr: 0 }).ship;
-  registry.put(ship);
+  const { registry, campaignId } = await armedScoutAtAster();
+  standEncounter(registry, campaignId);
   const envelopes = [];
   const cloud = fakeCloud();
   const save = cloud.save;
   cloud.save = async (home, envelope, options) => { envelopes.push(envelope); return save(home, envelope, options); };
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
-  assert.equal(session.run('depart', { selectedSystemId: 'calder' }).ok, true);
-  assert.equal(session.run('arrival:fight').ok, true);
+  assert.equal(session.run('trip:fight').ok, true);
   for (let tick = 0; tick < 6; tick += 1) await settle();
   const published = envelopes.at(-1).shipFight;
   assert.ok(published, 'the fight is on the players\u2019 page');
@@ -1238,7 +1283,7 @@ test('v0.282.0 a ship fight is published for players with no controls, and gone 
   assert.deepEqual(published.repairActions, []);
   assert.equal(published.roster.length, 2);
   let guard = 0;
-  while (session.view().shipFight?.outcome === 'in-progress' && guard < 40) { guard += 1; session.run('shipfight:fire'); }
+  while (session.view().shipFight?.outcome === 'in-progress' && guard < 60) { guard += 1; session.run(session.view().shipFight.actions[0].command); }
   session.run('shipfight:end');
   for (let tick = 0; tick < 6; tick += 1) await settle();
   assert.equal(envelopes.at(-1).shipFight, null, 'and leaves when it ends');
