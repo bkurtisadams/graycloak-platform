@@ -206,7 +206,10 @@ button, input, select { font: inherit; color: inherit; }
    Optional also has a dashed edge. The lead action is filled and bold. */
 .button[class*='kind-'] { display: inline-flex; align-items: center; gap: 8px; }
 .button .button-text { display: grid; gap: 1px; }
-.kind-icon { flex-shrink: 0; }
+/* v0.315.4: sized outright — `.scene svg` (the map's own rule) otherwise
+   blows the icon up to the scene's full width wherever a kind button sits
+   in the scene, as the map head's Set course does. */
+svg.kind-icon, .scene svg.kind-icon { flex-shrink: 0; display: inline-block; width: 14px; height: 14px; min-height: 0; padding: 0; }
 .button.kind-owed { background: var(--owed-wash); color: var(--owed-ink); border-color: var(--owed-edge); }
 .button.kind-travel { background: var(--travel-wash); color: var(--travel-ink); border-color: var(--travel-edge); }
 .button.kind-money { background: var(--money-wash); color: var(--money-ink); border-color: var(--money-edge); }
@@ -322,7 +325,8 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .scene { overflow-y: auto; overflow-x: auto; }
 /* v0.303.0: map zoom. */
 .map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.map-head .map-course { margin-left: auto; }
+.map-head .map-course { margin-left: auto; flex-shrink: 0; }
+.map-head .map-course .button { white-space: nowrap; }
 .map-head .map-lanes[aria-pressed='false'] { opacity: 0.6; text-decoration: line-through; }
 .map-head .map-legend { position: relative; margin-left: auto; }
 .map-head .map-course + .map-legend { margin-left: 0; }
