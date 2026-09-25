@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.325.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.325.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.325.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.325.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.325.1';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.325.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.325.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.325.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.325.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.325.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.325.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.325.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.325.1';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.325.1';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.325.1';
+import { renderSectionStrip } from './section-strip.js?v=v0.325.1';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.325.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.325.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.325.1';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.325.1';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.325.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.325.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1281,6 +1281,18 @@ function attachCamera(svg, { key, frame, focus }) {
     ? { zoom: saved.zoom, cx: saved.x - offset.x, cy: saved.y - offset.y }
     : { zoom: 1, cx: focus?.x ?? bx + bw / 2, cy: focus?.y ?? by + bh / 2 };
   const listeners = new Set();
+  // v0.325.1: at most one redraw of the map a frame. Every pointer move and
+  // wheel notch set the viewBox straight away, and with some hundreds of
+  // worlds each one re-rendered the whole drawing — several times a frame on
+  // a fast mouse, which is what made the pan jerky.
+  let frameRequested = false;
+  const schedule = () => {
+    if (frameRequested) return;
+    frameRequested = true;
+    const run = () => { frameRequested = false; apply(); };
+    if (typeof globalThis.requestAnimationFrame === 'function') globalThis.requestAnimationFrame(run);
+    else run();
+  };
   const apply = () => {
     camera.zoom = Math.min(CAMERA_ZOOM.max, Math.max(CAMERA_ZOOM.min, camera.zoom));
     const w = bw / camera.zoom;
@@ -1304,18 +1316,21 @@ function attachCamera(svg, { key, frame, focus }) {
     const u = unitsPerPixel();
     return { x: camera.cx + (clientX - (box.left + box.width / 2)) * u, y: camera.cy + (clientY - (box.top + box.height / 2)) * u };
   };
-  const zoomAbout = (factor, point) => {
+  const zoomAbout = (factor, point, { now = true } = {}) => {
     const before = camera.zoom;
     camera.zoom = Math.min(CAMERA_ZOOM.max, Math.max(CAMERA_ZOOM.min, camera.zoom * factor));
     const ratio = before / camera.zoom;
     camera.cx = point.x - (point.x - camera.cx) * ratio;
     camera.cy = point.y - (point.y - camera.cy) * ratio;
-    apply();
-    commit();
+    if (now) { apply(); commit(); } else schedule();
   };
+  // The wheel's place is saved once it has been still a moment.
+  let wheelRest = null;
   svg.addEventListener('wheel', (event) => {
     event.preventDefault();
-    zoomAbout(event.deltaY < 0 ? 1.15 : 1 / 1.15, pointAt(event.clientX, event.clientY));
+    zoomAbout(event.deltaY < 0 ? 1.15 : 1 / 1.15, pointAt(event.clientX, event.clientY), { now: false });
+    clearTimeout(wheelRest);
+    wheelRest = setTimeout(commit, 250);
   }, { passive: false });
   svg.addEventListener('contextmenu', (event) => event.preventDefault());
   const pointers = new Map();
@@ -1345,12 +1360,11 @@ function attachCamera(svg, { key, frame, focus }) {
       const m1 = mid(after);
       camera.cx -= (m1.x - m0.x) * u;
       camera.cy -= (m1.y - m0.y) * u;
-      apply();
-      zoomAbout(gap(after) / gap(before), pointAt(m1.x, m1.y));
+      zoomAbout(gap(after) / gap(before), pointAt(m1.x, m1.y), { now: false });
     } else {
       camera.cx -= (event.clientX - was.x) * u;
       camera.cy -= (event.clientY - was.y) * u;
-      apply();
+      schedule();
     }
     drag.moved = true;
   });
@@ -1359,6 +1373,7 @@ function attachCamera(svg, { key, frame, focus }) {
     if (!drag || pointers.size > 0) return;
     drag = null;
     svg.classList.remove('is-panning');
+    apply();
     commit();
     setMapDragging(false);
   };

@@ -1568,3 +1568,8 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 
 /* v0.325.0: Re-chart in the map head. */
 .map-head .map-rechart { font: inherit; font-size: 13px; padding: 3px 6px; background: var(--raise); color: var(--ink); border: 1px solid var(--line); }
+
+/* v0.325.1: while the map moves, nothing on it animates or answers the
+   pointer, so each frame is the drawing alone. */
+.scene > svg.map.is-panning * { animation-play-state: paused !important; pointer-events: none; }
+.scene > svg.map.is-panning .system-hex:hover .subsector-hex-shape { stroke: var(--line); }

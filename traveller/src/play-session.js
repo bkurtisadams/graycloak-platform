@@ -2636,8 +2636,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   let subsector = sector ? campaignSectorMap(resolved.campaign, sector) : subsectorParam;
   let revision = null;
   let save = { state: 'local', label: 'This browser only', detail: 'Saved in this browser', at: null };
-  let saving = false;
-  let queued = false;
+  // v0.325.1: one cloud save at a time; a save asked for while one is in
+  // flight runs once after it, and every caller in between gets that one's
+  // promise. Before, a caller that arrived mid-save got null and had to poll,
+  // and a caller polling faster than a save takes (Admit, every 400 ms) could
+  // be turned away thirty times running and give up.
+  let inflight = null;
+  let following = null;
   let lastMessage = null;
   // v0.230.0: a ship fight — an encounter the party chose to fight, or one
   // staged on a Space scene. Lasers only when abbreviated (p.37); see
@@ -3094,11 +3099,18 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     }
   }
 
-  async function saveToCloud() {
+  function saveToCloud() {
     const uid = cloud?.userId?.();
-    if (!uid || save.state === 'stale') return null;
-    if (saving) { queued = true; return null; }
-    saving = true;
+    if (!uid || save.state === 'stale') return Promise.resolve(null);
+    if (inflight) {
+      following ??= inflight.then(() => { following = null; return saveToCloud(); });
+      return following;
+    }
+    inflight = cloudSave(uid).finally(() => { inflight = null; });
+    return inflight;
+  }
+
+  async function cloudSave(uid) {
     try {
       let { campaign } = resolved;
       if (campaign.ownership?.ownerUid !== uid) { campaign = setCampaignOwner(campaign, uid); registry.put(campaign); reload(); }
@@ -3156,9 +3168,6 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       if (error instanceof StaleCampaignHomeError) setSave('stale', `This campaign was changed elsewhere (revision ${error.currentRevision}). Reload before continuing.`);
       else setSave('error', `Saved in this browser; the cloud save failed: ${error?.message ?? error}`);
       return null;
-    } finally {
-      saving = false;
-      if (queued) { queued = false; saveToCloud(); }
     }
   }
 

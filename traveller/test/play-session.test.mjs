@@ -1974,3 +1974,22 @@ test('v0.325.0 subsectors are charted sparse, and one the campaign is not holdin
   assert.match(held.run('sector:rechart:K').message, /holding on to/);
   assert.ok(held.view().scene.recharts.some((entry) => entry.letter === 'K' && entry.block));
 });
+
+// ---------------------------------------------------------------- v0.325.1
+test('v0.325.1 a save asked for during another waits for it and then saves, rather than being turned away', async () => {
+  const { registry, campaignId } = await atOrison();
+  const base = fakeCloud();
+  let release = null;
+  const cloud = { ...base, save: async (...args) => { await new Promise((resolve) => { release = resolve; }); return base.save(...args); } };
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR, cloud });
+  const first = session.saveToCloud();
+  const second = session.saveToCloud();
+  const third = session.saveToCloud();
+  assert.equal(second, third, 'callers in between share the one save that follows');
+  await settle();
+  release();
+  assert.equal(typeof (await first), 'number');
+  await settle();
+  release();
+  assert.equal(await second, (await first) + 1, 'the follow-up save lands, one revision on');
+});
