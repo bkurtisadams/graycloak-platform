@@ -202,8 +202,12 @@ const HEX_DIRECTIONS = Object.freeze({
  * the subsector (column and row are then outside 1-8 and 1-10) and may hold
  * no world at all. Deep space is allowed (ruling, Sep 2026).
  */
-export function hexInDirection(fromHex, direction, distance) {
-  const { column, row } = parseSubsectorHex(fromHex);
+// v0.79.1: on any map — a subsector (8x10) by default, or a sector (32x40)
+// given as bounds; "inSubsector" means inside those bounds.
+export function hexInDirection(fromHex, direction, distance, bounds = null) {
+  const columns = bounds?.columns ?? SUBSECTOR_COLUMNS;
+  const rows = bounds?.rows ?? SUBSECTOR_ROWS;
+  const { column, row } = parseSubsectorHex(fromHex, { columns, rows });
   const step = HEX_DIRECTIONS[direction];
   if (!step) throw new RangeError('direction must be 1 to 6');
   if (!Number.isInteger(distance) || distance < 0) throw new RangeError('distance must be a non-negative integer');
@@ -211,8 +215,8 @@ export function hexInDirection(fromHex, direction, distance) {
   const z = (row - 1) - Math.floor((column - 1) / 2) + step.z * distance;
   const toColumn = x + 1;
   const toRow = z + Math.floor(x / 2) + 1;
-  const inSubsector = toColumn >= 1 && toColumn <= SUBSECTOR_COLUMNS && toRow >= 1 && toRow <= SUBSECTOR_ROWS;
-  return Object.freeze({ column: toColumn, row: toRow, inSubsector, hex: inSubsector ? formatSubsectorHex(toColumn, toRow) : null });
+  const inSubsector = toColumn >= 1 && toColumn <= columns && toRow >= 1 && toRow <= rows;
+  return Object.freeze({ column: toColumn, row: toRow, inSubsector, hex: inSubsector ? formatSubsectorHex(toColumn, toRow, { columns, rows }) : null });
 }
 
 /**
@@ -450,7 +454,8 @@ export function beginJump(ship, {
   sinceLabel = null,
   laneExists = false,
   diametersFromWorld = null,
-  nonPlayerPassengers = null
+  nonPlayerPassengers = null,
+  bounds = null
 } = {}) {
   requireDice(dice);
   const checklist = departureChecklist(ship, { distance, dateLabel, sinceLabel, laneExists, diametersFromWorld });
@@ -458,8 +463,9 @@ export function beginJump(ship, {
     const blocked = checklist.rows.filter((row) => row.blocking && !row.ok).map((row) => `${row.key}: ${row.detail}`);
     throw new RangeError(`departure blocked — ${blocked.join('; ')}`);
   }
-  parseSubsectorHex(fromHex);
-  parseSubsectorHex(toHex);
+  const mapBounds = bounds ?? { columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS };
+  parseSubsectorHex(fromHex, mapBounds);
+  parseSubsectorHex(toHex, mapBounds);
 
   const fuel = consumeJumpFuel(ship, distance);
   const fuelQuality = ship.state.fuelQuality;
@@ -469,7 +475,7 @@ export function beginJump(ship, {
 
   let destination = { hex: toHex, inSubsector: true, planned: true };
   if (misjump.misjump && !misjump.destroyed) {
-    const landed = hexInDirection(fromHex, misjump.direction, misjump.distanceHexes);
+    const landed = hexInDirection(fromHex, misjump.direction, misjump.distanceHexes, mapBounds);
     destination = { ...landed, planned: false };
   }
   const weeks = misjump.destroyed ? 0 : misjump.weeksInJump;

@@ -1932,3 +1932,19 @@ test('v0.322.0 smuggled cargo is loaded on taking the job and meets the law on l
   assert.ok(['completed', 'failed'].includes(after.contracts.find((entry) => entry.identity.id === job.identity.id).status), 'settled on landing, one way or the other');
   assert.equal(after.ships[0].state.cargoManifest.some((entry) => entry.id === `${job.identity.id}:cargo`), false);
 });
+
+// ---------------------------------------------------------------- v0.322.1
+test('v0.322.1 on the sector, a jump between sector hexes goes (Aster to Orison)', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  // The free trader is Jump-1; Orison is two parsecs from Aster. Give the ship Jump-2 fuel and drive by using the scout.
+  const scout = createShipDocument({ designKey: 'type-s-scout-courier', id: ship.identity.id, name: ship.identity.name, authority: ship.authority, crewAssignments: ship.crew.assignments, state: { ...ship.state, currentFuelTons: 40, computer: { programs: ['maneuver', 'jump-1', 'jump-2', 'navigation', 'generate'] } } });
+  registry.put(scout);
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  assert.equal(session.run('trip:choose-destination:orison').ok, true);
+  const departed = session.run('trip:depart');
+  assert.equal(departed.ok, true, departed.message);
+  const seen = playTo(session, 'orison');
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.trip.halt?.reason ?? null, null, seen.join(' '));
+  assert.equal(registry.resolveCampaign(campaignId).campaign.location.systemId, 'orison');
+});

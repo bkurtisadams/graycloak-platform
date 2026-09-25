@@ -692,7 +692,9 @@ function launch(state, events, context) {
     jump = beginJump(state.ship, {
       dice: seeded(state, `${state.campaign.identity.id}|jump|${from.id}|${target.id}|${dateLabel}`),
       distance: departure.distance, fromHex: from.hex, toHex: target.hex, dateLabel,
-      sinceLabel: firstLedgerDate(state.ship), laneExists: departure.lane
+      sinceLabel: firstLedgerDate(state.ship), laneExists: departure.lane,
+      // v0.322.1: a sector's hexes run past a subsector's 8x10.
+      bounds: { columns: context.subsector.columns ?? 8, rows: context.subsector.rows ?? 10 }
     });
   } catch (error) {
     return halt(state, events, 'departure-checklist', `jump refused — ${error.message}`, 'outbound');

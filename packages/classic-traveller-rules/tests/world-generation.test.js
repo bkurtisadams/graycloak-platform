@@ -91,3 +91,12 @@ test('a quick NPC and an opposition group replay exactly from the same seed', ()
   assert.deepEqual(a, b);
 });
 import { OPPOSITION_TEMPLATES as OPPOSITION } from '../src/npc-templates.js';
+
+// v0.79.1: a jump between sector hexes (columns past 8, rows past 10).
+import { beginJump, hexInDirection } from '../src/starships/jump.js';
+test('a jump and a misjump work on sector hexes', () => {
+  const sector = { columns: 32, rows: 40 };
+  assert.equal(hexInDirection('1515', 3, 2, sector).hex, '1716');
+  assert.equal(hexInDirection('0101', 6, 1, sector).inSubsector, false);
+  assert.throws(() => hexInDirection('1515', 3, 1), /column/, 'without bounds, still a subsector');
+});
