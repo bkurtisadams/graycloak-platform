@@ -659,10 +659,14 @@ function shipSheet(resolved, id) {
     kind: 'ship', id, title: ship.identity.name || 'Ship',
     subtitle: [ship.design?.name, `Type ${ship.design?.typeCode}`].filter(Boolean).join(' \u00b7 '),
     tabs: ['Data card', 'Cargo & crew', 'Finances'],
-    card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.label ?? key }) : [],
+    card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.label ?? key, programs: false }) : [],
     strip: shipSectionStrip(ship),
     // v0.316.4: for the referee's remove-a-program correction.
-    programs: (ship.state?.computer?.programs ?? []).map((key) => ({ key, label: COMPUTER_PROGRAMS[key]?.label ?? key, unusable: programUnusable(ship, key) })),
+    programs: (ship.state?.computer?.programs ?? []).map((key) => ({
+      key, label: COMPUTER_PROGRAMS[key]?.label ?? key, group: COMPUTER_PROGRAMS[key]?.class ?? 'routine',
+      space: COMPUTER_PROGRAMS[key]?.space ?? null, unusable: programUnusable(ship, key)
+    })),
+    computer: { model: ship.specifications?.computer?.model ?? null, cpu: ship.specifications?.computer?.cpu ?? null, storage: ship.specifications?.computer?.storage ?? null },
     ship: view,
     // Kurt, Sep 2026: editable, because mistakes are made and the referee
     // needs a way to correct them. Not while a fight is writing to the same

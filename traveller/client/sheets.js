@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.4';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.316.4';
-import { renderSectionStrip } from './section-strip.js?v=v0.316.4';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.5';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.316.5';
+import { renderSectionStrip } from './section-strip.js?v=v0.316.5';
 
 const DRAGGED = new Map();
 
@@ -95,6 +95,32 @@ function field(label, value, { onchange = null, width = null, type = 'text', loc
   return h('label', { class: 'sheet-field' }, h('span', { text: label }), input);
 }
 
+// Which ship sheets have the Programs panel open, across redraws.
+const openPrograms = new Set();
+const PROGRAM_GROUPS = Object.freeze([['routine', 'Routine'], ['offensive', 'Offensive'], ['defensive', 'Defensive']]);
+
+function programsPanel(sheet, handlers) {
+  const unusable = sheet.programs.filter((program) => program.unusable).length;
+  const canRemove = sheet.editable && Boolean(handlers.onEditShip);
+  const summary = `Programs \u2014 ${sheet.programs.length} carried${unusable ? ` \u00b7 ${unusable} unusable` : ''}${sheet.computer?.model ? ` \u00b7 Model/${sheet.computer.model}, CPU ${sheet.computer.cpu}, storage ${sheet.computer.storage}` : ''}`;
+  const panel = h('details', { class: 'sheet-programs', open: openPrograms.has(sheet.id) },
+    h('summary', { text: summary }),
+    PROGRAM_GROUPS.map(([group, title]) => {
+      const rows = sheet.programs.filter((program) => program.group === group);
+      if (!rows.length) return null;
+      return h('div', { class: 'program-group' },
+        h('div', { class: 'sheet-section-label', text: title.toUpperCase() }),
+        h('ul', { class: 'program-list' }, rows.map((program) => h('li', { class: `program-row${program.unusable ? ' is-unusable' : ''}`, title: program.unusable ?? null },
+          h('span', { class: 'program-name', text: program.label }),
+          h('span', { class: 'program-space', text: program.space === null ? '' : `${program.space} space` }),
+          program.unusable ? h('span', { class: 'program-note', text: `unusable: ${program.unusable}` }) : null,
+          canRemove ? h('button', { type: 'button', class: 'program-remove', 'aria-label': `Remove ${program.label} (referee)`, title: 'Remove from the card (referee). Book 2 has no resale; refund by the account field if you choose.', text: '\u00d7',
+            onclick: () => { if (globalThis.confirm?.(`Take ${program.label} off ${sheet.title}? No refund is made.`) ?? true) handlers.onEditShip?.(sheet.id, 'remove-program', program.key); } }) : null))));
+    }));
+  panel.addEventListener('toggle', () => { if (panel.open) openPrograms.add(sheet.id); else openPrograms.delete(sheet.id); });
+  return panel;
+}
+
 function shipBody(sheet, handlers) {
   const parts = [];
   if (!sheet.editable) {
@@ -113,16 +139,10 @@ function shipBody(sheet, handlers) {
       field('Fuel aboard, tons', ship.fuel.now, { type: 'number', width: 90, onchange: (value) => handlers.onEditShip?.(sheet.id, 'fuel', value), locked: !sheet.editable }),
       field('Ship account, Cr', ship.accountCr ?? 0, { type: 'number', width: 130, onchange: (value) => handlers.onEditShip?.(sheet.id, 'account', value), locked: !sheet.editable })));
   }
-  // v0.316.4: a program bought by mistake comes off the card by fiat.
-  if (sheet.editable && sheet.programs?.length && handlers.onEditShip) {
-    const choice = h('select', { 'aria-label': 'Program to remove' }, sheet.programs.map((program) => h('option', { value: program.key, text: `${program.label}${program.unusable ? ' (unusable)' : ''}` })));
-    const firstUnusable = sheet.programs.find((program) => program.unusable);
-    if (firstUnusable) choice.value = firstUnusable.key;
-    parts.push(h('div', { class: 'sheet-rows sheet-remove-program' },
-      h('label', { class: 'sheet-field' }, h('span', { text: 'Remove a program (referee)' }), choice),
-      h('button', { type: 'button', class: 'button is-small', text: 'Remove', onclick: () => handlers.onEditShip?.(sheet.id, 'remove-program', choice.value) }),
-      h('p', { class: 'sheet-note', text: 'Book 2 has no resale for software; refund it, if you choose to, in the account field above.' })));
-  }
+  // v0.316.5: the programs in a panel of their own, grouped as Book 2 p.12
+  // lists them, each with its size; unusable ones say why. The referee's
+  // remove sits on each row (v0.316.4's drop-down, folded in).
+  if (sheet.programs?.length) parts.push(programsPanel(sheet, handlers));
   parts.push(h('div', { class: 'sheet-actions' },
     h('button', { type: 'button', class: 'button is-small', text: 'Stage on a scene', onclick: () => handlers.onStageDocument?.('ship', sheet.id) }),
     h('button', { type: 'button', class: 'button is-small', text: 'Copy', onclick: () => handlers.onCopyDocument?.('ship', sheet.id) })));
@@ -749,7 +769,7 @@ export function renderSheets(sheets, handlers = {}) {
           onclick: () => handlers.onCompactSheet?.(sheet.kind, sheet.id, !compact)
         }),
         h('button', { type: 'button', class: 'sheet-close', 'aria-label': `Close ${sheet.title}`, text: '\u00d7', onclick: () => handlers.onCloseSheet?.(sheet.kind, sheet.id) })));
-    const panel = h('section', { class: `sheet${compact ? ' is-compact' : ''}`, 'aria-label': `${sheet.title} sheet` }, bar, h('div', { class: 'sheet-body' }, body));
+    const panel = h('section', { class: `sheet${compact ? ' is-compact' : ''}${sheet.kind === 'ship' ? ' is-ship' : ''}`, 'aria-label': `${sheet.title} sheet` }, bar, h('div', { class: 'sheet-body' }, body));
     // v0.264.0: a character's sheet takes a drop from the Compendium, as
     // Foundry's does from a compendium pack; the drop asks Buy or Give.
     // v0.267.0: an NPC actor's too; a statblock's compact form does not.

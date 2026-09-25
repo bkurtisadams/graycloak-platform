@@ -137,11 +137,13 @@ test('v0.249.0 a ship sheet carries Book 2 p.24\u2019s card, and a scene sheet w
   assert.match(sheet.lines[0], /Type S/);
   assert.ok(sheet.lines.some((line) => /M-Drive/.test(line)));
   assert.ok(sheet.lines.some((line) => /Model\/1/.test(line)), 'the computer sits in the card\u2019s right column');
-  // v0.314.2: the card lists the programs the ship carries; a Scout in
-  // service has Generate since ship document v9.
-  const carried = sheet.lines.find((line) => line.startsWith('Carried: '));
-  assert.ok(carried, 'the ship\u2019s own software is on the card');
-  assert.match(carried, /Generate/);
+  // v0.314.2: the sheet lists the programs the ship carries; a Scout in
+  // service has Generate since ship document v9. v0.316.5: in a Programs
+  // panel of their own, grouped, not one long line on the card.
+  assert.equal(sheet.lines.some((line) => line.startsWith('Carried: ')), false);
+  const generate = sheet.programs.find((program) => program.key === 'generate');
+  assert.deepEqual({ group: generate.group, space: generate.space, unusable: generate.unusable }, { group: 'routine', space: 2, unusable: null });
+  assert.deepEqual(sheet.computer, { model: '1', cpu: 2, storage: 4 });
   assert.equal(sheet.editable, true, 'Kurt, Sep 2026: editable, because mistakes are made');
 
   session.run('scene:create', { fight: { value: { name: 'Aster Approach', boardKind: 'vector' } } });
