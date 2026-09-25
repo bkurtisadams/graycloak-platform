@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.318.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.318.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.318.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.318.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.318.2';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.318.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.318.2';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.318.2';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.318.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.318.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.318.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.318.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.318.2';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.318.2';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.318.2';
+import { renderSectionStrip } from './section-strip.js?v=v0.318.2';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.318.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.318.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.318.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.318.2';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.318.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.318.2';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -942,7 +942,7 @@ function personEncounterCard(p, state, handlers) {
       h('dt', { text: 'Reaction' }), h('dd', { text: `${p.reaction.total}: ${p.reaction.description}` })),
     law ? h('p', { class: `person-law${law.avoided ? '' : ' is-arrest'}` },
       kindIcon(law.avoided ? 'neutral' : 'danger'),
-      h('span', { text: `Law level ${law.level}: ${law.violations.join(', ')} ${law.violations.length === 1 ? 'is' : 'are'} prohibited here. Throw ${law.level}+ to avoid arrest: ${law.total} \u2014 ${law.avoided ? 'waved on' : `ARREST: ${law.arrested.join(' and ')}, ${law.jailDays} day${law.jailDays === 1 ? '' : 's'} in jail (1D, The Traveller Book)`} (Book 3 p.7).` })) : null,
+      h('span', { text: `Law level ${law.level}: ${law.violations.join(', ')} ${law.violations.length === 1 ? 'is' : 'are'} prohibited here. Throw ${law.level}+ to avoid arrest: ${law.total} \u2014 ${law.avoided ? 'waved on' : `ARREST: ${law.arrested.join(' and ')}, ${law.jailDays} day${law.jailDays === 1 ? '' : 's'} in jail (1D, The Traveller Book), and the forbidden weapons confiscated`} (Book 3 p.7).` })) : null,
     p.actions?.length ? h('div', { class: 'lead-actions' }, p.actions.map((action) => kindButton(action, { onclick: () => handlers.onCommand?.(action.command) }))) : null,
     p.actorIds?.length ? startFight(state, handlers, { open: true, foeIds: p.actorIds }) : null,
     h('p', { class: 'cite', text: 'Book 3 pp.19-21; reaction p.23' }));

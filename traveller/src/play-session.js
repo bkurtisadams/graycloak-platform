@@ -1970,7 +1970,9 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
       // v0.318.1: The Traveller Book (1982), 1D days in jail for a weapons
       // violation (Kurt, Sep 2026). Those carrying are the ones taken.
       arrested: arrest.avoided ? [] : [...new Set(law.caught.map((entry) => entry.name))],
-      jailDays: arrest.avoided ? null : weaponsViolationJailDays(dice)
+      jailDays: arrest.avoided ? null : weaponsViolationJailDays(dice),
+      // v0.318.2 (Kurt, Sep 2026): the forbidden weapons are confiscated.
+      seized: arrest.avoided ? [] : law.caught.map((entry) => ({ id: entry.id ?? null, name: entry.name, weaponKey: entry.weaponKey, weaponName: entry.weaponName }))
     };
   }
   return record;
@@ -4346,8 +4348,23 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           if (!law || law.avoided || !law.jailDays) throw new Error('nobody was arrested');
           const days = law.jailDays;
           const who = law.arrested.join(' and ');
+          // The forbidden weapons are confiscated (Kurt, Sep 2026): out of
+          // hand and out of the pack, one of each seized.
+          const seizedNotes = [];
+          const confiscated = [];
+          for (const item of law.seized ?? []) {
+            let character = (resolved.characters ?? []).find((entry) => entry.identity.id === item.id);
+            if (!character) continue;
+            const carried = (character.inventory ?? []).find((entry) => entry.weaponKey === item.weaponKey);
+            if (carried) character = removeCharacterInventoryItem(character, carried.id);
+            if (character.loadout?.weaponKey === item.weaponKey) character = updateCharacterGameplayState(character, { weaponKey: 'hands', armor: character.loadout.armor });
+            confiscated.push(character);
+            seizedNotes.push(`${item.name}\u2019s ${item.weaponName}`);
+          }
+          if (confiscated.length) persist(confiscated);
           registry.put(withPersonState(withAnimalState(resolved.campaign, { surface: null }), { pending: null }));
           reload();
+          if (seizedNotes.length) log('ENCOUNTER', `Confiscated by the police on ${pending.worldName}: ${seizedNotes.join(', ')}.`);
           log('ENCOUNTER', `${who} ${law.arrested.length === 1 ? 'is' : 'are'} arrested on ${pending.worldName} for a weapons violation (law level ${law.level}): ${days} day${days === 1 ? '' : 's'} in jail, 1D (The Traveller Book).`);
           const passed = run('time:pass', { fight: { value: { amount: days, unit: 'days', reason: `${who} in jail on ${pending.worldName}` } } });
           if (!passed.ok) throw new Error(passed.message);

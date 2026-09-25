@@ -1695,7 +1695,8 @@ test('v0.318.0 police who meet a party carrying what the law forbids throw the l
   const police = rollPersonEncounter(createSequenceDice([2, 3, 4, 3, 3, 4, 4, 5, 5, 6, 6, 6, 6, 1]));
   const law = { level: 7, caught: [{ name: 'Hawkeye', weaponName: 'Laser Rifle' }] };
   const arrested = personEncounterRecord(createSequenceDice([3, 2, 4]), police, { date: '106-4800', worldName: 'Orison', law });
-  assert.deepEqual(arrested.law, { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 5, avoided: false, arrested: ['Hawkeye'], jailDays: 4 });
+  assert.deepEqual(arrested.law, { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 5, avoided: false, arrested: ['Hawkeye'], jailDays: 4,
+    seized: [{ id: null, name: 'Hawkeye', weaponKey: undefined, weaponName: 'Laser Rifle' }] });
   const waved = personEncounterRecord(createSequenceDice([4, 4]), police, { date: '106-4800', worldName: 'Orison', law });
   assert.equal(waved.law.avoided, true);
   assert.equal(personEncounterRecord(createSequenceDice([]), police, { date: '106-4800', worldName: 'Orison', law: null }).law, null, 'nothing forbidden, nothing to throw');
@@ -1736,7 +1737,8 @@ test('v0.318.1 an arrest is served as 1D days in jail: the party leaves the surf
   const record = { date: '106-4800', worldName: 'Orison', code: 23, type: 'Police', quantity: 3, quantityDice: '1D', vehicle: true, weaponry: 'Automatic Pistols', armor: 'Cloth',
     weapon: 'automatic-pistol', armorKey: 'cloth', characteristics: { strength: 7, dexterity: 7, endurance: 7 }, extraordinary: null,
     reaction: { total: 5, dice: [2, 3], description: 'Hostile. May attack.' }, enforcement: true, actorIds: [],
-    law: { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 4, avoided: false, arrested: ['Hawkeye'], jailDays: 3 } };
+    law: { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 4, avoided: false, arrested: ['Hawkeye'], jailDays: 3,
+      seized: [{ id: r.characters[0].identity.id, name: 'Hawkeye', weaponKey: 'laser-rifle', weaponName: 'Laser Rifle' }] } };
   registry.put({ ...r.campaign, roster: { ...r.campaign.roster, persons: { pending: record } } });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.deepEqual(session.view().personEncounter.actions.map((action) => [action.command, action.kind]),
@@ -1748,4 +1750,9 @@ test('v0.318.1 an arrest is served as 1D days in jail: the party leaves the surf
   assert.equal(after.campaign.time.dayOfYear, before + 3);
   assert.equal(after.campaign.roster.persons.pending, null);
   assert.ok(after.activityLogs[0].entries.some((entry) => /Hawkeye is arrested on Orison .* 3 days in jail/.test(entry.message)));
+  // v0.318.2: the laser rifle is confiscated, from hand and from the pack.
+  const hawkeye = after.characters.find((entry) => entry.identity.id === r.characters[0].identity.id);
+  assert.equal(hawkeye.loadout.weaponKey, 'hands');
+  assert.equal(hawkeye.inventory.some((entry) => entry.weaponKey === 'laser-rifle'), false);
+  assert.ok(after.activityLogs[0].entries.some((entry) => /Confiscated by the police on Orison: Hawkeye\u2019s Laser Rifle/.test(entry.message)));
 });
