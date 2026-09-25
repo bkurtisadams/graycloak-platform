@@ -1559,3 +1559,9 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .key-hex.is-off-lane { fill: var(--signal-wash); stroke: var(--signal); stroke-dasharray: 3 2; }
 .key-hex.is-course { stroke: var(--travel-edge); stroke-width: 2.5; stroke-dasharray: 4 3; }
 .map-legend ul { max-height: 70vh; overflow-y: auto; }
+
+/* v0.324.0: the map pans (right-button drag, two fingers) and zooms (wheel,
+   pinch) by its camera, not by scrolling. */
+.scene > svg.map { touch-action: none; }
+.scene > svg.map.is-panning { cursor: grabbing; }
+.map-zoom .map-centre { font-size: 15px; }

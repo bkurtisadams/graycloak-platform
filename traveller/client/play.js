@@ -2,17 +2,17 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.323.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.323.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.323.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.323.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.323.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.323.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.323.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.323.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.323.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.323.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.323.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.324.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.324.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.324.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.324.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.324.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.324.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.324.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.324.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.324.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.324.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.324.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -349,8 +349,16 @@ function playJumpWeek(command) {
   return true;
 }
 
+// v0.324.0: a map pan in progress holds redraws too; the one owed runs when
+// the drag ends (play-views.js raises traveller:map-drag-end).
+globalThis.addEventListener?.('traveller:map-drag-end', () => {
+  if (!press.owed || press.held) return;
+  press.owed = false;
+  render();
+});
+
 function render() {
-  if (press.held) { press.owed = true; return; }
+  if (press.held || document.body?.dataset.mapDragging) { press.owed = true; return; }
   if (source.mode === 'empty') { renderEmpty(); return; }
   try { syncMultiplayer(); } catch (error) { console.warn('[traveller] multiplayer:', error); }
   const state = withJumpAnimation(viewState());

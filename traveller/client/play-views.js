@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.323.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.323.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.323.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.323.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.324.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.324.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.324.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.324.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.323.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.323.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.323.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.323.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.324.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.324.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.324.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.324.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.323.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.323.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.324.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.324.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.323.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.324.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1247,23 +1247,142 @@ function mapKey(withLanes) {
       ].filter(Boolean))));
 }
 
-function mapZoomControl(svg) {
-  const level = h('button', { type: 'button', class: 'map-zoom-level', title: 'Fit the map to the panel', text: `${Math.round(savedMapZoom() * 100)}%` });
-  const set = (value) => {
-    svg.style.setProperty('--map-zoom', String(value));
-    level.textContent = `${Math.round(value * 100)}%`;
-    try { globalThis.localStorage?.setItem('traveller.mapZoom', String(value)); } catch { /* private window */ }
+// v0.324.0: the map pans and zooms like Foundry's canvas (Kurt, Sep 2026):
+// the wheel zooms about the cursor, a right-button drag pans, two fingers pan
+// and pinch. It moves a camera over the drawing (the SVG's viewBox), so the
+// page never scrolls. The camera is kept per map across the page's redraws
+// and reloads, in sector units so charting a new subsector does not shift it.
+const CAMERA_KEY = 'traveller.mapCamera';
+const CAMERA_ZOOM = Object.freeze({ min: 0.5, max: 8 });
+function loadCameras() {
+  try { return JSON.parse(globalThis.localStorage?.getItem(CAMERA_KEY) || '{}') ?? {}; } catch { return {}; }
+}
+function saveCamera(key, camera) {
+  try { globalThis.localStorage?.setItem(CAMERA_KEY, JSON.stringify({ ...loadCameras(), [key]: camera })); } catch { /* private window */ }
+}
+// While a drag is on, the page holds its redraws (play.js reads this).
+function setMapDragging(on) {
+  if (!globalThis.document?.body) return;
+  if (on) globalThis.document.body.dataset.mapDragging = '1';
+  else {
+    delete globalThis.document.body.dataset.mapDragging;
+    globalThis.dispatchEvent?.(new Event('traveller:map-drag-end'));
+  }
+}
+
+function attachCamera(svg, { key, frame, focus }) {
+  const [bx, by, bw, bh] = String(svg.getAttribute('viewBox') ?? '0 0 100 100').split(/\s+/).map(Number);
+  const { radius } = SUBSECTOR_SVG_GEOMETRY;
+  const step = { x: radius * 1.5, y: Math.sqrt(3) * radius };
+  // Sector units: the frame's own origin added back.
+  const offset = { x: (frame.firstColumn - 1) * step.x, y: (frame.firstRow - 1) * step.y };
+  const saved = loadCameras()[key];
+  const camera = saved && Number.isFinite(saved.zoom)
+    ? { zoom: saved.zoom, cx: saved.x - offset.x, cy: saved.y - offset.y }
+    : { zoom: 1, cx: focus?.x ?? bx + bw / 2, cy: focus?.y ?? by + bh / 2 };
+  const listeners = new Set();
+  const apply = () => {
+    camera.zoom = Math.min(CAMERA_ZOOM.max, Math.max(CAMERA_ZOOM.min, camera.zoom));
+    const w = bw / camera.zoom;
+    const h2 = bh / camera.zoom;
+    // Keep some of the drawing in view: the camera centre stays on it.
+    camera.cx = Math.min(bx + bw, Math.max(bx, camera.cx));
+    camera.cy = Math.min(by + bh, Math.max(by, camera.cy));
+    svg.setAttribute('viewBox', `${(camera.cx - w / 2).toFixed(1)} ${(camera.cy - h2 / 2).toFixed(1)} ${w.toFixed(1)} ${h2.toFixed(1)}`);
+    for (const listener of listeners) listener(camera);
   };
-  const step = (direction) => {
-    const index = MAP_ZOOMS.indexOf(savedMapZoom());
-    set(MAP_ZOOMS[Math.max(0, Math.min(MAP_ZOOMS.length - 1, (index < 0 ? MAP_ZOOMS.indexOf(1) : index) + direction))]);
+  const commit = () => saveCamera(key, { zoom: camera.zoom, x: camera.cx + offset.x, y: camera.cy + offset.y });
+  // Screen pixels to drawing units, for the viewBox as shown ("meet").
+  const unitsPerPixel = () => {
+    const box = svg.getBoundingClientRect?.();
+    if (!box || !box.width || !box.height) return bw / camera.zoom / 600;
+    return Math.max((bw / camera.zoom) / box.width, (bh / camera.zoom) / box.height);
   };
-  level.onclick = () => set(1);
-  svg.style.setProperty('--map-zoom', String(savedMapZoom()));
+  const pointAt = (clientX, clientY) => {
+    const box = svg.getBoundingClientRect?.();
+    if (!box || !box.width) return { x: camera.cx, y: camera.cy };
+    const u = unitsPerPixel();
+    return { x: camera.cx + (clientX - (box.left + box.width / 2)) * u, y: camera.cy + (clientY - (box.top + box.height / 2)) * u };
+  };
+  const zoomAbout = (factor, point) => {
+    const before = camera.zoom;
+    camera.zoom = Math.min(CAMERA_ZOOM.max, Math.max(CAMERA_ZOOM.min, camera.zoom * factor));
+    const ratio = before / camera.zoom;
+    camera.cx = point.x - (point.x - camera.cx) * ratio;
+    camera.cy = point.y - (point.y - camera.cy) * ratio;
+    apply();
+    commit();
+  };
+  svg.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    zoomAbout(event.deltaY < 0 ? 1.15 : 1 / 1.15, pointAt(event.clientX, event.clientY));
+  }, { passive: false });
+  svg.addEventListener('contextmenu', (event) => event.preventDefault());
+  const pointers = new Map();
+  let drag = null;
+  svg.addEventListener('pointerdown', (event) => {
+    const touch = event.pointerType === 'touch';
+    if (!touch && event.button !== 2) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (touch && pointers.size < 2) return;
+    event.preventDefault();
+    svg.setPointerCapture?.(event.pointerId);
+    drag = { moved: false };
+    svg.classList.add('is-panning');
+    setMapDragging(true);
+  });
+  svg.addEventListener('pointermove', (event) => {
+    if (!drag || !pointers.has(event.pointerId)) return;
+    const before = [...pointers.values()];
+    const was = pointers.get(event.pointerId);
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const after = [...pointers.values()];
+    const u = unitsPerPixel();
+    if (after.length >= 2) {
+      const mid = (list) => ({ x: (list[0].x + list[1].x) / 2, y: (list[0].y + list[1].y) / 2 });
+      const gap = (list) => Math.hypot(list[0].x - list[1].x, list[0].y - list[1].y) || 1;
+      const m0 = mid(before);
+      const m1 = mid(after);
+      camera.cx -= (m1.x - m0.x) * u;
+      camera.cy -= (m1.y - m0.y) * u;
+      apply();
+      zoomAbout(gap(after) / gap(before), pointAt(m1.x, m1.y));
+    } else {
+      camera.cx -= (event.clientX - was.x) * u;
+      camera.cy -= (event.clientY - was.y) * u;
+      apply();
+    }
+    drag.moved = true;
+  });
+  const end = (event) => {
+    pointers.delete(event.pointerId);
+    if (!drag || pointers.size > 0) return;
+    drag = null;
+    svg.classList.remove('is-panning');
+    commit();
+    setMapDragging(false);
+  };
+  svg.addEventListener('pointerup', end);
+  svg.addEventListener('pointercancel', end);
+  apply();
+  return {
+    get zoom() { return camera.zoom; },
+    zoomBy: (factor) => zoomAbout(factor, { x: camera.cx, y: camera.cy }),
+    fit: () => { camera.zoom = 1; camera.cx = bx + bw / 2; camera.cy = by + bh / 2; apply(); commit(); },
+    centreOn: (point) => { camera.cx = point.x; camera.cy = point.y; apply(); commit(); },
+    onChange: (listener) => listeners.add(listener)
+  };
+}
+
+function mapZoomControl(camera, { onCentre = null } = {}) {
+  const label = () => `${Math.round(camera.zoom * 100)}%`;
+  const level = h('button', { type: 'button', class: 'map-zoom-level', title: 'Show the whole map', text: label(), onclick: () => camera.fit() });
+  camera.onChange(() => { level.textContent = label(); });
   return h('div', { class: 'map-zoom', role: 'group', 'aria-label': 'Map zoom' },
-    h('button', { type: 'button', title: 'Zoom out', 'aria-label': 'Zoom out', text: '\u2212', onclick: () => step(-1) }),
+    onCentre ? h('button', { type: 'button', class: 'map-centre', title: 'Centre on the ship', 'aria-label': 'Centre on the ship', text: '\u2316', onclick: onCentre }) : null,
+    h('button', { type: 'button', title: 'Zoom out (or the mouse wheel)', 'aria-label': 'Zoom out', text: '\u2212', onclick: () => camera.zoomBy(1 / 1.25) }),
     level,
-    h('button', { type: 'button', title: 'Zoom in', 'aria-label': 'Zoom in', text: '+', onclick: () => step(1) }));
+    h('button', { type: 'button', title: 'Zoom in (or the mouse wheel)', 'aria-label': 'Zoom in', text: '+', onclick: () => camera.zoomBy(1.25) }));
 }
 
 export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSector = null }, readOnly = false) {
@@ -1294,6 +1413,9 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
   svg.classList.add('map');
   if (!savedLanesShown()) svg.classList.add('hide-lanes');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  // v0.324.0: the camera, starting on the ship.
+  const here = subsectorHexCenter(Number(current.hex.slice(0, 2)) - frame.firstColumn + 1, Number(current.hex.slice(2)) - frame.firstRow + 1, SUBSECTOR_SVG_GEOMETRY);
+  const camera = attachCamera(svg, { key: scene.map?.sectorId ?? subsector.id ?? subsector.name, frame, focus: here });
   const inJump = scene.kind === 'jump';
   const captions = inJump ? [] : [worldCaption(current, { role: 'here', label: 'You are here', world: scene.world })];
   if (selected && selected.id !== current.id) {
@@ -1328,7 +1450,7 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
       mapKey(lanes.length > 0),
       lanes.length ? lanesToggle(svg) : null,
       scene.sector && onExportSector ? h('button', { type: 'button', class: 'button is-small', text: 'Export', title: 'The sector as charted, in Traveller Map\u2019s tab-delimited format (travellermap.com Poster Maker)', onclick: () => onExportSector() }) : null,
-      mapZoomControl(svg)),
+      mapZoomControl(camera, { onCentre: () => camera.centreOn(here) })),
     svg,
     h('div', { class: 'captions' }, captions)
   ];
