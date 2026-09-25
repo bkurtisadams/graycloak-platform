@@ -1694,8 +1694,8 @@ import { createSequenceDice, rollPersonEncounter } from '../vendor/classic-trave
 test('v0.318.0 police who meet a party carrying what the law forbids throw the law level to avoid arrest', () => {
   const police = rollPersonEncounter(createSequenceDice([2, 3, 4, 3, 3, 4, 4, 5, 5, 6, 6, 6, 6, 1]));
   const law = { level: 7, caught: [{ name: 'Hawkeye', weaponName: 'Laser Rifle' }] };
-  const arrested = personEncounterRecord(createSequenceDice([3, 2]), police, { date: '106-4800', worldName: 'Orison', law });
-  assert.deepEqual(arrested.law, { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 5, avoided: false });
+  const arrested = personEncounterRecord(createSequenceDice([3, 2, 4]), police, { date: '106-4800', worldName: 'Orison', law });
+  assert.deepEqual(arrested.law, { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 5, avoided: false, arrested: ['Hawkeye'], jailDays: 4 });
   const waved = personEncounterRecord(createSequenceDice([4, 4]), police, { date: '106-4800', worldName: 'Orison', law });
   assert.equal(waved.law.avoided, true);
   assert.equal(personEncounterRecord(createSequenceDice([]), police, { date: '106-4800', worldName: 'Orison', law: null }).law, null, 'nothing forbidden, nothing to throw');
@@ -1706,9 +1706,12 @@ test('v0.318.0 a person encounter waits on the campaign, goes on the board as st
   const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
   const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   let pending = null;
-  for (let tries = 0; tries < 40 && !pending; tries += 1) {
+  // Police here would arrest Hawkeye (law level 7) and offer jail instead;
+  // that path has its own test, so they are set aside and thrown again.
+  for (let tries = 0; tries < 60 && !pending; tries += 1) {
     assert.equal(session.run('persons:roll').ok, true);
     pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+    if (pending?.law && !pending.law.avoided) { session.run('persons:clear'); pending = null; }
   }
   assert.ok(pending, 'the table gives a group within forty throws');
   const view = session.view();
@@ -1725,4 +1728,24 @@ test('v0.318.0 a person encounter waits on the campaign, goes on the board as st
   assert.deepEqual(session.view().personEncounter.actions.map((action) => action.command), ['persons:clear']);
   assert.equal(session.run('persons:clear').ok, true);
   assert.equal(personState(registry.resolveCampaign(campaignId).campaign).pending, null);
+});
+
+test('v0.318.1 an arrest is served as 1D days in jail: the party leaves the surface and the days pass', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const r = registry.resolveCampaign(campaignId);
+  const record = { date: '106-4800', worldName: 'Orison', code: 23, type: 'Police', quantity: 3, quantityDice: '1D', vehicle: true, weaponry: 'Automatic Pistols', armor: 'Cloth',
+    weapon: 'automatic-pistol', armorKey: 'cloth', characteristics: { strength: 7, dexterity: 7, endurance: 7 }, extraordinary: null,
+    reaction: { total: 5, dice: [2, 3], description: 'Hostile. May attack.' }, enforcement: true, actorIds: [],
+    law: { level: 7, violations: ['Hawkeye\u2019s Laser Rifle'], total: 4, avoided: false, arrested: ['Hawkeye'], jailDays: 3 } };
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, persons: { pending: record } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.deepEqual(session.view().personEncounter.actions.map((action) => [action.command, action.kind]),
+    [['persons:jail', 'owed'], ['persons:board', 'danger'], ['persons:clear', 'neutral']]);
+  const before = registry.resolveCampaign(campaignId).campaign.time.dayOfYear;
+  const served = session.run('persons:jail');
+  assert.equal(served.ok, true, served.message);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(after.campaign.time.dayOfYear, before + 3);
+  assert.equal(after.campaign.roster.persons.pending, null);
+  assert.ok(after.activityLogs[0].entries.some((entry) => /Hawkeye is arrested on Orison .* 3 days in jail/.test(entry.message)));
 });

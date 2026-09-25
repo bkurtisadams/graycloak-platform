@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createSequenceDice } from '../src/dice.js';
 import { getPersonalWeapon } from '../src/combat/personal-combat.js';
 import {
-  RANDOM_PERSON_ENCOUNTERS, EXTRAORDINARY_WEAPONS, personEncounterCheck, rollPersonEncounter, lawArrestThrow
+  RANDOM_PERSON_ENCOUNTERS, EXTRAORDINARY_WEAPONS, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays
 } from '../src/encounters/persons.js';
 
 test('a person encounter point is a one-in-three chance: 5 or 6 on one die', () => {
@@ -43,4 +43,8 @@ test('every row names weapons and armour the personal-combat rules know', () => 
 test('Book 3 p.7: the law level is the throw to avoid arrest', () => {
   assert.equal(lawArrestThrow(createSequenceDice([2, 2]), { lawLevel: 5 }).avoided, false);
   assert.equal(lawArrestThrow(createSequenceDice([2, 3]), { lawLevel: 5 }).avoided, true);
+});
+
+test('The Traveller Book (1982): a weapons-violation arrest is 1D days in jail', () => {
+  assert.equal(weaponsViolationJailDays(createSequenceDice([4])), 4);
 });

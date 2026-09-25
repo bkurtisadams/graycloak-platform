@@ -872,5 +872,6 @@ export {
   personEncounterCheck,
   rollExtraordinaryWeapon,
   rollPersonEncounter,
-  lawArrestThrow
+  lawArrestThrow,
+  weaponsViolationJailDays
 } from './src/encounters/persons.js';

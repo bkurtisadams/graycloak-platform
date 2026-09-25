@@ -34,7 +34,7 @@ import {
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
-  refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow
+  refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -1965,7 +1965,13 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
   };
   if (encounter.enforcement && law?.caught?.length) {
     const arrest = lawArrestThrow(dice, { lawLevel: law.level });
-    record.law = { level: law.level, violations: law.caught.map((entry) => `${entry.name}\u2019s ${entry.weaponName}`), total: arrest.total, avoided: arrest.avoided };
+    record.law = {
+      level: law.level, violations: law.caught.map((entry) => `${entry.name}\u2019s ${entry.weaponName}`), total: arrest.total, avoided: arrest.avoided,
+      // v0.318.1: The Traveller Book (1982), 1D days in jail for a weapons
+      // violation (Kurt, Sep 2026). Those carrying are the ones taken.
+      arrested: arrest.avoided ? [] : [...new Set(law.caught.map((entry) => entry.name))],
+      jailDays: arrest.avoided ? null : weaponsViolationJailDays(dice)
+    };
   }
   return record;
 }
@@ -4332,6 +4338,21 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           return finish(message);
         }
         if (!pending) throw new Error('no person encounter is waiting');
+        if (command === 'persons:jail') {
+          // The term is served: the party is off the surface (back in the
+          // starport, where local law does not reach), and the days pass
+          // on the campaign and ship clocks like any other.
+          const law = pending.law;
+          if (!law || law.avoided || !law.jailDays) throw new Error('nobody was arrested');
+          const days = law.jailDays;
+          const who = law.arrested.join(' and ');
+          registry.put(withPersonState(withAnimalState(resolved.campaign, { surface: null }), { pending: null }));
+          reload();
+          log('ENCOUNTER', `${who} ${law.arrested.length === 1 ? 'is' : 'are'} arrested on ${pending.worldName} for a weapons violation (law level ${law.level}): ${days} day${days === 1 ? '' : 's'} in jail, 1D (The Traveller Book).`);
+          const passed = run('time:pass', { fight: { value: { amount: days, unit: 'days', reason: `${who} in jail on ${pending.worldName}` } } });
+          if (!passed.ok) throw new Error(passed.message);
+          return finish(`${who} served ${days} day${days === 1 ? '' : 's'} in jail and ${law.arrested.length === 1 ? 'is' : 'are'} back at the starport.`);
+        }
         if (command === 'persons:clear') {
           registry.put(withPersonState(resolved.campaign, { pending: null }));
           reload();
@@ -5427,10 +5448,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       state.personEncounter = personPending ? {
         ...personPending,
         summary: describePersonEncounter(personPending),
-        actions: save.state === 'stale' || seat === 'player' ? [] : [
-          personPending.actorIds.length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
-          { command: 'persons:clear', label: personPending.actorIds.length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean(personPending.actorIds.length) }
-        ].filter(Boolean)
+        actions: save.state === 'stale' || seat === 'player' ? [] : (personPending.law && !personPending.law.avoided && !personPending.actorIds.length
+          ? [
+            { command: 'persons:jail', label: `Serve ${personPending.law.jailDays} day${personPending.law.jailDays === 1 ? '' : 's'} in jail`, kind: 'owed', primary: true },
+            { command: 'persons:board', label: 'Resist arrest', kind: 'danger' },
+            { command: 'persons:clear', label: 'Let them off (referee)', kind: 'neutral' }
+          ]
+          : [
+            personPending.actorIds.length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
+            { command: 'persons:clear', label: personPending.actorIds.length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean(personPending.actorIds.length) }
+          ].filter(Boolean))
       } : null;
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —

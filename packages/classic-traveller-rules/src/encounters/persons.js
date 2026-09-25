@@ -108,3 +108,10 @@ export function lawArrestThrow(dice, { lawLevel }) {
   const total = sum(dice, 2);
   return Object.freeze({ total, needed: lawLevel, avoided: total >= lawLevel });
 }
+
+// v0.76.0 (Kurt, Sep 2026): The Traveller Book (1982): an arrest for a
+// weapons violation means 1D days in jail. Other offences have no term in
+// the books yet; they are the referee's until ruled.
+export function weaponsViolationJailDays(dice) {
+  return dice.rollD6();
+}
