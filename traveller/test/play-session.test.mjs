@@ -1756,3 +1756,56 @@ test('v0.318.1 an arrest is served as 1D days in jail: the party leaves the surf
   assert.equal(hawkeye.inventory.some((entry) => entry.weaponKey === 'laser-rifle'), false);
   assert.ok(after.activityLogs[0].entries.some((entry) => /Confiscated by the police on Orison: Hawkeye\u2019s Laser Rifle/.test(entry.message)));
 });
+
+// ---------------------------------------------------------------- v0.319.0
+
+test('v0.319.0 patrons and rumours are thrown once a week, and a patron\u2019s job is written up and settled by the referee', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().patrons.seek.command, 'patrons:seek');
+  assert.equal(session.run('patrons:seek').ok, true);
+  const people = personState(registry.resolveCampaign(campaignId).campaign);
+  if (!people.patron) {
+    assert.match(session.run('patrons:seek').message, /week\u2019s throws are made; 7 more days/);
+    assert.equal(session.view().patrons.seek, null);
+  }
+
+  // A patron waiting: write the job up.
+  const r = registry.resolveCampaign(campaignId);
+  const patron = { date: '106-4800', worldName: 'Aster', systemId: 'aster', listKey: 'one', code: 43, type: 'Spy', reaction: { total: 9, description: 'Intrigued.' }, speaker: 'Hawkeye', dms: [] };
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, persons: { ...(r.campaign.roster.persons ?? {}), patron, rumors: [{ id: 'rumor-1', date: '106-4800', worldName: 'Aster', letter: 'E', type: 'Veiled clue', general: false, source: 'weekly', text: '' }] } } });
+  const s2 = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(s2.view().patrons.patron.type, 'Spy');
+  assert.equal(s2.view().patrons.rumors.length, 1);
+  assert.equal(s2.run('patrons:accept', { fight: { value: { title: 'Recover the ledger', destinationSystemId: 'calder', paymentCr: '20000', deadlineDays: '30', notes: 'Expenses paid' } } }).ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.kind === 'patron');
+  assert.deepEqual({ title: job.identity.title, to: job.destination.systemId, pay: job.economics.paymentCr, status: job.status, issuer: job.issuer.name },
+    { title: 'Recover the ledger', to: 'calder', pay: 20000, status: 'accepted', issuer: 'Spy' });
+  assert.equal(s2.view().jobs.find((entry) => entry.id === job.identity.id).kind, 'patron');
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).patron, null);
+
+  // The rumour is written to the Journal.
+  assert.equal(s2.run('rumors:write', { fight: { value: { id: 'rumor-1', text: 'The ledger was last seen at Calder downport.' } } }).ok, true);
+  const journal = refereeView(registry.resolveCampaign(campaignId), { tab: 'Journal' });
+  assert.ok(JSON.stringify(journal).includes('The ledger was last seen at Calder downport.'));
+
+  // Settled by the referee, not by arriving.
+  const before = registry.resolveCampaign(campaignId).ships[0].state.finances.balanceCr;
+  assert.equal(s2.run(`contract:complete:${job.identity.id}`).ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(after.contracts.find((entry) => entry.identity.id === job.identity.id).status, 'completed');
+  assert.equal(after.ships[0].state.finances.balanceCr, before + 20000);
+});
+
+test('v0.319.0 a patron\u2019s job is not completed by landing at its world', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  const patron = { date: '106-4800', worldName: 'Aster', systemId: 'aster', listKey: 'one', code: 43, type: 'Spy', reaction: { total: 9, description: 'Intrigued.' }, speaker: 'Hawkeye', dms: [] };
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, persons: { patron } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  session.run('patrons:accept', { fight: { value: { title: 'Meet the contact', destinationSystemId: 'calder', paymentCr: '5000', deadlineDays: '30' } } });
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  playTo(session, 'calder');
+  assert.equal(registry.resolveCampaign(campaignId).contracts.find((entry) => entry.kind === 'patron').status, 'accepted');
+});

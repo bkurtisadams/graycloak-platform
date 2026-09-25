@@ -96,7 +96,10 @@ test('a quiet week passes whole, and each checked day is remembered', async () =
   const { registry, campaignId, run } = await freshSession();
   run('animals:surface', { terrain: 'desert' });
   const start = campaignDayNumber(registry.resolveCampaign(campaignId).campaign.time);
-  const passed = withRandom(0, () => run('time:pass', { amount: 1, unit: 'weeks' }));
+  // v0.319.0: every die a 4 — under the animals' and people's 5+, and 2D 8
+  // over this world's law level, so no legal encounter either (1s would
+  // now bring an enforcer: 2D at or under the law level).
+  const passed = withRandom(0.5, () => run('time:pass', { amount: 1, unit: 'weeks' }));
   assert.match(passed.message, /^1 week passes/);
   const { campaign } = registry.resolveCampaign(campaignId);
   assert.equal(campaign.roster.animals.surface.lastCheckedDay, start + 7);

@@ -115,3 +115,128 @@ export function lawArrestThrow(dice, { lawLevel }) {
 export function weaponsViolationJailDays(dice) {
   return dice.rollD6();
 }
+
+// ---------------------------------------------------------------------------
+// v0.77.0: The Traveller Book (1982) pp.99-101 encounters, adopted where they
+// settle what Book 3 left open (Kurt, Sep 2026).
+// ---------------------------------------------------------------------------
+
+const clampDie = (value) => Math.min(6, Math.max(1, value));
+
+/**
+ * Legal encounters, once a day outside the starport. The printed wording
+ * ("throw local law level or less to avoid an encounter") reads backwards
+ * against its own prose — permissive worlds rarely bothered, oppressive ones
+ * constantly — so the ruling follows the prose: an enforcer stops the party
+ * on 2D equal to or under the law level.
+ */
+export function legalEncounterCheck(dice, { lawLevel }) {
+  if (!Number.isInteger(lawLevel) || lawLevel < 0) throw new RangeError('lawLevel must be a whole number');
+  const total = sum(dice, 2);
+  return Object.freeze({ total, lawLevel, encounter: total <= lawLevel });
+}
+
+/** "A local enforcer will stop the adventurers and require identification." */
+export function rollLegalEncounter(dice, { reactionDM = 0 } = {}) {
+  const characteristics = Object.freeze({ strength: sum(dice, 2), dexterity: sum(dice, 2), endurance: sum(dice, 2) });
+  const reaction = rollReaction(dice, { dm: reactionDM });
+  return Object.freeze({
+    code: null, blank: false, legal: true, type: 'Local enforcer', quantity: 1, quantityDice: '1',
+    vehicle: true, weaponry: 'Automatic Pistol', armor: 'Cloth', weapon: 'automatic-pistol', armorKey: 'cloth',
+    enforcement: true, characteristics, extraordinary: null, reaction
+  });
+}
+
+// Random encounters "may occur only if there is a local population".
+export function hasLocalPopulation(population) {
+  return Number(population) > 0;
+}
+
+// Patrons: a weekly throw of 5+ on 1D while the party is looking. The matrix
+// reads its code as the second die (tens) and the first die (units).
+const list = (names) => Object.freeze(Object.fromEntries(names.map((name, index) => [(Math.floor(index / 6) + 1) * 10 + (index % 6) + 1, name])));
+export const PATRON_LISTS = Object.freeze({
+  one: list([
+    'Arsonist', 'Cutthroat', 'Assassin', 'Hijacker', 'Smuggler', 'Terrorist',
+    'Crewmember', 'Peasant', 'Rumor', 'Clerk', 'Soldier', 'Shopkeeper',
+    'Shipowner', 'Tourist', 'Merchant', 'Police', 'Scout', 'Rumor',
+    'Diplomat', 'Courier', 'Spy', 'Scholar', 'Governor', 'Administrator',
+    'Mercenary', 'Naval Officer', 'Marine Officer', 'Scout', 'Army Officer', 'Mercenary',
+    'Noble', 'Playboy', 'Avenger', 'Emigre', 'Speculator', 'Rumor'
+  ]),
+  two: list([
+    'Naval Officer', 'Scout Administrator', 'Marine Officer', 'Hunter', 'Starport Warden', 'Naval Officer',
+    'Reporter', 'Technician', 'Doctor', 'Rogue', 'Noble', 'Government Official',
+    'Barbarian', 'Scout Pilot', 'Pirate', 'Researcher', 'Writer', 'Professor',
+    'Underworld Leader', 'Scientist', 'Belter', 'Naval Architect', 'Steward', 'Financier',
+    'Navigator', 'Swindler', 'Broker', 'Arms Merchant', 'Doctor', 'Pilot',
+    'Merchant', 'Rogue', 'Embezzler', 'Belter', 'Bureaucrat', 'Diplomat'
+  ])
+});
+
+/**
+ * The patron matrix DMs for the character doing the looking (The Traveller
+ * Book p.100). List one: first die merchant -1, noble (Soc 11+) +1; second
+ * die other service -1, army or marine +1. List two: first die naval -1,
+ * merchant +1; second die Streetwise-1+ -1, Admin-1+ +1.
+ */
+export function patronMatrixDMs(listKey, { service = null, socialStanding = 0, skills = {} } = {}) {
+  const parts = { first: [], second: [] };
+  const svc = String(service ?? '').toLowerCase();
+  if (listKey === 'one') {
+    if (svc === 'merchants') parts.first.push({ label: 'merchant', dm: -1 });
+    if (Number(socialStanding) >= 11) parts.first.push({ label: 'noble', dm: 1 });
+    if (svc === 'other') parts.second.push({ label: 'other service', dm: -1 });
+    if (svc === 'army' || svc === 'marines') parts.second.push({ label: svc === 'army' ? 'army' : 'marine', dm: 1 });
+  } else if (listKey === 'two') {
+    if (svc === 'navy') parts.first.push({ label: 'naval', dm: -1 });
+    if (svc === 'merchants') parts.first.push({ label: 'merchant', dm: 1 });
+    if (Number(skills.Streetwise ?? 0) >= 1) parts.second.push({ label: 'Streetwise', dm: -1 });
+    if (Number(skills.Admin ?? skills.Administration ?? 0) >= 1) parts.second.push({ label: 'Admin', dm: 1 });
+  } else throw new RangeError(`unknown patron list: ${listKey}`);
+  const total = (entries) => entries.reduce((sumDM, entry) => sumDM + entry.dm, 0);
+  return Object.freeze({ first: total(parts.first), second: total(parts.second), parts: Object.freeze(parts) });
+}
+
+export function patronCheck(dice) {
+  const die = dice.rollD6();
+  return Object.freeze({ die, found: die >= 5 });
+}
+
+export function rollPatron(dice, { listKey = 'one', firstDM = 0, secondDM = 0, reactionDM = 0 } = {}) {
+  const table = PATRON_LISTS[listKey];
+  if (!table) throw new RangeError(`unknown patron list: ${listKey}`);
+  const first = clampDie(dice.rollD6() + firstDM);
+  const second = clampDie(dice.rollD6() + secondDM);
+  const code = second * 10 + first;
+  const type = table[code];
+  const rumor = type === 'Rumor';
+  return Object.freeze({ listKey, code, type, rumor, reaction: rumor ? null : rollReaction(dice, { dm: reactionDM }) });
+}
+
+// Rumors: a weekly throw of 7+ on 2D, and whenever the patron list gives
+// "Rumor". The matrix gives a type; the referee writes the rumor itself.
+export const RUMOR_TYPES = Object.freeze({
+  A: 'Background information', B: 'Minor fact', C: 'Major fact', D: 'Partial (potentially misleading) fact', E: 'Veiled clue',
+  F: 'Information leading to trap', G: 'Location data', H: 'Important fact', I: 'Obvious clue', J: 'Completely false information',
+  K: 'Terminology', L: 'Library data reference', M: 'Helpful data', N: 'Location data', O: 'Reliable recommendation to action',
+  P: 'Major fact', Q: 'Background information', R: 'Minor fact', S: 'Veiled clue', T: 'Misleading clue',
+  U: 'Broad background information', V: 'Misleading background information', W: 'Reference to library data',
+  X: 'General location data', Y: 'Specific background data', Z: 'Misleading background data'
+});
+// Rows by the second die, columns by the first.
+export const RUMOR_MATRIX = Object.freeze([
+  'ABCDEF', 'GUUWWH', 'IUYYWJ', 'KXZZVL', 'MXXVVN', 'OPQRST'
+].map((row) => Object.freeze(row.split(''))));
+
+export function rumorCheck(dice) {
+  const total = sum(dice, 2);
+  return Object.freeze({ total, found: total >= 7 });
+}
+
+export function rollRumor(dice) {
+  const first = dice.rollD6();
+  const second = dice.rollD6();
+  const letter = RUMOR_MATRIX[second - 1][first - 1];
+  return Object.freeze({ first, second, letter, type: RUMOR_TYPES[letter], general: letter >= 'U' });
+}

@@ -3,7 +3,9 @@ import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js';
 export const CONTRACT_DOCUMENT_TYPE = 'graycloak-traveller-contract';
 export const CURRENT_CONTRACT_DOCUMENT_SCHEMA_VERSION = 1;
 export const CONTRACT_STATUSES = Object.freeze(['accepted', 'completed', 'failed']);
-export const CONTRACT_KINDS = Object.freeze(['charter', 'private-message', 'priority-courier', 'delivery', 'survey']);
+// v0.319.0: 'patron' — a job taken from a patron (The Traveller Book p.99);
+// the referee says when it is done, not an arrival.
+export const CONTRACT_KINDS = Object.freeze(['charter', 'private-message', 'priority-courier', 'delivery', 'survey', 'patron']);
 
 const TOP_LEVEL_KEYS = Object.freeze([
   'documentType', 'schemaVersion', 'identity', 'kind', 'provenance', 'issuer',

@@ -779,6 +779,8 @@ function land(state, events, context) {
   const contractResults = [];
   state.contracts = state.contracts.map((contract) => {
     if (contract.status !== 'accepted' || contract.destination?.systemId !== target.id) return contract;
+    // v0.319.0: a patron's job is done when the referee says so.
+    if (contract.kind === 'patron') return contract;
     let cargoOk = true;
     if (contract.requirements?.cargoTons > 0) {
       const cargoId = `${contract.identity.id}:cargo`;

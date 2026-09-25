@@ -873,5 +873,16 @@ export {
   rollExtraordinaryWeapon,
   rollPersonEncounter,
   lawArrestThrow,
-  weaponsViolationJailDays
+  weaponsViolationJailDays,
+  legalEncounterCheck,
+  rollLegalEncounter,
+  hasLocalPopulation,
+  PATRON_LISTS,
+  patronMatrixDMs,
+  patronCheck,
+  rollPatron,
+  RUMOR_TYPES,
+  RUMOR_MATRIX,
+  rumorCheck,
+  rollRumor
 } from './src/encounters/persons.js';

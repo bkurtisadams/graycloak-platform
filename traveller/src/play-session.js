@@ -34,7 +34,8 @@ import {
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
-  refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays
+  refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
+  legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -93,7 +94,8 @@ import {
   setCombatantWeapon, setCombatantArmor, allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
   opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction, undeclaredCombatantIds
 } from './encounter-document.js';
-import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign } from './campaign-document.js';
+import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign, addContractToCampaign } from './campaign-document.js';
+import { createContractDocument, completeContractDocument, failContractDocument } from './contract-document.js';
 import { chooseNpcDeclaration, pendingNpcDeclarations } from './npc-tactics.js';
 import { lawCheck, starportLine, atmosphereGear, worldDetail, prohibitedWeaponKeys } from './world-notes.js';
 import {
@@ -286,6 +288,7 @@ export function jobViews(contracts, now) {
     const left = deadline && now ? daysBetween(now, deadline) : null;
     return {
       id: contract.identity.id,
+      kind: contract.kind,
       title: contract.identity.title,
       to: contract.destination?.systemName ?? '',
       payCr: Number(contract.economics?.paymentCr ?? 0),
@@ -357,7 +360,12 @@ function journalEntries(resolved) {
   // the log's own history wants a read-only home.
   // v0.302.0: the first real Journal documents — each world's animal
   // encounter tables (The Traveller Book p.95), the referee's alone.
-  return animalJournalEntries(resolved);
+  // v0.319.0: rumours heard and written up (The Traveller Book p.99), the
+  // text as the name; no sheet of their own.
+  const rumors = personState(resolved.campaign).rumors.filter((entry) => entry.text).map((entry) => ({
+    id: entry.id, name: entry.text, note: `${entry.letter}: ${entry.type} \u00b7 ${entry.date}`, folder: `Rumours/${entry.worldName}`
+  }));
+  return [...animalJournalEntries(resolved), ...rumors];
   // eslint-disable-next-line no-unreachable
   const log = (resolved.activityLogs ?? [])[0];
   // Newest first, and filed by the campaign date they happened on.
@@ -1946,7 +1954,24 @@ function checklistView(port, ship) {
 // (roster.persons.pending), like them until the referee sets it aside.
 export function personState(campaign) {
   const persons = campaign?.roster?.persons ?? {};
-  return { pending: persons.pending ?? null };
+  return {
+    pending: persons.pending ?? null,
+    // v0.319.0: patrons and rumours (The Traveller Book pp.99-100).
+    patron: persons.patron ?? null, rumors: persons.rumors ?? [], lastLookDay: persons.lastLookDay ?? null,
+    patronList: persons.patronList ?? 'one'
+  };
+}
+
+// The one doing the talking: a party member whose service earns the +1
+// reaction DM if there is one, else the first of the party.
+export function partySpeaker(resolved) {
+  const ids = resolved.campaign.party?.characterIds ?? [];
+  const party = (resolved.characters ?? []).filter((entry) => ids.includes(entry.identity.id) && entry.status?.alive !== false);
+  return party.find((entry) => ['army', 'navy', 'marines', 'scouts'].includes(String(entry.career?.service ?? '').toLowerCase()) && Number(entry.career?.terms ?? 0) >= 5) ?? party[0] ?? null;
+}
+
+function encounterReactionDM(resolved, profile) {
+  return reactionModifiers({ speaker: partySpeaker(resolved), population: profile ? Number(profile.population) : null }).dm;
 }
 
 export function withPersonState(campaign, patch) {
@@ -1961,7 +1986,7 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
     vehicle: encounter.vehicle, weaponry: encounter.weaponry, armor: encounter.armor, weapon: encounter.weapon, armorKey: encounter.armorKey,
     characteristics: { ...encounter.characteristics }, extraordinary: encounter.extraordinary ? encounter.extraordinary.weapon : null,
     reaction: { total: encounter.reaction.total, dice: [...encounter.reaction.dice], description: encounter.reaction.description },
-    enforcement: encounter.enforcement, law: null, actorIds: []
+    enforcement: encounter.enforcement, legal: Boolean(encounter.legal), law: null, actorIds: []
   };
   if (encounter.enforcement && law?.caught?.length) {
     const arrest = lawArrestThrow(dice, { lawLevel: law.level });
@@ -1979,6 +2004,7 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
 }
 
 export function describePersonEncounter(pending) {
+  if (pending.legal) return 'a local enforcer asking for identification';
   const armed = [pending.weaponry ? pending.weaponry.toLowerCase() : 'unarmed', pending.armor ? `${pending.armor.toLowerCase()} armour` : null].filter(Boolean).join(', ');
   const odd = pending.extraordinary ? `; one carries a ${pending.extraordinary.replace(/-/g, ' ')}` : '';
   return `${pending.quantity} ${pending.type.toLowerCase()}${pending.vehicle ? ' with a vehicle' : ''} (${armed}${odd})`;
@@ -3385,17 +3411,28 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           const animalDay = animalPatch?.pending ? Number(animalPatch.surface.lastCheckedDay) : null;
           const dice = createDice();
           const fromDay = Math.max(Number(surface.lastPersonDay ?? beforeDay) + 1, beforeDay + 1);
+          // v0.319.0 (The Traveller Book pp.99-100): no random encounter
+          // without a local population; and a legal encounter each day,
+          // on 2D at or under the law level (ruling: the prose's reading).
+          const { profile: worldProfile } = currentWorldProfile(resolved, subsector);
+          const peopled = hasLocalPopulation(Number(worldProfile?.population ?? 0));
+          const lawLevel = Number(worldProfile?.lawLevel ?? 0);
+          const reactionDM = encounterReactionDM(resolved, worldProfile);
           const thrown = [];
           let hitDay = null;
+          let legalHit = false;
           for (let day = fromDay; day <= endDay && (animalDay === null || day < animalDay); day += 1) {
-            const check = personEncounterCheck(dice);
-            thrown.push(check.die);
-            if (check.hit) { hitDay = day; break; }
+            if (peopled) {
+              const check = personEncounterCheck(dice);
+              thrown.push(check.die);
+              if (check.hit) { hitDay = day; break; }
+            }
+            if (lawLevel > 0 && legalEncounterCheck(dice, { lawLevel }).encounter) { hitDay = day; legalHit = true; break; }
           }
           const lastDay = hitDay ?? (animalDay !== null ? animalDay : endDay);
           animalPatch = { ...(animalPatch ?? {}), surface: { ...(animalPatch?.surface ?? surface), lastPersonDay: lastDay } };
           if (hitDay !== null) {
-            const encounter = rollPersonEncounter(dice);
+            const encounter = legalHit ? rollLegalEncounter(dice, { reactionDM }) : rollPersonEncounter(dice, { reactionDM });
             seconds = SECONDS_PER_DAY - resolved.campaign.time.secondsOfDay + (hitDay - beforeDay - 1) * SECONDS_PER_DAY;
             const date = formatCampaignDate(advanceCampaignSeconds(resolved.campaign, seconds).time);
             if (animalPatch.pending) delete animalPatch.pending;
@@ -3405,7 +3442,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             } else {
               const law = portExtras(resolved, subsector).world?.law ?? null;
               personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: surface.worldName, law }) };
-              personNote = `Person encounter on ${date} (${surface.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21). The clock stopped here.`;
+              personNote = legalHit
+                ? `Legal encounter on ${date} (${surface.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
+                : `Person encounter on ${date} (${surface.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21). The clock stopped here.`;
             }
           }
         }
@@ -4302,6 +4341,117 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       // referee says where the party is; tables are built per terrain of the
       // world they are on, each animal a statblock; the clock (time:pass)
       // throws the checks, and these are the referee's own hands on it.
+      // v0.319.0: patrons and rumours (The Traveller Book pp.99-100), and
+      // the referee's word on a patron's job.
+      if (command.startsWith('patrons:') || command.startsWith('rumors:') || command.startsWith('contract:')) {
+        const value = fight?.value ?? {};
+        const { system, profile } = currentWorldProfile(resolved, subsector);
+        const today = formatCampaignDate(resolved.campaign.time);
+        const people = personState(resolved.campaign);
+        const finish = (message) => {
+          lastMessage = { ok: true, message };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        };
+        const put = (patch) => { registry.put(withPersonState(resolved.campaign, patch)); reload(); };
+        if (command === 'patrons:list') {
+          if (!['one', 'two'].includes(value.list)) throw new Error('patron list one or two');
+          put({ patronList: value.list });
+          return finish(`Patrons are thrown on list ${value.list}.`);
+        }
+        if (command === 'patrons:seek') {
+          if (!system) throw new Error('the party is not at a world');
+          if (people.patron) throw new Error('a patron is waiting on an answer');
+          const day = campaignDayNumber(resolved.campaign.time);
+          if (people.lastLookDay !== null && day - people.lastLookDay < 7) throw new Error(`the week\u2019s throws are made; ${7 - (day - people.lastLookDay)} more days until the next (weekly, The Traveller Book p.100)`);
+          const dice = createDice();
+          const speaker = partySpeaker(resolved);
+          const listKey = people.patronList;
+          const dms = patronMatrixDMs(listKey, { service: speaker?.career?.service, socialStanding: speaker?.characteristics?.SOC ?? speaker?.characteristics?.socialStanding ?? 0, skills: speaker?.skills ?? {} });
+          const found = patronCheck(dice);
+          const lines = [];
+          const rumors = [...people.rumors];
+          const newRumor = (source) => {
+            const rumor = rollRumor(dice);
+            rumors.push({ id: `rumor-${day}-${rumors.length + 1}`, date: today, worldName: system.name, letter: rumor.letter, type: rumor.type, general: rumor.general, source, text: '' });
+            lines.push(`a rumour (${rumor.letter}: ${rumor.type.toLowerCase()})`);
+          };
+          let patron = null;
+          if (found.found) {
+            const rolled = rollPatron(dice, { listKey, firstDM: dms.first, secondDM: dms.second, reactionDM: encounterReactionDM(resolved, profile) });
+            if (rolled.rumor) newRumor('patron table');
+            else {
+              patron = { date: today, worldName: system.name, systemId: system.id, listKey, code: rolled.code, type: rolled.type,
+                reaction: { total: rolled.reaction.total, description: rolled.reaction.description }, speaker: speaker?.identity.name ?? null,
+                dms: [...dms.parts.first.map((part) => `${part.label} ${signed(part.dm)} first die`), ...dms.parts.second.map((part) => `${part.label} ${signed(part.dm)} second die`)] };
+              lines.push(`a patron: ${rolled.type.toLowerCase()} (${rolled.code}, list ${listKey}), ${rolled.reaction.description.replace(/\.$/, '').toLowerCase()}`);
+            }
+          }
+          const heard = rumorCheck(dice);
+          if (heard.found) newRumor('weekly');
+          put({ patron, rumors, lastLookDay: day });
+          const message = `A week looking for patrons on ${system.name}: patron 1D ${found.die} (5+), rumour 2D ${heard.total} (7+) \u2014 ${lines.length ? lines.join('; ') : 'nothing'} (The Traveller Book p.100).`;
+          log('ENCOUNTER', message, { visibility: 'referee' });
+          return finish(message);
+        }
+        if (command === 'patrons:decline') {
+          if (!people.patron) throw new Error('no patron is waiting');
+          put({ patron: null });
+          log('ENCOUNTER', `The party turns down the ${people.patron.type.toLowerCase()}.`, { visibility: 'referee' });
+          return finish('Turned down.');
+        }
+        if (command === 'patrons:accept') {
+          const patron = people.patron;
+          if (!patron) throw new Error('no patron is waiting');
+          const title = String(value.title ?? '').trim();
+          if (!title) throw new Error('give the job a title');
+          const destination = getSubsectorSystem(subsector, String(value.destinationSystemId ?? patron.systemId));
+          const paymentCr = Number.parseInt(value.paymentCr ?? 0, 10);
+          const deadlineDays = Number.parseInt(value.deadlineDays ?? 0, 10);
+          if (!Number.isInteger(paymentCr) || paymentCr < 0) throw new Error('the payment is a whole number of credits');
+          if (!Number.isInteger(deadlineDays) || deadlineDays < 1) throw new Error('the deadline is one day or more');
+          const speaker = partySpeaker(resolved);
+          const ship = activeShip();
+          if (!speaker || !ship) throw new Error('a party member and an active ship are needed');
+          const contract = createContractDocument({
+            kind: 'patron', offerId: `patron-${patron.date}-${patron.code}-${Date.now()}`, title,
+            issuerName: patron.type, issuerType: 'patron', originSystemId: patron.systemId, originSystemName: patron.worldName,
+            destinationSystemId: destination.id, destinationSystemName: destination.name, paymentCr, deadlineDays, cargoTons: 0,
+            exclusiveShip: false, requirementsDescription: String(value.notes ?? ''), rulesBasis: 'the-traveller-book-1982-p99', notes: `Patron met ${patron.date} on ${patron.worldName} (list ${patron.listKey}, ${patron.code}).`
+          }, { acceptedByCharacterId: speaker.identity.id, acceptedShipId: ship.identity.id, acceptedDate: resolved.campaign.time });
+          registry.putAll([contract, withPersonState(addContractToCampaign(resolved.campaign, contract), { patron: null })]);
+          reload();
+          log('ENCOUNTER', `Job taken from the ${patron.type.toLowerCase()}: ${title}, at ${destination.name}, ${cr(paymentCr)}, ${deadlineDays} days.`);
+          return finish(`${title}: on the job board.`);
+        }
+        if (command === 'rumors:write') {
+          const rumor = people.rumors.find((entry) => entry.id === value.id);
+          if (!rumor) throw new Error('no such rumour');
+          const text = String(value.text ?? '').trim();
+          if (!text) throw new Error('write the rumour first');
+          put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, text } : entry)) });
+          log('ENCOUNTER', `Rumour heard on ${rumor.worldName}: ${text}`);
+          return finish('Rumour written.');
+        }
+        if (command.startsWith('contract:complete:') || command.startsWith('contract:fail:')) {
+          const id = command.split(':').slice(2).join(':');
+          const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+          if (!contract || contract.status !== 'accepted') throw new Error('no such job in hand');
+          if (contract.kind !== 'patron') throw new Error('only a patron\u2019s job is settled by hand; the others settle on arrival');
+          if (command.startsWith('contract:complete:')) {
+            const ship = activeShip();
+            const paid = creditShipAccount(ship, contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} completed`, dateLabel: today });
+            persist([completeContractDocument(contract, { date: resolved.campaign.time, paymentCr: contract.economics.paymentCr, notes: 'Completed (referee)' }), paid]);
+            log('ENCOUNTER', `${contract.identity.title}: done, ${cr(contract.economics.paymentCr)} paid by the ${contract.issuer.name.toLowerCase()}.`);
+            return finish('Job done and paid.');
+          }
+          persist([failContractDocument(contract, { date: resolved.campaign.time, notes: 'Failed (referee)' })]);
+          log('ENCOUNTER', `${contract.identity.title}: failed.`);
+          return finish('Job failed.');
+        }
+        throw new Error(`unknown command: ${command}`);
+      }
       // v0.318.0: Book 3 pp.19-21 person encounters, called or thrown now.
       if (command.startsWith('persons:')) {
         const { system } = currentWorldProfile(resolved, subsector);
@@ -4316,6 +4466,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         if (command === 'persons:check' || command === 'persons:roll') {
           if (!system) throw new Error('the party is not at a world');
           if (pending) throw new Error('a person encounter is already waiting: put it on the board or set it aside');
+          const worldProfile = currentWorldProfile(resolved, subsector).profile;
+          if (!hasLocalPopulation(Number(worldProfile?.population ?? 0))) throw new Error(`${system.name} has no local population to meet (The Traveller Book p.99)`);
           const dice = createDice();
           if (command === 'persons:check') {
             const check = personEncounterCheck(dice);
@@ -4325,7 +4477,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
               return finish(message);
             }
           }
-          const encounter = rollPersonEncounter(dice);
+          const encounter = rollPersonEncounter(dice, { reactionDM: encounterReactionDM(resolved, worldProfile) });
           if (encounter.blank) {
             const message = `Person encounter on ${system.name}: row ${encounter.code} is blank \u2014 no encounter (Book 3 p.20).`;
             log('ENCOUNTER', message, { visibility: 'referee' });
@@ -5460,8 +5612,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       state.compendium = compendiumView(resolved, subsector);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
+      // v0.319.0: patrons and rumours, for the column (the referee's).
+      const people = personState(resolved.campaign);
+      if (seat !== 'player' && state.situation?.kind === 'port') {
+        const day = campaignDayNumber(resolved.campaign.time);
+        const wait = people.lastLookDay === null ? 0 : Math.max(0, 7 - (day - people.lastLookDay));
+        const writable = save.state !== 'stale';
+        state.patrons = {
+          list: people.patronList, wait,
+          patron: people.patron,
+          rumors: people.rumors.filter((entry) => !entry.text),
+          systems: (subsector.systems ?? []).map((entry) => ({ id: entry.id, name: entry.name })),
+          seek: writable && !people.patron && wait === 0 ? { command: 'patrons:seek', label: 'Look for patrons (a week)', kind: 'optional' } : null
+        };
+      }
       // v0.318.0: a person encounter waiting, for the column.
-      const personPending = personState(resolved.campaign).pending;
+      const personPending = people.pending;
       state.personEncounter = personPending ? {
         ...personPending,
         summary: describePersonEncounter(personPending),
