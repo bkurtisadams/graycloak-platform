@@ -33,7 +33,8 @@ import {
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
-  damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer
+  damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
+  refitComputerSpecification
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -2012,9 +2013,12 @@ function shipyardView(ship, profile, { writable = true } = {}) {
   const computers = Object.values(COMPUTER_MODELS).filter((entry) => entry.model !== installed.model).map((entry) => {
     const quote = quoteComputerRefit(ship, { model: entry.model });
     const blocked = quote.possible ? null : quote.reasons.join('; ');
+    let jumpLimit = installed.maximumSupportedJump;
+    try { jumpLimit = refitComputerSpecification(getStandardShipDesign(ship.design.key).computer, entry.model).maximumSupportedJump; } catch { /* a design off the table */ }
     return {
+      jumpLimit,
       ...offer(`shipyard:computer:${entry.model}`, `Model/${entry.model}`, quote.costCr, blocked),
-      detail: `CPU ${entry.cpu}, storage ${entry.storage ?? 'none'} \u00b7 ${entry.tons} t${quote.deltaTons ? ` (${quote.deltaTons > 0 ? `${quote.deltaTons} t from` : `${-quote.deltaTons} t back to`} the hold)` : ''} \u00b7 Cr ${quote.priceCr.toLocaleString('en-US')} less Cr ${quote.tradeInCr.toLocaleString('en-US')} trade-in`,
+      detail: `CPU ${entry.cpu}, storage ${entry.storage ?? 'none'}, jump-${jumpLimit} \u00b7 ${entry.tons} t${quote.deltaTons ? ` (${quote.deltaTons > 0 ? `${quote.deltaTons} t from` : `${-quote.deltaTons} t back to`} the hold)` : ''} \u00b7 Cr ${quote.priceCr.toLocaleString('en-US')} less Cr ${quote.tradeInCr.toLocaleString('en-US')} trade-in`,
       upgrade: entry.cpu > installed.cpu
     };
   });

@@ -452,6 +452,7 @@ export {
   ShipDocumentValidationError,
   applyRefit,
   refitComputerSpecification,
+  computerJumpLimit,
   REFIT_FIRE_CONTROL_TONS,
   createShipDocument,
   validateShipDocument,

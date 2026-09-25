@@ -42,15 +42,25 @@ export const REFIT_FIRE_CONTROL_TONS = 1;
 // v0.73.0: a computer retrofitted in place of the design's (Book 2 p.15:
 // "larger or smaller computer models may be installed or retrofitted to a
 // starship, regardless of the model originally called for"). The difference
-// in its tonnage comes out of the hold, or goes back to it. Ruling (Sep
-// 2026): the 1977 books tie no jump limit to the computer model — the
-// design's figure is from its own description — so a refit keeps it.
+// in its tonnage comes out of the hold, or goes back to it.
+//
+// v0.74.0 (Kurt, Sep 2026): The Traveller Book (1982) p.57 adopted as a floor:
+// "the model number indicates the highest level of jump possible for a ship",
+// a bis model counting one higher. As a floor, not a ceiling: the 1977
+// designs keep their own figures (the Type S is a Model/1 that makes jump-2),
+// and a refit supports the higher of the design's figure and the model's.
+export function computerJumpLimit(model) {
+  const match = /^(\d)(bis)?$/.exec(String(model));
+  if (!match) throw new RangeError(`unknown computer model: ${model}`);
+  return Math.min(6, Number(match[1]) + (match[2] ? 1 : 0));
+}
+
 export function refitComputerSpecification(designComputer, model) {
   const entry = COMPUTER_MODELS[model];
   if (!entry) throw new RangeError(`unknown computer model: ${model}`);
   return {
     model: entry.model, tons: entry.tons, cpu: entry.cpu, storage: entry.storage,
-    maximumSupportedJump: designComputer.maximumSupportedJump
+    maximumSupportedJump: Math.max(designComputer.maximumSupportedJump, computerJumpLimit(entry.model))
   };
 }
 

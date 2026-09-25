@@ -680,10 +680,14 @@ test('an encounter can be fought — lasers only, abbreviated — survives a rel
   assert.equal(reloaded.view().shipFight.gameTurn, turn);
   assert.deepEqual(reloaded.view().shipFight.log, view.shipFight.log);
 
+  // Real dice: a long exchange of misses is possible, so after forty rounds
+  // the ship breaks off (Book 2 p.37), which always ends it.
   let guard = 0;
-  while (reloaded.view().shipFight.outcome === 'in-progress' && guard < 60) {
+  while (reloaded.view().shipFight.outcome === 'in-progress' && guard < 200) {
     guard += 1;
-    assert.equal(reloaded.run(reloaded.view().shipFight.actions[0].command).ok, true);
+    const actions = reloaded.view().shipFight.actions;
+    const flee = guard > 40 ? actions.find((action) => action.command === 'shipfight:flee') : null;
+    assert.equal(reloaded.run((flee ?? actions[0]).command).ok, true);
   }
   view = reloaded.view();
   assert.notEqual(view.shipFight.outcome, 'in-progress', 'the fight reached a real conclusion');
@@ -1313,7 +1317,11 @@ test('v0.282.0 a ship fight is published for players with no controls, and gone 
   assert.deepEqual(published.repairActions, []);
   assert.equal(published.roster.length, 2);
   let guard = 0;
-  while (session.view().shipFight?.outcome === 'in-progress' && guard < 60) { guard += 1; session.run(session.view().shipFight.actions[0].command); }
+  while (session.view().shipFight?.outcome === 'in-progress' && guard < 200) {
+    guard += 1;
+    const actions = session.view().shipFight.actions;
+    session.run(((guard > 40 ? actions.find((action) => action.command === 'shipfight:flee') : null) ?? actions[0]).command);
+  }
   session.run('shipfight:end');
   for (let tick = 0; tick < 6; tick += 1) await settle();
   assert.equal(envelopes.at(-1).shipFight, null, 'and leaves when it ends');

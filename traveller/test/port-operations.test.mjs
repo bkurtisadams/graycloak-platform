@@ -42,7 +42,8 @@ test('accepted job cargo does not block a partial fuel purchase when a full refi
   ship = refuelShipToCapacity(ship, {
     quality: 'refined', pricePerTonCr: 0, source: 'SCOUT BASE', dateLabel: '001-4800'
   }).ship;
-  ship = consumeJumpFuel(ship, 1).ship;
+  // v0.317.1: a jump-2 trip empties the tanks (1982 fuel by parsecs jumped).
+  ship = consumeJumpFuel(ship, 2).ship;
   ({ character, ship } = transferCharacterCreditsToShip(character, ship, 500, { dateLabel: '008-4800' }));
 
   const contract = createContractDocument({
@@ -122,8 +123,9 @@ test('Hawkeye and Marisol can establish fuel, fund the ship, jump, pay port cost
   assert.equal(character.finances.credits, 75000);
   assert.equal(ship.state.finances.balanceCr, 5000);
 
-  ship = consumeJumpFuel(ship, 1).ship;
-  // v0.195.1: 20 tons for the jump-2 drive plus 20 for the power plant.
+  ship = consumeJumpFuel(ship, 2).ship;
+  // v0.195.1: 20 tons for a jump-2 plus 20 for the power plant. v0.317.1: by
+  // the parsecs jumped (1982), so this is the two-parsec trip.
   assert.equal(ship.state.currentFuelTons, 0);
   ship = beginPortCall(ship, { systemId: 'calder', arrivalDate: '008-4800', berthingDueCr: 100 });
   ship = payCurrentBerthing(ship, { dateLabel: '008-4800', description: 'Calder starport berthing' }).ship;

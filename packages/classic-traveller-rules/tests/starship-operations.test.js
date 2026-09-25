@@ -60,17 +60,15 @@ test('Book 2 baseline berthing is Cr100 for six days then Cr100 each additional 
   assert.equal(calculateBerthingCost(10), 500);
 });
 
-test('Book 2 p.6: a trip costs jump fuel plus a full 10Pn, never a prorated share', async () => {
+test('a trip costs jump fuel for the parsecs jumped (1982) plus a full 10Pn (1977)', async () => {
   const ship = await fixtureShip();
-  // Type S: 100-ton hull, Jn 2, Pn 2. Book 2 (1977) p.6: "A jump drive requires
-  // fuel to make one jump (regardless of jump number) based on the formula:
-  // 0.1MJn, where ... Jn equals the jump number of the drive. ... Jump fuel
-  // requirements are based on jump number rather than the size of the jump
-  // actually taken." So a one-parsec jump in a Jump-2 ship burns the same 20
-  // tons as a two-parsec one. These expectations were written for the later
-  // by-distance rule and had been failing since the code moved to 1977.
+  // Type S: 100-ton hull, Jn 2, Pn 2. v0.74.0 adopts The Traveller Book
+  // (1982): "Ships performing jumps less than their maximum capacity consume
+  // fuel at a lower level based on the jump number used" — so a one-parsec
+  // jump burns 0.1 x 100 x 1 = 10 tons, a two-parsec one 20. 1977 Book 2 p.6
+  // charged the drive's whole jump number either way.
   assert.deepEqual(calculateJumpFuelRequirement(ship, 1), {
-    distance: 1, jumpRating: 2, jumpFuelTons: 20, powerPlantFuelTons: 20, totalTons: 40, travelDays: 14
+    distance: 1, jumpRating: 2, jumpFuelTons: 10, powerPlantFuelTons: 20, totalTons: 30, travelDays: 14
   });
   assert.deepEqual(calculateJumpFuelRequirement(ship, 2), {
     distance: 2, jumpRating: 2, jumpFuelTons: 20, powerPlantFuelTons: 20, totalTons: 40, travelDays: 14
@@ -154,10 +152,12 @@ test('paid and Scout-free refueling fill Type S tanks and update operating ledge
 test('jump fuel consumption and port berthing payment persist in ship state', async () => {
   let ship = createTypeSScoutReserveShipForCharacter(await hawkeye()).ship;
   ship = refuelShipToCapacity(ship, { quality: 'refined', pricePerTonCr: 0 }).ship;
-  const jump = consumeJumpFuel(ship, 1);
-  // 1977: the whole 40 tons, whatever the distance (see the p.6 test above).
+  const jump = consumeJumpFuel(ship, 2);
+  // A jump-2 trip: 20 tons of jump fuel and the 20-ton 10Pn trip allowance.
   assert.equal(jump.consumedTons, 40);
   assert.equal(jump.ship.state.currentFuelTons, 0);
+  // v0.74.0 (1982): a one-parsec hop burns only 10 tons of jump fuel.
+  assert.equal(consumeJumpFuel(ship, 1).consumedTons, 30);
 
   const character = await hawkeye();
   const funded = transferCharacterCreditsToShip(character, jump.ship, 1000, { dateLabel: '008-4800' });
@@ -171,9 +171,9 @@ test('jump fuel consumption and port berthing payment persist in ship state', as
 test('streamlined Type S can skim a gas giant to full capacity with unrefined fuel', async () => {
   let ship = createTypeSScoutReserveShipForCharacter(await hawkeye()).ship;
   ship = refuelShipToCapacity(ship, { quality: 'refined', pricePerTonCr: 0 }).ship;
-  ship = consumeJumpFuel(ship, 1).ship;
+  ship = consumeJumpFuel(ship, 2).ship;
   const skim = skimGasGiantToCapacity(ship);
-  // The jump emptied the tanks (1977 p.6), so the skim is the full 40 tons.
+  // A jump-2 trip empties the tanks, so the skim is the full 40 tons.
   assert.equal(skim.addedTons, 40);
   assert.equal(skim.elapsedDays, 7);
   assert.equal(skim.ship.state.currentFuelTons, 40);

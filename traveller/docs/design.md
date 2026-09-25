@@ -557,6 +557,13 @@ berthing past six days, salaries) reach `play.html` with it.
   not a condition of the loan. **Open:** whether the government's half
   also takes speculative sales (built: freight and passage only).
 - 1982 starship malfunctions adopted wholesale; 16+ misjump destruction RAW.
+- 1982 jump fuel adopted (rules 0.74.0): a jump burns 0.1M times the parsecs
+  actually jumped, not the drive's whole jump number (1977 p.6). Power plant
+  fuel stays 1977's 10Pn per trip.
+- 1982 computer jump limit adopted as a floor (rules 0.74.0): a Model/N
+  supports jump-N (a bis model one more), never below the design's own
+  figure — the 1977 Type S stays a Model/1 making jump-2. A refit supports
+  the higher of the two; the drive still sets the range.
 - A misjump may land in an empty or off-map hex.
 - Unrepaired drive failure: the jump still completes; the ship arrives with
   whatever runs.
@@ -580,9 +587,8 @@ berthing past six days, salaries) reach `play.html` with it.
   the card; software has no resale, so any refund is by fiat (Sep 2026).
 - A computer may be retrofitted at a class A or B starport (Book 2 p.15),
   the old one traded in at 25% of its price, the tonnage difference taken
-  from (or given back to) the hold. The 1977 books tie no jump limit to the
-  computer model, so a refit keeps the design's figure (ruling, Sep 2026;
-  rules 0.73.0, ship refit.computer).
+  from (or given back to) the hold (rules 0.73.0, ship refit.computer). Its
+  jump limit follows the 1982 floor below (rules 0.74.0).
 - A hostile pirate attacks on the reaction table's own throw and cannot then
   be let pass; the party may run (p.37 escape shots) or fight (Sep 2026).
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,

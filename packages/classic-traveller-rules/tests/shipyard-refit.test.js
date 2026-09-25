@@ -117,3 +117,12 @@ test('a v11 ship saved before refit.computer existed is filled in on load', () =
   delete doc.refit.computer;
   assert.equal(migrateShipDocument(doc).refit.computer, null);
 });
+
+// v0.74.0: the 1982 computer jump limit, as a floor over the design.
+import { computerJumpLimit } from '../src/starships/ship-document.js';
+
+test('a computer model supports its own jump number (a bis one more), never below the design', () => {
+  assert.deepEqual(['1', '1bis', '2', '2bis', '3', '4', '7'].map(computerJumpLimit), [1, 2, 2, 3, 3, 4, 6]);
+  assert.equal(refitShipComputer(scout(), { model: '2' }).ship.specifications.computer.maximumSupportedJump, 2, 'the design Model/1 already made jump-2');
+  assert.equal(refitShipComputer(scout(100_000_000), { model: '4' }).ship.specifications.computer.maximumSupportedJump, 4);
+});

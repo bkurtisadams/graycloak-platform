@@ -132,10 +132,13 @@ export function calculateJumpFuelRequirement(ship, distance, { travelDays = STAN
 
   const hullTons = ship.specifications.hull.tons;
   const powerRating = ship.specifications.drives.powerPlant.rating;
-  // Book 2 p.6: "Jump fuel requirements are based on jump number rather than
-  // the size of the jump actually taken." A J-2 ship burns 0.2M whether it
-  // jumps one parsec or two.
-  const jumpFuelTons = 0.1 * hullTons * jumpRating;
+  // v0.74.0 (Kurt, Sep 2026): The Traveller Book (1982) adopted in place of
+  // 1977 Book 2 p.6's "based on jump number rather than the size of the jump
+  // actually taken": "Ships performing jumps less than their maximum capacity
+  // consume fuel at a lower level based on the jump number used." So 0.1M
+  // times the parsecs jumped: a Jump-2 scout's one-parsec hop burns 10 tons.
+  // Power plant fuel stays 1977's 10Pn per trip.
+  const jumpFuelTons = 0.1 * hullTons * distance;
   const powerPlantFuelTons = 10 * powerRating;
   const totalTons = jumpFuelTons + powerPlantFuelTons;
   return Object.freeze({

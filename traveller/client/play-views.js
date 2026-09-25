@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.317.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.317.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.317.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.317.1';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.317.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.317.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.317.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.317.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.317.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.317.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.317.1';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.317.1';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.317.1';
+import { renderSectionStrip } from './section-strip.js?v=v0.317.1';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.317.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.317.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.317.1';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.317.1';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.317.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.317.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -839,7 +839,7 @@ function shipyardPanel(yard, handlers) {
       turret.offers.length ? h('ul', { class: 'yard-list' }, turret.offers.map((entry) => row(entry.label, null, buy(entry, 'Install')))) : null)),
     yard.computer ? [
       h('h4', { text: `Computer \u2014 Model/${yard.computer.model}, CPU ${yard.computer.cpu}, storage ${yard.computer.storage ?? 'none'}` }),
-      h('p', { class: 'cite', text: `Retrofit in place of the installed model; the old one is traded in at 25% of its price (Book 2 p.15). Jumps stay limited to ${yard.computer.maximumSupportedJump}, as the design is (and to the drive).` }),
+      h('p', { class: 'cite', text: `Retrofit in place of the installed model; the old one is traded in at 25% of its price (Book 2 p.15). A model supports jumps to its own number, a bis one more, and never less than the design did (The Traveller Book, 1982); the drive still sets the range. Now jump-${yard.computer.maximumSupportedJump}.` }),
       h('ul', { class: 'yard-list' }, yard.computer.offers.filter((entry) => entry.upgrade || entry.command).map((entry) => row(entry.label, entry.detail, buy(entry, 'Fit'))))
     ] : null,
     h('h4', { text: 'Software' }),
