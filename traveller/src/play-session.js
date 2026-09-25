@@ -33,7 +33,7 @@ import {
   STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
-  damageReport
+  damageReport, speculativeTonsPerUnit, speculativeCargoUnits
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -661,6 +661,8 @@ function shipSheet(resolved, id) {
     tabs: ['Data card', 'Cargo & crew', 'Finances'],
     card, lines: card ? dataCardLines(card, { programLabel: (key) => COMPUTER_PROGRAMS[key]?.label ?? key }) : [],
     strip: shipSectionStrip(ship),
+    // v0.316.4: for the referee's remove-a-program correction.
+    programs: (ship.state?.computer?.programs ?? []).map((key) => ({ key, label: COMPUTER_PROGRAMS[key]?.label ?? key, unusable: programUnusable(ship, key) })),
     ship: view,
     // Kurt, Sep 2026: editable, because mistakes are made and the referee
     // needs a way to correct them. Not while a fight is writing to the same
@@ -1771,26 +1773,32 @@ function portExtras(resolved, subsector) {
     if (offer) {
       const remaining = Math.max(0, offer.quantityAvailable - speculativeLotPurchasedQuantity(campaign, lotKey));
       const balance = Number(ship.state.finances?.balanceCr ?? 0);
+      // v0.316.4: goods sold each (Book 2 p.43) take the vehicle table's
+      // tonnage where it has one (ruling: an Air/Raft 4 t, an ATV 10 t).
+      const perUnit = speculativeTonsPerUnit(offer.code);
+      const unitWord = offer.unit === 'tons' ? 'ton' : 'each';
       const affordable = offer.pricePerUnitCr > 0 ? Math.floor(balance / offer.pricePerUnitCr) : remaining;
-      let quantity = offer.unit === 'tons' ? Math.max(0, Math.min(remaining, Math.floor(free), affordable)) : 0;
+      let quantity = perUnit ? Math.max(0, Math.min(remaining, Math.floor(free / perUnit), affordable)) : 0;
       // Taking part of a lot adds a 1% handling fee (Book 2 p.46); the quoted
-      // total includes it, and it can tip the last ton out of reach.
-      const costOf = (tons) => (tons > 0 ? calculateSpeculativePurchaseCost(offer, tons) : { totalCr: 0, handlingFeeCr: 0 });
+      // total includes it, and it can tip the last unit out of reach.
+      const costOf = (units) => (units > 0 ? calculateSpeculativePurchaseCost(offer, units) : { totalCr: 0, handlingFeeCr: 0 });
       if (!transfer?.available) quantity = 0;
-      while (quantity > 0 && costOf(quantity).totalCr + shuttleOf(quantity) > balance) quantity -= 1;
+      while (quantity > 0 && costOf(quantity).totalCr + shuttleOf(quantity * perUnit) > balance) quantity -= 1;
       const cost = costOf(quantity);
       const blocked = quantity > 0 ? null
         : !transfer?.available ? `Nothing can be brought up from ${system.name}: ${transfer?.reason ?? 'no way to orbit'}.`
-        : offer.unit !== 'tons' ? `${offer.name} is sold by the ${String(offer.unit).replace(/s$/, '')}, not the ton; buy it from the current client.`
+        : !perUnit ? `${offer.name} are sold each, and the books give no tonnage for one; the referee has to rule it before one can be loaded.`
           : remaining < 1 ? 'This week\u2019s lot is already bought out.'
-            : Math.floor(free) < 1 ? 'The hold is full.'
-              : `${cr(offer.pricePerUnitCr)} a ton is beyond the ship\u2019s account (${cr(balance)}).`;
-      buy = { offer, lotKey, remaining, quantity, costCr: cost.totalCr + shuttleOf(quantity), handlingFeeCr: cost.handlingFeeCr, shuttleCr: shuttleOf(quantity), blocked };
+            : Math.floor(free / perUnit) < 1 ? (perUnit > 1 ? `One ${offer.name} takes ${perUnit} t of hold; ${free} t is free.` : 'The hold is full.')
+              : `${cr(offer.pricePerUnitCr)} ${unitWord === 'ton' ? 'a ton' : 'each'} is beyond the ship\u2019s account (${cr(balance)}).`;
+      buy = { offer, lotKey, remaining, quantity, perUnit, unitWord, tons: quantity * (perUnit ?? 1),
+        costCr: cost.totalCr + shuttleOf(quantity * (perUnit ?? 1)), handlingFeeCr: cost.handlingFeeCr, shuttleCr: shuttleOf(quantity * (perUnit ?? 1)), blocked };
     }
     const sales = (ship.state.cargoManifest ?? []).map((cargo) => {
       const match = /^speculative:(\d{2})$/.exec(cargo.category ?? '');
       if (!match || cargo.originSystemId === system.id) return null;
-      const quote = quoteSpeculativeResale(Number(match[1]), cargo.tons, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM });
+      const units = speculativeCargoUnits(cargo) ?? cargo.tons;
+      const quote = quoteSpeculativeResale(Number(match[1]), units, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM });
       return quote ? { cargo, quote, shuttleCr: shuttleOf(cargo.tons), blocked: transfer?.available ? null : transfer?.reason ?? 'no way down' } : null;
     }).filter(Boolean);
     speculation = { buy, sales, skillDM, brokerDM };
@@ -1929,6 +1937,30 @@ function checklistView(port, ship) {
 // programs (p.12). All instant, like buying fuel.
 export const SHIPYARD_FITTING_STARPORTS = Object.freeze(['A', 'B']);
 
+// v0.316.4: a program this ship can never run, and why (Kurt bought Jump-4
+// for a Jump-2 scout). A jump program past the drive or the computer's
+// limit; a program too large for the CPU — a fire-control program counted
+// beside Target, which every shot runs (Book 2 pp.12, 31-32).
+const NEEDS_TARGET = new Set(['return-fire', 'launch']);
+export function programUnusable(ship, key) {
+  const program = COMPUTER_PROGRAMS[key];
+  if (!program) return null;
+  const name = ship.identity?.name || 'this ship';
+  const computer = ship.specifications.computer;
+  const jump = /^jump-(\d)$/.exec(key);
+  if (jump) {
+    const distance = Number(jump[1]);
+    const drive = ship.specifications.drives.jump.rating;
+    if (distance > drive) return `needs a Jump-${distance} drive; ${name} has Jump-${drive}`;
+    if (distance > computer.maximumSupportedJump) return `a Model/${computer.model} runs jumps to ${computer.maximumSupportedJump}`;
+    return null;
+  }
+  const beside = (program.class === 'offensive' && key !== 'target') || NEEDS_TARGET.has(key);
+  const running = program.space + (beside ? COMPUTER_PROGRAMS.target.space : 0);
+  if (running > computer.cpu) return `too large to run${beside ? ' beside Target' : ''} in a Model/${computer.model} (CPU ${computer.cpu})`;
+  return null;
+}
+
 function shipyardView(ship, profile, { writable = true } = {}) {
   if (!ship || !profile || !SHIPYARD_FITTING_STARPORTS.includes(profile.starport)) return null;
   const balance = Number(ship.state.finances?.balanceCr ?? 0);
@@ -1956,11 +1988,14 @@ function shipyardView(ship, profile, { writable = true } = {}) {
   });
   const carried = ship.state.computer?.programs ?? [];
   const armed = turrets.some((turret) => turret.weapons.length);
+  const unusable = (key) => programUnusable(ship, key);
   const software = Object.values(COMPUTER_PROGRAMS).filter((program) => !carried.includes(program.key)).map((program) => ({
-    ...offer(`shipyard:software:${program.key}`, program.label, priceOf(program.priceMCr), why(priceOf(program.priceMCr))),
+    ...offer(`shipyard:software:${program.key}`, program.label, priceOf(program.priceMCr), why(priceOf(program.priceMCr), unusable(program.key))),
+    key: program.key,
     group: program.class, space: program.space,
     note: program.key === 'target' && armed ? 'the ship\u2019s lasers cannot fire without it' : program.key === 'generate' ? 'plots a jump off the charted lanes' : null
   })).map((entry) => ({ ...entry, rank: entry.command?.endsWith(':target') && armed ? 0 : entry.note ? 1 : 2 }))
+    .map((entry) => (unusable(entry.key) ? { ...entry, rank: 3 } : entry))
     .sort((a, b) => a.rank - b.rank || a.costCr - b.costCr);
   // v0.316.3: what the yard can put right. The masthead chip turns amber for
   // these only; in a good port with nothing wrong it stays plain.
@@ -1970,7 +2005,8 @@ function shipyardView(ship, profile, { writable = true } = {}) {
   return {
     attention,
     starport: profile.starport, balanceCr: balance, freeHold,
-    hardpoints: { ...hardpoints }, mounts, turrets, software, carried: carried.map((key) => COMPUTER_PROGRAMS[key]?.label ?? key),
+    hardpoints: { ...hardpoints }, mounts, turrets, software,
+    carried: carried.map((key) => `${COMPUTER_PROGRAMS[key]?.label ?? key}${unusable(key) ? ' (unusable here)' : ''}`),
     cite: 'Book 2 pp.12, 15-16'
   };
 }
@@ -2088,17 +2124,19 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
         steps.push({ id: `sell-${cargo.id}`, title: `Sell ${cargo.tons} t ${quote.name}`, state: 'blocked', figure: `${quote.percentage}% of base`, copy: `It cannot be taken down: ${blocked}.`, cite: 'Book 2 p.8' });
         continue;
       }
-      steps.push({ id: `sell-${cargo.id}`, title: `Sell ${cargo.tons} t ${quote.name}`, state: 'ready', command: `speculation:sell:${cargo.id}`, verb: 'Sell',
+      steps.push({ id: `sell-${cargo.id}`, title: `Sell ${quote.unit && quote.unit !== 'tons' ? `${quote.quantity}` : `${cargo.tons} t`} ${quote.name}`, state: 'ready', command: `speculation:sell:${cargo.id}`, verb: 'Sell',
         figure: `${cr(quote.netCr - shuttleCr)}, ${quote.percentage}% of base${paid ? `, ${result >= 0 ? 'up' : 'down'} ${cr(Math.abs(result))}` : ''}`,
         copy: `Today\u2019s price at ${system.name} is ${quote.percentage}% of base${quote.characterSkillDM ? `, with +${quote.characterSkillDM} for Admin or Bribery` : ''}${facts.speculation.brokerDM ? `, with +${facts.speculation.brokerDM} for a hail\u2019s broker tip` : ''}. It cost ${cr(paid)}.${shuttleCr ? ` The shuttle down takes ${cr(shuttleCr)} of it (Book 2 p.8).` : ''} The quote holds for today; it is thrown again on another day.`, cite: 'Book 2 p.47' });
     }
     const { buy } = facts.speculation;
     if (buy) {
+      const byTon = buy.unitWord === 'ton';
+      const amount = (count) => (byTon ? `${count} t` : `${count} (${count * buy.perUnit} t)`);
       steps.push(buy.quantity > 0
-        ? { id: 'speculate', title: `Buy ${buy.offer.name} to resell`, state: 'ready', command: 'speculation:buy', verb: `Buy ${buy.quantity} t`,
-          figure: `${buy.quantity} t at ${cr(buy.offer.pricePerUnitCr)}, ${cr(buy.costCr)}${buy.handlingFeeCr ? ' with handling' : ''}`,
-          copy: `This week\u2019s lot at ${system.name}: ${buy.remaining} t of ${buy.offer.name} left at ${buy.offer.percentage}% of its ${cr(buy.offer.basePriceCr)} base price. One lot a week${buy.handlingFeeCr ? `; taking part of it adds 1% handling, ${cr(buy.handlingFeeCr)}` : ''}${buy.shuttleCr ? `; the shuttle up to orbit adds ${cr(buy.shuttleCr)} (Book 2 p.8)` : ''}. It sells on another world, for whatever that world throws.`, cite: 'Book 2 p.46' }
-        : { id: 'speculate', title: `${buy.offer.name} to resell`, state: 'blocked', figure: `${buy.offer.percentage}% of base, ${cr(buy.offer.pricePerUnitCr)} a ${String(buy.offer.unit).replace(/s$/, '')}`, copy: buy.blocked, cite: 'Book 2 p.46' });
+        ? { id: 'speculate', title: `Buy ${buy.offer.name} to resell`, state: 'ready', command: 'speculation:buy', verb: `Buy ${byTon ? `${buy.quantity} t` : buy.quantity}`,
+          figure: `${amount(buy.quantity)} at ${cr(buy.offer.pricePerUnitCr)}${byTon ? '' : ' each'}, ${cr(buy.costCr)}${buy.handlingFeeCr ? ' with handling' : ''}`,
+          copy: `This week\u2019s lot at ${system.name}: ${byTon ? `${buy.remaining} t` : `${buy.remaining}`} of ${buy.offer.name} left at ${buy.offer.percentage}% of its ${cr(buy.offer.basePriceCr)} base price.${byTon ? '' : ` Sold each; one takes ${buy.perUnit} t of hold (Book 2 p.16's vehicle tonnage, a ruling).`} One lot a week${buy.handlingFeeCr ? `; taking part of it adds 1% handling, ${cr(buy.handlingFeeCr)}` : ''}${buy.shuttleCr ? `; the shuttle up to orbit adds ${cr(buy.shuttleCr)} (Book 2 p.8)` : ''}. It sells on another world, for whatever that world throws.`, cite: 'Book 2 p.46' }
+        : { id: 'speculate', title: `${buy.offer.name} to resell`, state: 'blocked', figure: `${buy.offer.percentage}% of base, ${cr(buy.offer.pricePerUnitCr)} ${byTon ? 'a ton' : 'each'}`, copy: buy.blocked, cite: 'Book 2 p.46' });
     }
   }
 
@@ -3810,6 +3848,16 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             else if (delta < 0) next = debitShipAccount(ship, -delta, { kind: 'referee', description: 'Referee adjustment', dateLabel: editDateLabel });
             else next = ship;
             message = `${shipLabel}: account set to ${cr(target)}`;
+          } else if (field === 'remove-program') {
+            // v0.316.4: a program bought by mistake comes off the card by
+            // referee fiat. Book 2 has no resale for software; any refund is
+            // the account field's business, done separately.
+            const key = String(value ?? '');
+            if (!ship.state.computer.programs.includes(key)) throw new Error(`${shipLabel} does not carry ${COMPUTER_PROGRAMS[key]?.label ?? key}`);
+            next = JSON.parse(JSON.stringify(ship));
+            next.state.computer.programs = next.state.computer.programs.filter((entry) => entry !== key);
+            assertValidShipDocument(next);
+            message = `${shipLabel}: ${COMPUTER_PROGRAMS[key]?.label ?? key} removed from the programs carried`;
           } else throw new Error(`unknown edit: ${command}`);
           persist([next]);
         } else if (subject === 'combatant') {
@@ -4753,6 +4801,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           ship = result.ship;
           message = `${shipName} has a ${result.weapon.label} installed in turret ${first} at ${facts.system.name}, ${cr(result.priceCr)} (Book 2 p.16).${result.gunners.shortfall ? ` ${result.gunners.armedTurrets} armed turret${result.gunners.armedTurrets === 1 ? '' : 's'}, ${result.gunners.gunners} gunner${result.gunners.gunners === 1 ? '' : 's'}: unmanned turrets still fire, without a gunner\u2019s skill (p.17).` : ''}`;
         } else if (what === 'software') {
+          const reason = programUnusable(facts.ship, first);
+          if (reason) throw new Error(`${COMPUTER_PROGRAMS[first]?.label ?? first} would never run: ${reason}`);
           const result = purchaseComputerProgram(facts.ship, first, { dateLabel });
           ship = result.ship;
           message = `${shipName} buys the ${COMPUTER_PROGRAMS[result.program].label} program at ${facts.system.name}, ${cr(result.costCr)} (Book 2 p.12).`;
@@ -5143,12 +5193,12 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           if (!buy) throw new Error('no speculative trade lot is available');
           if (buy.quantity < 1) throw new Error(buy.blocked);
           const result = purchaseSpeculativeCargo(facts.ship, buy.offer, buy.quantity, { originSystemId: facts.system.id, dateLabel });
-          const shuttle = chargeShuttleFreight(result.ship, { tons: buy.quantity, starport: facts.profile.starport, dateLabel, description: `Shuttle up, ${buy.quantity} t ${buy.offer.name} at ${facts.system.name} (Book 2 p.8)` });
+          const shuttle = chargeShuttleFreight(result.ship, { tons: buy.tons, starport: facts.profile.starport, dateLabel, description: `Shuttle up, ${buy.tons} t ${buy.offer.name} at ${facts.system.name} (Book 2 p.8)` });
           const campaign = recordSpeculativeLotPurchase(resolved.campaign, { key: buy.lotKey, systemId: facts.system.id, tradeGoodCode: buy.offer.code, quantity: buy.quantity });
           registry.put(campaign);
           reload();
           persist([shuttle.ship]);
-          message = `${shipName} bought a speculative lot: ${buy.quantity} t ${buy.offer.name} at ${facts.system.name}, ${cr(result.costCr)}${result.handlingFeeCr ? ` including ${cr(result.handlingFeeCr)} handling` : ''}${shuttle.costCr ? `, plus ${cr(shuttle.costCr)} shuttle` : ''}`;
+          message = `${shipName} bought a speculative lot: ${buy.unitWord === 'ton' ? `${buy.quantity} t` : `${buy.quantity} (${buy.tons} t)`} ${buy.offer.name} at ${facts.system.name}, ${cr(result.costCr)}${result.handlingFeeCr ? ` including ${cr(result.handlingFeeCr)} handling` : ''}${shuttle.costCr ? `, plus ${cr(shuttle.costCr)} shuttle` : ''}`;
         } else {
           const cargoId = command.slice('speculation:sell:'.length);
           const sale = facts.speculation?.sales.find((entry) => entry.cargo.id === cargoId);

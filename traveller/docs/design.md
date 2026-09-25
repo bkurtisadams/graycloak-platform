@@ -571,6 +571,14 @@ berthing past six days, salaries) reach `play.html` with it.
 - A live ship fight picks up where it left off after a reload (Sep 2026).
 - Turrets, weapons and software are fitted at class A or B starports, at
   once; a refit turret's fire control takes a ton of the hold (Sep 2026).
+- Goods sold "each" on the Book 2 p.43 table take the p.16 ship-vehicle
+  tonnage where it has one: an Air/Raft 4 t, an ATV 10 t (rules 0.72.1). The
+  others (Aircraft, Computers, Armored Vehicles, Farm Machinery) need a
+  referee ruling before they can be loaded (Sep 2026).
+- The Shipyard does not sell a program the ship can never run: a jump past
+  the drive or the computer's limit, or a program too large for the CPU
+  (fire control counted beside Target). The referee may take a program off
+  the card; software has no resale, so any refund is by fiat (Sep 2026).
 - A hostile pirate attacks on the reaction table's own throw and cannot then
   be let pass; the party may run (p.37 escape shots) or fight (Sep 2026).
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,

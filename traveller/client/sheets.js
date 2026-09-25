@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.3';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.316.3';
-import { renderSectionStrip } from './section-strip.js?v=v0.316.3';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.316.4';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.316.4';
+import { renderSectionStrip } from './section-strip.js?v=v0.316.4';
 
 const DRAGGED = new Map();
 
@@ -112,6 +112,16 @@ function shipBody(sheet, handlers) {
       field('Name', sheet.title, { onchange: (value) => handlers.onEditShip?.(sheet.id, 'name', value), locked: !sheet.editable }),
       field('Fuel aboard, tons', ship.fuel.now, { type: 'number', width: 90, onchange: (value) => handlers.onEditShip?.(sheet.id, 'fuel', value), locked: !sheet.editable }),
       field('Ship account, Cr', ship.accountCr ?? 0, { type: 'number', width: 130, onchange: (value) => handlers.onEditShip?.(sheet.id, 'account', value), locked: !sheet.editable })));
+  }
+  // v0.316.4: a program bought by mistake comes off the card by fiat.
+  if (sheet.editable && sheet.programs?.length && handlers.onEditShip) {
+    const choice = h('select', { 'aria-label': 'Program to remove' }, sheet.programs.map((program) => h('option', { value: program.key, text: `${program.label}${program.unusable ? ' (unusable)' : ''}` })));
+    const firstUnusable = sheet.programs.find((program) => program.unusable);
+    if (firstUnusable) choice.value = firstUnusable.key;
+    parts.push(h('div', { class: 'sheet-rows sheet-remove-program' },
+      h('label', { class: 'sheet-field' }, h('span', { text: 'Remove a program (referee)' }), choice),
+      h('button', { type: 'button', class: 'button is-small', text: 'Remove', onclick: () => handlers.onEditShip?.(sheet.id, 'remove-program', choice.value) }),
+      h('p', { class: 'sheet-note', text: 'Book 2 has no resale for software; refund it, if you choose to, in the account field above.' })));
   }
   parts.push(h('div', { class: 'sheet-actions' },
     h('button', { type: 'button', class: 'button is-small', text: 'Stage on a scene', onclick: () => handlers.onStageDocument?.('ship', sheet.id) }),

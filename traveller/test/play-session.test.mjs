@@ -1589,3 +1589,63 @@ test('v0.316.3 the Shipyard chip asks for attention only when the yard can put s
   yard = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view().shipyard;
   assert.deepEqual(yard.attention, [], 'a good port with nothing wrong: plain');
 });
+
+// ---------------------------------------------------------------- v0.316.4
+import { programUnusable } from '../src/play-session.js';
+
+test('v0.316.4 the Shipyard greys out a program the ship can never run, and refuses to sell it', async () => {
+  const { registry, campaignId } = await armedScoutAtAster();
+  const rich = { balanceCr: 20_000_000, ledger: [{ id: 'opening', date: '106-4800', kind: 'transfer', description: 'Opening balance', amountCr: 20_000_000, balanceCr: 20_000_000 }], mortgage: null };
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  registry.put({ ...ship, state: { ...ship.state, finances: rich } });
+  const scout = registry.resolveCampaign(campaignId).ships[0];
+  assert.match(programUnusable(scout, 'jump-4'), /needs a Jump-4 drive; .* has Jump-2/);
+  assert.match(programUnusable(scout, 'predict-5'), /too large to run beside Target in a Model\/1 \(CPU 2\)/);
+  assert.equal(programUnusable(scout, 'predict-3'), null);
+  assert.equal(programUnusable(scout, 'return-fire'), null);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const jump4 = session.view().shipyard.software.find((entry) => entry.key === 'jump-4');
+  assert.equal(jump4.command, null);
+  assert.match(jump4.blocked, /Jump-4 drive/);
+  assert.match(session.run('shipyard:software:jump-4').message, /would never run/);
+});
+
+test('v0.316.4 the referee can take a program off the card', async () => {
+  const { registry, campaignId } = await armedScoutAtAster();
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  registry.put({ ...ship, state: { ...ship.state, computer: { programs: [...ship.state.computer.programs, 'jump-4'] } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const sheet = session.view({ sheets: [{ kind: 'ship', id: ship.identity.id }] }).sheets[0];
+  assert.match(sheet.programs.find((entry) => entry.key === 'jump-4').unusable, /Jump-4 drive/);
+  assert.equal(session.run('edit:ship:remove-program', { fight: { id: ship.identity.id, value: 'jump-4' } }).ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).ships[0].state.computer.programs.includes('jump-4'), false);
+});
+
+test('v0.316.4 an Air/Raft lot is sold each at 4 t of hold; a scout\u2019s 3 t cannot take one', async () => {
+  // Calder's lot in the week of day 114 is three Air/Rafts at Cr 4,200,000.
+  const place = async (registry, campaignId) => {
+    const r = registry.resolveCampaign(campaignId);
+    const ship = r.ships[0];
+    const rich = { balanceCr: 20_000_000, ledger: [{ id: 'opening', date: '114-4800', kind: 'transfer', description: 'Opening balance', amountCr: 20_000_000, balanceCr: 20_000_000 }], mortgage: null };
+    registry.putAll([
+      { ...r.campaign, time: { ...r.campaign.time, dayOfYear: 114 }, location: { systemId: 'calder', systemName: 'Calder', worldId: 'calder-main', worldName: 'Calder' } },
+      { ...ship, state: { ...ship.state, finances: rich, portCall: { ...ship.state.portCall, systemId: 'calder', arrivalDate: '114-4800', berthingPaid: true } } }
+    ]);
+    return createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  };
+  const trader = await traderAtAster({ steward: true });
+  const session = await place(trader.registry, trader.campaignId);
+  const row = session.view().steps.find((step) => step.id === 'speculate');
+  assert.equal(row.title, 'Buy Air/Raft to resell');
+  assert.equal(row.verb, 'Buy 3');
+  assert.match(row.figure, /^3 \(12 t\) at Cr 4,200,000 each/);
+  assert.equal(session.run('speculation:buy').ok, true);
+  const lot = trader.registry.resolveCampaign(trader.campaignId).ships[0].state.cargoManifest.find((entry) => entry.category === 'speculative:52');
+  assert.equal(lot.tons, 12);
+
+  const scout = await armedScoutAtAster();
+  const blocked = (await place(scout.registry, scout.campaignId)).view().steps.find((step) => step.id === 'speculate');
+  assert.equal(blocked.state, 'blocked');
+  assert.match(blocked.copy, /One Air\/Raft takes 4 t of hold; 3 t is free/);
+  assert.match(blocked.figure, /Cr 4,200,000 each$/);
+});

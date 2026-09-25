@@ -61,3 +61,21 @@ test('a v10 ship migrates to v11 with no refit', () => {
   assert.equal(migrated.schemaVersion, CURRENT_SHIP_DOCUMENT_SCHEMA_VERSION);
   assert.deepEqual(migrated.refit, { turrets: [] });
 });
+
+// v0.72.1: goods sold each carry the ship-vehicle table's tonnage.
+import { purchaseSpeculativeCargo, sellSpeculativeCargo, speculativeCargoUnits, speculativeTonsPerUnit } from '../src/starships/operations.js';
+
+test('an Air/Raft bought as speculative cargo takes 4 tons of hold; goods with no tonnage on record are refused', () => {
+  const ship = trader(20_000_000);
+  const offer = { code: 52, name: 'Air/Raft', unit: 'each', quantityAvailable: 2, pricePerUnitCr: 4_800_000, percentage: 80, basePriceCr: 6_000_000 };
+  const bought = purchaseSpeculativeCargo(ship, offer, 2, { originSystemId: 'aster', dateLabel: '106-4800' });
+  const lot = bought.ship.state.cargoManifest[0];
+  assert.equal(lot.tons, 8);
+  assert.equal(speculativeCargoUnits(lot), 2);
+  assert.equal(bought.costCr, 9_600_000);
+  assert.equal(speculativeTonsPerUnit(54), 10);
+  assert.equal(speculativeTonsPerUnit(53), null);
+  assert.throws(() => purchaseSpeculativeCargo(ship, { ...offer, code: 53, name: 'Computers' }, 1, { originSystemId: 'aster' }), /no tonnage is on record/);
+  const sold = sellSpeculativeCargo(bought.ship, lot.id, { code: 52, quantity: 2, netCr: 12_000_000, percentage: 100 }, { destinationSystemId: 'calder', dateLabel: '113-4800' });
+  assert.equal(sold.revenueCr, 12_000_000);
+});

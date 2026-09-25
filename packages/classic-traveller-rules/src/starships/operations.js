@@ -897,23 +897,49 @@ export function disembarkPassengersAtDestination(ship, systemId, { dateLabel = n
   return Object.freeze({ ship: next, passengers: Object.freeze(delivered), revenueCr });
 }
 
+// v0.72.1 (ruling, Kurt, Sep 2026): Book 2 p.43 sells some goods "each",
+// and no rule says how much hold one takes. Where Book 2 p.16's ship-vehicle
+// table gives the vehicle's tonnage, that is it: an Air/Raft 4 tons, an ATV
+// 10. The rest (Aircraft, Computers, Armored Vehicles, Farm Machinery) have
+// no figure in the books and stay unbuyable until the referee rules one.
+export const SPECULATIVE_ITEM_TONS = Object.freeze({ 52: 4, 54: 10 });
+
+/** Tons one unit of a trade good takes in the hold: 1 for goods by the ton. */
+export function speculativeTonsPerUnit(code) {
+  const tradeGood = TRADE_GOODS[code];
+  if (!tradeGood) throw new RangeError(`unknown trade good code: ${code}`);
+  if (tradeGood.unit === 'tons') return 1;
+  return SPECULATIVE_ITEM_TONS[code] ?? null;
+}
+
+/** How many units a speculative cargo lot is (tons, or vehicles). */
+export function speculativeCargoUnits(cargo) {
+  const match = /^speculative:(\d{2})$/.exec(cargo?.category ?? '');
+  if (!match) return null;
+  const perUnit = speculativeTonsPerUnit(Number(match[1]));
+  return perUnit ? Math.round(cargo.tons / perUnit) : null;
+}
+
 export function purchaseSpeculativeCargo(ship, offer, quantity, {
   originSystemId,
   dateLabel = null
 } = {}) {
   assertValidShipDocument(ship);
   if (!offer || typeof offer !== 'object') throw new TypeError('offer must be an object');
-  if (offer.unit !== 'tons') throw new RangeError('individual-item trade goods require referee-assigned tonnage before loading');
   const tradeGood = TRADE_GOODS[offer.code];
   if (!tradeGood) throw new RangeError(`unknown trade good code: ${offer.code}`);
+  const perUnit = speculativeTonsPerUnit(offer.code);
+  if (!perUnit) throw new RangeError(`${tradeGood.name} are sold each and no tonnage is on record for one; the referee must rule it`);
+  const tons = quantity * perUnit;
   const cost = calculateSpeculativePurchaseCost(offer, quantity);
   if (ship.state.finances.balanceCr < cost.totalCr) throw new RangeError(`ship operating account requires Cr${cost.totalCr.toLocaleString('en-US')} for purchase`);
   const freeTons = ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons;
-  if (quantity > freeTons + 1e-9) throw new RangeError(`cargo requires ${quantity} tons; only ${freeTons} tons available`);
+  if (tons > freeTons + 1e-9) throw new RangeError(`cargo requires ${tons} tons; only ${freeTons} tons available`);
+  const what = offer.unit === 'tons' ? `${quantity} tons ${tradeGood.name}` : `${quantity} ${tradeGood.name} (${tons} tons)`;
   let next = appendLedger(ship, {
     kind: 'speculative-purchase',
     amountCr: -cost.totalCr,
-    description: `${quantity} tons ${tradeGood.name}${cost.partialPurchase ? ' / partial lot incl. 1% handling' : ''}`,
+    description: `${what}${cost.partialPurchase ? ' / partial lot incl. 1% handling' : ''}`,
     dateLabel
   });
   const id = `${next.identity.id}:spec:${originSystemId}:${offer.code}:${next.state.cargoManifest.length + 1}`;
@@ -921,7 +947,7 @@ export function purchaseSpeculativeCargo(ship, offer, quantity, {
     id,
     category: `speculative:${offer.code}`,
     description: tradeGood.name,
-    tons: quantity,
+    tons,
     originSystemId: String(originSystemId ?? ''),
     destinationSystemId: null,
     acquisitionCostCr: cost.totalCr,
@@ -958,7 +984,7 @@ export function sellSpeculativeCargo(ship, cargoId, quote, { dateLabel = null, d
   if (!match) throw new RangeError('cargo is not speculative trade goods');
   if (cargo.originSystemId === destination) throw new RangeError('speculative trade goods must be transported to another world before resale');
   const code = Number(match[1]);
-  if (!quote || quote.code !== code || quote.quantity !== cargo.tons) throw new RangeError('sale quote does not match cargo lot');
+  if (!quote || quote.code !== code || quote.quantity !== speculativeCargoUnits(cargo)) throw new RangeError('sale quote does not match cargo lot');
   const unloaded = unloadCargo(ship, id);
   let next = unloaded.ship;
   next = appendLedger(next, {
