@@ -592,6 +592,19 @@ berthing past six days, salaries) reach `play.html` with it.
   the old one traded in at 25% of its price, the tonnage difference taken
   from (or given back to) the hold (rules 0.73.0, ship refit.computer). Its
   jump limit follows the 1982 floor below (rules 0.74.0).
+- Solo play (Kurt, Sep 2026): a campaign's referee is a person or the game
+  (roster.settings.referee). Solo, every call the book leaves to a referee
+  is answered by a table and logged. First slice (client v0.322.0, rules
+  0.79.0): patron missions from original tables (encounters/missions.js —
+  not rules text) by patron type: courier and escort complete on arrival
+  like deliveries; retrieval and investigation are carried out at their
+  world (1D or 1D+1 days, then 2D + the party's best skill for 8+, retried
+  until the deadline); smuggling loads cargo and meets the law on landing
+  (the p.7 throw; caught: cargo seized, job failed, 1D months in jail —
+  proposed term, to confirm). With a person refereeing, "Suggest a job"
+  drafts from the same tables; players see the offer, not the form. Solo
+  hides the referee's let-off buttons. Next: rumours from game facts,
+  generated opponents for hijackers and boarders, NPCs acting alone.
 - A hostile pirate attacks on the reaction table's own throw and cannot then
   be let pass; the party may run (p.37 escape shots) or fight (Sep 2026).
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,

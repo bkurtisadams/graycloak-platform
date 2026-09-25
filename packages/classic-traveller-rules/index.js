@@ -895,3 +895,6 @@ export {
 } from './src/worlds/generation.js';
 export { SECTOR_COLUMNS, SECTOR_ROWS } from './src/worlds/subsector.js';
 export { npcRandom, withNpcRandom } from './src/npc-random.js';
+
+// v0.79.0: patron missions for solo play (original, not rules text).
+export { MISSION_KINDS, MISSION_TASKS, draftPatronMission, throwMissionTask, missionTaskDays } from './src/encounters/missions.js';

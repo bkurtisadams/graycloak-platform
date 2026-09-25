@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.321.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.321.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.321.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.321.0';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.322.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.322.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.322.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.322.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.321.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.321.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.321.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.321.0';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.322.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.322.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.322.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.322.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.321.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.321.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.322.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.322.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.321.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.322.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -147,25 +147,49 @@ function jobRow(job, handlers = {}, live = false) {
 function patronsPanel(p, handlers) {
   const people = (command, value) => handlers.onPeople?.(command, value);
   const parts = [];
+  const solo = p.mode === 'game';
+  const referee = p.seat !== 'player';
+  // v0.322.0: jobs to be carried out here (original solo tables).
+  for (const task of p.tasks ?? []) {
+    parts.push(h('section', { class: 'patron-card is-task', 'aria-label': 'A job to carry out' },
+      h('p', { class: 'eyebrow', text: `Job here${task.attempts ? ` \u00b7 tried ${task.attempts} time${task.attempts === 1 ? '' : 's'}` : ''}` }),
+      h('h3', { text: task.title }),
+      h('p', { text: task.figure }),
+      task.command ? h('div', { class: 'lead-actions' }, kindButton({ label: 'Carry it out', kind: 'money', primary: true }, { onclick: () => people(task.command) })) : null));
+  }
   if (p.patron) {
     const patron = p.patron;
-    const form = h('div', { class: 'patron-form' },
-      h('label', {}, h('span', { text: 'The job' }), h('input', { type: 'text', 'data-title': true, placeholder: 'What the patron wants done' })),
-      h('label', {}, h('span', { text: 'Where' }), h('select', { 'data-destination': true }, p.systems.map((entry) => h('option', { value: entry.id, selected: entry.id === patron.systemId, text: entry.name })))),
-      h('label', {}, h('span', { text: 'Pay (Cr)' }), h('input', { type: 'number', min: 0, step: 1000, value: 0, 'data-pay': true })),
-      h('label', {}, h('span', { text: 'Days' }), h('input', { type: 'number', min: 1, value: 30, 'data-days': true })),
-      h('label', { class: 'is-wide' }, h('span', { text: 'Terms' }), h('input', { type: 'text', 'data-notes': true, placeholder: 'Expenses, shares, what the patron keeps' })));
+    const draft = patron.draft;
+    const offer = draft ? h('dl', { class: 'pairs patron-offer' },
+      h('dt', { text: 'The job' }), h('dd', { text: draft.title }),
+      h('dt', { text: 'Where' }), h('dd', { text: `${draft.destinationName}${draft.distance ? `, ${draft.distance} parsec${draft.distance === 1 ? '' : 's'}` : ', here'}` }),
+      h('dt', { text: 'Pay' }), h('dd', { text: cr(draft.paymentCr) }),
+      h('dt', { text: 'Days' }), h('dd', { text: String(draft.deadlineDays) }),
+      draft.task ? [h('dt', { text: 'What it takes' }), h('dd', { text: `${draft.task.days} days ${draft.task.where === 'surface' ? 'searching' : 'asking'} at ${draft.destinationName}, then 2D + ${draft.task.skills.join(', ')} for ${draft.task.needed}+` })] : null,
+      draft.kind === 'smuggling' ? [h('dt', { text: 'The risk' }), h('dd', { text: `${draft.cargoTons} t in the hold; the law throw on landing (2D, the law level or more), jail if caught` })] : null) : null;
+    const form = !solo && referee ? h('div', { class: 'patron-form' },
+      h('label', {}, h('span', { text: 'The job' }), h('input', { type: 'text', 'data-title': true, placeholder: 'What the patron wants done', value: draft?.title ?? '' })),
+      h('label', {}, h('span', { text: 'Where' }), h('select', { 'data-destination': true }, [...p.systems].sort((a, b) => a.name.localeCompare(b.name)).map((entry) => h('option', { value: entry.id, selected: entry.id === (draft?.destinationSystemId ?? patron.systemId), text: entry.name })))),
+      h('label', {}, h('span', { text: 'Pay (Cr)' }), h('input', { type: 'number', min: 0, step: 500, value: draft?.paymentCr ?? 0, 'data-pay': true })),
+      h('label', {}, h('span', { text: 'Days' }), h('input', { type: 'number', min: 1, value: draft?.deadlineDays ?? 30, 'data-days': true })),
+      h('label', { class: 'is-wide' }, h('span', { text: 'Terms' }), h('input', { type: 'text', 'data-notes': true, placeholder: 'Expenses, shares, what the patron keeps' }))) : null;
+    const take = () => people('patrons:accept', form ? {
+      title: form.querySelector('[data-title]').value, destinationSystemId: form.querySelector('[data-destination]').value,
+      paymentCr: form.querySelector('[data-pay]').value, deadlineDays: form.querySelector('[data-days]').value, notes: form.querySelector('[data-notes]').value
+    } : {});
+    const waiting = !solo && !referee && !draft;
     parts.push(h('section', { class: 'patron-card', 'aria-label': 'A patron' },
       h('p', { class: 'eyebrow', text: `Patron \u00b7 ${patron.date} \u00b7 ${patron.worldName} \u00b7 list ${patron.listKey}, ${patron.code}` }),
       h('h3', { text: patron.type }),
       h('p', { text: `Reaction ${patron.reaction.total}: ${patron.reaction.description}${patron.speaker ? ` Speaking for the party: ${patron.speaker}.` : ''}${patron.dms.length ? ` Matrix DMs: ${patron.dms.join(', ')}.` : ''}` }),
-      h('p', { class: 'cite', text: 'Build the patron as an NPC and decide the mission; write it up below and it goes on the job board (The Traveller Book p.99).' }),
+      solo ? h('p', { class: 'cite', text: 'Solo: the game says what the patron wants (original tables, not the book\u2019s).' })
+        : referee ? h('p', { class: 'cite', text: 'Referee: build the patron as an NPC and decide the mission, or have one suggested, and write it up below (The Traveller Book p.99).' })
+          : h('p', { class: 'cite', text: `The referee is deciding what the ${patron.type.toLowerCase()} wants.` }),
+      solo || !referee ? offer : null,
       form,
-      h('div', { class: 'lead-actions' },
-        kindButton({ label: 'Take the job', kind: 'money', primary: true }, { onclick: () => people('patrons:accept', {
-          title: form.querySelector('[data-title]').value, destinationSystemId: form.querySelector('[data-destination]').value,
-          paymentCr: form.querySelector('[data-pay]').value, deadlineDays: form.querySelector('[data-days]').value, notes: form.querySelector('[data-notes]').value
-        }) }),
+      waiting ? null : h('div', { class: 'lead-actions' },
+        !solo && referee ? kindButton({ label: 'Suggest a job', kind: 'optional' }, { small: true, onclick: () => people('patrons:suggest') }) : null,
+        kindButton({ label: 'Take the job', kind: 'money', primary: true }, { onclick: take }),
         kindButton({ label: 'Turn it down', kind: 'neutral' }, { onclick: () => people('patrons:decline') }))));
   }
   for (const rumor of p.rumors) {
@@ -183,6 +207,9 @@ function patronsPanel(p, handlers) {
     h('label', { class: 'patron-list' }, h('span', { text: 'Patron list' }),
       h('select', { onchange: (event) => people('patrons:list', { list: event.target.value }) },
         h('option', { value: 'one', selected: p.list === 'one', text: 'One (1977)' }), h('option', { value: 'two', selected: p.list === 'two', text: 'Two (1982)' }))),
+    referee ? h('label', { class: 'patron-list' }, h('span', { text: 'Referee' }),
+      h('select', { onchange: (event) => people('patrons:referee', { referee: event.target.value }) },
+        h('option', { value: 'person', selected: !solo, text: 'A person' }), h('option', { value: 'game', selected: solo, text: 'The game (solo)' }))) : null,
     h('span', { class: 'cite', text: 'Weekly: patron 5+ on 1D, rumour 7+ on 2D (The Traveller Book p.100).' })));
   return h('section', { class: 'patrons', 'aria-label': 'Patrons and rumours' }, parts);
 }

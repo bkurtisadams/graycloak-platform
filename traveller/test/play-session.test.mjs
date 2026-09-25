@@ -1725,7 +1725,8 @@ test('v0.318.0 a person encounter waits on the campaign, goes on the board as st
   assert.equal(ids.length, pending.quantity);
   const actor = after.npcActors.find((entry) => entry.identity.id === ids.at(-1));
   assert.equal(actor.characteristics.STR, pending.characteristics.strength);
-  assert.equal(actor.loadout.weaponKey, pending.weapon);
+  // The first carries the extraordinary weapon; with a group of one, that is the last too.
+  assert.equal(actor.loadout.weaponKey, pending.quantity === 1 && pending.extraordinary ? pending.extraordinary : pending.weapon);
   assert.deepEqual(session.view().personEncounter.actions.map((action) => action.command), ['persons:clear']);
   assert.equal(session.run('persons:clear').ok, true);
   assert.equal(personState(registry.resolveCampaign(campaignId).campaign).pending, null);
@@ -1863,4 +1864,71 @@ test('v0.321.0 a jump across a subsector edge is an ordinary jump', async () => 
   assert.equal(session.run(`trip:choose-destination:${outside.system.id}`).ok, true);
   const jump = session.view().steps.find((step) => step.id === 'jump');
   assert.ok(jump, 'the departure row reads the far world like any other');
+});
+
+// ---------------------------------------------------------------- v0.322.0
+import { refereeMode } from '../src/play-session.js';
+
+async function soloWithPatron(type, draftOverrides = {}) {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  const draft = { kind: 'investigation', patronType: type, thing: 'who leaked the plans', cargoTons: 0, paymentCr: 20000, deadlineDays: 40,
+    destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Find out who leaked the plans, on Calder',
+    task: { days: '1D+1', needed: 8, skills: ['Streetwise', 'Admin', 'Liaison'], where: 'town' }, ...draftOverrides };
+  const patron = { date: '106-4800', worldName: 'Aster', systemId: 'aster', listKey: 'one', code: 43, type, reaction: { total: 9, description: 'Intrigued.' }, speaker: 'Hawkeye', dms: [], draft };
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, settings: { referee: 'game' }, persons: { patron } } });
+  return { registry, campaignId, session: createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }) };
+}
+
+test('v0.322.0 solo, the referee is the game: the patron comes with a mission, no form', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Reporter');
+  assert.equal(refereeMode(registry.resolveCampaign(campaignId).campaign), 'game');
+  const view = session.view({ seat: 'player' });
+  assert.equal(view.patrons.patron.draft.title, 'Find out who leaked the plans, on Calder', 'a player sees the offer solo');
+  const taken = session.run('patrons:accept');
+  assert.equal(taken.ok, true, taken.message);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === 'Find out who leaked the plans, on Calder');
+  assert.equal(job.kind, 'patron');
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).missions[job.identity.id].kind, 'investigation');
+  assert.equal(session.view().patrons.tasks.length, 0, 'nothing to do until Calder');
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  playTo(session, 'calder');
+  assert.equal(registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === job.identity.id).status, 'accepted', 'arriving is not doing the job');
+  // The job is done there: a task to carry out, and no referee buttons.
+  const task = session.view().patrons.tasks[0];
+  assert.equal(task.command, `patrons:task:${job.identity.id}`);
+  assert.match(session.run(`contract:complete:${job.identity.id}`).message, /settles by its own test/);
+  // Carry it out until it is done (each try takes days; the deadline is 40).
+  let result;
+  for (let tries = 0; tries < 6; tries += 1) {
+    result = session.run(task.command);
+    if (!result.ok || /^Done/.test(result.message) || !/^Not yet/.test(result.message)) break;
+  }
+  assert.equal(result.ok, true, result.message);
+  assert.match(result.message, /^(Done|Not yet|\d+ days pass)/);
+});
+
+test('v0.322.0 a courier job solo is an ordinary delivery that completes on arrival', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', { kind: 'courier', thing: 'a sealed data wafer', destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Carry a sealed data wafer to Calder', task: null, paymentCr: 8000, deadlineDays: 30 });
+  assert.equal(session.run('patrons:accept').ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === 'Carry a sealed data wafer to Calder');
+  assert.equal(job.kind, 'delivery');
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  playTo(session, 'calder');
+  assert.equal(registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === job.identity.id).status, 'completed');
+});
+
+test('v0.322.0 smuggled cargo is loaded on taking the job and meets the law on landing', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Smuggler', { kind: 'smuggling', thing: 'untaxed liquor', cargoTons: 3, destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Land 3 t of untaxed liquor on Calder', task: null, paymentCr: 30000, deadlineDays: 30 });
+  assert.equal(session.run('patrons:accept').ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === 'Land 3 t of untaxed liquor on Calder');
+  assert.ok(registry.resolveCampaign(campaignId).ships[0].state.cargoManifest.some((entry) => entry.id === `${job.identity.id}:cargo`));
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  playTo(session, 'calder');
+  const after = registry.resolveCampaign(campaignId);
+  assert.ok(['completed', 'failed'].includes(after.contracts.find((entry) => entry.identity.id === job.identity.id).status), 'settled on landing, one way or the other');
+  assert.equal(after.ships[0].state.cargoManifest.some((entry) => entry.id === `${job.identity.id}:cargo`), false);
 });

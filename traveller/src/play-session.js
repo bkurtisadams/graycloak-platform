@@ -36,7 +36,8 @@ import {
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
   refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor,
-  generateSubsector, generateWorldName, sectorMap, rollNewLanes, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance
+  generateSubsector, generateWorldName, sectorMap, rollNewLanes, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
+  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -1959,8 +1960,35 @@ export function personState(campaign) {
     pending: persons.pending ?? null,
     // v0.319.0: patrons and rumours (The Traveller Book pp.99-100).
     patron: persons.patron ?? null, rumors: persons.rumors ?? [], lastLookDay: persons.lastLookDay ?? null,
-    patronList: persons.patronList ?? 'one'
+    patronList: persons.patronList ?? 'one',
+    // v0.322.0: the missions taken, by contract id (kind, task, cargo).
+    missions: persons.missions ?? {}
   };
+}
+
+// v0.322.0: who referees — a person, or the game itself (solo play). Solo,
+// every call the book leaves to the referee is answered by a table.
+export function refereeMode(campaign) {
+  return campaign?.roster?.settings?.referee === 'game' ? 'game' : 'person';
+}
+
+// Party members' best level in any of the skills named.
+function bestPartySkill(resolved, skills) {
+  const ids = resolved.campaign.party?.characterIds ?? [];
+  let best = { level: 0, name: null, skill: null };
+  for (const character of (resolved.characters ?? []).filter((entry) => ids.includes(entry.identity.id))) {
+    for (const skill of skills) {
+      const level = Number(character.skills?.[skill] ?? -1);
+      if (level > best.level || (best.name === null && level >= 0)) best = { level: Math.max(0, level), name: character.identity.name, skill };
+    }
+  }
+  return best;
+}
+
+// Worlds a patron's mission could send the party to: here, and within four parsecs.
+function missionCandidates(subsector, systemId) {
+  const here = getSubsectorSystem(subsector, systemId);
+  return [{ id: here.id, name: here.name, distance: 0 }, ...getJumpDestinations(subsector, systemId, 4).map((entry) => ({ id: entry.system.id, name: entry.system.name, distance: entry.distance }))];
 }
 
 // The one doing the talking: a party member whose service earns the +1
@@ -3306,6 +3334,43 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     reload();
     persist([state.ship, ...state.characters, ...state.contracts]);
     chartAndVisit();
+    if (state.situation === 'port') settleSmuggling();
+  }
+
+  // v0.322.0: smuggled cargo meets the law where it lands — the arrest throw
+  // (Book 3 p.7: 2D, the law level or more to get it past). Past, it is
+  // delivered and paid; caught, the cargo is seized, the job fails, and the
+  // party is jailed for 1D months (proposed term for smuggling; to confirm).
+  const SMUGGLING_JAIL_DAYS_PER_DIE = 28;
+  function settleSmuggling() {
+    const people = personState(resolved.campaign);
+    const here = resolved.campaign.location?.systemId;
+    for (const [id, mission] of Object.entries(people.missions)) {
+      if (mission.kind !== 'smuggling' || mission.done || mission.destinationSystemId !== here) continue;
+      const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+      if (!contract || contract.status !== 'accepted') continue;
+      const { profile } = currentWorldProfile(resolved, subsector);
+      const dice = createDice();
+      const arrest = lawArrestThrow(dice, { lawLevel: Number(profile?.lawLevel ?? 0) });
+      let ship = activeShip();
+      if (ship.state.cargoManifest.some((entry) => entry.id === `${id}:cargo`)) ship = unloadCargo(ship, `${id}:cargo`).ship;
+      const date = formatCampaignDate(resolved.campaign.time);
+      if (arrest.avoided) {
+        ship = creditShipAccount(ship, contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} delivered`, dateLabel: date });
+        persist([completeContractDocument(contract, { date: resolved.campaign.time, paymentCr: contract.economics.paymentCr, notes: `Past the law: 2D ${arrest.total} against ${arrest.needed}+` }), ship]);
+        registry.put(withPersonState(resolved.campaign, { missions: { ...people.missions, [id]: { ...mission, done: true } } }));
+        reload();
+        log('ENCOUNTER', `${contract.identity.title}: landed past the law (2D ${arrest.total} against law level ${arrest.needed}); ${cr(contract.economics.paymentCr)} paid.`);
+        continue;
+      }
+      const months = dice.rollD6();
+      persist([failContractDocument(contract, { date: resolved.campaign.time, notes: `Caught: 2D ${arrest.total} against ${arrest.needed}+` }), ship]);
+      registry.put(withPersonState(resolved.campaign, { missions: { ...people.missions, [id]: { ...mission, done: true, caught: true } } }));
+      reload();
+      log('ENCOUNTER', `${contract.identity.title}: caught landing it (2D ${arrest.total} against law level ${arrest.needed}). The cargo is seized; ${months} month${months === 1 ? '' : 's'} in jail (1D months for smuggling).`);
+      const passed = run('time:pass', { fight: { value: { amount: months * SMUGGLING_JAIL_DAYS_PER_DIE, unit: 'days', reason: 'in jail for smuggling' } } });
+      if (!passed.ok) log('ENCOUNTER', `The jail term could not be passed on the clock: ${passed.message}`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+    }
   }
 
   const TRIP_LOG_CATEGORIES = Object.freeze({
@@ -4513,7 +4578,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             else {
               patron = { date: today, worldName: system.name, systemId: system.id, listKey, code: rolled.code, type: rolled.type,
                 reaction: { total: rolled.reaction.total, description: rolled.reaction.description }, speaker: speaker?.identity.name ?? null,
-                dms: [...dms.parts.first.map((part) => `${part.label} ${signed(part.dm)} first die`), ...dms.parts.second.map((part) => `${part.label} ${signed(part.dm)} second die`)] };
+                dms: [...dms.parts.first.map((part) => `${part.label} ${signed(part.dm)} first die`), ...dms.parts.second.map((part) => `${part.label} ${signed(part.dm)} second die`)],
+                // v0.322.0: solo, the game decides what the patron wants.
+                draft: refereeMode(resolved.campaign) === 'game' ? { ...draftPatronMission(dice, { patronType: rolled.type, candidates: missionCandidates(subsector, system.id) }) } : null };
               lines.push(`a patron: ${rolled.type.toLowerCase()} (${rolled.code}, list ${listKey}), ${rolled.reaction.description.replace(/\.$/, '').toLowerCase()}`);
             }
           }
@@ -4524,6 +4591,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           log('ENCOUNTER', message, { visibility: 'referee' });
           return finish(message);
         }
+        if (command === 'patrons:suggest') {
+          // v0.322.0: a draft for the referee to start from (original tables).
+          if (!people.patron) throw new Error('no patron is waiting');
+          const draft = { ...draftPatronMission(createDice(), { patronType: people.patron.type, candidates: missionCandidates(subsector, people.patron.systemId) }) };
+          put({ patron: { ...people.patron, draft } });
+          return finish(`Suggested: ${draft.title}.`);
+        }
         if (command === 'patrons:decline') {
           if (!people.patron) throw new Error('no patron is waiting');
           put({ patron: null });
@@ -4533,26 +4607,75 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         if (command === 'patrons:accept') {
           const patron = people.patron;
           if (!patron) throw new Error('no patron is waiting');
-          const title = String(value.title ?? '').trim();
+          // v0.322.0: taken as drafted (solo, or the referee's suggestion
+          // unchanged) or as the referee wrote it.
+          const draft = patron.draft && (!value.title || value.title === patron.draft.title) ? patron.draft : null;
+          const title = String(value.title || draft?.title || '').trim();
           if (!title) throw new Error('give the job a title');
-          const destination = getSubsectorSystem(subsector, String(value.destinationSystemId ?? patron.systemId));
-          const paymentCr = Number.parseInt(value.paymentCr ?? 0, 10);
-          const deadlineDays = Number.parseInt(value.deadlineDays ?? 0, 10);
+          const destination = getSubsectorSystem(subsector, String(draft?.destinationSystemId ?? value.destinationSystemId ?? patron.systemId));
+          const paymentCr = Number.parseInt(draft ? draft.paymentCr : (value.paymentCr ?? 0), 10);
+          const deadlineDays = Number.parseInt(draft ? draft.deadlineDays : (value.deadlineDays ?? 0), 10);
           if (!Number.isInteger(paymentCr) || paymentCr < 0) throw new Error('the payment is a whole number of credits');
           if (!Number.isInteger(deadlineDays) || deadlineDays < 1) throw new Error('the deadline is one day or more');
           const speaker = partySpeaker(resolved);
           const ship = activeShip();
           if (!speaker || !ship) throw new Error('a party member and an active ship are needed');
+          // A courier or escort job completes on arrival like any delivery;
+          // the others are tested where they are done.
+          const contractKind = draft && (draft.kind === 'courier' || draft.kind === 'escort') ? 'delivery' : 'patron';
           const contract = createContractDocument({
-            kind: 'patron', offerId: `patron-${patron.date}-${patron.code}-${Date.now()}`, title,
+            kind: contractKind, offerId: `patron-${patron.date}-${patron.code}-${Date.now()}`, title,
             issuerName: patron.type, issuerType: 'patron', originSystemId: patron.systemId, originSystemName: patron.worldName,
             destinationSystemId: destination.id, destinationSystemName: destination.name, paymentCr, deadlineDays, cargoTons: 0,
             exclusiveShip: false, requirementsDescription: String(value.notes ?? ''), rulesBasis: 'the-traveller-book-1982-p99', notes: `Patron met ${patron.date} on ${patron.worldName} (list ${patron.listKey}, ${patron.code}).`
           }, { acceptedByCharacterId: speaker.identity.id, acceptedShipId: ship.identity.id, acceptedDate: resolved.campaign.time });
-          registry.putAll([contract, withPersonState(addContractToCampaign(resolved.campaign, contract), { patron: null })]);
+          const missions = draft ? { ...people.missions, [contract.identity.id]: { kind: draft.kind, destinationSystemId: destination.id, cargoTons: draft.cargoTons, thing: draft.thing, attempts: 0 } } : people.missions;
+          let smuggled = null;
+          if (draft?.kind === 'smuggling') {
+            const free = ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons;
+            if (free < draft.cargoTons) throw new Error(`the ${draft.cargoTons} t of ${draft.thing} need ${draft.cargoTons} t of hold; ${free} t is free`);
+            smuggled = loadCargo(ship, { id: `${contract.identity.id}:cargo`, category: 'contract', description: `${draft.thing} (${patron.type.toLowerCase()}\u2019s)`, tons: draft.cargoTons, originSystemId: patron.systemId, destinationSystemId: destination.id, acquisitionCostCr: 0 });
+          }
+          registry.putAll([contract, withPersonState(addContractToCampaign(resolved.campaign, contract), { patron: null, missions }), ...(smuggled ? [smuggled] : [])]);
           reload();
           log('ENCOUNTER', `Job taken from the ${patron.type.toLowerCase()}: ${title}, at ${destination.name}, ${cr(paymentCr)}, ${deadlineDays} days.`);
           return finish(`${title}: on the job board.`);
+        }
+        if (command === 'patrons:referee') {
+          if (!['person', 'game'].includes(value.referee)) throw new Error('the referee is a person or the game');
+          registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, settings: { ...(resolved.campaign.roster?.settings ?? {}), referee: value.referee } } });
+          reload();
+          return finish(value.referee === 'game' ? 'Solo: the game referees what the book leaves to a referee.' : 'A person referees.');
+        }
+        if (command.startsWith('patrons:task:')) {
+          // v0.322.0: the job at its world — days searching or asking, then
+          // 2D plus the party's best skill for it against 8 (original tables).
+          const id = command.split(':').slice(2).join(':');
+          const mission = people.missions[id];
+          const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+          if (!mission || !contract || contract.status !== 'accepted') throw new Error('no such job in hand');
+          const task = MISSION_TASKS[mission.kind];
+          if (!task) throw new Error('this job has nothing to do at its world');
+          if (resolved.campaign.location?.systemId !== mission.destinationSystemId) throw new Error(`the job is done at ${contract.destination.systemName}`);
+          const dice = createDice();
+          const days = missionTaskDays(dice, mission.kind);
+          const passed = run('time:pass', { fight: { value: { amount: days, unit: 'days', reason: `${contract.identity.title}` } } });
+          if (!passed.ok) throw new Error(passed.message);
+          const fresh = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+          if (!fresh || fresh.status !== 'accepted') return finish(`${days} days pass; the job is no longer in hand (the deadline has passed).`);
+          const best = bestPartySkill(resolved, task.skills);
+          const result = throwMissionTask(dice, { kind: mission.kind, skillLevel: best.level });
+          const how = `${days} days ${task.where === 'surface' ? 'searching' : 'asking'}; 2D ${result.roll}${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} = ${result.total} against ${result.needed}+`;
+          if (result.success) {
+            const paid = creditShipAccount(activeShip(), contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} completed`, dateLabel: formatCampaignDate(resolved.campaign.time) });
+            persist([completeContractDocument(fresh, { date: resolved.campaign.time, paymentCr: contract.economics.paymentCr, notes: how }), paid]);
+            put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1, done: true } } });
+            log('ENCOUNTER', `${contract.identity.title}: done (${how}); ${cr(contract.economics.paymentCr)} paid.`);
+            return finish(`Done: ${how}.`);
+          }
+          put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1 } } });
+          log('ENCOUNTER', `${contract.identity.title}: not yet (${how}). There is time to try again before the deadline.`);
+          return finish(`Not yet: ${how}.`);
         }
         if (command === 'rumors:write') {
           const rumor = people.rumors.find((entry) => entry.id === value.id);
@@ -4568,6 +4691,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
           if (!contract || contract.status !== 'accepted') throw new Error('no such job in hand');
           if (contract.kind !== 'patron') throw new Error('only a patron\u2019s job is settled by hand; the others settle on arrival');
+          if (people.missions[id] && refereeMode(resolved.campaign) === 'game') throw new Error('solo, this job settles by its own test');
           if (command.startsWith('contract:complete:')) {
             const ship = activeShip();
             const paid = creditShipAccount(ship, contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} completed`, dateLabel: today });
@@ -5761,11 +5885,26 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).
       const people = personState(resolved.campaign);
-      if (seat !== 'player' && state.situation?.kind === 'port') {
+      const mode = refereeMode(resolved.campaign);
+      if ((seat !== 'player' || mode === 'game') && state.situation?.kind === 'port') {
         const day = campaignDayNumber(resolved.campaign.time);
         const wait = people.lastLookDay === null ? 0 : Math.max(0, 7 - (day - people.lastLookDay));
         const writable = save.state !== 'stale';
+        // v0.322.0: the jobs to be done here (retrieval, investigation).
+        const here = resolved.campaign.location?.systemId;
+        const tasks = Object.entries(people.missions).map(([id, mission]) => {
+          const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+          const task = MISSION_TASKS[mission.kind];
+          if (!task || mission.done || !contract || contract.status !== 'accepted' || mission.destinationSystemId !== here) return null;
+          const best = bestPartySkill(resolved, task.skills);
+          return {
+            id, title: contract.identity.title, kind: mission.kind, attempts: mission.attempts,
+            figure: `${task.days} days ${task.where === 'surface' ? 'searching' : 'asking'}, then 2D${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} for ${task.needed}+`,
+            command: writable ? `patrons:task:${id}` : null
+          };
+        }).filter(Boolean);
         state.patrons = {
+          mode, tasks, seat,
           list: people.patronList, wait,
           patron: people.patron,
           rumors: people.rumors.filter((entry) => !entry.text),
@@ -5782,8 +5921,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           ? [
             { command: 'persons:jail', label: `Serve ${personPending.law.jailDays} day${personPending.law.jailDays === 1 ? '' : 's'} in jail`, kind: 'owed', primary: true },
             { command: 'persons:board', label: 'Resist arrest', kind: 'danger' },
-            { command: 'persons:clear', label: 'Let them off (referee)', kind: 'neutral' }
-          ]
+            // v0.322.0: solo, the throw stands.
+            mode === 'game' ? null : { command: 'persons:clear', label: 'Let them off (referee)', kind: 'neutral' }
+          ].filter(Boolean)
           : [
             personPending.actorIds.length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
             { command: 'persons:clear', label: personPending.actorIds.length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean(personPending.actorIds.length) }
