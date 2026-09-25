@@ -8,29 +8,29 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.315.4';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.315.4';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.315.5';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.315.5';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf
-} from './publish.js?v=v0.315.4';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.315.4';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.315.4';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.315.4';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.315.4';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.315.4';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.315.4';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.315.4';
-import { generateCharacterName } from './generators.js?v=v0.315.4';
+} from './publish.js?v=v0.315.5';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.315.5';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.315.5';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.315.5';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.315.5';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.315.5';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.315.5';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.315.5';
+import { generateCharacterName } from './generators.js?v=v0.315.5';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome
-} from '../src/character-record.js?v=v0.315.4';
+} from '../src/character-record.js?v=v0.315.5';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=v0.315.4';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.315.5';
 
 const el = {
   status: document.querySelector('#enter-status'),

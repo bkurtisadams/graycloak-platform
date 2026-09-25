@@ -409,9 +409,11 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .check-note.is-loud { color: var(--ink); font-weight: 700; border-left: 3px solid var(--red); padding-left: 6px; }
 .notice.is-warning { border-left-color: var(--red); background: var(--attention); color: var(--ink); }
 
-.jump-clock { position: absolute; right: 20px; top: 16px; display: flex; gap: 4px; }
-.jump-clock span { width: 28px; height: 8px; border: 1px solid var(--ink); }
-.jump-clock .is-spent { background: var(--ink); }
+.jump-clock { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-size: 13px; color: var(--ink-2); }
+.jump-clock-days { display: inline-flex; gap: 3px; }
+.jump-clock-days span { width: 14px; height: 8px; border: 1px solid var(--travel-edge); }
+.jump-clock-days .is-spent { background: var(--travel-edge); }
+.map-head .jump-clock + .map-legend { margin-left: 0; }
 
 /* Lined paper, as Book 1 p.29 suggests. */
 .band { fill: none; stroke: var(--line); stroke-width: 1; }

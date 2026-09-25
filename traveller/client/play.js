@@ -2,16 +2,16 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.315.4';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.315.4';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.315.4';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.315.4';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.315.4';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.315.4';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.315.4';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.315.4';
-import { createPlayCloud } from './play-cloud.js?v=v0.315.4';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.4';
+import { copyDiagnostics } from './diagnostics.js?v=v0.315.5';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.315.5';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.315.5';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.315.5';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.315.5';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.315.5';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.315.5';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.315.5';
+import { createPlayCloud } from './play-cloud.js?v=v0.315.5';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.5';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);

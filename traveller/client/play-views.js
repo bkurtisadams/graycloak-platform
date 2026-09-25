@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.4';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.315.4';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.4';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.4';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.5';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.315.5';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.5';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.5';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.315.4';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.4';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.315.4';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.4';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.315.5';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.5';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.315.5';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.5';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.4';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.5';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1107,8 +1107,17 @@ export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = 
   // v0.315.1: the course button also sits in the map's head, which is always
   // on screen; the caption's own copy can be below the fold.
   const chosen = selected && selected.id !== current.id && Number.isFinite(reachable.get(selected.id)) && !inJump && scene.canSetCourse && selected.id !== scene.courseId;
+  // v0.315.5: the jump's day clock sits in the head beside its own label. It
+  // was pinned absolute to the scene's top right, where the Key, Lanes and
+  // zoom controls now are, and read as a row of empty buttons over them.
+  const clock = scene.kind === 'jump'
+    ? h('span', { class: 'jump-clock', role: 'img', 'aria-label': `Day ${scene.day} of ${scene.days} in jump` },
+      h('span', { class: 'jump-clock-label', text: `Jump day ${scene.day} of ${scene.days}` }),
+      h('span', { class: 'jump-clock-days' }, Array.from({ length: scene.days }, (_, index) => h('span', { class: index < scene.day ? 'is-spent' : '' }))))
+    : null;
   const parts = [
     h('div', { class: 'scene-title map-head' }, h('span', { text: `${subsector.name} subsector` }),
+      clock,
       chosen ? h('span', { class: 'map-course' }, kindButton({ label: `Set course for ${selected.name}`, kind: 'travel', primary: true }, { small: true, onclick: () => onCommand?.(`trip:choose-destination:${selected.id}`) })) : null,
       lanes.length ? lanesLegend() : null,
       lanes.length ? lanesToggle(svg) : null,
@@ -1116,10 +1125,6 @@ export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = 
     svg,
     h('div', { class: 'captions' }, captions)
   ];
-  if (scene.kind === 'jump') {
-    parts.push(h('div', { class: 'jump-clock', role: 'img', 'aria-label': `Day ${scene.day} of ${scene.days}` },
-      Array.from({ length: scene.days }, (_, index) => h('span', { class: index < scene.day ? 'is-spent' : '' }))));
-  }
   return parts;
 }
 
