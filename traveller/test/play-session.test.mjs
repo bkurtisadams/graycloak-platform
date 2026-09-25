@@ -1809,3 +1809,58 @@ test('v0.319.0 a patron\u2019s job is not completed by landing at its world', as
   playTo(session, 'calder');
   assert.equal(registry.resolveCampaign(campaignId).contracts.find((entry) => entry.kind === 'patron').status, 'accepted');
 });
+
+// ---------------------------------------------------------------- v0.321.0
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js';
+import { sectorState, subsectorsWithinReach, sectorExportText } from '../src/play-session.js';
+
+test('v0.321.0 on the sector, a subsector the ship could reach is charted on opening, seeded, and kept', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  const map = session.map;
+  const orison = map.systems.find((system) => system.id === 'orison');
+  assert.equal(orison.subsector, 'F');
+  const state = sectorState(registry.resolveCampaign(campaignId).campaign);
+  assert.deepEqual(state.visited, ['orison'], 'where the party is counts as visited');
+  // Nothing left uncharted within the scout's Jump-2 of Orison.
+  assert.deepEqual(subsectorsWithinReach(map, 'orison', 2), []);
+  const charted = Object.keys(state.charted);
+  for (const letter of charted) assert.ok(map.systems.some((system) => system.subsector === letter));
+  // The same campaign charts the same subsector the same way.
+  if (charted.length) {
+    const again = await atOrison({ fuel: 40, berthingPaid: true });
+    createPlaySession({ registry: again.registry, campaignId: again.campaignId, sector: MERIDIAN_REACH_SECTOR });
+    const other = sectorState(again.registry.resolveCampaign(again.campaignId).campaign).charted[charted[0]];
+    assert.deepEqual(other.systems.map((system) => system.name), state.charted[charted[0]].systems.map((system) => system.name));
+  }
+});
+
+test('v0.321.0 the referee charts ahead; the map frames the charted subsectors; players see chart facts until they visit', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  assert.equal(session.run('sector:chart:K').ok, true);
+  assert.equal(session.run('sector:chart:K').ok, false, 'once');
+  assert.equal(session.run('sector:chart:F').ok, false, 'Far Meridian is authored');
+  const view = session.view();
+  assert.ok(view.scene.map.borders.some((border) => border.letter === 'K'));
+  assert.ok(view.scene.map.frame.columns >= 16 && view.scene.map.frame.rows >= 20, 'the frame spans F to K');
+  const stranger = session.map.systems.find((system) => system.subsector === 'K');
+  const playerView = session.view({ seat: 'player' }).scene.map.systems.find((system) => system.id === stranger.id);
+  assert.equal(playerView.hidden, true);
+  assert.match(playerView.mainWorld.uwp, /^[A-EX]\?{6}-\?$/);
+  assert.equal(session.view().scene.map.systems.find((system) => system.id === stranger.id).hidden, undefined, 'the referee sees everything');
+  const text = sectorExportText(session.map);
+  assert.match(text.split('\n')[1], /^Hex\tName\tUWP\tBases\tRemarks\tZone\tPBG\tAllegiance\tStars$/);
+  assert.ok(text.includes(`${stranger.hex}\t${stranger.name}\t${stranger.mainWorld.uwp}`));
+});
+
+test('v0.321.0 a jump across a subsector edge is an ordinary jump', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  const map = session.map;
+  const outside = getJumpDestinations(map, 'orison', 2).find((entry) => entry.system.subsector !== 'F');
+  if (!outside) return; // nothing charted within two parsecs across the edge for this seed
+  assert.equal(session.run(`trip:choose-destination:${outside.system.id}`).ok, true);
+  const jump = session.view().steps.find((step) => step.id === 'jump');
+  assert.ok(jump, 'the departure row reads the far world like any other');
+});

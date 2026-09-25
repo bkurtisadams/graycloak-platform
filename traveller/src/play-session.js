@@ -35,7 +35,8 @@ import {
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
   refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
-  legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor
+  legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor,
+  generateSubsector, generateWorldName, sectorMap, rollNewLanes, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance
 } from '../vendor/classic-traveller-rules/index.js';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -2458,9 +2459,106 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
 }
 // cloud, when given, is { userId(), load(campaignId), save(home, envelope, { expectedRevision }) }
 // — client/publish.js and client/auth.js in the browser, a fake in tests.
-export function createPlaySession({ registry, campaignId, subsector, cloud = null, onChange = () => {} } = {}) {
+// v0.321.0 --------------------------------------------- the campaign's sector
+// Meridian Reach is sixteen subsectors (A-P); the authored ones come from the
+// world file, the rest are charted by Book 3 (1977) generation the first time
+// the campaign needs them and kept on the campaign (roster.sector), with the
+// lanes thrown for them and the worlds the party has visited.
+export function sectorState(campaign) {
+  const state = campaign?.roster?.sector ?? {};
+  return { charted: state.charted ?? {}, routes: state.routes ?? [], visited: state.visited ?? [] };
+}
+
+export function campaignSectorMap(campaign, sector) {
+  const state = sectorState(campaign);
+  const map = sectorMap({
+    id: sector.id, name: sector.name,
+    subsectors: { ...state.charted, ...sector.authored },
+    routes: [...(sector.routes ?? []), ...state.routes]
+  });
+  const names = Object.fromEntries(SUBSECTOR_LETTERS.map((letter) => [letter, (sector.authored[letter] ?? state.charted[letter])?.name ?? null]));
+  return Object.freeze({ ...map, sectorId: sector.id, sectorName: sector.name, subsectorNames: Object.freeze(names) });
+}
+
+/** A subsector charted (Book 3 p.12), seeded by campaign and letter, its lanes thrown against its charted neighbours. */
+export function chartSubsector(campaign, sector, letter) {
+  if (!SUBSECTOR_LETTERS.includes(letter)) throw new RangeError(`subsector letter must be A-P: ${letter}`);
+  const state = sectorState(campaign);
+  if (sector.authored[letter] || state.charted[letter]) return null;
+  const dice = seededDice(`${campaign.identity.id}|${sector.id}|${letter}`);
+  const current = campaignSectorMap(campaign, sector);
+  const taken = new Set(current.systems.map((system) => system.name));
+  let name = generateWorldName(dice);
+  while (taken.has(name)) name = generateWorldName(dice);
+  const subsector = JSON.parse(JSON.stringify(generateSubsector(dice, { id: `${sector.id}-${letter.toLowerCase()}`, name, taken })));
+  const subsectors = { ...state.charted, ...sector.authored, [letter]: subsector };
+  const lanes = rollNewLanes({ id: sector.id, name: sector.name, subsectors, routes: [...(sector.routes ?? []), ...state.routes] }, letter, dice);
+  return { letter, subsector, routes: lanes.routes.map((route) => ({ ...route })) };
+}
+
+/** The uncharted subsectors a ship at systemId could reach with its jump rating. */
+export function subsectorsWithinReach(map, systemId, jump) {
+  const here = map.systems.find((system) => system.id === systemId);
+  if (!here || !jump) return [];
+  const charted = new Set(map.systems.map((system) => system.subsector));
+  const out = [];
+  for (const letter of SUBSECTOR_LETTERS) {
+    if (charted.has(letter) || Object.values(map.subsectorNames ?? {}).length && map.subsectorNames[letter]) continue;
+    const { columns, rows } = subsectorOffset(letter);
+    let near = false;
+    for (let column = 1; column <= 8 && !near; column += 1) {
+      for (let row = 1; row <= 10 && !near; row += 1) {
+        const hex = `${String(column + columns).padStart(2, '0')}${String(row + rows).padStart(2, '0')}`;
+        if (subsectorHexDistance(here.hex, hex) <= jump) near = true;
+      }
+    }
+    if (near) out.push(letter);
+  }
+  return out;
+}
+
+// Traveller Map's tab-delimited sector format (travellermap.com's Poster
+// Maker reads it), for a printable map of the sector as charted.
+export function sectorExportText(map) {
+  const header = ['Hex', 'Name', 'UWP', 'Bases', 'Remarks', 'Zone', 'PBG', 'Allegiance', 'Stars'];
+  const rows = map.systems.map((system) => {
+    const bases = `${system.bases?.naval ? 'N' : ''}${system.bases?.scout ? 'S' : ''}`;
+    const zone = system.travelZone === 'amber' ? 'A' : system.travelZone === 'red' ? 'R' : '';
+    return [system.hex, system.name, system.mainWorld.uwp, bases, '', zone, `10${system.gasGiant ? 1 : 0}`, 'Na', ''].join('\t');
+  });
+  return [`# ${map.sectorName ?? map.name}`, header.join('\t'), ...rows].join('\n');
+}
+
+// What the map shows: the charted subsectors' bounding box, their borders
+// and names, and, for a player, only the chart facts of a world not yet
+// visited (starport, bases, gas giant, zone) — the full UWP on arrival.
+export function mapView(map, { seat = 'referee', visited = [] } = {}) {
+  const seen = new Set(visited);
+  const letters = [...new Set(map.systems.map((system) => system.subsector).filter(Boolean))].sort();
+  const hide = (system) => (seat === 'player' && !seen.has(system.id)
+    ? { ...system, hidden: true, mainWorld: { ...system.mainWorld, uwp: `${system.mainWorld.uwp[0]}??????-?` }, notes: '' }
+    : system);
+  const systems = map.systems.map(hide);
+  if (!letters.length) {
+    return { ...map, systems, frame: { firstColumn: 1, firstRow: 1, columns: map.columns ?? 8, rows: map.rows ?? 10 }, borders: [] };
+  }
+  const offsets = letters.map((letter) => ({ letter, ...subsectorOffset(letter) }));
+  const minColumn = Math.min(...offsets.map((entry) => entry.columns));
+  const minRow = Math.min(...offsets.map((entry) => entry.rows));
+  const maxColumn = Math.max(...offsets.map((entry) => entry.columns));
+  const maxRow = Math.max(...offsets.map((entry) => entry.rows));
+  return {
+    ...map, systems,
+    frame: { firstColumn: minColumn + 1, firstRow: minRow + 1, columns: maxColumn - minColumn + 8, rows: maxRow - minRow + 10 },
+    borders: offsets.map((entry) => ({ letter: entry.letter, name: map.subsectorNames?.[entry.letter] ?? entry.letter, firstColumn: entry.columns + 1, firstRow: entry.rows + 1 }))
+  };
+}
+
+export function createPlaySession({ registry, campaignId, subsector: subsectorParam = null, sector = null, cloud = null, onChange = () => {} } = {}) {
   if (!registry) throw new TypeError('a document registry is required');
   let resolved = registry.resolveCampaign(campaignId);
+  // v0.321.0: with a sector, the campaign's map is the sector as charted.
+  let subsector = sector ? campaignSectorMap(resolved.campaign, sector) : subsectorParam;
   let revision = null;
   let save = { state: 'local', label: 'This browser only', detail: 'Saved in this browser', at: null };
   let saving = false;
@@ -2485,7 +2583,35 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
   const reload = () => {
     resolved = registry.resolveCampaign(campaignId);
     pendingShipFight = resolved.campaign.roster?.shipFight ?? null;
+    if (sector) subsector = campaignSectorMap(resolved.campaign, sector);
   };
+
+  // v0.321.0: chart what the ship could reach, and remember where the party
+  // has been (a world's full profile is shown to players once visited).
+  function chartAndVisit() {
+    if (!sector) return [];
+    const campaign = resolved.campaign;
+    const state = sectorState(campaign);
+    const here = campaign.location?.systemId;
+    const ship = activeShip();
+    const letters = here ? subsectorsWithinReach(subsector, here, Number(ship?.specifications?.drives?.jump?.rating ?? 0)) : [];
+    const needsVisit = here && !state.visited.includes(here);
+    if (!letters.length && !needsVisit) return [];
+    let charted = { ...state.charted };
+    let routes = [...state.routes];
+    const made = [];
+    for (const letter of letters) {
+      const result = chartSubsector({ ...campaign, roster: { ...campaign.roster, sector: { ...state, charted, routes } } }, sector, letter);
+      if (!result) continue;
+      charted = { ...charted, [letter]: result.subsector };
+      routes = [...routes, ...result.routes];
+      made.push(result);
+    }
+    registry.put({ ...campaign, roster: { ...campaign.roster, sector: { charted, routes, visited: needsVisit ? [...state.visited, here] : state.visited } } });
+    reload();
+    for (const result of made) log('NAV', `Subsector ${result.letter}, ${result.subsector.name}, charted: ${result.subsector.systems.length} worlds, ${result.routes.length} lanes (Book 3, 1977).`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+    return made;
+  }
 
   function setShipFight(value) {
     const roster = { ...resolved.campaign.roster };
@@ -2665,6 +2791,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
         revision = home.revision;
         reload();
         setSave('cloud', `Loaded from the cloud, revision ${home.revision}`);
+        // v0.321.0: the cloud copy may predate the sector; chart what it needs.
+        try { if (chartAndVisit().length) saveToCloud(); } catch (error) { console.warn('[traveller] charting:', error); }
         // v0.295.0: publish once on opening, so the players' copy of the
         // campaign (who owns what, which characters are in it) is current
         // even if nothing changes this visit — an old envelope had kept a
@@ -3177,6 +3305,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
     registry.put({ ...state.campaign, roster: { ...state.campaign.roster, ...(pendingShipFight ? { shipFight: pendingShipFight } : {}), trip: tripRecord(state) } });
     reload();
     persist([state.ship, ...state.characters, ...state.contracts]);
+    chartAndVisit();
   }
 
   const TRIP_LOG_CATEGORIES = Object.freeze({
@@ -5131,6 +5260,22 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       }
       // v0.315.0: the port call, the jump and the arrival are the runner's
       // (runner/trip.js); this page only carries its commands.
+      if (command.startsWith('sector:chart:')) {
+        // v0.321.0: the referee charts a subsector ahead of need.
+        if (!sector) throw new Error('this campaign has no sector');
+        const letter = command.split(':')[2];
+        const campaign = resolved.campaign;
+        const state = sectorState(campaign);
+        const result = chartSubsector(campaign, sector, letter);
+        if (!result) throw new Error(`subsector ${letter} is already charted`);
+        registry.put({ ...campaign, roster: { ...campaign.roster, sector: { ...state, charted: { ...state.charted, [letter]: result.subsector }, routes: [...state.routes, ...result.routes] } } });
+        reload();
+        log('NAV', `Subsector ${letter}, ${result.subsector.name}, charted: ${result.subsector.systems.length} worlds, ${result.routes.length} lanes (Book 3, 1977).`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+        lastMessage = { ok: true, message: `Subsector ${letter}, ${result.subsector.name}, charted.` };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('trip:')) {
         lastMessage = { ok: true, message: runTripCommand(command) };
         onChange();
@@ -5602,6 +5747,8 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       return { campaignName: resolved.campaign.identity.name, date: formatCampaignDate(resolved.campaign.time), lines: chatStream(resolved, seat, { limit: 0 }) };
     },
     get trip() { return safeTrip(resolved); },
+    // v0.321.0: the campaign's map (the sector as charted, or the subsector).
+    get map() { return subsector; },
     get resolved() { return resolved; },
     get revision() { return revision; },
     get save() { return save; },
@@ -5968,6 +6115,9 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       const lanesOn = (trip?.lanes ?? 'charted');
       const sceneBase = {
         ...state.scene,
+        // v0.321.0: the map the scene draws (sector as charted, or subsector).
+        map: mapView(subsector, { seat, visited: sectorState(resolved.campaign).visited }),
+        sector: Boolean(sector),
         lanes: lanesOn,
         generate: Boolean(ship?.state?.computer?.programs?.includes('generate'))
       };
@@ -5990,5 +6140,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
       };
     }
   };
+  // v0.321.0: on opening, chart what the ship could already reach.
+  try { chartAndVisit(); } catch (error) { console.warn('[traveller] charting:', error); }
   return api;
 }

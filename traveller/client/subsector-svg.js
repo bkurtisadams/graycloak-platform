@@ -1,6 +1,6 @@
 const SQRT3 = Math.sqrt(3);
 
-import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.320.0';
+import { formatSubsectorHex } from '../vendor/classic-traveller-rules/index.js?v=v0.321.0';
 
 export const SUBSECTOR_SVG_GEOMETRY = Object.freeze({
   radius: 38,
@@ -130,7 +130,10 @@ function appendBaseMarkers(group, system, center) {
 // v0.315.0: `lanes` are the subsector's charted routes (Book 3 p.2, kept as
 // map data), drawn world to world; `offLane` marks the worlds in range that
 // no lane reaches from here, which need the Generate program (Book 2 p.32).
-export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set() } = {}) {
+// v0.321.0: a frame onto a larger map — firstColumn/firstRow are the map
+// hexes drawn top-left (a sector is 32x40 in the same numbering) — and the
+// borders of the subsectors in it, each { letter, name, firstColumn, firstRow }.
+export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set(), firstColumn = 1, firstRow = 1, borders = [] } = {}) {
   const viewBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
   const svg = createSvgNode('svg', {
     class: 'subsector-svg',
@@ -151,11 +154,13 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
 
   const centerBySystemId = new Map();
   const systemByHex = new Map(subsector.systems.map((system) => [system.hex, system]));
-  for (let column = 1; column <= columns; column += 1) {
-    for (let row = 1; row <= rows; row += 1) {
-      const hex = formatSubsectorHex(column, row);
+  const bounds = { columns: 99, rows: 99 };
+  for (let column = firstColumn; column < firstColumn + columns; column += 1) {
+    for (let row = firstRow; row < firstRow + rows; row += 1) {
+      const hex = formatSubsectorHex(column, row, bounds);
       const system = systemByHex.get(hex) ?? null;
-      const center = subsectorHexCenter(column, row, SUBSECTOR_SVG_GEOMETRY);
+      // firstColumn - 1 is a multiple of 8, so the odd/even column offset holds.
+      const center = subsectorHexCenter(column - firstColumn + 1, row - firstRow + 1, SUBSECTOR_SVG_GEOMETRY);
       const points = formatSvgPoints(flatTopHexPoints(center, SUBSECTOR_SVG_GEOMETRY.radius));
       const group = createSvgNode('g', { class: 'subsector-hex' });
       const polygon = createSvgNode('polygon', { points, class: 'subsector-hex-shape' });
@@ -293,6 +298,23 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       layer.append(label);
     }
     svg.append(layer);
+  }
+  // Subsector borders and names, over everything but the jump line.
+  if (borders.length > 1) {
+    const layer = createSvgNode('g', { class: 'subsector-border-layer', 'aria-hidden': 'true' });
+    const { radius } = SUBSECTOR_SVG_GEOMETRY;
+    const { height } = hexDimensions(radius);
+    for (const border of borders) {
+      const topLeft = subsectorHexCenter(border.firstColumn - firstColumn + 1, border.firstRow - firstRow + 1, SUBSECTOR_SVG_GEOMETRY);
+      const bottomRight = subsectorHexCenter(border.firstColumn - firstColumn + 8, border.firstRow - firstRow + 10, SUBSECTOR_SVG_GEOMETRY);
+      const x = topLeft.x - radius * 0.75;
+      const y = topLeft.y - height / 2;
+      layer.append(createSvgNode('rect', { x, y, width: bottomRight.x + radius * 0.75 - x, height: bottomRight.y + height / 2 - y, class: 'subsector-border' }));
+      const label = createSvgNode('text', { x: x + 6, y: y + 14, class: 'subsector-border-label' });
+      label.textContent = `${border.letter} \u00b7 ${border.name}`;
+      layer.append(label);
+    }
+    svg.insertBefore(layer, svg.querySelector('.subsector-jump-layer') ?? null);
   }
   return svg;
 }

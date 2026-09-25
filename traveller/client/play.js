@@ -2,16 +2,17 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.320.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.320.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.320.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.320.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.320.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing } from '../src/play-session.js?v=v0.320.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.320.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.320.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.320.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.320.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.321.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.321.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.321.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.321.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.321.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.321.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.321.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.321.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.321.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.321.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.321.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -34,7 +35,8 @@ function openCampaign(wanted = null) {
     const id = wanted || params.get('campaign') || registry.getActiveCampaignId();
     if (!id) return { mode: 'empty', reason: 'No campaign has been opened in this browser yet.' };
     if (!registry.get(id)) return { mode: 'empty', reason: 'That campaign is not in this browser yet.', wantedId: id };
-    const session = createPlaySession({ registry, campaignId: id, subsector: FAR_MERIDIAN_SUBSECTOR, cloud, onChange: () => render() });
+    // v0.321.0: the campaign plays on the Meridian Reach sector as charted.
+    const session = createPlaySession({ registry, campaignId: id, sector: MERIDIAN_REACH_SECTOR, cloud, onChange: () => render() });
     return { mode: 'live', session };
   } catch (error) {
     // v0.219.1: [ PLAY ] in the lobby names a campaign that may live only in
@@ -451,6 +453,16 @@ function render() {
       return result;
     },
     onOpenSurface: () => openSurfaceDialog(),
+    // v0.321.0: the sector as charted, for travellermap.com's Poster Maker.
+    onExportSector: () => {
+      if (source.mode !== 'live') return;
+      const text = sectorExportText(source.session.map);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([text], { type: 'text/tab-separated-values' }));
+      link.download = `${String(source.session.map.sectorName ?? 'sector').toLowerCase().replace(/[^a-z0-9]+/g, '-')}.tab`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    },
     // v0.319.0: patrons, rumours and a patron's job settled by hand.
     onPeople: (command, value = {}) => {
       if (source.mode !== 'live') return null;

@@ -1517,3 +1517,8 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .patron-seek { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .patron-list { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; color: var(--ink-2); }
 .job-settle { display: inline-flex; gap: 4px; }
+
+/* v0.321.0: subsector borders and names on the sector map. */
+.subsector-border-layer { pointer-events: none; }
+.subsector-border { fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-dasharray: 6 4; opacity: 0.6; }
+.subsector-border-label { font: 700 12px var(--display); fill: var(--ink-2); letter-spacing: 0.06em; text-transform: uppercase; }
