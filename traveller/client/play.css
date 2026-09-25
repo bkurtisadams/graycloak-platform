@@ -273,6 +273,7 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .scene { overflow-y: auto; overflow-x: auto; }
 /* v0.303.0: map zoom. */
 .map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.map-head .map-course { margin-left: auto; }
 .map-zoom { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; pointer-events: auto; }
 .map-zoom button { font: inherit; font-size: 13px; min-width: 28px; padding: 2px 8px; background: var(--raise); border: 0; color: var(--ink); cursor: pointer; }
 .map-zoom button + button { border-left: 1px solid var(--line); }

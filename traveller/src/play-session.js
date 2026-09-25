@@ -1813,6 +1813,8 @@ export function tripActionFromCommand(command, actions) {
   return { ...action };
 }
 
+const MAINTENANCE_OFFER_DAYS = 60;
+
 const CHECKLIST_LABELS = Object.freeze({
   'jump-drive': 'Jump drive', computer: 'Computer', fuel: 'Fuel', 'jump-program': 'Jump program',
   'navigation-program': 'Navigation program', 'flight-plan': 'Flight plan', drives: 'Drives', 'misjump-risk': 'Misjump risk'
@@ -1848,7 +1850,7 @@ function checklistView(port, ship) {
 // The port call as one lead card and a list of rows, in the order Book 2 has
 // a ship do them. v0.315.0: every row the runner owns is one of its legal
 // actions (listActions), so this page cannot offer what the runner refuses.
-export function portProcedure(resolved, { subsector, writable = true } = {}) {
+export function portProcedure(resolved, { subsector, writable = true, selectedSystemId = null } = {}) {
   const facts = portExtras(resolved, subsector);
   const { ship, system } = facts;
   const nothing = { next: { title: 'No ship in port', copy: 'This campaign has no active ship at a mapped world.', actions: [] }, steps: [], done: [], checklist: null, destinationId: null };
@@ -1899,12 +1901,15 @@ export function portProcedure(resolved, { subsector, writable = true } = {}) {
       copy: port.driveRepair ? `The account holds ${cr(balance)}.` : 'Only a class A, B or C starport repairs drives (The Traveller Book, 1982).', cite: 'Book 2 p.18' });
   }
 
-  const maintain = find('maintain');
+  // v0.315.1: offered when it is due within the policy's own 60 days, or
+  // overdue; an overhaul just paid for was offered again at full price.
+  const maintain = find('maintain', (entry) => entry.overdue || entry.daysUntilDue <= MAINTENANCE_OFFER_DAYS);
   if (maintain) {
-    const pressing = maintain.overdue || maintain.daysUntilDue <= 60;
-    steps.push({ id: 'maintain', title: 'Annual overhaul', figure: `${cr(port.maintenance.costCr)}, 14 days`, state: pressing ? 'ready' : 'optional',
+    steps.push({ id: 'maintain', title: 'Annual overhaul', figure: `${cr(port.maintenance.costCr)}, 14 days`, state: 'ready',
       command: tripCommand(maintain), verb: 'Overhaul',
       copy: maintain.overdue ? `Overdue by ${port.maintenance.daysOverdue} days: every week past it adds 1 to the drive-failure throw.` : `Due ${port.maintenance.dueDate}, in ${maintain.daysUntilDue} days.`, cite: 'Book 2 p.6' });
+  } else if (port.maintenance.status === 'current') {
+    done.push(`Overhauled ${port.maintenance.lastOverhaulDate}, next due ${port.maintenance.dueDate}`);
   }
 
   const fill = find('fuel-fill');
@@ -2046,11 +2051,24 @@ export function portProcedure(resolved, { subsector, writable = true } = {}) {
   steps.push({ id: 'jump', title: 'Depart', state: jump.command ? 'ready' : 'blocked', cite: 'Book 2 p.5', ...jump });
 
   const generate = ship.state.computer?.programs?.includes('generate');
+  // v0.315.1: a world picked on the map is a course to set from here too —
+  // the map caption's button was below the fold on a small screen.
+  const pick = selectedSystemId && selectedSystemId !== trip.destinationId
+    ? find('choose-destination', (entry) => entry.systemId === selectedSystemId) : null;
+  const pickName = pick ? (port.destinations.find((entry) => entry.system.id === pick.systemId)?.system.name ?? pick.systemId) : null;
+  if (pick && target) {
+    steps.unshift({ id: 'change-course', title: `Change course to ${pickName}`, figure: `${pick.distance} parsec${pick.distance === 1 ? '' : 's'}`, state: 'ready',
+      command: tripCommand(pick), verb: 'Set course',
+      copy: `Instead of ${target.name}. Freight and passengers already booked for ${target.name} stay aboard for it.`, cite: 'Book 2 p.8' });
+  }
   const first = steps.find((step) => step.state === 'ready' && ['impound', 'berthing', 'fuel', 'repair-drives'].includes(step.id));
   const next = facts.fight
     ? { title: 'A fight is in progress', copy: 'Finish it in the current client. This page leaves the campaign alone while a fight is running.', actions: [] }
     : first
       ? { title: first.title, copy: first.copy, cite: first.cite, actions: [act(first.command, first.verb, first.figure)].filter(Boolean) }
+      : !target && pick
+        ? { title: `Set course for ${pickName}`, cite: 'Book 2 p.32; Book 3 p.2', actions: [act(tripCommand(pick), `Set course for ${pickName}`, `${pick.distance} parsec${pick.distance === 1 ? '' : 's'}`)].filter(Boolean),
+          copy: 'Freight, passengers and any private message for it are offered once the course is set. Pick another world on the map to change it.' }
       : !target
         ? { title: 'Choose a destination', cite: 'Book 2 p.32; Book 3 p.2',
           copy: `Worlds within Jump-${ship.specifications.drives.jump.rating} of ${system.name} are marked on the map; the charted lanes are drawn between worlds. A course off the lanes needs the Generate program, which this ship ${generate ? 'carries' : 'does not carry'}. Freight and passengers are offered once a course is set.`, actions: [] }
@@ -5291,7 +5309,7 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
           };
         }
       }
-      const procedure = portProcedure(resolved, { subsector, writable });
+      const procedure = portProcedure(resolved, { subsector, writable, selectedSystemId });
       return {
         ...state, ...procedure,
         situation: { kind: 'port', title: 'Port call', detail: state.place.name },

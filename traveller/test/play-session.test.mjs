@@ -120,7 +120,7 @@ test('the port procedure leads with what is owed and lists the rest', async () =
   const procedure = portProcedure(registry.resolveCampaign(campaignId), { subsector: FAR_MERIDIAN_SUBSECTOR });
   assert.equal(procedure.next.title, 'Pay berthing');
   assert.deepEqual(procedure.next.actions.map((action) => action.command), ['trip:pay-berthing']);
-  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['maintain', 'optional'], ['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['wait', 'optional'], ['jump', 'blocked']]);
+  assert.deepEqual(procedure.steps.map((step) => [step.id, step.state]), [['fuel', 'ready'], ['fuel-skim', 'ready'], ['speculate', 'ready'], ['wait', 'optional'], ['jump', 'blocked']]);
   assert.match(procedure.steps.find((step) => step.id === 'fuel').figure, /^30 t refined, Cr 15,000$/);
 });
 
@@ -145,7 +145,35 @@ test('paying berthing and filling the tanks change the ship, the ledger and the 
 
   const view = session.view();
   assert.equal(view.next.title, 'Choose a destination');
-  assert.deepEqual(view.done, ['Berthed, Cr 100', 'Tanks full, 40 t']);
+  assert.deepEqual(view.done, ['Berthed, Cr 100', 'Overhauled 029-4800, next due 029-4801', 'Tanks full, 40 t']);
+});
+
+test('v0.315.1 an overhaul is offered when due, and not again once it is paid for', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const ship = registry.resolveCampaign(campaignId).ships[0];
+  // Last overhauled 330 days ago: due within 60 days.
+  registry.put({ ...ship, state: { ...ship.state, maintenance: { status: 'current', lastOverhaulDate: '141-4799', monthsPastDue: 0 } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const row = () => session.view().steps.find((step) => step.id === 'maintain');
+  assert.equal(row().command, 'trip:maintain');
+  const before = session.resolved.ships[0].state.finances.balanceCr;
+  assert.equal(session.run('trip:maintain').ok, true);
+  assert.equal(row(), undefined, 'paid for, it is not offered again');
+  assert.ok(session.view().done.some((line) => /^Overhauled 106-4800, next due 106-4801$/.test(line)));
+  assert.equal(session.resolved.ships[0].state.finances.balanceCr, before - 32490);
+});
+
+test('v0.315.1 a world picked on the map is a course to set from the column, not only from its caption', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const picked = session.view({ selectedSystemId: 'pelagos' });
+  assert.equal(picked.next.title, 'Set course for Pelagos');
+  assert.deepEqual(picked.next.actions.map((action) => action.command), ['trip:choose-destination:pelagos']);
+  assert.equal(session.run('trip:choose-destination:pelagos').ok, true);
+  const other = session.view({ selectedSystemId: 'aster' });
+  const change = other.steps.find((step) => step.id === 'change-course');
+  assert.equal(change.command, 'trip:choose-destination:aster');
+  assert.equal(session.view({ selectedSystemId: 'pelagos' }).steps.some((step) => step.id === 'change-course'), false, 'no change to the course already set');
 });
 
 test('a refused command changes nothing', async () => {
