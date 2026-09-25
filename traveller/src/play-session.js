@@ -1815,6 +1815,41 @@ export function tripActionFromCommand(command, actions) {
 
 const MAINTENANCE_OFFER_DAYS = 60;
 
+// v0.315.3: every button and port row has a kind, and the kind is its colour
+// and icon (Kurt, Sep 2026): owed (must do before leaving), travel, money in,
+// optional (time or a gamble), danger (starts or escalates a fight), and
+// plain (safe, nothing paid or earned).
+export const ACTION_KINDS = Object.freeze(['owed', 'travel', 'money', 'optional', 'danger', 'neutral']);
+const COMMAND_KINDS = Object.freeze([
+  [/^trip:(pay-berthing|pay-arrears|pay-toll|repair-drives|fuel-fill|maintain)$/, 'owed'],
+  [/^repair:(crew|shipyard):/, 'owed'],
+  [/^trip:(choose-destination|depart|jump-week|resume)(:|$)/, 'travel'],
+  [/^shipfight:flee$/, 'travel'],
+  [/^trip:(load-freight|book-passengers|carry-message)(:|$)/, 'money'],
+  [/^speculation:sell:/, 'money'],
+  [/^trip:(wait|fuel-skim)$/, 'optional'],
+  [/^speculation:buy$/, 'optional'],
+  [/^shipfight:(repair:|cancel-repair)/, 'optional'],
+  [/^trip:(fight|refuse-toll)$/, 'danger'],
+  [/^shipfight:(fire|vector-fire)$/, 'danger']
+]);
+export function commandKind(command) {
+  const text = String(command ?? '');
+  return COMMAND_KINDS.find(([pattern]) => pattern.test(text))?.[1] ?? 'neutral';
+}
+// A row with nothing to press still says what kind of thing is blocked.
+const BLOCKED_ROW_KINDS = Object.freeze({
+  impound: 'owed', berthing: 'owed', fuel: 'owed', 'repair-drives': 'owed', jump: 'travel', law: 'danger',
+  commerce: 'money', 'freight-none': 'money', 'pass-turned-away': 'money', speculate: 'optional', 'fuel-skim': 'optional'
+});
+function stepKind(step) {
+  if (step.kind) return step.kind;
+  if (step.command) return commandKind(step.command);
+  if (String(step.id).startsWith('sell-')) return 'money';
+  return BLOCKED_ROW_KINDS[step.id] ?? null;
+}
+const withKind = (entry) => (entry ? { ...entry, kind: entry.kind ?? commandKind(entry.command) } : entry);
+
 const CHECKLIST_LABELS = Object.freeze({
   'jump-drive': 'Jump drive', computer: 'Computer', fuel: 'Fuel', 'jump-program': 'Jump program',
   'navigation-program': 'Navigation program', 'flight-plan': 'Flight plan', drives: 'Drives', 'misjump-risk': 'Misjump risk'
@@ -1905,7 +1940,7 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
   // overdue; an overhaul just paid for was offered again at full price.
   const maintain = find('maintain', (entry) => entry.overdue || entry.daysUntilDue <= MAINTENANCE_OFFER_DAYS);
   if (maintain) {
-    steps.push({ id: 'maintain', title: 'Annual overhaul', figure: `${cr(port.maintenance.costCr)}, 14 days`, state: 'ready',
+    steps.push({ id: 'maintain', title: 'Annual overhaul', figure: `${cr(port.maintenance.costCr)}, 14 days`, state: 'ready', kind: maintain.overdue ? 'owed' : 'optional',
       command: tripCommand(maintain), verb: 'Overhaul',
       copy: maintain.overdue ? `Overdue by ${port.maintenance.daysOverdue} days: every week past it adds 1 to the drive-failure throw.` : `Due ${port.maintenance.dueDate}, in ${maintain.daysUntilDue} days.`, cite: 'Book 2 p.6' });
   } else if (port.maintenance.status === 'current') {
@@ -2083,9 +2118,11 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
           copy: `Worlds within Jump-${ship.specifications.drives.jump.rating} of ${system.name} are marked on the map; the charted lanes are drawn between worlds. A course off the lanes needs the Generate program, which this ship ${generate ? 'carries' : 'does not carry'}. Freight and passengers are offered once a course is set.`, actions: [] }
         : { title: `Bound for ${target.name}`, cite: 'Book 2 p.5', actions: jump.command ? [act(jump.command, 'Depart', jump.figure)].filter(Boolean) : [],
           copy: port.route && !facts.exclusive ? `Take what you want of the freight and passengers waiting for ${target.name}, below, then Depart. ${jump.copy}` : jump.copy };
+  next.actions = (next.actions ?? []).map((action) => withKind(first && action.command === first.command ? { ...action, kind: stepKind(first) } : action));
   return {
     next,
-    steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)),
+    steps: steps.filter((step) => step !== first || !next.actions.length).map((step) => ({ ...step, kind: stepKind(step) }))
+      .map((step) => (facts.fight || !writable ? { ...step, command: null, verb: null } : step)),
     done, world: facts.world, checklist: checklistView(port, ship), destinationId: trip.destinationId
   };
 }
@@ -2106,7 +2143,7 @@ function jumpSceneFor(trip, seat) {
 export function tripSituationView(resolved, trip, { subsector, writable = true, seat = 'referee', fightLive = false } = {}) {
   const context = { subsector };
   const actions = listTripActions(trip, context);
-  const buttons = (list) => (writable ? list.map((action, index) => ({ command: tripCommand(action), label: action.label, primary: index === 0 })) : []);
+  const buttons = (list) => (writable ? list.map((action, index) => withKind({ command: tripCommand(action), label: action.label, primary: index === 0 })) : []);
   const system = (id) => { try { return getSubsectorSystem(subsector, id); } catch { return null; } };
   const ship = trip.ship;
   const steps = [];
@@ -5157,14 +5194,14 @@ export function createPlaySession({ registry, campaignId, subsector, cloud = nul
             // have no vector-mode UI yet (see that command's own comment),
             // so offering them here would be a button with no real weapons
             // behaviour behind it.
-            actions: !writable ? [] : ended
+            actions: (!writable ? [] : ended
               ? [{ command: 'shipfight:end', label: 'End fight', primary: true }]
               : isVector ? []
               : [
                   ...(canFire ? [{ command: 'shipfight:fire', label: 'Fire lasers', primary: true }] : []),
                   { command: 'shipfight:hold', label: canFire ? 'Hold fire' : 'Continue', primary: !canFire },
                   ...(canFlee ? [{ command: 'shipfight:flee', label: 'Flee' }] : [])
-                ],
+                ]).map(withKind),
             repairActions: !writable || ended ? [] : repairActions,
             cancelRepairAction: !writable || ended ? [] : cancelRepairAction,
             repairNote: 'Book 2 p.35: declaring a repair doesn\u2019t use your turn by itself \u2014 Fire, Hold/Continue, or Flee still needs to happen for the turn to end and the repair to resolve.'

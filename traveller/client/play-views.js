@@ -7,19 +7,19 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.2';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.315.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.2';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.2';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.315.3';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.315.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.315.3';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.315.3';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.315.2';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.2';
-import { actorBadge, shipBadge } from './sheets.js?v=v0.315.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.2';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.315.3';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.315.3';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.315.3';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.315.3';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -34,7 +34,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.2';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.315.3';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -793,14 +793,41 @@ function fightColumn(state, handlers) {
   ];
 }
 
+// v0.315.3: a button's kind is its colour and its icon (play.css .kind-*),
+// never colour alone. Plain has no icon.
+const KIND_ICONS = Object.freeze({
+  owed: [['path', { d: 'M3 2h10v12l-2-1.5L9 14l-2-1.5L5 14l-2-1.5z' }], ['path', { d: 'M6 6h4M6 9h4' }]],
+  travel: [['path', { d: 'M2 8h11M9 4l4 4-4 4' }]],
+  money: [['path', { d: 'M8 2v7M5 6l3 3 3-3M2 10v4h12v-4' }]],
+  optional: [['circle', { cx: 8, cy: 8, r: 6 }], ['path', { d: 'M8 4.5V8l2.5 1.5' }]],
+  danger: [['circle', { cx: 8, cy: 8, r: 5.5 }], ['path', { d: 'M8 1v4M8 11v4M1 8h4M11 8h4' }]]
+});
+export function kindIcon(kind) {
+  const parts = KIND_ICONS[kind];
+  if (!parts) return null;
+  const svg = createSvgNode('svg', { class: 'kind-icon', width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+    'stroke-width': 1.7, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+  for (const [tag, attributes] of parts) svg.append(createSvgNode(tag, attributes));
+  return svg;
+}
+export function kindButton(action, { small = false, onclick = null } = {}) {
+  const kind = action.kind ?? 'neutral';
+  const label = action.note
+    ? h('span', { class: 'button-text' }, h('span', { text: action.label }), h('small', { text: action.note }))
+    : h('span', { text: action.label });
+  return h('button', { type: 'button', class: `button kind-${kind}${action.primary ? ' is-lead' : ''}${small ? ' is-small' : ''}`, onclick }, kindIcon(kind), label);
+}
+
 function leadCard(next, state, handlers) {
   if (!next) return h('section', { class: 'lead' }, h('h2', { text: 'Nothing pending' }), h('p', { text: 'The port call is complete. Depart when you are ready.' }));
   return h('section', { class: 'lead', 'aria-label': 'Do this next' },
     h('h2', { text: next.title }),
     next.copy ? h('p', { text: next.copy }) : null,
     next.actions?.length ? h('div', { class: 'lead-actions' }, next.actions.map((action) =>
-      h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button', onclick: action.command ? () => handlers.onCommand?.(action.command) : null },
-        h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null))) : null,
+      (action.kind
+        ? kindButton(action, { onclick: action.command ? () => handlers.onCommand?.(action.command) : null })
+        : h('button', { type: 'button', class: action.primary ? 'button is-primary' : 'button', onclick: action.command ? () => handlers.onCommand?.(action.command) : null },
+          h('span', { text: action.label }), action.note ? h('small', { text: action.note }) : null)))) : null,
     next.cite ? h('p', { class: 'cite', text: next.cite }) : null);
 }
 
@@ -824,14 +851,18 @@ function checklistPanel(list) {
 }
 
 function stepRow(step, handlers = {}) {
-  const row = h('li', { class: `step is-${step.state}` });
+  const row = h('li', { class: `step is-${step.state}${step.kind ? ` kind-${step.kind}` : ''}` });
   const head = h('button', { type: 'button', class: 'step-head', 'aria-expanded': 'false',
     onclick: () => { const open = row.classList.toggle('is-open'); head.setAttribute('aria-expanded', String(open)); } },
     h('span', { class: 'step-mark', 'aria-hidden': 'true' }),
     h('span', { class: 'step-title', text: step.title }),
     h('span', { class: 'step-figure', text: step.figure }));
   row.append(head);
-  if (step.verb) row.append(h('button', { type: 'button', class: 'button is-small', text: step.verb, onclick: step.command ? () => handlers.onCommand?.(step.command) : null }));
+  if (step.verb) {
+    row.append(step.kind
+      ? kindButton({ label: step.verb, kind: step.kind }, { small: true, onclick: step.command ? () => handlers.onCommand?.(step.command) : null })
+      : h('button', { type: 'button', class: 'button is-small', text: step.verb, onclick: step.command ? () => handlers.onCommand?.(step.command) : null }));
+  }
   row.append(h('p', { class: 'step-more' }, step.copy, step.cite ? h('span', { class: 'cite', text: ` ${step.cite}` }) : null));
   return row;
 }
@@ -1078,7 +1109,7 @@ export function subsectorScene(scene, { onSelectSystem, onCommand }, readOnly = 
   const chosen = selected && selected.id !== current.id && Number.isFinite(reachable.get(selected.id)) && !inJump && scene.canSetCourse && selected.id !== scene.courseId;
   const parts = [
     h('div', { class: 'scene-title map-head' }, h('span', { text: `${subsector.name} subsector` }),
-      chosen ? h('button', { type: 'button', class: 'button is-primary is-small map-course', onclick: () => onCommand?.(`trip:choose-destination:${selected.id}`) }, h('span', { text: `Set course for ${selected.name}` })) : null,
+      chosen ? h('span', { class: 'map-course' }, kindButton({ label: `Set course for ${selected.name}`, kind: 'travel', primary: true }, { small: true, onclick: () => onCommand?.(`trip:choose-destination:${selected.id}`) })) : null,
       lanes.length ? lanesLegend() : null,
       lanes.length ? lanesToggle(svg) : null,
       mapZoomControl(svg)),
@@ -1365,7 +1396,7 @@ export function shipFightScene(fight, handlers) {
     ? [renderVectorFight(fight, handlers), repairBlock].filter(Boolean)
     : h('div', { class: 'ship-fight-actions' },
         h('div', { class: 'lead-actions' }, (fight.actions ?? []).map((action) =>
-          h('button', { type: 'button', class: `button${action.primary ? ' is-primary' : ' is-small'}`, text: action.label, onclick: () => handlers.onCommand?.(action.command) }))),
+          kindButton(action, { small: !action.primary, onclick: () => handlers.onCommand?.(action.command) }))),
         // Kept visually apart from the row above: repair is a standing
         // declaration for the game turn, not a phase-ending action like
         // Fire/Hold/Flee, and clicking one of these alone advances nothing.

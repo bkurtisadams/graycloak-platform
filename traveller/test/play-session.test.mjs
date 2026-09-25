@@ -687,7 +687,7 @@ test('an encounter can be fought — lasers only, abbreviated — survives a rel
   }
   view = reloaded.view();
   assert.notEqual(view.shipFight.outcome, 'in-progress', 'the fight reached a real conclusion');
-  assert.deepEqual(view.shipFight.actions, [{ command: 'shipfight:end', label: 'End fight', primary: true }]);
+  assert.deepEqual(view.shipFight.actions, [{ command: 'shipfight:end', label: 'End fight', primary: true, kind: 'neutral' }]);
   assert.equal(reloaded.run('shipfight:end').ok, true);
   assert.equal(reloaded.view().shipFight, undefined, 'the fight is over and off the screen');
   assert.equal(registry.resolveCampaign(campaignId).campaign.roster.shipFight, undefined);
@@ -1419,4 +1419,30 @@ test('v0.291.0 a member seated by their own link shows the character still comin
   const model = playersModel(registry.resolveCampaign(campaignId), { seats: [{ uid: 'p7', name: 'kurt' }], invites: [], joins: [{ uid: 'p7', characterId: 'c1', characterName: 'Nico Arden' }] });
   assert.equal(model.members[0].characters.length, 0);
   assert.equal(model.members[0].joining.characterName, 'Nico Arden');
+});
+
+// ---------------------------------------------------------------- v0.315.3
+import { commandKind } from '../src/play-session.js';
+
+test('v0.315.3 every button and port row has a kind: owed, travel, money, optional, danger or plain', async () => {
+  assert.equal(commandKind('trip:pay-berthing'), 'owed');
+  assert.equal(commandKind('trip:depart'), 'travel');
+  assert.equal(commandKind('trip:resume:continue'), 'travel');
+  assert.equal(commandKind('trip:load-freight:freight-1'), 'money');
+  assert.equal(commandKind('speculation:buy'), 'optional');
+  assert.equal(commandKind('speculation:sell:x'), 'money');
+  assert.equal(commandKind('trip:fight'), 'danger');
+  assert.equal(commandKind('trip:let-pass'), 'neutral');
+  assert.equal(commandKind('shipfight:flee'), 'travel');
+
+  const { registry, campaignId } = await atOrison();
+  const view = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view();
+  assert.equal(view.next.actions[0].kind, 'owed', 'Pay berthing leads, owed');
+  const kinds = Object.fromEntries(view.steps.map((step) => [step.id, step.kind]));
+  assert.equal(kinds.fuel, 'owed');
+  assert.equal(kinds['fuel-skim'], 'optional');
+  assert.equal(kinds.speculate, 'optional');
+  assert.equal(kinds.wait, 'optional');
+  assert.equal(kinds.law, 'danger', 'the law row has no button but is coloured as a risk');
+  assert.equal(kinds.jump, 'travel');
 });
