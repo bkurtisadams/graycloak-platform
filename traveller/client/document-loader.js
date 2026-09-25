@@ -4,42 +4,42 @@ import {
   importCharacter,
   importCharacterDocument,
   importShipDocument
-} from '../vendor/classic-traveller-rules/index.js?v=v0.317.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.317.2';
 
 import {
   CAMPAIGN_DOCUMENT_TYPE,
   importCampaignDocument
-} from '../src/campaign-document.js?v=v0.317.1';
+} from '../src/campaign-document.js?v=v0.317.2';
 
 import {
   CONTRACT_DOCUMENT_TYPE,
   importContractDocument
-} from '../src/contract-document.js?v=v0.317.1';
+} from '../src/contract-document.js?v=v0.317.2';
 
 import {
   SITUATION_DOCUMENT_TYPE,
   importSituationDocument
-} from '../src/situation-document.js?v=v0.317.1';
+} from '../src/situation-document.js?v=v0.317.2';
 
 import {
   CONTACT_DOCUMENT_TYPE,
   importContactDocument
-} from '../src/contact-document.js?v=v0.317.1';
+} from '../src/contact-document.js?v=v0.317.2';
 
 import {
   ADVENTURE_THREAD_DOCUMENT_TYPE,
   importAdventureThreadDocument
-} from '../src/adventure-thread-document.js?v=v0.317.1';
+} from '../src/adventure-thread-document.js?v=v0.317.2';
 
-import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from '../src/encounter-document.js?v=v0.317.1';
-import { NPC_ACTOR_DOCUMENT_TYPE, importNpcActorDocument } from '../src/npc-actor-document.js?v=v0.317.1';
-import { MEDIA_ASSET_DOCUMENT_TYPE, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.317.1';
-import { ACTIVITY_LOG_DOCUMENT_TYPE, importActivityLogDocument } from '../src/activity-log-document.js?v=v0.317.1';
+import { ENCOUNTER_DOCUMENT_TYPE, importEncounterDocument } from '../src/encounter-document.js?v=v0.317.2';
+import { NPC_ACTOR_DOCUMENT_TYPE, importNpcActorDocument } from '../src/npc-actor-document.js?v=v0.317.2';
+import { MEDIA_ASSET_DOCUMENT_TYPE, importMediaAssetDocument } from '../src/media-asset-document.js?v=v0.317.2';
+import { ACTIVITY_LOG_DOCUMENT_TYPE, importActivityLogDocument } from '../src/activity-log-document.js?v=v0.317.2';
 
 import {
   CAMPAIGN_BUNDLE_TYPE,
   importCampaignBundle
-} from '../src/campaign-bundle.js?v=v0.317.1';
+} from '../src/campaign-bundle.js?v=v0.317.2';
 
 export const TRAVELLER_DOCUMENT_KINDS = Object.freeze({
   CHARGEN: 'chargen',

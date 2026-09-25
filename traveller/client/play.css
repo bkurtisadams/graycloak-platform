@@ -9,7 +9,7 @@
   /* v0.315.3: the action kinds (play-session.js ACTION_KINDS): wash, edge
      and ink for an outlined button, fill and ink for the lead one. */
   --owed-wash: #eadfaa; --owed-edge: #7d7340; --owed-ink: #101210; --owed-fill: #d9b646; --owed-fill-ink: #101210; --owed-lead-edge: #5f5520;
-  --travel-wash: #d7e0e6; --travel-edge: #1f3a4d; --travel-ink: #1f3a4d; --travel-fill: #1f3a4d; --travel-fill-ink: #f7f5ee; --travel-lead-edge: #1f3a4d;
+  --travel-wash: #d7e0e6; --travel-edge: #1f3a4d; --travel-ink: #1f3a4d; --travel-fill: #bcd2e0; --travel-fill-ink: #1f3a4d; --travel-lead-edge: #1f3a4d;
   --money-wash: #cfe0cf; --money-edge: #4f6a4f; --money-ink: #22381f; --money-fill: #3d5a3d; --money-fill-ink: #f7f5ee; --money-lead-edge: #3d5a3d;
   --danger-wash: #eed8d4; --danger-edge: #7a1f1f; --danger-ink: #7a1f1f; --danger-fill: #7a1f1f; --danger-fill-ink: #f7f5ee; --danger-lead-edge: #7a1f1f;
   --optional-edge: #6d6e67; --optional-ink: #101210; --optional-lead-edge: #101210;
@@ -1483,3 +1483,16 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .sheet-status { display: grid; gap: 8px; }
 .sheet-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .sheet-status .pairs { font-size: 13px; }
+
+/* v0.317.2: the departure checklist folds away. Its summary says the state:
+   plain when clear, amber when there is only a risk, red when something
+   stops the jump. */
+.checklist { display: block; padding: 0; }
+.checklist > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: 0.04em; }
+.checklist > summary::-webkit-details-marker { display: none; }
+.checklist > summary::before { content: '\25b8'; }
+.checklist[open] > summary::before { content: '\25be'; }
+.checklist .check-state { margin-left: auto; font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 700; }
+.checklist .check-body { display: grid; gap: 6px; padding: 0 12px 10px; }
+.checklist.is-blocked > summary { background: var(--danger-wash); color: var(--danger-ink); border-left: 3px solid var(--danger-edge); }
+.checklist.is-risk > summary { background: var(--owed-wash); color: var(--owed-ink); border-left: 3px solid var(--owed-edge); }

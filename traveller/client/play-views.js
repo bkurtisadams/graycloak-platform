@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.317.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.317.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.317.1';
+import { renderSubsectorMap, createSvgNode } from './subsector-svg.js?v=v0.317.2';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.317.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.317.2';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.317.2';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=v0.317.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.317.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.317.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.317.1';
+} from '../vendor/classic-traveller-rules/index.js?v=v0.317.2';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.317.2';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.317.2';
+import { renderSectionStrip } from './section-strip.js?v=v0.317.2';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.317.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.317.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.317.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.317.2';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.317.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.317.2';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -866,21 +866,38 @@ function leadCard(next, state, handlers) {
 
 // v0.315.0: departureChecklist's rows, before the Depart button. A failing
 // gate blocks; a risk is only a risk, and the misjump row is loud.
+// Which departure checklists are open, across redraws (by destination).
+const openChecklists = new Set();
+
 function checklistPanel(list) {
   const mark = (row) => (row.ok ? '\u2713' : row.blocking ? '\u2717' : '!');
   const notes = [
     `Life support ${cr(list.lifeSupportCr)}${list.overstayCr ? `, berthing past six days ${cr(list.overstayCr)}` : ''}, charged on the way out.`,
     list.driveFailureParts.length ? `Weekly drive-failure throw DM +${list.driveFailureDM}: ${list.driveFailureParts.join('; ')}.` : null
   ].filter(Boolean);
-  return h('section', { class: `checklist${list.ok ? ' is-clear' : ''}`, 'aria-label': 'Departure checklist' },
-    h('h3', { text: list.target ? `Before the jump to ${list.target.name}` : 'Before the jump' }),
-    h('ul', { class: 'check-rows' }, list.rows.map((row) => h('li', { class: `check-row ${row.ok ? 'is-ok' : row.blocking ? 'is-blocking' : 'is-risk'}${row.loud ? ' is-loud' : ''}` },
-      h('span', { class: 'check-mark', 'aria-hidden': 'true', text: mark(row) }),
-      h('span', { class: 'check-label', text: row.label }),
-      h('span', { class: 'check-detail', text: row.detail })))),
-    notes.map((text) => h('p', { class: 'check-note', text })),
-    h('p', { class: 'check-note is-loud', text: list.diameters }),
-    h('p', { class: 'cite', text: 'Book 2 pp.4, 6, 17, 32; The Traveller Book (1982)' }));
+  // v0.317.2 (Kurt, Sep 2026): folded away by default; the summary carries the
+  // verdict, red when something stops the jump, amber for a risk only.
+  const blocking = list.rows.filter((row) => row.blocking && !row.ok);
+  const risks = list.rows.filter((row) => !row.blocking && !row.ok);
+  const key = list.target?.id ?? 'none';
+  const state = blocking.length
+    ? `${blocking.length} stop${blocking.length === 1 ? 's' : ''} the jump: ${blocking.map((row) => row.label.toLowerCase()).join(', ')}`
+    : risks.length ? `clear, with ${risks.map((row) => row.label.toLowerCase()).join(', ')}` : 'all clear \u2713';
+  const panel = h('details', { class: `checklist${blocking.length ? ' is-blocked' : risks.length ? ' is-risk' : ''}`, 'aria-label': 'Departure checklist', open: openChecklists.has(key) },
+    h('summary', {},
+      blocking.length ? kindIcon('danger') : risks.length ? kindIcon('owed') : null,
+      h('span', { text: list.target ? `Before the jump to ${list.target.name}` : 'Before the jump' }),
+      h('span', { class: 'check-state', text: state })),
+    h('div', { class: 'check-body' },
+      h('ul', { class: 'check-rows' }, list.rows.map((row) => h('li', { class: `check-row ${row.ok ? 'is-ok' : row.blocking ? 'is-blocking' : 'is-risk'}${row.loud ? ' is-loud' : ''}` },
+        h('span', { class: 'check-mark', 'aria-hidden': 'true', text: mark(row) }),
+        h('span', { class: 'check-label', text: row.label }),
+        h('span', { class: 'check-detail', text: row.detail })))),
+      notes.map((text) => h('p', { class: 'check-note', text })),
+      h('p', { class: 'check-note is-loud', text: list.diameters }),
+      h('p', { class: 'cite', text: 'Book 2 pp.4, 6, 17, 32; The Traveller Book (1982)' })));
+  panel.addEventListener('toggle', () => { if (panel.open) openChecklists.add(key); else openChecklists.delete(key); });
+  return panel;
 }
 
 function stepRow(step, handlers = {}) {
