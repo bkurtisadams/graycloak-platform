@@ -2258,3 +2258,43 @@ test('v0.328.0 solo, a patron found drafts a mission instead of failing', async 
   assert.ok(patron, "dice of 5: a patron on 1D 5, row 55");
   assert.ok(patron.draft?.title, "the game wrote the job");
 });
+
+// ---------------------------------------------------------------- v0.331.0
+import { travellersView, writeWaitingRumors } from '../src/play-session.js';
+
+test('v0.331.0 the travellers are the party, each with their posts aboard and who plays them', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  const partyIds = r.campaign.party.characterIds;
+  registry.put({ ...r.campaign, ownership: { ...(r.campaign.ownership ?? {}), actors: { [partyIds[0]]: 'player-uid' } } });
+  const travellers = travellersView(registry.resolveCampaign(campaignId));
+  assert.deepEqual(travellers.map((entry) => entry.id), partyIds);
+  assert.equal(travellers[0].ownerUid, 'player-uid');
+  assert.ok(travellers.some((entry) => entry.posts.includes('pilot')), 'the pilot\u2019s post is shown');
+});
+
+test('v0.331.0 rumours still waiting are written from game facts when the game referees', async () => {
+  const { registry, campaignId, session } = await traderSolo('person');
+  const random = Math.random;
+  try { Math.random = () => 0.99; session.run('patrons:seek'); } finally { Math.random = random; }
+  const waiting = personState(registry.resolveCampaign(campaignId).campaign).rumors.filter((entry) => !entry.text);
+  assert.ok(waiting.length >= 1);
+  assert.equal(session.view().rumorsToWrite.length, waiting.length, 'the Journal lists them');
+  const switched = session.run('patrons:referee', { fight: { value: { referee: 'game' } } });
+  assert.equal(switched.ok, true, switched.message);
+  assert.match(switched.message, /still waiting for words (is|are) written from game facts/);
+  const rumors = personState(registry.resolveCampaign(campaignId).campaign).rumors;
+  assert.ok(rumors.every((entry) => entry.text && entry.byGame && entry.truth));
+  assert.equal(session.view().rumorsToWrite.length, 0);
+  const lines = registry.resolveCampaign(campaignId).activityLogs[0].entries.map((entry) => entry.message);
+  assert.ok(lines.some((line) => line.startsWith('Rumour heard on Aster (')));
+});
+
+test('v0.331.0 an old rumour with no world id is written for the world named on it', () => {
+  const rumors = [{ id: 'r1', date: '043-4807', worldName: 'Calder', letter: 'B', type: 'Minor fact', text: '' }, { id: 'r2', text: 'kept' }];
+  const { rumors: next, written } = writeWaitingRumors(createSequenceDice(Array.from({ length: 60 }, (_, index) => (index % 6) + 1)), { rumors, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(written.length, 1);
+  assert.equal(next[0].systemId, 'calder');
+  assert.ok(next[0].text);
+  assert.equal(next[1].text, 'kept');
+});

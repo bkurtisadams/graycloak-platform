@@ -100,3 +100,19 @@ test('v0.330.0 the player page names a server running another version, and a mis
   assert.match(fn, /doneAt: Date\.now\(\), engine: ENGINE \}/);
   assert.match(fn, /homeSavedAt: home\.savedAt, engine: ENGINE \}/);
 });
+
+// v0.331.0 (Kurt's screenshot): unwritten rumours pushed the ship's course
+// off the port column; the Players tab is shown as Travellers.
+test('v0.331.0 rumours to write live in the Journal; the port column leads with the ship; Travellers tab', async () => {
+  const views = await read('play-views.js');
+  assert.match(views, /export function rumorCards\(rumors, handlers\)/);
+  assert.ok(views.includes("to write \\u00b7 Journal"));
+  assert.match(views, /Rumours to write \(\$\{waitingRumors\.length\}\)/);
+  const lead = views.indexOf("parts.push(leadCard(state.next, state, handlers));");
+  const patrons = views.indexOf("parts.push(patronsPanel(state.patrons, handlers));");
+  assert.ok(lead > 0 && patrons > lead, 'patrons after the lead card');
+  assert.match(views, /SIDEBAR_TAB_LABELS = Object\.freeze\(\{ Players: 'Travellers' \}\)/);
+  assert.match(views, /Travelling together \(\$\{travellers\.length\}\)/);
+  const page = await read('play.js');
+  assert.match(page, /onOpenTab: \(tab\) => openSideTab\(tab\)/);
+});

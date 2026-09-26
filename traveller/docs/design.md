@@ -653,6 +653,16 @@ berthing past six days, salaries) reach `play.html` with it.
   v0.330.0: the function's game version (`engine`) is on every answer and
   save; the player's page shows a mismatch, and says so when no answer
   comes in 20 seconds. Tested on the live project, not the emulators.
+- Rumours and the Travellers tab (Kurt, Sep 2026; v0.331.0): rumours are
+  "absent patrons" whose knowledge the travellers may act on (1977 Book 3
+  p.22) — information, not a step in the port call. Waiting ones are
+  written in the Journal tab (the port column shows a one-line count); the
+  game refereeing, any still waiting are written from game facts. The port
+  column leads with the ship's course and next step, patrons after. The
+  Players tab is shown as Travellers (the books' word for the player
+  characters): the party first, each with UPP, service, posts aboard and
+  who plays them; the join link and player accounts below. "Party" stays
+  for the group as a unit (Party: in port; parties splitting and meeting).
 - The players' copy of the campaign carries the map as players may see it
   (v0.328.0): the sector as charted, unvisited worlds as chart facts only,
   so the seat page draws the campaign's map.

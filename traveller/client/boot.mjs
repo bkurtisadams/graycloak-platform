@@ -30,7 +30,7 @@
 // only fix that removes the question.
 //
 // This constant is rewritten by the version bump alongside the mastheads.
-export const CLIENT_VERSION = 'v0.330.2';
+export const CLIENT_VERSION = 'v0.331.0';
 
 // v0.327.0: the rules carry their own stamp, the rules version this client was
 // built for (stamp-client rewrites it), and the loaded package is asked its

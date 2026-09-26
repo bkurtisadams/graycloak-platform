@@ -1593,3 +1593,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .map-head > span:first-child { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-head > :not(:first-child) { flex: 0 0 auto; }
 .map-head .map-rechart { width: auto; max-width: 11rem; }
+
+/* v0.331.0: rumours waiting for words — a line in the port column that
+   opens the Journal, and the cards at the top of the Journal tab. */
+.rumors-waiting { margin: 8px 0 0; }
+.text-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.rumors-to-write { margin: 0 0 14px; }
+.rumors-to-write .rumor-card { margin-top: 10px; }

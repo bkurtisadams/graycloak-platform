@@ -2,17 +2,17 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.330.2';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.330.2';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.330.2';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.330.2';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.330.2';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.330.2';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.330.2';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.330.2';
-import { createPlayCloud } from './play-cloud.js?v=v0.330.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.330.2';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.330.2';
+import { copyDiagnostics } from './diagnostics.js?v=v0.331.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.331.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.331.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.331.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.331.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.331.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.331.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.331.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.331.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.331.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.331.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -367,6 +367,9 @@ function render() {
   shell.dataset.drawer = 'open';
 
   const handlers = {
+    // v0.331.0: open a sidebar tab from elsewhere on the page (the port
+    // column's "rumours to write" line opens the Journal).
+    onOpenTab: (tab) => openSideTab(tab),
     onSelectSystem: (id) => { ui.selectedSystemId = id; render(); },
     onSelectMarker: (id) => { ui.selectedMarker = id; ui.sheetFocus = id; render(); },
     onPickTarget: (id, { reachable = true } = {}) => {
@@ -908,13 +911,7 @@ function render() {
   const tabDrawer = (drawer) => drawer === 'referee' || drawer === 'compendium';
   $('side-tabs').replaceChildren(...renderSideTabs(ui.drawer && !tabDrawer(ui.drawer) ? null : ui.sidebarTab, {
     players: (state.referee?.presence ?? []).length,
-    onTab: (tab) => {
-      ui.sidebarTab = tab;
-      ui.drawer = tab === 'Chat' ? null : tab === 'Compendium' ? 'compendium' : 'referee';
-      if (tab !== 'Chat' && tab !== 'Compendium') ui.referee = { ...ui.referee, tab, folder: '' };
-      ui.sidebarCollapsed = false;
-      render();
-    }
+    onTab: (tab) => openSideTab(tab)
   }));
   const panel = ui.drawer && !tabDrawer(ui.drawer) ? ui.drawer : null;
   const chatShowing = !panel && ui.sidebarTab === 'Chat';
@@ -1614,3 +1611,12 @@ async function start() {
 
 paintThemeButton();
 start();
+
+// v0.331.0: one way to open a sidebar tab, from its strip or from a button.
+function openSideTab(tab) {
+  ui.sidebarTab = tab;
+  ui.drawer = tab === 'Chat' ? null : tab === 'Compendium' ? 'compendium' : 'referee';
+  if (tab !== 'Chat' && tab !== 'Compendium') ui.referee = { ...ui.referee, tab, folder: '' };
+  ui.sidebarCollapsed = false;
+  render();
+}

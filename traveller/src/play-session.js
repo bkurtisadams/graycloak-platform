@@ -1991,6 +1991,54 @@ function bestPartySkill(resolved, skills) {
 }
 
 // Worlds a patron's mission could send the party to: here, and within four parsecs.
+// v0.331.0: the Travellers tab — the characters travelling together (the
+// campaign's party), each with their post aboard the active ship and who
+// plays them (an account id; the page turns it into a name and a time).
+export function travellersView(resolved) {
+  const { campaign, characters = [], ships = [] } = resolved;
+  const ship = ships.find((entry) => entry.identity.id === campaign.activeShipId) ?? null;
+  const posts = new Map();
+  for (const assignment of ship?.crew?.assignments ?? []) {
+    if (!assignment.characterId) continue;
+    posts.set(assignment.characterId, [...(posts.get(assignment.characterId) ?? []), assignment.role]);
+  }
+  const owners = campaign.ownership?.actors ?? {};
+  return (campaign.party?.characterIds ?? [])
+    .map((id) => characters.find((entry) => entry.identity.id === id))
+    .filter(Boolean)
+    .map((character) => ({
+      id: character.identity.id,
+      name: character.identity.name || '(unnamed)',
+      upp: character.upp ?? character.characteristics?.upp ?? null,
+      service: character.career?.service ?? null,
+      posts: posts.get(character.identity.id) ?? [],
+      ownerUid: owners[character.identity.id] ?? null
+    }));
+}
+
+// v0.331.0: a rumour still waiting for words when the game referees — one
+// heard while a person refereed — is written from game facts, as a new one
+// would be. Its world is the one it was heard on (by id, or by name for a
+// rumour recorded before v0.328.0), else where the party is now.
+export function writeWaitingRumors(dice, { rumors = [], subsector, visited = [], hereId = null } = {}) {
+  const systems = subsector?.systems ?? [];
+  const written = [];
+  const next = rumors.map((rumor) => {
+    if (rumor.text) return rumor;
+    const system = systems.find((entry) => entry.id === rumor.systemId)
+      ?? systems.find((entry) => entry.name === rumor.worldName)
+      ?? systems.find((entry) => entry.id === hereId);
+    if (!system) return rumor;
+    const { here, worlds } = rumorCandidates(subsector, system.id, visited);
+    const drafted = draftRumor(dice, { letter: rumor.letter, here, worlds });
+    const done = { ...rumor, systemId: system.id, text: drafted.text, byGame: true, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact, draft: undefined };
+    delete done.draft;
+    written.push(done);
+    return done;
+  });
+  return { rumors: next, written };
+}
+
 // v0.328.0: what a rumour may talk about — the world here and those within
 // four parsecs, in the shape draftRumor takes, marked visited or not.
 export function rumorCandidates(subsector, systemId, visited = []) {
@@ -2765,6 +2813,22 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
 
   // v0.321.0: chart what the ship could reach, and remember where the party
   // has been (a world's full profile is shown to players once visited).
+  // v0.331.0: the game refereeing, rumours still waiting for words are
+  // written from game facts (writeWaitingRumors). Returns how many.
+  function writeRumorsIfSolo() {
+    if (refereeMode(resolved.campaign) !== 'game') return 0;
+    const people = personState(resolved.campaign);
+    if (!people.rumors.some((entry) => !entry.text)) return 0;
+    const { rumors, written } = writeWaitingRumors(createDice(), {
+      rumors: people.rumors, subsector, visited: sectorState(resolved.campaign).visited, hereId: resolved.campaign.location?.systemId ?? null
+    });
+    if (!written.length) return 0;
+    registry.put(withPersonState(resolved.campaign, { rumors }));
+    reload();
+    for (const rumor of written) log('ENCOUNTER', `Rumour heard on ${rumor.worldName} (${rumor.date}): ${rumor.text}`);
+    return written.length;
+  }
+
   function chartAndVisit() {
     if (!sector) return [];
     const campaign = resolved.campaign;
@@ -2976,7 +3040,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         reload();
         setSave('cloud', `Loaded from the cloud, revision ${home.revision}`);
         // v0.321.0: the cloud copy may predate the sector; chart what it needs.
-        try { if (chartAndVisit().length) saveToCloud(); } catch (error) { console.warn('[traveller] charting:', error); }
+        try { if (chartAndVisit().length + writeRumorsIfSolo()) saveToCloud(); } catch (error) { console.warn('[traveller] charting:', error); }
         // v0.295.0: publish once on opening, so the players' copy of the
         // campaign (who owns what, which characters are in it) is current
         // even if nothing changes this visit — an old envelope had kept a
@@ -4847,7 +4911,10 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           if (!['person', 'game'].includes(value.referee)) throw new Error('the referee is a person or the game');
           registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, settings: { ...(resolved.campaign.roster?.settings ?? {}), referee: value.referee } } });
           reload();
-          return finish(value.referee === 'game' ? 'Solo: the game referees what the book leaves to a referee.' : 'A person referees.');
+          const waiting = writeRumorsIfSolo();
+          return finish(value.referee === 'game'
+            ? `Solo: the game referees what the book leaves to a referee.${waiting ? ` ${waiting === 1 ? 'A rumour' : `${waiting} rumours`} still waiting for words ${waiting === 1 ? 'is' : 'are'} written from game facts.` : ''}`
+            : 'A person referees.');
         }
         if (command.startsWith('patrons:task:')) {
           // v0.322.0: the job at its world — days searching or asking, then
@@ -6207,11 +6274,15 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // v0.329.2: who referees, for Settings (Kurt: the switch was buried in
       // the patrons column and only shown in port).
       state.refereeMode = refereeMode(resolved.campaign);
+      state.travellers = travellersView(resolved);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).
       const people = personState(resolved.campaign);
       const mode = refereeMode(resolved.campaign);
+      // v0.331.0: rumours waiting for the referee's words, for the Journal
+      // tab wherever the ship is (the port column only counts them).
+      state.rumorsToWrite = seat !== 'player' ? people.rumors.filter((entry) => !entry.text) : [];
       if ((seat !== 'player' || mode === 'game') && state.situation?.kind === 'port') {
         const day = campaignDayNumber(resolved.campaign.time);
         const wait = people.lastLookDay === null ? 0 : Math.max(0, 7 - (day - people.lastLookDay));
@@ -6620,5 +6691,6 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   };
   // v0.321.0: on opening, chart what the ship could already reach.
   try { chartAndVisit(); } catch (error) { console.warn('[traveller] charting:', error); }
+  try { writeRumorsIfSolo(); } catch (error) { console.warn('[traveller] rumours:', error); }
   return api;
 }

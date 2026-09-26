@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.330.2';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.330.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.330.2';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.330.2';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.331.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.331.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.331.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.331.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.330.2';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.330.2';
-import { renderSectionStrip } from './section-strip.js?v=v0.330.2';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.331.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.331.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.331.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.330.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.330.2';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.331.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.331.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.330.2';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.331.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -193,7 +193,33 @@ function patronsPanel(p, handlers) {
         kindButton({ label: 'Take the job', kind: 'money', primary: true }, { onclick: take }),
         kindButton({ label: 'Turn it down', kind: 'neutral' }, { onclick: () => people('patrons:decline') }))));
   }
-  for (const rumor of p.rumors) {
+  // v0.331.0: rumours waiting for the referee's words are written in the
+  // Journal; the port column only says how many (Kurt: the cards pushed the
+  // ship's course off the screen). The game refereeing, none wait.
+  if (p.rumors.length) {
+    parts.push(h('p', { class: 'rumors-waiting' },
+      h('button', { type: 'button', class: 'text-link', onclick: () => handlers.onOpenTab?.('Journal') },
+        `${p.rumors.length === 1 ? 'A rumour' : `${p.rumors.length} rumours`} to write \u00b7 Journal`)));
+  }
+  parts.push(h('div', { class: 'patron-seek' },
+    p.seek ? kindButton(p.seek, { small: true, onclick: () => people(p.seek.command) })
+      : h('span', { class: 'cite', text: p.patron ? 'A patron is waiting on an answer.' : `Next week\u2019s patron and rumour throws in ${p.wait} day${p.wait === 1 ? '' : 's'}.` }),
+    h('label', { class: 'patron-list' }, h('span', { text: 'Patron list' }),
+      h('select', { onchange: (event) => people('patrons:list', { list: event.target.value }) },
+        h('option', { value: 'one', selected: p.list === 'one', text: 'One (1977)' }), h('option', { value: 'two', selected: p.list === 'two', text: 'Two (1982)' }))),
+    // v0.329.2: who referees is set in Settings now.
+    h('span', { class: 'cite', text: 'Weekly: patron 5+ on 1D, rumour 7+ on 2D (The Traveller Book p.100).' })));
+  return h('section', { class: 'patrons', 'aria-label': 'Patrons and rumours' }, parts);
+}
+
+// v0.331.0: the rumours waiting for words, at the top of the Journal tab —
+// "absent patrons" whose knowledge the travellers may act on (1977 Book 3
+// p.22); the matrix gives the kind, the referee the words (The Traveller
+// Book p.100). Moved from the port column.
+export function rumorCards(rumors, handlers) {
+  const people = (command, value) => handlers.onPeople?.(command, value);
+  const parts = [];
+  for (const rumor of rumors) {
     const box = h('textarea', { rows: 2, placeholder: `Write the rumour: ${rumor.type.toLowerCase()}` });
     // v0.328.0: the game's suggestion from its own facts, to keep or change.
     if (rumor.draft?.text) box.value = rumor.draft.text;
@@ -208,15 +234,7 @@ function patronsPanel(p, handlers) {
         kindButton({ label: rumor.draft ? 'Suggest another' : 'Suggest from game facts', kind: 'optional' }, { small: true, onclick: () => people('rumors:suggest', { id: rumor.id }) })),
       h('p', { class: 'cite', text: `${rumor.general ? 'A general rumour' : 'A specific rumour'}: the matrix gives its kind, the referee its content (The Traveller Book p.100).` })));
   }
-  parts.push(h('div', { class: 'patron-seek' },
-    p.seek ? kindButton(p.seek, { small: true, onclick: () => people(p.seek.command) })
-      : h('span', { class: 'cite', text: p.patron ? 'A patron is waiting on an answer.' : `Next week\u2019s patron and rumour throws in ${p.wait} day${p.wait === 1 ? '' : 's'}.` }),
-    h('label', { class: 'patron-list' }, h('span', { text: 'Patron list' }),
-      h('select', { onchange: (event) => people('patrons:list', { list: event.target.value }) },
-        h('option', { value: 'one', selected: p.list === 'one', text: 'One (1977)' }), h('option', { value: 'two', selected: p.list === 'two', text: 'Two (1982)' }))),
-    // v0.329.2: who referees is set in Settings now.
-    h('span', { class: 'cite', text: 'Weekly: patron 5+ on 1D, rumour 7+ on 2D (The Traveller Book p.100).' })));
-  return h('section', { class: 'patrons', 'aria-label': 'Patrons and rumours' }, parts);
+  return parts;
 }
 
 // ---- fights: every number here is read from the rules package -------------
@@ -1077,7 +1095,6 @@ export function renderNow(state, handlers = {}) {
       h('p', { text: state.situation.detail }))
   ];
   if (state.jobs?.length && ['port', 'jump'].includes(state.situation.kind)) parts.push(h('ul', { class: 'jobs', 'aria-label': 'Accepted jobs' }, state.jobs.map((job) => jobRow(job, handlers, Boolean(state.live)))));
-  if (state.patrons && state.live && state.situation.kind === 'port') parts.push(patronsPanel(state.patrons, handlers));
   if (state.lastRound?.length) {
     parts.push(h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))));
   }
@@ -1086,6 +1103,8 @@ export function renderNow(state, handlers = {}) {
   if (state.personEncounter) parts.push(personEncounterCard(state.personEncounter, state, handlers));
   parts.push(leadCard(state.next, state, handlers));
   if (state.checklist) parts.push(checklistPanel(state.checklist));
+  // v0.331.0: patrons and jobs after the ship's own business.
+  if (state.patrons && state.live && state.situation.kind === 'port') parts.push(patronsPanel(state.patrons, handlers));
   // v0.315.6: a hijacking or a boarding halts the trip for a personal fight.
   if (state.boardFight) {
     parts.push(startFight(state, handlers, { open: true })
@@ -1974,7 +1993,22 @@ function playersPanel(model, state, handlers) {
   const section = (title, rows, empty) => h('section', { class: 'players-section' },
     h('h3', { class: 'players-heading', text: title }),
     rows.length ? h('ul', { class: 'entries' }, rows) : h('p', { class: 'empty', text: empty }));
+  // v0.331.0: the characters travelling together first — who plays each,
+  // whether that player is on, their post aboard — then the join link and
+  // the players' accounts.
+  const byUid = new Map((model.members ?? []).map((member) => [member.uid, member]));
+  const posts = (list) => list.map((role) => role.charAt(0).toUpperCase() + role.slice(1)).join(', ');
+  const travellers = (state.travellers ?? []).map((traveller) => {
+    const player = traveller.ownerUid ? byUid.get(traveller.ownerUid) : null;
+    const who = player ? `played by ${player.name} \u00b7 ${when(player.lastSeenAt)}` : traveller.ownerUid ? 'their player has left' : 'yours to play';
+    return h('li', { class: 'entry traveller-row' },
+      h('span', { class: 'entry-name', text: traveller.name }),
+      h('span', { class: 'entry-note', text: [traveller.upp, traveller.service, traveller.posts.length ? posts(traveller.posts) : 'no post aboard', who].filter(Boolean).join(' \u00b7 ') }),
+      h('span', { class: 'seat-actions' },
+        h('button', { type: 'button', class: 'button is-small', text: 'Sheet', title: `Open ${traveller.name}\u2019s sheet`, onclick: () => handlers.onOpenSheet?.('actor', traveller.id) })));
+  });
   return [
+    section(`Travelling together (${travellers.length})`, travellers, 'Nobody is travelling together yet.'),
     h('section', { class: 'players-section players-link' },
       h('h3', { class: 'players-heading', text: 'Join link' }),
       h('p', { class: 'cite', text: model.link ? 'Players open it and choose a character to join with.' : 'No link yet. Make one to invite players.' }),
@@ -2023,10 +2057,14 @@ function refereeDrawer(referee, state, handlers) {
   }
   const tree = referee.tree ?? [];
   const entries = referee.shown ?? [];
+  const waitingRumors = referee.tab === 'Journal' && state.live ? (state.rumorsToWrite ?? []) : [];
   // v0.254.0: the sidebar's own tab strip names the tab, so the drawer's
   // "Referee" header and its second row of tabs are gone — the screenshot
   // showed both strips at once.
   return [
+    waitingRumors.length ? h('section', { class: 'rumors-to-write', 'aria-label': 'Rumours to write' },
+      h('h3', { class: 'players-heading', text: `Rumours to write (${waitingRumors.length})` }),
+      ...rumorCards(waitingRumors, handlers)) : null,
     h('p', { class: 'side-count-line', text: `${referee.total} ${referee.tab.toLowerCase()} in this campaign` }),
     h('input', {
       type: 'search', class: 'search', placeholder: `Search ${referee.tab.toLowerCase()}`, value: referee.query ?? '',
@@ -2631,10 +2669,14 @@ export function chatExportText({ campaignName = 'Campaign', date = '', lines = [
 
 // The sidebar's tabs: Chat first, then the directories.
 export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Actors', 'Players', 'Vehicles', 'Scenes', 'Compendium']);
+// v0.331.0 (Kurt): the Players tab is shown as Travellers — what the books
+// call the player characters ("a band of travellers", 1977 Book 1 p.2).
+// The key stays 'Players' so saved page state and handlers keep working.
+export const SIDEBAR_TAB_LABELS = Object.freeze({ Players: 'Travellers' });
 
 export function renderSideTabs(active, { players = 0, onTab = null } = {}) {
   return SIDEBAR_TABS.map((tab) => h('button', {
     type: 'button', class: 'side-tab', 'aria-pressed': tab === active ? 'true' : 'false',
     onclick: () => onTab?.(tab)
-  }, tab, tab === 'Players' && players ? h('span', { class: 'side-count', text: ` ${players}` }) : null));
+  }, SIDEBAR_TAB_LABELS[tab] ?? tab, tab === 'Players' && players ? h('span', { class: 'side-count', text: ` ${players}` }) : null));
 }
