@@ -1126,7 +1126,8 @@ test('v0.249.0 the Tables tab is gone; its reference is Journal material, not a 
 
 test('Vehicles says where a ship is and what it can do', async () => {
   const { registry, campaignId } = await atOrison({ fuel: 22, berthingPaid: true });
-  const view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder: 'In service' });
+  const view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles' });
+  assert.equal(view.folder, 'The travellers\u2019 ship', 'opens on the travellers\u2019 ship');
   const ship = view.shown[0];
   assert.equal(ship.name, 'Marisol');
   assert.match(ship.note, /Jump-2/);
@@ -2351,7 +2352,7 @@ test('v0.332.0 who travels together does not change away from port', async () =>
 });
 
 // ---------------------------------------------------------------- v0.336.0
-import { untakenShipBenefit, campaignShipsView } from '../src/play-session.js';
+import { untakenShipBenefit } from '../src/play-session.js';
 
 // A Merchant Captain who rolled the Free Trader, travelling beside the pilot.
 function withFreeTraderMerchant(registry, campaignId) {
@@ -2382,8 +2383,9 @@ test('v0.336.0 a Free Trader rolled in the lobby is built in the campaign, berth
   assert.equal(r.campaign.activeShipId, before.campaign.activeShipId, 'the travellers keep their ship until they change');
   assert.equal(untakenShipBenefit(r.characters.find((entry) => entry.identity.id === 'char-second-traveller')), null, 'taken once');
   assert.equal(session.run('ship:from-benefit:char-second-traveller').ok, false);
-  const listed = campaignShipsView(r).find((entry) => entry.id === trader.identity.id);
-  assert.deepEqual({ active: listed.active, berthedHere: listed.berthedHere }, { active: false, berthedHere: true });
+  // v0.339.0: the Vehicles tab offers the change, on the berthed ship's row.
+  const listed = refereeView(r, { tab: 'Vehicles', folder: 'Held by travellers' }).shown.find((entry) => entry.id === trader.identity.id);
+  assert.deepEqual(listed.actions.map((action) => action.command), [`ship:make-active:${trader.identity.id}`]);
   const changed = session.run(`ship:make-active:${trader.identity.id}`);
   assert.equal(changed.ok, true, changed.message);
   r = registry.resolveCampaign(campaignId);
@@ -2425,4 +2427,76 @@ test('v0.338.0 the players\u2019 copy lists every ship the travellers hold, and 
   assert.equal(trader.mortgage.monthlyPaymentCr, 154500);
   assert.equal(listed.waiting.length, 0);
   assert.doesNotThrow(() => JSON.parse(JSON.stringify(listed)));
+});
+
+// ---------------------------------------------------------------- v0.339.0
+import { newShipOptions, VEHICLE_FOLDERS } from '../src/play-session.js';
+
+test('v0.339.0 Vehicles lists a mustering-out ship still to come in, with Bring in, then the built ship', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  withFreeTraderMerchant(registry, campaignId);
+  let view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder: VEHICLE_FOLDERS.travellers });
+  const waiting = view.shown.find((entry) => entry.id === 'waiting:char-second-traveller');
+  assert.ok(waiting, 'the untaken Free Trader is listed');
+  assert.match(waiting.note, /Type A Free Trader .* not yet in play/);
+  assert.equal(waiting.sheet, undefined, 'nothing built, so no sheet to open');
+  assert.deepEqual(waiting.actions.map((action) => action.command), ['ship:from-benefit:char-second-traveller']);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.run(waiting.actions[0].command).ok, true);
+  view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder: VEHICLE_FOLDERS.travellers });
+  assert.equal(view.shown.some((entry) => entry.id.startsWith('waiting:')), false);
+  const built = view.shown.find((entry) => entry.sheet?.kind === 'ship');
+  assert.match(built.note, /held by/);
+  assert.equal(built.actions[0].label, 'Travel in this ship');
+});
+
+test('v0.339.0 the referee adds a patron\u2019s ship, berthed here, and the travellers can travel in it', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = registry.resolveCampaign(campaignId);
+  const result = session.run('ship:new', { fight: { value: { designKey: 'type-r-subsidized-merchant', name: 'Varlet', holder: { kind: 'patron', name: 'Mercenary colonel' } } } });
+  assert.equal(result.ok, true, result.message);
+  assert.match(result.message, /Varlet \(Type R .*\) comes into the campaign, held by Mercenary colonel; berthed here\./);
+  const r = registry.resolveCampaign(campaignId);
+  const ship = r.ships.find((entry) => entry.identity.id === result.createdId);
+  assert.equal(ship.state.portCall.systemId, r.campaign.location.systemId);
+  assert.equal(ship.state.finances.mortgage, null, 'the referee\u2019s fiat, not a purchase');
+  assert.equal(ship.authority.characterOwnsShip, false);
+  assert.equal(r.campaign.activeShipId, before.campaign.activeShipId, 'the travellers keep their ship');
+  const row = refereeView(r, { tab: 'Vehicles', folder: VEHICLE_FOLDERS.others }).shown.find((entry) => entry.id === ship.identity.id);
+  assert.ok(row, 'filed under Patrons and others');
+  assert.equal(row.badge.side, 'neutral');
+  assert.equal(session.run(row.actions[0].command).ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.activeShipId, ship.identity.id);
+});
+
+test('v0.339.0 a government ship is filed with the services; a traveller\u2019s shows on the players\u2019 copy', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  withFreeTraderMerchant(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const navy = session.run('ship:new', { fight: { value: { designKey: 'type-c-cruiser', name: 'Ardent', holder: { kind: 'government', name: 'Imperial Navy' } } } });
+  assert.equal(navy.ok, true, navy.message);
+  let r = registry.resolveCampaign(campaignId);
+  assert.ok(refereeView(r, { tab: 'Vehicles', folder: VEHICLE_FOLDERS.government }).shown.some((entry) => entry.id === navy.createdId));
+  const own = session.run('ship:new', { fight: { value: { designKey: 'type-y-yacht', name: 'Gilt', holder: { kind: 'character', id: 'char-second-traveller' } } } });
+  assert.equal(own.ok, true, own.message);
+  r = registry.resolveCampaign(campaignId);
+  assert.ok(refereeView(r, { tab: 'Vehicles', folder: VEHICLE_FOLDERS.travellers }).shown.some((entry) => entry.id === own.createdId));
+  const listed = publishedShips(r, FAR_MERIDIAN_SUBSECTOR).held.find((entry) => entry.shipId === own.createdId);
+  assert.equal(listed.terms, 'owned');
+  assert.equal(listed.berthedHere, true);
+  assert.equal(untakenShipBenefit(r.characters.find((entry) => entry.identity.id === 'char-second-traveller')), 'Free Trader', 'his own benefit is still his to take');
+});
+
+test('v0.339.0 New ship refuses what it cannot build, and offers every standard design', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const count = registry.resolveCampaign(campaignId).ships.length;
+  assert.match(session.run('ship:new', { fight: { value: { designKey: 'type-z-battleship', holder: { kind: 'patron', name: 'X' } } } }).message, /standard designs/);
+  assert.match(session.run('ship:new', { fight: { value: { designKey: 'type-a-free-trader', holder: { kind: 'patron', name: ' ' } } } }).message, /name the patron/);
+  assert.match(session.run('ship:new', { fight: { value: { designKey: 'type-a-free-trader', holder: { kind: 'character', id: 'nobody' } } } }).message, /no such character/);
+  assert.equal(registry.resolveCampaign(campaignId).ships.length, count, 'nothing added');
+  const options = newShipOptions(registry.resolveCampaign(campaignId));
+  assert.ok(options.designs.some((entry) => /^Type A Free Trader \(200 tons\)$/.test(entry.label)));
+  assert.ok(options.characters.length >= 1);
 });

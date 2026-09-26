@@ -38,7 +38,7 @@ import {
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
-  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule
+  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument
 } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -513,30 +513,134 @@ function characterEntries(resolved) {
 
 // v0.225.0: a ship is worth more than its name in a directory — where it is,
 // what it can jump, and whether it can lift at all.
+// v0.339.0 (Kurt, Sep 2026): the Vehicles tab is the referee's pool of
+// ships, as Actors is of people — every ship in the campaign, filed by who
+// holds it, and every mustering-out ship a character has yet to bring in.
+// The referee picks the travellers' ship from here ("Travel in this ship",
+// in port) or adds one: a traveller's, a patron's, a government's.
+export const VEHICLE_FOLDERS = Object.freeze({
+  active: 'The travellers\u2019 ship',
+  travellers: 'Held by travellers',
+  government: 'Government and services',
+  others: 'Patrons and others'
+});
+
+function vehicleFolder(ship, resolved) {
+  if (ship.identity.id === resolved.campaign.activeShipId) return VEHICLE_FOLDERS.active;
+  const holderId = ship.authority?.assignedCharacterId ?? null;
+  if ((resolved.characters ?? []).some((entry) => entry.identity.id === holderId)) return VEHICLE_FOLDERS.travellers;
+  if (['reserve', 'government'].includes(ship.authority?.assignmentType)) return VEHICLE_FOLDERS.government;
+  return VEHICLE_FOLDERS.others;
+}
+
+function vehicleHolder(ship, resolved) {
+  const authority = ship.authority ?? {};
+  const holder = (resolved.characters ?? []).find((entry) => entry.identity.id === authority.assignedCharacterId);
+  if (holder) return `held by ${holder.identity.name}${authority.assignmentType === 'reserve' ? ` for the ${authority.controllingAuthority ?? 'service'}` : ''}`;
+  if (authority.assignmentType === 'government' || authority.assignmentType === 'reserve') return authority.controllingAuthority ? `the ${authority.controllingAuthority}\u2019s` : null;
+  return authority.assignedCharacterName ? `held by ${authority.assignedCharacterName}` : null;
+}
+
 function vehicleEntries(resolved) {
-  return (resolved.ships ?? []).map((ship) => {
+  const here = resolved.campaign.location?.systemId ?? null;
+  const ships = (resolved.ships ?? []).map((ship) => {
     const view = shipView(ship);
     const damage = ship.state?.damage ?? {};
     const hurt = Object.entries(damage).filter(([, value]) => (Array.isArray(value) ? value.length : Number(value) > 0)).map(([key]) => key);
     const berthed = ship.state?.portCall?.systemId ?? null;
+    const folder = vehicleFolder(ship, resolved);
+    const active = ship.identity.id === resolved.campaign.activeShipId;
     return {
       id: ship.identity.id,
       name: view.name || ship.identity.registry || 'Unnamed ship',
       note: [
         view.kind,
+        vehicleHolder(ship, resolved),
         view.jump ? `Jump-${view.jump}` : null,
         `fuel ${view.fuel.now}/${view.fuel.full} t`,
         `hold ${view.hold.full - view.hold.now} t free`,
         berthed ? `berthed at ${berthed}` : ship.state?.operationalStatus === 'in-jump' ? 'in jump' : null,
         hurt.length ? `damaged: ${hurt.join(', ')}` : null
       ].filter(Boolean).join(' \u00b7 '),
-      folder: ship.identity.id === resolved.campaign.activeShipId ? 'In service'
-        : ship.authority?.assignmentType === 'reserve' ? 'On loan'
-          : 'Other vehicles',
+      folder,
+      active,
       sheet: { kind: 'ship', id: ship.identity.id },
-      badge: { kind: 'ship', typeCode: ship.design?.typeCode ?? '?', side: 'party' }
+      badge: { kind: 'ship', typeCode: ship.design?.typeCode ?? '?', side: folder === VEHICLE_FOLDERS.active || folder === VEHICLE_FOLDERS.travellers ? 'party' : 'neutral' },
+      // The session refuses it away from port or mid-fight, and says why.
+      actions: !active && here && berthed === here
+        ? [{ label: 'Travel in this ship', command: `ship:make-active:${ship.identity.id}`, title: 'The travellers change to this ship here, in port; cargo, fuel and accounts stay with each ship' }]
+        : []
     };
   });
+  // A Free Trader or Scout Ship rolled but not yet built (Book 1 pp.22-23).
+  const waiting = (resolved.characters ?? []).map((character) => ({ character, benefit: untakenShipBenefit(character) })).filter((entry) => entry.benefit)
+    .map(({ character, benefit }) => ({
+      id: `waiting:${character.identity.id}`,
+      name: `${character.identity.name || 'A character'}\u2019s ${benefit}`,
+      note: [benefit === 'Free Trader' ? 'Type A Free Trader' : 'Type S Scout/Courier', 'mustering-out benefit, not yet in play'].join(' \u00b7 '),
+      folder: VEHICLE_FOLDERS.travellers,
+      badge: { kind: 'ship', typeCode: benefit === 'Free Trader' ? 'A' : 'S', side: 'party' },
+      actions: [{
+        label: 'Bring in', command: `ship:from-benefit:${character.identity.id}`, primary: true,
+        title: benefit === 'Free Trader' ? 'Book 1 pp.22-23: a Type A they own, with the mortgage from today, berthed here' : 'Book 1 p.23: a Type S on reserve from the Scout Service, berthed here'
+      }]
+    }));
+  return [...ships, ...waiting];
+}
+
+// v0.339.0: what the Vehicles tab's New ship asks — a Book 2 standard
+// design, and who holds it (any character of the campaign, or a patron or
+// a government named by the referee).
+export function newShipOptions(resolved) {
+  return {
+    designs: STANDARD_SHIP_DESIGN_KEYS.map((key) => {
+      const design = getStandardShipDesign(key);
+      return { key, label: `Type ${design.typeCode} ${design.name} (${design.hull.tons} tons)` };
+    }),
+    characters: (resolved.characters ?? []).filter((entry) => String(entry.identity.name ?? '').trim())
+      .map((entry) => ({ id: entry.identity.id, name: entry.identity.name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  };
+}
+
+/**
+ * A ship the referee adds to the campaign (v0.339.0): a Book 2 standard
+ * design, unarmed as delivered (p.16), with no mortgage — the referee's fiat,
+ * not a purchase. holder: { kind: 'character', id } | { kind: 'patron', name }
+ * | { kind: 'government', name }. The character's own ship refs are left
+ * alone, so a mustering-out benefit they have not taken stays theirs to take.
+ */
+export function refereeShip({ designKey, name = '', holder, characters = [], id }) {
+  if (!STANDARD_SHIP_DESIGN_KEYS.includes(designKey)) throw new Error('choose one of Book 2\u2019s standard designs');
+  const kind = holder?.kind;
+  const holderName = String(holder?.name ?? '').trim();
+  const service = { freeFuelAtScoutBases: false, freeMaintenanceAtScoutBasesAtClassBStarports: false };
+  let authority;
+  if (kind === 'character') {
+    const character = characters.find((entry) => entry.identity.id === holder.id);
+    if (!character) throw new Error('no such character in this campaign');
+    authority = {
+      assignmentType: 'private-owner', controllingAuthority: character.identity.name || 'owner', legalTitleHolder: character.identity.name || null,
+      legalTitleSourceStatus: 'referee-fiat', characterOwnsShip: true, assignedCharacterId: character.identity.id, assignedCharacterName: character.identity.name ?? '',
+      recallable: false, saleAllowed: true, useAsDesired: true, possessionAtServicePleasure: false, servicePrivileges: service,
+      operatorResponsibilities: { upkeep: true, crewCosts: true }
+    };
+  } else if (kind === 'patron' || kind === 'government') {
+    if (!holderName) throw new Error(kind === 'patron' ? 'name the patron who holds the ship' : 'name the government or service that holds the ship');
+    const government = kind === 'government';
+    authority = {
+      assignmentType: government ? 'government' : 'private-owner', controllingAuthority: holderName, legalTitleHolder: holderName,
+      legalTitleSourceStatus: 'referee-fiat', characterOwnsShip: false, assignedCharacterId: stableDocumentId('holder', `${kind}:${holderName}`), assignedCharacterName: holderName,
+      recallable: government, saleAllowed: !government, useAsDesired: !government, possessionAtServicePleasure: government, servicePrivileges: service,
+      // Its holder keeps it up and pays its crew; what the travellers owe
+      // aboard someone else's ship waits on a ruling.
+      operatorResponsibilities: { upkeep: false, crewCosts: false }
+    };
+  } else throw new Error('say who holds the ship');
+  // The ship document names its holder among the crew (as the mustering-out
+  // ships make their holder the pilot).
+  const crewAssignments = [{ role: 'pilot', characterId: authority.assignedCharacterId, characterName: authority.assignedCharacterName }];
+  return createShipDocument({ designKey, id, name: String(name ?? '').trim(), authority, crewAssignments });
 }
 
 // v0.229.0: the Scenes tab, Foundry's directory shape — a folder, a name, and
@@ -1344,7 +1448,8 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
   const entries = (sets[tab] ?? sets.Journal)(resolved);
   const tree = folderTree(entries);
   const holds = (path) => entries.some((entry) => (entry.folder || UNFILED) === path);
-  const open = folder || tree.find((node) => holds(node.path))?.path || tree[0]?.path || UNFILED;
+  const preferred = tab === 'Vehicles' ? entries.find((entry) => entry.active)?.folder : null;
+  const open = folder || preferred || tree.find((node) => holds(node.path))?.path || tree[0]?.path || UNFILED;
   const shown = inFolder(entries, open, query);
   const LIMIT = 200;
   return {
@@ -2077,22 +2182,6 @@ export function untakenShipBenefit(character) {
   const scout = entitlements.find((entry) => entry.name === 'Scout Ship');
   if (scout && scout.disposition === 'reserve-assignment-available') return 'Scout Ship';
   return null;
-}
-
-// v0.336.0: the campaign's ships, for the Travellers tab: which one the
-// travellers are in, and which others are berthed where they are.
-export function campaignShipsView(resolved) {
-  const { campaign, ships = [] } = resolved;
-  const here = campaign.location?.systemId ?? null;
-  return ships.map((ship) => ({
-    id: ship.identity.id,
-    name: ship.identity.name || 'Unnamed ship',
-    type: ship.design?.name ?? ship.design?.typeCode ?? 'ship',
-    typeCode: ship.design?.typeCode ?? '?',
-    holder: ship.authority?.assignedCharacterName ?? null,
-    active: ship.identity.id === campaign.activeShipId,
-    berthedHere: Boolean(here && ship.state?.portCall?.systemId === here)
-  }));
 }
 
 // v0.332.0: characters of the campaign not travelling together, who may be
@@ -3893,6 +3982,32 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const message = `${character.identity.name}'s ${benefit} (${ship.identity.name}) comes into the campaign, ${owed}${terms?.shipAgeYears ? `, ${terms.shipAgeYears} years old` : ''}${makeActive ? '; the travellers\u2019 ship' : '; berthed here, not yet the travellers\u2019 ship'}.`;
         log('SHIP', message);
         lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command === 'ship:new') {
+        // v0.339.0: the referee adds a ship to the campaign from the Vehicles
+        // tab — a traveller's, a patron's or a government's — berthed where
+        // the travellers are. It becomes the travellers' ship only if the
+        // campaign has none.
+        const value = fight?.value ?? {};
+        const campaign = resolved.campaign;
+        const date = formatCampaignDate(campaign.time);
+        const built = refereeShip({
+          designKey: value.designKey, name: value.name, holder: value.holder, characters: resolved.characters ?? [],
+          id: stableDocumentId('ship', `${value.designKey}\u0000${value.name ?? ''}\u0000${Date.now()}\u0000${Math.random()}`)
+        });
+        const systemId = campaign.location?.systemId ?? null;
+        const ship = systemId ? beginPortCall(built, { systemId, arrivalDate: date, berthingDueCr: 0 }) : built;
+        const makeActive = !campaign.activeShipId;
+        registry.put(ship);
+        registry.put(addShipToCampaign(registry.resolveCampaign(campaignId).campaign, ship, { makeActive }));
+        reload();
+        const holder = vehicleHolder(ship, registry.resolveCampaign(campaignId));
+        const message = `${ship.identity.name || 'A new ship'} (Type ${ship.design.typeCode} ${ship.design.name}) comes into the campaign${holder ? `, ${holder}` : ''}${makeActive ? '; the travellers\u2019 ship' : systemId ? '; berthed here' : ''}.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message, createdId: ship.identity.id };
         onChange();
         saveToCloud();
         return lastMessage;
@@ -6452,7 +6567,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.refereeMode = refereeMode(resolved.campaign);
       state.travellers = travellersView(resolved);
       state.travellerCandidates = travellerCandidates(resolved);
-      state.campaignShips = campaignShipsView(resolved);
+      state.newShipOptions = newShipOptions(resolved);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).

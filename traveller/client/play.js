@@ -2,17 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.338.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.338.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.338.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.338.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.338.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.338.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.338.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.338.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.338.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.338.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.338.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.339.0';
+import { askForm, tell } from './dialogs.js?v=v0.339.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.339.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.339.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.339.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.339.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.339.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.339.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.339.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.339.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.339.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.339.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -666,6 +667,36 @@ function render() {
       if (name === null || !name.trim()) return;
       const result = source.session.run('actor:create', { fight: { value: { kind, name: name.trim(), folder: folder && folder !== 'Unfiled' ? folder : '' } } });
       if (result.ok && result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'actor', id: result.createdId, compact: kind === 'statblock' }];
+      render();
+    },
+    // v0.339.0: New ship, from the Vehicles tab — a Book 2 standard design
+    // held by a traveller, a patron or a government, berthed here.
+    onCreateShip: async () => {
+      if (source.mode !== 'live') return;
+      const options = viewState().newShipOptions ?? { designs: [], characters: [] };
+      const holders = [
+        ...options.characters.map((entry) => ({ value: `character:${entry.id}`, label: `${entry.name} (a traveller or character here)` })),
+        { value: 'patron', label: 'A patron or other NPC' },
+        { value: 'government', label: 'A government or service' }
+      ];
+      const answer = await askForm({
+        title: 'New ship',
+        message: 'Book 2 pp.18-20, unarmed as delivered and with no mortgage; berthed where the travellers are.',
+        confirm: 'Add ship',
+        fields: [
+          { name: 'designKey', label: 'Design', type: 'select', options: options.designs.map((entry) => ({ value: entry.key, label: entry.label })) },
+          { name: 'name', label: 'Ship\u2019s name', type: 'text', placeholder: 'Unnamed ship' },
+          { name: 'holder', label: 'Held by', type: 'select', options: holders },
+          { name: 'holderName', label: 'Name of the patron, government or service', type: 'text', showWhen: (values) => values.holder === 'patron' || values.holder === 'government' }
+        ]
+      });
+      if (!answer) return;
+      const holder = answer.holder?.startsWith('character:')
+        ? { kind: 'character', id: answer.holder.slice('character:'.length) }
+        : { kind: answer.holder, name: answer.holderName ?? '' };
+      const result = source.session.run('ship:new', { fight: { value: { designKey: answer.designKey, name: answer.name ?? '', holder } } });
+      if (!result.ok) await tell({ title: 'New ship', message: result.message });
+      else if (result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'ship', id: result.createdId, compact: false }];
       render();
     },
     onCopyDocument: (kind, id) => {

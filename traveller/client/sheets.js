@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.338.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.338.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.338.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.339.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.339.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.339.0';
 
 const DRAGGED = new Map();
 
@@ -72,7 +72,8 @@ export function actorBadge(kind, { side = 'party', size = 30 } = {}) {
 
 /** A hull badge for a ship row: the type code inside a shape per hull kind. */
 export function shipBadge(typeCode, { side = 'party', size = 30 } = {}) {
-  const colour = side === 'opposition' ? 'var(--red)' : 'var(--signal)';
+  // v0.339.0: 'neutral' for a ship held by a patron or a government.
+  const colour = side === 'opposition' ? 'var(--red)' : side === 'neutral' ? 'var(--ink-2)' : 'var(--signal)';
   const node = svg('svg', { viewBox: '0 0 32 32', class: 'sheet-badge', width: size, height: size, role: 'img', 'aria-label': `Type ${typeCode ?? '?'} hull` });
   const wedge = ['S', 'C', 'Y'].includes(typeCode);
   node.append(wedge

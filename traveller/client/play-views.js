@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.338.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.338.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.338.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.338.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.339.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.339.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.339.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.339.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.338.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.338.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.338.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.339.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.339.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.339.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.338.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.338.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.339.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.339.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.338.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.339.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -2018,16 +2018,9 @@ function playersPanel(model, state, handlers) {
     ...candidates.map((entry) => h('option', { value: entry.id, text: `${entry.name}${entry.ownerUid ? ` (${byUid.get(entry.ownerUid)?.name ?? 'a player'}\u2019s)` : ''}` }))) : null;
   const adder = state.live && choice ? h('div', { class: 'traveller-add' }, choice,
     h('button', { type: 'button', class: 'button is-small', text: 'Add', title: 'They travel with the others from here, in port', onclick: () => command(`party:add:${choice.value}`) })) : null;
-  // v0.336.0: the campaign's ships — the one the travellers are in, and any
-  // other berthed where they are, which they can change to (in port).
-  const ships = (state.campaignShips ?? []).map((ship) => h('li', { class: 'entry traveller-row' },
-    h('span', { class: 'entry-name', text: ship.name }),
-    h('span', { class: 'entry-note', text: [ship.type, ship.holder ? `held by ${ship.holder}` : null, ship.active ? 'the travellers\u2019 ship' : ship.berthedHere ? 'berthed here' : 'elsewhere'].filter(Boolean).join(' \u00b7 ') }),
-    state.live && !ship.active && ship.berthedHere ? h('button', { type: 'button', class: 'button is-small', text: 'Travel in this ship', title: 'The travellers change ships here, in port; cargo and fuel stay with each ship', onclick: () => command(`ship:make-active:${ship.id}`) }) : null));
   return [
     section(`Travelling together (${travellers.length})`, travellers, 'Nobody is travelling together yet.'),
     adder,
-    ships.length ? section(`Ships (${ships.length})`, ships, '') : null,
     h('section', { class: 'players-section players-link' },
       h('h3', { class: 'players-heading', text: 'Join link' }),
       h('p', { class: 'cite', text: model.link ? 'Players open it and choose a character to join with.' : 'No link yet. Make one to invite players.' }),
@@ -2100,6 +2093,9 @@ function refereeDrawer(referee, state, handlers) {
     referee.tab === 'Scenes' && state.live ? h('div', { class: 'lead-actions' },
       h('button', { type: 'button', class: 'button is-small', text: 'New scene', onclick: () => handlers.onSceneAction?.('create', null, referee.folder) }),
       h('button', { type: 'button', class: 'button is-small', text: 'New space scene', title: 'A vector board for Book 2 pp.22-31 ship combat', onclick: () => handlers.onSceneAction?.('create-space', null, referee.folder) })) : null,
+    // v0.339.0: the Vehicles tab is the pool of ships; the referee adds one.
+    referee.tab === 'Vehicles' && state.live ? h('div', { class: 'lead-actions' },
+      h('button', { type: 'button', class: 'button is-small', text: 'New ship', title: 'A Book 2 standard design, held by a traveller, a patron or a government, berthed where the travellers are', onclick: () => handlers.onCreateShip?.() })) : null,
     h('div', { class: 'directory' },
       referee.tab === 'Actors' && state.live ? h('div', { class: 'directory-actions' },
         h('button', { type: 'button', class: 'button is-small', text: 'Create actor', onclick: () => handlers.onCreateActor?.('actor', referee.folder) }),
@@ -2139,6 +2135,9 @@ function refereeDrawer(referee, state, handlers) {
           entry.note ? h('span', { class: 'entry-note', title: entry.note, text: entry.note }) : null,
           entry.active ? h('span', { class: 'entry-flag', text: 'ACTIVE' }) : null,
           entry.actorKind === 'statblock' ? h('span', { class: 'entry-flag is-quiet', text: 'STATBLOCK' }) : null,
+          // v0.339.0: a Vehicles row's own verbs — Travel in this ship, Bring in.
+          entry.actions?.length && state.live ? h('span', { class: 'row-actions' },
+            ...entry.actions.map((action) => h('button', { type: 'button', class: `button is-small${action.primary ? ' is-primary' : ''}`, text: action.label, title: action.title ?? null, onclick: () => handlers.onCommand?.(action.command) }))) : null,
           // v0.249.0: filing, renaming and deleting moved to the row's own
           // context menu, so the row itself carries no buttons.
           // A seat, an invite or a request to join: what can be done to it.

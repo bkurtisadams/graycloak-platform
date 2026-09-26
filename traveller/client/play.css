@@ -720,6 +720,7 @@ a.button { text-decoration: none; color: inherit; }
 .editor-label { font-size: 13px; color: var(--ink-2); }
 .sheet-why .editor-row { padding-top: 4px; border-top: 1px solid var(--line); }
 .seat-actions { display: flex; gap: 4px; margin-left: auto; }
+.row-actions { display: flex; gap: 4px; margin-left: auto; }
 
 /* v0.229.1: the referee directory's shared shell (every tab — Actors,
    Players, Vehicles, Journal, Tables, Scenes) never had layout rules of its
@@ -1612,3 +1613,20 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 
 /* v0.336.0: a traveller's mustering-out ship waiting to be built. */
 .traveller-row .traveller-ship { flex-basis: 100%; justify-self: start; width: max-content; }
+
+/* v0.339.0: Traveller's own dialogs (dialogs.js) on the play page, in its
+   own tokens — the lobby's roll-dialog frame, redrawn here because the play
+   page loads only this stylesheet. */
+.tv-dialog { width: min(440px, calc(100vw - 32px)); border: 2px solid var(--ink); border-radius: 0; background: var(--raise); color: var(--ink); padding: 0; font: 15px/1.45 var(--display); }
+.tv-dialog::backdrop { background: rgba(16, 18, 16, 0.45); }
+.tv-dialog .roll-dialog-form { margin: 0; padding: 10px 14px 14px; }
+.tv-dialog .roll-dialog-header { padding-bottom: 6px; border-bottom: 1px solid var(--ink); letter-spacing: .04em; }
+.tv-dialog .tv-dialog-message { margin: 10px 0; white-space: pre-wrap; }
+.tv-dialog .tv-dialog-fields { display: grid; gap: 10px; margin: 10px 0 12px; }
+.tv-dialog .tv-dialog-row { display: grid; gap: 3px; font-size: 13px; color: var(--ink-2); }
+.tv-dialog .tv-dialog-row[hidden] { display: none; }
+.tv-dialog .tv-dialog-field { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); padding: 6px 8px; min-height: 36px; }
+.tv-dialog .roll-dialog-actions { display: flex; justify-content: flex-end; gap: 16px; padding-top: 10px; border-top: 1px solid var(--ink); }
+.tv-dialog .text-button { font: inherit; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 6px 2px; min-height: 36px; }
+.tv-dialog .text-button:hover, .tv-dialog .text-button:focus-visible { text-decoration: underline; }
+.tv-dialog .action-button { font-weight: 700; color: var(--signal); }

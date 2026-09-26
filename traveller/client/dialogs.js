@@ -12,6 +12,9 @@
 //   await askText({ title, message, value, placeholder, confirm })
 //     -> the text, or null if cancelled
 //   await tell({ title, message })
+//   await askForm({ title, message, fields, confirm })   (v0.339.0)
+//     fields: [{ name, label, type: 'select' | 'text', options, value }]
+//     -> { [name]: value }, or null if cancelled
 //
 // A page with no <dialog> support (an old browser, a test without it) falls
 // back to the browser's own boxes, so a question is never skipped silently.
@@ -67,7 +70,8 @@ function open({ title, message, buttons, field = null, remember = null, danger =
     });
     document.body.append(dialog);
     dialog.showModal();
-    (field ?? form.querySelector('button[type="submit"]'))?.focus();
+    const first = field?.matches?.('input, select, textarea') ? field : field?.querySelector?.('input, select, textarea');
+    (first ?? form.querySelector('button[type="submit"]'))?.focus();
   });
 }
 
@@ -88,6 +92,46 @@ export async function askText({ title = 'Enter', message = '', value = '', place
   field.value = value;
   const result = await open({ title, message, field, buttons: [{ label: cancel, value: 'cancel' }, { label: confirm, value: 'ok', primary: true }] });
   return result.value === 'ok' ? result.text : null;
+}
+
+/**
+ * A few fields at once (v0.339.0): selects and text lines, each labelled.
+ * Resolves { name: value, ... }, or null when cancelled. A field may carry
+ * showWhen(values) to be shown only while the others say so.
+ */
+export async function askForm({ title = 'Enter', message = '', fields = [], confirm = 'OK', cancel = 'Cancel' } = {}) {
+  if (!supported()) {
+    const values = {};
+    for (const field of fields) {
+      if (field.showWhen && !field.showWhen(values)) continue;
+      const options = field.type === 'select' ? field.options ?? [] : null;
+      const hint = options ? ` (${options.map((option, index) => `${index + 1} ${option.label}`).join('; ')})` : '';
+      const answer = window.prompt(`${field.label}${hint}`, options ? '1' : String(field.value ?? ''));
+      if (answer === null) return null;
+      values[field.name] = options ? (options[Number(answer) - 1] ?? options[0])?.value ?? null : answer;
+    }
+    return values;
+  }
+  const controls = new Map();
+  const rows = fields.map((field) => {
+    const control = field.type === 'select'
+      ? element('select', { class: 'tv-dialog-field', 'aria-label': field.label },
+        ...(field.options ?? []).map((option) => element('option', { value: option.value, text: option.label })))
+      : element('input', { type: 'text', class: 'tv-dialog-field', placeholder: field.placeholder ?? '', 'aria-label': field.label });
+    control.value = String(field.value ?? (field.type === 'select' ? field.options?.[0]?.value ?? '' : ''));
+    controls.set(field.name, control);
+    return { field, row: element('label', { class: 'tv-dialog-row' }, element('span', { text: field.label }), control) };
+  });
+  const read = () => Object.fromEntries([...controls].map(([name, control]) => [name, control.value]));
+  const refresh = () => { const values = read(); for (const { field, row } of rows) row.hidden = Boolean(field.showWhen && !field.showWhen(values)); };
+  for (const control of controls.values()) control.addEventListener('change', refresh);
+  refresh();
+  const box = element('div', { class: 'tv-dialog-fields' }, ...rows.map(({ row }) => row));
+  const result = await open({ title, message, field: box, buttons: [{ label: cancel, value: 'cancel' }, { label: confirm, value: 'ok', primary: true }] });
+  if (result.value !== 'ok') return null;
+  const values = read();
+  for (const { field } of rows) if (field.showWhen && !field.showWhen(values)) delete values[field.name];
+  return values;
 }
 
 /** A message with one button. */

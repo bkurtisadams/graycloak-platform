@@ -2259,3 +2259,31 @@ test('v0.300.0 the sheet has Edit, which turns the band and the skills into fiel
   dom.window.close();
   delete globalThis.document;
 });
+
+// v0.339.0: the Vehicles tab is the pool of ships — New ship above the
+// folders, and a berthed ship's row carries Travel in this ship.
+test('v0.339.0 the Vehicles tab adds a ship and offers the change on the row', async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, registry, campaignId } = await freshSession();
+  const here = registry.resolveCampaign(campaignId).campaign.location?.systemId;
+  const made = session.run('ship:new', { fight: { value: { designKey: 'type-a-free-trader', name: 'Lantern', holder: { kind: 'patron', name: 'Broker Oss' } } } });
+  assert.equal(made.ok, true, made.message);
+  const state = { ...session.view({ referee: { tab: 'Vehicles', folder: 'Patrons and others' } }), live: true };
+  const created = []; const commands = []; const opened = [];
+  document.querySelector('main').replaceChildren(...renderDrawer('referee', state, state.referee, {
+    onCreateShip: () => created.push(true), onCommand: (command) => commands.push(command), onOpenSheet: (kind, id) => opened.push([kind, id])
+  }));
+  [...document.querySelectorAll('button')].find((button) => button.textContent === 'New ship').click();
+  assert.equal(created.length, 1);
+  const row = [...document.querySelectorAll('.entry')].find((node) => node.textContent.includes('Lantern'));
+  assert.ok(row, 'the patron\u2019s ship is listed');
+  assert.match(row.textContent, /held by Broker Oss/);
+  const travel = [...row.querySelectorAll('button')].find((button) => button.textContent === 'Travel in this ship');
+  assert.equal(Boolean(travel), Boolean(here), 'offered where the travellers are berthed');
+  if (travel) { travel.click(); assert.deepEqual(commands, [`ship:make-active:${made.createdId}`]); assert.deepEqual(opened, [], 'the button does not open the sheet'); }
+  row.click();
+  assert.deepEqual(opened, [['ship', made.createdId]]);
+});

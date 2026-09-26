@@ -76,3 +76,30 @@ test('v0.335.0 a character record carries its role; an NPC can be made playable'
   assert.throws(() => setCharacterRecordRole(npc, 'villain'), TypeError);
   assert.deepEqual(validateCharacterRecord({ ...npc, role: 'villain' }).includes('role must be pc or npc'), true);
 });
+
+// v0.339.0: several fields at once, for the Vehicles tab's New ship.
+test('v0.339.0 askForm: selects and text, a field shown only when asked for, cancel is null', async () => {
+  const { dom, dialogs, submit } = await withDom();
+  const fields = [
+    { name: 'designKey', label: 'Design', type: 'select', options: [{ value: 'a', label: 'Type A' }, { value: 's', label: 'Type S' }] },
+    { name: 'holder', label: 'Held by', type: 'select', options: [{ value: 'character:x', label: 'Bob' }, { value: 'patron', label: 'A patron' }] },
+    { name: 'holderName', label: 'Name', type: 'text', showWhen: (values) => values.holder === 'patron' }
+  ];
+  const first = dialogs.askForm({ title: 'New ship', fields });
+  const [design, holder] = document.querySelectorAll('dialog select');
+  const nameRow = document.querySelector('dialog input[type="text"]').closest('label');
+  assert.equal(nameRow.hidden, true, 'no name to give while a character holds it');
+  design.value = 's';
+  holder.value = 'patron'; holder.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(nameRow.hidden, false);
+  document.querySelector('dialog input[type="text"]').value = 'Colonel Marr';
+  submit();
+  assert.deepEqual(await first, { designKey: 's', holder: 'patron', holderName: 'Colonel Marr' });
+  const second = dialogs.askForm({ title: 'New ship', fields });
+  assert.equal(document.activeElement, document.querySelector('dialog select'), 'the first field has focus');
+  submit();
+  assert.deepEqual(await second, { designKey: 'a', holder: 'character:x' }, 'a hidden field is left out');
+  const third = dialogs.askForm({ title: 'New ship', fields });
+  [...document.querySelectorAll('dialog button')].find((button) => button.textContent.includes('CANCEL')).click();
+  assert.equal(await third, null);
+});

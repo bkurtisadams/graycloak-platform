@@ -660,13 +660,34 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- The Vehicles tab is the pool of ships (Kurt, Sep 2026; v0.339.0), as
+  Actors is of people: every ship in the campaign, filed by who holds it —
+  The travellers' ship; Held by travellers (any character of the campaign,
+  a Scout reserve included); Government and services; Patrons and others —
+  and a mustering-out ship not yet built, listed with its Bring in. The
+  referee picks the travellers' ship there ("Travel in this ship" on a
+  ship berthed where they are; in port, never mid-fight) or adds one: New
+  ship, a Book 2 standard design (pp.18-20, unarmed as delivered, p.16)
+  held by a character, a patron or a government, berthed here, with no
+  mortgage (the referee's fiat, not a purchase). A character given a ship
+  this way keeps any mustering-out ship still to take. The Travellers
+  tab's Ships list moved here.
+  Who changes the travellers' ship: the campaign's owner only — "it's his
+  campaign" — whether a person or the game referees; a player whose
+  character holds a berthed ship asks the owner. Weighed and dropped: the
+  ship's holder alone, and the holder proposing with every present player
+  agreeing.
+  Open: travelling aboard a ship the travellers do not run (a patron's, a
+  government transport, an employer's troopship for mercenaries) — who
+  pays upkeep and crew, who sets the course, whether they trade from the
+  hold. A patron's or government's ship is marked as kept up by its
+  holder; until a ruling, the trip runs it as the travellers' own.
 - A player sees his ships (v0.338.0): the players' copy carries every ship
   the travellers' characters hold (type, holder, where berthed, the
   mortgage) and mustering-out ships waiting to come in; the player's page
   shows "Your ships", the sheet names ships in words, and the lobby reads
   a ship's fate from the players' copy. The game refereeing, a player
-  brings in his own character's ship (ownership checked on the server);
-  changing the travellers' ship stays the referee's pending a ruling.
+  brings in his own character's ship (ownership checked on the server).
 - The lobby (Kurt's approved mockup, Sep 2026; v0.337.0): two card grids,
   Characters and Campaigns, in the lobby's own style (D&D Beyond's shape).
   A character card: where the character is, name (opens the TAS Form 2
