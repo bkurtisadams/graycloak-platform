@@ -70,3 +70,13 @@ test('v0.329.0 the seat page sends requests and shows their answers', async () =
   assert.match(publish, /collection\('requests'\)\.doc\(\)/);
   assert.match(publish, /status: 'pending'/);
 });
+
+// v0.329.2 (Kurt: "I see no place to set the referee to the game"): the
+// switch was at the foot of the port column's patrons panel.
+test('v0.329.2 who referees is chosen in Settings', async () => {
+  const views = await read('play-views.js');
+  const settings = views.slice(views.indexOf('function settingsDrawer('), views.indexOf('// v0.264.0: the Compendium'));
+  assert.match(settings, /Referee \(this campaign\)/);
+  assert.match(settings, /handlers\.onPeople\('patrons:referee', \{ referee: 'game' \}\)/);
+  assert.doesNotMatch(views.slice(views.indexOf('function patronsPanel('), views.indexOf('function settingsDrawer(')), /patrons:referee/);
+});

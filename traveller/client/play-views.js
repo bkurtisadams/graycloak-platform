@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.329.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.329.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.329.1';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.329.2';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.329.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.2';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.329.2';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.329.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.329.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.329.1';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.329.2';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.329.2';
+import { renderSectionStrip } from './section-strip.js?v=v0.329.2';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.329.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.329.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.329.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.329.2';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.329.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.329.2';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -214,9 +214,7 @@ function patronsPanel(p, handlers) {
     h('label', { class: 'patron-list' }, h('span', { text: 'Patron list' }),
       h('select', { onchange: (event) => people('patrons:list', { list: event.target.value }) },
         h('option', { value: 'one', selected: p.list === 'one', text: 'One (1977)' }), h('option', { value: 'two', selected: p.list === 'two', text: 'Two (1982)' }))),
-    referee ? h('label', { class: 'patron-list' }, h('span', { text: 'Referee' }),
-      h('select', { onchange: (event) => people('patrons:referee', { referee: event.target.value }) },
-        h('option', { value: 'person', selected: !solo, text: 'A person' }), h('option', { value: 'game', selected: solo, text: 'The game (solo)' }))) : null,
+    // v0.329.2: who referees is set in Settings now.
     h('span', { class: 'cite', text: 'Weekly: patron 5+ on 1D, rumour 7+ on 2D (The Traveller Book p.100).' })));
   return h('section', { class: 'patrons', 'aria-label': 'Patrons and rumours' }, parts);
 }
@@ -2422,6 +2420,17 @@ function settingsDrawer(state, handlers) {
         h('input', { type: 'checkbox', checked: Boolean(settings.autoTarget), onchange: (event) => handlers.onSetting?.('autoTarget', event.currentTarget.checked) }),
         h('span', {}, h('b', { text: 'Auto-target' }), h('small', { text: 'Fill each row with the nearest enemy, and NPCs with their own choice.' })))),
     h('p', { class: 'cite', text: 'Saved in this browser only.' }),
+    // v0.329.2: who referees this campaign — saved with the campaign, not the
+    // browser. The game refereeing, players' buttons on their own page work
+    // with nobody's referee page open (the server carries them out).
+    state.live && handlers.onPeople ? h('fieldset', { class: 'setting' },
+      h('legend', { text: 'Referee (this campaign)' }),
+      h('label', { class: 'setting-choice' },
+        h('input', { type: 'radio', name: 'refereeMode', value: 'person', checked: state.refereeMode !== 'game', onchange: () => handlers.onPeople('patrons:referee', { referee: 'person' }) }),
+        h('span', {}, h('b', { text: 'A person' }), h('small', { text: 'You referee: patrons\u2019 jobs, rumours and let-offs are yours to write and call. Players\u2019 pages show where things stand, without buttons.' }))),
+      h('label', { class: 'setting-choice' },
+        h('input', { type: 'radio', name: 'refereeMode', value: 'game', checked: state.refereeMode === 'game', onchange: () => handlers.onPeople('patrons:referee', { referee: 'game' }) }),
+        h('span', {}, h('b', { text: 'The game (solo)' }), h('small', { text: 'The game answers every call the books leave to a referee, and players act from their own pages with nobody\u2019s referee page open.' })))) : null,
     // v0.326.0: the referee's hand, for a campaign in a knot.
     state.live && handlers.onCommand ? h('fieldset', { class: 'setting referee-tools' },
       h('legend', { text: 'Referee tools' }),

@@ -6204,6 +6204,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.chat = mergedChat(state.chat ?? []);
       state.compendium = compendiumView(resolved, subsector);
+      // v0.329.2: who referees, for Settings (Kurt: the switch was buried in
+      // the patrons column and only shown in port).
+      state.refereeMode = refereeMode(resolved.campaign);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).
