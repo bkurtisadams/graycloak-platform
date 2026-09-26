@@ -2,20 +2,27 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.339.0';
-import { askForm, tell } from './dialogs.js?v=v0.339.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.339.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.339.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.339.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.339.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.339.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.339.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.339.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.339.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.339.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.339.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.340.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.340.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.340.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.340.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.340.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.340.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.340.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.340.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.340.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.340.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.340.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.340.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
+
+// v0.340.0: the play page's messages and questions in its own dialogs
+// (dialogs.js), not the browser's. note() does not wait: it reports what
+// already happened. confirmed() and typed() answer with a promise.
+const note = (message, title = 'Traveller') => { tell({ title, message: String(message ?? '') }); };
+const confirmed = async (message, { title = 'Confirm', confirm = 'OK', cancel = 'Cancel', danger = false } = {}) => (await ask({ title, message, confirm, cancel, danger })).ok;
+const typed = (message, value = '', { title = 'Enter', confirm = 'OK', placeholder = '' } = {}) => askText({ title, message, value: String(value ?? ''), confirm, placeholder });
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -183,7 +190,7 @@ function openDrawer(kind) {
   if (kind === 'combat-board') {
     if (source.mode === 'live') {
       const result = source.session.run('fight:setup');
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
     }
     // The Actors tab is where the tokens come from, so it is put in reach.
     ui.drawer = 'referee';
@@ -398,13 +405,13 @@ function render() {
     onMedical: (id, medicId, atHand = {}) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('character:medical', { fight: { id, value: { medicId, kit: Boolean(atHand.kit), facility: Boolean(atHand.facility), xeno: Boolean(atHand.xeno) } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onAllocateWound: (draft) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:wound', { fight: { woundTargets: draft.targets, woundAllocation: draft.shares } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       ui.woundDraft = null;
       render();
     },
@@ -422,26 +429,26 @@ function render() {
     onArmor: (combatantId, armor) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:armor', { fight: { value: { combatantId, armor } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onWeapon: (combatantId, weaponKey) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:weapon', { fight: { value: { combatantId, weaponKey } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
-    onEditScoresPrompt: (fighter) => {
+    onEditScoresPrompt: async (fighter) => {
       // The referee's fiat, off the round's own flow: one prompt rather than
       // three boxes sitting beside every attack.
       const now = fighter.characteristics;
-      const typed = window.prompt(`${fighter.name}: STR DEX END now (was ${now.STR} ${now.DEX} ${now.END})`, `${now.STR} ${now.DEX} ${now.END}`);
-      if (typed === null) return;
-      const [STR, DEX, END] = typed.trim().split(/[\s,]+/).map(Number);
-      if ([STR, DEX, END].some((value) => !Number.isInteger(value))) { window.alert('Three whole numbers, like 7 7 5.'); return; }
+      const scores = await typed(`STR DEX END now (was ${now.STR} ${now.DEX} ${now.END})`, `${now.STR} ${now.DEX} ${now.END}`, { title: fighter.name });
+      if (scores === null) return;
+      const [STR, DEX, END] = scores.trim().split(/[\s,]+/).map(Number);
+      if ([STR, DEX, END].some((value) => !Number.isInteger(value))) { note('Three whole numbers, like 7 7 5.'); return; }
       handlers.onEditCombatant?.(fighter.id, { STR, DEX, END });
     },
-    onDropActor: (data, band) => {
+    onDropActor: async (data, band) => {
       if (source.mode !== 'live') return;
       let result = source.session.run('fight:place', { fight: { value: { ...data, column: band } } });
       // v0.269.0: an actor (one person) dropped a second time. Offer to make
@@ -449,18 +456,18 @@ function render() {
       if (!result.ok && data.kind !== 'character') {
         const actor = (source.session.resolved.npcActors ?? []).find((entry) => entry.identity.id === data.id);
         if (actor && actor.profile?.kind !== 'statblock' && /already on the board/.test(result.message)
-          && window.confirm(`${actor.identity.name} is an actor: one person, already on the board.\n\nMake ${actor.identity.name} a statblock, so each drag places a numbered copy (${actor.identity.name} 2, ${actor.identity.name} 3\u2026) with its own wounds?`)) {
+          && await confirmed(`${actor.identity.name} is an actor: one person, already on the board.\n\nMake ${actor.identity.name} a statblock, so each drag places a numbered copy (${actor.identity.name} 2, ${actor.identity.name} 3\u2026) with its own wounds?`, { title: 'Already on the board', confirm: 'Make a statblock' })) {
           result = source.session.run('fight:place', { fight: { value: { ...data, column: band, asStatblock: true } } });
         } else if (actor && /already on the board/.test(result.message)) { render(); return; }
       }
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     // v0.302.0: animal encounters (The Traveller Book pp.90-95).
     onAnimals: (command, value = {}) => {
       if (source.mode !== 'live') return null;
       const result = source.session.run(`animals:${command}`, { fight: { value } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
       return result;
     },
@@ -479,7 +486,7 @@ function render() {
     onPeople: (command, value = {}) => {
       if (source.mode !== 'live') return null;
       const result = source.session.run(command, { fight: { value } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
       return result;
     },
@@ -487,20 +494,20 @@ function render() {
     onReaction: (value) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('reaction:throw', { fight: { value } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onReactionAttack: (value) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('reaction:attack', { fight: { value } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     // v0.272.0: Book 1 p.33's per-side morale settings.
     onMorale: (side, patch) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:morale', { fight: { value: { side, ...patch } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     // v0.271.0: Book 1 p.27's range for a fight set up by hand.
@@ -508,7 +515,7 @@ function render() {
       if (source.mode !== 'live') return;
       if (choice.terrain !== undefined) ui.lastTerrain = choice.terrain;
       const result = source.session.run('fight:range', { fight: { value: choice } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onRepositionToken: (combatantId, band) => {
@@ -524,7 +531,7 @@ function render() {
     onBeginFight: (surprise) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('fight:begin', { fight: { value: { surprise } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       ui.sidebarTab = 'Chat';
       ui.drawer = null;
       render();
@@ -566,7 +573,7 @@ function render() {
       const result = field === 'notes'
         ? source.session.run('character:notes', { fight: { id, value } })
         : source.session.run(`edit:character:${field}`, { fight: { id, value } });
-      if (result && !result.ok) window.alert(result.message);
+      if (result && !result.ok) note(result.message);
       render();
     },
     // v0.300.0: the sheet's Edit / Done.
@@ -597,7 +604,7 @@ function render() {
     onGear: (how, characterId, key, quantity) => {
       if (source.mode !== 'live') return;
       const result = source.session.run(how === 'buy' ? 'gear:buy' : 'gear:give', { fight: { id: characterId, value: { key, quantity: Number(quantity) || 1 } } });
-      if (!result.ok) { window.alert(result.message); return; }
+      if (!result.ok) { note(result.message); return; }
       ui.gearDrop = null;
       render();
     },
@@ -605,53 +612,53 @@ function render() {
     onSkillRoll: (id, skill) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('character:skill-roll', { fight: { id, value: { skill } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onSkillInfo: (id, skill) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('character:skill-info', { fight: { id, value: { skill } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onSheetRoll: (id, what) => {
       // The roll pipeline and its chat card are the next slice; until then
       // the sheet says what it would throw rather than pretending to.
-      window.alert(what.kind === 'attack'
+      note(what.kind === 'attack'
         ? 'Attack rolls from the sheet arrive with the chat cards.'
         : `${what.skill}-${what.level} would throw 2D +${what.level}. Skill throws arrive with the chat cards.`);
     },
-    onPrintCharacter: () => { window.alert('The TAS Form 2 print view is the next step after the tabs.'); },
+    onPrintCharacter: () => { note('The TAS Form 2 print view is the next step after the tabs.'); },
     onRowMenu: (entry, at) => { ui.rowMenu = { entry, at }; render(); },
     onCloseRowMenu: () => { ui.rowMenu = null; render(); },
     onFolderMenu: (folder, at) => { ui.rowMenu = { folder, at }; render(); },
     // v0.265.0: a folder renamed or removed moves its contents; the tab
     // follows them if that folder was the one open.
-    onRenameFolder: (tab, path) => {
+    onRenameFolder: async (tab, path) => {
       if (source.mode !== 'live') return;
       const parts = path.split('/');
-      const wanted = window.prompt('Rename folder to (use / to move it under another):', parts.at(-1));
+      const wanted = await typed('Rename to (use / to move it under another):', parts.at(-1), { title: 'Rename folder', confirm: 'Rename' });
       if (wanted === null || !wanted.trim()) return;
       const to = wanted.includes('/') ? wanted.trim() : [...parts.slice(0, -1), wanted.trim()].join('/');
       const result = source.session.run('folder:rename', { fight: { value: { tab, from: path, to } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       else if (ui.referee.folder === path) ui.referee = { ...ui.referee, folder: result.folder };
       render();
     },
-    onFileUnfiled: (tab) => {
+    onFileUnfiled: async (tab) => {
       if (source.mode !== 'live') return;
-      const wanted = window.prompt('File everything in Unfiled under (use / for sub-folders):', tab === 'Actors' ? 'NPCs' : '');
+      const wanted = await typed('File everything in Unfiled under (use / for sub-folders):', tab === 'Actors' ? 'NPCs' : '', { title: 'File Unfiled', confirm: 'File' });
       if (wanted === null || !wanted.trim()) return;
       const result = source.session.run('folder:rename', { fight: { value: { tab, from: 'Unfiled', to: wanted.trim() } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       else if (ui.referee.folder === 'Unfiled' || !ui.referee.folder) ui.referee = { ...ui.referee, folder: result.folder };
       render();
     },
-    onRemoveFolder: (tab, path) => {
+    onRemoveFolder: async (tab, path) => {
       if (source.mode !== 'live') return;
-      if (!window.confirm(`Remove the folder ${path}? Everything in it moves up a level; nothing is deleted.`)) return;
+      if (!await confirmed(`Remove the folder ${path}? Everything in it moves up a level; nothing is deleted.`, { title: 'Remove folder', confirm: 'Remove' })) return;
       const result = source.session.run('folder:remove', { fight: { value: { tab, from: path } } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       else if (ui.referee.folder === path) ui.referee = { ...ui.referee, folder: result.folder };
       render();
     },
@@ -661,9 +668,9 @@ function render() {
       render();
     },
     onCloseFighterMenu: () => { ui.fighterMenu = null; render(); },
-    onCreateActor: (kind, folder) => {
+    onCreateActor: async (kind, folder) => {
       if (source.mode !== 'live') return;
-      const name = window.prompt(kind === 'statblock' ? 'New statblock name:' : 'New actor name:', '');
+      const name = await typed('Name:', '', { title: kind === 'statblock' ? 'New statblock' : 'New actor', confirm: 'Create' });
       if (name === null || !name.trim()) return;
       const result = source.session.run('actor:create', { fight: { value: { kind, name: name.trim(), folder: folder && folder !== 'Unfiled' ? folder : '' } } });
       if (result.ok && result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'actor', id: result.createdId, compact: kind === 'statblock' }];
@@ -702,25 +709,25 @@ function render() {
     onCopyDocument: (kind, id) => {
       if (source.mode !== 'live' || (kind !== 'actor' && kind !== 'character')) return;
       const result = source.session.run(kind === 'character' ? 'character:copy' : 'actor:copy', { fight: { id } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       if (result.ok && result.createdId) ui.openSheets = [...ui.openSheets, { kind: 'actor', id: result.createdId, compact: false }];
       render();
     },
-    onDeleteActor: (id, name, kind = 'actor') => {
+    onDeleteActor: async (id, name, kind = 'actor') => {
       if (source.mode !== 'live') return;
       const warning = kind === 'character' ? ' The player playing this character will have none until you give them another.' : '';
-      if (!window.confirm(`Delete ${name}? This cannot be undone.${warning}`)) return;
+      if (!await confirmed(`Delete ${name}? This cannot be undone.${warning}`, { title: kind === 'character' ? 'Delete character' : 'Delete actor', confirm: 'Delete', danger: true })) return;
       const result = source.session.run(kind === 'character' ? 'character:delete' : 'actor:delete', { fight: { id } });
       if (result.ok) ui.openSheets = ui.openSheets.filter((entry) => entry.id !== id);
-      else window.alert(result.message);
+      else note(result.message);
       render();
     },
-    onRenameActor: (id, was, kind = 'actor') => {
+    onRenameActor: async (id, was, kind = 'actor') => {
       if (source.mode !== 'live') return;
-      const name = window.prompt('Rename to:', was === '(unnamed)' ? '' : was ?? '');
+      const name = await typed('Rename to:', was === '(unnamed)' ? '' : was ?? '', { title: 'Rename', confirm: 'Rename' });
       if (name === null || !name.trim()) return;
       const result = source.session.run(kind === 'character' ? 'character:name' : 'edit:actor:name', { fight: { id, value: name.trim() } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     onActorKind: (id, kind) => { if (source.mode === 'live') source.session.run('actor:kind', { fight: { id, value: kind } }); },
@@ -733,35 +740,35 @@ function render() {
       // canvas; an actor has no board of its own yet, so it says so rather
       // than failing silently.
       if (kind === 'ship' && ui.stagingSceneId) { handlers.onStageShip?.({ actorId: id }, 'opposition', 0, 0); return; }
-      window.alert(kind === 'ship'
+      note(kind === 'ship'
         ? 'Open a space scene first: Referee \u2192 Scenes \u2192 Stage.'
         : `Placing ${count > 1 ? `${count} of them` : 'an actor'} on a board comes with the combat tracker.`);
     },
-    onFileActor: (id, folder, kind = 'actor') => {
+    onFileActor: async (id, folder, kind = 'actor') => {
       if (source.mode !== 'live') return;
-      const wanted = window.prompt('File under (use / for sub-folders; leave empty for Unfiled)', folder ?? '');
+      const wanted = await typed('File under (use / for sub-folders; leave empty for Unfiled):', folder ?? '', { title: 'File', confirm: 'File' });
       if (wanted === null) return;
       const result = source.session.run(kind === 'character' ? 'character:folder' : 'edit:actor:folder', { fight: { id, value: wanted } });
-      if (!result.ok) window.alert(result.message);
+      if (!result.ok) note(result.message);
       render();
     },
     // v0.229.0: the Scenes tab's own fiat. Board authoring (size, planets)
     // stays in the referee client — this is create, file, activate, delete.
-    onSceneAction: (action, id, folder) => {
+    onSceneAction: async (action, id, folder) => {
       if (source.mode !== 'live') return;
       if (action === 'create' || action === 'create-space') {
-        const name = window.prompt(action === 'create-space' ? 'New space scene name:' : 'New scene name:', '');
+        const name = await typed('Name:', '', { title: action === 'create-space' ? 'New space scene' : 'New scene', confirm: 'Create' });
         if (name === null || !name.trim()) return;
         const wantedFolder = folder && folder !== 'Unfiled' ? folder : undefined;
         source.session.run('scene:create', { fight: { value: { name: name.trim(), folder: wantedFolder, boardKind: action === 'create-space' ? 'vector' : 'grid' } } });
       } else if (action === 'file') {
-        const wanted = window.prompt('File this scene under (use / for sub-folders)', folder ?? '');
+        const wanted = await typed('File this scene under (use / for sub-folders):', folder ?? '', { title: 'File scene', confirm: 'File' });
         if (wanted === null || !wanted.trim()) return;
         source.session.run('scene:file', { fight: { id, value: wanted.trim() } });
       } else if (action === 'activate') {
         source.session.run('scene:activate', { fight: { id } });
       } else if (action === 'delete') {
-        if (!window.confirm('Delete this scene?')) return;
+        if (!await confirmed('Delete this scene? This cannot be undone.', { title: 'Delete scene', confirm: 'Delete', danger: true })) return;
         source.session.run('scene:delete', { fight: { id } });
       } else if (action === 'stage') {
         ui.stagingSceneId = ui.stagingSceneId === id ? null : id;
@@ -1051,7 +1058,7 @@ function say(text) {
   if (source.mode !== 'live' || !String(text).trim()) return;
   const speakerId = $('talk-speaker').value || null;
   const result = source.session.run('chat:say', { fight: { value: text, speakerId } });
-  if (!result.ok) window.alert(result.message);
+  if (!result.ok) note(result.message);
   render();
   const log = $('talk-log');
   log.scrollTop = log.scrollHeight;
@@ -1256,14 +1263,14 @@ async function runSeat(action, seat) {
       url.search = `?join=${encodeURIComponent(invite.code)}`;
       let copied = false;
       try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
-      window.prompt(`${copied ? 'Copied. ' : ''}Send this join link to your players. It stays open until revoked.`, url.toString());
+      await typed(`${copied ? 'Copied. ' : ''}Send this join link to your players. It stays open until revoked.`, url.toString(), { title: 'Join link', confirm: 'Done' });
     } else if (action === 'copy-link' || action === 'reset-link') {
       // v0.285.0: the campaign's one join link, copied; or a fresh one, the
       // old ones revoked (Roll20 changes its link on a kick for the same
       // reason: whoever held it can no longer use it).
       let code = seat.code ?? null;
       if (action === 'reset-link') {
-        if (code && !window.confirm('Make a new join link? The current one stops working.')) return;
+        if (code && !await confirmed('Make a new join link? The current one stops working.', { title: 'Reset link', confirm: 'Make a new link' })) return;
         for (const invite of await cloud.listInvites(campaignId)) await cloud.revokeInvite(invite.code);
         const invite = createTravellerInvite({ code: generateInviteCode(), ownerUid: cloud.userId(), campaignId, campaignName: source.session.resolved.campaign.identity.name ?? null,
           approval: Boolean(source.session.resolved.campaign.roster?.approvePlayers), refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null });
@@ -1274,7 +1281,7 @@ async function runSeat(action, seat) {
       url.search = `?join=${encodeURIComponent(code)}`;
       let copied = false;
       try { await navigator.clipboard.writeText(url.toString()); copied = true; } catch { copied = false; }
-      window.prompt(`${copied ? 'Copied. ' : ''}The join link for your players:`, url.toString());
+      await typed(`${copied ? 'Copied. ' : ''}The join link for your players:`, url.toString(), { title: 'Join link', confirm: 'Done' });
     } else if (action === 'diagnostics') {
       // v0.294.0: what this page knows, for pasting to Claude.
       const resolved = source.session.resolved;
@@ -1296,7 +1303,7 @@ async function runSeat(action, seat) {
         broughtInThisVisit: [...autoAdmitted],
         watchingJoinsFor: watching.joinsFor
       });
-      window.alert(copied ? 'Diagnostics copied. Paste them into the chat with Claude.' : 'Copy the text shown, then paste it into the chat with Claude.');
+      note(copied ? 'Diagnostics copied. Paste them into the chat with Claude.' : 'Copy the text shown, then paste it into the chat with Claude.');
       return;
     } else if (action === 'refresh') {
       // v0.292.0: nothing to do but read again (below).
@@ -1311,8 +1318,8 @@ async function runSeat(action, seat) {
       // home with its sheet; the referee may keep a copy.
       const names = seat.characters.map((entry) => entry.name).join(', ') || 'no character';
       if (seat.characters.some((entry) => entry.fighting)) throw new Error(`${names} is in a fight; remove them when it ends`);
-      if (!window.confirm(`Remove ${seat.name} from the campaign?\n\n${names} goes home with everything that happened here.`)) return;
-      const keepCopy = seat.characters.length ? window.confirm(`Keep a copy of ${names} in Actors as your own?\n\nOK keeps a copy; Cancel lets them go entirely.`) : false;
+      if (!await confirmed(`Remove ${seat.name} from the campaign?\n\n${names} goes home with everything that happened here.`, { title: 'Remove player', confirm: 'Remove', danger: true })) return;
+      const keepCopy = seat.characters.length ? await confirmed(`Keep a copy of ${names} in Actors as your own?`, { title: 'Keep a copy?', confirm: 'Keep a copy', cancel: 'Let them go' }) : false;
       await source.session.saveToCloud();
       for (const entry of seat.characters) {
         const released = source.session.run('character:release', { fight: { id: entry.id, value: { keepCopy } } });
@@ -1324,7 +1331,7 @@ async function runSeat(action, seat) {
       const released = source.session.run('character:release', { fight: { id: seat.id, value: { keepCopy: Boolean(seat.keepCopy) } } });
       if (!released.ok) throw new Error(released.message);
     } else if (action === 'revoke') {
-      if (!window.confirm(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`)) return;
+      if (!await confirmed(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`, { title: 'Revoke invite', confirm: 'Revoke', danger: true })) return;
       await cloud.revokeInvite(seat.code);
     } else if (action === 'admit') {
       // v0.274.0: all of seating, in the referee client's order: the
@@ -1347,7 +1354,7 @@ async function runSeat(action, seat) {
     } else if (action === 'decline') {
       await cloud.dismissJoin(campaignId, seat.uid);
     } else if (action === 'unseat') {
-      if (!window.confirm('Take back this seat? Their character sheet and log go with it.')) return;
+      if (!await confirmed('Take this player out of the campaign? Their character sheet and log go with them.', { title: 'Remove player', confirm: 'Remove', danger: true })) return;
       await cloud.unseat(campaignId, seat.uid);
     }
     await refreshPlayers();
@@ -1388,7 +1395,7 @@ function modal(title, body, { onSubmit, submitLabel }) {
 
 function openRestDialog(preselectId = null) {
   const candidates = source.session.restCandidates();
-  if (!candidates.length) { window.alert('Nobody is wounded.'); return; }
+  if (!candidates.length) { note('Nobody is wounded.'); return; }
   const rows = candidates.map((entry) => h('label', { class: 'check', title: entry.why ?? '' },
     h('input', { type: 'checkbox', name: 'rest', value: entry.id, disabled: !entry.canRest, checked: entry.canRest && (entry.inParty || entry.id === preselectId) }),
     ` ${entry.name}${entry.kind === 'actor' ? ' (NPC)' : entry.inParty ? '' : ' (not in the party)'}${entry.why ? ` \u2014 ${entry.why}` : ''}`));
@@ -1467,11 +1474,11 @@ async function refreshPlayersQuietly() {
 // turns up is dealt with here too.
 function openSurfaceDialog() {
   const animals = source.session.view().animals;
-  if (!animals?.world) { window.alert('The party is not at a world.'); return; }
+  if (!animals?.world) { note('The party is not at a world.'); return; }
   const close = () => document.getElementById('play-modal')?.close();
   const run = (command, value) => {
     const result = source.session.run(`animals:${command}`, { fight: { value } });
-    if (!result.ok) { window.alert(result.message); return null; }
+    if (!result.ok) { note(result.message); return null; }
     render();
     return result;
   };
@@ -1515,7 +1522,7 @@ function openSurfaceDialog() {
       animals.roster.map((entry) => h('label', { class: 'surface-check' },
         h('input', { type: 'checkbox', checked: entry.with, disabled: !entry.alive, onchange: (event) => {
           const ids = animals.roster.filter((other) => (other.id === entry.id ? event.currentTarget.checked : other.with)).map((other) => other.id);
-          if (!ids.length) { event.currentTarget.checked = true; window.alert('At least one character must be out with the party.'); return; }
+          if (!ids.length) { event.currentTarget.checked = true; note('At least one character must be out with the party.'); return; }
           again('with', { ids });
         } }),
         ` ${entry.name}${entry.alive ? '' : ' (dead)'}`))) : null);
@@ -1526,8 +1533,8 @@ function openSurfaceDialog() {
   // surface throws it once a day by itself.
   parts.push(h('div', { class: 'surface-persons' },
     h('span', { class: 'surface-with-label', text: 'People:' }),
-    h('button', { type: 'button', class: 'button is-small', text: 'Person check (5+)', title: 'Book 3 p.19: one die, 5 or 6 meets a group', onclick: () => { const result = source.session.run('persons:check'); if (!result.ok) window.alert(result.message); close(); render(); } }),
-    h('button', { type: 'button', class: 'button is-small', text: 'Roll on the table', title: 'Book 3 p.21: straight onto the random person encounter table', onclick: () => { const result = source.session.run('persons:roll'); if (!result.ok) window.alert(result.message); close(); render(); } })));
+    h('button', { type: 'button', class: 'button is-small', text: 'Person check (5+)', title: 'Book 3 p.19: one die, 5 or 6 meets a group', onclick: () => { const result = source.session.run('persons:check'); if (!result.ok) note(result.message); close(); render(); } }),
+    h('button', { type: 'button', class: 'button is-small', text: 'Roll on the table', title: 'Book 3 p.21: straight onto the random person encounter table', onclick: () => { const result = source.session.run('persons:roll'); if (!result.ok) note(result.message); close(); render(); } })));
 
   // --- Encounter: shared with the setup board (play-views.js). ----------
   if (animals.pending) parts.push(renderAnimalEncounter(animals, (command, value) => {

@@ -110,7 +110,9 @@ rules citations as Kurt supplies them; the full text is his.
   e.g. the patron is lying / crazy / honest / swindled / devious /
   dishonest. The four sample patrons (pp.126–127) each follow it.
   Graycloak direction (Kurt, Sep 2026): the shape for every game-refereed
-  mission — the 1D thrown at acceptance, kept off-screen.
+  mission — the 1D thrown at acceptance, kept off-screen. Built in rules
+  0.83.0 (missions.js PATRON_OUTCOMES: 1-2 honest, 3 swindled, 4 dishonest,
+  5 crazy, 6 lying — one original table, not the book's per-patron text).
 - Heya amber zone (p.129): a surface job on weekly throws (locate 12+ with
   equipment DMs, recover 8+, guerrilla attack 6+ per week, surprise 10+),
   local transport for hire (ATV Cr300/week, beasts Cr1/week and 100 kg,

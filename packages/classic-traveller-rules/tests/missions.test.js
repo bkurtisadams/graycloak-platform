@@ -28,3 +28,25 @@ test('a task at the destination is 2D plus the best skill against 8', () => {
   assert.equal(missionTaskDays(createSequenceDice([4]), 'investigation'), 5);
   assert.throws(() => throwMissionTask(createDice(), { kind: 'courier' }), /no task/);
 });
+
+// v0.83.0: p.124's shape — the hidden 1D thrown when the job is taken.
+import { PATRON_OUTCOMES, rollPatronOutcome, patronOutcomeSettlement } from '../src/encounters/missions.js';
+
+test('p.124: one hidden 1D picks what the patron is really about', () => {
+  assert.equal(PATRON_OUTCOMES.length, 6);
+  assert.deepEqual([1, 2, 3, 4, 5, 6].map((die) => rollPatronOutcome(createSequenceDice([die])).outcome),
+    ['honest', 'honest', 'swindled', 'dishonest', 'crazy', 'lying']);
+  assert.equal(rollPatronOutcome(createSequenceDice([6])).die, 6);
+});
+
+test('each outcome settles the job its own way', () => {
+  assert.deepEqual({ ...patronOutcomeSettlement('honest', 12000) }, { outcome: 'honest', paidCr: 12000, completes: true, trouble: false, reason: null });
+  assert.equal(patronOutcomeSettlement('swindled', 12500).paidCr, 6250);
+  assert.equal(patronOutcomeSettlement('dishonest', 12000).paidCr, 0);
+  assert.equal(patronOutcomeSettlement('dishonest', 12000).completes, true, 'the work is done');
+  assert.equal(patronOutcomeSettlement('crazy', 12000).completes, false);
+  assert.equal(patronOutcomeSettlement('lying', 12000).paidCr, 12000);
+  assert.equal(patronOutcomeSettlement('lying', 12000).trouble, true);
+  assert.equal(patronOutcomeSettlement(undefined, 5000).paidCr, 5000, 'a job taken before v0.83.0 is honest');
+  assert.throws(() => patronOutcomeSettlement('sly', 1), /unknown patron outcome/);
+});

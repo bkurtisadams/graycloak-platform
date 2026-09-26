@@ -660,6 +660,20 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- The patron's hidden 1D (Kurt's direction, Sep 2026; v0.340.0, rules
+  0.83.0): every job the game referees from a drafted mission follows The
+  Traveller Book's p.124 shape — a 1D thrown when the job is taken, kept
+  off every screen (the referee's too), revealed only when the job is
+  settled. One table for all patrons (original; the book writes outcomes
+  per patron, pp.126-127): 1-2 honest (as agreed); 3 swindled (the patron
+  was cheated too: half the pay); 4 dishonest (the work is done, nothing
+  paid); 5 crazy (there was nothing to it: the job fails); 6 lying (paid,
+  but the danger was hidden: a person encounter at once, Book 3 p.21). A
+  game-refereed courier or escort job is now settled by the session on
+  arrival (in port), like smuggling, instead of by the runner; such jobs
+  show no Done / Failed buttons. A person refereeing throws nothing: the
+  referee decides as before. The play page's messages and questions moved
+  to Traveller's own dialogs (v0.340.0).
 - The Vehicles tab is the pool of ships (Kurt, Sep 2026; v0.339.0), as
   Actors is of people: every ship in the campaign, filed by who holds it —
   The travellers' ship; Held by travellers (any character of the campaign,

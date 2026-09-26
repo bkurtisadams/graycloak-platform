@@ -103,3 +103,14 @@ test('v0.339.0 askForm: selects and text, a field shown only when asked for, can
   [...document.querySelectorAll('dialog button')].find((button) => button.textContent.includes('CANCEL')).click();
   assert.equal(await third, null);
 });
+
+// v0.340.0: the play page next — every message and question in its own dialogs.
+test('v0.340.0 the play page uses its own dialogs, styled by its own stylesheet', async () => {
+  const page = await readFile(new URL('../client/play.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(page, /window\.(confirm|prompt|alert)\(/);
+  assert.match(page, /import \{ ask, askText, askForm, tell \} from '\.\/dialogs\.js/);
+  assert.match(page, /onDeleteActor: async/);
+  assert.doesNotMatch(page, /this seat\?/, 'no seat wording in what the referee reads');
+  const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
+  assert.match(css, /\.tv-dialog \{/);
+});

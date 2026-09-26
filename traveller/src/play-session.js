@@ -38,8 +38,9 @@ import {
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
-  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument
-} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
+  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
+  rollPatronOutcome, patronOutcomeSettlement
+} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -54,12 +55,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -288,7 +289,10 @@ export function shipSectionStrip(ship, { repairing = null } = {}) {
   return cells;
 }
 
-export function jobViews(contracts, now) {
+// selfSettling: ids of jobs the game settles by their own test (a drafted
+// job when the game referees), which get no Done / Failed buttons (v0.340.0).
+export function jobViews(contracts, now, { selfSettling = [] } = {}) {
+  const own = new Set(selfSettling);
   return contracts.filter((contract) => contract.status === 'accepted').map((contract) => {
     const deadline = contract.timing?.deadlineDate;
     const left = deadline && now ? daysBetween(now, deadline) : null;
@@ -300,7 +304,8 @@ export function jobViews(contracts, now) {
       payCr: Number(contract.economics?.paymentCr ?? 0),
       due: left === null ? '' : left > 0 ? `${plural(left, 'day')} left` : left === 0 ? 'Due today' : `${plural(-left, 'day')} overdue`,
       urgent: left !== null && left <= 2,
-      daysLeft: left
+      daysLeft: left,
+      selfSettling: own.has(contract.identity.id)
     };
   }).sort((a, b) => (a.daysLeft ?? Infinity) - (b.daysLeft ?? Infinity));
 }
@@ -1502,7 +1507,7 @@ export function buildPlayViewState(resolved, { subsector, seat = 'referee', char
     character,
     party: roster.map((entry) => ({ id: entry.id, name: entry.name })),
     ship,
-    jobs: jobViews(contracts, campaign.time),
+    jobs: jobViews(contracts, campaign.time, { selfSettling: refereeMode(campaign) === 'game' ? Object.keys(personState(campaign).missions ?? {}) : [] }),
     situation: { kind: inJump ? 'jump' : 'port', title: inJump ? 'In jump' : 'Port call', detail: place.name },
     next: {
       title: 'Reading your campaign',
@@ -3768,7 +3773,57 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     reload();
     persist([state.ship, ...state.characters, ...state.contracts]);
     chartAndVisit();
-    if (state.situation === 'port') settleSmuggling();
+    if (state.situation === 'port') { settleSmuggling(); settleDeliveries(); }
+  }
+
+  // v0.340.0: a patron's job settled — p.124's hidden 1D, thrown when it
+  // was taken, decides what the patron does now: pays as agreed, pays half
+  // (swindled), never pays (dishonest), had nothing to it (crazy: the job
+  // fails), or hid the danger (lying: paid, and a person encounter comes at
+  // once, Book 3 p.21). This is the first the travellers learn of it. A job
+  // with no outcome (a person referees, or taken before v0.340.0) is honest.
+  function settleMission(contract, mission, { how, done }) {
+    const settlement = patronOutcomeSettlement(mission?.outcome?.outcome, contract.economics.paymentCr);
+    const title = contract.identity.title;
+    const date = formatCampaignDate(resolved.campaign.time);
+    if (!settlement.completes) {
+      persist([failContractDocument(contract, { date: resolved.campaign.time, notes: `${how}; ${settlement.reason} (p.124 outcome ${mission.outcome.die})` })]);
+      const tail = `But ${settlement.reason}. Nothing is paid.`;
+      const message = `${title}: ${done} (${how}). ${tail}`;
+      log('ENCOUNTER', message);
+      return { message, tail, settlement };
+    }
+    const ship = settlement.paidCr > 0
+      ? creditShipAccount(activeShip(), settlement.paidCr, { kind: 'contract', description: `${title} completed`, dateLabel: date })
+      : activeShip();
+    const notes = settlement.reason ? `${how}; ${settlement.reason} (p.124 outcome ${mission.outcome.die})` : how;
+    persist([completeContractDocument(contract, { date: resolved.campaign.time, paymentCr: settlement.paidCr, notes }), ship]);
+    const paid = settlement.paidCr > 0 ? `${cr(settlement.paidCr)} paid` : 'nothing paid';
+    const of = settlement.paidCr && settlement.paidCr !== contract.economics.paymentCr ? ` of ${cr(contract.economics.paymentCr)}` : '';
+    const tail = settlement.reason ? `${settlement.reason.charAt(0).toUpperCase()}${settlement.reason.slice(1)}: ${paid}${of}.` : `${paid.charAt(0).toUpperCase()}${paid.slice(1)}.`;
+    const message = `${title}: ${done} (${how}). ${tail}`;
+    log('ENCOUNTER', message);
+    if (settlement.trouble) {
+      const trouble = run('persons:roll');
+      if (!trouble.ok) log('ENCOUNTER', `${title}: the trouble the patron hid does not find the travellers here (${trouble.message}).`, { visibility: 'referee' });
+    }
+    return { message, tail, settlement };
+  }
+
+  // v0.340.0: a game-refereed courier or escort job settles when the
+  // travellers reach its world, in port, through settleMission; deadlines
+  // are the runner's (a job past its day has already failed).
+  function settleDeliveries() {
+    const here = resolved.campaign.location?.systemId;
+    const people = personState(resolved.campaign);
+    for (const [id, mission] of Object.entries(people.missions)) {
+      if (!['courier', 'escort'].includes(mission.kind) || mission.done || mission.destinationSystemId !== here) continue;
+      const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+      if (!contract || contract.status !== 'accepted' || contract.kind !== 'patron') continue;
+      registry.put(withPersonState(resolved.campaign, { missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, done: true } } }));
+      reload();
+      settleMission(contract, mission, { how: `at ${contract.destination.systemName}`, done: mission.kind === 'courier' ? 'delivered' : 'brought safely' });
+    }
   }
 
   // v0.322.0: smuggled cargo meets the law where it lands — the arrest throw
@@ -3790,11 +3845,10 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       if (ship.state.cargoManifest.some((entry) => entry.id === `${id}:cargo`)) ship = unloadCargo(ship, `${id}:cargo`).ship;
       const date = formatCampaignDate(resolved.campaign.time);
       if (arrest.avoided) {
-        ship = creditShipAccount(ship, contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} delivered`, dateLabel: date });
-        persist([completeContractDocument(contract, { date: resolved.campaign.time, paymentCr: contract.economics.paymentCr, notes: `Past the law: 2D ${arrest.total} against ${arrest.needed}+` }), ship]);
+        persist([ship]);
         registry.put(withPersonState(resolved.campaign, { missions: { ...people.missions, [id]: { ...mission, done: true } } }));
         reload();
-        log('ENCOUNTER', `${contract.identity.title}: landed past the law (2D ${arrest.total} against law level ${arrest.needed}); ${cr(contract.economics.paymentCr)} paid.`);
+        settleMission(contract, mission, { how: `2D ${arrest.total} against law level ${arrest.needed}`, done: 'landed past the law' });
         continue;
       }
       const months = dice.rollD6();
@@ -5178,15 +5232,18 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const ship = activeShip();
           if (!speaker || !ship) throw new Error('a party member and an active ship are needed');
           // A courier or escort job completes on arrival like any delivery;
-          // the others are tested where they are done.
-          const contractKind = draft && (draft.kind === 'courier' || draft.kind === 'escort') ? 'delivery' : 'patron';
+          // the others are tested where they are done. v0.340.0: when the
+          // game referees, every drafted job carries p.124's hidden 1D, so
+          // the session settles courier and escort jobs too (on arrival).
+          const hidden = draft && refereeMode(resolved.campaign) === 'game' ? rollPatronOutcome(createDice()) : null;
+          const contractKind = draft && (draft.kind === 'courier' || draft.kind === 'escort') && !hidden ? 'delivery' : 'patron';
           const contract = createContractDocument({
             kind: contractKind, offerId: `patron-${patron.date}-${patron.code}-${Date.now()}`, title,
             issuerName: patron.type, issuerType: 'patron', originSystemId: patron.systemId, originSystemName: patron.worldName,
             destinationSystemId: destination.id, destinationSystemName: destination.name, paymentCr, deadlineDays, cargoTons: 0,
             exclusiveShip: false, requirementsDescription: String(value.notes ?? ''), rulesBasis: 'the-traveller-book-1982-p99', notes: `Patron met ${patron.date} on ${patron.worldName} (list ${patron.listKey}, ${patron.code}).`
           }, { acceptedByCharacterId: speaker.identity.id, acceptedShipId: ship.identity.id, acceptedDate: resolved.campaign.time });
-          const missions = draft ? { ...people.missions, [contract.identity.id]: { kind: draft.kind, destinationSystemId: destination.id, cargoTons: draft.cargoTons, thing: draft.thing, attempts: 0 } } : people.missions;
+          const missions = draft ? { ...people.missions, [contract.identity.id]: { kind: draft.kind, destinationSystemId: destination.id, cargoTons: draft.cargoTons, thing: draft.thing, attempts: 0, ...(hidden ? { outcome: { die: hidden.die, outcome: hidden.outcome } } : {}) } } : people.missions;
           let smuggled = null;
           if (draft?.kind === 'smuggling') {
             const free = ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons;
@@ -5256,11 +5313,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const result = throwMissionTask(dice, { kind: mission.kind, skillLevel: best.level });
           const how = `${days} days ${task.where === 'surface' ? 'searching' : 'asking'}; 2D ${result.roll}${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} = ${result.total} against ${result.needed}+`;
           if (result.success) {
-            const paid = creditShipAccount(activeShip(), contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} completed`, dateLabel: formatCampaignDate(resolved.campaign.time) });
-            persist([completeContractDocument(fresh, { date: resolved.campaign.time, paymentCr: contract.economics.paymentCr, notes: how }), paid]);
             put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1, done: true, progress: null } } });
-            log('ENCOUNTER', `${contract.identity.title}: done (${how}); ${cr(contract.economics.paymentCr)} paid.`);
-            return finish(`Done: ${how}.`);
+            const settled = settleMission(fresh, mission, { how, done: 'done' });
+            return finish(`Done: ${how}. ${settled.tail}`);
           }
           put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1, progress: null } } });
           log('ENCOUNTER', `${contract.identity.title}: not yet (${how}). There is time to try again before the deadline.`);

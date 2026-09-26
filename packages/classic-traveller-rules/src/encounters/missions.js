@@ -109,3 +109,45 @@ export function missionTaskDays(dice, kind) {
   if (!task) return 0;
   return dice.rollD6() + (task.days === '1D+1' ? 1 : 0);
 }
+
+// ---------------------------------------------------------------------------
+// v0.83.0: what the patron is really about. The Traveller Book (1982) p.124
+// gives each patron a players' paragraph and about six referee outcomes, one
+// picked by a 1D throw (the patron is honest, lying, crazy, swindled ...);
+// the four sample patrons (pp.126-127) each follow it. The book writes the
+// outcomes per patron; this one table, and what each does to the job, are
+// original Graycloak content (Kurt, Sep 2026: the shape for every
+// game-refereed mission, the 1D thrown at acceptance, kept off-screen).
+//
+//   honest     as agreed                                   (1-2)
+//   swindled   the patron was cheated too: half the pay    (3)
+//   dishonest  the work is done; the patron never pays     (4)
+//   crazy      there was nothing to it: the job fails      (5)
+//   lying      paid, but the danger was hidden: trouble    (6)
+// ---------------------------------------------------------------------------
+
+export const PATRON_OUTCOMES = Object.freeze(['honest', 'honest', 'swindled', 'dishonest', 'crazy', 'lying']);
+
+/** The hidden 1D, thrown when the job is taken. */
+export function rollPatronOutcome(dice) {
+  requireDice(dice);
+  const die = dice.rollD6();
+  return Object.freeze({ die, outcome: PATRON_OUTCOMES[die - 1] });
+}
+
+/**
+ * What the outcome does when the job is settled: the credits paid, whether
+ * the job completes (crazy fails it), whether trouble follows (lying), and
+ * the words that tell the travellers — the first they learn of it.
+ */
+export function patronOutcomeSettlement(outcome, paymentCr) {
+  const pay = Math.max(0, Math.round(Number(paymentCr) || 0));
+  switch (outcome ?? 'honest') {
+    case 'honest': return Object.freeze({ outcome: 'honest', paidCr: pay, completes: true, trouble: false, reason: null });
+    case 'swindled': return Object.freeze({ outcome: 'swindled', paidCr: Math.floor(pay / 2), completes: true, trouble: false, reason: 'the patron was swindled himself and can pay only half' });
+    case 'dishonest': return Object.freeze({ outcome: 'dishonest', paidCr: 0, completes: true, trouble: false, reason: 'the patron never pays' });
+    case 'crazy': return Object.freeze({ outcome: 'crazy', paidCr: 0, completes: false, trouble: false, reason: 'there was nothing to it: the patron\u2019s story was a madman\u2019s' });
+    case 'lying': return Object.freeze({ outcome: 'lying', paidCr: pay, completes: true, trouble: true, reason: 'the patron lied about the danger, and trouble follows' });
+    default: throw new RangeError(`unknown patron outcome: ${outcome}`);
+  }
+}

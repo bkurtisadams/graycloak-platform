@@ -1919,14 +1919,18 @@ test('v0.322.0 solo, the referee is the game: the patron comes with a mission, n
   assert.match(result.message, /^(Done|Not yet|Interrupted|\d+ days pass)/);
 });
 
-test('v0.322.0 a courier job solo is an ordinary delivery that completes on arrival', async () => {
+// v0.340.0: solo, a courier job carries p.124's hidden 1D, so it is the
+// session's to settle on arrival (a patron's job), not the runner's.
+test('v0.322.0 a courier job solo completes on arrival (v0.340.0: settled by its patron\u2019s outcome)', async () => {
   const { registry, campaignId, session } = await soloWithPatron('Courier', { kind: 'courier', thing: 'a sealed data wafer', destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Carry a sealed data wafer to Calder', task: null, paymentCr: 8000, deadlineDays: 30 });
   assert.equal(session.run('patrons:accept').ok, true);
   const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === 'Carry a sealed data wafer to Calder');
-  assert.equal(job.kind, 'delivery');
-  session.run('trip:choose-destination:calder');
-  session.run('trip:depart');
-  playTo(session, 'calder');
+  assert.equal(job.kind, 'patron');
+  forceOutcome(registry, campaignId, job.identity.id, 'honest', 1);
+  const live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  live.run('trip:choose-destination:calder');
+  live.run('trip:depart');
+  playTo(live, 'calder');
   assert.equal(registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === job.identity.id).status, 'completed');
 });
 
@@ -2499,4 +2503,81 @@ test('v0.339.0 New ship refuses what it cannot build, and offers every standard 
   const options = newShipOptions(registry.resolveCampaign(campaignId));
   assert.ok(options.designs.some((entry) => /^Type A Free Trader \(200 tons\)$/.test(entry.label)));
   assert.ok(options.characters.length >= 1);
+});
+
+// ---------------------------------------------------------------- v0.340.0
+// p.124: a game-refereed job carries a hidden 1D, thrown when it is taken.
+function forceOutcome(registry, campaignId, jobId, outcome, die) {
+  const c = registry.resolveCampaign(campaignId).campaign;
+  const people = personState(c);
+  registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, missions: { ...people.missions, [jobId]: { ...people.missions[jobId], outcome: { die, outcome } } } } } });
+}
+
+const COURIER = { kind: 'courier', thing: 'a sealed data wafer', destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Carry a sealed data wafer to Calder', task: null, paymentCr: 8000, deadlineDays: 30 };
+
+async function courierWith(outcome, die) {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
+  assert.equal(session.run('patrons:accept').ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === COURIER.title);
+  forceOutcome(registry, campaignId, job.identity.id, outcome, die);
+  const live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const balance = () => registry.resolveCampaign(campaignId).ships[0].state.finances.balanceCr;
+  const ledger = () => registry.resolveCampaign(campaignId).ships[0].state.finances.ledger.filter((line) => line.kind === 'contract').reduce((sum, line) => sum + Number(line.amountCr ?? 0), 0);
+  const before = ledger();
+  live.run('trip:choose-destination:calder');
+  live.run('trip:depart');
+  const seen = playTo(live, 'calder');
+  const after = registry.resolveCampaign(campaignId);
+  return { job: after.contracts.find((entry) => entry.identity.id === job.identity.id), paid: ledger() - before, seen, after, balance };
+}
+
+test('v0.340.0 the 1D is thrown when a game-refereed job is taken, and kept off every screen', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
+  const taken = session.run('patrons:accept');
+  assert.equal(taken.ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === COURIER.title);
+  const kept = personState(registry.resolveCampaign(campaignId).campaign).missions[job.identity.id].outcome;
+  assert.ok(kept && kept.die >= 1 && kept.die <= 6, 'thrown and kept with the job');
+  const shown = JSON.stringify([session.view({ seat: 'player' }), session.view(), taken.message]);
+  assert.doesNotMatch(shown, /honest|swindled|dishonest|crazy|lying|outcome/i, 'no screen says what the patron is about');
+  assert.equal(session.view().jobs.find((entry) => entry.id === job.identity.id).selfSettling, true, 'no Done or Failed for the referee');
+});
+
+test('v0.340.0 honest pays as agreed; swindled pays half; dishonest pays nothing, but the job is done', async () => {
+  const honest = await courierWith('honest', 2);
+  assert.equal(honest.job.status, 'completed');
+  assert.equal(honest.paid, 8000);
+  const swindled = await courierWith('swindled', 3);
+  assert.equal(swindled.job.status, 'completed');
+  assert.equal(swindled.paid, 4000);
+  assert.equal(swindled.job.economics.paymentCr, 8000, 'what was agreed stays on the job');
+  const log = JSON.stringify(swindled.after.activityLogs);
+  assert.match(log, /swindled himself and can pay only half: Cr 4,000 paid of Cr 8,000/i);
+  const dishonest = await courierWith('dishonest', 4);
+  assert.equal(dishonest.job.status, 'completed');
+  assert.equal(dishonest.paid, 0);
+  assert.match(JSON.stringify(dishonest.after.activityLogs), /the patron never pays: nothing paid/i);
+});
+
+test('v0.340.0 crazy: there was nothing to it, and the job fails; lying: paid, and trouble follows', async () => {
+  const crazy = await courierWith('crazy', 5);
+  assert.equal(crazy.job.status, 'failed');
+  assert.equal(crazy.paid, 0);
+  assert.match(JSON.stringify(crazy.after.activityLogs), /nothing to it/);
+  const lying = await courierWith('lying', 6);
+  assert.equal(lying.job.status, 'completed');
+  assert.equal(lying.paid, 8000);
+  const log = JSON.stringify(lying.after.activityLogs);
+  assert.match(log, /lied about the danger/);
+  assert.ok(personState(lying.after.campaign).pending || /Person encounter on Calder|does not find the travellers here/.test(log), 'a person encounter is thrown at once');
+});
+
+test('v0.340.0 a person referees: no hidden throw; the courier job is an ordinary delivery', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
+  session.run('patrons:referee', { fight: { value: { referee: 'person' } } });
+  assert.equal(session.run('patrons:accept').ok, true);
+  const r = registry.resolveCampaign(campaignId);
+  const job = r.contracts.find((entry) => entry.identity.title === COURIER.title);
+  assert.equal(job.kind, 'delivery');
+  assert.equal(personState(r.campaign).missions[job.identity.id].outcome, undefined);
 });
