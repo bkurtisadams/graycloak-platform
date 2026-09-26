@@ -655,3 +655,23 @@ berthing past six days, salaries) reach `play.html` with it.
   so the seat page draws the campaign's map.
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,
   membership) are recorded with their slices and stand.
+**Not now: shipless solo play** (Kurt, Sep 2026). Most mustered-out
+characters have no ship, and the books do give them a loop — commercial
+travel on charted lanes only (Book 3 p.1–2, ~two departures a month, Book
+2 p.1), passages held or bought (High/Middle/Low, working passage max three
+jumps, Book 2 p.2), subsistence instead of ship upkeep (Book 3 p.15),
+patrons and encounters on the waiting days, hijack and low revival as the
+only voyage events. Three shapes were weighed: a passenger loop (most new
+code, one decision — which lane); a crew berth on a policy-run ship (cheap,
+the player holds one seat, but the captain's seat makes every decision with
+money or risk in it — a spectator with a turret); and master-for-hire (Book
+2 p.6, an absent owner's ship run for a share — the full ship loop without
+the mortgage). Decided instead: solo play stays ship-owning. A player who
+wants to solo rolls characters until one musters out with a ship (Scout
+Type S or Merchant Type A), which also selects for the skills that run a
+small ship alone. Passenger travel exists only as the montage line above.
+Kept from the exercise for any solo ship-owner: the crew-berth patron (The
+Traveller Book p.141, a Shipowner-type job — how a solo character can
+later join another player's ship) and the p.124 patron template (players'
+paragraph plus a hidden 1D outcome: lying / crazy / honest / swindled /
+devious / dishonest) for every game-refereed mission.
