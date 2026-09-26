@@ -36,9 +36,9 @@ import {
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
   refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor,
-  generateSubsector, generateWorldName, sectorMap, rollNewLanes, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
+  generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall
-} from '../vendor/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -48,15 +48,17 @@ import {
 // yet: with one ship per side, commitShipVector(shipId, {x:0,y:0}) below does
 // the same thing. It becomes the right tool once a side can carry more than
 // one ship and the rest need to coast at once.
+// v0.327.0: every rules import goes through the package index (one URL, one
+// stamp); these three were deep imports of files the index already exports.
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/src/starships/vector-movement.js';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/src/starships/operations.js';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/src/starships/arrival.js';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -2534,6 +2536,66 @@ export function chartSubsector(campaign, sector, letter, { generation = 0 } = {}
   return { letter, subsector, routes: lanes.routes.map((route) => ({ ...route })) };
 }
 
+// v0.327.0 (Kurt, Sep 2026): no two worlds on the sector share a name. A
+// subsector charted before v0.325.0 drew its names without knowing Far
+// Meridian's added worlds, so one may repeat. Hand-made names win; among
+// charted subsectors the first by letter (A-P) keeps its name, and a repeat
+// is renamed by the same generator, seeded by campaign and system. The id is
+// kept — lanes, visits and jobs point at it — so only the name changes.
+export function renameDuplicateWorlds(campaign, sector) {
+  const state = sectorState(campaign);
+  const taken = new Set();
+  for (const letter of SUBSECTOR_LETTERS) for (const system of sector.authored[letter]?.systems ?? []) taken.add(system.name);
+  const every = new Set(taken);
+  for (const letter of SUBSECTOR_LETTERS) for (const system of state.charted[letter]?.systems ?? []) every.add(system.name);
+  let charted = { ...state.charted };
+  const renamed = [];
+  for (const letter of SUBSECTOR_LETTERS) {
+    const subsector = charted[letter];
+    if (!subsector || sector.authored[letter]) continue;
+    let changed = false;
+    const systems = subsector.systems.map((system) => {
+      if (!taken.has(system.name)) { taken.add(system.name); return system; }
+      const dice = seededDice(`${campaign.identity.id}|${sector.id}|${system.id}|rename`);
+      let name = generateWorldName(dice);
+      while (every.has(name)) name = generateWorldName(dice);
+      taken.add(name);
+      every.add(name);
+      changed = true;
+      renamed.push({ letter, id: system.id, from: system.name, to: name });
+      return { ...system, name, mainWorld: { ...system.mainWorld, name } };
+    });
+    if (changed) charted = { ...charted, [letter]: { ...subsector, systems } };
+  }
+  return renamed.length ? { charted, renamed } : null;
+}
+
+// v0.327.0: lanes owed between worlds added to an authored subsector and a
+// neighbour charted before they existed (sector.laneFills). A neighbour charted
+// since v0.325.0 records its density and already threw against every world,
+// so only one without it is filled; each is marked with the fill's key and
+// never thrown twice. Seeded like the charting, so a reload throws the same.
+export function fillAddedWorldLanes(campaign, sector) {
+  const state = sectorState(campaign);
+  let charted = { ...state.charted };
+  let routes = [...state.routes];
+  const filled = [];
+  for (const fill of sector.laneFills ?? []) {
+    for (const letter of neighbouringSubsectors(fill.letter)) {
+      const neighbour = charted[letter];
+      if (!neighbour || sector.authored[letter] || neighbour.density || (neighbour.laneFills ?? []).includes(fill.key)) continue;
+      const whole = { id: sector.id, name: sector.name, subsectors: { ...charted, ...sector.authored }, routes: [...(sector.routes ?? []), ...routes] };
+      const theirs = sectorMap(whole).systems.filter((system) => system.subsector === letter).map((system) => system.id);
+      const thrown = rollLanesBetween(whole, fill.systemIds, theirs, seededDice(`${campaign.identity.id}|${sector.id}|${letter}|${fill.key}`));
+      const added = thrown.routes.map((route) => ({ ...route }));
+      charted = { ...charted, [letter]: { ...neighbour, laneFills: [...(neighbour.laneFills ?? []), fill.key] } };
+      routes = [...routes, ...added];
+      filled.push({ letter, name: neighbour.name, key: fill.key, authoredName: sector.authored[fill.letter]?.name ?? fill.letter, checks: thrown.checks.length, routes: added });
+    }
+  }
+  return filled.length ? { charted, routes, filled } : null;
+}
+
 // The worlds the campaign is holding on to: where the party is and is going,
 // and every open job's ends. A subsector with one of them in it keeps its map.
 export function heldSystemIds(resolved) {
@@ -2681,9 +2743,14 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     const ship = activeShip();
     const letters = here ? subsectorsWithinReach(subsector, here, Number(ship?.specifications?.drives?.jump?.rating ?? 0)) : [];
     const needsVisit = here && !state.visited.includes(here);
-    if (!letters.length && !needsVisit) return [];
-    let charted = { ...state.charted };
-    let routes = [...state.routes];
+    // v0.327.0: repeated world names renamed, then lanes still owed to
+    // worlds added since a neighbour was charted.
+    const names = renameDuplicateWorlds(campaign, sector);
+    const named = names ? { ...campaign, roster: { ...campaign.roster, sector: { ...state, charted: names.charted } } } : campaign;
+    const owed = fillAddedWorldLanes(named, sector);
+    if (!letters.length && !needsVisit && !owed && !names) return [];
+    let charted = owed ? owed.charted : { ...sectorState(named).charted };
+    let routes = owed ? owed.routes : [...state.routes];
     const made = [];
     for (const letter of letters) {
       const result = chartSubsector({ ...campaign, roster: { ...campaign.roster, sector: { ...state, charted, routes } } }, sector, letter);
@@ -2694,8 +2761,10 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     }
     registry.put({ ...campaign, roster: { ...campaign.roster, sector: { charted, routes, visited: needsVisit ? [...state.visited, here] : state.visited } } });
     reload();
+    for (const entry of names?.renamed ?? []) log('NAV', `${entry.from} in subsector ${entry.letter} is renamed ${entry.to}: another world on the sector already has that name.`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
+    for (const fill of owed?.filled ?? []) log('NAV', `Lanes thrown between ${fill.authoredName}'s added worlds and subsector ${fill.letter}, ${fill.name} (charted before them): ${fill.checks} checks, ${fill.routes.length} lanes (Book 3 p.3, 1977).`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
     for (const result of made) log('NAV', `Subsector ${result.letter}, ${result.subsector.name}, charted: ${result.subsector.systems.length} worlds, ${result.routes.length} lanes (Book 3, 1977).`, { visibility: ACTIVITY_VISIBILITY.REFEREE });
-    return made;
+    return [...(names?.renamed ?? []), ...(owed?.filled ?? []), ...made];
   }
 
   function setShipFight(value) {
@@ -3623,9 +3692,17 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         // encounter comes up (Kurt, Sep 2026); the rest stays unpassed.
         const animals = animalState(resolved.campaign);
         const { system: here } = currentWorldProfile(resolved, subsector);
-        const surface = animals.surface && here && animals.surface.systemId === here.id ? animals.surface : null;
-        if (surface && animals.pending) throw new Error('an animal encounter is waiting: put it on the board or set it aside first');
-        if (surface && personState(resolved.campaign).pending) throw new Error('a person encounter is waiting: put it on the board or set it aside first');
+        const outThere = animals.surface && here && animals.surface.systemId === here.id ? animals.surface : null;
+        // v0.327.0: days spent on a job at the world (retrieval out on the
+        // surface, investigation in town) are checked for encounters whether
+        // or not the party was set out on the surface: person and legal
+        // checks every day, and the animals too for a surface job when a
+        // terrain is set here. Town work checks no animals.
+        const asked = here && ['surface', 'town'].includes(value.checks) ? value.checks : null;
+        const surface = asked === 'town' ? null : outThere;
+        const personWhere = surface ?? (asked ? { worldName: here.name, lastPersonDay: null } : null);
+        if ((surface || asked) && animals.pending) throw new Error('an animal encounter is waiting: put it on the board or set it aside first');
+        if ((surface || asked) && personState(resolved.campaign).pending) throw new Error('a person encounter is waiting: put it on the board or set it aside first');
         const surfaceTable = surface ? animals.tables[animalTableKey(surface.systemId, surface.terrain)] ?? null : null;
         let animalPatch = null;
         let animalNote = null;
@@ -3660,12 +3737,12 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         // were checked first.
         let personNote = null;
         let personPatch = null;
-        if (surface && !personState(resolved.campaign).pending) {
+        if (personWhere && !personState(resolved.campaign).pending) {
           const beforeDay = campaignDayNumber(resolved.campaign.time);
           const endDay = campaignDayNumber(advanceCampaignSeconds(resolved.campaign, seconds).time);
           const animalDay = animalPatch?.pending ? Number(animalPatch.surface.lastCheckedDay) : null;
           const dice = createDice();
-          const fromDay = Math.max(Number(surface.lastPersonDay ?? beforeDay) + 1, beforeDay + 1);
+          const fromDay = Math.max(Number(personWhere.lastPersonDay ?? beforeDay) + 1, beforeDay + 1);
           // v0.319.0 (The Traveller Book pp.99-100): no random encounter
           // without a local population; and a legal encounter each day,
           // on 2D at or under the law level (ruling: the prose's reading).
@@ -3685,21 +3762,21 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             if (lawLevel > 0 && legalEncounterCheck(dice, { lawLevel }).encounter) { hitDay = day; legalHit = true; break; }
           }
           const lastDay = hitDay ?? (animalDay !== null ? animalDay : endDay);
-          animalPatch = { ...(animalPatch ?? {}), surface: { ...(animalPatch?.surface ?? surface), lastPersonDay: lastDay } };
+          if (surface) animalPatch = { ...(animalPatch ?? {}), surface: { ...(animalPatch?.surface ?? surface), lastPersonDay: lastDay } };
           if (hitDay !== null) {
             const encounter = legalHit ? rollLegalEncounter(dice, { reactionDM }) : rollPersonEncounter(dice, { reactionDM });
             seconds = SECONDS_PER_DAY - resolved.campaign.time.secondsOfDay + (hitDay - beforeDay - 1) * SECONDS_PER_DAY;
             const date = formatCampaignDate(advanceCampaignSeconds(resolved.campaign, seconds).time);
-            if (animalPatch.pending) delete animalPatch.pending;
-            animalPatch.surface = { ...animalPatch.surface, lastCheckedDay: hitDay };
+            if (animalPatch?.pending) delete animalPatch.pending;
+            if (animalPatch?.surface) animalPatch.surface = { ...animalPatch.surface, lastCheckedDay: hitDay };
             if (encounter.blank) {
               personNote = `Person encounter point on ${date}: 1D ${thrown.at(-1)} \u2014 the table\u2019s blank row ${encounter.code}, no encounter (Book 3 p.20).`;
             } else {
               const law = portExtras(resolved, subsector).world?.law ?? null;
-              personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: surface.worldName, law }) };
+              personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: personWhere.worldName, law }) };
               personNote = legalHit
-                ? `Legal encounter on ${date} (${surface.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
-                : `Person encounter on ${date} (${surface.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21). The clock stopped here.`;
+                ? `Legal encounter on ${date} (${personWhere.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
+                : `Person encounter on ${date} (${personWhere.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21). The clock stopped here.`;
             }
           }
         }
@@ -4719,22 +4796,51 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           if (!task) throw new Error('this job has nothing to do at its world');
           if (resolved.campaign.location?.systemId !== mission.destinationSystemId) throw new Error(`the job is done at ${contract.destination.systemName}`);
           const dice = createDice();
-          const days = missionTaskDays(dice, mission.kind);
-          const passed = run('time:pass', { fight: { value: { amount: days, unit: 'days', reason: `${contract.identity.title}` } } });
-          if (!passed.ok) throw new Error(passed.message);
+          // v0.327.0: the days are thrown once and kept on the mission; the
+          // work is checked for encounters as it goes (person and legal every
+          // day, animals out on the surface where a terrain is set), and an
+          // encounter stops it there. Carrying on resumes the days left; the
+          // task is thrown only when they are all spent.
+          const progress = mission.progress ?? null;
+          const days = progress?.days ?? missionTaskDays(dice, mission.kind);
+          const spentBefore = progress?.spent ?? 0;
+          const left = Math.max(1, days - spentBefore);
+          const startDay = campaignDayNumber(resolved.campaign.time);
+          const checks = task.where === 'surface' ? 'surface' : 'town';
+          const waitingNow = () => Boolean(personState(resolved.campaign).pending || animalState(resolved.campaign).pending);
+          // A stop with nothing waiting (Book 3's blank 6x row) is no
+          // encounter: the work goes on with the days still to do.
+          let spentNow = 0;
+          for (let leg = 0; leg < 60 && spentNow < left && !waitingNow(); leg += 1) {
+            const passed = run('time:pass', { fight: { value: { amount: left - spentNow, unit: 'days', reason: `${contract.identity.title}`, checks } } });
+            if (!passed.ok) throw new Error(passed.message);
+            const now = Math.max(0, campaignDayNumber(resolved.campaign.time) - startDay);
+            if (now === spentNow && !waitingNow()) break;
+            spentNow = now;
+            if (safeTrip(resolved)?.situation === 'halted') break;
+          }
           const fresh = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
-          if (!fresh || fresh.status !== 'accepted') return finish(`${days} days pass; the job is no longer in hand (the deadline has passed).`);
+          if (!fresh || fresh.status !== 'accepted') {
+            put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, progress: null } } });
+            return finish(`${spentNow} days pass; the job is no longer in hand (the deadline has passed).`);
+          }
+          if (spentNow < left) {
+            const spent = spentBefore + spentNow;
+            put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, progress: { days, spent } } } });
+            log('ENCOUNTER', `${contract.identity.title}: interrupted after ${spent} of ${days} days ${task.where === 'surface' ? 'searching' : 'asking'}. Carry on once the encounter is dealt with.`);
+            return finish(`Interrupted: ${spent} of ${days} days done; an encounter comes first.`);
+          }
           const best = bestPartySkill(resolved, task.skills);
           const result = throwMissionTask(dice, { kind: mission.kind, skillLevel: best.level });
           const how = `${days} days ${task.where === 'surface' ? 'searching' : 'asking'}; 2D ${result.roll}${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} = ${result.total} against ${result.needed}+`;
           if (result.success) {
             const paid = creditShipAccount(activeShip(), contract.economics.paymentCr, { kind: 'contract', description: `${contract.identity.title} completed`, dateLabel: formatCampaignDate(resolved.campaign.time) });
             persist([completeContractDocument(fresh, { date: resolved.campaign.time, paymentCr: contract.economics.paymentCr, notes: how }), paid]);
-            put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1, done: true } } });
+            put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1, done: true, progress: null } } });
             log('ENCOUNTER', `${contract.identity.title}: done (${how}); ${cr(contract.economics.paymentCr)} paid.`);
             return finish(`Done: ${how}.`);
           }
-          put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1 } } });
+          put({ missions: { ...personState(resolved.campaign).missions, [id]: { ...mission, attempts: mission.attempts + 1, progress: null } } });
           log('ENCOUNTER', `${contract.identity.title}: not yet (${how}). There is time to try again before the deadline.`);
           return finish(`Not yet: ${how}.`);
         }
@@ -6031,10 +6137,17 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const task = MISSION_TASKS[mission.kind];
           if (!task || mission.done || !contract || contract.status !== 'accepted' || mission.destinationSystemId !== here) return null;
           const best = bestPartySkill(resolved, task.skills);
+          // v0.327.0: a job interrupted by an encounter shows its days done.
+          const progress = mission.progress ?? null;
+          const doing = task.where === 'surface' ? 'searching' : 'asking';
+          const waiting = Boolean(people.pending || animalState(resolved.campaign).pending);
           return {
             id, title: contract.identity.title, kind: mission.kind, attempts: mission.attempts,
-            figure: `${task.days} days ${task.where === 'surface' ? 'searching' : 'asking'}, then 2D${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} for ${task.needed}+`,
-            command: writable ? `patrons:task:${id}` : null
+            progress,
+            figure: `${progress ? `${progress.spent} of ${progress.days} days ${doing} done` : `${task.days} days ${doing}`}, then 2D${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} for ${task.needed}+`,
+            label: progress ? `Carry on (${progress.days - progress.spent} day${progress.days - progress.spent === 1 ? '' : 's'} left)` : 'Carry it out',
+            blocked: waiting ? 'An encounter is waiting; deal with it first.' : null,
+            command: writable && !waiting ? `patrons:task:${id}` : null
           };
         }).filter(Boolean);
         state.patrons = {

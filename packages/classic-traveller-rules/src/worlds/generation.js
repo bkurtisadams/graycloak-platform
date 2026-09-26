@@ -207,3 +207,26 @@ export function rollNewLanes(sector, letter, dice) {
     checks: Object.freeze(thrown.checks.filter(isNew))
   });
 }
+
+/**
+ * 0.80.0: lanes (p.2) thrown only for the pairs joining one set of systems to
+ * another — the pairs a later change to the map left unthrown (Far Meridian's
+ * v0.325.0 worlds against a neighbour charted before them). Pairs already
+ * joined by a lane are left alone; beyond four hexes the table has no row.
+ * fromIds / toIds: system ids on the sector map (sectorMap's ids).
+ */
+export function rollLanesBetween(sector, fromIds, toIds, dice) {
+  const map = sectorMap(sector);
+  const a = new Set(fromIds);
+  const b = new Set(toIds);
+  const laned = new Set((sector.routes ?? []).flatMap((route) => [`${route.from}|${route.to}`, `${route.to}|${route.from}`]));
+  const systems = map.systems.filter((system) => a.has(system.id) || b.has(system.id));
+  const probe = { id: `${sector.id}-between-lanes`, name: 'lanes', columns: SECTOR_COLUMNS, rows: SECTOR_ROWS, systems };
+  const thrown = rollJumpRoutes(probe, dice);
+  const crosses = (entry) => ((a.has(entry.from) && b.has(entry.to)) || (a.has(entry.to) && b.has(entry.from)))
+    && !laned.has(`${entry.from}|${entry.to}`);
+  return Object.freeze({
+    routes: Object.freeze(thrown.routes.filter(crosses)),
+    checks: Object.freeze(thrown.checks.filter(crosses))
+  });
+}

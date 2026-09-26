@@ -30,9 +30,14 @@
 // only fix that removes the question.
 //
 // This constant is rewritten by the version bump alongside the mastheads.
-export const CLIENT_VERSION = 'v0.326.2';
+export const CLIENT_VERSION = 'v0.327.0';
 
-const RULES = `../vendor/classic-traveller-rules/index.js?v=${CLIENT_VERSION}`;
+// v0.327.0: the rules carry their own stamp, the rules version this client was
+// built for (stamp-client rewrites it), and the loaded package is asked its
+// version: a server started before the files were extracted serves the old
+// copy with every export still present, and nothing else would say so.
+const EXPECTED_RULES_VERSION = '0.80.0';
+const RULES = `../vendor/classic-traveller-rules/index.js?v=r${EXPECTED_RULES_VERSION}`;
 
 // v0.145.0: the error names the module as well as the symbol, and the two are
 // different faults. A missing export from a CLIENT module is a stale browser
@@ -40,7 +45,17 @@ const RULES = `../vendor/classic-traveller-rules/index.js?v=${CLIENT_VERSION}`;
 // telling the reader to run sync-vendor sends them nowhere. That happened with
 // ui-model.js and again with the rules package, so the panel now reads the
 // specifier out of the message and says which fault it is.
-function describe(message) {
+function describe(message, kind = null) {
+  if (kind === 'version') {
+    return {
+      heading: 'RULES PACKAGE VERSION MISMATCH',
+      body: 'A server started before the files were extracted keeps serving its old copy of vendor/. '
+        + 'Stop the server, run this from the traveller directory, start it again and reload:',
+      command: 'node scripts\\sync-vendor.mjs --link',
+      footnote: 'Without --link the copy goes stale again on the next extract. If the versions still differ, '
+        + 'the packages\\classic-traveller-rules half of the patch was not extracted.'
+    };
+  }
   // The specifier now carries ?v=, so compare the path without the query.
   const specifier = (/module '([^']+)'/.exec(message)?.[1] ?? '').split('?')[0];
   const symbol = /export named '([^']+)'/.exec(message)?.[1] ?? '';
@@ -67,7 +82,7 @@ function describe(message) {
   };
 }
 
-function fail(detail) {
+function fail(detail, kind = null) {
   const panel = document.createElement('div');
   panel.setAttribute('role', 'alert');
   panel.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;'
@@ -77,7 +92,7 @@ function fail(detail) {
   box.style.cssText = 'max-width:640px;border:1px solid #1a1a17;padding:20px 22px;background:#e7e7e1';
   const heading = document.createElement('div');
   heading.style.cssText = 'font-weight:700;letter-spacing:.04em;margin-bottom:10px';
-  const diagnosis = describe(detail);
+  const diagnosis = describe(detail, kind);
   heading.textContent = diagnosis.heading;
   const body = document.createElement('p');
   body.style.cssText = 'margin:0 0 12px';
@@ -104,7 +119,10 @@ function fail(detail) {
 }
 
 try {
-  await import(RULES);
+  const rules = await import(RULES);
+  if (rules.RULES_VERSION !== EXPECTED_RULES_VERSION) {
+    fail(`Rules package mismatch: this client (${CLIENT_VERSION}) was built for classic-traveller-rules ${EXPECTED_RULES_VERSION}; the server sent ${rules.RULES_VERSION ?? 'an older copy with no version'}.`, 'version');
+  }
   await import(`./app.js?v=${CLIENT_VERSION}`);
 } catch (error) {
   const message = String(error?.message ?? error);

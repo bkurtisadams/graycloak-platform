@@ -30,7 +30,8 @@ test('the play page loads only its own stylesheet and script', async () => {
   const html = await read('play.html');
   assert.ok(!/styles\.css/.test(html), 'play.html must not load styles.css');
   assert.deepEqual([...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"?]+)/g)].map((m) => m[1]), ['./play.css']);
-  assert.deepEqual([...html.matchAll(/<script[^>]+src="([^"?]+)/g)].map((m) => m[1]), ['./play.js']);
+  // v0.327.0: the rules-version check runs as its own module, beside play.js.
+  assert.deepEqual([...html.matchAll(/<script[^>]+src="([^"?]+)/g)].map((m) => m[1]), ['./rules-check.js', './play.js']);
 });
 
 test('the play page has the four regions and nothing else at the top level', async () => {

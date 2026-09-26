@@ -2,6 +2,12 @@
 // Source-backed Classic Traveller Books 1-3 character, starship, world, and subsector rules engine.
 // Pure rules/state logic: no host, UI, persistence, Foundry, or Firebase dependencies.
 
+// 0.80.0: the package's own version, readable at run time. A client checks it
+// against the version it was built for and says so when a server is still
+// serving an older copy (traveller/client/rules-check.js). It must equal
+// package.json's version; tests/rules-version.test.js holds the two together.
+export const RULES_VERSION = '0.80.0';
+
 export {
   createDice,
   createSequenceDice,
@@ -891,7 +897,7 @@ export {
 export {
   WORLD_PRESENT_MIN, STARPORT_TABLE, NAVAL_BASE_THROW, SCOUT_BASE_THROW, GAS_GIANT_PRESENT_MAX,
   techLevelDMs, rollStarport, generateWorldProfile, rollBases, generateWorldName, generateSubsector,
-  SUBSECTOR_LETTERS, subsectorOffset, sectorHex, subsectorOfSectorHex, neighbouringSubsectors, sectorMap, rollNewLanes
+  SUBSECTOR_LETTERS, subsectorOffset, sectorHex, subsectorOfSectorHex, neighbouringSubsectors, sectorMap, rollNewLanes, rollLanesBetween
 } from './src/worlds/generation.js';
 export { SECTOR_COLUMNS, SECTOR_ROWS } from './src/worlds/subsector.js';
 export { npcRandom, withNpcRandom } from './src/npc-random.js';

@@ -607,5 +607,28 @@ berthing past six days, salaries) reach `play.html` with it.
   generated opponents for hijackers and boarders, NPCs acting alone.
 - A hostile pirate attacks on the reaction table's own throw and cannot then
   be let pass; the party may run (p.37 escape shots) or fight (Sep 2026).
+- A solo job's days at its world are checked for encounters (Kurt, Sep 2026;
+  client v0.327.0): person and legal encounters every day, as on the
+  surface; animals only for a surface job (retrieval) where a terrain is
+  already set at that world; town work (investigation) checks no animals.
+  The days are thrown once and kept on the mission (`progress`); an
+  encounter stops the work there, and carrying on resumes the days left.
+  The task is thrown only once every day is spent. A blank 6x row is no
+  encounter and does not interrupt.
+- No two worlds on the sector share a name (Kurt, Sep 2026; v0.327.0):
+  hand-made names win, then the first charted subsector by letter; a repeat
+  is renamed by the world-name generator, seeded, keeping its id (lanes,
+  visits and jobs point at the id). Text written earlier (job titles, log
+  lines) keeps the old name.
+- Lanes owed to worlds added after a neighbour was charted (v0.327.0,
+  rules 0.80.0 `rollLanesBetween`): the sector lists them (`laneFills`);
+  a charted neighbour with no density recorded (charted before v0.325.0) is
+  thrown once, Book 3 p.3, against the added worlds only, seeded, and
+  marked with the fill's key.
+- The client is stamped for one rules version (v0.327.0, rules 0.80.0
+  `RULES_VERSION`): every rules import goes through the index with the
+  rules' own stamp (`?v=r<version>`), the vendored copy's internal imports
+  carry it too, and the pages show a mismatch banner (`rules-check.js`,
+  boot.mjs's panel on index.html) when the server serves another version.
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,
   membership) are recorded with their slices and stand.

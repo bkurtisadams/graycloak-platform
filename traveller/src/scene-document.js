@@ -9,7 +9,7 @@
 // Scenes are square for now — both canvases assume square cells on a square
 // board — and rectangular boards arrive with the shared canvas in v0.73.
 
-import { stableDocumentId, createPlanet } from '../vendor/classic-traveller-rules/index.js';
+import { stableDocumentId, createPlanet } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
 
 export const SCENE_DOCUMENT_TYPE = 'graycloak-traveller-scene';
 export const CURRENT_SCENE_DOCUMENT_SCHEMA_VERSION = 3;

@@ -1900,13 +1900,22 @@ test('v0.322.0 solo, the referee is the game: the patron comes with a mission, n
   assert.equal(task.command, `patrons:task:${job.identity.id}`);
   assert.match(session.run(`contract:complete:${job.identity.id}`).message, /settles by its own test/);
   // Carry it out until it is done (each try takes days; the deadline is 40).
+  // v0.327.0: the days are checked for encounters; one interrupts the job,
+  // and once it is set aside the job carries on.
   let result;
-  for (let tries = 0; tries < 6; tries += 1) {
-    result = session.run(task.command);
+  let live = session;
+  for (let tries = 0; tries < 12; tries += 1) {
+    result = live.run(task.command);
+    if ((result.ok && /^Interrupted/.test(result.message)) || (!result.ok && /encounter is waiting/.test(result.message))) {
+      const c = registry.resolveCampaign(campaignId).campaign;
+      registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, pending: null }, animals: { ...(c.roster.animals ?? {}), pending: null } } });
+      live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+      continue;
+    }
     if (!result.ok || /^Done/.test(result.message) || !/^Not yet/.test(result.message)) break;
   }
   assert.equal(result.ok, true, result.message);
-  assert.match(result.message, /^(Done|Not yet|\d+ days pass)/);
+  assert.match(result.message, /^(Done|Not yet|Interrupted|\d+ days pass)/);
 });
 
 test('v0.322.0 a courier job solo is an ordinary delivery that completes on arrival', async () => {
@@ -2029,4 +2038,113 @@ test('v0.326.1 passengers bound for another world stop any more being booked, an
   assert.equal(session.run('referee:passengers-ashore').ok, true);
   assert.equal(registry.resolveCampaign(campaignId).ships[0].state.passengerManifest.length, 0);
   assert.equal(session.view().steps.find((step) => step.id === 'jump').state, 'ready');
+});
+
+// ---------------------------------------------------------------- v0.327.0
+import { chartSubsector, fillAddedWorldLanes, renameDuplicateWorlds } from '../src/play-session.js';
+import { FAR_MERIDIAN_ADDED_V0325 } from '../world/far-meridian-subsector.js';
+
+// A campaign whose subsector G was charted before Far Meridian gained its
+// v0.325.0 worlds: no density recorded, no lanes to the added worlds.
+async function withOldNeighbour(letter = 'G', mutate = (subsector) => subsector) {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const campaign = registry.resolveCampaign(campaignId).campaign;
+  const result = chartSubsector(campaign, MERIDIAN_REACH_SECTOR, letter);
+  const old = mutate({ ...result.subsector });
+  delete old.density;
+  const added = new Set(FAR_MERIDIAN_ADDED_V0325);
+  const routes = result.routes.filter((route) => !added.has(route.from) && !added.has(route.to));
+  registry.put({ ...campaign, roster: { ...campaign.roster, sector: { charted: { [letter]: old }, routes, visited: [] } } });
+  return { registry, campaignId, old, routes };
+}
+
+test('v0.327.0 lanes are thrown once between Far Meridian\u2019s added worlds and a neighbour charted before them', async () => {
+  const { registry, campaignId, old, routes } = await withOldNeighbour('G');
+  const owed = fillAddedWorldLanes(registry.resolveCampaign(campaignId).campaign, MERIDIAN_REACH_SECTOR);
+  assert.ok(owed, 'G is owed a fill');
+  assert.deepEqual(owed.filled.map((entry) => entry.letter), ['G']);
+  const theirs = new Set(old.systems.map((system) => system.id));
+  const added = new Set(FAR_MERIDIAN_ADDED_V0325);
+  for (const route of owed.filled[0].routes) {
+    assert.ok((added.has(route.from) && theirs.has(route.to)) || (added.has(route.to) && theirs.has(route.from)), 'only the added worlds against G');
+  }
+  // Opening the campaign applies it, marks G, and logs it; a second opening throws nothing.
+  createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  const state = sectorState(registry.resolveCampaign(campaignId).campaign);
+  assert.deepEqual(state.charted.G.laneFills, ['far-meridian-v0.325.0']);
+  for (const route of owed.filled[0].routes) assert.ok(state.routes.some((entry) => entry.from === route.from && entry.to === route.to), 'the thrown lanes are kept');
+  assert.ok(routes.every((route) => state.routes.some((entry) => entry.from === route.from && entry.to === route.to)), 'the old lanes stay');
+  assert.equal(fillAddedWorldLanes(registry.resolveCampaign(campaignId).campaign, MERIDIAN_REACH_SECTOR), null);
+});
+
+test('v0.327.0 a neighbour charted since v0.325.0 (density recorded) is not filled', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const campaign = registry.resolveCampaign(campaignId).campaign;
+  const result = chartSubsector(campaign, MERIDIAN_REACH_SECTOR, 'G');
+  registry.put({ ...campaign, roster: { ...campaign.roster, sector: { charted: { G: result.subsector }, routes: result.routes, visited: [] } } });
+  assert.equal(fillAddedWorldLanes(registry.resolveCampaign(campaignId).campaign, MERIDIAN_REACH_SECTOR), null);
+});
+
+test('v0.327.0 a world repeating another world\u2019s name is renamed, keeping its id', async () => {
+  let dupeId = null;
+  const { registry, campaignId } = await withOldNeighbour('G', (subsector) => {
+    const systems = subsector.systems.map((system, index) => {
+      if (index === 0) { dupeId = system.id; return { ...system, name: 'Heliograph', mainWorld: { ...system.mainWorld, name: 'Heliograph' } }; }
+      if (index === 1) return { ...system, name: 'Ycest', mainWorld: { ...system.mainWorld, name: 'Ycest' } };
+      return system;
+    });
+    return { ...subsector, systems };
+  });
+  const names = renameDuplicateWorlds(registry.resolveCampaign(campaignId).campaign, MERIDIAN_REACH_SECTOR);
+  assert.deepEqual(names.renamed.map((entry) => entry.from).sort(), ['Heliograph', 'Ycest'], 'the hand-made names win');
+  createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR });
+  const map = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR }).map;
+  const all = map.systems.map((system) => system.name);
+  assert.equal(new Set(all).size, all.length, 'no name twice on the sector');
+  const renamed = map.systems.find((system) => system.id === dupeId);
+  assert.notEqual(renamed.name, 'Heliograph');
+  assert.equal(renamed.mainWorld.name, renamed.name);
+  assert.equal(renameDuplicateWorlds(registry.resolveCampaign(campaignId).campaign, MERIDIAN_REACH_SECTOR), null, 'once only');
+});
+
+test('v0.327.0 a job at its world is checked for encounters, stops at one, and carries on after', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Reporter');
+  assert.equal(session.run('patrons:accept').ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === 'Find out who leaked the plans, on Calder');
+  session.run('trip:choose-destination:calder');
+  session.run('trip:depart');
+  playTo(session, 'calder');
+  const clear = () => {
+    const c = registry.resolveCampaign(campaignId).campaign;
+    registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, pending: null }, animals: { ...(c.roster.animals ?? {}), pending: null } } });
+    return createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  };
+  let live = clear();
+  const start = registry.resolveCampaign(campaignId).campaign.time;
+  const random = Math.random;
+  try {
+    // Every die a 5: the job takes 1D+1 = 6 days. Checks start with the next
+    // day (as time passing always has), and a person turns up on it (5-6,
+    // row 55, not the blank 6x rows).
+    Math.random = () => 0.8;
+    const first = live.run(`patrons:task:${job.identity.id}`);
+    assert.equal(first.ok, true, first.message);
+    assert.match(first.message, /^Interrupted: 1 of 6 days done/);
+    assert.ok(personState(registry.resolveCampaign(campaignId).campaign).pending, 'the encounter waits');
+    assert.deepEqual({ ...personState(registry.resolveCampaign(campaignId).campaign).missions[job.identity.id].progress }, { days: 6, spent: 1 });
+    const waiting = live.view().patrons.tasks[0];
+    assert.equal(waiting.command, null, 'no carrying on past a waiting encounter');
+    assert.match(waiting.figure, /^1 of 6 days asking done/);
+    assert.equal(waiting.label, 'Carry on (5 days left)');
+    // Encounter dealt with; every die a 3: no person (3), no law (2D 6 over law 5).
+    live = clear();
+    Math.random = () => 0.4;
+    const second = live.run(`patrons:task:${job.identity.id}`);
+    assert.equal(second.ok, true, second.message);
+    assert.match(second.message, /^(Done|Not yet)/);
+  } finally {
+    Math.random = random;
+  }
+  assert.equal(daysBetween(start, registry.resolveCampaign(campaignId).campaign.time), 6, 'the thrown days, once');
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).missions[job.identity.id].progress, null);
 });

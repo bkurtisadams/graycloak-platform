@@ -12,7 +12,7 @@
 // (classic-traveller-runner) lands as a second entry; nothing else changes.
 // The export check below covers every listed package, not only the rules.
 
-import { cp, rm, mkdir, readFile, symlink, lstat, readdir } from 'node:fs/promises';
+import { cp, rm, mkdir, readFile, writeFile, symlink, lstat, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,6 +38,26 @@ const PACKAGES = [
 // does not survive being packaged, and graycloak.net/traveller/ has no
 // packages/ directory above it.
 const link = process.argv.includes('--link');
+
+const RELATIVE_IMPORT = /(from\s*['"])(\.{1,2}\/[^'"?]+\.js)(\?v=[^'"]*)?(['"])/g;
+async function jsFilesUnder(dir) {
+  const out = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...await jsFilesUnder(full));
+    else if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) out.push(full);
+  }
+  return out;
+}
+async function stampPackageImports(dir, stamp) {
+  let count = 0;
+  for (const file of await jsFilesUnder(dir)) {
+    const before = await readFile(file, 'utf8');
+    const after = before.replace(RELATIVE_IMPORT, (whole, lead, specifier, existing, tail) => `${lead}${specifier}?v=${stamp}${tail}`);
+    if (after !== before) { await writeFile(file, after, 'utf8'); count += 1; }
+  }
+  return count;
+}
 const vendored = [];
 
 for (const name of PACKAGES) {
@@ -58,6 +78,13 @@ for (const name of PACKAGES) {
     for (const entry of ['index.js', 'package.json', 'src']) {
       await cp(path.join(source, entry), path.join(target, entry), { recursive: true });
     }
+    // v0.327.0: the copy's own imports carry the package's stamp too. The
+    // client asks for index.js?v=r<version>, a new URL on every rules bump,
+    // but index.js's imports of ./src/... were bare, so a browser could run a
+    // new index over cached old files. Only the copy is stamped: packages/
+    // stays bare, and so does a --link junction (which is the source).
+    const stamped = await stampPackageImports(target, `r${pkg.version}`);
+    if (stamped) console.log(`  stamped r${pkg.version} into ${stamped} vendored module${stamped === 1 ? '' : 's'}`);
     console.log(`vendored ${pkg.name}@${pkg.version} -> ${path.relative(process.cwd(), target)}`);
   }
   vendored.push({ name, source, pkg });
@@ -93,9 +120,17 @@ async function exportsOf(source) {
   return exported;
 }
 
-const clientDir = path.join(here, '..', 'client');
-const clientFiles = (await readdir(clientDir)).filter((file) => file.endsWith('.js') || file.endsWith('.mjs'));
+// v0.327.0: src/ and world/ import the rules as well as client/, and a deep
+// import (../vendor/<name>/src/...) is refused: it bypasses the index, so the
+// check above cannot see it and the browser holds a second copy of the module.
+const traveller = path.join(here, '..');
+const clientFiles = [];
+for (const dir of ['client', 'src', 'world']) {
+  for (const full of await jsFilesUnder(path.join(traveller, dir))) clientFiles.push(path.relative(traveller, full));
+}
+const clientDir = traveller;
 let failed = false;
+const deepImports = [];
 
 for (const { name, source, pkg } of vendored) {
   const exported = await exportsOf(source);
@@ -111,11 +146,22 @@ for (const { name, source, pkg } of vendored) {
       }
     }
   }
+  const deep = new RegExp(`from\\s*'[^']*/vendor/${name}/src/[^']*'`, 'g');
+  for (const file of clientFiles) {
+    const text = await readFile(path.join(clientDir, file), 'utf8');
+    for (const statement of text.matchAll(deep)) deepImports.push(`${file}: ${statement[0]}`);
+  }
   if (missing.length) {
     failed = true;
     console.error(`\n${pkg.name}@${pkg.version} does not export everything the client imports:\n`);
     for (const entry of missing) console.error(`  ${entry}`);
   }
+}
+
+if (deepImports.length) {
+  console.error('\nImports past the rules index (import from index.js instead; export the name there if it is missing):\n');
+  for (const entry of deepImports) console.error(`  ${entry}`);
+  process.exitCode = 1;
 }
 
 if (failed) {

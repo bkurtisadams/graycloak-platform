@@ -10,18 +10,18 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.326.2';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.326.2';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.326.2';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.326.2';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest } from './publish.js?v=v0.326.2';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.326.2';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.326.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.326.2';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.326.2';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.326.2';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=v0.326.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.326.2';
+import { copyDiagnostics } from './diagnostics.js?v=v0.327.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.327.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.327.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.327.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest } from './publish.js?v=v0.327.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.327.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.327.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.327.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.327.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.327.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.327.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);

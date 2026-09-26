@@ -12,7 +12,7 @@
 import {
   currentPhase, actingSide, vectorRangeDM, previewShipVector, returnFireEligibility,
   launcherStatus, turretOperational, turretWeapons, getTurretWeapon
-} from '../vendor/classic-traveller-rules/index.js';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
 import { sceneActorIsDesignReference, SCENE_TOKEN_SIDES } from './scene-document.js';
 
 // ---------------------------------------------------------------------------

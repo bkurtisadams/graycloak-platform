@@ -24,6 +24,15 @@ function route(from, to, distance) {
   return Object.freeze({ from, to, distance });
 }
 
+// v0.327.0: the fourteen worlds v0.325.0 added (listed below the original
+// fourteen). A campaign that charted a neighbouring subsector before they
+// existed never threw lanes between them and it; meridian-reach-sector.js
+// names them so play-session can throw those pairs once (Book 3 p.3).
+export const FAR_MERIDIAN_ADDED_V0325 = Object.freeze([
+  'gribainol', 'zaegaecor', 'baegro', 'greafucost', 'fiobys', 'ycest', 'staega',
+  'fodrizund', 'triotreand', 'dreavidrand', 'fiozaisust', 'greagu', 'hiipaim', 'fyshael'
+]);
+
 export const FAR_MERIDIAN_SUBSECTOR = Object.freeze({
   id: 'far-meridian-test-subsector',
   name: 'Far Meridian',

@@ -100,3 +100,28 @@ test('a jump and a misjump work on sector hexes', () => {
   assert.equal(hexInDirection('0101', 6, 1, sector).inSubsector, false);
   assert.throws(() => hexInDirection('1515', 3, 1), /column/, 'without bounds, still a subsector');
 });
+
+// 0.80.0: lanes thrown only across two sets (a map filled in after a
+// neighbour was charted).
+import { rollLanesBetween } from '../src/worlds/generation.js';
+
+test('0.80.0 rollLanesBetween throws only the pairs joining the two sets, once', () => {
+  const f = generateSubsector(createDice(), { id: 'f', name: 'F' });
+  const g = generateSubsector(createDice(), { id: 'g', name: 'G', taken: new Set(f.systems.map((system) => system.name)) });
+  const sector = { id: 'sector', name: 'Test', subsectors: { F: f, G: g }, routes: [] };
+  const map = sectorMap(sector);
+  const fIds = map.systems.filter((system) => system.subsector === 'F').map((system) => system.id);
+  const gIds = map.systems.filter((system) => system.subsector === 'G').map((system) => system.id);
+  const thrown = rollLanesBetween(sector, fIds, gIds, createDice());
+  const side = (id) => map.systems.find((system) => system.id === id).subsector;
+  assert.ok(thrown.checks.every((check) => side(check.from) !== side(check.to)), 'every pair crosses the two sets');
+  assert.ok(thrown.checks.every((check) => check.distance <= 4));
+  assert.ok(thrown.routes.every((route) => thrown.checks.some((check) => check.from === route.from && check.to === route.to && check.charted)));
+  // A pair already laned is not thrown again.
+  const again = rollLanesBetween({ ...sector, routes: [...thrown.routes] }, fIds, gIds, createDice());
+  for (const route of thrown.routes) {
+    assert.ok(!again.checks.some((check) => (check.from === route.from && check.to === route.to) || (check.from === route.to && check.to === route.from)));
+  }
+  // Nothing across an empty set.
+  assert.equal(rollLanesBetween(sector, [], gIds, createDice()).checks.length, 0);
+});
