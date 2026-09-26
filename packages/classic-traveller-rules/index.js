@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.80.0';
+export const RULES_VERSION = '0.81.0';
 
 export {
   createDice,
@@ -904,3 +904,5 @@ export { npcRandom, withNpcRandom } from './src/npc-random.js';
 
 // v0.79.0: patron missions for solo play (original, not rules text).
 export { MISSION_KINDS, MISSION_TASKS, draftPatronMission, throwMissionTask, missionTaskDays } from './src/encounters/missions.js';
+// 0.81.0: rumours written from game facts (original tables, not rules text).
+export { RUMOR_CONTENT, draftRumor } from './src/encounters/rumor-facts.js';

@@ -49,3 +49,12 @@ test('views hold no state: play-views.js declares no module-level let', async ()
   const source = await read('play-views.js');
   assert.equal(/^let\s/m.test(source), false);
 });
+
+// v0.328.0 (Kurt's screenshot): the seat page drew Far Meridian alone, and
+// the world card covered the map's heading.
+test('v0.328.0 the seat page draws the published map, captions under its head', async () => {
+  const seat = await read('seat.js');
+  assert.match(seat, /map: envelope\.map \?\? undefined/);
+  const css = await read('play.css');
+  assert.match(css, /\.seat-map \{ position: relative; \}/);
+});

@@ -35,10 +35,10 @@ import {
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
   refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
-  legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor,
+  legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
-  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall
-} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations
+} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -53,12 +53,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -367,7 +367,9 @@ function journalEntries(resolved) {
   // v0.319.0: rumours heard and written up (The Traveller Book p.99), the
   // text as the name; no sheet of their own.
   const rumors = personState(resolved.campaign).rumors.filter((entry) => entry.text).map((entry) => ({
-    id: entry.id, name: entry.text, note: `${entry.letter}: ${entry.type} \u00b7 ${entry.date}`, folder: `Rumours/${entry.worldName}`
+    // v0.328.0: a rumour the game wrote does not say what kind it is — its
+    // letter would give away a false one.
+    id: entry.id, name: entry.text, note: entry.byGame ? `Heard ${entry.date}` : `${entry.letter}: ${entry.type} \u00b7 ${entry.date}`, folder: `Rumours/${entry.worldName}`
   }));
   return [...animalJournalEntries(resolved), ...rumors];
   // eslint-disable-next-line no-unreachable
@@ -1988,6 +1990,31 @@ function bestPartySkill(resolved, skills) {
 }
 
 // Worlds a patron's mission could send the party to: here, and within four parsecs.
+// v0.328.0: what a rumour may talk about — the world here and those within
+// four parsecs, in the shape draftRumor takes, marked visited or not.
+export function rumorCandidates(subsector, systemId, visited = []) {
+  const seen = new Set(visited);
+  const shape = (system, distance) => ({
+    id: system.id, name: system.name, uwp: system.mainWorld.uwp, distance,
+    naval: Boolean(system.bases?.naval), scout: Boolean(system.bases?.scout), gasGiant: Boolean(system.gasGiant),
+    zone: system.travelZone ?? 'none', visited: seen.has(system.id)
+  });
+  const here = getSubsectorSystem(subsector, systemId);
+  return { here: shape(here, 0), worlds: getJumpDestinations(subsector, systemId, 4).map((entry) => shape(entry.system, entry.distance)) };
+}
+
+// v0.328.0: a rumour's record. Solo (the game referees), the game writes it
+// from its own facts at once and keeps whether it is true; with a person
+// refereeing it waits for the referee's words, as before.
+export function rumorRecord(dice, { id, date, system, source, solo, subsector, visited = [] }) {
+  const rumor = rollRumor(dice);
+  const record = { id, date, worldName: system.name, systemId: system.id, letter: rumor.letter, type: rumor.type, general: rumor.general, source, text: '' };
+  if (!solo) return record;
+  const { here, worlds } = rumorCandidates(subsector, system.id, visited);
+  const drafted = draftRumor(dice, { letter: rumor.letter, here, worlds });
+  return { ...record, text: drafted.text, byGame: true, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact };
+}
+
 function missionCandidates(subsector, systemId) {
   const here = getSubsectorSystem(subsector, systemId);
   return [{ id: here.id, name: here.name, distance: 0 }, ...getJumpDestinations(subsector, systemId, 4).map((entry) => ({ id: entry.system.id, name: entry.system.name, distance: entry.distance }))];
@@ -2975,6 +3002,10 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   const publishedViews = new Map();
   const publishedLogs = new Map();
   const settledRounds = new Map();
+  function publishedPlayerMap(campaign) {
+    if (!sector || !subsector) return null;
+    return JSON.parse(JSON.stringify(mapView(subsector, { seat: 'player', visited: sectorState(campaign).visited })));
+  }
   async function publishForPlayers(campaign, uid) {
     const owners = Object.entries(campaign.ownership?.actors ?? {}).filter(([, owner]) => owner && owner !== uid);
     if (typeof cloud.publishEncounterView === 'function') {
@@ -3213,7 +3244,11 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         characterIds: (campaign.documentRefs?.characters ?? []).map((entry) => entry.id),
         partyIds: [...(campaign.party?.characterIds ?? [])],
         // v0.285.0: whose campaign it is, for the stamp a character takes home.
-        refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null
+        refereeName: cloud.account?.()?.displayName || cloud.account?.()?.email || null,
+        // v0.328.0: the map as players may see it (the sector as charted;
+        // worlds not yet visited show their chart facts only), so the seat
+        // page draws the campaign's map rather than Far Meridian alone.
+        map: publishedPlayerMap(resolved.campaign)
       };
       revision = await cloud.save(home, envelope, { expectedRevision: revision });
       // v0.274.0: each seated player's own sheet, which player.html reads.
@@ -4704,10 +4739,16 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const found = patronCheck(dice);
           const lines = [];
           const rumors = [...people.rumors];
+          // v0.328.0: solo, the rumour is written from game facts at once;
+          // its letter and truth stay off the screen (the log and the reply
+          // say only that one was heard).
+          const solo = refereeMode(resolved.campaign) === 'game';
+          const heardNow = [];
           const newRumor = (source) => {
-            const rumor = rollRumor(dice);
-            rumors.push({ id: `rumor-${day}-${rumors.length + 1}`, date: today, worldName: system.name, letter: rumor.letter, type: rumor.type, general: rumor.general, source, text: '' });
-            lines.push(`a rumour (${rumor.letter}: ${rumor.type.toLowerCase()})`);
+            const record = rumorRecord(dice, { id: `rumor-${day}-${rumors.length + 1}`, date: today, system, source, solo, subsector, visited: sectorState(resolved.campaign).visited });
+            rumors.push(record);
+            if (solo) heardNow.push(record);
+            lines.push(solo ? 'a rumour' : `a rumour (${record.letter}: ${record.type.toLowerCase()})`);
           };
           let patron = null;
           if (found.found) {
@@ -4727,7 +4768,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           put({ patron, rumors, lastLookDay: day });
           const message = `A week looking for patrons on ${system.name}: patron 1D ${found.die} (5+), rumour 2D ${heard.total} (7+) \u2014 ${lines.length ? lines.join('; ') : 'nothing'} (The Traveller Book p.100).`;
           log('ENCOUNTER', message, { visibility: 'referee' });
-          return finish(message);
+          for (const record of heardNow) log('ENCOUNTER', `Rumour heard on ${record.worldName}: ${record.text}`);
+          return finish(heardNow.length ? `${message} ${heardNow.map((record) => record.text).join(' ')}` : message);
         }
         if (command === 'patrons:suggest') {
           // v0.322.0: a draft for the referee to start from (original tables).
@@ -4844,12 +4886,25 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           log('ENCOUNTER', `${contract.identity.title}: not yet (${how}). There is time to try again before the deadline.`);
           return finish(`Not yet: ${how}.`);
         }
+        if (command === 'rumors:suggest') {
+          // v0.328.0: words for the referee to start from, from game facts;
+          // the draft says whether it is true (the referee's eyes only).
+          const rumor = people.rumors.find((entry) => entry.id === value.id);
+          if (!rumor) throw new Error('no such rumour');
+          const systemId = rumor.systemId ?? resolved.campaign.location?.systemId;
+          const { here, worlds } = rumorCandidates(subsector, systemId, sectorState(resolved.campaign).visited);
+          const drafted = draftRumor(createDice(), { letter: rumor.letter, here, worlds });
+          put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, draft: { text: drafted.text, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact } } : entry)) });
+          return finish(`Suggested (${drafted.truth === 'true' ? 'true' : drafted.truth === 'partial' ? 'true, but leaves something out' : drafted.truth === 'trap' ? 'a lure into trouble' : 'false'}): ${drafted.text}`);
+        }
         if (command === 'rumors:write') {
           const rumor = people.rumors.find((entry) => entry.id === value.id);
           if (!rumor) throw new Error('no such rumour');
           const text = String(value.text ?? '').trim();
           if (!text) throw new Error('write the rumour first');
-          put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, text } : entry)) });
+          // v0.328.0: written as suggested, it keeps the draft's truth.
+          const asDrafted = rumor.draft && rumor.draft.text === text ? { truth: rumor.draft.truth, subjectId: rumor.draft.subjectId, fact: rumor.draft.fact } : {};
+          put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, ...asDrafted, text } : entry)) });
           log('ENCOUNTER', `Rumour heard on ${rumor.worldName}: ${text}`);
           return finish('Rumour written.');
         }

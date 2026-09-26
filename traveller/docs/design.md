@@ -603,8 +603,18 @@ berthing past six days, salaries) reach `play.html` with it.
   (the p.7 throw; caught: cargo seized, job failed, 1D months in jail —
   proposed term, to confirm). With a person refereeing, "Suggest a job"
   drafts from the same tables; players see the offer, not the form. Solo
-  hides the referee's let-off buttons. Next: rumours from game facts,
-  generated opponents for hijackers and boarders, NPCs acting alone.
+  hides the referee's let-off buttons. Slice 2 (client v0.328.0, rules
+  0.81.0): rumours from game facts (encounters/rumor-facts.js, original
+  tables): the p.100 letter picks what kind of sentence, built from the
+  worlds within four parsecs (profiles, bases, gas giants, zones) and the
+  Book 2 p.43 trade table, worlds not yet visited first. D is true but
+  leaves the hazard out; F lures toward a zoned or fuel-less world; J, T, V
+  and Z are made false on purpose (a wrong starport, gas giant, base, law,
+  government, or a danger denied). Solo, the rumour is written at once and
+  its letter and truth are kept off the screen; with a person refereeing,
+  "Suggest from game facts" drafts words and tells the referee whether
+  they are true. Next: generated opponents for hijackers and boarders,
+  NPCs acting alone.
 - A hostile pirate attacks on the reaction table's own throw and cannot then
   be let pass; the party may run (p.37 escape shots) or fight (Sep 2026).
 - A solo job's days at its world are checked for encounters (Kurt, Sep 2026;
@@ -630,5 +640,8 @@ berthing past six days, salaries) reach `play.html` with it.
   rules' own stamp (`?v=r<version>`), the vendored copy's internal imports
   carry it too, and the pages show a mismatch banner (`rules-check.js`,
   boot.mjs's panel on index.html) when the server serves another version.
+- The players' copy of the campaign carries the map as players may see it
+  (v0.328.0): the sector as charted, unvisited worlds as chart facts only,
+  so the seat page draws the campaign's map.
 - Earlier client-era rulings (combat, medical, rest, animals, reaction DM,
   membership) are recorded with their slices and stand.

@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 
 export const MEDIA_ASSET_DOCUMENT_TYPE = 'graycloak-traveller-media-asset';
 export const CURRENT_MEDIA_ASSET_SCHEMA_VERSION = 1;

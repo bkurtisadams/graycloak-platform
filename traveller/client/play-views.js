@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.327.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.327.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.327.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.327.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.328.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.328.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.328.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.328.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.327.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.327.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.327.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.328.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.328.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.328.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.327.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.327.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.328.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.328.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.327.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.328.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -195,11 +195,17 @@ function patronsPanel(p, handlers) {
   }
   for (const rumor of p.rumors) {
     const box = h('textarea', { rows: 2, placeholder: `Write the rumour: ${rumor.type.toLowerCase()}` });
+    // v0.328.0: the game's suggestion from its own facts, to keep or change.
+    if (rumor.draft?.text) box.value = rumor.draft.text;
+    const truth = rumor.draft ? { true: 'The suggestion is true.', partial: 'The suggestion is true but leaves out the hazard.', trap: 'The suggestion is a lure into trouble.', false: 'The suggestion is false.' }[rumor.draft.truth] ?? null : null;
     parts.push(h('section', { class: 'rumor-card', 'aria-label': 'A rumour' },
       h('p', { class: 'eyebrow', text: `Rumour \u00b7 ${rumor.date} \u00b7 ${rumor.worldName} \u00b7 ${rumor.letter}` }),
       h('h3', { text: rumor.type }),
       box,
-      h('div', { class: 'lead-actions' }, kindButton({ label: 'Write it to the Journal', kind: 'neutral', primary: true }, { small: true, onclick: () => people('rumors:write', { id: rumor.id, text: box.value }) })),
+      truth ? h('p', { class: 'cite', text: truth }) : null,
+      h('div', { class: 'lead-actions' },
+        kindButton({ label: 'Write it to the Journal', kind: 'neutral', primary: true }, { small: true, onclick: () => people('rumors:write', { id: rumor.id, text: box.value }) }),
+        kindButton({ label: rumor.draft ? 'Suggest another' : 'Suggest from game facts', kind: 'optional' }, { small: true, onclick: () => people('rumors:suggest', { id: rumor.id }) })),
       h('p', { class: 'cite', text: `${rumor.general ? 'A general rumour' : 'A specific rumour'}: the matrix gives its kind, the referee its content (The Traveller Book p.100).` })));
   }
   parts.push(h('div', { class: 'patron-seek' },

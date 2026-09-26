@@ -19,7 +19,7 @@
 // app only applies the result and shows the message.
 // ---------------------------------------------------------------------------
 
-import { currentPhase, actingSide, turretTargetLimit } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { currentPhase, actingSide, turretTargetLimit } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 import { fightTokenMenuModel } from './ship-token-menu.js';
 
 const FIRE_PHASES = new Set(['laser-fire', 'return-fire']);

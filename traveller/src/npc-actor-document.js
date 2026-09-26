@@ -4,7 +4,7 @@ import {
   personalWeaponWeight,
   personalWeaponCarriedWeightGrams,
   stableDocumentId
-} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 
 export const NPC_ACTOR_DOCUMENT_TYPE = 'graycloak-traveller-npc-actor';
 // v0.221.0: schema 2 adds `profile.folder`, a slash-separated path the referee

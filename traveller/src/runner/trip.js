@@ -30,7 +30,7 @@ import {
   DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, quoteStarportDriveRepair, repairDrivesAtStarport,
   shipEncounterReactionDMParts, debitShipAccount, shipReactionStance, rollReactionAttack,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
-} from '../../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+} from '../../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from '../contract-document.js';
 import { campaignDateKey, routeMarketSeed, seededDice } from '../../client/commerce-market.js';

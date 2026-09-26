@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 
 export const CONTRACT_DOCUMENT_TYPE = 'graycloak-traveller-contract';
 export const CURRENT_CONTRACT_DOCUMENT_SCHEMA_VERSION = 1;

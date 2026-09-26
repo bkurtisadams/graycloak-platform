@@ -1,4 +1,4 @@
-import { requireDice } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { requireDice } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 import { generateAdventureArrivalOffer } from '../src/adventure-engine.js';
 import { SEA_OF_SUNS_ADVENTURES } from '../campaigns/sea-of-suns/adventure-catalog.js';
 

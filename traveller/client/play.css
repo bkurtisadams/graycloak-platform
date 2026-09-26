@@ -1411,6 +1411,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 
 /* v0.281.0: the subsector map on the player's page. */
 .seat-map .map { width: calc(100% * var(--map-zoom, 1)); max-height: calc(62vh * var(--map-zoom, 1)); }
+/* v0.328.0: the captions sit under the map's own head, as on the play page;
+   positioned against the scene they covered the subsector's name. */
+.seat-map { position: relative; }
+.seat-map .captions { left: 0; }
 .seat-scene { max-width: 980px; }
 
 /* v0.282.0: a watched ship fight has the player's page to itself. */

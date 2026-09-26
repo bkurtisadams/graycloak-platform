@@ -30,13 +30,13 @@
 // only fix that removes the question.
 //
 // This constant is rewritten by the version bump alongside the mastheads.
-export const CLIENT_VERSION = 'v0.327.0';
+export const CLIENT_VERSION = 'v0.328.0';
 
 // v0.327.0: the rules carry their own stamp, the rules version this client was
 // built for (stamp-client rewrites it), and the loaded package is asked its
 // version: a server started before the files were extracted serves the old
 // copy with every export still present, and nothing else would say so.
-const EXPECTED_RULES_VERSION = '0.80.0';
+const EXPECTED_RULES_VERSION = '0.81.0';
 const RULES = `../vendor/classic-traveller-rules/index.js?v=r${EXPECTED_RULES_VERSION}`;
 
 // v0.145.0: the error names the module as well as the symbol, and the two are

@@ -16,7 +16,7 @@ import {
   starportFuelService,
   getPersonalWeapon,
   nobleTitleEntitlement
-} from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 
 export const PHASE_LABELS = Object.freeze({
   'service-selection': 'SERVICE APPLICATION',

@@ -5,7 +5,7 @@
 // what an import does is testable without a page.
 // ---------------------------------------------------------------------------
 
-import { importShipDocument } from '../vendor/classic-traveller-rules/index.js?v=r0.80.0';
+import { importShipDocument } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
 
 /**
  * What importing `text` would do: the validated ship, and whether it updates

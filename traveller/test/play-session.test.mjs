@@ -2148,3 +2148,113 @@ test('v0.327.0 a job at its world is checked for encounters, stops at one, and c
   assert.equal(daysBetween(start, registry.resolveCampaign(campaignId).campaign.time), 6, 'the thrown days, once');
   assert.equal(personState(registry.resolveCampaign(campaignId).campaign).missions[job.identity.id].progress, null);
 });
+
+// ---------------------------------------------------------------- v0.328.0
+import { rumorCandidates, rumorRecord } from '../src/play-session.js';
+
+async function traderSolo(referee = 'game') {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, settings: { ...(r.campaign.roster?.settings ?? {}), referee } } });
+  return { registry, campaignId, session: createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }) };
+}
+
+test('v0.328.0 rumour candidates are the worlds within four parsecs, with their chart facts', () => {
+  const { here, worlds } = rumorCandidates(FAR_MERIDIAN_SUBSECTOR, 'aster', ['calder']);
+  assert.equal(here.id, 'aster');
+  assert.ok(worlds.length > 0);
+  assert.ok(worlds.every((world) => world.distance >= 1 && world.distance <= 4 && /^[A-EX]/.test(world.uwp)));
+  assert.equal(worlds.find((world) => world.id === 'calder')?.visited, true);
+  assert.ok(worlds.some((world) => world.naval || world.scout || world.gasGiant));
+});
+
+test('v0.328.0 solo, a rumour heard is written from game facts at once, its kind and truth kept off the screen', async () => {
+  const { registry, campaignId, session } = await traderSolo('game');
+  const random = Math.random;
+  let result;
+  try {
+    Math.random = () => 0.99; // every die a 6: the weekly 2D is 12, a rumour
+    result = session.run('patrons:seek');
+  } finally { Math.random = random; }
+  assert.equal(result.ok, true, result.message);
+  const rumors = personState(registry.resolveCampaign(campaignId).campaign).rumors;
+  assert.ok(rumors.length >= 1);
+  for (const rumor of rumors) {
+    assert.equal(rumor.byGame, true);
+    assert.ok(rumor.text.length > 20, rumor.text);
+    assert.ok(['true', 'false', 'partial', 'trap'].includes(rumor.truth));
+    assert.ok(!result.message.includes(`(${rumor.letter}:`), 'the letter is not shown solo');
+    assert.ok(result.message.includes(rumor.text), 'the words are');
+  }
+  assert.equal(session.view().patrons.rumors.length, 0, 'nothing left for a referee to write');
+  const lines = registry.resolveCampaign(campaignId).activityLogs[0].entries.map((entry) => entry.message);
+  assert.ok(lines.some((line) => line.startsWith(`Rumour heard on Aster: ${rumors[0].text}`)));
+  // The Journal names it without its kind.
+  const journal = session.view().referee?.entries ?? [];
+  assert.ok(!JSON.stringify(journal).includes(`${rumors[0].letter}: ${rumors[0].type}`));
+});
+
+test('v0.328.0 with a person refereeing, the game suggests words and says whether they are true', async () => {
+  const { registry, campaignId, session } = await traderSolo('person');
+  const random = Math.random;
+  try { Math.random = () => 0.99; session.run('patrons:seek'); } finally { Math.random = random; }
+  const rumor = personState(registry.resolveCampaign(campaignId).campaign).rumors.find((entry) => !entry.text);
+  assert.ok(rumor, 'the referee writes it');
+  assert.equal(rumor.byGame, undefined);
+  const suggested = session.run('rumors:suggest', { fight: { value: { id: rumor.id } } });
+  assert.equal(suggested.ok, true, suggested.message);
+  assert.match(suggested.message, /^Suggested \((true|false|a lure into trouble|true, but leaves something out)\): /);
+  const drafted = personState(registry.resolveCampaign(campaignId).campaign).rumors.find((entry) => entry.id === rumor.id).draft;
+  assert.ok(drafted.text);
+  assert.equal(session.view().patrons.rumors.find((entry) => entry.id === rumor.id).draft.text, drafted.text);
+  // Written as suggested, it keeps the draft's truth.
+  assert.equal(session.run('rumors:write', { fight: { value: { id: rumor.id, text: drafted.text } } }).ok, true);
+  const written = personState(registry.resolveCampaign(campaignId).campaign).rumors.find((entry) => entry.id === rumor.id);
+  assert.equal(written.text, drafted.text);
+  assert.equal(written.truth, drafted.truth);
+});
+
+test('v0.328.0 a rumour record drafts only when the game referees', () => {
+  const system = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'aster');
+  const dice = () => createSequenceDice(Array.from({ length: 80 }, (_, index) => ((index * 5) % 6) + 1));
+  const person = rumorRecord(dice(), { id: 'r1', date: 'd', system, source: 'weekly', solo: false, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(person.text, '');
+  const solo = rumorRecord(dice(), { id: 'r1', date: 'd', system, source: 'weekly', solo: true, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(solo.letter, person.letter, 'the same throw on the matrix');
+  assert.ok(solo.text);
+});
+
+test('v0.328.0 the players\u2019 copy of the campaign carries the map, unvisited worlds as chart facts only', async () => {
+  const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+  const envelopes = [];
+  const cloud = fakeCloud();
+  const save = cloud.save;
+  cloud.save = async (home, envelope, options) => { envelopes.push(envelope); return save(home, envelope, options); };
+  const session = createPlaySession({ registry, campaignId, sector: MERIDIAN_REACH_SECTOR, cloud });
+  session.run('time:pass', { fight: { value: { amount: 1, unit: 'days' } } });
+  for (let tick = 0; tick < 6; tick += 1) await settle();
+  const map = envelopes.at(-1)?.map;
+  assert.ok(map, 'the map is published');
+  assert.equal(map.sectorName, 'Meridian Reach');
+  assert.ok(map.frame && map.borders.length >= 1);
+  const visited = new Set(sectorState(registry.resolveCampaign(campaignId).campaign).visited);
+  for (const system of map.systems) {
+    if (visited.has(system.id)) assert.equal(system.hidden, undefined);
+    else { assert.equal(system.hidden, true); assert.match(system.mainWorld.uwp, /^[A-EX]\?{6}-\?$/); assert.equal(system.notes, ''); }
+  }
+  assert.ok(map.systems.some((system) => system.id === 'orison'));
+  assert.doesNotThrow(() => JSON.parse(JSON.stringify(map)));
+});
+
+// v0.328.0: missionCandidates called getJumpDestinations without importing
+// it, so a patron found solo (or "Suggest a job") threw instead of drafting.
+test('v0.328.0 solo, a patron found drafts a mission instead of failing', async () => {
+  const { registry, campaignId, session } = await traderSolo('game');
+  const random = Math.random;
+  let result;
+  try { Math.random = () => 0.8; result = session.run('patrons:seek'); } finally { Math.random = random; }
+  assert.equal(result.ok, true, result.message);
+  const patron = personState(registry.resolveCampaign(campaignId).campaign).patron;
+  assert.ok(patron, "dice of 5: a patron on 1D 5, row 55");
+  assert.ok(patron.draft?.title, "the game wrote the job");
+});
