@@ -1573,3 +1573,11 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
    pointer, so each frame is the drawing alone. */
 .scene > svg.map.is-panning * { animation-play-state: paused !important; pointer-events: none; }
 .scene > svg.map.is-panning .system-hex:hover .subsector-hex-shape { stroke: var(--line); }
+
+/* v0.326.2: the map head stays one line, so the world captions pinned under
+   it (top: 44px) never sit over it. The title gives way (ellipsis) and the
+   Re-chart menu keeps its own width; it had taken the whole row's. */
+.map-head { flex-wrap: nowrap; min-height: 32px; }
+.map-head > span:first-child { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-head > :not(:first-child) { flex: 0 0 auto; }
+.map-head .map-rechart { width: auto; max-width: 11rem; }
