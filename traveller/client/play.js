@@ -2,17 +2,17 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.329.2';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.329.2';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.2';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.329.2';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.329.2';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.329.2';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.329.2';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.329.2';
-import { createPlayCloud } from './play-cloud.js?v=v0.329.2';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.2';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.329.2';
+import { copyDiagnostics } from './diagnostics.js?v=v0.329.3';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.329.3';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.3';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.329.3';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.329.3';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.329.3';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.329.3';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.329.3';
+import { createPlayCloud } from './play-cloud.js?v=v0.329.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.3';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.329.3';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 

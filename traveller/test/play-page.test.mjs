@@ -80,3 +80,11 @@ test('v0.329.2 who referees is chosen in Settings', async () => {
   assert.match(settings, /handlers\.onPeople\('patrons:referee', \{ referee: 'game' \}\)/);
   assert.doesNotMatch(views.slice(views.indexOf('function patronsPanel('), views.indexOf('function settingsDrawer(')), /patrons:referee/);
 });
+
+// v0.329.3 (Kurt: the seat showed almost nothing): the situation was below
+// the map, off the screen; it heads the left column now, as on the play page.
+test('v0.329.3 the seat page puts the situation and its buttons at the top of the left column', async () => {
+  const seat = await read('seat.js');
+  assert.match(seat, /\$\('now'\)\.replaceChildren\(\.\.\.\[situation, h\('section', \{ class: 'lead' \}, h\('h2', \{ text: 'You play' \}\)/);
+  assert.doesNotMatch(seat, /body\.push\(situation\)/);
+});

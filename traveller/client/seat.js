@@ -10,19 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.329.2';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.329.2';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.2';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.329.2';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.329.2';
-import { kindButton } from './kind-button.js?v=v0.329.2';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.329.2';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.329.2';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.329.2';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.329.2';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.329.2';
+import { copyDiagnostics } from './diagnostics.js?v=v0.329.3';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.329.3';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.3';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.329.3';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.329.3';
+import { kindButton } from './kind-button.js?v=v0.329.3';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.329.3';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.329.3';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.329.3';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.329.3';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.329.3';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.3';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -174,7 +174,13 @@ function renderNow() {
     : [h('p', { class: 'cite', text: currentUserId() ? 'Waiting for the referee to publish your character.' : 'Sign in from the lobby to take your seat.' })];
   const note = arriving() ? h('p', { class: 'cite', text: 'You have joined. Your referee\u2019s page brings your character into the campaign the next time it opens; until then this is your own copy.' }) : null;
   const diagnostics = h('p', { class: 'cite' }, h('button', { type: 'button', class: 'button is-small', text: 'Copy diagnostics', title: 'Copy what this page knows, to paste to Claude', onclick: () => copySeatDiagnostics() }));
-  $('now').replaceChildren(h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note, diagnostics));
+  // v0.329.3: what is happening and its buttons head the left column, as the
+  // play page's does (Kurt: below the map they were off the screen, and the
+  // seat looked like it had nothing to do). Not during a fight, which has
+  // the page.
+  const fighting = Boolean(state.envelope?.shipFight) || fightLive();
+  const situation = state.envelope && !fighting ? situationCard(state.envelope) : null;
+  $('now').replaceChildren(...[situation, h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note, diagnostics)].filter(Boolean));
 }
 
 function renderScene() {
@@ -206,9 +212,6 @@ function renderScene() {
       h('p', {}, h('b', { text: where.worldName ?? where.systemName ?? 'Somewhere' }),
         where.systemName && where.systemName !== where.worldName ? ` in the ${where.systemName} system` : ''),
       h('p', { class: 'cite', text: envelope.time ? `Date ${formatCampaignDate(envelope.time)}` : '' })));
-    // v0.329.0: what is happening, and — the game refereeing — the buttons.
-    const situation = situationCard(envelope);
-    if (situation) body.push(situation);
     const ship = envelope.ship;
     if (ship) {
       body.push(h('section', { class: 'seat-card' },
@@ -328,7 +331,7 @@ function situationCard(envelope) {
       h('span', { class: 'seat-step-title', text: `${job.title} to ${job.to}` }), h('span', { class: 'cite', text: ` ${job.due ?? ''} \u00b7 Cr ${Number(job.payCr).toLocaleString('en-US')}` })))));
   }
   if (!game) parts.push(h('p', { class: 'cite', text: 'Your referee runs the ship\u2019s business; this shows where it stands.' }));
-  return h('section', { class: 'seat-card seat-situation' }, ...parts);
+  return h('section', { class: 'lead seat-situation' }, ...parts);
 }
 
 // ---- the fight (v0.278.0) ---------------------------------------------------

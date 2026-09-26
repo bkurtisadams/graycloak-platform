@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.329.2';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.329.2';
-import { renderSectionStrip } from './section-strip.js?v=v0.329.2';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.329.3';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.329.3';
+import { renderSectionStrip } from './section-strip.js?v=v0.329.3';
 
 const DRAGGED = new Map();
 
