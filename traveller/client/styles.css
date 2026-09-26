@@ -6,6 +6,7 @@
      enough to read at a glance (about 9:1), harder rules, and one point of
      size. The monospace terminal identity is unchanged; it stops being faint. */
   --paper: #eeece4;
+  --lobby-card: #f7f5ee; /* v0.337.0: the lobby's cards and sheet panel */
   --paper-deep: #e2e0d6;
   --ink: #101210;
   --muted: #33372f;
@@ -97,6 +98,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --paper: #0f1319;
+  --lobby-card: #151b23;
   --paper-deep: #0b0f14;
   --ink: #d8dee6;
   --muted: #93a0b1;
@@ -5853,3 +5855,119 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .enter-ask-delete input { margin: 0; }
 /* v0.335.0: Discard, always there during generation, set apart from Save. */
 .enter-chargen-discard { display: flex; justify-content: flex-end; margin: 6px 0 0; }
+
+/* ---- v0.337.0: the lobby, from Kurt's approved mockup ------------------------
+   Two card grids — Characters, Campaigns — in the lobby's own look: paper,
+   monospace, bracketed buttons, green main actions; a condensed sans for
+   names. One main button per card; the rest behind [ ⋯ ]. The full sheet
+   opens in a panel from the right. */
+#enter-shell.enter-shell > .lobby { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 40px; padding: 32px; }
+.lobby .enter-join-panel { border: 2px solid var(--rule); background: var(--lobby-card); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.lobby-section { display: flex; flex-direction: column; gap: 14px; }
+.lobby-heading { display: flex; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
+.lobby-heading h2 { margin: 0; font-size: 14px; letter-spacing: 0.22em; }
+.lobby-count { font-size: 12px; color: var(--muted); }
+.lobby-spacer { flex-grow: 1; }
+.lobby .enter-ask-delete { margin: 0; font-size: 12px; letter-spacing: 0.06em; }
+.lobby .enter-ask-delete input { width: 16px; height: 16px; }
+.lobby-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.lobby-cards { display: contents; }
+@media (max-width: 1200px) { .lobby-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .lobby-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .lobby-grid { grid-template-columns: minmax(0, 1fr); } }
+.lobby-grid > .enter-empty, .lobby-cards > .enter-empty { align-self: center; margin: 0; font-size: 12px; color: var(--muted); }
+
+.lobby-add { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-height: 196px; padding: 18px; border: 2px dashed var(--action-border); }
+.lobby-add-main, .lobby-main { min-height: 44px; background: var(--action-ready); border: 1px solid var(--action-border); color: var(--ink); font: inherit; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; text-decoration: none; display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 12px; }
+.lobby-add-main { min-height: 52px; font-size: 15px; letter-spacing: 0.04em; }
+.lobby-add-main:hover, .lobby-main:hover { background: var(--action-ready-hover); }
+.lobby-add-other, .lobby-other { min-height: 44px; background: none; border: 1px solid var(--rule); color: var(--ink); font: inherit; font-size: 13px; letter-spacing: 0.08em; cursor: pointer; padding: 0 14px; }
+.lobby-add-note { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+.lobby-add-choices { display: flex; flex-direction: column; gap: 8px; }
+
+.lobby-card { display: flex; flex-direction: column; min-height: 196px; border: 2px solid var(--rule); background: var(--lobby-card); color: var(--ink); }
+.lobby-card-foot { padding: 0 14px 14px; display: flex; gap: 12px; }
+.lobby-card-foot > .lobby-main { flex-grow: 1; font-size: 13px; }
+.lobby-small { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+.lobby-label { font-size: 11px; letter-spacing: 0.14em; color: var(--muted); }
+.lobby-strong { font-size: 14px; font-weight: 700; }
+
+/* Character cards: the strip says where the character is. */
+.lobby-strip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.lobby-strip-label { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; }
+.lobby-character.is-campaign .lobby-strip { background: var(--rule); color: var(--paper); }
+.lobby-character.is-free .lobby-strip { background: var(--action-ready); }
+.lobby-character.is-waiting .lobby-strip { background: var(--paper-deep); }
+.lobby-character.is-npc .lobby-strip, .lobby-character.is-draft .lobby-strip { background: var(--paper-deep); color: var(--muted); }
+.lobby-character-body { display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 12px; flex-grow: 1; }
+.lobby-name { align-self: flex-start; background: none; border: 0; padding: 0; text-align: left; font-family: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif; font-size: 22px; font-weight: 700; color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; cursor: pointer; }
+.lobby-name.is-static { text-decoration: none; cursor: default; }
+.lobby-upp { font-size: 16px; font-weight: 700; letter-spacing: 0.16em; }
+
+/* [ ⋯ ] and its menu: plain words, Delete in the danger colour. */
+.lobby-more { list-style: none; cursor: pointer; min-width: 44px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid currentColor; font-size: 12px; padding: 0 6px; }
+.lobby-more::-webkit-details-marker { display: none; }
+.lobby .enter-more, .lobby .enter-more[open] { position: relative; display: inline-block; flex: none; flex-basis: auto; }
+.lobby .enter-more[open] > .enter-more-list.lobby-menu { display: flex; padding: 0; gap: 0; }
+.lobby-strip-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lobby .enter-more-list.lobby-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 240px; display: flex; flex-direction: column; border: 2px solid var(--rule); background: var(--lobby-card); color: var(--ink); padding: 0; gap: 0; }
+.lobby-menu-item { text-align: left; min-height: 44px; padding: 0 14px; background: none; border: 0; border-bottom: 1px solid var(--rule); font: inherit; font-size: 13px; letter-spacing: 0.06em; color: var(--ink); cursor: pointer; display: flex; align-items: center; text-decoration: none; }
+.lobby-menu-item:last-child { border-bottom: 0; }
+.lobby-menu-item:hover { background: var(--paper-deep); }
+.lobby-menu-item.is-danger { color: var(--failure-border); font-weight: 700; }
+
+/* Campaign cards: two columns wide. */
+.lobby-campaign { grid-column: span 2; min-height: 212px; }
+@media (max-width: 600px) { .lobby-campaign { grid-column: span 1; } }
+.lobby-campaign-strip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.lobby-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 8px; border: 1px solid var(--rule); }
+.lobby-byline { font-size: 11px; letter-spacing: 0.1em; color: var(--muted); }
+.lobby-campaign-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 14px; flex-grow: 1; }
+.lobby-col { display: flex; flex-direction: column; gap: 6px; }
+.lobby-campaign-name { margin: 0; font-family: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif; font-size: 26px; font-weight: 700; }
+
+/* The sheet panel (TAS Form 2), from the right. */
+.lobby-sheet { position: fixed; top: 0; right: 0; bottom: 0; z-index: 30; width: min(640px, 100vw); overflow-y: auto; background: var(--paper); border-left: 3px solid var(--rule); display: flex; flex-direction: column; gap: 16px; padding: 20px 24px; }
+.lobby-sheet[hidden] { display: none; }
+.lobby-sheet-head { display: flex; align-items: center; gap: 12px; font-size: 12px; letter-spacing: 0.18em; color: var(--muted); }
+.lobby-link-button { background: none; border: 0; font: inherit; font-size: 13px; letter-spacing: 0.08em; text-decoration: underline; text-underline-offset: 4px; color: var(--ink); min-height: 44px; cursor: pointer; }
+.lobby-sheet-body { display: flex; flex-direction: column; gap: 16px; flex-grow: 1; }
+.lobby-form { display: flex; flex-direction: column; border: 3px solid var(--rule); background: var(--lobby-card); }
+.lobby-form-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 2px solid var(--rule); }
+.lobby-form-cell { padding: 10px 14px; border-right: 2px solid var(--rule); }
+.lobby-form-cell:last-child { border-right: 0; }
+.lobby-form-cell.is-wide { grid-column: span 2; padding: 12px 14px; }
+.lobby-form-label { font-size: 10px; letter-spacing: 0.16em; color: var(--muted); }
+.lobby-form-value { font-size: 14px; font-weight: 700; }
+.lobby-form-value.is-status { letter-spacing: 0.06em; margin-top: 6px; }
+.lobby-form-cell.is-upp .lobby-form-value { font-size: 20px; letter-spacing: 0.14em; }
+.lobby-form-name { font-family: "IBM Plex Sans Condensed", "Arial Narrow", "Roboto Condensed", sans-serif; font-size: 30px; font-weight: 700; }
+.lobby-form-block { padding: 12px 14px; border-bottom: 2px solid var(--rule); display: flex; flex-direction: column; gap: 8px; }
+.lobby-form-block:last-child { border-bottom: 0; }
+.lobby-form-title { font-size: 11px; font-weight: 700; letter-spacing: 0.18em; }
+.lobby-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lobby-chip { font-size: 12px; padding: 3px 7px; border: 1px solid var(--rule); }
+.lobby-pairs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; font-size: 13px; }
+.lobby-pair-label { color: var(--muted); }
+.lobby-ship { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 2px solid var(--rule); }
+.lobby-ship .lobby-small { line-height: 1.5; letter-spacing: 0; }
+.lobby-history { border: 1px solid var(--rule); padding: 10px 14px; background: var(--lobby-card); }
+.lobby-history summary { font-size: 12px; letter-spacing: 0.14em; cursor: pointer; }
+.lobby-history .record { margin: 10px 0 0; white-space: pre-wrap; font-size: 12px; }
+.lobby-sheet-actions { display: flex; gap: 12px; margin-top: auto; }
+.lobby-sheet-actions > .lobby-main { flex-grow: 1; min-height: 48px; font-size: 14px; }
+.lobby-sheet-actions > .lobby-other { min-height: 48px; }
+
+/* v0.337.0: the lobby's masthead, as the mockup: the name spaced out, the
+   version small, the account and its buttons at the right, a 2px rule. */
+body.player-body.enter-body { grid-template-rows: auto minmax(0, 1fr); }
+body.player-body.enter-body > .masthead { height: auto; min-height: 0; padding: 0; border-top: 0; border-bottom: 2px solid var(--rule); }
+body.player-body.enter-body > .masthead .masthead-main { padding: 0; min-height: 0; border-bottom: 0; }
+.enter-body .masthead-utility { display: flex; align-items: baseline; gap: 20px; width: 100%; padding: 18px 32px 14px; }
+.enter-body .masthead-title { font-size: 20px; font-weight: 700; letter-spacing: 0.28em; }
+.enter-body .masthead .subtitle { font-size: 12px; letter-spacing: 0.12em; color: var(--muted); }
+.enter-body .masthead-campaign-name:empty { display: none; }
+.enter-body .masthead-spacer { flex-grow: 1; }
+.enter-body .masthead-account { order: 1; font-size: 12px; color: var(--muted); }
+.enter-body .masthead-utility > button, .enter-body .masthead-utility > .text-button { order: 2; }
+.enter-body #enter-status:empty { display: none; }

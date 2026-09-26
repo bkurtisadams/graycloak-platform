@@ -8,31 +8,32 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.336.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.336.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.338.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.338.0';
 // v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
-import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.336.0';
+import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.338.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
-  loadPublishedCharacter, leaveSeat, seatSelf
-} from './publish.js?v=v0.336.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.336.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.336.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.336.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.336.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.336.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.336.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.336.0';
-import { generateCharacterName } from './generators.js?v=v0.336.0';
+  loadPublishedCharacter, leaveSeat, seatSelf, loadPublishedCampaign
+} from './publish.js?v=v0.338.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.338.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.338.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.338.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.338.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.338.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.338.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.338.0';
+import { generateCharacterName } from './generators.js?v=v0.338.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome,
   isNpcRecord, setCharacterRecordRole
-} from '../src/character-record.js?v=v0.336.0';
+} from '../src/character-record.js?v=v0.338.0';
 import {
-  CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
+  CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter,
+  exportCharacterDocument
 } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 const el = {
@@ -308,7 +309,7 @@ function campaignDate(time) {
 // whenever a record or campaign changes), and it opens in place, under its
 // button, rather than floating off the edge of its column.
 let openMenu = null;
-function moreMenu(buttons, key = null) {
+function moreMenu(buttons, key = null, label = 'More') {
   const more = document.createElement('details');
   more.className = 'enter-more';
   if (key && openMenu === key) more.open = true;
@@ -317,11 +318,13 @@ function moreMenu(buttons, key = null) {
     else if (openMenu === key) openMenu = null;
   });
   const summary = document.createElement('summary');
-  summary.className = 'text-button action-button';
+  summary.className = 'lobby-more';
   summary.textContent = '[ \u22ef ]';
   summary.title = 'More';
+  summary.setAttribute('aria-label', label);
   const list = document.createElement('div');
-  list.className = 'enter-more-list';
+  list.className = 'enter-more-list lobby-menu';
+  list.setAttribute('role', 'menu');
   list.append(...buttons.filter(Boolean));
   more.append(summary, list);
   return more;
@@ -345,18 +348,73 @@ function linkButton(label, href, { primary = false, title = null } = {}) {
   return link;
 }
 
+// v0.337.0 (Kurt's approved mockup): cards in the lobby's own style — a
+// strip naming the role, the campaign's name, date and world, who you play
+// and the ship, and one main button; the rest behind [ ⋯ ].
+function el2(tag, className = '', text = null, props = {}) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== null && text !== undefined) node.textContent = text;
+  for (const [key, value] of Object.entries(props)) {
+    if (value === null || value === undefined) continue;
+    if (key === 'onclick') node.addEventListener('click', value);
+    else node.setAttribute(key, value);
+  }
+  return node;
+}
+// A menu item: plain words, left-aligned; Delete in the danger colour.
+function menuItem(label, onclick, { danger = false, title = null } = {}) {
+  return el2('button', `lobby-menu-item${danger ? ' is-danger' : ''}`, label, { type: 'button', role: 'menuitem', title, onclick });
+}
+function menuLink(label, href, { title = null } = {}) {
+  return el2('a', 'lobby-menu-item', label, { href, role: 'menuitem', title });
+}
+function mainButton(label, onclick, { title = null } = {}) {
+  return el2('button', 'lobby-main', label, { type: 'button', title, onclick });
+}
+function mainLink(label, href, { title = null } = {}) {
+  return el2('a', 'lobby-main', label, { href, title });
+}
+function worldLine(summary) {
+  const where = summary?.location ?? {};
+  const world = where.worldName ?? where.systemName ?? null;
+  const system = where.systemName && where.worldName && where.systemName !== where.worldName ? ` (${where.systemName})` : '';
+  return [campaignDate(summary?.time), world ? `${world}${system}` : 'UNMAPPED'].join(' \u00b7 ').toUpperCase();
+}
+function sectorLine(summary) {
+  return [summary?.sectorName, summary?.subsectorName].filter(Boolean).join(' \u00b7 ').toUpperCase();
+}
+function campaignCardFrame({ role, byline, menu, name, left = [], right = [], main }) {
+  const card = el2('article', 'lobby-card lobby-campaign');
+  const strip = el2('div', 'lobby-campaign-strip');
+  strip.append(el2('span', 'lobby-badge', role));
+  if (byline) strip.append(el2('span', 'lobby-byline', byline));
+  strip.append(el2('span', 'lobby-spacer'));
+  if (menu) strip.append(menu);
+  const body = el2('div', 'lobby-campaign-body');
+  const leftCol = el2('div', 'lobby-col');
+  leftCol.append(el2('h3', 'lobby-campaign-name', name), ...left.filter(Boolean));
+  const rightCol = el2('div', 'lobby-col');
+  rightCol.append(...right.filter(Boolean));
+  body.append(leftCol, rightCol);
+  const foot = el2('div', 'lobby-card-foot');
+  if (main) foot.append(main);
+  card.append(strip, body, foot);
+  return card;
+}
+const small = (text) => el2('div', 'lobby-small', text);
+const label = (text) => el2('div', 'lobby-label', text);
+const strong = (text) => el2('div', 'lobby-strong', text);
+function refereeLine(summary) {
+  return summary?.refereeMode === 'game' ? 'THE GAME REFEREES' : 'YOU REFEREE';
+}
+function shipOf(summary) {
+  if (!summary?.shipName) return null;
+  return `${summary.shipName}${summary.shipTypeCode ? ` \u00b7 Type ${summary.shipTypeCode}` : ''}`;
+}
+
 function refereeCard(campaign) {
-  const row = document.createElement('div');
-  row.className = 'enter-character enterable';
-  const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = (campaign.name || campaign.campaignId).toUpperCase();
-  const role = document.createElement('span'); role.className = 'enter-character-summary'; role.textContent = 'REFEREE';
-  const state = document.createElement('span'); state.className = 'enter-character-state';
-  state.textContent = `${campaignDate(campaign.time)} / ${String(campaign.location?.worldName ?? campaign.location?.systemName ?? 'UNMAPPED').toUpperCase()}`;
-  const tools = document.createElement('div'); tools.className = 'enter-character-tools';
-    const rename = document.createElement('button');
-    rename.type = 'button'; rename.className = 'text-button action-button';
-    rename.textContent = '[ RENAME ]';
-    rename.addEventListener('click', async () => {
+  const rename = menuItem('Rename', async () => {
       const name = await askText({ title: 'Rename campaign', message: 'Name for this campaign', value: campaign.name && campaign.name !== 'Unnamed Campaign' ? campaign.name : '', confirm: 'Rename' });
       if (name === null) return;
       const wanted = name.trim();
@@ -370,11 +428,7 @@ function refereeCard(campaign) {
       } catch (error) { setStatus(error?.message ?? String(error), 'error'); }
     });
 
-    const remove = document.createElement('button');
-    remove.type = 'button'; remove.className = 'text-button action-button';
-    remove.textContent = '[ DELETE ]';
-    remove.title = 'Remove this campaign from the cloud and this browser';
-    remove.addEventListener('click', async () => {
+  const remove = menuItem('Delete\u2026', async () => {
       const label = campaign.name || campaign.campaignId;
       // A campaign with history deserves a typed confirmation; an untouched
       // one only needs a yes. Trimmed and case-insensitive — the point is
@@ -397,8 +451,8 @@ function refereeCard(campaign) {
       if (!ok) { if (played) setStatus(`DELETE CANCELLED: typed "${typed}", needed "${label}".`, 'error'); return; }
       try {
         setStatus('DELETING\u2026');
-        // v0.273.0: characters seated here are sent back to the lobby as
-        // part of the delete (publish.js), before the campaign goes.
+        // v0.273.0: characters in this campaign are sent back to the lobby
+        // as part of the delete (publish.js), before the campaign goes.
         const released = await deleteCampaignHome(campaign.campaignId, { seatedCharacterIds: [
           ...(campaign.seatedCharacterIds ?? []),
           ...records.filter((record) => record.world?.campaignId === campaign.campaignId).map((record) => record.characterId)
@@ -410,48 +464,80 @@ function refereeCard(campaign) {
         console.error(error);
         setStatus(`DELETE FAILED: ${error?.code === 'permission-denied' ? 'THE CLOUD REFUSED IT (ARE YOU SIGNED IN AS ITS REFEREE?)' : String(error?.message ?? error).toUpperCase()}`, 'error');
       }
-    });
+    }, { danger: true, title: 'Remove this campaign from the cloud and this browser' });
 
-  const link = textButton('[ COPY JOIN LINK ]', () => copyJoinLink(campaign), { title: 'Copy the link players open to join this campaign' });
-  rename.textContent = '[ RENAME ]';
-  tools.append(
-    linkButton('[ OPEN ]', `play.html?campaign=${encodeURIComponent(campaign.campaignId)}`, { primary: true }),
-    moreMenu([link, rename, linkButton('[ REFEREE TOOLS ]', `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`, { title: 'The older referee page: scenes, the tactical grid, settings, export' }), remove], `campaign:${campaign.campaignId}`));
-  row.append(name, role, state, tools);
-  return row;
+  const link = menuItem('Copy join link', () => copyJoinLink(campaign), { title: 'Copy the link players open to join this campaign' });
+  const tools = menuLink('Referee tools (older page)', `index.html?campaign=${encodeURIComponent(campaign.campaignId)}`, { title: 'The older referee page: scenes, the tactical grid, settings, export' });
+  const players = (campaign.seatedCharacterIds ?? []).length;
+  return campaignCardFrame({
+    role: 'REFEREE',
+    byline: refereeLine(campaign),
+    menu: moreMenu([link, rename, tools, remove], `campaign:${campaign.campaignId}`, `More for ${campaign.name ?? 'this campaign'}`),
+    name: campaign.name || campaign.campaignId,
+    left: [small(worldLine(campaign)), sectorLine(campaign) ? small(sectorLine(campaign)) : null],
+    right: [label('PLAYERS\u2019 CHARACTERS'), strong(String(players)), shipOf(campaign) ? label('TRAVELLING IN') : null, shipOf(campaign) ? strong(shipOf(campaign)) : null],
+    main: mainLink('[ OPEN ]', `play.html?campaign=${encodeURIComponent(campaign.campaignId)}`)
+  });
 }
 
+// A campaign you play in has no [ ⋯ ]: leaving belongs to the character.
 function playerCard(record, waiting) {
-  const campaignName = waiting ? (record.pendingJoin.campaignName || record.pendingJoin.campaignId) : (record.world.campaignName || record.world.campaignId);
-  const row = document.createElement('div');
-  row.className = `enter-character${waiting ? '' : ' enterable'}`;
-  const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = String(campaignName).toUpperCase();
-  const role = document.createElement('span'); role.className = 'enter-character-summary'; role.textContent = `PLAYING ${record.name.toUpperCase()}`;
-  const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = waiting ? 'WAITING FOR THE REFEREE TO LET YOU IN' : '';
-  const tools = document.createElement('div'); tools.className = 'enter-character-tools';
-  if (waiting) tools.append(moreMenu([textButton('[ WITHDRAW ]', () => withdrawJoin(record))], `waiting:${record.characterId}`));
-  else {
-    tools.append(
-      linkButton('[ OPEN ]', `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`, { primary: true }),
-      moreMenu([textButton('[ LEAVE ]', () => leaveCampaign(record), { title: `${record.name} comes home with everything that happened there` })], `playing:${record.characterId}`));
+  const campaignId = waiting ? record.pendingJoin.campaignId : record.world.campaignId;
+  const campaignName = waiting ? (record.pendingJoin.campaignName || campaignId) : (record.world.campaignName || campaignId);
+  const summary = playedCampaigns.get(campaignId) ?? null;
+  if (waiting) {
+    return campaignCardFrame({
+      role: 'WAITING', byline: 'FOR THE REFEREE TO LET YOU IN', menu: null, name: campaignName,
+      left: [small(`${record.name} asked to join.`)],
+      right: [label('YOU PLAY'), strong(record.name)],
+      main: mainButton('[ WITHDRAW ]', () => withdrawJoin(record))
+    });
   }
-  row.append(name, role, state, tools);
-  return row;
+  return campaignCardFrame({
+    role: 'PLAYER',
+    byline: [summary?.refereeName ? `REFEREE: ${String(summary.refereeName).toUpperCase()}` : null, summary?.refereeMode === 'game' ? 'THE GAME REFEREES' : null].filter(Boolean).join(' \u00b7 '),
+    menu: null,
+    name: campaignName,
+    left: [summary ? small(worldLine(summary)) : null, sectorLine(summary) ? small(sectorLine(summary)) : null],
+    right: [label('YOU PLAY'), strong(record.name), shipOf(summary) ? label('TRAVELLING IN') : null, shipOf(summary) ? strong(shipOf(summary)) : null],
+    main: mainLink('[ OPEN ]', `seat.html?campaign=${encodeURIComponent(campaignId)}`)
+  });
 }
 
+// v0.337.0: + NEW CAMPAIGN opens the choice of a free character inside its
+// own card: "Which of your characters starts it?"
 let newCampaignOpen = false;
-function newCampaignRow() {
-  const wrap = document.createElement('div');
-  wrap.className = 'enter-new-campaign';
-  const toggle = textButton(newCampaignOpen ? '[ CANCEL ]' : '[ NEW CAMPAIGN ]', () => { newCampaignOpen = !newCampaignOpen; render(); });
-  wrap.append(toggle);
-  if (newCampaignOpen) {
-    const free = records.filter((record) => !record.pendingJoin && !isNpcRecord(record) && characterRecordStatus(record).enter === null);
-    const note = document.createElement('p'); note.className = 'enter-toolbar-note';
-    note.textContent = free.length ? 'Which of your characters starts it?' : 'None of your characters is free. Roll one first, or leave a campaign.';
-    wrap.append(note, ...free.map((record) => linkButton(`[ START WITH ${record.name.toUpperCase()} ]`, `index.html?start=${encodeURIComponent(record.characterId)}`, { primary: true })));
+function renderNewCampaign() {
+  const box = document.querySelector('#enter-new-campaign-choices');
+  const button = document.querySelector('#enter-new-campaign');
+  if (!box || !button) return;
+  button.textContent = newCampaignOpen ? '[ CANCEL ]' : '[ + NEW CAMPAIGN ]';
+  box.hidden = !newCampaignOpen;
+  if (!newCampaignOpen) { box.replaceChildren(); return; }
+  const free = records.filter((record) => !record.pendingJoin && !isNpcRecord(record) && characterRecordStatus(record).enter === null);
+  box.replaceChildren(
+    el2('p', 'lobby-add-note', free.length ? 'Which of your characters starts it?' : 'None of your characters is free. Roll one first, or take one out of a campaign.'),
+    ...free.map((record) => mainLink(`[ START WITH ${record.name.toUpperCase()} ]`, `index.html?start=${encodeURIComponent(record.characterId)}`)));
+}
+
+// Campaigns you play in: their players' copy (name, date, world, ship) is
+// read once per visit, as the referee's own come from listOwnCampaigns.
+const playedCampaigns = new Map();
+const playedLoading = new Set();
+async function loadPlayedCampaign(campaignId) {
+  if (!campaignId || playedCampaigns.has(campaignId) || playedLoading.has(campaignId)) return;
+  playedLoading.add(campaignId);
+  try {
+    const envelope = await loadPublishedCampaign(campaignId);
+    playedCampaigns.set(campaignId, envelope ? campaignHomeSummary(envelope) : null);
+  } catch (error) {
+    // Asked once a visit: a campaign that cannot be read shows its name only.
+    playedCampaigns.set(campaignId, null);
+    console.warn('[traveller-lobby] campaign summary:', campaignId, error?.code ?? error);
+  } finally {
+    playedLoading.delete(campaignId);
   }
-  return wrap;
+  render();
 }
 
 function renderCampaigns() {
@@ -459,10 +545,12 @@ function renderCampaigns() {
   const playing = records.filter((record) => record.world?.kind === WORLD_KINDS.CAMPAIGN && record.world.campaignId
     && !campaigns.some((campaign) => campaign.campaignId === record.world.campaignId));
   const waiting = records.filter((record) => record.pendingJoin?.campaignId);
+  for (const record of playing) loadPlayedCampaign(record.world.campaignId);
   const cards = [...campaigns.map(refereeCard), ...playing.map((record) => playerCard(record, false)), ...waiting.map((record) => playerCard(record, true))];
-  el.campaignList.replaceChildren(newCampaignRow(), ...(cards.length ? cards : [Object.assign(document.createElement('div'), {
-    className: 'enter-empty', textContent: 'NO CAMPAIGNS YET. START ONE, OR OPEN A REFEREE\u2019S JOIN LINK.'
-  })]));
+  const count = document.querySelector('#enter-campaign-count');
+  if (count) count.textContent = String(cards.length);
+  renderNewCampaign();
+  el.campaignList.replaceChildren(...(cards.length ? cards : [el2('p', 'enter-empty', 'NO CAMPAIGNS YET. START ONE, OR OPEN A REFEREE\u2019S JOIN LINK.')]));
 }
 
 function recordSummary(record) {
@@ -471,130 +559,229 @@ function recordSummary(record) {
   return `${character.upp} / ${String(career.service ?? 'no service').toUpperCase()}${career.rankTitle ? ` / ${career.rankTitle.toUpperCase()}` : ''} / AGE ${character.age} / ${Object.keys(character.skills ?? {}).length} SKILLS`;
 }
 
-function renderCharacterRow(record) {
+// v0.337.0 (Kurt's approved mockup): a character card — a strip saying
+// where the character is, the name (it opens the sheet), UPP, career and
+// age, a mustering-out ship, and one main button for what comes next.
+const SERVICE_NOUN = Object.freeze({ navy: 'NAVY', marines: 'MARINE', army: 'ARMY', scouts: 'SCOUT', merchants: 'MERCHANT', other: 'OTHER' });
+// One age everywhere: the physical age the character document keeps.
+function ageOf(c) {
+  return Number.isFinite(c?.chronology?.chronologicalAgeMonths) ? Math.floor(c.chronology.chronologicalAgeMonths / 12) : c?.age;
+}
+function careerLine(c) {
+  const career = c?.career ?? {};
+  const who = [SERVICE_NOUN[career.service] ?? String(career.service ?? 'NO SERVICE').toUpperCase(), career.rankTitle ? String(career.rankTitle).toUpperCase() : null].filter(Boolean).join(' ');
+  const terms = career.terms ? `${career.terms} TERM${career.terms === 1 ? '' : 'S'}` : null;
+  return [who, terms, Number.isFinite(ageOf(c)) ? `AGE ${ageOf(c)}` : null].filter(Boolean).join(' \u00b7 ');
+}
+// A ship the character holds, or one rolled on mustering out and not yet
+// brought into play (Book 1 pp.22-23).
+function shipLines(c, record = null) {
+  const lines = [];
+  // v0.338.0: in a campaign, the players' copy knows what became of a
+  // mustering-out ship (brought in, named) before this lobby copy does.
+  const played = record?.world?.campaignId ? playedCampaigns.get(record.world.campaignId)?.ships ?? null : null;
+  if (played) {
+    for (const ship of played.held ?? []) {
+      if (ship.holderCharacterId !== record.characterId) continue;
+      lines.push({ short: `${String(ship.typeName ?? `Type ${ship.typeCode ?? '?'}`).toUpperCase()} \u00b7 ${String(ship.name).toUpperCase()}`, built: true, ref: { shipName: ship.name, shipType: ship.typeCode }, published: ship });
+    }
+    for (const entry of played.waiting ?? []) {
+      if (entry.characterId !== record.characterId) continue;
+      lines.push(entry.benefit === 'Free Trader'
+        ? { short: 'TYPE A FREE TRADER (BENEFIT)', built: false, name: 'Type A Free Trader', receipts: (c?.benefits?.shipEntitlements ?? []).find((e) => e.name === 'Free Trader')?.rolls ?? 1 }
+        : { short: 'TYPE S SCOUT (BENEFIT)', built: false, name: 'Type S Scout/Courier', receipts: 1 });
+    }
+    return lines;
+  }
+  for (const ref of c?.shipRefs ?? []) {
+    const kind = ref.shipType === 'A' ? 'TYPE A FREE TRADER' : ref.shipType === 'S' ? 'TYPE S SCOUT' : `TYPE ${ref.shipType || '?'}`;
+    lines.push({ short: `${kind}${ref.shipName ? ` \u00b7 ${String(ref.shipName).toUpperCase()}` : ''}`, built: true, ref });
+  }
+  for (const entry of c?.benefits?.shipEntitlements ?? []) {
+    const trader = entry.name === 'Free Trader' && entry.disposition === 'unresolved';
+    const scout = entry.name === 'Scout Ship' && entry.disposition === 'reserve-assignment-available';
+    if (trader) lines.push({ short: 'TYPE A FREE TRADER (BENEFIT)', built: false, name: 'Type A Free Trader', receipts: entry.rolls ?? 1 });
+    if (scout) lines.push({ short: 'TYPE S SCOUT (BENEFIT)', built: false, name: 'Type S Scout/Courier', receipts: 1 });
+  }
+  return lines;
+}
+function characterState(record) {
   const status = characterRecordStatus(record);
-  const row = document.createElement('div');
-  row.className = `enter-character${status.enter ? ' enterable' : ''}${selectedRecord()?.characterId === record.characterId ? ' is-selected' : ''}`;
-  row.tabIndex = 0;
-  // v0.290.0: nor the [ ⋯ ] menu, whose click re-rendered the list and shut it.
-  row.addEventListener('click', (event) => { if (event.target.closest('button, a, input, summary, details')) return; selectCharacter(record); });
-  row.addEventListener('keydown', (event) => { if (event.key === 'Enter' && event.target === row) selectCharacter(record); });
-  const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = record.name.toUpperCase();
-  const summary = document.createElement('span'); summary.className = 'enter-character-summary'; summary.textContent = recordSummary(record);
-  const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = status.label;
-  const tools = document.createElement('div'); tools.className = 'enter-character-tools';
+  if (status.enter === 'campaign') return { key: 'campaign', label: `IN ${String(record.world.campaignName ?? 'A CAMPAIGN').toUpperCase()}` };
+  if (status.enter === 'solo') return { key: 'solo', label: 'SOLO WORLD (NOT YET OPEN)' };
+  if (record.pendingJoin) return { key: 'waiting', label: `WAITING FOR ${String(record.pendingJoin.campaignName ?? 'A CAMPAIGN').toUpperCase()}` };
+  if (isNpcRecord(record)) return { key: 'npc', label: 'NPC' };
+  return { key: 'free', label: 'FREE' };
+}
+// The one thing to do next with this character.
+function characterMain(record) {
+  const state = characterState(record);
+  if (state.key === 'campaign') return mainLink(`[ OPEN ${String(record.world.campaignName ?? 'CAMPAIGN').toUpperCase()} ]`, `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`);
+  if (state.key === 'waiting') return mainButton('[ WITHDRAW ]', () => withdrawJoin(record), { title: 'Stop waiting to join' });
+  if (state.key === 'npc') return mainButton('[ VIEW SHEET ]', () => openSheet(record));
+  if (state.key === 'free') return mainLink('[ START A CAMPAIGN ]', `index.html?start=${encodeURIComponent(record.characterId)}`, { title: 'Referee a new campaign that starts with this character; to join someone else\u2019s, open their join link' });
+  return mainButton('[ VIEW SHEET ]', () => openSheet(record));
+}
+function characterMenu(record) {
+  const state = characterState(record);
+  const items = [
+    menuItem('View sheet', () => openSheet(record)),
+    menuItem('Export character file', () => exportRecord(record)),
+    state.key === 'campaign' ? menuItem(`Leave ${record.world.campaignName ?? 'the campaign'}`, () => leaveCampaign(record), { title: `${record.name} comes home with everything that happened there` }) : null,
+    state.key === 'waiting' ? menuItem('Withdraw', () => withdrawJoin(record)) : null,
+    state.key === 'free' ? menuItem('Make NPC', () => changeRole(record, 'npc')) : null,
+    state.key === 'npc' ? menuItem('Make playable', () => changeRole(record, 'pc')) : null,
+    menuItem('Delete\u2026', () => removeRecord(record), { danger: true })
+  ];
+  return moreMenu(items.filter(Boolean), `character:${record.characterId}`, `More for ${record.name}`);
+}
 
-  // v0.289.0: a character row says where it is and offers only Delete;
-  // playing, leaving and joining happen from the campaign cards and a
-  // referee's join link.
-  if (status.enter === 'solo') state.textContent = 'SOLO WORLD (NOT YET OPEN)';
-  else if (status.enter === 'campaign') state.textContent = `IN ${String(record.world.campaignName ?? 'A CAMPAIGN').toUpperCase()}`;
-  else if (record.pendingJoin) state.textContent = `WAITING FOR ${String(record.pendingJoin.campaignName ?? 'A CAMPAIGN').toUpperCase()}`;
-  else state.textContent = isNpcRecord(record) ? 'NPC' : 'FREE';
-  // v0.335.0: an NPC is kept for the referee's use; it can be made playable.
-  const free = !status.enter && !record.pendingJoin;
-  const roleButton = free ? textButton(isNpcRecord(record) ? '[ MAKE PLAYABLE ]' : '[ MAKE NPC ]', () => changeRole(record, isNpcRecord(record) ? 'pc' : 'npc')) : null;
-  tools.append(moreMenu([roleButton, textButton('[ DELETE ]', () => removeRecord(record))].filter(Boolean), `character:${record.characterId}`));
-  row.append(name, summary, state, tools);
-
-  return row;
+function renderCharacterRow(record) {
+  const c = record.character ?? {};
+  const state = characterState(record);
+  const card = el2('article', `lobby-card lobby-character is-${state.key}`);
+  const strip = el2('div', 'lobby-strip');
+  strip.append(el2('span', 'lobby-strip-label', state.label), el2('span', 'lobby-spacer'), characterMenu(record));
+  const body = el2('div', 'lobby-character-body');
+  body.append(
+    el2('button', 'lobby-name', record.name, { type: 'button', title: `Open ${record.name}\u2019s sheet`, onclick: () => openSheet(record) }),
+    el2('div', 'lobby-upp', c.upp ?? '------'),
+    small(careerLine(c)),
+    ...shipLines(c, record).map((line) => small(line.short)));
+  const foot = el2('div', 'lobby-card-foot');
+  foot.append(characterMain(record));
+  card.append(strip, body, foot);
+  return card;
 }
 
 // v0.69.1: a character in generation is offered on the list, not imposed.
 function renderDraftRow() {
   const draft = loadDraft();
   if (!draft) return null;
-  const row = document.createElement('div');
-  row.className = 'enter-character enter-draft';
-  const name = document.createElement('strong'); name.className = 'enter-character-name'; name.textContent = (draft.name || 'UNNAMED').toUpperCase();
-  const summary = document.createElement('span'); summary.className = 'enter-character-summary';
-  summary.textContent = `IN GENERATION / ${draft.service ? String(draft.service).toUpperCase() : 'NO SERVICE YET'} / AGE ${draft.age} / TERM ${draft.currentTerm?.number ?? draft.terms}`;
-  const state = document.createElement('span'); state.className = 'enter-character-state'; state.textContent = 'NOT YET SAVED';
-  const tools = document.createElement('div'); tools.className = 'enter-character-tools';
-  const resume = document.createElement('button');
-  resume.type = 'button'; resume.className = 'text-button action-button campaign-transition-action'; resume.textContent = '[ RESUME ]';
-  resume.addEventListener('click', () => startChargen(draft));
-  const discard = document.createElement('button');
-  discard.type = 'button'; discard.className = 'text-button action-button'; discard.textContent = '[ DISCARD ]';
-  discard.addEventListener('click', async () => {
+  const card = el2('article', 'lobby-card lobby-character is-draft');
+  const strip = el2('div', 'lobby-strip');
+  const discard = menuItem('Discard\u2026', async () => {
     if (!(await askBeforeDeleting({ title: 'Discard', message: 'Discard the character in generation?', confirm: 'Discard' }))) return;
     character = null; saveDraft(); render();
-  });
-  tools.append(resume, discard);
-  row.append(name, summary, state, tools);
-  return row;
+  }, { danger: true });
+  strip.append(el2('span', 'lobby-strip-label', 'IN GENERATION'), el2('span', 'lobby-spacer'), moreMenu([discard], 'draft', 'More for the character in generation'));
+  const body = el2('div', 'lobby-character-body');
+  body.append(
+    el2('div', 'lobby-name is-static', draft.name || '(Unnamed)'),
+    el2('div', 'lobby-upp', draft.upp ?? '------'),
+    small(`${draft.service ? String(draft.service).toUpperCase() : 'NO SERVICE YET'} \u00b7 AGE ${draft.age} \u00b7 TERM ${draft.currentTerm?.number ?? draft.terms}`),
+    small('NOT YET SAVED'));
+  const foot = el2('div', 'lobby-card-foot');
+  foot.append(mainButton('[ RESUME ]', () => startChargen(draft)));
+  card.append(strip, body, foot);
+  return card;
 }
 
-// v0.199.0: the character you pick reads in full in the centre column.
+// A character's file, as a download (the same document Load a character
+// file reads back).
+function exportRecord(record) {
+  try {
+    const text = exportCharacterDocument(record.character, { space: 2 });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    link.download = `${String(record.name || 'character').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'character'}.character.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
+// v0.337.0: the full sheet opens in a panel from the right (TAS Form 2),
+// from a card's name or View sheet, instead of always filling the centre.
 let selectedCharacterId = null;
+let sheetOpen = false;
 
 function selectedRecord() {
-  if (!records.length) return null;
-  return records.find((record) => record.characterId === selectedCharacterId) ?? records[0];
+  if (!records.length || !selectedCharacterId) return null;
+  return records.find((record) => record.characterId === selectedCharacterId) ?? null;
 }
 
-function selectCharacter(record) {
+function openSheet(record) {
   selectedCharacterId = record?.characterId ?? null;
+  sheetOpen = Boolean(record);
+  render();
+  document.querySelector('#enter-sheet-close')?.focus();
+}
+function closeSheet() {
+  sheetOpen = false;
   render();
 }
 
 function renderSelectedCharacter() {
-  if (!el.selected) return;
-  const record = selectedRecord();
-  if (!record) {
-    el.selected.replaceChildren(Object.assign(document.createElement('div'), { className: 'enter-empty', textContent: 'PICK A CHARACTER, OR ROLL ONE.' }));
-    return;
-  }
+  const panel = document.querySelector('#enter-sheet-panel');
+  const record = sheetOpen ? selectedRecord() : null;
+  if (panel) panel.hidden = !record;
+  if (!el.selected || !record) return;
   const c = record.character ?? {};
-  const status = characterRecordStatus(record);
-  const sheet = document.createElement('article');
-  sheet.className = 'traveller-character-sheet enter-record';
-  const banner = document.createElement('header');
-  banner.className = 'sheet-banner';
-  banner.innerHTML = '<div><span class="sheet-number">PERSONAL DATA AND HISTORY</span><strong></strong></div><div><span>STATUS</span><strong></strong></div>';
-  banner.querySelectorAll('strong')[0].textContent = record.name;
-  banner.querySelectorAll('strong')[1].textContent = status.label;
-  sheet.append(banner);
-  const grid = document.createElement('div');
-  grid.className = 'sheet-identity-grid';
-  const cell = (label, value) => {
-    const box = document.createElement('div');
-    box.append(Object.assign(document.createElement('span'), { textContent: label }), Object.assign(document.createElement('strong'), { textContent: value }));
+  const state = characterState(record);
+  const career = c.career ?? {};
+  const form = el2('div', 'lobby-form');
+  const cell = (labelText, value, extra = '') => {
+    const box = el2('div', `lobby-form-cell${extra}`);
+    box.append(el2('div', 'lobby-form-label', labelText), el2('div', 'lobby-form-value', value));
     return box;
   };
-  const career = c.career ?? {};
-  const ageYears = Number.isFinite(c.chronology?.chronologicalAgeMonths) ? Math.floor(c.chronology.chronologicalAgeMonths / 12) : (c.age ?? '--');
-  grid.append(
-    cell('UPP', c.upp ?? '------'),
-    cell('SERVICE', `${String(career.service ?? 'none').toUpperCase()}${career.terms ? ` · ${career.terms} TERM${career.terms === 1 ? '' : 'S'}` : ''}`),
-    cell('RANK', career.rankTitle ?? '--'),
-    cell('AGE', String(ageYears)),
-    cell('WORLD', record.world?.kind === 'campaign' ? (record.world.campaignName ?? record.world.campaignId ?? 'A CAMPAIGN').toUpperCase() : 'UNASSIGNED'),
-    cell('CASH', `Cr${Number(c.finances?.credits ?? 0).toLocaleString()}`)
-  );
-  sheet.append(grid);
-  const block = (title, body) => {
-    const section = document.createElement('section');
-    section.className = 'sheet-block';
-    section.append(Object.assign(document.createElement('h3'), { textContent: title }), body);
+  const row = (...cells) => { const r = el2('div', 'lobby-form-row'); r.append(...cells); return r; };
+  const nameCell = el2('div', 'lobby-form-cell is-wide');
+  nameCell.append(el2('div', 'lobby-form-label', 'NAME'), el2('div', 'lobby-form-name', record.name));
+  const statusCell = el2('div', 'lobby-form-cell');
+  statusCell.append(el2('div', 'lobby-form-label', 'STATUS'), el2('div', 'lobby-form-value is-status', state.label));
+  const ageYears = ageOf(c) ?? '--';
+  form.append(
+    row(nameCell, statusCell),
+    row(cell('UPP', c.upp ?? '------', ' is-upp'), cell('SERVICE', `${String(career.service ?? 'none').toUpperCase()}${career.terms ? ` \u00b7 ${career.terms} TERM${career.terms === 1 ? '' : 'S'}` : ''}`), cell('RANK', String(career.rankTitle ?? '--').toUpperCase())),
+    row(cell('AGE', String(ageYears)), cell('CASH', `Cr${Number(c.finances?.credits ?? 0).toLocaleString('en-US')}`), cell('RETIREMENT PAY', c.finances?.retirementPayAnnual > 0 ? `Cr${c.finances.retirementPayAnnual.toLocaleString('en-US')} / YEAR` : 'NONE')));
+  const block = (title, ...children) => {
+    const section = el2('section', 'lobby-form-block');
+    section.append(el2('div', 'lobby-form-title', title), ...children);
     return section;
   };
-  const skills = document.createElement('div');
-  skills.className = 'sheet-skills';
+  const skills = el2('div', 'lobby-chips');
   const skillEntries = Object.entries(c.skills ?? {}).filter(([, level]) => level > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  if (!skillEntries.length) skills.textContent = 'NO SKILLS';
-  for (const [name, level] of skillEntries) skills.append(Object.assign(document.createElement('span'), { className: 'sheet-skill', textContent: `${name}-${level}` }));
-  sheet.append(block('SKILLS', skills));
-  const kit = document.createElement('dl');
-  kit.className = 'sheet-data-list';
-  const datum = (label, value) => { kit.append(Object.assign(document.createElement('dt'), { textContent: label }), Object.assign(document.createElement('dd'), { textContent: value })); };
-  datum('READY WEAPON', String(c.loadout?.weaponKey ?? 'none').replace(/-/g, ' ').toUpperCase());
-  datum('WORN ARMOR', String(c.loadout?.armor ?? 'none').toUpperCase());
-  const benefits = Array.isArray(c.benefits) ? c.benefits : [];
-  if (benefits.length) datum('BENEFITS', benefits.map((b) => (typeof b === 'string' ? b : b?.label ?? b?.kind ?? '')).filter(Boolean).join(' · '));
-  if (Number.isFinite(c.finances?.retirementPayAnnual) && c.finances.retirementPayAnnual > 0) datum('RETIREMENT PAY', `Cr${c.finances.retirementPayAnnual.toLocaleString()} / YEAR`);
-  sheet.append(block('EQUIPMENT AND BENEFITS', kit));
-  el.selected.replaceChildren(sheet);
+  if (!skillEntries.length) skills.append(small('NO SKILLS'));
+  for (const [name, level] of skillEntries) skills.append(el2('span', 'lobby-chip', `${name}-${level}`));
+  const kit = el2('div', 'lobby-pairs');
+  kit.append(el2('span', 'lobby-pair-label', 'READY WEAPON'), el2('span', '', String(c.loadout?.weaponKey ?? 'none').replace(/-/g, ' ').replace(/^./, (x) => x.toUpperCase())),
+    el2('span', 'lobby-pair-label', 'WORN ARMOR'), el2('span', '', String(c.loadout?.armor ?? 'none').replace(/^./, (x) => x.toUpperCase())));
+  const ships = shipLines(c, record).map((line) => {
+    const box = el2('div', 'lobby-ship');
+    if (line.built) {
+      const m = line.published?.mortgage;
+      const owes = m ? ` ${m.paymentsRemaining} payments of Cr${Number(m.monthlyPaymentCr).toLocaleString('en-US')} owed${m.nextDueDate ? `, next due ${m.nextDueDate}` : ''}.` : '';
+      const where = line.published ? (line.published.active ? ' The travellers\u2019 ship.' : line.published.berthedAt ? ` Berthed at ${line.published.berthedAt}.` : '') : '';
+      box.append(el2('div', 'lobby-strong', line.ref.shipName || line.short), small(`${line.ref.shipType === 'A' ? 'Type A Free Trader, owned' : line.ref.shipType === 'S' ? 'Type S Scout/Courier, on reserve from the Scout Service' : 'Ship'}.${where}${owes}`));
+    } else {
+      const campaignName = state.key === 'campaign' ? (record.world.campaignName ?? 'the campaign') : null;
+      const owed = line.name === 'Type A Free Trader' ? `, with ${Math.max(0, 480 - 120 * (line.receipts - 1))} payments of Cr154,500 owed from that day` : '';
+      box.append(el2('div', 'lobby-strong', line.name),
+        small(`Mustering-out benefit (Book 1 pp.22\u201323). Not yet in play: ${campaignName ? `the referee of ${campaignName} brings it in from the Travellers tab${owed}.` : `it comes into play with a campaign this character joins or starts${owed}.`}`));
+    }
+    return box;
+  });
+  const others = [
+    ...(c.benefits?.passages ?? []).map((entry) => `${entry.name}${entry.count > 1 ? ` \u00d7${entry.count}` : ''}`),
+    ...(c.benefits?.memberships ?? []).map((entry) => entry.name),
+    ...(c.benefits?.equipment ?? []).map((entry) => `${entry.name}${entry.count > 1 ? ` \u00d7${entry.count}` : ''}`)
+  ];
+  form.append(
+    block('SKILLS', skills),
+    block('EQUIPMENT', kit),
+    block('SHIPS AND BENEFITS', ...(ships.length ? ships : [small('NO SHIP')]), small(others.length ? others.join(' \u00b7 ') : 'NO OTHER BENEFITS')));
+  const history = el2('details', 'lobby-history');
+  history.append(el2('summary', '', 'SERVICE AND GENERATION HISTORY'),
+    el2('pre', 'record', (c.history ?? []).map((event) => { try { return formatHistoryEvent(event); } catch { return ''; } }).filter(Boolean).join('\n') || 'No history recorded.'));
+  const actions = el2('div', 'lobby-sheet-actions');
+  const main = characterMain(record);
+  if (main.textContent !== '[ VIEW SHEET ]') actions.append(main);
+  actions.append(el2('button', 'lobby-other', '[ EXPORT ]', { type: 'button', onclick: () => exportRecord(record) }));
+  el.selected.replaceChildren(form, history, actions);
 }
 
 // v0.284.0: arriving by a campaign's join link, the lobby asks which of
@@ -685,11 +872,10 @@ async function copyJoinLink(campaign) {
 function renderCharacters() {
   renderJoinPanel();
   const draftRow = renderDraftRow();
+  const count = document.querySelector('#enter-character-count');
+  if (count) count.textContent = String(records.length);
   if (!records.length && !draftRow) {
-    const empty = document.createElement('div');
-    empty.className = 'enter-empty';
-    empty.textContent = 'YOU HAVE NO CHARACTERS YET. ROLL ONE TO BEGIN.';
-    el.list.replaceChildren(empty);
+    el.list.replaceChildren(el2('p', 'enter-empty', 'YOU HAVE NO CHARACTERS YET. ROLL ONE TO BEGIN.'));
     renderSelectedCharacter();
     return;
   }
@@ -922,13 +1108,17 @@ function render() {
   el.signin.hidden = signedIn;
   el.characters.hidden = !signedIn || view !== 'characters';
   el.chargen.hidden = !signedIn || view !== 'chargen';
-  el.heading.textContent = !signedIn ? 'GRAYCLOAK TRAVELLER' : view === 'chargen' ? 'CHARACTER GENERATION' : 'YOUR CHARACTERS';
+  el.heading.textContent = !signedIn ? 'GRAYCLOAK TRAVELLER' : view === 'chargen' ? 'CHARACTER GENERATION' : '';
   if (!signedIn) return;
   if (view === 'characters') { renderCharacters(); renderCampaigns(); }
   else renderChargen();
 }
 
 el.signinButton.addEventListener('click', () => openSignInDialog());
+// v0.337.0: the new-campaign choice, and the sheet panel's close.
+document.querySelector('#enter-new-campaign')?.addEventListener('click', () => { newCampaignOpen = !newCampaignOpen; render(); });
+document.querySelector('#enter-sheet-close')?.addEventListener('click', () => closeSheet());
+document.querySelector('#enter-sheet-panel')?.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSheet(); });
 el.newCharacter.addEventListener('click', () => startChargen());
 el.loadCharacter.addEventListener('click', () => el.characterFile.click());
 el.characterFile.addEventListener('change', () => {

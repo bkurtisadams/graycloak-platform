@@ -75,7 +75,7 @@ test('every page script loads to its masthead', { skip: JSDOM ? false : 'jsdom i
   const pages = [
     { html: 'index.html', script: 'app.js', query: '?local=1', masthead: '#app-subtitle', expect: `v${version}` },
     { html: 'player.html', script: 'player.js', query: '?campaign=none', masthead: '.masthead .subtitle', expect: `PLAYER v${version}` },
-    { html: 'enter.html', script: 'enter.js', query: '', masthead: '.masthead .subtitle', expect: `ENTER v${version}` }
+    { html: 'enter.html', script: 'enter.js', query: '', masthead: '.masthead .subtitle', expect: `LOBBY v${version}` }
   ];
   for (const page of pages) {
     await t.test(`${page.script} loads`, async () => {

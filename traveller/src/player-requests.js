@@ -14,6 +14,7 @@ const PLAYER_COMMANDS = Object.freeze([
   'patrons:seek', 'patrons:accept', 'patrons:decline', 'patrons:task:',
   'persons:jail',
   'party:rest',
+  'ship:from-benefit:',          // v0.338.0: his own character's mustering-out ship (owner checked on the server)
   'shipfight:fire', 'shipfight:hold', 'shipfight:flee', 'shipfight:end', 'shipfight:cancel-repair'
 ]);
 

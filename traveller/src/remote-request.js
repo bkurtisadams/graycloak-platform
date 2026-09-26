@@ -52,6 +52,12 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
     const campaign = registry.resolveCampaign(campaignId)?.campaign;
     if (!campaign) return refuse('the saved campaign could not be read');
     if (refereeMode(campaign) !== 'game') return refuse('a person referees this campaign: ask your referee');
+    // v0.338.0: a player brings in only a ship his own character rolled —
+    // the campaign's ownership says whose character it is.
+    if (command.startsWith('ship:from-benefit:')) {
+      const characterId = command.slice('ship:from-benefit:'.length);
+      if ((campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('only the player of that character can bring in its ship');
+    }
     const cloud = {
       userId: () => ownerUid,
       account: () => ({ displayName: refereeName }),

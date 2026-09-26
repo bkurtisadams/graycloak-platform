@@ -38,7 +38,7 @@ import {
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
-  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter
+  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule
 } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -1027,7 +1027,10 @@ function characterSheetVitals(character, resolved, subsector) {
       ...(character.benefits?.passages ?? []).map((entry) => (typeof entry === 'string'
         ? entry
         : `${entry.name}${Number(entry.count ?? 1) > 1 ? ` \u00d7${entry.count}` : ''}`)),
-      ...(character.shipRefs ?? []).map((ref) => `${ref.shipType || 'Ship'} \u2014 ${ref.shipName || ref.shipId} (${ref.relationship})`),
+      // v0.338.0: ships in words — the one held, and a mustering-out ship
+      // rolled but not yet brought into play.
+      ...(character.shipRefs ?? []).map((ref) => `${ref.shipName || ref.shipId}: ${SHIP_TYPE_WORDS[ref.shipType] ?? `Type ${ref.shipType || '?'}`}, ${ref.relationship === 'owner' ? 'owned' : ref.relationship === 'reserve-assignee' ? 'on reserve from the Scout Service' : ref.relationship}`),
+      untakenShipBenefit(character) ? `${untakenShipBenefit(character) === 'Free Trader' ? 'Type A Free Trader' : 'Type S Scout/Courier'}: mustering-out benefit, not yet in play` : null,
       character.finances?.retirementPayAnnual ? `Retirement pay Cr ${character.finances.retirementPayAnnual.toLocaleString('en-US')} a year` : null
     ].filter(Boolean)
   };
@@ -2016,6 +2019,50 @@ export function travellersView(resolved) {
       ownerUid: owners[character.identity.id] ?? null,
       shipBenefit: untakenShipBenefit(character)
     }));
+}
+
+const SHIP_TYPE_WORDS = Object.freeze({ A: 'Type A Free Trader', S: 'Type S Scout/Courier' });
+
+// v0.338.0: every ship the travellers' characters hold, for the players'
+// copy of the campaign — so a player sees his own ship, not only the one
+// the travellers are in — and mustering-out ships waiting to come in.
+// Fellow travellers see the same list (what the ship is, where it lies,
+// what it owes); the documents themselves stay with the referee.
+export function publishedShips(resolved, subsector = null) {
+  const { campaign, characters = [], ships = [] } = resolved;
+  const date = formatCampaignDate(campaign.time);
+  const nameOf = (id) => characters.find((entry) => entry.identity.id === id)?.identity.name ?? null;
+  const held = ships.map((ship) => {
+    let mortgage = null;
+    try {
+      const schedule = shipMortgageSchedule(ship, { dateLabel: date });
+      if (schedule.financed && !schedule.paidOff) {
+        mortgage = { paymentsRemaining: schedule.paymentsRemaining, monthlyPaymentCr: schedule.monthlyPaymentCr, nextDueDate: schedule.nextDueDate ?? null, arrearsCr: schedule.arrearsCr ?? 0 };
+      }
+    } catch { mortgage = null; }
+    const holderId = ship.authority?.assignedCharacterId ?? null;
+    return {
+      shipId: ship.identity.id,
+      name: ship.identity.name || 'Unnamed ship',
+      typeCode: ship.design?.typeCode ?? null,
+      typeName: ship.design?.name ?? null,
+      holderCharacterId: holderId,
+      holderName: nameOf(holderId) ?? ship.authority?.assignedCharacterName ?? null,
+      terms: ship.authority?.assignmentType === 'reserve' ? 'reserve' : ship.authority?.characterOwnsShip ? 'owned' : 'other',
+      berthedAt: (() => {
+        const id = ship.state?.portCall?.systemId ?? null;
+        if (!id) return null;
+        try { return (subsector ? getSubsectorSystem(subsector, id)?.name : null) ?? id; } catch { return id; }
+      })(),
+      berthedHere: Boolean(campaign.location?.systemId && ship.state?.portCall?.systemId === campaign.location.systemId),
+      active: ship.identity.id === campaign.activeShipId,
+      mortgage
+    };
+  }).filter((entry) => characters.some((character) => character.identity.id === entry.holderCharacterId) || entry.active);
+  const waiting = characters
+    .map((character) => ({ characterId: character.identity.id, characterName: character.identity.name ?? null, benefit: untakenShipBenefit(character) }))
+    .filter((entry) => entry.benefit);
+  return { held, waiting };
 }
 
 // v0.336.0: a mustering-out ship a character rolled but nobody has built —
@@ -3379,7 +3426,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         // it — with its buttons when the game referees (a press is a request
         // the server carries out; remote-request.js).
         referee: refereeMode(resolved.campaign),
-        situation: publishedSituation()
+        situation: publishedSituation(),
+        // v0.338.0: the ships the travellers hold, and ones waiting to come in.
+        ships: publishedShips(resolved, subsector)
       };
       revision = await cloud.save(home, envelope, { expectedRevision: revision });
       // v0.274.0: each seated player's own sheet, which player.html reads.

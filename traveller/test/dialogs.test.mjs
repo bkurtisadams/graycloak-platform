@@ -47,7 +47,7 @@ test('v0.334.0 the lobby uses its own dialogs, and has the setting under the cha
   assert.doesNotMatch(lobby, /window\.(confirm|prompt|alert)\(/);
   assert.match(lobby, /askBeforeDeleting\(\{ title: 'Delete character'/);
   const page = await readFile(new URL('../client/enter.html', import.meta.url), 'utf8');
-  assert.match(page, /id="enter-confirm-deletes" type="checkbox" checked> ASK BEFORE DELETING A CHARACTER/);
+  assert.match(page, /id="enter-confirm-deletes" type="checkbox" checked> ASK BEFORE DELETING</);
 });
 
 // v0.335.0: discard from the first roll; a finished roll kept as an NPC.

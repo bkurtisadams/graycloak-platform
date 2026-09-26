@@ -101,6 +101,22 @@ export function campaignHomeSummary(envelope) {
     // v0.273.0: whose characters are seated here, so deleting the campaign
     // can send them back to the lobby first (the rules let only this
     // campaign's referee move them, and only while the campaign exists).
-    seatedCharacterIds: Object.keys(envelope.ownership?.actors ?? {})
+    seatedCharacterIds: Object.keys(envelope.ownership?.actors ?? {}),
+    // v0.337.0: what the lobby's campaign cards show — the ship, who
+    // referees, and the sector and subsector the travellers are in.
+    shipName: envelope.ship?.name ?? null,
+    shipTypeCode: envelope.ship?.typeCode ?? null,
+    refereeMode: envelope.referee ?? null,
+    refereeName: envelope.refereeName ?? null,
+    sectorName: envelope.map?.sectorName ?? null,
+    subsectorName: subsectorNameFor(envelope),
+    // v0.338.0: the ships the travellers hold, and ones waiting to come in.
+    ships: envelope.ships ?? null
   };
+}
+
+function subsectorNameFor(envelope) {
+  const systemId = envelope.location?.systemId;
+  const system = systemId ? (envelope.map?.systems ?? []).find((entry) => entry.id === systemId) : null;
+  return system?.subsector ? (envelope.map?.subsectorNames?.[system.subsector] ?? null) : null;
 }

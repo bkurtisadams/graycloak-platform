@@ -660,6 +660,21 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- A player sees his ships (v0.338.0): the players' copy carries every ship
+  the travellers' characters hold (type, holder, where berthed, the
+  mortgage) and mustering-out ships waiting to come in; the player's page
+  shows "Your ships", the sheet names ships in words, and the lobby reads
+  a ship's fate from the players' copy. The game refereeing, a player
+  brings in his own character's ship (ownership checked on the server);
+  changing the travellers' ship stays the referee's pending a ruling.
+- The lobby (Kurt's approved mockup, Sep 2026; v0.337.0): two card grids,
+  Characters and Campaigns, in the lobby's own style (D&D Beyond's shape).
+  A character card: where the character is, name (opens the TAS Form 2
+  sheet panel), UPP, career and age, a mustering-out ship, one main button
+  by status, the rest behind [ ⋯ ]. A campaign card: role, referee, date,
+  world, sector, who you play, the ship, [ OPEN ]; only campaigns you
+  referee have a menu. Campaigns you play in are read from the players'
+  copy (campaignHomeSummary gains ship, referee, sector and subsector).
 - Mustering-out ships brought into a campaign (v0.336.0): a character
   rolled in the lobby carries an untaken Free Trader or Scout Ship; the
   Travellers tab offers "Bring in their Free Trader/Scout Ship", which builds

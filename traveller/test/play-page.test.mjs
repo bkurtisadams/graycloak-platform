@@ -136,3 +136,11 @@ test('v0.333.0 the chargen page offers the Free Trader and makes it the campaign
   assert.match(app, /createTypeAFreeTraderForCharacter\(current, \{ startedOn \}\)/);
   assert.match(app, /addShipToCampaign\(campaignDocument, shipDocument, \{ makeActive: true \}\)/);
 });
+
+// v0.338.0: the player sees his own ships, not only the travellers' one.
+test('v0.338.0 the player\u2019s page lists your ships and offers to bring in a waiting one', async () => {
+  const page = await read('seat.js');
+  assert.match(page, /function yourShipsCard\(envelope\)/);
+  assert.match(page, /command: `ship:from-benefit:\$\{entry\.characterId\}`/);
+  assert.match(page, /yourShipsCard\(state\.envelope\)/);
+});

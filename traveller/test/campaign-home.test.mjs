@@ -45,7 +45,9 @@ test('a home validates on import and names a stale save', async () => {
 
 test('the lobby summary comes from the player-readable envelope', () => {
   const summary = campaignHomeSummary({ campaignId: 'sea', name: 'Sea of Suns', time: { year: 4800, dayOfYear: 1, secondsOfDay: 0 }, location: { worldName: 'Cinder' }, homeRevision: 4, homeSavedAt: 77, publishedAt: 70 });
-  assert.deepEqual(summary, { campaignId: 'sea', name: 'Sea of Suns', time: { year: 4800, dayOfYear: 1, secondsOfDay: 0 }, location: { worldName: 'Cinder' }, savedAt: 77, revision: 4, seatedCharacterIds: [] });
+  assert.deepEqual(summary, { campaignId: 'sea', name: 'Sea of Suns', time: { year: 4800, dayOfYear: 1, secondsOfDay: 0 }, location: { worldName: 'Cinder' }, savedAt: 77, revision: 4, seatedCharacterIds: [],
+    // v0.337.0: what the lobby's campaign cards show.
+    shipName: null, shipTypeCode: null, refereeMode: null, refereeName: null, sectorName: null, subsectorName: null, ships: null });
 });
 
 // v0.167.0: the campaign log had no cap and was 443 KB of a 903 KB home. The

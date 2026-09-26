@@ -2403,3 +2403,26 @@ test('v0.336.0 the travellers do not change ships away from port', async () => {
   assert.equal(refused.ok, false);
   assert.match(refused.message, /change ships in port/);
 });
+
+// ---------------------------------------------------------------- v0.338.0
+import { publishedShips } from '../src/play-session.js';
+
+test('v0.338.0 the players\u2019 copy lists every ship the travellers hold, and ships waiting to come in', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  withFreeTraderMerchant(registry, campaignId);
+  let listed = publishedShips(registry.resolveCampaign(campaignId), FAR_MERIDIAN_SUBSECTOR);
+  assert.ok(listed.held.some((ship) => ship.active), 'the travellers\u2019 ship');
+  assert.deepEqual(listed.waiting.map((entry) => [entry.characterId, entry.benefit]), [['char-second-traveller', 'Free Trader']]);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.run('ship:from-benefit:char-second-traveller').ok, true);
+  listed = publishedShips(registry.resolveCampaign(campaignId), FAR_MERIDIAN_SUBSECTOR);
+  const trader = listed.held.find((ship) => ship.holderCharacterId === 'char-second-traveller');
+  assert.ok(trader, 'his Free Trader is listed though the travellers are not in it');
+  assert.equal(trader.active, false);
+  assert.equal(trader.berthedHere, true);
+  assert.equal(trader.berthedAt, 'Aster', 'by the world\u2019s name');
+  assert.equal(trader.mortgage.paymentsRemaining, 480);
+  assert.equal(trader.mortgage.monthlyPaymentCr, 154500);
+  assert.equal(listed.waiting.length, 0);
+  assert.doesNotThrow(() => JSON.parse(JSON.stringify(listed)));
+});

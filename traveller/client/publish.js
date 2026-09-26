@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.336.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.336.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.338.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.338.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -518,6 +518,15 @@ export async function deleteCampaignHome(campaignId, { seatedCharacterIds = [] }
   try { await homeRef(db, campaignId).delete(); } catch (error) { if (error?.code !== 'permission-denied') throw error; }
   await db.collection('travellerCampaigns').doc(campaignId).delete();
   return released;
+}
+
+// v0.337.0: the players' copy of a campaign you play in, for its lobby card
+// (players may read the campaign's envelope; the lobby shapes it with
+// campaignHomeSummary).
+export async function loadPublishedCampaign(campaignId) {
+  const db = await ensureFirestore();
+  const snapshot = await db.collection('travellerCampaigns').doc(campaignId).get();
+  return snapshot.exists ? snapshot.data() : null;
 }
 
 export async function listOwnCampaigns(uid) {

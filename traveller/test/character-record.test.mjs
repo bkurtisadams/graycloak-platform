@@ -30,7 +30,7 @@ test('a character record wraps the document with an owner and an unassigned worl
 test('a character is in one world at a time, and seating clears the pending join', async () => {
   let record = createCharacterRecord(await hawkeye(), { ownerUid: 'uid-a' });
   record = setCharacterRecordPendingJoin(record, { campaignId: 'sea-of-suns', campaignName: 'Sea of Suns', code: 'ABC234' });
-  assert.match(characterRecordStatus(record).label, /AWAITING A SEAT AT SEA OF SUNS/);
+  assert.match(characterRecordStatus(record).label, /WAITING TO JOIN SEA OF SUNS/);
   record = setCharacterRecordWorld(record, { kind: WORLD_KINDS.CAMPAIGN, campaignId: 'sea-of-suns', campaignName: 'Sea of Suns', since: 9 });
   assert.equal(record.pendingJoin, null);
   const status = characterRecordStatus(record);

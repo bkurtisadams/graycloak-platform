@@ -134,3 +134,14 @@ test('v0.329.0 with a person refereeing the situation is shown without buttons',
   assert.equal(game.steps[1].command, null, 'never a referee\u2019s command');
   assert.equal(game.next.actions[0].command, 'trip:depart');
 });
+
+// v0.338.0: a player brings in his own character's mustering-out ship only.
+test('v0.338.0 a player may ask to bring in only his own character\u2019s ship', async () => {
+  assert.equal(playerMayRun('ship:from-benefit:char-x'), true);
+  assert.equal(playerMayRun('ship:make-active:ship-x'), false, 'changing ships stays the referee\u2019s for now');
+  const { campaignId, store } = await setup('game');
+  const refused = await apply(campaignId, store, 'ship:from-benefit:char-04164baa70c3b5a6');
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /only the player of that character/);
+  assert.equal(store.saves, 0);
+});

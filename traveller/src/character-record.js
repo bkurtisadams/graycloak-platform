@@ -89,11 +89,11 @@ export function importCharacterRecord(input) {
 // What the lobby shows beside the character, and which button it offers.
 export function characterRecordStatus(record) {
   if (record.world?.kind === WORLD_KINDS.CAMPAIGN) {
-    return { label: `SEATED AT ${String(record.world.campaignName ?? record.world.campaignId).toUpperCase()}`, enter: 'campaign', campaignId: record.world.campaignId };
+    return { label: `IN ${String(record.world.campaignName ?? record.world.campaignId).toUpperCase()}`, enter: 'campaign', campaignId: record.world.campaignId };
   }
   if (record.world?.kind === WORLD_KINDS.SOLO) return { label: 'IN THE SOLO WORLD', enter: 'solo', campaignId: null };
   if (record.pendingJoin?.campaignId) {
-    return { label: `AWAITING A SEAT AT ${String(record.pendingJoin.campaignName ?? record.pendingJoin.campaignId).toUpperCase()}`, enter: null, campaignId: null };
+    return { label: `WAITING TO JOIN ${String(record.pendingJoin.campaignName ?? record.pendingJoin.campaignId).toUpperCase()}`, enter: null, campaignId: null };
   }
   return { label: 'NOT IN A CAMPAIGN', enter: null, campaignId: null };
 }

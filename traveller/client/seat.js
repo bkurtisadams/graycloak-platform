@@ -10,19 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.336.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.336.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.336.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.336.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.336.0';
-import { kindButton } from './kind-button.js?v=v0.336.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.336.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.336.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.336.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.336.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.336.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.338.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.338.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.338.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.338.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.338.0';
+import { kindButton } from './kind-button.js?v=v0.338.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.338.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.338.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.338.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.338.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.338.0';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.336.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.338.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -181,7 +181,7 @@ function renderNow() {
   // the page.
   const fighting = Boolean(state.envelope?.shipFight) || fightLive();
   const situation = state.envelope && !fighting ? situationCard(state.envelope) : null;
-  $('now').replaceChildren(...[situation, h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note, diagnostics)].filter(Boolean));
+  $('now').replaceChildren(...[situation, h('section', { class: 'lead' }, h('h2', { text: 'You play' }), ...who, note, diagnostics), yourShipsCard(state.envelope)].filter(Boolean));
 }
 
 function renderScene() {
@@ -357,6 +357,36 @@ function situationCard(envelope) {
   }
   if (!game) parts.push(h('p', { class: 'cite', text: 'Your referee runs the ship\u2019s business; this shows where it stands.' }));
   return h('section', { class: 'lead seat-situation' }, ...parts);
+}
+
+// ---- your ships (v0.338.0) -------------------------------------------------
+// Every ship your characters hold — not only the one the travellers are in —
+// with where it lies and what it owes; and a mustering-out ship still to
+// come in, which, the game refereeing, you bring in yourself.
+function yourShipsCard(envelope) {
+  const mine = ownedHere();
+  const held = (envelope?.ships?.held ?? []).filter((ship) => mine.has(ship.holderCharacterId));
+  const waiting = (envelope?.ships?.waiting ?? []).filter((entry) => mine.has(entry.characterId));
+  if (!held.length && !waiting.length) return null;
+  const game = envelope?.referee === 'game';
+  const parts = [h('h2', { text: held.length + waiting.length === 1 ? 'Your ship' : 'Your ships' })];
+  for (const ship of held) {
+    const owes = ship.mortgage
+      ? `${ship.mortgage.paymentsRemaining} payments of Cr ${Number(ship.mortgage.monthlyPaymentCr).toLocaleString('en-US')} owed${ship.mortgage.nextDueDate ? `, next due ${ship.mortgage.nextDueDate}` : ''}${ship.mortgage.arrearsCr ? `; Cr ${Number(ship.mortgage.arrearsCr).toLocaleString('en-US')} in arrears` : ''}`
+      : ship.terms === 'reserve' ? 'on reserve from the Scout Service' : ship.terms === 'owned' ? 'owned free and clear' : null;
+    parts.push(h('div', { class: 'seat-job' },
+      h('p', {}, h('b', { text: ship.name }), `${ship.typeName && ship.typeName !== ship.name ? ` \u2014 ${ship.typeName}` : ` \u2014 Type ${ship.typeCode ?? '?'}`}${ship.active ? ' (the travellers\u2019 ship)' : ''}`),
+      h('p', { class: 'cite', text: [ship.holderName ? `held by ${ship.holderName}` : null, ship.active ? null : ship.berthedHere ? 'berthed here' : ship.berthedAt ? `berthed at ${ship.berthedAt}` : null, owes].filter(Boolean).join(' \u00b7 ') })));
+  }
+  for (const entry of waiting) {
+    const kind = entry.benefit === 'Free Trader' ? 'Type A Free Trader' : 'Type S Scout/Courier';
+    parts.push(h('div', { class: 'seat-job' },
+      h('p', {}, h('b', { text: kind }), ` \u2014 ${entry.characterName ?? 'your character'}\u2019s mustering-out benefit, not yet in play`),
+      game
+        ? requestButton({ command: `ship:from-benefit:${entry.characterId}`, label: `Bring in ${entry.characterName ?? 'your'}\u2019s ${entry.benefit}`, kind: 'money', primary: true })
+        : h('p', { class: 'cite', text: 'Your referee brings it in, berthed where the travellers are.' })));
+  }
+  return h('section', { class: 'lead seat-ships' }, ...parts);
 }
 
 // ---- the fight (v0.278.0) ---------------------------------------------------
