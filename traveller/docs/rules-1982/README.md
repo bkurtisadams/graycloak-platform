@@ -56,7 +56,7 @@ rules citations as Kurt supplies them; the full text is his.
   Repair Parts, 2D × 10% of each failed drive's cost. No flushing step:
   the unrefined DM applies while unrefined fuel is in use.
 
-  ## Introduction: refereeing (pp.9–16)
+## Introduction: refereeing (pp.9–16)
 
 - "The rules provide for solitaire and unsupervised play" — same sentence as
   1977 Book 1 p.2; no solo procedure is given in either edition.

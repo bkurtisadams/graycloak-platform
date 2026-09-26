@@ -10,17 +10,14 @@
         "firebase-debug.log",
         "firebase-debug.*.log",
         "test",
-        "docs"
+        "docs",
+        "traveller-functions"
       ]
     },
     {
       "codebase": "traveller",
-      "source": "../traveller/functions",
+      "source": "traveller-functions",
       "runtime": "nodejs22",
-      "predeploy": [
-        "node \"$RESOURCE_DIR/scripts/copy-app.mjs\"",
-        "node \"$RESOURCE_DIR/scripts/check.mjs\""
-      ],
       "ignore": [
         "node_modules",
         ".git",

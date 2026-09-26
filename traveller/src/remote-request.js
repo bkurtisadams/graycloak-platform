@@ -46,7 +46,7 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
     if (!saved) return refuse('this campaign has no saved copy yet: its referee must open it once');
     const home = importCampaignHome(saved);
     const ownerUid = home.ownerUid ?? saved.ownerUid ?? null;
-    if (request.uid !== ownerUid && !(await store.isSeated(request.uid))) return refuse('you are not seated in this campaign');
+    if (request.uid !== ownerUid && !(await store.isSeated(request.uid))) return refuse('you are not a player in this campaign');
     const registry = createDocumentRegistry({ storage: createMemoryStorage() });
     registry.putBundle(home.bundle);
     const campaign = registry.resolveCampaign(campaignId)?.campaign;

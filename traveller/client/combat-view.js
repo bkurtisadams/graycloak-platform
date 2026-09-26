@@ -17,7 +17,7 @@ import {
   PERSONAL_ARMOR_TYPES,
   PERSONAL_COMBAT_RANGES
 } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { encounterPairRange, encounterSituationDMs } from '../src/encounter-document.js?v=v0.329.3';
+import { encounterPairRange, encounterSituationDMs } from '../src/encounter-document.js?v=v0.330.2';
 
 // Ways of totalling two dice: index is the total, value is how many of 36.
 const TWO_DICE_WAYS = [0, 0, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1];

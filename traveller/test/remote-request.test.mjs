@@ -96,7 +96,7 @@ test('v0.329.0 refused: a person refereeing, a player not seated, a referee\u201
   assert.equal(person.store.saves, 0);
   const { campaignId, store } = await setup('game');
   const stranger = await applyRemoteRequest({ campaignId, store, subsector: FAR_MERIDIAN_SUBSECTOR, request: { uid: 'someone-else', command: 'trip:wait' } });
-  assert.match(stranger.message, /not seated/);
+  assert.match(stranger.message, /not a player in this campaign/);
   assert.match((await apply(campaignId, store, 'referee:move:calder')).message, /cannot ask for that/);
   assert.match((await apply(campaignId, store, 'time:set')).message, /cannot ask for that/);
   assert.equal(store.saves, 0);

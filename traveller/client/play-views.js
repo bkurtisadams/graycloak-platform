@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.329.3';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.329.3';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.3';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.329.3';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.330.2';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.330.2';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.330.2';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.330.2';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.329.3';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.329.3';
-import { renderSectionStrip } from './section-strip.js?v=v0.329.3';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.330.2';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.330.2';
+import { renderSectionStrip } from './section-strip.js?v=v0.330.2';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.329.3';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.329.3';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.330.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.330.2';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.329.3';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.330.2';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -2003,7 +2003,7 @@ function playersPanel(model, state, handlers) {
         !member.characters.length && member.joining ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Bring in', title: 'Bring their character into the campaign now',
           onclick: () => act('admit', { kind: 'join', uid: member.uid, characterId: member.joining.characterId ?? null, name: member.name }) }) : null,
         ...member.characters.map((entry) => h('button', { type: 'button', class: 'button is-small', text: 'Sheet', title: `Open ${entry.name}\u2019s sheet`, onclick: () => handlers.onOpenSheet?.('actor', entry.id) })),
-        h('button', { type: 'button', class: 'button is-small', text: 'Remove', title: 'Remove this player; their character goes home with them', onclick: () => act('remove', member) })) : null)), 'No players seated yet.'),
+        h('button', { type: 'button', class: 'button is-small', text: 'Remove', title: 'Remove this player; their character goes home with them', onclick: () => act('remove', member) })) : null)), 'No players yet.'),
     model.departed.length ? section('Player gone', model.departed.map((entry) => h('li', { class: 'entry' },
       h('span', { class: 'entry-name', text: entry.name }),
       h('span', { class: 'entry-note', text: entry.fighting ? 'their player left; this waits until the fight ends' : 'their player has left the campaign' }),
@@ -2037,7 +2037,7 @@ function refereeDrawer(referee, state, handlers) {
     referee.seats?.error ? h('p', { class: 'notice is-error', text: referee.seats.error }) : null,
     referee.seats?.loading ? h('p', { class: 'empty', text: 'Reading seats\u2026' }) : null,
     referee.tab === 'Players' && state.live && referee.seats ? h('div', { class: 'lead-actions' },
-      h('button', { type: 'button', class: 'button is-small', text: 'New join link', title: 'Make a link players open to ask for a seat; it is copied for you', onclick: () => handlers.onSeat?.('invite', {}) })) : null,
+      h('button', { type: 'button', class: 'button is-small', text: 'New join link', title: 'Make a link players open to ask to join; it is copied for you', onclick: () => handlers.onSeat?.('invite', {}) })) : null,
     // v0.229.0: Foundry's directory shape for Scenes — a create button above
     // the folders, same place the Players tab puts its own lead action.
     referee.tab === 'Scenes' && state.live ? h('div', { class: 'lead-actions' },

@@ -29,30 +29,59 @@ band board.
    npm run check
    ```
    `check` copies the game into `functions\app` and loads it under Node.
-3. In the `firebase.json` that deploys `gcc/firestore.rules`, add (the
-   `source` path is relative to that `firebase.json`):
+3. In `C:\graycloak-platform\graycloak-adnd\firebase.json`, `"functions"`
+   is a list of two codebases. The Firebase CLI only deploys folders inside
+   `graycloak-adnd\`, so the Traveller one deploys a built copy,
+   `graycloak-adnd\traveller-functions\` (made by `deploy.bat`, ignored by
+   git), and the AD&D codebase must not upload that copy:
    ```json
    "functions": [
      {
-       "source": "../traveller/functions",
+       "codebase": "default",
+       "source": ".",
+       "runtime": "nodejs22",
+       "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "test", "docs", "traveller-functions"]
+     },
+     {
        "codebase": "traveller",
-       "predeploy": ["node \"$RESOURCE_DIR/scripts/copy-app.mjs\"", "node \"$RESOURCE_DIR/scripts/check.mjs\""],
-       "ignore": ["node_modules", ".git", "*.log"]
+       "source": "traveller-functions",
+       "runtime": "nodejs22",
+       "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log"]
      }
-   ]
+   ],
    ```
-4. Merge the v18 rule (`docs/firestore-rules-v18-requests.md`).
-5. Deploy, from the folder holding that `firebase.json`:
-   ```
-   firebase deploy --only functions:traveller,firestore:rules
-   ```
+4. Merge the v18 rule (`docs/firestore-rules-v18-requests.md`) into
+   `graycloak-adnd\firestore.rules` and deploy it once:
+   `cd C:\graycloak-platform\graycloak-adnd` then
+   `firebase deploy --only firestore:rules`.
+5. Build and deploy the function (every time):
+   `C:\graycloak-platform\traveller\functions\deploy.bat`
 6. Usage and billing → Service level spend caps → **Cloud Run Functions
    (Functions)** → set $5. At 100% the function pauses for the rest of the
    month.
 
 Redeploy after any slice that changes `src\`, `world\` or the rules package:
 the function runs the copy made at deploy time. `app\VERSION.json` in the
-deployed copy names the client and rules versions.
+deployed copy names the client and rules versions; since v0.330.0 every
+answer and every save by the function carries them (`engine`), and the
+player's page shows a red line when they differ from its own version.
+
+## Checking it works (v0.330.0)
+
+1. Open the campaign on `play.html` as referee; Settings → Referee → The game.
+2. Open it as a player (another account, from the lobby) and press a button
+   in the left column, e.g. "Wait a day".
+3. The line above the steps should change from "Sending…" to the game's
+   answer within a few seconds, and the date should move on.
+4. If it says "No answer from the game after 20 seconds": Firebase console →
+   Functions → `travellerRequest` → Logs. No function listed means it was not
+   deployed; no log line for the press means it is not listening where the
+   database is (Region, below).
+
+Not done: the Functions emulator. The pages always talk to the live project
+(nothing in them switches to the emulators), so a local run would also need
+that switch and a seeded copy of a campaign. With one tester and the $5
+cap, the live project is the test bed.
 
 ## Region
 

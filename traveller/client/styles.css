@@ -3423,6 +3423,12 @@ html, body { height: 100%; overflow: hidden; margin: 0; }
 .signin-dialog .roll-dialog-form { display: flex; flex-direction: column; gap: 7px; }
 .signin-dialog label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
 .signin-dialog input { font: inherit; font-size: 12px; padding: 3px 5px; }
+/* v0.330.2: the show-password box sits on the line with its words (the
+   column layout the other labels use put it alone, centred, above them);
+   the hint wraps under both. */
+.signin-dialog label.signin-show { flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: 6px; }
+.signin-dialog label.signin-show input { width: auto; margin: 0; padding: 0; flex: none; }
+.signin-dialog label.signin-show .signin-hint { flex-basis: 100%; }
 .signin-basis { font-size: 11px; color: var(--muted); max-width: 44ch; }
 .signin-rule { font-size: 10px; letter-spacing: .2em; color: var(--muted); text-align: center; padding: 2px 0; }
 .signin-status { font-size: 11px; color: var(--muted); min-height: 1.2em; }

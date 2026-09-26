@@ -650,6 +650,9 @@ berthing past six days, salaries) reach `play.html` with it.
   and the seat shows the situation without buttons. Any seated player acts
   for the ship for now; a departure ready check and referee approval are
   the next slices. The envelope carries `referee` and `situation`.
+  v0.330.0: the function's game version (`engine`) is on every answer and
+  save; the player's page shows a mismatch, and says so when no answer
+  comes in 20 seconds. Tested on the live project, not the emulators.
 - The players' copy of the campaign carries the map as players may see it
   (v0.328.0): the sector as charted, unvisited worlds as chart facts only,
   so the seat page draws the campaign's map.

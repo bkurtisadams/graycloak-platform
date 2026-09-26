@@ -10,19 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.329.3';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.329.3';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.3';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.329.3';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.329.3';
-import { kindButton } from './kind-button.js?v=v0.329.3';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.329.3';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.329.3';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.329.3';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.329.3';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.329.3';
+import { copyDiagnostics } from './diagnostics.js?v=v0.330.2';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.330.2';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.330.2';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.330.2';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.330.2';
+import { kindButton } from './kind-button.js?v=v0.330.2';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.330.2';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.330.2';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.330.2';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.330.2';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.330.2';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.3';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.330.2';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -49,7 +49,8 @@ const state = {
   answeredWoundKey: null,
   // v0.329.0: the last request this page sent, and its answer.
   request: null,
-  requestStop: null
+  requestStop: null,
+  requestTimer: null
 };
 const fightStops = [];
 const narrationSeen = new Map();
@@ -171,7 +172,7 @@ function renderNow() {
       h('b', { text: character.identity.name || '(unnamed)' }),
       h('span', { class: 'cite', text: [character.upp, character.career?.service].filter(Boolean).join(' \u00b7 ') }),
       h('button', { type: 'button', class: 'button is-small', text: 'Sheet', onclick: () => openSheet(character.identity.id) })))
-    : [h('p', { class: 'cite', text: currentUserId() ? 'Waiting for the referee to publish your character.' : 'Sign in from the lobby to take your seat.' })];
+    : [h('p', { class: 'cite', text: currentUserId() ? 'Waiting for the referee to publish your character.' : 'Sign in from the lobby to join the campaign.' })];
   const note = arriving() ? h('p', { class: 'cite', text: 'You have joined. Your referee\u2019s page brings your character into the campaign the next time it opens; until then this is your own copy.' }) : null;
   const diagnostics = h('p', { class: 'cite' }, h('button', { type: 'button', class: 'button is-small', text: 'Copy diagnostics', title: 'Copy what this page knows, to paste to Claude', onclick: () => copySeatDiagnostics() }));
   // v0.329.3: what is happening and its buttons head the left column, as the
@@ -251,6 +252,18 @@ function renderScene() {
 // server carries out (traveller/functions, src/remote-request.js); its
 // answer comes back on the request and is shown here until the next press.
 
+// v0.330.0: this page's own version (its stamp), to compare with the one the
+// server's answers carry; and how long a request may wait before the page
+// says the server did not answer.
+const PAGE_VERSION = (() => { try { return new URL(import.meta.url).searchParams.get('v')?.replace(/^v/, '') ?? null; } catch { return null; } })();
+const REQUEST_PATIENCE_MS = 20000;
+
+/** What to say when the server's game is not this page's version (pure). */
+export function engineMismatch(engine, page = PAGE_VERSION) {
+  if (!engine?.client || !page || engine.client === 'unknown' || engine.client === page) return null;
+  return `The game on the server is v${engine.client}; this page is v${page}. Redeploy the function: from C:\\graycloak-platform\\graycloak-adnd run firebase deploy --only functions:traveller`;
+}
+
 async function sendRequest(command, value = {}) {
   if (!command || state.request?.status === 'pending') return;
   const uid = currentUserId();
@@ -261,10 +274,19 @@ async function sendRequest(command, value = {}) {
   try {
     const id = await sendPlayerRequest(campaignId, { uid, characterId, command, value });
     state.requestStop?.();
+    clearTimeout(state.requestTimer);
+    // No answer in time: the function is not deployed, or not listening
+    // where the database is (docs/server-engine.md, Region).
+    state.requestTimer = setTimeout(() => {
+      if (state.request?.status !== 'pending') return;
+      state.request = { ...state.request, message: 'No answer from the game after 20 seconds. The server function may not be deployed yet, or its region may not match the database (traveller\\docs\\server-engine.md).' };
+      render();
+    }, REQUEST_PATIENCE_MS);
     state.requestStop = await watchPlayerRequest(campaignId, id, (entry) => {
       if (!entry) return;
-      state.request = { status: entry.status, command, message: entry.message ?? (entry.status === 'pending' ? 'Waiting for the game\u2026' : '') };
-      if (entry.status !== 'pending') { state.requestStop?.(); state.requestStop = null; }
+      const waiting = entry.status === 'pending';
+      state.request = { status: entry.status, command, id, message: entry.message ?? (waiting ? (state.request?.message ?? 'Waiting for the game\u2026') : ''), engine: entry.engine ?? null };
+      if (!waiting) { clearTimeout(state.requestTimer); state.requestStop?.(); state.requestStop = null; }
       render();
     });
   } catch (error) {
@@ -290,6 +312,9 @@ function situationCard(envelope) {
   if (state.request) {
     parts.push(h('p', { class: `notice${state.request.status === 'refused' || state.request.status === 'error' ? ' is-error' : ''}`, role: 'status', text: state.request.message || '' }));
   }
+  // v0.330.0: the server running another version of the game than this page.
+  const stale = engineMismatch(state.request?.engine ?? envelope.engine ?? null);
+  if (stale) parts.push(h('p', { class: 'notice is-error', role: 'alert', text: stale }));
   if (s.next) {
     parts.push(h('h3', { text: s.next.title ?? '' }));
     if (s.next.copy) parts.push(h('p', { text: s.next.copy }));
@@ -645,7 +670,7 @@ function openSheet(id) {
 
 async function say(message) {
   try { await sendChatMessage(campaignId, message); }
-  catch (error) { setStatus(error?.code === 'permission-denied' ? 'You are not seated at this campaign.' : (error?.message ?? String(error)), 'error'); }
+  catch (error) { setStatus(error?.code === 'permission-denied' ? 'You are not a player in this campaign.' : (error?.message ?? String(error)), 'error'); }
 }
 
 const weaponNames = Object.values(PERSONAL_WEAPONS).map((spec) => spec.name);
@@ -717,12 +742,12 @@ async function connect() {
     const db = await ensureFirestore();
     stops.push(db.doc(`travellerCampaigns/${campaignId}`).onSnapshot((snapshot) => {
       state.envelope = snapshot.exists ? snapshot.data() : null;
-      if (!snapshot.exists) setStatus('No such campaign, or you are not seated at it.', 'error');
+      if (!snapshot.exists) setStatus('No such campaign, or you are not a player in it.', 'error');
       watchFight();
       noteTrip();
       resendJoins();
       render();
-    }, (error) => setStatus(error?.code === 'permission-denied' ? 'You are not seated at this campaign.' : error.message, 'error')));
+    }, (error) => setStatus(error?.code === 'permission-denied' ? 'You are not a player in this campaign.' : error.message, 'error')));
     const mine = db.doc(`travellerCampaigns/${campaignId}/players/${uid}`);
     stops.push(mine.collection('characters').onSnapshot((snapshot) => {
       state.published = new Map(snapshot.docs.map((entry) => [entry.id, entry.data()]));
@@ -807,6 +832,7 @@ async function copySeatDiagnostics() {
         steps: (state.envelope.situation.steps ?? []).map((step) => `${step.title}${step.command ? ` [${step.command}]` : ''}`),
         next: state.envelope.situation.next ? { title: state.envelope.situation.next.title, actions: (state.envelope.situation.next.actions ?? []).map((action) => action.command) } : null } : 'not published' } : null,
     lastRequest: state.request ?? null,
+    pageVersion: PAGE_VERSION, engine: state.envelope?.engine ?? null,
     publishedSheets: [...state.published.keys()],
     ownRecords: (state.ownRecords ?? []).map((record) => ({ id: record.characterId, name: record.name, world: record.world, pendingJoin: record.pendingJoin ?? null, lastCampaign: record.lastCampaign ?? null })),
     ownedHere: [...ownedHere()], arriving: arriving(), resent: [...resent],

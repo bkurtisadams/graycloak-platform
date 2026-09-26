@@ -8,26 +8,26 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.329.3';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.329.3';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.330.2';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.330.2';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf
-} from './publish.js?v=v0.329.3';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.329.3';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.329.3';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.329.3';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.329.3';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.329.3';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.329.3';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.329.3';
-import { generateCharacterName } from './generators.js?v=v0.329.3';
+} from './publish.js?v=v0.330.2';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.330.2';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.330.2';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.330.2';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.330.2';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.330.2';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.330.2';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.330.2';
+import { generateCharacterName } from './generators.js?v=v0.330.2';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome
-} from '../src/character-record.js?v=v0.329.3';
+} from '../src/character-record.js?v=v0.330.2';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
 } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
@@ -617,7 +617,7 @@ function renderJoinPanel() {
   else {
     const already = records.find((record) => record.world?.campaignId === joinInvite.invite.campaignId || record.pendingJoin?.campaignId === joinInvite.invite.campaignId);
     if (already) {
-      body.push(Object.assign(document.createElement('p'), { className: 'enter-empty', textContent: `${already.name.toUpperCase()} IS ${already.pendingJoin ? 'ALREADY WAITING FOR A SEAT' : 'ALREADY IN THIS CAMPAIGN'}.` }));
+      body.push(Object.assign(document.createElement('p'), { className: 'enter-empty', textContent: `${already.name.toUpperCase()} IS ${already.pendingJoin ? 'ALREADY WAITING TO JOIN' : 'ALREADY IN THIS CAMPAIGN'}.` }));
     }
     const free = records.filter((record) => !record.pendingJoin && characterRecordStatus(record).enter === null);
     body.push(Object.assign(document.createElement('p'), { className: 'enter-toolbar-note', textContent: free.length ? 'Choose a character to join with, or roll a new one.' : 'None of your characters is free to join. Roll a new one, or leave a campaign first.' }));
@@ -684,7 +684,7 @@ function renderCharacters() {
 
 async function removeRecord(record) {
   const seatedAt = record.world?.kind === WORLD_KINDS.CAMPAIGN ? (record.world.campaignName || 'a campaign') : null;
-  const warning = seatedAt ? `\n\n${record.name} is seated at ${seatedAt}. The referee keeps the campaign's copy; this deletes yours.` : '';
+  const warning = seatedAt ? `\n\n${record.name} is in ${seatedAt}. The referee keeps the campaign's copy; this deletes yours.` : '';
   if (!window.confirm(`Delete ${record.name}? This cannot be undone.${warning}`)) return;
   try {
     await deleteCharacterRecord(record.characterId);

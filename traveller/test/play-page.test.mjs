@@ -88,3 +88,15 @@ test('v0.329.3 the seat page puts the situation and its buttons at the top of th
   assert.match(seat, /\$\('now'\)\.replaceChildren\(\.\.\.\[situation, h\('section', \{ class: 'lead' \}, h\('h2', \{ text: 'You play' \}\)/);
   assert.doesNotMatch(seat, /body\.push\(situation\)/);
 });
+
+// v0.330.0: the server's game version on every answer and save; the player's
+// page says when it differs, or when no answer comes.
+test('v0.330.0 the player page names a server running another version, and a missing answer', async () => {
+  const page = await read('seat.js');
+  assert.match(page, /export function engineMismatch\(engine, page = PAGE_VERSION\)/);
+  assert.match(page, /engineMismatch\(state\.request\?\.engine \?\? envelope\.engine \?\? null\)/);
+  assert.match(page, /No answer from the game after 20 seconds/);
+  const fn = await readFile(new URL('../functions/index.js', import.meta.url), 'utf8');
+  assert.match(fn, /doneAt: Date\.now\(\), engine: ENGINE \}/);
+  assert.match(fn, /homeSavedAt: home\.savedAt, engine: ENGINE \}/);
+});

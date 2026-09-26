@@ -16,7 +16,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const functionsDir = path.resolve(here, '..');
 const traveller = path.resolve(functionsDir, '..');
 const rulesSource = path.resolve(traveller, '..', 'packages', 'classic-traveller-rules');
-const app = path.join(functionsDir, 'app');
+// v0.330.1: the target can be given (build.mjs copies into the deployable
+// folder beside graycloak-adnd/firebase.json); functions/app by default.
+const app = process.argv[2] ? path.resolve(process.argv[2]) : path.join(functionsDir, 'app');
 
 await rm(app, { recursive: true, force: true });
 await mkdir(app, { recursive: true });
@@ -44,4 +46,4 @@ async function walk(dir) {
 await walk(rules);
 const client = JSON.parse(await readFile(path.join(traveller, 'package.json'), 'utf8'));
 await writeFile(path.join(app, 'VERSION.json'), `${JSON.stringify({ client: client.version, rules: pkg.version, copiedAt: new Date().toISOString() }, null, 2)}\n`);
-console.log(`copied the game (client ${client.version}, rules ${pkg.version}) into functions/app`);
+console.log(`copied the game (client ${client.version}, rules ${pkg.version}) into ${app}`);

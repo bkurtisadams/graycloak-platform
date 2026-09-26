@@ -17,6 +17,7 @@
 
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { setGlobalOptions, logger } from 'firebase-functions/v2';
+import { readFileSync } from 'node:fs';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { applyRemoteRequest, StaleCampaignHomeError } from './app/src/remote-request.js';
@@ -29,6 +30,18 @@ setGlobalOptions({ region: 'us-central1', maxInstances: 2 });
 
 initializeApp();
 const db = getFirestore();
+
+// v0.330.0: the game's version as copied in at deploy time (copy-app.mjs).
+// Every answer carries it, and so does every campaign save, so a player's
+// page can say when the function was not redeployed after an update.
+const ENGINE = (() => {
+  try {
+    const version = JSON.parse(readFileSync(new URL('./app/VERSION.json', import.meta.url), 'utf8'));
+    return { client: version.client ?? 'unknown', rules: version.rules ?? 'unknown', deployedFrom: version.copiedAt ?? null };
+  } catch {
+    return { client: 'unknown', rules: 'unknown', deployedFrom: null };
+  }
+})();
 
 function campaignStore(campaignId) {
   const envelopeRef = db.collection('travellerCampaigns').doc(campaignId);
@@ -53,7 +66,7 @@ function campaignStore(campaignId) {
           throw new StaleCampaignHomeError({ campaignId, expectedRevision, currentRevision, savedAt: current.data()?.savedAt ?? null });
         }
         transaction.set(homeRef, home);
-        const payload = { ...envelope, homeRevision: home.revision, homeSavedAt: home.savedAt };
+        const payload = { ...envelope, homeRevision: home.revision, homeSavedAt: home.savedAt, engine: ENGINE };
         transaction.set(envelopeRef, payload, { mergeFields: Object.keys(payload) });
         written = home.revision;
       });
@@ -86,5 +99,5 @@ export const travellerRequest = onDocumentCreated({
     logger.error('traveller request failed', { campaignId, command: request.command, error: error?.stack ?? String(error) });
     result = { ok: false, message: `The game could not carry that out: ${error?.message ?? error}`, revision: null };
   }
-  await snapshot.ref.update({ status: result.ok ? 'done' : 'refused', message: result.message ?? '', revision: result.revision ?? null, doneAt: Date.now() });
+  await snapshot.ref.update({ status: result.ok ? 'done' : 'refused', message: result.message ?? '', revision: result.revision ?? null, doneAt: Date.now(), engine: ENGINE });
 });

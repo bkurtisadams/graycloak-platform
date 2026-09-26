@@ -1,12 +1,15 @@
 {
   "name": "@graycloak/traveller-functions",
-  "version": "0.329.0",
+  "version": "0.330.1",
   "private": true,
   "type": "module",
   "description": "Graycloak Traveller: the game referees players' requests with nobody's referee page open",
   "main": "index.js",
-  "engines": { "node": "22" },
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
+    "build": "node scripts/build.mjs",
     "prepare-app": "node scripts/copy-app.mjs",
     "check": "node scripts/copy-app.mjs && node scripts/check.mjs"
   },
