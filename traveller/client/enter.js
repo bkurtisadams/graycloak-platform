@@ -8,28 +8,29 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.334.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.334.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.335.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.335.0';
 // v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
-import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.334.0';
+import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.335.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf
-} from './publish.js?v=v0.334.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.334.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.334.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.334.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.334.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.334.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.334.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.334.0';
-import { generateCharacterName } from './generators.js?v=v0.334.0';
+} from './publish.js?v=v0.335.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.335.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.335.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.335.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.335.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.335.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.335.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.335.0';
+import { generateCharacterName } from './generators.js?v=v0.335.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
-  setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome
-} from '../src/character-record.js?v=v0.334.0';
+  setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome,
+  isNpcRecord, setCharacterRecordRole
+} from '../src/character-record.js?v=v0.335.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
 } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
@@ -59,6 +60,7 @@ const el = {
   complete: document.querySelector('#enter-complete'),
   save: document.querySelector('#enter-save-character'),
   discard: document.querySelector('#enter-discard-character'),
+  keepNpc: document.querySelector('#enter-keep-npc'),
   tables: document.querySelector('#enter-tables'),
   generationLog: document.querySelector('#enter-generation-log'),
   sheet: {
@@ -444,7 +446,7 @@ function newCampaignRow() {
   const toggle = textButton(newCampaignOpen ? '[ CANCEL ]' : '[ NEW CAMPAIGN ]', () => { newCampaignOpen = !newCampaignOpen; render(); });
   wrap.append(toggle);
   if (newCampaignOpen) {
-    const free = records.filter((record) => !record.pendingJoin && characterRecordStatus(record).enter === null);
+    const free = records.filter((record) => !record.pendingJoin && !isNpcRecord(record) && characterRecordStatus(record).enter === null);
     const note = document.createElement('p'); note.className = 'enter-toolbar-note';
     note.textContent = free.length ? 'Which of your characters starts it?' : 'None of your characters is free. Roll one first, or leave a campaign.';
     wrap.append(note, ...free.map((record) => linkButton(`[ START WITH ${record.name.toUpperCase()} ]`, `index.html?start=${encodeURIComponent(record.characterId)}`, { primary: true })));
@@ -488,8 +490,11 @@ function renderCharacterRow(record) {
   if (status.enter === 'solo') state.textContent = 'SOLO WORLD (NOT YET OPEN)';
   else if (status.enter === 'campaign') state.textContent = `IN ${String(record.world.campaignName ?? 'A CAMPAIGN').toUpperCase()}`;
   else if (record.pendingJoin) state.textContent = `WAITING FOR ${String(record.pendingJoin.campaignName ?? 'A CAMPAIGN').toUpperCase()}`;
-  else state.textContent = 'FREE';
-  tools.append(moreMenu([textButton('[ DELETE ]', () => removeRecord(record))], `character:${record.characterId}`));
+  else state.textContent = isNpcRecord(record) ? 'NPC' : 'FREE';
+  // v0.335.0: an NPC is kept for the referee's use; it can be made playable.
+  const free = !status.enter && !record.pendingJoin;
+  const roleButton = free ? textButton(isNpcRecord(record) ? '[ MAKE PLAYABLE ]' : '[ MAKE NPC ]', () => changeRole(record, isNpcRecord(record) ? 'pc' : 'npc')) : null;
+  tools.append(moreMenu([roleButton, textButton('[ DELETE ]', () => removeRecord(record))].filter(Boolean), `character:${record.characterId}`));
   row.append(name, summary, state, tools);
 
   return row;
@@ -629,7 +634,7 @@ function renderJoinPanel() {
     if (already) {
       body.push(Object.assign(document.createElement('p'), { className: 'enter-empty', textContent: `${already.name.toUpperCase()} IS ${already.pendingJoin ? 'ALREADY WAITING TO JOIN' : 'ALREADY IN THIS CAMPAIGN'}.` }));
     }
-    const free = records.filter((record) => !record.pendingJoin && characterRecordStatus(record).enter === null);
+    const free = records.filter((record) => !record.pendingJoin && !isNpcRecord(record) && characterRecordStatus(record).enter === null);
     body.push(Object.assign(document.createElement('p'), { className: 'enter-toolbar-note', textContent: free.length ? 'Choose a character to join with, or roll a new one.' : 'None of your characters is free to join. Roll a new one, or leave a campaign first.' }));
     if (joinInvite.invite.approval) body.push(Object.assign(document.createElement('p'), { className: 'enter-toolbar-note', textContent: 'This referee lets each player in themselves; you will wait for them.' }));
     for (const record of free) {
@@ -690,6 +695,16 @@ function renderCharacters() {
   }
   el.list.replaceChildren(...[draftRow, ...records.map(renderCharacterRow)].filter(Boolean));
   renderSelectedCharacter();
+}
+
+async function changeRole(record, role) {
+  try {
+    await saveCharacterRecord(setCharacterRecordRole(record, role));
+    setStatus(`${record.name.toUpperCase()} ${role === 'npc' ? 'IS NOW AN NPC' : 'IS NOW PLAYABLE'}`, 'ok');
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
 }
 
 async function removeRecord(record) {
@@ -846,6 +861,8 @@ function renderChargen() {
   const dead = character.phase === CHARGEN_PHASES.DEAD;
   el.actions.replaceChildren();
   el.complete.hidden = !(done || dead);
+  // v0.335.0: only a finished character can be kept as an NPC (or saved).
+  if (el.keepNpc) el.keepNpc.hidden = !done;
   el.save.hidden = !done;
   if (!done && !dead) renderChargenActions(el.actions, character, procedure.available, execute);
   renderChargenSheet(character, el.sheet);
@@ -867,20 +884,21 @@ function renderGenerationLog() {
   }));
 }
 
-async function saveCharacter() {
+async function saveCharacter({ role = 'pc' } = {}) {
   try {
     if (!character || character.phase !== CHARGEN_PHASES.COMPLETE) throw new Error('finish mustering out first');
     const uid = currentUserId();
     if (!uid) throw new Error('sign in before saving');
-    const name = el.name.value.trim();
+    // v0.335.0: an NPC may go unnamed; it gets a random name.
+    const name = el.name.value.trim() || (role === 'npc' ? generateCharacterName() : '');
     if (!name) throw new Error('give the character a name');
     const named = { ...character, name };
-    const record = createCharacterRecord(createCharacterDocument(named), { ownerUid: uid });
+    const record = createCharacterRecord(createCharacterDocument(named), { ownerUid: uid, role });
     await saveCharacterRecord(record);
     character = null;
     saveDraft();
     view = 'characters';
-    setStatus(`${name.toUpperCase()} SAVED`, 'ok');
+    setStatus(`${name.toUpperCase()} ${role === 'npc' ? 'KEPT AS AN NPC' : 'SAVED'}`, 'ok');
     render();
   } catch (error) {
     console.error(error);
@@ -926,7 +944,8 @@ el.campaignFile.addEventListener('change', () => {
 });
 el.randomName.addEventListener('click', () => { el.name.value = generateCharacterName(); el.name.dispatchEvent(new Event('input')); });
 el.name.addEventListener('input', () => { if (character) { character = { ...character, name: el.name.value }; saveDraft(); el.sheet.name.textContent = el.name.value || '(UNNAMED)'; } });
-el.save.addEventListener('click', saveCharacter);
+el.save.addEventListener('click', () => saveCharacter());
+el.keepNpc?.addEventListener('click', () => saveCharacter({ role: 'npc' }));
 el.discard.addEventListener('click', discardCharacter);
 // v0.334.0: the "ask before deleting" setting, under the character list.
 {

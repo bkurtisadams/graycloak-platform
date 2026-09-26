@@ -49,3 +49,30 @@ test('v0.334.0 the lobby uses its own dialogs, and has the setting under the cha
   const page = await readFile(new URL('../client/enter.html', import.meta.url), 'utf8');
   assert.match(page, /id="enter-confirm-deletes" type="checkbox" checked> ASK BEFORE DELETING A CHARACTER/);
 });
+
+// v0.335.0: discard from the first roll; a finished roll kept as an NPC.
+test('v0.335.0 discard is always on the generation page; Keep as NPC saves an NPC that cannot join', async () => {
+  const page = await readFile(new URL('../client/enter.html', import.meta.url), 'utf8');
+  const complete = page.slice(page.indexOf('id="enter-complete"'), page.indexOf('</div>', page.indexOf('id="enter-complete"')));
+  assert.doesNotMatch(complete, /enter-discard-character/, 'not only in the finished row');
+  assert.match(page, /class="enter-chargen-discard">\s*<button id="enter-discard-character"/);
+  assert.match(page, /id="enter-keep-npc"[^>]*>\[ KEEP AS NPC \]/);
+  const lobby = await readFile(new URL('../client/enter.js', import.meta.url), 'utf8');
+  assert.match(lobby, /saveCharacter\(\{ role: 'npc' \}\)/);
+  assert.equal((lobby.match(/!record\.pendingJoin && !isNpcRecord\(record\) && characterRecordStatus/g) ?? []).length, 2, 'NPCs neither join nor start a campaign');
+});
+
+test('v0.335.0 a character record carries its role; an NPC can be made playable', async () => {
+  const { createCharacterRecord, setCharacterRecordRole, isNpcRecord, validateCharacterRecord } = await import('../src/character-record.js');
+  const { importCharacterDocument } = await import('../vendor/classic-traveller-rules/index.js');
+  const text = await readFile(new URL('../examples/Hawkeye.character.json', import.meta.url), 'utf8');
+  const document = importCharacterDocument(text);
+  const npc = createCharacterRecord(document, { ownerUid: 'u1', role: 'npc' });
+  assert.equal(isNpcRecord(npc), true);
+  assert.deepEqual(validateCharacterRecord(npc), []);
+  const pc = setCharacterRecordRole(npc, 'pc');
+  assert.equal(isNpcRecord(pc), false);
+  assert.equal(createCharacterRecord(document, { ownerUid: 'u1' }).role, 'pc');
+  assert.throws(() => setCharacterRecordRole(npc, 'villain'), TypeError);
+  assert.deepEqual(validateCharacterRecord({ ...npc, role: 'villain' }).includes('role must be pc or npc'), true);
+});

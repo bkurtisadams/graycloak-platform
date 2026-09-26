@@ -31,7 +31,18 @@ export function unassignedWorld() {
   return { kind: WORLD_KINDS.UNASSIGNED, campaignId: null, campaignName: null, since: null };
 }
 
-export function createCharacterRecord(characterDocument, { ownerUid, createdAt = Date.now() } = {}) {
+// v0.335.0: a character kept for the referee's use rather than to play —
+// "It is recommended that the referee save these characters for future use as
+// non-player characters, hirelings, and other types" (The Traveller Book,
+// 1982, p.20). A record with no role is a player character.
+export const CHARACTER_ROLES = Object.freeze({ PC: 'pc', NPC: 'npc' });
+export function isNpcRecord(record) { return record?.role === CHARACTER_ROLES.NPC; }
+export function setCharacterRecordRole(record, role) {
+  if (!Object.values(CHARACTER_ROLES).includes(role)) throw new TypeError(`role must be pc or npc: ${role}`);
+  return { ...clone(record), role, updatedAt: Date.now() };
+}
+
+export function createCharacterRecord(characterDocument, { ownerUid, createdAt = Date.now(), role = CHARACTER_ROLES.PC } = {}) {
   const character = importCharacterDocument(characterDocument);
   if (!nonblank(ownerUid)) throw new TypeError('ownerUid is required');
   return {
@@ -43,6 +54,7 @@ export function createCharacterRecord(characterDocument, { ownerUid, createdAt =
     // A pending join is the player's own note of where they asked to sit,
     // cleared when the referee seats them or they withdraw.
     pendingJoin: null,
+    role,
     createdAt,
     updatedAt: createdAt,
     character
@@ -57,6 +69,7 @@ export function validateCharacterRecord(record) {
   if (!nonblank(record.characterId)) errors.push('characterId is required');
   if (!record.world || !WORLD_KIND_VALUES.has(record.world.kind)) errors.push('world.kind is invalid');
   if (record.world?.kind === WORLD_KINDS.CAMPAIGN && !nonblank(record.world.campaignId)) errors.push('a campaign world needs a campaignId');
+  if (record.role !== undefined && !Object.values(CHARACTER_ROLES).includes(record.role)) errors.push('role must be pc or npc');
   try {
     const character = importCharacterDocument(record.character);
     if (character.identity.id !== record.characterId) errors.push('characterId does not match the character document');

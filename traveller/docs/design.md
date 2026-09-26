@@ -660,6 +660,15 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- Discarding and keeping rolls (Kurt, Sep 2026; v0.335.0): the books say
+  "use the character as generated" (1977 Book 1 p.2; 1982 p.17), but a
+  draft is not in play, so [ DISCARD ] is on the generation page from the
+  first roll (the ask-before-deleting setting applies). A finished roll can
+  instead be kept as an NPC (1982 p.20: save rolled characters "for future
+  use as non-player characters, hirelings"): a lobby record with role
+  'npc', shown as NPC, never offered to join or start a campaign, and made
+  playable again from its row's menu. Open: bringing a kept NPC into a
+  campaign's Actors; a referee setting that forbids discarding.
 - The Merchant's mustering-out Free Trader (v0.333.0, rules 0.82.0): Book
   1 pp.22-23 — a Type A owned by the character, who is its pilot and pays
   Book 2 p.5's terms (1/240 of MCr 37.08 = Cr 154,500 a month, "about

@@ -5851,3 +5851,5 @@ body.enter-body > .masthead .masthead-main { display: flex; align-items: center;
 .tv-dialog.is-danger .action-button { color: var(--failure-border); }
 .enter-ask-delete { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 11px; color: var(--muted); }
 .enter-ask-delete input { margin: 0; }
+/* v0.335.0: Discard, always there during generation, set apart from Save. */
+.enter-chargen-discard { display: flex; justify-content: flex-end; margin: 6px 0 0; }
