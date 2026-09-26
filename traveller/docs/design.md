@@ -640,6 +640,16 @@ berthing past six days, salaries) reach `play.html` with it.
   rules' own stamp (`?v=r<version>`), the vendored copy's internal imports
   carry it too, and the pages show a mismatch banner (`rules-check.js`,
   boot.mjs's panel on index.html) when the server serves another version.
+- Solo with no GM online (Kurt, Sep 2026; v0.329.0): the game referees
+  players' requests on the server. A seated player's button writes
+  `requests/{id}`; a Cloud Function (`traveller/functions`) runs the same
+  session and saves at the next revision (`src/remote-request.js`). Players
+  never read the campaign itself. Allowed: the ship's business, the trip,
+  patrons and jobs, jail, rest, the abbreviated ship fight
+  (`src/player-requests.js`). With a person refereeing, requests are refused
+  and the seat shows the situation without buttons. Any seated player acts
+  for the ship for now; a departure ready check and referee approval are
+  the next slices. The envelope carries `referee` and `situation`.
 - The players' copy of the campaign carries the map as players may see it
   (v0.328.0): the sector as charted, unvisited worlds as chart facts only,
   so the seat page draws the campaign's map.

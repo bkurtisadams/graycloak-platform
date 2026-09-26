@@ -1,0 +1,17 @@
+{
+  "name": "@graycloak/traveller-functions",
+  "version": "0.329.0",
+  "private": true,
+  "type": "module",
+  "description": "Graycloak Traveller: the game referees players' requests with nobody's referee page open",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "scripts": {
+    "prepare-app": "node scripts/copy-app.mjs",
+    "check": "node scripts/copy-app.mjs && node scripts/check.mjs"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.4.0"
+  }
+}

@@ -115,6 +115,7 @@ import { buildPublishedCampaign, buildPublishedScene, buildPublishedCharacter, b
 import { authorizePlayerDeclaration } from './player-declaration.js';
 import { authorizePlayerWoundAllocation } from './player-wound-allocation.js';
 import { createChatMessage } from './dice-tray.js';
+import { playerMayRun, playerSituation } from './player-requests.js';
 
 const SERVICE_NAMES = Object.freeze({ navy: 'Navy', marines: 'Marines', army: 'Army', scouts: 'Scout', merchants: 'Merchant', other: 'Other' });
 const PHYSICAL = Object.freeze(['STR', 'DEX', 'END']);
@@ -2723,13 +2724,15 @@ export function mapView(map, { seat = 'referee', visited = [] } = {}) {
   };
 }
 
-export function createPlaySession({ registry, campaignId, subsector: subsectorParam = null, sector = null, cloud = null, onChange = () => {} } = {}) {
+export function createPlaySession({ registry, campaignId, subsector: subsectorParam = null, sector = null, cloud = null, onChange = () => {}, cloudRevision = null } = {}) {
   if (!registry) throw new TypeError('a document registry is required');
   let resolved = registry.resolveCampaign(campaignId);
   // v0.321.0: with a sector, the campaign's map is the sector as charted.
   let subsector = sector ? campaignSectorMap(resolved.campaign, sector) : subsectorParam;
-  let revision = null;
-  let save = { state: 'local', label: 'This browser only', detail: 'Saved in this browser', at: null };
+  // v0.329.0: a session the server builds from a home it has just loaded
+  // starts at that home's revision, without connect()'s load and publish.
+  let revision = cloudRevision;
+  let save = { state: cloudRevision === null ? 'local' : 'cloud', label: 'This browser only', detail: 'Saved in this browser', at: null };
   // v0.325.1: one cloud save at a time; a save asked for while one is in
   // flight runs once after it, and every caller in between gets that one's
   // promise. Before, a caller that arrived mid-save got null and had to poll,
@@ -3002,6 +3005,15 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   const publishedViews = new Map();
   const publishedLogs = new Map();
   const settledRounds = new Map();
+  function publishedSituation() {
+    if (!api) return null;
+    try {
+      return JSON.parse(JSON.stringify(playerSituation(api.view({ seat: 'player' }), { mode: refereeMode(resolved.campaign) })));
+    } catch (error) {
+      console.warn('[traveller] situation for players:', error?.message ?? error);
+      return null;
+    }
+  }
   function publishedPlayerMap(campaign) {
     if (!sector || !subsector) return null;
     return JSON.parse(JSON.stringify(mapView(subsector, { seat: 'player', visited: sectorState(campaign).visited })));
@@ -3194,8 +3206,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       const fight = api.view().shipFight;
       if (!fight) return null;
       const copy = JSON.parse(JSON.stringify(fight));
-      copy.actions = []; copy.repairActions = []; copy.cancelRepairAction = [];
-      copy.awaitingPlayer = false; copy.readOnly = true;
+      // v0.329.0: when the game referees, the abbreviated fight's buttons go
+      // to the players (the ones on their list); the vector fight stays
+      // watched.
+      const game = refereeMode(resolved.campaign) === 'game' && !copy.vector;
+      const allowed = (list) => (game ? (list ?? []).filter((action) => playerMayRun(action.command)) : []);
+      copy.actions = allowed(copy.actions); copy.repairActions = allowed(copy.repairActions); copy.cancelRepairAction = allowed(copy.cancelRepairAction);
+      copy.awaitingPlayer = game && copy.actions.length > 0; copy.readOnly = !game;
       if (copy.vector) { copy.vector.awaitingMovement = false; copy.vector.awaitingFireDecision = false; copy.vector.canFire = false; }
       return copy;
     } catch (error) {
@@ -3248,7 +3265,12 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         // v0.328.0: the map as players may see it (the sector as charted;
         // worlds not yet visited show their chart facts only), so the seat
         // page draws the campaign's map rather than Far Meridian alone.
-        map: publishedPlayerMap(resolved.campaign)
+        map: publishedPlayerMap(resolved.campaign),
+        // v0.329.0: who referees, and the situation as a player's page shows
+        // it — with its buttons when the game referees (a press is a request
+        // the server carries out; remote-request.js).
+        referee: refereeMode(resolved.campaign),
+        situation: publishedSituation()
       };
       revision = await cloud.save(home, envelope, { expectedRevision: revision });
       // v0.274.0: each seated player's own sheet, which player.html reads.
@@ -6157,6 +6179,12 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
 
   api = {
     connect, run, saveToCloud, reload,
+    // v0.329.0: the save a command already started, or one now; for the
+    // server, which must not return before the campaign is saved.
+    async flushSave() {
+      if (inflight || following) { await (following ?? inflight); return save.state === 'stale' ? null : revision; }
+      return saveToCloud();
+    },
     // v0.276.0: the multiplayer channels, driven by the page's listeners.
     applyPlayerDeclarations, applyPlayerWoundAllocations, setCloudChat,
     // v0.275.0: for the page's Rest dialog.
@@ -6219,7 +6247,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.personEncounter = personPending ? {
         ...personPending,
         summary: describePersonEncounter(personPending),
-        actions: save.state === 'stale' || seat === 'player' ? [] : (personPending.law && !personPending.law.avoided && !(personPending.actorIds ?? []).length
+        // v0.329.0: when the game referees, a player answers it too.
+        actions: save.state === 'stale' || (seat === 'player' && mode !== 'game') ? [] : (personPending.law && !personPending.law.avoided && !(personPending.actorIds ?? []).length
           ? [
             { command: 'persons:jail', label: `Serve ${personPending.law.jailDays} day${personPending.law.jailDays === 1 ? '' : 's'} in jail`, kind: 'owed', primary: true },
             { command: 'persons:board', label: 'Resist arrest', kind: 'danger' },

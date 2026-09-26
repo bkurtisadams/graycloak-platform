@@ -1415,6 +1415,13 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
    positioned against the scene they covered the subsector's name. */
 .seat-map { position: relative; }
 .seat-map .captions { left: 0; }
+/* v0.329.0: the situation on the player's page, with its buttons. */
+.seat-situation h3 { margin: 12px 0 4px; font-size: 14px; }
+.seat-steps { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.seat-step { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.seat-step .kind-button, .seat-step .button { margin-left: auto; }
+.seat-step.is-blocked .seat-step-title { color: var(--red); }
+.seat-job, .seat-person { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 8px; }
 .seat-scene { max-width: 980px; }
 
 /* v0.282.0: a watched ship fight has the player's page to itself. */

@@ -58,3 +58,15 @@ test('v0.328.0 the seat page draws the published map, captions under its head', 
   const css = await read('play.css');
   assert.match(css, /\.seat-map \{ position: relative; \}/);
 });
+
+// v0.329.0: the seat page's buttons are requests the server carries out.
+test('v0.329.0 the seat page sends requests and shows their answers', async () => {
+  const seat = await read('seat.js');
+  assert.match(seat, /sendPlayerRequest\(campaignId, \{ uid, characterId, command, value \}\)/);
+  assert.match(seat, /watchPlayerRequest\(campaignId, id,/);
+  assert.match(seat, /shipFightScene\(envelope\.shipFight, \{ onCommand: \(command\) => sendRequest\(command\) \}\)/);
+  assert.match(seat, /function situationCard\(envelope\)/);
+  const publish = await read('publish.js');
+  assert.match(publish, /collection\('requests'\)\.doc\(\)/);
+  assert.match(publish, /status: 'pending'/);
+});

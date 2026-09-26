@@ -10,8 +10,8 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.328.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.328.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.329.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.329.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -566,4 +566,24 @@ export async function deleteChatMessage(campaignId, messageId) {
   const db = await ensureFirestore();
   await db.collection('travellerCampaigns').doc(campaignId).collection('chat').doc(messageId).delete();
   return messageId;
+}
+
+// ---------------------------------------------------------------------------
+// v0.329.0: a player's request, carried out on the server with no referee
+// page open (traveller/functions/, src/remote-request.js). The player writes
+// it once; only the server writes its result (status 'done' or 'refused',
+// with a message). Firestore rules v18: create own, read own, nothing else.
+// ---------------------------------------------------------------------------
+export async function sendPlayerRequest(campaignId, { uid, characterId = null, command, value = {} }) {
+  const db = await ensureFirestore();
+  const ref = db.collection('travellerCampaigns').doc(campaignId).collection('requests').doc();
+  await ref.set({ uid, characterId: characterId ?? null, command: String(command), value: value ?? {}, createdAt: Date.now(), status: 'pending' });
+  return ref.id;
+}
+
+export async function watchPlayerRequest(campaignId, requestId, onChange) {
+  const db = await ensureFirestore();
+  return db.collection('travellerCampaigns').doc(campaignId).collection('requests').doc(requestId)
+    .onSnapshot((snapshot) => onChange(snapshot.exists ? { id: snapshot.id, ...snapshot.data() } : null),
+      (error) => { console.error('[traveller-publish] request:', error); onChange({ id: requestId, status: 'error', message: error?.message ?? String(error) }); });
 }

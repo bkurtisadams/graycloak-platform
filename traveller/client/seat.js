@@ -10,18 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.328.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.328.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.328.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.328.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest } from './publish.js?v=v0.328.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.328.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.328.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.328.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.328.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.328.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.329.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.329.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.329.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.329.0';
+import { kindButton } from './kind-button.js?v=v0.329.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.329.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.329.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.329.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.329.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.329.0';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.328.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -45,7 +46,10 @@ const state = {
   bandsShown: null,
   drafts: new Map(), // actorId -> { action, targetId }
   woundDraft: null,
-  answeredWoundKey: null
+  answeredWoundKey: null,
+  // v0.329.0: the last request this page sent, and its answer.
+  request: null,
+  requestStop: null
 };
 const fightStops = [];
 const narrationSeen = new Map();
@@ -191,8 +195,10 @@ function renderScene() {
       // campaign whose referee has not saved since.
       const map = h('div', { class: 'seat-map' }, ...subsectorScene({
         kind: 'subsector', currentId: where.systemId, selectedId: state.selectedSystem ?? null,
-        jump: envelope.ship?.jumpRating ?? 0, world: null, map: envelope.map ?? undefined
-      }, { onSelectSystem: (id) => { state.selectedSystem = id; renderScene(); } }, true));
+        jump: envelope.ship?.jumpRating ?? 0, world: null, map: envelope.map ?? undefined,
+        // v0.329.0: the game refereeing, a course is set from the map too.
+        canSetCourse: Boolean(envelope.situation?.canSetCourse) && state.request?.status !== 'pending', courseId: envelope.situation?.courseId ?? null
+      }, { onSelectSystem: (id) => { state.selectedSystem = id; renderScene(); }, onCommand: (command) => sendRequest(command) }, true));
       body.push(map);
     }
     body.push(h('section', { class: 'seat-card' },
@@ -200,6 +206,9 @@ function renderScene() {
       h('p', {}, h('b', { text: where.worldName ?? where.systemName ?? 'Somewhere' }),
         where.systemName && where.systemName !== where.worldName ? ` in the ${where.systemName} system` : ''),
       h('p', { class: 'cite', text: envelope.time ? `Date ${formatCampaignDate(envelope.time)}` : '' })));
+    // v0.329.0: what is happening, and — the game refereeing — the buttons.
+    const situation = situationCard(envelope);
+    if (situation) body.push(situation);
     const ship = envelope.ship;
     if (ship) {
       body.push(h('section', { class: 'seat-card' },
@@ -219,7 +228,7 @@ function renderScene() {
     if (!state.watchingShipFight && state.sheets) state.sheets = state.sheets.map((entry) => ({ ...entry, compact: true }));
     state.watchingShipFight = true;
     $('shell').dataset.situation = 'ship-fight';
-    const parts = shipFightScene(envelope.shipFight, {});
+    const parts = shipFightScene(envelope.shipFight, { onCommand: (command) => sendRequest(command) });
     $('scene').replaceChildren(...(Array.isArray(parts) ? parts : [parts]));
     return;
   }
@@ -231,6 +240,95 @@ function renderScene() {
   }
   $('shell').dataset.situation = 'port';
   $('scene').replaceChildren(h('div', { class: 'seat-scene' }, ...body));
+}
+
+// ---- the situation and the player's requests (v0.329.0) ---------------------
+// The referee's page (or the server acting for the game) publishes the
+// situation with the buttons a player may press. A press is a request the
+// server carries out (traveller/functions, src/remote-request.js); its
+// answer comes back on the request and is shown here until the next press.
+
+async function sendRequest(command, value = {}) {
+  if (!command || state.request?.status === 'pending') return;
+  const uid = currentUserId();
+  if (!uid) return;
+  const characterId = [...ownedHere()][0] ?? null;
+  state.request = { status: 'pending', command, message: 'Sending\u2026' };
+  render();
+  try {
+    const id = await sendPlayerRequest(campaignId, { uid, characterId, command, value });
+    state.requestStop?.();
+    state.requestStop = await watchPlayerRequest(campaignId, id, (entry) => {
+      if (!entry) return;
+      state.request = { status: entry.status, command, message: entry.message ?? (entry.status === 'pending' ? 'Waiting for the game\u2026' : '') };
+      if (entry.status !== 'pending') { state.requestStop?.(); state.requestStop = null; }
+      render();
+    });
+  } catch (error) {
+    state.request = { status: 'error', command, message: `Not sent: ${error?.message ?? error}` };
+    render();
+  }
+}
+
+function requestButton(action, { small = false } = {}) {
+  if (!action?.command) return null;
+  const busy = state.request?.status === 'pending';
+  const button = kindButton({ label: action.label ?? action.verb ?? 'Go', kind: action.kind ?? 'neutral', primary: Boolean(action.primary) }, { small, onclick: () => sendRequest(action.command, action.value ?? {}) });
+  if (busy) button.disabled = true;
+  return button;
+}
+
+function situationCard(envelope) {
+  const s = envelope.situation;
+  if (!s) return null;
+  const game = s.mode === 'game';
+  const parts = [h('h2', { text: s.title ?? 'Now' })];
+  if (s.detail) parts.push(h('p', { class: 'cite', text: s.detail }));
+  if (state.request) {
+    parts.push(h('p', { class: `notice${state.request.status === 'refused' || state.request.status === 'error' ? ' is-error' : ''}`, role: 'status', text: state.request.message || '' }));
+  }
+  if (s.next) {
+    parts.push(h('h3', { text: s.next.title ?? '' }));
+    if (s.next.copy) parts.push(h('p', { text: s.next.copy }));
+    const lead = (s.next.actions ?? []).map((action) => requestButton(action)).filter(Boolean);
+    if (lead.length) parts.push(h('div', { class: 'lead-actions' }, ...lead));
+  }
+  const steps = (s.steps ?? []).filter((step) => step.title);
+  if (steps.length) {
+    parts.push(h('ul', { class: 'seat-steps' }, ...steps.map((step) => h('li', { class: `seat-step is-${step.state ?? 'info'}` },
+      h('span', { class: 'seat-step-title', text: step.title }),
+      step.figure ? h('span', { class: 'cite', text: ` ${step.figure}` }) : null,
+      requestButton({ command: step.command, label: step.verb ?? step.title, kind: step.kind }, { small: true })))));
+  }
+  if ((s.done ?? []).length) parts.push(h('p', { class: 'cite', text: `Done: ${s.done.join(' \u00b7 ')}` }));
+  const person = s.person;
+  if (person?.summary) {
+    parts.push(h('div', { class: 'seat-person' }, h('p', { text: person.summary }),
+      h('div', { class: 'lead-actions' }, ...(person.actions ?? []).map((action) => requestButton(action)).filter(Boolean))));
+  }
+  const patrons = s.patrons;
+  if (patrons) {
+    for (const task of patrons.tasks ?? []) {
+      parts.push(h('div', { class: 'seat-job' }, h('p', {}, h('b', { text: task.title }), ` \u2014 ${task.figure ?? ''}`),
+        task.blocked ? h('p', { class: 'cite', text: task.blocked }) : null,
+        requestButton({ command: task.command, label: task.label ?? 'Carry it out', kind: 'money', primary: true })));
+    }
+    if (patrons.offer) {
+      const offer = patrons.offer;
+      parts.push(h('div', { class: 'seat-job' }, h('p', {}, h('b', { text: `A ${String(offer.type ?? 'patron').toLowerCase()} offers a job: ` }), offer.title ?? ''),
+        h('p', { class: 'cite', text: `Cr ${Number(offer.paymentCr).toLocaleString('en-US')}, ${offer.deadlineDays} days` }),
+        h('div', { class: 'lead-actions' },
+          requestButton({ command: offer.accept, label: 'Take the job', kind: 'money', primary: true }),
+          requestButton({ command: offer.decline, label: 'Turn it down', kind: 'neutral' }))));
+    }
+    if (patrons.seek?.command) parts.push(h('div', { class: 'lead-actions' }, requestButton(patrons.seek)));
+  }
+  if ((s.jobs ?? []).length) {
+    parts.push(h('h3', { text: 'Jobs in hand' }), h('ul', { class: 'seat-steps' }, ...s.jobs.map((job) => h('li', { class: `seat-step${job.urgent ? ' is-blocked' : ''}` },
+      h('span', { class: 'seat-step-title', text: `${job.title} to ${job.to}` }), h('span', { class: 'cite', text: ` ${job.due ?? ''} \u00b7 Cr ${Number(job.payCr).toLocaleString('en-US')}` })))));
+  }
+  if (!game) parts.push(h('p', { class: 'cite', text: 'Your referee runs the ship\u2019s business; this shows where it stands.' }));
+  return h('section', { class: 'seat-card seat-situation' }, ...parts);
 }
 
 // ---- the fight (v0.278.0) ---------------------------------------------------
