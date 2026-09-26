@@ -37,7 +37,8 @@ import {
   refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
-  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations
+  draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
+  createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter
 } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
@@ -83,7 +84,7 @@ import { saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-m
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
   setCampaignOwner, speculativeLotPurchasedQuantity, advanceCampaignDays, advanceCampaignSeconds, updateCampaignTime, addSceneToCampaign,
-  removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter, setPartyMembership, addCharacterToCampaign, removeCharacterFromCampaign,
+  removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter, setPartyMembership, addCharacterToCampaign, removeCharacterFromCampaign, addShipToCampaign,
   characterFolder, setCharacterFolders, setDocumentOwner
 } from './campaign-document.js';
 import {
@@ -2012,8 +2013,39 @@ export function travellersView(resolved) {
       upp: character.upp ?? character.characteristics?.upp ?? null,
       service: character.career?.service ?? null,
       posts: posts.get(character.identity.id) ?? [],
-      ownerUid: owners[character.identity.id] ?? null
+      ownerUid: owners[character.identity.id] ?? null,
+      shipBenefit: untakenShipBenefit(character)
     }));
+}
+
+// v0.336.0: a mustering-out ship a character rolled but nobody has built —
+// a Free Trader (Book 1 pp.22-23) or a Scout Ship on reserve (p.23). A
+// character rolled in the lobby carries the benefit into the campaign, but
+// only the old referee page could make the ship; now the Travellers tab can.
+export function untakenShipBenefit(character) {
+  const entitlements = character?.benefits?.shipEntitlements ?? [];
+  const refs = character?.shipRefs ?? [];
+  const trader = entitlements.find((entry) => entry.name === 'Free Trader');
+  if (trader && trader.disposition === 'unresolved' && !refs.some((ref) => ref.relationship === 'owner' && ref.shipType === 'A')) return 'Free Trader';
+  const scout = entitlements.find((entry) => entry.name === 'Scout Ship');
+  if (scout && scout.disposition === 'reserve-assignment-available') return 'Scout Ship';
+  return null;
+}
+
+// v0.336.0: the campaign's ships, for the Travellers tab: which one the
+// travellers are in, and which others are berthed where they are.
+export function campaignShipsView(resolved) {
+  const { campaign, ships = [] } = resolved;
+  const here = campaign.location?.systemId ?? null;
+  return ships.map((ship) => ({
+    id: ship.identity.id,
+    name: ship.identity.name || 'Unnamed ship',
+    type: ship.design?.name ?? ship.design?.typeCode ?? 'ship',
+    typeCode: ship.design?.typeCode ?? '?',
+    holder: ship.authority?.assignedCharacterName ?? null,
+    active: ship.identity.id === campaign.activeShipId,
+    berthedHere: Boolean(here && ship.state?.portCall?.systemId === here)
+  }));
 }
 
 // v0.332.0: characters of the campaign not travelling together, who may be
@@ -3786,6 +3818,57 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // v0.275.0: rest is the party's, and the clock moves once for it
       // (Kurt, Sep 2026: two characters resting advanced the date twice).
       // character:rest is kept, as a party of one.
+      if (command.startsWith('ship:from-benefit:')) {
+        // v0.336.0: build the mustering-out ship a character brought in,
+        // berthed where the travellers are. It becomes the travellers' ship
+        // only if the campaign has none; otherwise it waits in port.
+        const id = command.slice('ship:from-benefit:'.length);
+        const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+        if (!character) throw new Error('no such character in this campaign');
+        const benefit = untakenShipBenefit(character);
+        if (!benefit) throw new Error(`${character.identity.name || 'This character'} has no ship benefit waiting`);
+        const campaign = resolved.campaign;
+        const date = formatCampaignDate(campaign.time);
+        const built = benefit === 'Free Trader'
+          ? createTypeAFreeTraderForCharacter(character, { startedOn: date })
+          : createTypeSScoutReserveShipForCharacter(character);
+        const systemId = campaign.location?.systemId ?? null;
+        const ship = systemId ? beginPortCall(built.ship, { systemId, arrivalDate: date, berthingDueCr: 0 }) : built.ship;
+        const makeActive = !campaign.activeShipId;
+        registry.putAll([ship, built.character]);
+        registry.put(addShipToCampaign(registry.resolveCampaign(campaignId).campaign, ship, { makeActive }));
+        reload();
+        const terms = built.terms;
+        const owed = benefit === 'Scout Ship' ? 'on reserve from the Scout Service'
+          : terms.freeAndClear ? 'free and clear' : `${terms.paymentsOwed} monthly payments of Cr ${ship.state.finances.mortgage.monthlyPaymentCr.toLocaleString('en-US')} owed`;
+        const message = `${character.identity.name}'s ${benefit} (${ship.identity.name}) comes into the campaign, ${owed}${terms?.shipAgeYears ? `, ${terms.shipAgeYears} years old` : ''}${makeActive ? '; the travellers\u2019 ship' : '; berthed here, not yet the travellers\u2019 ship'}.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command.startsWith('ship:make-active:')) {
+        // v0.336.0: the travellers change ships — in port, where both are
+        // berthed; not mid-trip or mid-fight. Cargo, fuel and the ship's own
+        // accounts stay with each ship.
+        const id = command.slice('ship:make-active:'.length);
+        const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === id);
+        if (!ship) throw new Error('no such ship in this campaign');
+        const trip = safeTrip(resolved);
+        if (trip && trip.situation !== 'port') throw new Error('the travellers change ships in port');
+        if (resolved.encounters.some((entry) => entry.status === 'active') || resolved.campaign.roster?.shipFight) throw new Error('a fight is in progress; finish it first');
+        const here = resolved.campaign.location?.systemId ?? null;
+        if (here && ship.state?.portCall?.systemId !== here) throw new Error(`${ship.identity.name} is not berthed where the travellers are`);
+        registry.put(addShipToCampaign(resolved.campaign, ship, { makeActive: true }));
+        reload();
+        const message = `The travellers now travel in ${ship.identity.name} (${ship.design?.name ?? 'ship'}).`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('party:add:') || command.startsWith('party:remove:')) {
         // v0.332.0: who travels together, changed from the Travellers tab —
         // in port (or with no trip), never mid-jump or mid-fight, since a
@@ -6320,6 +6403,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.refereeMode = refereeMode(resolved.campaign);
       state.travellers = travellersView(resolved);
       state.travellerCandidates = travellerCandidates(resolved);
+      state.campaignShips = campaignShipsView(resolved);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).

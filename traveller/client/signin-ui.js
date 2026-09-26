@@ -5,7 +5,7 @@
 // some do not, and because Google will not let you invent an account for
 // testing. Firebase has both enabled.
 
-import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.335.0';
+import { signIn, signInWithEmail, createAccountWithEmail, describeAuthError, sendPasswordReset, setAccountPassword, accountProviders, authStatus, describeAttempt } from './auth.js?v=v0.336.0';
 
 const DIALOG_ID = 'signin-dialog';
 

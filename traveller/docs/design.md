@@ -660,6 +660,14 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- Mustering-out ships brought into a campaign (v0.336.0): a character
+  rolled in the lobby carries an untaken Free Trader or Scout Ship; the
+  Travellers tab offers "Bring in their Free Trader/Scout Ship", which builds
+  it (Book 1 pp.22-23; the mortgage from the campaign's date), links it to
+  the character and berths it where the travellers are. It becomes the
+  travellers' ship only if the campaign has none; otherwise "Travel in this
+  ship" changes ships, in port only, never mid-trip or mid-fight; cargo,
+  fuel and accounts stay with each ship.
 - Discarding and keeping rolls (Kurt, Sep 2026; v0.335.0): the books say
   "use the character as generated" (1977 Book 1 p.2; 1982 p.17), but a
   draft is not in play, so [ DISCARD ] is on the generation page from the

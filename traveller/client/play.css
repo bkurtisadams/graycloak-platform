@@ -1609,3 +1609,6 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .traveller-remove:hover { color: var(--red); }
 .traveller-add { display: flex; gap: 6px; align-items: center; margin: 8px 0 0; }
 .traveller-add select { flex: 1 1 auto; min-width: 0; }
+
+/* v0.336.0: a traveller's mustering-out ship waiting to be built. */
+.traveller-row .traveller-ship { flex-basis: 100%; justify-self: start; width: max-content; }

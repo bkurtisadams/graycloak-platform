@@ -2349,3 +2349,57 @@ test('v0.332.0 who travels together does not change away from port', async () =>
   assert.equal(refused.ok, false);
   assert.match(refused.message, /changes in port/);
 });
+
+// ---------------------------------------------------------------- v0.336.0
+import { untakenShipBenefit, campaignShipsView } from '../src/play-session.js';
+
+// A Merchant Captain who rolled the Free Trader, travelling beside the pilot.
+function withFreeTraderMerchant(registry, campaignId) {
+  withSecondTraveller(registry, campaignId);
+  const r = registry.resolveCampaign(campaignId);
+  const character = JSON.parse(JSON.stringify(r.characters.find((entry) => entry.identity.id === 'char-second-traveller')));
+  character.career.service = 'merchants';
+  character.shipRefs = [];
+  character.benefits.raw = [...character.benefits.raw.filter((entry) => entry.name !== 'Scout Ship' && entry.name !== 'Free Trader'), { type: 'material', name: 'Free Trader' }];
+  character.benefits.shipEntitlements = [{ name: 'Free Trader', rolls: 1, effectiveCount: null, noEffectCount: 0, disposition: 'unresolved' }];
+  registry.put(character);
+}
+
+test('v0.336.0 a Free Trader rolled in the lobby is built in the campaign, berthed here; the travellers can change to it', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  withFreeTraderMerchant(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const before = registry.resolveCampaign(campaignId);
+  assert.equal(untakenShipBenefit(before.characters.find((entry) => entry.identity.id === 'char-second-traveller')), 'Free Trader');
+  assert.equal(session.view().travellers.find((entry) => entry.id === 'char-second-traveller').shipBenefit, 'Free Trader');
+  const brought = session.run('ship:from-benefit:char-second-traveller');
+  assert.equal(brought.ok, true, brought.message);
+  assert.match(brought.message, /Free Trader .* 480 monthly payments of Cr 154,500 owed; berthed here, not yet the travellers\u2019 ship/);
+  let r = registry.resolveCampaign(campaignId);
+  const trader = r.ships.find((entry) => entry.design.key === 'type-a-free-trader' && entry.authority.assignedCharacterId === 'char-second-traveller');
+  assert.ok(trader, 'the ship is in the campaign');
+  assert.equal(trader.state.portCall.systemId, r.campaign.location.systemId);
+  assert.equal(r.campaign.activeShipId, before.campaign.activeShipId, 'the travellers keep their ship until they change');
+  assert.equal(untakenShipBenefit(r.characters.find((entry) => entry.identity.id === 'char-second-traveller')), null, 'taken once');
+  assert.equal(session.run('ship:from-benefit:char-second-traveller').ok, false);
+  const listed = campaignShipsView(r).find((entry) => entry.id === trader.identity.id);
+  assert.deepEqual({ active: listed.active, berthedHere: listed.berthedHere }, { active: false, berthedHere: true });
+  const changed = session.run(`ship:make-active:${trader.identity.id}`);
+  assert.equal(changed.ok, true, changed.message);
+  r = registry.resolveCampaign(campaignId);
+  assert.equal(r.campaign.activeShipId, trader.identity.id);
+  assert.ok(r.campaign.documentRefs.ships.some((entry) => entry.id === before.campaign.activeShipId), 'the old ship stays in the campaign');
+});
+
+test('v0.336.0 the travellers do not change ships away from port', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  withFreeTraderMerchant(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  session.run('ship:from-benefit:char-second-traveller');
+  const trader = registry.resolveCampaign(campaignId).ships.find((entry) => entry.design.key === 'type-a-free-trader' && entry.authority.assignedCharacterId === 'char-second-traveller');
+  session.run('trip:choose-destination:calder');
+  assert.equal(session.run('trip:depart').ok, true);
+  const refused = session.run(`ship:make-active:${trader.identity.id}`);
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /change ships in port/);
+});
