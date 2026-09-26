@@ -10,19 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.329.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.329.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.329.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.329.0';
-import { kindButton } from './kind-button.js?v=v0.329.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.329.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.329.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.329.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.329.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.329.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.329.1';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.329.1';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.329.1';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.329.1';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.329.1';
+import { kindButton } from './kind-button.js?v=v0.329.1';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.329.1';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.329.1';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.329.1';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.329.1';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.329.1';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.329.1';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -796,7 +796,14 @@ async function copySeatDiagnostics() {
   const copied = await copyDiagnostics({
     script: document.querySelector('script[src*="seat.js"]')?.getAttribute('src') ?? null,
     uid, account: authStatus().user?.email ?? null, campaignId,
-    envelope: state.envelope ? { name: state.envelope.name, ownership: state.envelope.ownership, characterIds: state.envelope.characterIds ?? 'not published', partyIds: state.envelope.partyIds ?? 'not published', refereeName: state.envelope.refereeName ?? null } : null,
+    envelope: state.envelope ? { name: state.envelope.name, ownership: state.envelope.ownership, characterIds: state.envelope.characterIds ?? 'not published', partyIds: state.envelope.partyIds ?? 'not published', refereeName: state.envelope.refereeName ?? null,
+      // v0.329.1: what the player's buttons depend on.
+      homeRevision: state.envelope.homeRevision ?? null, referee: state.envelope.referee ?? 'not published',
+      map: state.envelope.map ? `${state.envelope.map.systems?.length ?? 0} systems` : 'not published',
+      situation: state.envelope.situation ? { mode: state.envelope.situation.mode, kind: state.envelope.situation.kind, title: state.envelope.situation.title,
+        steps: (state.envelope.situation.steps ?? []).map((step) => `${step.title}${step.command ? ` [${step.command}]` : ''}`),
+        next: state.envelope.situation.next ? { title: state.envelope.situation.next.title, actions: (state.envelope.situation.next.actions ?? []).map((action) => action.command) } : null } : 'not published' } : null,
+    lastRequest: state.request ?? null,
     publishedSheets: [...state.published.keys()],
     ownRecords: (state.ownRecords ?? []).map((record) => ({ id: record.characterId, name: record.name, world: record.world, pendingJoin: record.pendingJoin ?? null, lastCampaign: record.lastCampaign ?? null })),
     ownedHere: [...ownedHere()], arriving: arriving(), resent: [...resent],
