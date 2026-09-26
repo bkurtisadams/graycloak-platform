@@ -16,7 +16,7 @@ import {
   starportFuelService,
   getPersonalWeapon,
   nobleTitleEntitlement
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 export const PHASE_LABELS = Object.freeze({
   'service-selection': 'SERVICE APPLICATION',
@@ -226,7 +226,7 @@ const PROCEDURE_TEXT = Object.freeze({
   'muster-out-required': 'Service has ended. Begin mustering out to determine cash and material benefits.',
   'muster-out-rolls-pending': 'Choose the Cash or Benefits table for each remaining mustering-out roll.',
   'muster-benefit-specialization-required': 'A Gun or Blade benefit requires immediate declaration of a specific legal weapon. Choose from the list below.',
-  complete: 'Character generation is complete. Export the gameplay character document. If a Scout Ship reserve assignment is available, assign its separate Ship Document before entering campaign play.',
+  complete: 'Character generation is complete. Export the gameplay character document. If a Scout Ship reserve assignment is available, assign its separate Ship Document before entering campaign play; a Merchant\u2019s Free Trader is taken the same way (Take the Free Trader).',
   dead: 'The character died during generation. Save the record if desired, or begin a new character.'
 });
 

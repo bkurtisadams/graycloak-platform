@@ -2298,3 +2298,54 @@ test('v0.331.0 an old rumour with no world id is written for the world named on 
   assert.ok(next[0].text);
   assert.equal(next[1].text, 'kept');
 });
+
+// ---------------------------------------------------------------- v0.332.0
+import { travellerCandidates } from '../src/play-session.js';
+import { addCharacterToCampaign } from '../src/campaign-document.js';
+
+// A second traveller beside the fixture's pilot.
+function withSecondTraveller(registry, campaignId) {
+  const r = registry.resolveCampaign(campaignId);
+  const copy = JSON.parse(JSON.stringify(r.characters.find((entry) => entry.identity.id === r.campaign.party.characterIds[0])));
+  copy.identity = { ...copy.identity, id: 'char-second-traveller', name: 'Second Traveller' };
+  registry.put(copy);
+  registry.put(addCharacterToCampaign(registry.resolveCampaign(campaignId).campaign, copy, { active: true, makeActive: false }));
+}
+
+test('v0.332.0 a character leaves and rejoins the travellers in port; leaving gives up their posts', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  withSecondTraveller(registry, campaignId);
+  let r = registry.resolveCampaign(campaignId);
+  const shipId = r.campaign.activeShipId;
+  const ship = r.ships.find((entry) => entry.identity.id === shipId);
+  // The second traveller takes the medic's post.
+  registry.put({ ...ship, crew: { ...ship.crew, assignments: [...ship.crew.assignments.filter((entry) => entry.role !== 'medic'), { role: 'medic', characterId: 'char-second-traveller', characterName: 'Second Traveller' }] } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const holder = ship.authority.assignedCharacterId;
+  const kept = session.run(`party:remove:${holder}`);
+  assert.equal(kept.ok, false, 'the one the ship is held by stays');
+  assert.match(kept.message, /holds the .* and travels with it/);
+  const left = session.run('party:remove:char-second-traveller');
+  assert.equal(left.ok, true, left.message);
+  assert.match(left.message, /Second Traveller leaves the travellers, giving up the medic post/);
+  r = registry.resolveCampaign(campaignId);
+  assert.ok(!r.campaign.party.characterIds.includes('char-second-traveller'));
+  assert.ok(r.characters.some((entry) => entry.identity.id === 'char-second-traveller'), 'still in the campaign');
+  assert.ok(!r.ships.find((entry) => entry.identity.id === shipId).crew.assignments.some((entry) => entry.characterId === 'char-second-traveller'));
+  assert.ok(travellerCandidates(r).some((entry) => entry.id === 'char-second-traveller'), 'offered to add back');
+  const joined = session.run('party:add:char-second-traveller');
+  assert.equal(joined.ok, true, joined.message);
+  assert.ok(registry.resolveCampaign(campaignId).campaign.party.characterIds.includes('char-second-traveller'));
+});
+
+test('v0.332.0 who travels together does not change away from port', async () => {
+  const { registry, campaignId, session } = await traderSolo('person');
+  const r = registry.resolveCampaign(campaignId);
+  assert.equal(session.run('trip:choose-destination:calder').ok, true);
+  const departed = session.run('trip:depart');
+  assert.equal(departed.ok, true, departed.message);
+  assert.notEqual(session.trip.situation, 'port');
+  const refused = session.run(`party:remove:${r.campaign.party.characterIds[0]}`);
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /changes in port/);
+});

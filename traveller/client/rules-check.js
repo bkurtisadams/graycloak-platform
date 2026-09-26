@@ -14,7 +14,7 @@
 // this client was stamped for. stamp-client rewrites EXPECTED_RULES_VERSION
 // from packages/classic-traveller-rules/package.json on every bump.
 
-export const EXPECTED_RULES_VERSION = '0.81.0';
+export const EXPECTED_RULES_VERSION = '0.82.0';
 
 const RULES = `../vendor/classic-traveller-rules/index.js?v=r${EXPECTED_RULES_VERSION}`;
 

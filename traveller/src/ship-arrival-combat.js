@@ -18,7 +18,7 @@ import {
   actingSide, currentPhase, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   turretOperational, turretWeapons, getTurretWeapon, shipCombatIntent, participantStatus,
   declareFlight, creditShotAgainstEscape, cpuFireOptions
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 // Book 2 p.36 names the hull; these are the standard designs it resolves to.
 const SHIP_ENCOUNTER_DESIGN_KEYS = Object.freeze({

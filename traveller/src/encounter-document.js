@@ -19,7 +19,7 @@ import {
   resolvePersonalMorale,
   endPersonalCombatRecovery,
   stableDocumentId
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
 export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 17;

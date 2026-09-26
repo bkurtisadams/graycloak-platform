@@ -116,3 +116,23 @@ test('v0.331.0 rumours to write live in the Journal; the port column leads with 
   const page = await read('play.js');
   assert.match(page, /onOpenTab: \(tab\) => openSideTab\(tab\)/);
 });
+
+// v0.332.0 (Kurt's screenshot): compact Travellers rows; add and remove.
+test('v0.332.0 a traveller row is one line, the name opens the sheet; add and remove from the tab', async () => {
+  const views = await read('play-views.js');
+  assert.match(views, /class: 'traveller-name', text: traveller\.name/);
+  assert.match(views, /command\(`party:remove:\$\{traveller\.id\}`\)/);
+  assert.match(views, /command\(`party:add:\$\{choice\.value\}`\)/);
+  const block = views.slice(views.indexOf("const travellers = (state.travellers ?? []).map"), views.indexOf("const candidates = state.travellerCandidates"));
+  assert.doesNotMatch(block, /text: 'Sheet'/);
+});
+
+// v0.333.0: the Merchant's mustering-out Free Trader can be taken on the
+// character generation page, as the Scout Ship already could.
+test('v0.333.0 the chargen page offers the Free Trader and makes it the campaign ship', async () => {
+  const app = await read('app.js');
+  assert.match(app, /'\[ TAKE THE FREE TRADER \]'/);
+  assert.match(app, /traderEntitlement\?\.disposition === 'unresolved'/);
+  assert.match(app, /createTypeAFreeTraderForCharacter\(current, \{ startedOn \}\)/);
+  assert.match(app, /addShipToCampaign\(campaignDocument, shipDocument, \{ makeActive: true \}\)/);
+});

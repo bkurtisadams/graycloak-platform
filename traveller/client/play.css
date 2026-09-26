@@ -1600,3 +1600,12 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .text-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .rumors-to-write { margin: 0 0 14px; }
 .rumors-to-write .rumor-card { margin-top: 10px; }
+
+/* v0.332.0: the Travellers list, one line each; the name opens the sheet. */
+.traveller-row { padding: 4px 8px; gap: 2px 8px; }
+.traveller-name { background: none; border: 0; padding: 0; font: inherit; font-weight: 700; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.traveller-row .entry-note { flex: 1 1 12em; }
+.traveller-remove { margin-left: auto; background: none; border: 0; padding: 0 4px; font: inherit; font-size: 16px; line-height: 1; color: var(--ink-2); cursor: pointer; }
+.traveller-remove:hover { color: var(--red); }
+.traveller-add { display: flex; gap: 6px; align-items: center; margin: 8px 0 0; }
+.traveller-add select { flex: 1 1 auto; min-width: 0; }

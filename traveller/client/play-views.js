@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.331.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.331.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.331.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.331.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.334.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.334.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.334.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.334.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.331.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.331.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.331.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.334.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.334.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.334.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.331.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.331.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.334.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.334.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.331.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.334.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1998,17 +1998,25 @@ function playersPanel(model, state, handlers) {
   // the players' accounts.
   const byUid = new Map((model.members ?? []).map((member) => [member.uid, member]));
   const posts = (list) => list.map((role) => role.charAt(0).toUpperCase() + role.slice(1)).join(', ');
+  // v0.332.0 (Kurt): one line each — the name opens the sheet — with a
+  // small Remove; characters not travelling can be added below the list.
+  const command = (text) => handlers.onCommand?.(text);
   const travellers = (state.travellers ?? []).map((traveller) => {
     const player = traveller.ownerUid ? byUid.get(traveller.ownerUid) : null;
-    const who = player ? `played by ${player.name} \u00b7 ${when(player.lastSeenAt)}` : traveller.ownerUid ? 'their player has left' : 'yours to play';
+    const who = player ? `${player.name}, ${when(player.lastSeenAt)}` : traveller.ownerUid ? 'player gone' : 'referee';
     return h('li', { class: 'entry traveller-row' },
-      h('span', { class: 'entry-name', text: traveller.name }),
-      h('span', { class: 'entry-note', text: [traveller.upp, traveller.service, traveller.posts.length ? posts(traveller.posts) : 'no post aboard', who].filter(Boolean).join(' \u00b7 ') }),
-      h('span', { class: 'seat-actions' },
-        h('button', { type: 'button', class: 'button is-small', text: 'Sheet', title: `Open ${traveller.name}\u2019s sheet`, onclick: () => handlers.onOpenSheet?.('actor', traveller.id) })));
+      h('button', { type: 'button', class: 'traveller-name', text: traveller.name, title: `Open ${traveller.name}\u2019s sheet`, onclick: () => handlers.onOpenSheet?.('actor', traveller.id) }),
+      h('span', { class: 'entry-note', text: [traveller.upp, traveller.service, traveller.posts.length ? posts(traveller.posts) : null, who].filter(Boolean).join(' \u00b7 ') }),
+      state.live && (state.travellers ?? []).length > 1 ? h('button', { type: 'button', class: 'traveller-remove', text: '\u00d7', title: `${traveller.name} stops travelling with the others (stays in Actors)`, 'aria-label': `Remove ${traveller.name} from the travellers`, onclick: () => command(`party:remove:${traveller.id}`) }) : null);
   });
+  const candidates = state.travellerCandidates ?? [];
+  const choice = candidates.length ? h('select', { 'aria-label': 'A character to add' },
+    ...candidates.map((entry) => h('option', { value: entry.id, text: `${entry.name}${entry.ownerUid ? ` (${byUid.get(entry.ownerUid)?.name ?? 'a player'}\u2019s)` : ''}` }))) : null;
+  const adder = state.live && choice ? h('div', { class: 'traveller-add' }, choice,
+    h('button', { type: 'button', class: 'button is-small', text: 'Add', title: 'They travel with the others from here, in port', onclick: () => command(`party:add:${choice.value}`) })) : null;
   return [
     section(`Travelling together (${travellers.length})`, travellers, 'Nobody is travelling together yet.'),
+    adder,
     h('section', { class: 'players-section players-link' },
       h('h3', { class: 'players-heading', text: 'Join link' }),
       h('p', { class: 'cite', text: model.link ? 'Players open it and choose a character to join with.' : 'No link yet. Make one to invite players.' }),

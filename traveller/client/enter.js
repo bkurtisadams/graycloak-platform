@@ -8,29 +8,31 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.331.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.331.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.334.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.334.0';
+// v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
+import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.334.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf
-} from './publish.js?v=v0.331.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.331.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.331.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.331.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.331.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.331.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.331.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.331.0';
-import { generateCharacterName } from './generators.js?v=v0.331.0';
+} from './publish.js?v=v0.334.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.334.0';
+import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.334.0';
+import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.334.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.334.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.334.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.334.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.334.0';
+import { generateCharacterName } from './generators.js?v=v0.334.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome
-} from '../src/character-record.js?v=v0.331.0';
+} from '../src/character-record.js?v=v0.334.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
@@ -199,7 +201,7 @@ async function loadCharacterFile(file) {
       return;
     }
     if (loaded.kind === TRAVELLER_DOCUMENT_KINDS.CHARGEN) {
-      if (character && !window.confirm('Replace the character in generation with this file?')) return;
+      if (character && !(await ask({ title: 'Replace', message: 'Replace the character in generation with this file?', confirm: 'Replace' })).ok) return;
       startChargen(loaded.character);
       setStatus(`${(loaded.character.name || 'UNNAMED').toUpperCase()} RESUMED IN GENERATION`, 'ok');
       return;
@@ -353,7 +355,7 @@ function refereeCard(campaign) {
     rename.type = 'button'; rename.className = 'text-button action-button';
     rename.textContent = '[ RENAME ]';
     rename.addEventListener('click', async () => {
-      const name = window.prompt('Name for this campaign', campaign.name && campaign.name !== 'Unnamed Campaign' ? campaign.name : '');
+      const name = await askText({ title: 'Rename campaign', message: 'Name for this campaign', value: campaign.name && campaign.name !== 'Unnamed Campaign' ? campaign.name : '', confirm: 'Rename' });
       if (name === null) return;
       const wanted = name.trim();
       if (!wanted) { setStatus('A campaign needs a name.', 'error'); return; }
@@ -379,12 +381,17 @@ function refereeCard(campaign) {
       // mismatch is diagnosable instead of just "it didn't work".
       const played = Number(campaign.revision ?? 0) > 2;
       let typed = null;
-      const ok = played
-        ? (() => {
-          typed = String(window.prompt(`Deleting ${label} cannot be undone. Type the campaign name to confirm.`) ?? '').trim();
-          return typed.toLowerCase() === label.toLowerCase();
-        })()
-        : window.confirm(`Delete ${label}? This cannot be undone.`);
+      // v0.334.0: a campaign is not a rolled character: its guard stays on
+      // whatever the characters' "ask before deleting" says.
+      let ok;
+      if (played) {
+        const answer = await askText({ title: 'Delete campaign', message: `Deleting ${label} cannot be undone. Type the campaign name to confirm.`, confirm: 'Delete' });
+        if (answer === null) return;
+        typed = String(answer).trim();
+        ok = typed.toLowerCase() === label.toLowerCase();
+      } else {
+        ok = (await ask({ title: 'Delete campaign', message: `Delete ${label}? This cannot be undone.`, confirm: 'Delete', danger: true })).ok;
+      }
       if (!ok) { if (played) setStatus(`DELETE CANCELLED: typed "${typed}", needed "${label}".`, 'error'); return; }
       try {
         setStatus('DELETING\u2026');
@@ -504,7 +511,10 @@ function renderDraftRow() {
   resume.addEventListener('click', () => startChargen(draft));
   const discard = document.createElement('button');
   discard.type = 'button'; discard.className = 'text-button action-button'; discard.textContent = '[ DISCARD ]';
-  discard.addEventListener('click', () => { if (window.confirm('Discard the character in generation?')) { character = null; saveDraft(); render(); } });
+  discard.addEventListener('click', async () => {
+    if (!(await askBeforeDeleting({ title: 'Discard', message: 'Discard the character in generation?', confirm: 'Discard' }))) return;
+    character = null; saveDraft(); render();
+  });
   tools.append(resume, discard);
   row.append(name, summary, state, tools);
   return row;
@@ -660,7 +670,7 @@ async function copyJoinLink(campaign) {
     let copied = false;
     try { await navigator.clipboard.writeText(link); copied = true; } catch { copied = false; }
     setStatus(copied ? 'JOIN LINK COPIED. SEND IT TO YOUR PLAYERS.' : 'COPY THE JOIN LINK BELOW AND SEND IT TO YOUR PLAYERS.', 'ok');
-    if (!copied) window.prompt('The join link for your players:', link);
+    if (!copied) await askText({ title: 'Join link', message: 'The join link for your players (select it and copy):', value: link, confirm: 'Done' });
   } catch (error) {
     console.error(error);
     setStatus(error?.message ?? String(error), 'error');
@@ -685,7 +695,7 @@ function renderCharacters() {
 async function removeRecord(record) {
   const seatedAt = record.world?.kind === WORLD_KINDS.CAMPAIGN ? (record.world.campaignName || 'a campaign') : null;
   const warning = seatedAt ? `\n\n${record.name} is in ${seatedAt}. The referee keeps the campaign's copy; this deletes yours.` : '';
-  if (!window.confirm(`Delete ${record.name}? This cannot be undone.${warning}`)) return;
+  if (!(await askBeforeDeleting({ title: 'Delete character', message: `Delete ${record.name}? This cannot be undone.${warning}` }))) return;
   try {
     await deleteCharacterRecord(record.characterId);
     setStatus(`${record.name.toUpperCase()} DELETED`, 'ok');
@@ -716,7 +726,7 @@ async function bringHome(record, campaignId) {
 
 async function leaveCampaign(record) {
   const where = record.world?.campaignName || 'this campaign';
-  if (!window.confirm(`Take ${record.name} out of ${where}?\n\n${record.name} comes home with everything that happened there, free to join another campaign.`)) return;
+  if (!(await ask({ title: 'Leave campaign', message: `Take ${record.name} out of ${where}?\n\n${record.name} comes home with everything that happened there, free to join another campaign.`, confirm: 'Take them out' })).ok) return;
   try {
     const campaignId = record.world.campaignId;
     // Home first, while still seated (the world unchanged), then out.
@@ -878,8 +888,8 @@ async function saveCharacter() {
   }
 }
 
-function discardCharacter() {
-  if (character && character.phase !== CHARGEN_PHASES.DEAD && !window.confirm('Discard this character?')) return;
+async function discardCharacter() {
+  if (character && character.phase !== CHARGEN_PHASES.DEAD && !(await askBeforeDeleting({ title: 'Discard', message: 'Discard this character?', confirm: 'Discard' }))) return;
   character = null;
   saveDraft();
   view = 'characters';
@@ -918,6 +928,15 @@ el.randomName.addEventListener('click', () => { el.name.value = generateCharacte
 el.name.addEventListener('input', () => { if (character) { character = { ...character, name: el.name.value }; saveDraft(); el.sheet.name.textContent = el.name.value || '(UNNAMED)'; } });
 el.save.addEventListener('click', saveCharacter);
 el.discard.addEventListener('click', discardCharacter);
+// v0.334.0: the "ask before deleting" setting, under the character list.
+{
+  const box = document.querySelector('#enter-confirm-deletes');
+  if (box) {
+    box.checked = confirmDeletes();
+    box.addEventListener('change', () => setConfirmDeletes(box.checked));
+    window.addEventListener('traveller:confirm-deletes', () => { box.checked = confirmDeletes(); });
+  }
+}
 
 // An invite in the link pre-fills the code once a character is chosen.
 // v0.284.0: ?join= is the join link; ?invite= still works.

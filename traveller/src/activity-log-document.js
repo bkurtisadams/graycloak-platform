@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 export const ACTIVITY_LOG_DOCUMENT_TYPE = 'graycloak-traveller-activity-log';
 export const CURRENT_ACTIVITY_LOG_DOCUMENT_SCHEMA_VERSION = 2;

@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.81.0';
+export const RULES_VERSION = '0.82.0';
 
 export {
   createDice,
@@ -481,6 +481,8 @@ export {
   releaseShipCrew,
   shipCrewRole
 } from './src/starships/ship-document.js';
+// 0.82.0: the Merchant's mustering-out Free Trader (Book 1 pp.22-23).
+export { createTypeAFreeTraderForCharacter, freeTraderBenefitTerms, FREE_TRADER_RECEIPT_YEARS } from './src/starships/mustering-out-ships.js';
 
 
 

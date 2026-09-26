@@ -38,7 +38,7 @@ import {
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -53,12 +53,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -83,7 +83,7 @@ import { saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-m
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
   setCampaignOwner, speculativeLotPurchasedQuantity, advanceCampaignDays, advanceCampaignSeconds, updateCampaignTime, addSceneToCampaign,
-  removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter, addCharacterToCampaign, removeCharacterFromCampaign,
+  removeSceneFromCampaign, setActiveCampaignScene, setActiveCampaignCharacter, setPartyMembership, addCharacterToCampaign, removeCharacterFromCampaign,
   characterFolder, setCharacterFolders, setDocumentOwner
 } from './campaign-document.js';
 import {
@@ -2016,6 +2016,19 @@ export function travellersView(resolved) {
     }));
 }
 
+// v0.332.0: characters of the campaign not travelling together, who may be
+// added to the Travellers — player characters and the referee's own
+// characters alike (statblocks have no sheet to travel with).
+export function travellerCandidates(resolved) {
+  const { campaign, characters = [] } = resolved;
+  const party = new Set(campaign.party?.characterIds ?? []);
+  const owners = campaign.ownership?.actors ?? {};
+  return characters
+    .filter((character) => !party.has(character.identity.id) && character.status?.alive !== false && String(character.identity.name ?? '').trim())
+    .map((character) => ({ id: character.identity.id, name: character.identity.name, ownerUid: owners[character.identity.id] ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // v0.331.0: a rumour still waiting for words when the game referees — one
 // heard while a person refereed — is written from game facts, as a new one
 // would be. Its world is the one it was heard on (by id, or by name for a
@@ -3773,6 +3786,37 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // v0.275.0: rest is the party's, and the clock moves once for it
       // (Kurt, Sep 2026: two characters resting advanced the date twice).
       // character:rest is kept, as a party of one.
+      if (command.startsWith('party:add:') || command.startsWith('party:remove:')) {
+        // v0.332.0: who travels together, changed from the Travellers tab —
+        // in port (or with no trip), never mid-jump or mid-fight, since a
+        // character joins or leaves where the ship is berthed.
+        const joining = command.startsWith('party:add:');
+        const id = command.slice(joining ? 'party:add:'.length : 'party:remove:'.length);
+        const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+        if (!character) throw new Error('no such character in this campaign');
+        const trip = safeTrip(resolved);
+        if (trip && trip.situation !== 'port') throw new Error('who travels together changes in port');
+        if (resolved.encounters.some((entry) => entry.status === 'active') || resolved.campaign.roster?.shipFight) throw new Error('a fight is in progress; finish it first');
+        const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === resolved.campaign.activeShipId) ?? null;
+        // The ship is held in one character's name (its assigned character,
+        // Book 1's mustering-out ship or a purchase); they stay aboard.
+        if (!joining && ship?.authority?.assignedCharacterId === id) {
+          throw new Error(`${character.identity.name || 'This character'} holds the ${ship.identity.name ?? 'ship'} and travels with it`);
+        }
+        const campaign = setPartyMembership(resolved.campaign, id, joining);
+        registry.put(campaign);
+        // Someone leaving gives up their posts aboard.
+        const posts = !joining && ship ? (ship.crew?.assignments ?? []).filter((entry) => entry.characterId === id).map((entry) => entry.role) : [];
+        if (posts.length) registry.put({ ...ship, crew: { ...ship.crew, assignments: ship.crew.assignments.filter((entry) => entry.characterId !== id) } });
+        reload();
+        const name = character.identity.name || 'The character';
+        const message = joining ? `${name} joins the travellers.` : `${name} leaves the travellers${posts.length ? `, giving up the ${posts.join(' and ')} post${posts.length === 1 ? '' : 's'}` : ''}.`;
+        log('REFEREE', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'party:rest' || command === 'character:rest') {
         const ids = command === 'party:rest' ? (Array.isArray(fight?.value?.ids) ? fight.value.ids : []) : [fight?.id ?? characterId].filter(Boolean);
         if (!ids.length) throw new Error('choose who rests');
@@ -6275,6 +6319,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // the patrons column and only shown in port).
       state.refereeMode = refereeMode(resolved.campaign);
       state.travellers = travellersView(resolved);
+      state.travellerCandidates = travellerCandidates(resolved);
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).

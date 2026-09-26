@@ -37,7 +37,7 @@
 import {
   HULL_TYPES, POWER_PLANTS, MANEUVER_DRIVES, JUMP_DRIVES, COMPUTER_MODELS,
   getTurretMount, getTurretWeapon, repairShipDamage
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 export const SHIPYARD_STARPORTS = Object.freeze(['A', 'C']);
 export const REPAIR_PARTS_CREW_DM = -2;

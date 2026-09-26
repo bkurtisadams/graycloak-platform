@@ -3,7 +3,7 @@ import {
   SHIP_DOCUMENT_TYPE,
   importCharacterDocument,
   importShipDocument
-} from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 import {
   CAMPAIGN_DOCUMENT_TYPE,

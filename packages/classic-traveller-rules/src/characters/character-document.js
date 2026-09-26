@@ -809,6 +809,11 @@ export function linkCharacterToShip(document, { shipId, relationship, shipType =
     const scout = next.benefits.shipEntitlements.find((entry) => entry.name === 'Scout Ship');
     if (scout?.disposition === 'reserve-assignment-available') scout.disposition = 'reserve-assignment-active';
   }
+  // 0.82.0: the mustering-out Free Trader, once built, is held.
+  if (relationship === 'owner' && shipType === 'A') {
+    const trader = next.benefits.shipEntitlements.find((entry) => entry.name === 'Free Trader');
+    if (trader) trader.disposition = 'owned';
+  }
   assertValidCharacterDocument(next);
   return next;
 }

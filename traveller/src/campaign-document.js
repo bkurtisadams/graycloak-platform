@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.81.0';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.82.0';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
 export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 11;
@@ -890,6 +890,26 @@ export function removeCharacterFromCampaign(document, characterId) {
   if (next.activeCharacterId === characterId) next.activeCharacterId = party[0];
   if (isPlainObject(next.ownership?.actors)) delete next.ownership.actors[characterId];
   if (isPlainObject(next.roster.characterFolders)) delete next.roster.characterFolders[characterId];
+  assertValidCampaignDocument(next);
+  return next;
+}
+
+// v0.332.0: who travels together — a character of the campaign joins or
+// leaves the party without leaving the campaign. The party keeps at least
+// one; the active character moves to whoever is left.
+export function setPartyMembership(document, characterId, inParty) {
+  const next = cloneJson(document);
+  if (!next.documentRefs.characters.some((entry) => entry.id === characterId)) {
+    throw new CampaignDocumentValidationError(`character is not in this campaign: ${characterId}`);
+  }
+  const has = next.party.characterIds.includes(characterId);
+  if (inParty && !has) next.party.characterIds.push(characterId);
+  if (!inParty && has) {
+    const party = next.party.characterIds.filter((id) => id !== characterId);
+    if (!party.length) throw new CampaignDocumentValidationError('the party needs at least one character');
+    next.party.characterIds = party;
+    if (next.activeCharacterId === characterId) next.activeCharacterId = party[0];
+  }
   assertValidCampaignDocument(next);
   return next;
 }

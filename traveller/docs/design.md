@@ -653,6 +653,19 @@ berthing past six days, salaries) reach `play.html` with it.
   v0.330.0: the function's game version (`engine`) is on every answer and
   save; the player's page shows a mismatch, and says so when no answer
   comes in 20 seconds. Tested on the live project, not the emulators.
+- Traveller's own dialogs (Kurt, Sep 2026; v0.334.0): `client/dialogs.js`
+  (ask, askText, tell) in the page's own style, answering with a promise,
+  replace the browser's confirm/prompt/alert — the lobby first; the other
+  pages to follow. Deleting or discarding a character asks first unless the
+  player turned it off ("don't ask again" in the dialog; the lobby's "Ask
+  before deleting a character" checkbox turns it back on; per browser).
+  Deleting a campaign always asks.
+- The Merchant's mustering-out Free Trader (v0.333.0, rules 0.82.0): Book
+  1 pp.22-23 — a Type A owned by the character, who is its pilot and pays
+  Book 2 p.5's terms (1/240 of MCr 37.08 = Cr 154,500 a month, "about
+  150,000") from the campaign's date; each further receipt is 120 payments
+  fewer and ten years older, free and clear at five. Taken on the
+  character generation page as the Scout Ship is.
 - Rumours and the Travellers tab (Kurt, Sep 2026; v0.331.0): rumours are
   "absent patrons" whose knowledge the travellers may act on (1977 Book 3
   p.22) — information, not a step in the port call. Waiting ones are
@@ -663,6 +676,11 @@ berthing past six days, salaries) reach `play.html` with it.
   characters): the party first, each with UPP, service, posts aboard and
   who plays them; the join link and player accounts below. "Party" stays
   for the group as a unit (Party: in port; parties splitting and meeting).
+  v0.332.0: one line per traveller, the name opening the sheet; the
+  referee adds any character of the campaign (a player's or their own) or
+  removes one, in port only, never mid-fight; a leaver gives up their posts
+  aboard; the character the ship is held by stays with it; the party keeps
+  at least one. Statblocks cannot travel (no sheet).
 - The players' copy of the campaign carries the map as players may see it
   (v0.328.0): the sector as charted, unvisited worlds as chart facts only,
   so the seat page draws the campaign's map.
