@@ -2,18 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.345.1';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.345.1';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.345.1';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.345.1';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.345.1';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.345.1';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.345.1';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.345.1';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.345.1';
-import { createPlayCloud } from './play-cloud.js?v=v0.345.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.345.1';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.345.1';
+import { copyDiagnostics } from './diagnostics.js?v=v0.346.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.346.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.346.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.346.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.346.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.346.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.346.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.346.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.346.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.346.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.346.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.346.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -124,6 +124,8 @@ function viewState() {
       staging: ui.stagingSceneId ? { sceneId: ui.stagingSceneId, intruder: ui.stagingIntruder, pressurised: ui.stagingPressurised } : null,
       sheets: ui.openSheets
     });
+    // v0.346.0: a closed notice stays closed until a new one comes.
+    if (state.notice?.message && ui.closedNotice === state.notice.message) state.notice = null;
     // v0.298.0: the referee's non-human tick, over the species default.
     if (ui.medicalXeno && Array.isArray(state.sheets)) {
       state.sheets = state.sheets.map((sheet) => (sheet.condition && Object.hasOwn(ui.medicalXeno, sheet.id)
@@ -678,6 +680,7 @@ function render() {
     },
     // v0.339.0: New ship, from the Vehicles tab — a Book 2 standard design
     // held by a traveller, a patron or a government, berthed here.
+    onDismissNotice: (message) => { ui.closedNotice = message; render(); },
     onCreateShip: async () => {
       if (source.mode !== 'live') return;
       const options = viewState().newShipOptions ?? { designs: [], characters: [] };

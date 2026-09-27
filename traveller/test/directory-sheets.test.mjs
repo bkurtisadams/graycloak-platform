@@ -2331,3 +2331,27 @@ test('v0.345.0 automatic aims spread across the enemy, on both sides', async () 
   const again = picked.filter((row) => row.fighter.side === 'party' && row.targetId).map((row) => row.targetId);
   assert.equal(new Set(again).size, again.length);
 });
+
+// v0.346.0 (design.md 9.2): the encounter card says what the reaction makes
+// of them; the aftermath card leads back; a notice closes.
+test('v0.346.0 the stance line, the aftermath card and a closable notice render and act', async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderNow } = await import('../client/play-views.js');
+  const state = {
+    live: true, situation: { kind: 'port', title: 'In port', detail: 'Aster' }, next: { title: 'n', copy: 'c', actions: [] }, steps: [], done: [],
+    notice: { ok: true, message: 'Hello' },
+    aftermath: { date: '106-4800', title: 'After the fight (2 rounds)', lines: ['Against them: 5 unconscious, 2 withdrew.', 'Hawkeye: unhurt.'], back: { command: 'patrons:task:x', label: 'Back to: Recover a log' } },
+    personEncounter: { date: '106-4800', worldName: 'Aster', quantity: 3, type: 'Thugs', characteristics: { strength: 7, dexterity: 7, endurance: 7 }, reaction: { total: 9, description: 'Intrigued.' },
+      weaponry: 'Dagger', armor: null, stance: { kind: 'open', talk: 'rumour', text: 'Open to talk.' }, actions: [{ command: 'persons:talk', label: 'Talk', kind: 'optional', primary: true }], actorIds: [] },
+    opponents: [], partyChoices: []
+  };
+  const seen = [];
+  document.querySelector('main').replaceChildren(...renderNow(state, { onCommand: (command) => seen.push(command), onDismissNotice: (message) => seen.push(`close:${message}`) }).filter(Boolean));
+  const text = document.querySelector('main').textContent;
+  assert.match(text, /After the fight \(2 rounds\)/);
+  assert.match(text, /Open to talk\./);
+  for (const button of document.querySelectorAll('button')) button.click();
+  assert.deepEqual(seen.sort(), ['aftermath:done', 'close:Hello', 'patrons:task:x', 'persons:talk'].sort());
+});

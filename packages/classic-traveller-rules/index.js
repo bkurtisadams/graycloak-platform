@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.86.0';
+export const RULES_VERSION = '0.87.0';
 
 export {
   createDice,
@@ -892,7 +892,8 @@ export {
   RUMOR_TYPES,
   RUMOR_MATRIX,
   rumorCheck,
-  rollRumor
+  rollRumor,
+  hostileAttackIsPhysical
 } from './src/encounters/persons.js';
 
 // v0.78.0: Book 3 (1977) star mapping and world creation; sectors.

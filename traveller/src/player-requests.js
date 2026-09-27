@@ -14,6 +14,7 @@ const PLAYER_COMMANDS = Object.freeze([
   'patrons:seek', 'patrons:accept', 'patrons:decline', 'patrons:task:',
   'rumors:search:',              // v0.341.0: a rumour's find, searched for
   'persons:jail',
+  'persons:walk', 'persons:talk', // v0.346.0: the reaction's choices
   'party:rest',
   'ship:from-benefit:',          // v0.338.0: his own character's mustering-out ship (owner checked on the server)
   'shipfight:fire', 'shipfight:hold', 'shipfight:flee', 'shipfight:end', 'shipfight:cancel-repair'

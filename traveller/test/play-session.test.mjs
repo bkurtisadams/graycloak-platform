@@ -1794,7 +1794,10 @@ test('v0.318.0 a person encounter waits on the campaign, goes on the board as st
   assert.ok(pending, 'the table gives a group within forty throws');
   const view = session.view();
   assert.equal(view.personEncounter.type, pending.type);
-  assert.deepEqual(view.personEncounter.actions.map((action) => [action.command, action.kind]), [['persons:board', 'danger'], ['persons:clear', 'neutral']]);
+  // v0.346.0: the card offers what the reaction allows (design.md 9.2).
+  const commands = view.personEncounter.actions.map((action) => action.command);
+  assert.ok(commands.includes('persons:fight') && commands.includes('persons:clear'), commands.join());
+  assert.equal(commands.includes('persons:walk'), !view.personEncounter.stance.attacking);
   assert.equal(session.run('persons:roll').ok, false, 'one at a time');
   assert.equal(session.run('persons:board').ok, true);
   const after = registry.resolveCampaign(campaignId);
@@ -1804,9 +1807,93 @@ test('v0.318.0 a person encounter waits on the campaign, goes on the board as st
   assert.equal(actor.characteristics.STR, pending.characteristics.strength);
   // The first carries the extraordinary weapon; with a group of one, that is the last too.
   assert.equal(actor.loadout.weaponKey, pending.quantity === 1 && pending.extraordinary ? pending.extraordinary : pending.weapon);
-  assert.deepEqual(session.view().personEncounter.actions.map((action) => action.command), ['persons:clear']);
+  assert.ok(session.view().personEncounter.actions.some((action) => action.command === 'persons:clear'));
   assert.equal(session.run('persons:clear').ok, true);
   assert.equal(personState(registry.resolveCampaign(campaignId).campaign).pending, null);
+});
+
+// ---------------------------------------------------------------- v0.346.0
+// design.md 9.2-9.3: the reaction decides what the encounter allows.
+import { encounterStance } from '../src/play-session.js';
+import { createSequenceDice as seq346 } from '../vendor/classic-traveller-rules/index.js';
+
+test('v0.346.0 the stance follows the reaction table, and the law level reads an attack', () => {
+  assert.equal(encounterStance(seq346([]), { tableTotal: 2 }).attacking, true);
+  const holds = encounterStance(seq346([2, 2]), { tableTotal: 3, lawLevel: 0 });
+  assert.deepEqual([holds.kind, holds.attacking], ['hostile', false], 'attack on 5+, threw 4');
+  const hits = encounterStance(seq346([3, 3, 4, 4]), { tableTotal: 3, lawLevel: 6 });
+  assert.deepEqual([hits.kind, hits.attacking], ['hostile', true], '2D 8 over law 6: physical');
+  const words = encounterStance(seq346([3, 3, 3, 3]), { tableTotal: 3, lawLevel: 6 });
+  assert.deepEqual([words.kind, words.attacking], ['harassing', false], '2D 6, not over law 6: words');
+  const outlaws = encounterStance(seq346([3, 3]), { tableTotal: 3, lawLevel: 12, gearRule: 'outlaw' });
+  assert.equal(outlaws.attacking, true, 'outlaws are not held back by the law');
+  assert.equal(encounterStance(seq346([]), { tableTotal: 5 }).attacking, false, 'may attack: only if provoked');
+  assert.equal(encounterStance(seq346([]), { tableTotal: 7 }).kind, 'indifferent');
+  assert.equal(encounterStance(seq346([]), { tableTotal: 9 }).talk, 'rumour');
+  assert.equal(encounterStance(seq346([]), { tableTotal: 12 }).talk, 'patron');
+});
+
+async function encounterWith(registry, campaignId, stance, reactionTotal) {
+  const c = registry.resolveCampaign(campaignId).campaign;
+  const pending = { date: '106-4800', worldName: 'Aster', code: 15, type: 'Thugs', quantity: 3, quantityDice: '2D', vehicle: false, weaponry: 'Dagger', armor: null, weapon: 'dagger', armorKey: 'none',
+    characteristics: { strength: 7, dexterity: 7, endurance: 7 }, extraordinary: null, reaction: { total: reactionTotal, dice: [3, 3], description: 'x.' }, enforcement: false, legal: false, law: null, actorIds: [],
+    edition: 1982, remarks: 'L', techLevel: 7, leader: null, restrictedByLaw: false, gearRule: 'outlaw', stance };
+  registry.put({ ...c, roster: { ...c.roster, settings: { ...(c.roster?.settings ?? {}), referee: 'game' }, persons: { ...(c.roster?.persons ?? {}), pending } } });
+  return createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+}
+
+test('v0.346.0 talk to an interested group: a rumour, and the encounter ends; walk away from an indifferent one', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  let session = await encounterWith(registry, campaignId, { kind: 'open', attacking: false, talk: 'rumour', text: 'Open to talk.' }, 9);
+  assert.deepEqual(session.view().personEncounter.actions.map((action) => action.command), ['persons:talk', 'persons:walk', 'persons:fight']);
+  const talked = session.run('persons:talk');
+  assert.equal(talked.ok, true, talked.message);
+  let people = personState(registry.resolveCampaign(campaignId).campaign);
+  assert.equal(people.pending, null);
+  assert.equal(people.rumors.at(-1).source, 'talk');
+  session = await encounterWith(registry, campaignId, { kind: 'indifferent', attacking: false, text: 'They go about their business.' }, 7);
+  assert.match(session.run('persons:talk').message, /in no mood to talk/);
+  assert.equal(session.run('persons:walk').ok, true);
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).pending, null);
+});
+
+test('v0.346.0 attackers cannot be walked away from; Fight fills Start a fight with only them', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = await encounterWith(registry, campaignId, { kind: 'violent', attacking: true, text: 'Violent.' }, 2);
+  assert.deepEqual(session.view().personEncounter.actions.map((action) => [action.command, action.label]), [['persons:fight', 'Fight: they attack']]);
+  assert.match(session.run('persons:walk').message, /they are attacking/);
+  assert.equal(session.run('persons:fight').ok, true);
+  const view = session.view();
+  assert.equal(view.personEncounter.fighting, true);
+  assert.equal(view.personEncounter.actorIds.length, 3);
+  assert.deepEqual(view.personEncounter.actions, [], 'nothing but the fight, when the game referees');
+});
+
+test('v0.346.0 attacking people who were not hostile throws their reaction again (p.102)', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = await encounterWith(registry, campaignId, { kind: 'indifferent', attacking: false, text: 'x' }, 7);
+  const result = session.run('persons:fight');
+  assert.match(result.message, /reaction is thrown again/);
+});
+
+test('v0.346.0 after a fight, the aftermath says what happened; closing it clears it', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = await encounterWith(registry, campaignId, { kind: 'violent', attacking: true, text: 'Violent.' }, 2);
+  session.run('persons:fight');
+  const pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+  const me = registry.resolveCampaign(campaignId).campaign.party.characterIds[0];
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: pending.actorIds[0], column: 3 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  session.run('fight:end');
+  session.run('fight:dismiss');
+  const view = session.view();
+  assert.equal(view.notice, null, 'no notice left behind');
+  assert.match(view.aftermath.title, /After the fight/);
+  assert.ok(view.aftermath.lines.some((line) => /Against them:/.test(line)));
+  assert.equal(session.run('aftermath:done').ok, true);
+  assert.equal(session.view().aftermath, null);
 });
 
 test('v0.318.1 an arrest is served as 1D days in jail: the party leaves the surface and the days pass', async () => {

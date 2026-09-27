@@ -860,3 +860,176 @@ Traveller Book p.141, a Shipowner-type job — how a solo character can
 later join another player's ship) and the p.124 patron template (players'
 paragraph plus a hidden 1D outcome: lying / crazy / honest / swindled /
 devious / dishonest) for every game-refereed mission.
+## 9. Quests — spec (Sep 2026, agreed in design; not yet built)
+
+### 9.1 Basis, and what it is not
+
+The books give the ingredients and leave the running to the referee. The
+Traveller Book (1982): encounters and reactions pp.99-102; the Referee's
+Guide to Adventuring pp.123-125 (patron missions p.123: "steal an object,
+protect an object, find an object, or kill someone"; the patron encounter
+and its outcomes p.124). p.102 on adventure encounters: "No table of
+random events or personalities can provide these individuals; the referee
+must produce them." The quest system is that referee's stand-in when the
+game referees — a deliberate departure, labelled as Graycloak's wherever
+it shows (as npc-tactics.js is). A person refereeing uses it too, and may
+override any part (9.9).
+
+### 9.2 Encounters follow the reaction (Kurt, Sep 2026)
+
+p.101-102: reactions "dictate their activity in terms of business deals,
+violence, assistance, charity, cooperation"; one throw for the group;
+thrown again after bad treatment. The encounter card offers what the
+reaction allows (book mechanics in the 2-5 rows; the rest Graycloak's):
+
+| Reaction | They | The card offers |
+|---|---|---|
+| 2 Violent | attack at once | the fight, them attacking |
+| 3 / 4 Hostile | attack on 5+ / 8+, thrown at once | attacked: the fight (9.3). Not: Walk away, Fight them |
+| 5 Hostile, may attack | only if provoked | Walk away, Fight them |
+| 6-7 Unreceptive, Non-committal | go about their business | Walk away, Fight them |
+| 8-11 Interested-Enthusiastic | open to talk | Talk (a rumour, may carry a lead), Fight them |
+| 12 Genuinely friendly | assistance | Talk (a patron, off list one), Fight them |
+
+Walking away needs no throw unless they are attacking; once fighting,
+Book 1's escape rules. Attacking a group that is not hostile is "bad
+treatment": its reaction is thrown again. (Whether the law then takes an
+interest is left for a later ruling.) "Fight them" opens Start a fight
+already filled: those people only, the party ticked, the range from the
+encounter. After the fight, an aftermath card (who is down, who withdrew,
+wounds) with one button back to what was interrupted.
+
+### 9.3 Law level and hostile attacks (Kurt, Sep 2026)
+
+p.102: attacks "may not be physical; they may instead be verbal or
+psychological, depending on local law level". The less law, the more
+violence; and law level "is also the general throw" (world profile).
+When a hostile group attacks, throw 2D: over the law level, the attack is
+physical (the fight); at or under, it is threats, shoving, a crowd — no
+fight, and the party may walk away or start one. Law 0-1 always
+physical; 6 on 7+ (58%); 9 on 10+ (17%); A on 11+; B+ a natural 12.
+Always physical: a Violent (2) reaction; outlaws (Rowdies, Thugs,
+Riotous Mob, Fugitives, Bandits, Ambushing Brigands). Hostile police on
+a high-law world harass with the law (ID and the arrest throw) unless the
+throw comes up physical.
+
+### 9.4 The patron's outcome (Kurt, Sep 2026)
+
+p.124 lists six outcomes as examples, "the true outcome picked by the
+referee". When the game referees they are thrown on 1D (Kurt's
+direction), the book's six one each; a person refereeing picks, or
+throws. Hidden until it shows in the job:
+
+| 1D | Outcome | What it does |
+|---|---|---|
+| 1 | Honest | as agreed, paid in full |
+| 2 | Crazy | a second 1D below |
+| 3 | Swindled | he was cheated too: half the pay |
+| 4 | Lying | about the job: an extra hostile encounter in a stage; paid in full |
+| 5 | Devious | about the purpose: a twist at the objective or after (the item is stolen goods — a law throw on delivery; the delivery frames someone; they were a decoy); paid in full |
+| 6 | Dishonest | about the deal: the job is real; nothing paid (a double-cross at payday) |
+
+Crazy — his view of things is not reality (second 1D):
+
+| 1D | Crazy | What it does |
+|---|---|---|
+| 1 | Eccentric but rich | nothing to it, but he pays anyway |
+| 2 | Wrong about the facts | an extra stage of searching; then as agreed |
+| 3 | Unstable | the terms change midway (1D: 1-3 fee down a third, 4-6 up a third); accept or walk away |
+| 4 | Not his to give | his family steps in: the job is cancelled, expenses covered |
+| 5 | Paranoid | the danger is imaginary, but he draws attention: a legal or person encounter on the way; paid in full |
+| 6 | Crazy but right | the job leads to something bigger than he said: a find or lead (p.125's pull or enigma) |
+
+Replaces v0.340.0's table (honest twice, no devious). The rules comment
+in missions.js wrongly says p.124 gives a 1D throw; corrected with the
+build.
+
+### 9.5 Softening it, from the rules (proposed)
+
+1. Expenses (p.99 "finance reasonable expenses"; p.124 "may provide
+   limited funds"): an advance at acceptance, the travellers' whatever
+   the outcome. Size open (proposal: 10% of the fee).
+2. Spoils (p.99: the patron receives the item sought; "all other goods
+   or items acquired will belong to the adventurers"): stages may turn
+   up salable goods, valued as rumour finds are (2D x Cr2,500).
+3. Warning signs: rumours about the patron (9.7); his reaction shown.
+
+### 9.6 A quest is stages
+
+Each mission kind is a few stages; each stage is days spent, usually a
+throw (2D + a Book 1 skill for 8+, the retrieval task's shape), and
+often an adventure encounter — a generated group met with its own
+reaction (9.2). The usual daily person, animal and legal checks run
+through the days. A failed throw costs the days and may be tried again
+before the deadline. The outcome (9.4) hooks into named stages.
+
+- Find an object (p.123; our retrieval): learn where (Streetwise, Admin
+  or Computer) -> get there (days on the surface) -> recover it (whoever
+  holds or guards it: an encounter, or Recon) -> bring it back.
+- Steal an object (p.123): case the place (Streetwise or Recon) -> get
+  in (Recon; failure: guards) -> take it -> get away (a law throw) ->
+  hand it over.
+- Protect an object / escort (p.123; our escort): travel with it (days;
+  encounters) -> the threat (an adversary group, hostile unless its
+  reaction says otherwise) -> arrive.
+- Kill someone (p.123): find them (as find) -> reach them (guards) ->
+  the deed (a fight) -> the law's interest afterwards.
+- Rescue (p.102's own example): witnesses -> investigators -> suspects
+  -> the hideout (guards) -> the rescue.
+- Courier and smuggling (ours): as now, with an encounter at the
+  handover where the outcome calls for one.
+Hooks: lying adds a hostile encounter at "get there" or "reach"; devious
+twists at the last stage; crazy 2 adds a search stage; swindled and
+dishonest act at the pay.
+
+### 9.7 Rumours along the way
+
+p.124: rumours "may add to what the players know about their patron and
+the situation". While a job is open, a weekly rumour may concern the
+patron: a hint at his outcome (true or false by its letter, as leads).
+
+### 9.8 The screens
+
+- The job card leads the port column: patron, pay, advance, days left,
+  the stages as steps with progress, one main button for the stage in
+  hand. An interruption shows inside the card (9.2); then the aftermath;
+  then back to the stage. The result card says what happened and what
+  was paid. Notices clear once dealt with; chat keeps the history.
+- Jobs tab (sidebar, beside Journal): Current and Finished. A row: the
+  job, pay agreed and paid, dates, what happened. The sheet: its full
+  history (taken, each stage and try, interruptions, the settlement).
+  The outcome stays hidden until it shows. Freight, mail and passenger
+  contracts listed too. The player's page has the same tab.
+
+### 9.9 A person refereeing
+
+Uses the quest system, and may override anything: edit, skip or write a
+stage; set the patron's outcome instead of throwing it; see the outcome
+(players never do).
+
+### 9.10 Build order (proposed)
+
+Built: step 1 in v0.346.0 (rules 0.87.0 hostileAttackIsPhysical;
+play-session encounterStance / stanceOf; persons:walk, persons:talk,
+persons:fight; the aftermath card and aftermath:done; notices close with
+x and a dismissed fight leaves none). Players may Walk away and Talk;
+the fight is set up on the play page. A person refereeing also has "Set
+aside (referee)". The legal (enforcer) card is unchanged.
+
+
+1. The reaction-driven encounter card, the law reading (9.3), Start a
+   fight filled from the encounter, the aftermath card; notices that
+   clear.
+2. The outcome tables (9.4) at settlement, with lying, devious and
+   crazy's effects that need no stages.
+3. The Jobs tab.
+4. Stages for each mission kind, and the job card.
+5. Advances and spoils (9.5).
+6. Rumours about the patron (9.7).
+7. The referee's overrides (9.9).
+
+### 9.11 Open
+
+Advance size; spoils values; stage lengths and which skills; whether the
+law takes an interest after the party attacks a group that was not
+hostile, or after a kill mission; how much of "kill someone" to model.

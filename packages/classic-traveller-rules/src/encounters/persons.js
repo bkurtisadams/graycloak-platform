@@ -244,3 +244,17 @@ export function rollRumor(dice) {
   const letter = RUMOR_MATRIX[second - 1][first - 1];
   return Object.freeze({ first, second, letter, type: RUMOR_TYPES[letter], general: letter >= 'U' });
 }
+
+// ---------------------------------------------------------------------------
+// 0.87.0 (Kurt, Sep 2026; design.md 9.3): The Traveller Book p.102, attacks
+// "may not be physical; they may instead be verbal or psychological,
+// depending on local law level". Graycloak's reading: the less law, the more
+// violence, and the law level is already "the general throw" — a hostile
+// group's attack is physical on 2D over the law level; at or under, threats
+// and shoving, no fight.
+// ---------------------------------------------------------------------------
+export function hostileAttackIsPhysical(dice, { lawLevel = 0 } = {}) {
+  const level = Math.max(0, Math.round(Number(lawLevel) || 0));
+  const total = sum(dice, 2);
+  return Object.freeze({ total, lawLevel: level, physical: total > level || total === 12 });
+}

@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.345.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.345.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.345.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.345.1';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.346.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.346.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.346.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.346.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.345.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.345.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.345.1';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.87.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.346.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.346.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.346.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.345.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.345.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.346.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.346.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.345.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.346.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1071,16 +1071,31 @@ function personEncounterCard(p, state, handlers) {
       h('dt', { text: 'Each' }), h('dd', { text: `Str ${c.strength}, Dex ${c.dexterity}, End ${c.endurance}; weapon skill 1` }),
       p.vehicle ? [h('dt', { text: 'Vehicle' }), h('dd', { text: 'yes, suited to the world and the terrain' })] : null,
       h('dt', { text: 'Reaction' }), h('dd', { text: `${p.reaction.total}: ${p.reaction.description}` })),
+    // v0.346.0 (design.md 9.2): what the reaction makes of them.
+    p.stance ? h('p', { class: `person-stance is-${p.stance.kind}` }, kindIcon(p.stance.attacking ? 'danger' : p.stance.talk ? 'optional' : 'neutral'), h('span', { text: p.stance.text })) : null,
     law ? h('p', { class: `person-law${law.avoided ? '' : ' is-arrest'}` },
       kindIcon(law.avoided ? 'neutral' : 'danger'),
       h('span', { text: `Law level ${law.level}: ${law.violations.join(', ')} ${law.violations.length === 1 ? 'is' : 'are'} prohibited here. Throw ${law.level}+ to avoid arrest: ${law.total} \u2014 ${law.avoided ? 'waved on' : `ARREST: ${law.arrested.join(' and ')}, ${law.jailDays} day${law.jailDays === 1 ? '' : 's'} in jail (1D, The Traveller Book), and the forbidden weapons confiscated`} (Book 3 p.7).` })) : null,
     p.actions?.length ? h('div', { class: 'lead-actions' }, p.actions.map((action) => kindButton(action, { onclick: () => handlers.onCommand?.(action.command) }))) : null,
-    p.actorIds?.length ? startFight(state, handlers, { open: true, foeIds: p.actorIds }) : null,
-    h('p', { class: 'cite', text: 'Book 3 pp.19-21; reaction p.23' }));
+    (p.fighting || (p.law && p.actorIds?.length)) && p.actorIds?.length ? startFight(state, handlers, { open: true, foeIds: p.actorIds, only: p.actorIds }) : null,
+    h('p', { class: 'cite', text: 'The Traveller Book pp.99-102; reaction p.101' }));
 }
 
-function startFight(state, handlers, { open = false, foeIds = null } = {}) {
-  const foes = state.opponents ?? [];
+// v0.346.0: what the fight came to, with the way back to what it interrupted.
+function aftermathCard(a, state, handlers) {
+  return h('section', { class: 'person-encounter is-aftermath', 'aria-label': 'After the fight' },
+    h('p', { class: 'eyebrow', text: `${a.title} \u00b7 ${a.date}` }),
+    a.lines.map((line) => h('p', { text: line })),
+    state.live ? h('div', { class: 'lead-actions' },
+      a.back ? kindButton({ label: a.back.label, kind: 'optional', primary: true }, { onclick: () => handlers.onCommand?.(a.back.command) }) : null,
+      kindButton({ label: 'Close', kind: 'neutral', primary: !a.back }, { onclick: () => handlers.onCommand?.('aftermath:done') })) : null);
+}
+
+function startFight(state, handlers, { open = false, foeIds = null, only = null } = {}) {
+  // v0.346.0: from an encounter, only its people are offered.
+  const every = state.opponents ?? [];
+  const mine = only ? every.filter((foe) => only.includes(foe.id)) : [];
+  const foes = mine.length ? mine : every;
   if (!state.live || !foes.length) return null;
   const party = state.partyChoices ?? [];
   return h('details', { class: 'start-fight', open },
@@ -1128,7 +1143,11 @@ export function renderNow(state, handlers = {}) {
   if (state.lastRound?.length) {
     parts.push(h('section', { class: 'last-round' }, h('h3', { text: 'Last round' }), state.lastRound.map((line) => h('p', { text: line }))));
   }
-  if (state.notice) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }));
+  // v0.346.0: a notice can be closed; it no longer hangs about.
+  if (state.notice?.message) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status' },
+    h('span', { text: state.notice.message }),
+    h('button', { type: 'button', class: 'notice-close', 'aria-label': 'Close', text: '\u00d7', onclick: () => handlers.onDismissNotice?.(state.notice.message) })));
+  if (state.aftermath) parts.push(aftermathCard(state.aftermath, state, handlers));
   // v0.318.0: a person encounter met on the surface leads the column.
   if (state.personEncounter) parts.push(personEncounterCard(state.personEncounter, state, handlers));
   parts.push(leadCard(state.next, state, handlers));

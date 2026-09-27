@@ -39,8 +39,8 @@ import {
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
-  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty
-} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
+  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical
+} from '../vendor/classic-traveller-rules/index.js?v=r0.87.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -55,12 +55,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.87.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.87.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.87.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -2296,6 +2296,20 @@ function encounterReactionDM(resolved, profile) {
 
 const article = (word) => (/^[aeiou]/i.test(String(word)) ? 'an' : 'a');
 
+// v0.346.0: the encounter card's buttons, from the stance (design.md 9.2).
+// Players have Walk away and Talk; the fight is set up on the play page.
+function encounterActions(pending, { mode, seat }) {
+  const stance = stanceOf(pending);
+  if (pending.fighting) return mode === 'game' || seat === 'player' ? [] : [{ command: 'persons:clear', label: 'Set aside (referee)', kind: 'neutral' }];
+  const fight = seat === 'player' ? null : { command: 'persons:fight', label: stance?.attacking ? 'Fight: they attack' : 'Fight them', kind: 'danger', primary: Boolean(stance?.attacking) };
+  return [
+    stance?.talk ? { command: 'persons:talk', label: 'Talk', kind: 'optional', primary: true } : null,
+    stance?.attacking ? null : { command: 'persons:walk', label: 'Walk away', kind: 'neutral', primary: !stance?.talk },
+    fight,
+    mode === 'game' || seat === 'player' ? null : { command: 'persons:clear', label: 'Set aside (referee)', kind: 'neutral' }
+  ].filter(Boolean);
+}
+
 export function withPersonState(campaign, patch) {
   return { ...campaign, roster: { ...campaign.roster, persons: { ...personState(campaign), ...patch } } };
 }
@@ -2309,9 +2323,46 @@ function worldEncounter(dice, profile, reactionDM) {
   });
 }
 
+// v0.346.0 (Kurt, Sep 2026; design.md 9.2-9.3): what the reaction makes of
+// the group — The Traveller Book p.101's table read into what they do, and,
+// for an attack, the law level reading whether it is physical.
+export const ENCOUNTER_STANCES = Object.freeze(['violent', 'hostile', 'harassing', 'indifferent', 'open', 'friendly']);
+export function encounterStance(dice, { tableTotal, lawLevel = 0, gearRule = null } = {}) {
+  const total = Number(tableTotal);
+  if (total <= 2) return { kind: 'violent', attacking: true, text: 'Violent: they attack at once.' };
+  if (total === 3 || total === 4) {
+    const needed = total === 3 ? 5 : 8;
+    const roll = dice.roll2D6();
+    const attack = { total: roll.total, needed, attacks: roll.total >= needed };
+    if (!attack.attacks) return { kind: 'hostile', attacking: false, attack, text: `Hostile; they attack on ${needed}+ and threw ${roll.total}: they hold off.` };
+    if (gearRule === 'outlaw') return { kind: 'hostile', attacking: true, attack, text: `Hostile; they attack on ${needed}+ and threw ${roll.total}: they attack. Outlaws: the law does not hold them back.` };
+    const law = hostileAttackIsPhysical(dice, { lawLevel });
+    return law.physical
+      ? { kind: 'hostile', attacking: true, attack, law: { ...law }, text: `Hostile; they attack on ${needed}+ and threw ${roll.total}: they attack (2D ${law.total} over law level ${law.lawLevel}).` }
+      : { kind: 'harassing', attacking: false, attack, law: { ...law }, text: `Hostile; they attack on ${needed}+ and threw ${roll.total} \u2014 with words, not weapons (2D ${law.total}, not over law level ${law.lawLevel}; p.102): threats and shoving, no fight.` };
+  }
+  if (total === 5) return { kind: 'hostile', attacking: false, text: 'Hostile; they may attack if provoked.' };
+  if (total <= 7) return { kind: 'indifferent', attacking: false, text: 'They go about their business.' };
+  if (total <= 11) return { kind: 'open', attacking: false, talk: 'rumour', text: 'Open to talk: they may pass on something worth hearing.' };
+  return { kind: 'friendly', attacking: false, talk: 'patron', text: 'Genuinely friendly: they may know of work.' };
+}
+
+// A record made before v0.346.0 has no stance: read one from the reaction,
+// throwing nothing.
+export function stanceOf(pending) {
+  if (!pending || pending.legal) return null;
+  if (pending.stance) return pending.stance;
+  const total = Number(pending.reaction?.total ?? 7);
+  if (total <= 2) return { kind: 'violent', attacking: true, text: 'Violent: they attack at once.' };
+  if (total <= 5) return { kind: 'hostile', attacking: false, text: 'Hostile.' };
+  if (total <= 7) return { kind: 'indifferent', attacking: false, text: 'They go about their business.' };
+  if (total <= 11) return { kind: 'open', attacking: false, talk: 'rumour', text: 'Open to talk.' };
+  return { kind: 'friendly', attacking: false, talk: 'patron', text: 'Genuinely friendly: they may know of work.' };
+}
+
 // What the encounter is, and, for an enforcement agent, the law check
 // against what the party carries (Book 3 p.7; not at the starport).
-export function personEncounterRecord(dice, encounter, { date, worldName, law = null }) {
+export function personEncounterRecord(dice, encounter, { date, worldName, law = null, lawLevel = null }) {
   const record = {
     date, worldName, code: encounter.code, type: encounter.type, quantity: encounter.quantity, quantityDice: encounter.quantityDice,
     vehicle: encounter.vehicle, weaponry: encounter.weaponry, armor: encounter.armor, weapon: encounter.weapon, armorKey: encounter.armorKey,
@@ -2320,8 +2371,13 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
     enforcement: encounter.enforcement, legal: Boolean(encounter.legal), law: null, actorIds: [],
     // v0.342.0: the 1982 list's remarks, tech level and leader.
     edition: encounter.edition ?? 1977, remarks: encounter.remarks ?? null, techLevel: encounter.techLevel ?? null,
-    leader: encounter.leader ? { ...encounter.leader } : null, restrictedByLaw: Boolean(encounter.restrictedByLaw)
+    leader: encounter.leader ? { ...encounter.leader } : null, restrictedByLaw: Boolean(encounter.restrictedByLaw),
+    gearRule: encounter.gearRule ?? null
   };
+  if (!encounter.legal) {
+    const tableTotal = Number(encounter.reaction.tableTotal ?? encounter.reaction.total);
+    record.stance = encounterStance(dice, { tableTotal, lawLevel: Number(lawLevel ?? law?.level ?? 0), gearRule: encounter.gearRule ?? null });
+  }
   if (encounter.enforcement && law?.caught?.length) {
     const arrest = lawArrestThrow(dice, { lawLevel: law.level });
     record.law = {
@@ -3206,7 +3262,34 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   // happened"): a fight that ends settles the encounter that brought it —
   // the waiting person or animal encounter whose statblocks fought is set
   // aside, so the interrupted search or job can go on.
+  // v0.346.0 (design.md 9.2): what the fight came to, shown once it is left,
+  // with the way back to whatever it interrupted.
+  function aftermathOf(encounter) {
+    const words = { unconscious: 'unconscious', dead: 'killed', escaped: 'escaped', withdrawn: 'withdrew', active: 'still standing' };
+    const foes = (encounter.combatants ?? []).filter((entry) => entry.side !== 'party');
+    const counts = new Map();
+    for (const foe of foes) counts.set(foe.status, (counts.get(foe.status) ?? 0) + 1);
+    const lines = [];
+    if (foes.length) lines.push(`Against them: ${[...counts].map(([status, count]) => `${count} ${words[status] ?? status}`).join(', ')}.`);
+    for (const member of (encounter.combatants ?? []).filter((entry) => entry.side === 'party')) {
+      const full = member.characteristics ?? {};
+      const now = member.current ?? full;
+      const hurt = ['STR', 'DEX', 'END'].some((key) => Number(now[key]) < Number(full[key]));
+      lines.push(`${member.name}: ${member.status === 'active' ? (hurt ? `wounded, ${['STR', 'DEX', 'END'].map((key) => now[key]).join('\u00b7')} of ${['STR', 'DEX', 'END'].map((key) => full[key]).join('\u00b7')}` : 'unhurt') : words[member.status] ?? member.status}.`);
+    }
+    const people = personState(resolved.campaign);
+    const task = Object.entries(people.missions ?? {}).find(([, mission]) => mission.progress && !mission.done);
+    const lead = (people.rumors ?? []).find((rumor) => rumor.lead?.progress && !rumor.lead.used);
+    const contract = task ? (resolved.contracts ?? []).find((entry) => entry.identity.id === task[0]) : null;
+    const back = task && contract?.status === 'accepted'
+      ? { command: `patrons:task:${task[0]}`, label: `Back to: ${contract.identity.title}` }
+      : lead ? { command: `rumors:search:${lead.id}`, label: `Back to the search for ${lead.lead.thing}` } : null;
+    return { date: formatCampaignDate(resolved.campaign.time), title: `After the fight (${encounter.round ?? 1} round${encounter.round === 1 ? '' : 's'})`, lines, back };
+  }
+
   function settleEncounterAfterFight(encounter) {
+    registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: aftermathOf(encounter) } });
+    reload();
     const fought = new Set((encounter.combatants ?? []).flatMap((entry) => [entry.sourceActorId, entry.id]).filter(Boolean));
     const people = personState(resolved.campaign);
     const animals = animalState(resolved.campaign);
@@ -3855,7 +3938,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   // (it may carry a lead). Genuinely friendly (12): a patron off list one,
   // without the weekly 5+ (a Rumor result, or a patron already waiting,
   // gives a rumour instead). Assistance has nothing to do here: left out.
-  function enforcerFavour(dice, reaction, { date, day }) {
+  function enforcerFavour(dice, reaction, { date, day, source = 'enforcer', who = 'the enforcer' }) {
     const table = Number(reaction?.tableTotal ?? reaction?.total ?? 0);
     if (table < 8) return null;
     const { system, profile } = currentWorldProfile(resolved, subsector);
@@ -3868,13 +3951,14 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const patron = { date, worldName: system.name, systemId: system.id, listKey: 'one', code: rolled.code, type: rolled.type, fromEnforcer: true,
           reaction: { total: rolled.reaction.total, description: rolled.reaction.description }, speaker: partySpeaker(resolved)?.identity.name ?? null, dms: [],
           draft: solo ? { ...draftPatronMission(dice, { patronType: rolled.type, candidates: missionCandidates(subsector, system.id) }) } : null };
-        return { patch: { patron }, note: `Genuinely friendly, the enforcer points the travellers to someone hiring: ${article(rolled.type)} ${rolled.type.toLowerCase()} (list one ${rolled.code}).` };
+        return { patch: { patron }, note: `Genuinely friendly, ${who} points the travellers to someone hiring: ${article(rolled.type)} ${rolled.type.toLowerCase()} (list one ${rolled.code}).` };
       }
     }
-    const record = rumorRecord(dice, { id: `rumor-${day}-${people.rumors.length + 1}`, date, day, system, source: 'enforcer', solo, subsector, visited: sectorState(resolved.campaign).visited });
+    const record = rumorRecord(dice, { id: `rumor-${day}-${people.rumors.length + 1}`, date, day, system, source, solo, subsector, visited: sectorState(resolved.campaign).visited });
+    const said = `${who.charAt(0).toUpperCase()}${who.slice(1)}`;
     return {
       patch: { rumors: [...people.rumors, record] },
-      note: solo ? `The enforcer passes on some talk: ${record.text}` : `The enforcer passes on a rumour (${record.letter}: ${record.type.toLowerCase()}).`
+      note: solo ? `${said} pass${who === 'the enforcer' ? 'es' : ''} on some talk: ${record.text}` : `${said} pass${who === 'the enforcer' ? 'es' : ''} on a rumour (${record.letter}: ${record.type.toLowerCase()}).`
     };
   }
 
@@ -4384,7 +4468,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
               personNote = `Person encounter point on ${date}: 1D ${thrown.at(-1)} \u2014 the list\u2019s blank row ${encounter.code}, no encounter (The Traveller Book p.101).`;
             } else {
               const law = portExtras(resolved, subsector).world?.law ?? null;
-              personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: personWhere.worldName, law }) };
+              personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: personWhere.worldName, law, lawLevel }) };
               personNote = legalHit
                 ? `Legal encounter on ${date} (${personWhere.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
                 : `Person encounter on ${date} (${personWhere.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book pp.99-101). The clock stopped here.`;
@@ -5435,6 +5519,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             : 'A person referees.');
         }
         if (command.startsWith('patrons:task:')) {
+          if (resolved.campaign.roster?.aftermath) { registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: null } }); reload(); }
           // v0.322.0: the job at its world — days searching or asking, then
           // 2D plus the party's best skill for it against 8 (original tables).
           const id = command.split(':').slice(2).join(':');
@@ -5492,6 +5577,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           return finish(`Not yet: ${how}.`);
         }
         if (command.startsWith('rumors:search:')) {
+          if (resolved.campaign.roster?.aftermath) { registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: null } }); reload(); }
           // v0.341.0: a rumour's find — searched for as a retrieval job is
           // (days on the surface, checked for encounters, then 2D + the
           // party's best Recon, Streetwise or Survival for 8+), and sold for
@@ -5627,7 +5713,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             return finish(message);
           }
           const law = portExtras(resolved, subsector).world?.law ?? null;
-          const record = personEncounterRecord(dice, encounter, { date: today, worldName: system.name, law });
+          const record = personEncounterRecord(dice, encounter, { date: today, worldName: system.name, law, lawLevel: Number(worldProfile?.lawLevel ?? 0) });
           registry.put(withPersonState(resolved.campaign, { pending: record }));
           reload();
           const message = `Person encounter on ${system.name}: ${describePersonEncounter(record)}, ${record.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21).`;
@@ -5664,6 +5750,50 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const passed = run('time:pass', { fight: { value: { amount: days, unit: 'days', reason: `${who} in jail on ${pending.worldName}` } } });
           if (!passed.ok) throw new Error(passed.message);
           return finish(`${who} served ${days} day${days === 1 ? '' : 's'} in jail and ${law.arrested.length === 1 ? 'is' : 'are'} back at the starport.`);
+        }
+        // v0.346.0 (design.md 9.2): the reaction decides what may be done.
+        if (command === 'persons:walk') {
+          const stance = stanceOf(pending);
+          if (stance?.attacking) throw new Error('they are attacking: fight, and try to escape once fighting (Book 1)');
+          registry.put(withPersonState(resolved.campaign, { pending: null }));
+          reload();
+          const message = `The party walks away from the ${pending.type.toLowerCase()}.`;
+          log('ENCOUNTER', message);
+          return finish(message);
+        }
+        if (command === 'persons:talk') {
+          const stance = stanceOf(pending);
+          if (!stance?.talk) throw new Error(`the ${pending.type.toLowerCase()} are in no mood to talk`);
+          const day = campaignDayNumber(resolved.campaign.time);
+          const favour = enforcerFavour(createDice(), pending.reaction, { date: today, day, source: 'talk', who: `the ${pending.type.toLowerCase()}` });
+          registry.put(withPersonState(resolved.campaign, { ...(favour?.patch ?? {}), pending: null }));
+          reload();
+          const message = favour?.note ?? `The ${pending.type.toLowerCase()} have nothing to say.`;
+          log('ENCOUNTER', message);
+          return finish(message);
+        }
+        if (command === 'persons:fight') {
+          // Their statblocks, then Start a fight filled with them. The party
+          // starting it against people who are not hostile is "bad
+          // treatment" (p.102): their reaction is thrown again.
+          const stance = stanceOf(pending);
+          if (!(pending.actorIds ?? []).length) {
+            const boarded = run('persons:board');
+            if (!boarded.ok) throw new Error(boarded.message);
+          }
+          const fresh = personState(resolved.campaign).pending;
+          let reaction = fresh.reaction;
+          let note = '';
+          if (!stance?.attacking && !['hostile', 'violent', 'harassing'].includes(stance?.kind)) {
+            const again = rollReaction(createDice(), { dm: encounterReactionDM(resolved, currentWorldProfile(resolved, subsector).profile) });
+            reaction = { total: again.total, dice: [...again.dice], description: again.description };
+            note = ` Attacked, their reaction is thrown again: ${again.total}, ${again.description.replace(/\.$/, '').toLowerCase()} (p.102).`;
+          }
+          registry.put(withPersonState(resolved.campaign, { pending: { ...fresh, reaction, fighting: true } }));
+          reload();
+          const message = `${stance?.attacking ? `The ${fresh.type.toLowerCase()} attack.` : `The party moves against the ${fresh.type.toLowerCase()}.`}${note} Choose who takes the field and the range, then Begin.`;
+          log('ENCOUNTER', message);
+          return finish(message);
         }
         if (command === 'persons:clear') {
           registry.put(withPersonState(resolved.campaign, { pending: null }));
@@ -6129,9 +6259,18 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       if (command === 'fight:dismiss') {
         // v0.252.1: the referee has seen how it ended; back to the campaign.
         concludedEncounterId = null;
-        lastMessage = { ok: true, message: 'Fight closed.' };
+        // v0.346.0: the aftermath card says what happened; no notice lingers.
+        lastMessage = null;
         onChange();
-        return lastMessage;
+        return lastMessage ?? { ok: true, message: 'Fight closed.' };
+      }
+      if (command === 'aftermath:done') {
+        registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: null } });
+        reload();
+        lastMessage = null;
+        onChange();
+        saveToCloud();
+        return { ok: true, message: 'Aftermath closed.' };
       }
       if (command.startsWith('fight:')) {
         let message;
@@ -6948,11 +7087,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             // v0.322.0: solo, the throw stands.
             mode === 'game' ? null : { command: 'persons:clear', label: 'Let them off (referee)', kind: 'neutral' }
           ].filter(Boolean)
-          : [
-            (personPending.actorIds ?? []).length ? null : { command: 'persons:board', label: 'Put them on the board', kind: 'danger', primary: true },
-            { command: 'persons:clear', label: (personPending.actorIds ?? []).length ? 'Done \u2014 set it aside' : 'Move on', kind: 'neutral', primary: Boolean((personPending.actorIds ?? []).length) }
-          ].filter(Boolean))
+          : personPending.legal
+            ? [{ command: 'persons:clear', label: 'Move on', kind: 'neutral', primary: true }]
+            : encounterActions(personPending, { mode, seat }))
       } : null;
+      if (state.personEncounter) state.personEncounter.stance = stanceOf(personPending);
+      // v0.346.0: the last fight's aftermath, until it is closed.
+      state.aftermath = resolved.campaign.roster?.aftermath ?? null;
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating

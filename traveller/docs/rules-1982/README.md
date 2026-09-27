@@ -132,7 +132,30 @@ A; 56 3D Guards A; 61-66 blank. Built in rules 0.85.0 (persons-1982.js).
 - Built on these: rules 0.84.0 / v0.341.0 rumour leads (patron, find,
   tip; see design.md).
 
-## Referee's Guide to Adventuring (pp.123–125)
+## Referee's Guide to Adventuring (pp.123–125) — supplied in full, Sep 2026
+
+- p.123: adventures classed by setting (ship, location, world,
+  choreographed novel), patron, type (chase/pursuit, assault/rescue,
+  discovery/exploration, enrichment, enigma/mystery, novelty) and catalyst
+  (danger, opportunity, puzzles). Typical patron missions: "steal an
+  object, protect an object, find an object, or kill someone"; players may
+  become their own patrons, rumours helping.
+- p.124: scenario sizes — patron encounter, casual encounter, amber zone,
+  short adventure, adventure, campaign. The patron encounter: a players'
+  paragraph (location, patron, task, pay, details to form opinions); the
+  patron "may provide limited funds for the task"; perhaps six outcomes
+  made up (lying, crazy, honest, swindled, devious, dishonest), "the true
+  outcome picked by the referee", influencing the encounter and the
+  ensuing job. No die is named: the 1D is Kurt's ruling for game-refereed
+  jobs. Rumours may add to what is known of the patron; a rumour may be an
+  absent patron.
+- pp.124-125: campaigns — the basics (map, government, tech), the
+  gimmick, the pull, the push, and the optional enigma.
+- Quest spec built on these: design.md §9.
+
+### Earlier notes
+
+
 
 - Patron missions reduce to four verbs (p.123): steal, protect, find, kill.
   Adventure types: chase/pursuit, assault/rescue, discovery/exploration,

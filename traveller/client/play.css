@@ -1635,3 +1635,11 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .patron-card.is-leads .leads { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
 .patron-card.is-leads .lead-line { display: grid; gap: 2px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
 .patron-card.is-leads .lead-line.is-here { font-weight: 700; }
+
+/* v0.346.0: notices close; the encounter's stance; the aftermath. */
+.notice { display: flex; align-items: flex-start; gap: 8px; }
+.notice > span { flex: 1; }
+.notice .notice-close { font: inherit; background: none; border: 0; cursor: pointer; padding: 0 4px; color: inherit; min-width: 28px; min-height: 28px; }
+.person-stance { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0; }
+.person-stance.is-violent, .person-stance.is-hostile { color: var(--red); }
+.person-encounter.is-aftermath p { margin: 4px 0; }

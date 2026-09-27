@@ -125,3 +125,13 @@ test('the weekly rumour throw takes a DM', () => {
   const streetwise = rumorCheck(createSequenceDice([3, 3]), { dm: 1 });
   assert.deepEqual({ natural: streetwise.natural, total: streetwise.total, found: streetwise.found }, { natural: 6, total: 7, found: true });
 });
+
+// 0.87.0: the law level reads a hostile attack (design.md 9.3).
+import { hostileAttackIsPhysical } from '../src/encounters/persons.js';
+test('a hostile attack is physical on 2D over the law level; a natural 12 always', () => {
+  assert.equal(hostileAttackIsPhysical(createSequenceDice([3, 4]), { lawLevel: 6 }).physical, true);
+  assert.equal(hostileAttackIsPhysical(createSequenceDice([3, 3]), { lawLevel: 6 }).physical, false, 'at the law level: words');
+  assert.equal(hostileAttackIsPhysical(createSequenceDice([1, 1]), { lawLevel: 0 }).physical, true, 'law 0: always');
+  assert.equal(hostileAttackIsPhysical(createSequenceDice([6, 6]), { lawLevel: 14 }).physical, true, 'a natural 12');
+  assert.equal(hostileAttackIsPhysical(createSequenceDice([6, 5]), { lawLevel: 12 }).physical, false);
+});
