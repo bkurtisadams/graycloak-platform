@@ -144,3 +144,12 @@ test('v0.338.0 the player\u2019s page lists your ships and offers to bring in a 
   assert.match(page, /command: `ship:from-benefit:\$\{entry\.characterId\}`/);
   assert.match(page, /yourShipsCard\(state\.envelope\)/);
 });
+
+// v0.341.0: leads from rumours are listed on both pages.
+test('v0.341.0 the port column and the player\u2019s page list leads from rumours', async () => {
+  const views = await read('play-views.js');
+  assert.match(views, /'aria-label': 'Leads from rumours'/);
+  assert.match(views, /patron\.fromRumor \? 'from a rumour'/);
+  const seat = await read('seat.js');
+  assert.match(seat, /h\('h3', \{ text: 'Leads from rumours' \}\)/);
+});

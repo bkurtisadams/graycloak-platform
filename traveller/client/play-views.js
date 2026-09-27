@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.340.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.340.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.340.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.340.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.342.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.342.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.342.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.342.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.340.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.340.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.340.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.342.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.342.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.342.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.340.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.340.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.342.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.342.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.340.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.342.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -159,6 +159,15 @@ function patronsPanel(p, handlers) {
       task.blocked ? h('p', { class: 'muted', text: task.blocked }) : null,
       task.command ? h('div', { class: 'lead-actions' }, kindButton({ label: task.label ?? 'Carry it out', kind: 'money', primary: true }, { onclick: () => people(task.command) })) : null));
   }
+  // v0.341.0: rumours that can still be followed up, with what to do.
+  if ((p.leads ?? []).length) {
+    const how = { patron: 'Look for patrons there', find: 'Search there', tip: 'Sell it there' };
+    parts.push(h('section', { class: 'patron-card is-leads', 'aria-label': 'Leads from rumours' },
+      h('p', { class: 'eyebrow', text: `Leads \u00b7 ${p.leads.length} from rumours` }),
+      h('ul', { class: 'leads' }, p.leads.map((lead) => h('li', { class: `lead-line${lead.here ? ' is-here' : ''}` },
+        h('span', { text: lead.text }),
+        h('span', { class: 'cite', text: ` ${how[lead.kind] ?? ''}${lead.here ? ' (here)' : ` \u00b7 ${lead.where}`} \u00b7 heard ${lead.heard}` }))))));
+  }
   if (p.patron) {
     const patron = p.patron;
     const draft = patron.draft;
@@ -181,7 +190,7 @@ function patronsPanel(p, handlers) {
     } : {});
     const waiting = !solo && !referee && !draft;
     parts.push(h('section', { class: 'patron-card', 'aria-label': 'A patron' },
-      h('p', { class: 'eyebrow', text: `Patron \u00b7 ${patron.date} \u00b7 ${patron.worldName} \u00b7 list ${patron.listKey}, ${patron.code}` }),
+      h('p', { class: 'eyebrow', text: `Patron \u00b7 ${patron.date} \u00b7 ${patron.worldName} \u00b7 ${patron.fromRumor ? 'from a rumour' : `list ${patron.listKey}, ${patron.code}`}` }),
       h('h3', { text: patron.type }),
       h('p', { text: `Reaction ${patron.reaction.total}: ${patron.reaction.description}${patron.speaker ? ` Speaking for the party: ${patron.speaker}.` : ''}${patron.dms.length ? ` Matrix DMs: ${patron.dms.join(', ')}.` : ''}` }),
       solo ? h('p', { class: 'cite', text: 'Solo: the game says what the patron wants (original tables, not the book\u2019s).' })

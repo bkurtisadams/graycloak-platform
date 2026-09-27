@@ -99,6 +99,39 @@ rules citations as Kurt supplies them; the full text is his.
 - Patrons (p.99): the agreement may instead be shares of the venture's
   total profit with current salaries deducted.
 
+## Random encounter list (p.101) — rows confirmed by Kurt, Sep 2026
+
+Qty, type, remarks: 11 1D Peasants -3; 12 2D Peasants -2; 13 2D Workers -1;
+14 3D Rowdies L; 15 2D Thugs L; 16 4D Riotous Mob -1; 21 2D Soldiers +1 LGA;
+22 2D Soldiers LGAV; 23 1D Police Patrol +1 GA; 24 2D Marines LGA; 25 3D
+Security Troops +1 GA; 26 2D Soldiers on Patrol LGA; 31 1D Adventurers +2
+GAV; 32 2D Noble with Retinue LGAV; 33 2D Hunters and Guides +1 LGV; 34 2D
+Tourists +2; 35 1D Researchers +3 V; 36 1D Police Patrol VG; 41 1D
+Fugitives -2; 42 2D Fugitives V; 43 3D Fugitives G; 44 2D Vigilantes G; 45
+3D Bandits L; 46 3D Ambushing Brigands LGA; 51 1D Merchants +1 LA; 52 2D
+Traders GV; 53 2D Religious Group (none); 54 1D Beggars L; 55 5D Pilgrims
+A; 56 3D Guards A; 61-66 blank. Built in rules 0.85.0 (persons-1982.js).
+
+## Rumors (p.99; matrix and list p.101) — supplied in full, Sep 2026
+
+- "In many Traveller situations, a rumor is simply information leading to
+  a patron, a job, or a potential treasure"; in adventures they "educate
+  and direct" the players toward the adventure's basis.
+- Rumours are faceless and untraceable: acting on one makes the character
+  responsible, with no one to blame if it is false — "in effect, absent
+  patrons".
+- Weekly 7+ on 2D; the matrix gives the letter; also consulted when the
+  patron list gives Rumor (list one 23, 36, 66). The referee may invent the
+  rumour once the list dictates its type, or write a rumours list for a
+  specific adventure.
+- Dole them out slowly, so each is dealt with and understood.
+- Rumor matrix DMs (p.101): the referee may set DMs for character types
+  predisposed to certain rumours. None set yet.
+- Legal encounters (p.99): a positive enforcer reaction is "a potential
+  source of rumors, assistance, or patrons" — not yet built.
+- Built on these: rules 0.84.0 / v0.341.0 rumour leads (patron, find,
+  tip; see design.md).
+
 ## Referee's Guide to Adventuring (pp.123–125)
 
 - Patron missions reduce to four verbs (p.123): steal, protect, find, kill.

@@ -12,6 +12,7 @@ const PLAYER_COMMANDS = Object.freeze([
   'repair:crew:', 'repair:shipyard:',
   'shipyard:',
   'patrons:seek', 'patrons:accept', 'patrons:decline', 'patrons:task:',
+  'rumors:search:',              // v0.341.0: a rumour's find, searched for
   'persons:jail',
   'party:rest',
   'ship:from-benefit:',          // v0.338.0: his own character's mustering-out ship (owner checked on the server)
@@ -60,7 +61,9 @@ export function playerSituation(view, { mode = 'person' } = {}) {
       accept: keep('patrons:accept', mode), decline: keep('patrons:decline', mode)
     } : null,
     seek: view.patrons.seek ? projectAction({ ...view.patrons.seek, label: view.patrons.seek.label }, mode) : null,
-    wait: Number(view.patrons.wait ?? 0)
+    wait: Number(view.patrons.wait ?? 0),
+    // v0.341.0: the rumours heard that can still be followed up.
+    leads: (view.patrons.leads ?? []).map((lead) => ({ id: text(lead.id), text: text(lead.text), kind: text(lead.kind), where: text(lead.where), here: Boolean(lead.here), heard: text(lead.heard) }))
   } : null;
   const person = view.personEncounter ? {
     summary: text(view.personEncounter.summary),

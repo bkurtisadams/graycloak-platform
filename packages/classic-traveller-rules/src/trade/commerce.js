@@ -246,7 +246,9 @@ export function calculateSpeculativePurchaseCost(offer, quantity) {
 export function quoteSpeculativeResale(tradeGoodCode, quantity, destinationProfile, {
   dice,
   characterSkillDM = 0,
-  brokerDM = 0
+  brokerDM = 0,
+  // 0.84.0: a rumour's trade tip (original): a DM with no commission.
+  tipDM = 0
 } = {}) {
   assertProfile(destinationProfile, 'destinationProfile');
   requireDice(dice);
@@ -255,9 +257,10 @@ export function quoteSpeculativeResale(tradeGoodCode, quantity, destinationProfi
   if (!Number.isInteger(quantity) || quantity < 1) throw new TypeError('quantity must be a positive integer');
   if (!Number.isInteger(characterSkillDM) || characterSkillDM < 0) throw new TypeError('characterSkillDM must be a non-negative integer');
   if (!Number.isInteger(brokerDM) || brokerDM < 0 || brokerDM > 4) throw new TypeError('brokerDM must be an integer from 0 to 4');
+  if (!Number.isInteger(tipDM) || tipDM < 0 || tipDM > 4) throw new TypeError('tipDM must be an integer from 0 to 4');
   const worldDM = worldTypeDM(destinationProfile, tradeGood.resaleDMs);
   const valueRoll = dice.roll2D6();
-  const modifiedValueRoll = valueRoll.total + worldDM + characterSkillDM + brokerDM;
+  const modifiedValueRoll = valueRoll.total + worldDM + characterSkillDM + brokerDM + tipDM;
   const percentage = actualValuePercentage(modifiedValueRoll);
   const grossPerUnitCr = Math.round(tradeGood.basePriceCr * percentage / 100);
   const grossCr = grossPerUnitCr * quantity;
@@ -272,6 +275,7 @@ export function quoteSpeculativeResale(tradeGoodCode, quantity, destinationProfi
     worldDM,
     characterSkillDM,
     brokerDM,
+    tipDM,
     modifiedValueRoll,
     percentage,
     grossPerUnitCr,

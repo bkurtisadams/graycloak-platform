@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.83.0';
+export const RULES_VERSION = '0.85.0';
 
 export {
   createDice,
@@ -910,3 +910,7 @@ export { MISSION_KINDS, MISSION_TASKS, draftPatronMission, throwMissionTask, mis
 export { PATRON_OUTCOMES, rollPatronOutcome, patronOutcomeSettlement } from './src/encounters/missions.js';
 // 0.81.0: rumours written from game facts (original tables, not rules text).
 export { RUMOR_CONTENT, draftRumor } from './src/encounters/rumor-facts.js';
+// 0.85.0: The Traveller Book (1982) p.101 random encounter list and equipping.
+export { RANDOM_PERSON_ENCOUNTERS_1982, WEAPONS_BY_TECH_LEVEL_1982, ARMOR_BY_TECH_LEVEL_1982, equipEncounterGroup, rollPersonEncounter1982 } from './src/encounters/persons-1982.js';
+// 0.84.0: rumours that lead somewhere — a patron, a find, a trade tip (original).
+export { RUMOR_LEADS, RUMOR_LEAD_DAYS, RUMOR_TIP_DM, rollFindValue } from './src/encounters/rumor-facts.js';

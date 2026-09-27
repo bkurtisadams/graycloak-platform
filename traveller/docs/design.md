@@ -660,6 +660,48 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- Random encounters off the 1982 list (Kurt, Sep 2026; v0.342.0, rules
+  0.85.0, persons-1982.js). The Traveller Book p.101 list (30 rows, 61-66
+  blank; remarks as Kurt read them from the book) replaces Book 3 p.21 on
+  the play page; the old client keeps 1977. Equipping (pp.99, 101, 102):
+  blades, no armour, on foot, at the world's tech level unless the remarks
+  say otherwise; ±N the group's tech level; G guns and A armour picked from
+  the p.101 by-TL table at the group's level; V a vehicle; L a leader with
+  the best gun and armour that level offers (a blade below TL 4); combat
+  armour only for military troops and leaders (battle dress fights as
+  combat armour). p.102, NPCs keep to the local law level unless there is
+  a definite reason — Graycloak's call by row: military (Soldiers,
+  Marines, Security Troops, Soldiers on Patrol) and police (issue),
+  outlaws (Rowdies, Thugs, Riotous Mob, Fugitives, Bandits, Ambushing
+  Brigands: smuggled), a noble's retinue and guards (permission) ignore it;
+  everyone else carries only what the law allows (bare hands at law 9+).
+  The group still shares one STR/DEX/END (1977 p.20) with weapon skill-1.
+  The 1977 "extraordinary weapon" is gone with the 1977 table. The
+  enforcer of a legal encounter is unchanged (automatic pistol, cloth).
+- Rumours that lead somewhere (Kurt, Sep 2026: "for gameplay purposes
+  these rumours seem worthless"; v0.341.0, rules 0.84.0). Rumours written
+  from world facts told the travellers what the map already said. The
+  Traveller Book p.99: "a rumor is simply information leading to a patron,
+  a job, or a potential treasure"; rumours are "absent patrons"; the
+  referee "may invent rumors once a rumor is dictated by the list". So 22
+  of the 36 matrix cells (p.101) now carry a lead (original tables,
+  rumor-facts.js RUMOR_LEADS; the trade tip is Graycloak's, beyond the
+  book's three):
+  patron (C H I O P, J false) — a patron off list one hiring on a world in
+  reach; looking for patrons there finds that one without the weekly 5+,
+  job and all (a false one: nobody has heard of them; the week's throws go
+  on). find (E G N S; D worth half; T nothing there; F nothing, and a
+  person encounter) — something unclaimed on a world in reach, searched for
+  as a retrieval job is (1D days on the surface, checked for encounters,
+  2D + Recon/Streetwise/Survival for 8+), sold for 2D x Cr2,500. tip (B M R
+  X; V false) — a good fetching a premium on a world in reach: +2 on its
+  speculative resale there, no commission (a false one is found out on the
+  sale). A lead is good for 60 days (a tip 30) and used once. The rest of
+  the matrix stays as world facts (colour, no lead). Open leads are listed
+  in the port column and on the player's page, with what to do; a find on
+  the world the travellers are on is a search to carry out (the player
+  may start it when the game referees). The weekly 5+ patron throw is
+  unchanged (The Traveller Book p.100).
 - The patron's hidden 1D (Kurt's direction, Sep 2026; v0.340.0, rules
   0.83.0): every job the game referees from a drafted mission follows The
   Traveller Book's p.124 shape — a 1D thrown when the job is taken, kept

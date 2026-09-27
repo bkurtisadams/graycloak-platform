@@ -2581,3 +2581,191 @@ test('v0.340.0 a person referees: no hidden throw; the courier job is an ordinar
   assert.equal(job.kind, 'delivery');
   assert.equal(personState(r.campaign).missions[job.identity.id].outcome, undefined);
 });
+
+// ---------------------------------------------------------------- v0.341.0
+// Rumours that lead somewhere: a patron, a find, a trade tip.
+import { openLeads, leadOpen } from '../src/play-session.js';
+import { playerSituation, playerMayRun } from '../src/player-requests.js';
+import { campaignDayNumber } from '../src/animal-encounters.js';
+
+function withLead(registry, campaignId, lead, { id = 'rumor-lead-1', text = 'They say something.', ageDays = 0 } = {}) {
+  const c = registry.resolveCampaign(campaignId).campaign;
+  const day = campaignDayNumber(c.time);
+  const rumor = { id, date: '106-4800', worldName: 'Aster', systemId: 'aster', letter: 'O', type: 'Reliable recommendation to action', general: false, source: 'weekly', text, byGame: true,
+    truth: lead.truth, lead: { truth: 'true', used: false, attempts: 0, ...lead, heardDay: day - ageDays } };
+  const persons = c.roster?.persons ?? {};
+  registry.put({ ...c, roster: { ...c.roster, settings: { ...(c.roster?.settings ?? {}), referee: 'game' }, persons: { ...persons, rumors: [...(persons.rumors ?? []), rumor] } } });
+  return rumor;
+}
+
+test('v0.341.0 a patron lead: looking for patrons on its world finds that patron, job and all', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  withLead(registry, campaignId, { kind: 'patron', systemId: 'aster', worldName: 'Aster', patronType: 'Noble' }, { text: 'They say a noble on Aster is looking for people to hire.' });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const listed = session.view().patrons.leads;
+  assert.deepEqual(listed.map((lead) => [lead.kind, lead.here]), [['patron', true]]);
+  const result = session.run('patrons:seek');
+  assert.equal(result.ok, true, result.message);
+  assert.match(result.message, /patron from a rumour/);
+  const people = personState(registry.resolveCampaign(campaignId).campaign);
+  assert.equal(people.patron.type, 'Noble');
+  assert.equal(people.patron.fromRumor, true);
+  assert.ok(people.patron.draft, 'the game says what the noble wants');
+  assert.equal(people.rumors[0].lead.used, true);
+  assert.equal(openLeads(people.rumors, campaignDayNumber(registry.resolveCampaign(campaignId).campaign.time)).some((entry) => entry.id === 'rumor-lead-1'), false, 'used once');
+});
+
+test('v0.341.0 a false patron lead: nobody has heard of them, and the week goes on as usual', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  withLead(registry, campaignId, { kind: 'patron', systemId: 'aster', worldName: 'Aster', patronType: 'Noble', truth: 'false' });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const result = session.run('patrons:seek');
+  assert.equal(result.ok, true);
+  assert.match(result.message, /patron 1D \d \(5\+\)/, 'the weekly throw is made');
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(personState(after.campaign).rumors[0].lead.used, true);
+  assert.match(JSON.stringify(after.activityLogs), /Nobody on Aster has heard of the noble the rumour spoke of/);
+});
+
+async function searchUntilSettled(registry, campaignId, command) {
+  let result;
+  for (let tries = 0; tries < 30; tries += 1) {
+    const live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    result = live.run(command);
+    if ((result.ok && /^Interrupted/.test(result.message)) || (!result.ok && /encounter is waiting/.test(result.message)) || (result.ok && /^Not yet/.test(result.message))) {
+      const c = registry.resolveCampaign(campaignId).campaign;
+      registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, pending: null }, animals: { ...(c.roster.animals ?? {}), pending: null } } });
+      continue;
+    }
+    break;
+  }
+  return result;
+}
+const salvage = (registry, campaignId) => registry.resolveCampaign(campaignId).ships[0].state.finances.ledger.filter((line) => line.kind === 'salvage').reduce((sum, line) => sum + line.amountCr, 0);
+
+test('v0.341.0 a find lead is a search on its world, sold for its value when found (half when partial)', async () => {
+  for (const [truth, expected] of [['true', 12500], ['partial', 6250]]) {
+    const { registry, campaignId } = await traderAtAster({ steward: true });
+    const rumor = withLead(registry, campaignId, { kind: 'find', systemId: 'aster', worldName: 'Aster', thing: 'a cargo pod lost from a free trader', valueCr: 12500, truth });
+    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    const task = session.view().patrons.tasks.find((entry) => entry.kind === 'find');
+    assert.equal(task.command, `rumors:search:${rumor.id}`);
+    assert.equal(task.title, 'Search for a cargo pod lost from a free trader');
+    const result = await searchUntilSettled(registry, campaignId, task.command);
+    assert.equal(result.ok, true, result.message);
+    assert.match(result.message, /found .* sold for Cr/);
+    assert.equal(salvage(registry, campaignId), expected, truth);
+    assert.equal(personState(registry.resolveCampaign(campaignId).campaign).rumors[0].lead.used, true);
+  }
+});
+
+test('v0.341.0 a false find turns up nothing; a trap turns up nothing and trouble', async () => {
+  for (const truth of ['false', 'trap']) {
+    const { registry, campaignId } = await traderAtAster({ steward: true });
+    withLead(registry, campaignId, { kind: 'find', systemId: 'aster', worldName: 'Aster', thing: 'a research drone that went quiet', valueCr: 0, truth });
+    const result = await searchUntilSettled(registry, campaignId, 'rumors:search:rumor-lead-1');
+    assert.equal(result.ok, true, result.message);
+    assert.match(result.message, /nothing is there/);
+    if (truth === 'trap') assert.match(result.message, /someone was waiting/);
+    assert.equal(salvage(registry, campaignId), 0);
+  }
+});
+
+test('v0.341.0 a find is searched for only on its world, and a lead goes stale', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  withLead(registry, campaignId, { kind: 'find', systemId: 'calder', worldName: 'Calder', thing: 'a strongbox', valueCr: 5000 });
+  withLead(registry, campaignId, { kind: 'patron', systemId: 'aster', worldName: 'Aster', patronType: 'Noble' }, { id: 'rumor-old', ageDays: 61 });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.match(session.run('rumors:search:rumor-lead-1').message, /the search is on Calder/);
+  const view = session.view();
+  assert.equal(view.patrons.tasks.some((entry) => entry.kind === 'find'), false, 'nothing to search for here');
+  assert.deepEqual(view.patrons.leads.map((lead) => lead.id), ['rumor-lead-1'], 'the stale lead is gone');
+  assert.equal(leadOpen(personState(session.resolved.campaign).rumors.find((entry) => entry.id === 'rumor-old'), campaignDayNumber(session.resolved.campaign.time)), false);
+});
+
+test('v0.341.0 a trade tip adds +2 to that good\u2019s resale on its world, once; a false tip is found out on the sale', async () => {
+  for (const truth of ['true', 'false']) {
+    const { registry, campaignId } = await atOrison({ fuel: 40, berthingPaid: true });
+    createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).run('speculation:buy');
+    const moved = registry.resolveCampaign(campaignId);
+    registry.putAll([
+      { ...moved.campaign, location: { systemId: 'aster', systemName: 'Aster', worldId: 'aster-main', worldName: 'Aster' } },
+      { ...moved.ships[0], state: { ...moved.ships[0].state, portCall: { systemId: 'aster', arrivalDate: '113-4800', berthingDueCr: 100, berthingPaid: true } } }
+    ]);
+    const lot = registry.resolveCampaign(campaignId).ships[0].state.cargoManifest.find((entry) => /^speculative:/.test(entry.category));
+    const good = Number(lot.category.split(':')[1]);
+    const plain = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view().steps.find((step) => step.id === `sell-${lot.id}`);
+    withLead(registry, campaignId, { kind: 'tip', systemId: 'aster', worldName: 'Aster', good, goodName: 'x', tipDM: truth === 'true' ? 2 : 0, truth });
+    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    const row = session.view().steps.find((step) => step.id === `sell-${lot.id}`);
+    if (truth === 'true') {
+      assert.match(row.copy, /\+2 for the rumour\u2019s tip/);
+      assert.notEqual(row.figure, plain.figure, 'the price moves');
+    } else {
+      assert.equal(row.figure, plain.figure);
+      assert.doesNotMatch(row.copy, /rumour/);
+    }
+    assert.equal(session.run(row.command).ok, true);
+    const after = registry.resolveCampaign(campaignId);
+    assert.equal(personState(after.campaign).rumors[0].lead.used, true, 'good for one sale');
+    assert.equal(/the rumour promised at Aster is not there/.test(JSON.stringify(after.activityLogs)), truth === 'false');
+  }
+});
+
+test('v0.341.0 a player sees the leads and may search for a find', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  withLead(registry, campaignId, { kind: 'find', systemId: 'aster', worldName: 'Aster', thing: 'a strongbox', valueCr: 5000 }, { text: 'A spacer swears a strongbox lies out on Aster.' });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const published = playerSituation(session.view({ seat: 'player' }), { mode: 'game' });
+  assert.deepEqual(published.patrons.leads.map((lead) => [lead.text, lead.here]), [['A spacer swears a strongbox lies out on Aster.', true]]);
+  assert.equal(published.patrons.tasks[0].command, 'rumors:search:rumor-lead-1');
+  assert.equal(playerMayRun('rumors:search:rumor-lead-1'), true);
+  assert.doesNotMatch(JSON.stringify(published), /"truth"|valueCr|partial|trap/, 'what the lead is really worth stays hidden');
+});
+
+test('v0.341.0 solo, a rumour heard on the weekly look may carry a lead', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  const day = campaignDayNumber(r.campaign.time);
+  const { rumorRecord } = await import('../src/play-session.js');
+  const { createSequenceDice } = await import('../vendor/classic-traveller-rules/index.js');
+  // 2D for the matrix: first die 1, second die 6 = O (a reliable recommendation: a patron lead).
+  const record = rumorRecord(createSequenceDice([1, 6, ...Array.from({ length: 40 }, (_, index) => (index % 6) + 1)]), { id: 'r1', date: '106-4800', day, system: getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'aster'), source: 'weekly', solo: true, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(record.letter, 'O');
+  assert.equal(record.lead.kind, 'patron');
+  assert.equal(record.lead.heardDay, day);
+  assert.equal(record.lead.used, false);
+  assert.match(record.text, /is looking for people to hire/);
+});
+
+// ---------------------------------------------------------------- v0.342.0
+// Random encounters off The Traveller Book (1982) p.101 list.
+import { RANDOM_PERSON_ENCOUNTERS_1982 } from '../vendor/classic-traveller-rules/index.js';
+
+test('v0.342.0 a random encounter comes off the 1982 list, equipped for the world; a leader goes on the board first', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const techLevel = parseUniversalWorldProfile(getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'aster').mainWorld.uwp).techLevel;
+  let led = null;
+  for (let tries = 0; tries < 200 && !led; tries += 1) {
+    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    const result = session.run('persons:roll');
+    assert.equal(result.ok, true, result.message);
+    const pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+    if (!pending) continue;
+    assert.equal(pending.edition, 1982);
+    const row = RANDOM_PERSON_ENCOUNTERS_1982[pending.code];
+    assert.equal(pending.type, row.type);
+    assert.equal(pending.techLevel, Math.max(0, techLevel + row.techDM));
+    if (pending.leader && !pending.law) led = pending;
+    else session.run('persons:clear');
+  }
+  assert.ok(led, 'a group with a leader turns up');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.match(session.view().personEncounter.summary, /a leader with/);
+  assert.equal(session.run('persons:board').ok, true);
+  const actors = registry.resolveCampaign(campaignId).npcActors.filter((actor) => led.date && actor.identity.name.includes(led.type.replace(/s$/, '')));
+  const leader = actors.find((actor) => / leader$/.test(actor.identity.name));
+  assert.ok(leader, 'the leader is on the board');
+  assert.match(JSON.stringify(leader), new RegExp(led.leader.weapon));
+  assert.match(JSON.stringify(leader), /The Traveller Book p\.101 row/);
+});

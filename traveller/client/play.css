@@ -1630,3 +1630,8 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .tv-dialog .text-button { font: inherit; background: none; border: 0; color: var(--ink); cursor: pointer; padding: 6px 2px; min-height: 36px; }
 .tv-dialog .text-button:hover, .tv-dialog .text-button:focus-visible { text-decoration: underline; }
 .tv-dialog .action-button { font-weight: 700; color: var(--signal); }
+
+/* v0.341.0: leads from rumours, in the port column. */
+.patron-card.is-leads .leads { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.patron-card.is-leads .lead-line { display: grid; gap: 2px; padding-bottom: 6px; border-bottom: 1px dashed var(--line); }
+.patron-card.is-leads .lead-line.is-here { font-weight: 700; }

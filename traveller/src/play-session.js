@@ -34,13 +34,13 @@ import {
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
-  refitComputerSpecification, personEncounterCheck, rollPersonEncounter, lawArrestThrow, weaponsViolationJailDays,
+  refitComputerSpecification, personEncounterCheck, lawArrestThrow, weaponsViolationJailDays,
   legalEncounterCheck, rollLegalEncounter, hasLocalPopulation, patronMatrixDMs, patronCheck, rollPatron, rumorCheck, rollRumor, draftRumor,
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
-  rollPatronOutcome, patronOutcomeSettlement
-} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
+  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982
+} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -55,12 +55,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -1928,12 +1928,15 @@ function portExtras(resolved, subsector) {
       buy = { offer, lotKey, remaining, quantity, perUnit, unitWord, tons: quantity * (perUnit ?? 1),
         costCr: cost.totalCr + shuttleOf(quantity * (perUnit ?? 1)), handlingFeeCr: cost.handlingFeeCr, shuttleCr: shuttleOf(quantity * (perUnit ?? 1)), blocked };
     }
+    // v0.341.0: a rumour's trade tip for a good here (used on the sale).
+    const tips = openLeads(personState(campaign).rumors, campaignDayNumber(campaign.time)).filter((entry) => entry.lead.kind === 'tip' && entry.lead.systemId === system.id);
     const sales = (ship.state.cargoManifest ?? []).map((cargo) => {
       const match = /^speculative:(\d{2})$/.exec(cargo.category ?? '');
       if (!match || cargo.originSystemId === system.id) return null;
       const units = speculativeCargoUnits(cargo) ?? cargo.tons;
-      const quote = quoteSpeculativeResale(Number(match[1]), units, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM });
-      return quote ? { cargo, quote, shuttleCr: shuttleOf(cargo.tons), blocked: transfer?.available ? null : transfer?.reason ?? 'no way down' } : null;
+      const tip = tips.find((entry) => Number(entry.lead.good) === Number(match[1])) ?? null;
+      const quote = quoteSpeculativeResale(Number(match[1]), units, profile, { dice: seededDice(saleQuoteSeed(campaign, system.id, cargo.id)), characterSkillDM: skillDM, brokerDM, tipDM: Number(tip?.lead.tipDM ?? 0) });
+      return quote ? { cargo, quote, tip, shuttleCr: shuttleOf(cargo.tons), blocked: transfer?.available ? null : transfer?.reason ?? 'no way down' } : null;
     }).filter(Boolean);
     speculation = { buy, sales, skillDM, brokerDM };
   }
@@ -2206,7 +2209,7 @@ export function travellerCandidates(resolved) {
 // heard while a person refereed — is written from game facts, as a new one
 // would be. Its world is the one it was heard on (by id, or by name for a
 // rumour recorded before v0.328.0), else where the party is now.
-export function writeWaitingRumors(dice, { rumors = [], subsector, visited = [], hereId = null } = {}) {
+export function writeWaitingRumors(dice, { rumors = [], subsector, visited = [], hereId = null, day = null } = {}) {
   const systems = subsector?.systems ?? [];
   const written = [];
   const next = rumors.map((rumor) => {
@@ -2217,7 +2220,7 @@ export function writeWaitingRumors(dice, { rumors = [], subsector, visited = [],
     if (!system) return rumor;
     const { here, worlds } = rumorCandidates(subsector, system.id, visited);
     const drafted = draftRumor(dice, { letter: rumor.letter, here, worlds });
-    const done = { ...rumor, systemId: system.id, text: drafted.text, byGame: true, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact, draft: undefined };
+    const done = { ...rumor, systemId: system.id, text: drafted.text, byGame: true, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact, ...leadFields(drafted, day), draft: undefined };
     delete done.draft;
     written.push(done);
     return done;
@@ -2241,14 +2244,35 @@ export function rumorCandidates(subsector, systemId, visited = []) {
 // v0.328.0: a rumour's record. Solo (the game referees), the game writes it
 // from its own facts at once and keeps whether it is true; with a person
 // refereeing it waits for the referee's words, as before.
-export function rumorRecord(dice, { id, date, system, source, solo, subsector, visited = [] }) {
+export function rumorRecord(dice, { id, date, day = null, system, source, solo, subsector, visited = [] }) {
   const rumor = rollRumor(dice);
   const record = { id, date, worldName: system.name, systemId: system.id, letter: rumor.letter, type: rumor.type, general: rumor.general, source, text: '' };
   if (!solo) return record;
   const { here, worlds } = rumorCandidates(subsector, system.id, visited);
   const drafted = draftRumor(dice, { letter: rumor.letter, here, worlds });
-  return { ...record, text: drafted.text, byGame: true, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact };
+  return { ...record, text: drafted.text, byGame: true, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact, ...leadFields(drafted, day) };
 }
+
+// v0.341.0 (Kurt, Sep 2026: "these rumours seem worthless"): a rumour may
+// carry a lead the game follows up — a patron hiring on a world in reach, a
+// find to search for, a trade tip (rules rumor-facts.js RUMOR_LEADS). The
+// lead keeps its truth and the day it was heard; it is good for
+// RUMOR_LEAD_DAYS and is used once.
+function leadFields(drafted, day) {
+  if (!drafted?.lead || !Number.isFinite(day)) return {};
+  return { lead: { ...drafted.lead, truth: drafted.truth, heardDay: day, used: false, attempts: 0 } };
+}
+
+export function leadOpen(rumor, day) {
+  const lead = rumor?.lead;
+  return Boolean(lead && !lead.used && Number.isFinite(lead.heardDay) && day - lead.heardDay <= (RUMOR_LEAD_DAYS[lead.kind] ?? 0));
+}
+
+export function openLeads(rumors, day) {
+  return (rumors ?? []).filter((rumor) => leadOpen(rumor, day));
+}
+
+const markLead = (rumors, id, patch) => rumors.map((entry) => (entry.id === id ? { ...entry, lead: { ...entry.lead, ...patch } } : entry));
 
 function missionCandidates(subsector, systemId) {
   const here = getSubsectorSystem(subsector, systemId);
@@ -2271,6 +2295,15 @@ export function withPersonState(campaign, patch) {
   return { ...campaign, roster: { ...campaign.roster, persons: { ...personState(campaign), ...patch } } };
 }
 
+// v0.342.0 (Kurt, Sep 2026): random encounters come off The Traveller Book
+// (1982) p.101 list, equipped for the world's tech level and, where the
+// group has no reason not to, its law level (p.102).
+function worldEncounter(dice, profile, reactionDM) {
+  return rollPersonEncounter1982(dice, {
+    reactionDM, techLevel: Number(profile?.techLevel ?? 7), prohibited: profile ? prohibitedWeaponKeys(profile.lawLevel) : []
+  });
+}
+
 // What the encounter is, and, for an enforcement agent, the law check
 // against what the party carries (Book 3 p.7; not at the starport).
 export function personEncounterRecord(dice, encounter, { date, worldName, law = null }) {
@@ -2279,7 +2312,10 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
     vehicle: encounter.vehicle, weaponry: encounter.weaponry, armor: encounter.armor, weapon: encounter.weapon, armorKey: encounter.armorKey,
     characteristics: { ...encounter.characteristics }, extraordinary: encounter.extraordinary ? encounter.extraordinary.weapon : null,
     reaction: { total: encounter.reaction.total, dice: [...encounter.reaction.dice], description: encounter.reaction.description },
-    enforcement: encounter.enforcement, legal: Boolean(encounter.legal), law: null, actorIds: []
+    enforcement: encounter.enforcement, legal: Boolean(encounter.legal), law: null, actorIds: [],
+    // v0.342.0: the 1982 list's remarks, tech level and leader.
+    edition: encounter.edition ?? 1977, remarks: encounter.remarks ?? null, techLevel: encounter.techLevel ?? null,
+    leader: encounter.leader ? { ...encounter.leader } : null, restrictedByLaw: Boolean(encounter.restrictedByLaw)
   };
   if (encounter.enforcement && law?.caught?.length) {
     const arrest = lawArrestThrow(dice, { lawLevel: law.level });
@@ -2300,7 +2336,10 @@ export function describePersonEncounter(pending) {
   if (pending.legal) return 'a local enforcer asking for identification';
   const armed = [pending.weaponry ? pending.weaponry.toLowerCase() : 'unarmed', pending.armor ? `${pending.armor.toLowerCase()} armour` : null].filter(Boolean).join(', ');
   const odd = pending.extraordinary ? `; one carries a ${pending.extraordinary.replace(/-/g, ' ')}` : '';
-  return `${pending.quantity} ${pending.type.toLowerCase()}${pending.vehicle ? ' with a vehicle' : ''} (${armed}${odd})`;
+  // v0.342.0: the 1982 list's leader, with the best the tech level offers.
+  const led = pending.leader ? `; a leader with ${[pending.leader.weaponry ? pending.leader.weaponry.toLowerCase() : null, pending.leader.armor ? `${pending.leader.armor.toLowerCase()} armour` : null].filter(Boolean).join(' and ')}` : '';
+  const tech = pending.edition === 1982 && pending.techLevel !== null ? `, TL ${pending.techLevel}` : '';
+  return `${pending.quantity} ${pending.type.toLowerCase()}${pending.vehicle ? ' with a vehicle' : ''} (${armed}${odd}${led}${tech})`;
 }
 
 export const SHIPYARD_FITTING_STARPORTS = Object.freeze(['A', 'B']);
@@ -2510,7 +2549,7 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
       }
       steps.push({ id: `sell-${cargo.id}`, title: `Sell ${quote.unit && quote.unit !== 'tons' ? `${quote.quantity}` : `${cargo.tons} t`} ${quote.name}`, state: 'ready', command: `speculation:sell:${cargo.id}`, verb: 'Sell',
         figure: `${cr(quote.netCr - shuttleCr)}, ${quote.percentage}% of base${paid ? `, ${result >= 0 ? 'up' : 'down'} ${cr(Math.abs(result))}` : ''}`,
-        copy: `Today\u2019s price at ${system.name} is ${quote.percentage}% of base${quote.characterSkillDM ? `, with +${quote.characterSkillDM} for Admin or Bribery` : ''}${facts.speculation.brokerDM ? `, with +${facts.speculation.brokerDM} for a hail\u2019s broker tip` : ''}. It cost ${cr(paid)}.${shuttleCr ? ` The shuttle down takes ${cr(shuttleCr)} of it (Book 2 p.8).` : ''} The quote holds for today; it is thrown again on another day.`, cite: 'Book 2 p.47' });
+        copy: `Today\u2019s price at ${system.name} is ${quote.percentage}% of base${quote.characterSkillDM ? `, with +${quote.characterSkillDM} for Admin or Bribery` : ''}${facts.speculation.brokerDM ? `, with +${facts.speculation.brokerDM} for a hail\u2019s broker tip` : ''}${quote.tipDM ? `, with +${quote.tipDM} for the rumour\u2019s tip` : ''}. It cost ${cr(paid)}.${shuttleCr ? ` The shuttle down takes ${cr(shuttleCr)} of it (Book 2 p.8).` : ''} The quote holds for today; it is thrown again on another day.`, cite: 'Book 2 p.47' });
     }
     const { buy } = facts.speculation;
     if (buy) {
@@ -3006,7 +3045,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     const people = personState(resolved.campaign);
     if (!people.rumors.some((entry) => !entry.text)) return 0;
     const { rumors, written } = writeWaitingRumors(createDice(), {
-      rumors: people.rumors, subsector, visited: sectorState(resolved.campaign).visited, hereId: resolved.campaign.location?.systemId ?? null
+      rumors: people.rumors, subsector, visited: sectorState(resolved.campaign).visited, hereId: resolved.campaign.location?.systemId ?? null,
+      day: campaignDayNumber(resolved.campaign.time)
     });
     if (!written.length) return 0;
     registry.put(withPersonState(resolved.campaign, { rumors }));
@@ -4230,13 +4270,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const lastDay = hitDay ?? (animalDay !== null ? animalDay : endDay);
           if (surface) animalPatch = { ...(animalPatch ?? {}), surface: { ...(animalPatch?.surface ?? surface), lastPersonDay: lastDay } };
           if (hitDay !== null) {
-            const encounter = legalHit ? rollLegalEncounter(dice, { reactionDM }) : rollPersonEncounter(dice, { reactionDM });
+            const encounter = legalHit ? rollLegalEncounter(dice, { reactionDM }) : worldEncounter(dice, worldProfile, reactionDM);
             seconds = SECONDS_PER_DAY - resolved.campaign.time.secondsOfDay + (hitDay - beforeDay - 1) * SECONDS_PER_DAY;
             const date = formatCampaignDate(advanceCampaignSeconds(resolved.campaign, seconds).time);
             if (animalPatch?.pending) delete animalPatch.pending;
             if (animalPatch?.surface) animalPatch.surface = { ...animalPatch.surface, lastCheckedDay: hitDay };
             if (encounter.blank) {
-              personNote = `Person encounter point on ${date}: 1D ${thrown.at(-1)} \u2014 the table\u2019s blank row ${encounter.code}, no encounter (Book 3 p.20).`;
+              personNote = `Person encounter point on ${date}: 1D ${thrown.at(-1)} \u2014 the list\u2019s blank row ${encounter.code}, no encounter (The Traveller Book p.101).`;
             } else {
               const law = portExtras(resolved, subsector).world?.law ?? null;
               personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: personWhere.worldName, law }) };
@@ -5176,13 +5216,30 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const solo = refereeMode(resolved.campaign) === 'game';
           const heardNow = [];
           const newRumor = (source) => {
-            const record = rumorRecord(dice, { id: `rumor-${day}-${rumors.length + 1}`, date: today, system, source, solo, subsector, visited: sectorState(resolved.campaign).visited });
+            const record = rumorRecord(dice, { id: `rumor-${day}-${rumors.length + 1}`, date: today, day, system, source, solo, subsector, visited: sectorState(resolved.campaign).visited });
             rumors.push(record);
             if (solo) heardNow.push(record);
             lines.push(solo ? 'a rumour' : `a rumour (${record.letter}: ${record.type.toLowerCase()})`);
           };
+          // v0.341.0: a rumour's patron lead for this world — the patron is
+          // here without the weekly throw (a false one: nobody has heard of
+          // them, and the week's throws go on as usual). Used either way.
+          const leadHere = openLeads(rumors, day).find((entry) => entry.lead.kind === 'patron' && entry.lead.systemId === system.id) ?? null;
+          let led = null;
+          if (leadHere) {
+            rumors.splice(rumors.findIndex((entry) => entry.id === leadHere.id), 1, { ...leadHere, lead: { ...leadHere.lead, used: true } });
+            if (leadHere.lead.truth === 'false') log('ENCOUNTER', `Nobody on ${system.name} has heard of the ${leadHere.lead.patronType.toLowerCase()} the rumour spoke of.`);
+            else led = leadHere.lead;
+          }
           let patron = null;
-          if (found.found) {
+          if (led) {
+            const reaction = rollReaction(dice, { dm: encounterReactionDM(resolved, profile) });
+            patron = { date: today, worldName: system.name, systemId: system.id, listKey, code: 'lead', fromRumor: true, type: led.patronType,
+              reaction: { total: reaction.total, description: reaction.description }, speaker: speaker?.identity.name ?? null, dms: [],
+              draft: refereeMode(resolved.campaign) === 'game' ? { ...draftPatronMission(dice, { patronType: led.patronType, candidates: missionCandidates(subsector, system.id) }) } : null };
+            lines.push(`the ${led.patronType.toLowerCase()} the rumour spoke of, ${reaction.description.replace(/\.$/, '').toLowerCase()}`);
+            log('ENCOUNTER', `The ${led.patronType.toLowerCase()} the rumour spoke of is on ${system.name}, hiring.`);
+          } else if (found.found) {
             const rolled = rollPatron(dice, { listKey, firstDM: dms.first, secondDM: dms.second, reactionDM: encounterReactionDM(resolved, profile) });
             if (rolled.rumor) newRumor('patron table');
             else {
@@ -5197,7 +5254,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const heard = rumorCheck(dice);
           if (heard.found) newRumor('weekly');
           put({ patron, rumors, lastLookDay: day });
-          const message = `A week looking for patrons on ${system.name}: patron 1D ${found.die} (5+), rumour 2D ${heard.total} (7+) \u2014 ${lines.length ? lines.join('; ') : 'nothing'} (The Traveller Book p.100).`;
+          const message = `A week looking for patrons on ${system.name}: ${led ? 'patron from a rumour' : `patron 1D ${found.die} (5+)`}, rumour 2D ${heard.total} (7+) \u2014 ${lines.length ? lines.join('; ') : 'nothing'} (The Traveller Book p.100).`;
           log('ENCOUNTER', message, { visibility: 'referee' });
           for (const record of heardNow) log('ENCOUNTER', `Rumour heard on ${record.worldName}: ${record.text}`);
           return finish(heardNow.length ? `${message} ${heardNow.map((record) => record.text).join(' ')}` : message);
@@ -5321,6 +5378,68 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           log('ENCOUNTER', `${contract.identity.title}: not yet (${how}). There is time to try again before the deadline.`);
           return finish(`Not yet: ${how}.`);
         }
+        if (command.startsWith('rumors:search:')) {
+          // v0.341.0: a rumour's find — searched for as a retrieval job is
+          // (days on the surface, checked for encounters, then 2D + the
+          // party's best Recon, Streetwise or Survival for 8+), and sold for
+          // its value. A false lead turns up nothing once the days are
+          // spent; a trap turns up nothing and trouble besides.
+          const id = command.slice('rumors:search:'.length);
+          const rumor = people.rumors.find((entry) => entry.id === id);
+          const day = campaignDayNumber(resolved.campaign.time);
+          if (!rumor || rumor.lead?.kind !== 'find' || !leadOpen(rumor, day)) throw new Error('no such lead to follow');
+          const lead = rumor.lead;
+          if (resolved.campaign.location?.systemId !== lead.systemId) throw new Error(`the search is on ${lead.worldName}`);
+          const task = MISSION_TASKS.retrieval;
+          const dice = createDice();
+          const days = lead.progress?.days ?? missionTaskDays(dice, 'retrieval');
+          const spentBefore = lead.progress?.spent ?? 0;
+          const left = Math.max(1, days - spentBefore);
+          const startDay = day;
+          const waitingNow = () => Boolean(personState(resolved.campaign).pending || animalState(resolved.campaign).pending);
+          const setLead = (patch) => put({ rumors: markLead(personState(resolved.campaign).rumors, id, patch) });
+          let spentNow = 0;
+          for (let leg = 0; leg < 60 && spentNow < left && !waitingNow(); leg += 1) {
+            const passed = run('time:pass', { fight: { value: { amount: left - spentNow, unit: 'days', reason: `searching for ${lead.thing}`, checks: 'surface' } } });
+            if (!passed.ok) throw new Error(passed.message);
+            const now = Math.max(0, campaignDayNumber(resolved.campaign.time) - startDay);
+            if (now === spentNow && !waitingNow()) break;
+            spentNow = now;
+            if (safeTrip(resolved)?.situation === 'halted') break;
+          }
+          if (spentNow < left) {
+            const spent = spentBefore + spentNow;
+            setLead({ progress: { days, spent } });
+            log('ENCOUNTER', `Searching ${lead.worldName} for ${lead.thing}: interrupted after ${spent} of ${days} days. Carry on once the encounter is dealt with.`);
+            return finish(`Interrupted: ${spent} of ${days} days done; an encounter comes first.`);
+          }
+          const title = `Searching ${lead.worldName} for ${lead.thing}`;
+          if (lead.truth === 'false' || lead.truth === 'trap') {
+            setLead({ used: true, progress: null });
+            const message = `${title}: ${days} days, and nothing is there. The rumour was wrong${lead.truth === 'trap' ? ', and someone was waiting for whoever came looking' : ''}.`;
+            log('ENCOUNTER', message);
+            if (lead.truth === 'trap') {
+              const trouble = run('persons:roll');
+              if (!trouble.ok) log('ENCOUNTER', `${title}: the trouble waiting there does not find the travellers (${trouble.message}).`, { visibility: 'referee' });
+            }
+            return finish(message);
+          }
+          const best = bestPartySkill(resolved, task.skills);
+          const result = throwMissionTask(dice, { kind: 'retrieval', skillLevel: best.level });
+          const how = `${days} days searching; 2D ${result.roll}${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} = ${result.total} against ${result.needed}+`;
+          if (!result.success) {
+            setLead({ attempts: (lead.attempts ?? 0) + 1, progress: null });
+            log('ENCOUNTER', `${title}: not found yet (${how}). The lead is good for a while yet.`);
+            return finish(`Not yet: ${how}.`);
+          }
+          const valueCr = lead.truth === 'partial' ? Math.floor(Number(lead.valueCr ?? 0) / 2) : Number(lead.valueCr ?? 0);
+          const sold = creditShipAccount(activeShip(), valueCr, { kind: 'salvage', description: `${lead.thing} (${lead.worldName}) sold`, dateLabel: today });
+          persist([sold]);
+          setLead({ used: true, progress: null, attempts: (lead.attempts ?? 0) + 1 });
+          const message = `${title}: found (${how}), and sold for ${cr(valueCr)}${lead.truth === 'partial' ? ' \u2014 worth half what the talk said' : ''}.`;
+          log('ENCOUNTER', message);
+          return finish(message);
+        }
         if (command === 'rumors:suggest') {
           // v0.328.0: words for the referee to start from, from game facts;
           // the draft says whether it is true (the referee's eyes only).
@@ -5329,7 +5448,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const systemId = rumor.systemId ?? resolved.campaign.location?.systemId;
           const { here, worlds } = rumorCandidates(subsector, systemId, sectorState(resolved.campaign).visited);
           const drafted = draftRumor(createDice(), { letter: rumor.letter, here, worlds });
-          put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, draft: { text: drafted.text, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact } } : entry)) });
+          put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, draft: { text: drafted.text, truth: drafted.truth, subjectId: drafted.subjectId, fact: drafted.fact, lead: drafted.lead ?? null } } : entry)) });
           return finish(`Suggested (${drafted.truth === 'true' ? 'true' : drafted.truth === 'partial' ? 'true, but leaves something out' : drafted.truth === 'trap' ? 'a lure into trouble' : 'false'}): ${drafted.text}`);
         }
         if (command === 'rumors:write') {
@@ -5338,7 +5457,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const text = String(value.text ?? '').trim();
           if (!text) throw new Error('write the rumour first');
           // v0.328.0: written as suggested, it keeps the draft's truth.
-          const asDrafted = rumor.draft && rumor.draft.text === text ? { truth: rumor.draft.truth, subjectId: rumor.draft.subjectId, fact: rumor.draft.fact } : {};
+          // v0.341.0: and its lead, from the day it is written.
+          const asDrafted = rumor.draft && rumor.draft.text === text ? { truth: rumor.draft.truth, subjectId: rumor.draft.subjectId, fact: rumor.draft.fact, ...leadFields(rumor.draft, campaignDayNumber(resolved.campaign.time)) } : {};
           put({ rumors: people.rumors.map((entry) => (entry.id === rumor.id ? { ...entry, ...asDrafted, text } : entry)) });
           log('ENCOUNTER', `Rumour heard on ${rumor.worldName}: ${text}`);
           return finish('Rumour written.');
@@ -5387,9 +5507,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
               return finish(message);
             }
           }
-          const encounter = rollPersonEncounter(dice, { reactionDM: encounterReactionDM(resolved, worldProfile) });
+          const encounter = worldEncounter(dice, worldProfile, encounterReactionDM(resolved, worldProfile));
           if (encounter.blank) {
-            const message = `Person encounter on ${system.name}: row ${encounter.code} is blank \u2014 no encounter (Book 3 p.20).`;
+            const message = `Person encounter on ${system.name}: row ${encounter.code} is blank \u2014 no encounter (The Traveller Book p.101).`;
             log('ENCOUNTER', message, { visibility: 'referee' });
             return finish(message);
           }
@@ -5448,16 +5568,21 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             return name ? { [name]: 1 } : {};
           };
           let campaign = resolved.campaign;
+          // v0.342.0: on the 1982 list, the first is the leader when there is
+          // one, with the leader's gear.
           const actors = Array.from({ length: pending.quantity }, (_, index) => {
-            const weaponKey = index === 0 && pending.extraordinary ? pending.extraordinary : pending.weapon;
+            const leads = index === 0 && pending.leader;
+            const weaponKey = leads ? pending.leader.weapon : index === 0 && pending.extraordinary ? pending.extraordinary : pending.weapon;
             return createNpcActorDocument({
-            name: `${pending.type.replace(/s$/, '')} ${index + 1}`,
+            name: leads ? `${pending.type.replace(/s$/, '')} leader` : `${pending.type.replace(/s$/, '')} ${index + 1}`,
             role: pending.type, folder: `Encounters/${pending.date} ${pending.type}`,
             characteristics: { STR: pending.characteristics.strength, DEX: pending.characteristics.dexterity, END: pending.characteristics.endurance, INT: 7, EDU: 7, SOC: 7 },
             skills: skillFor(weaponKey),
             weaponKey,
-            armor: pending.armorKey, numberTokens: false,
-            refereeNotes: `Book 3 p.21 row ${pending.code}, met ${pending.date} on ${pending.worldName}.`
+            armor: leads ? pending.leader.armorKey : pending.armorKey, numberTokens: false,
+            refereeNotes: pending.edition === 1982
+              ? `The Traveller Book p.101 row ${pending.code} (${pending.quantityDice} ${pending.type}${pending.remarks ? ` ${pending.remarks}` : ''}), TL ${pending.techLevel}, met ${pending.date} on ${pending.worldName}.`
+              : `Book 3 p.21 row ${pending.code}, met ${pending.date} on ${pending.worldName}.`
             });
           });
           for (const actor of actors) campaign = addNpcActorToCampaign(campaign, actor);
@@ -6573,6 +6698,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           // A hail's broker tip (Book 2 p.36) is good for one resale, not
           // the whole port stay.
           persist([spendBrokerTip(shuttle.ship)]);
+          // v0.341.0: a rumour's tip is good for one sale too; a false one
+          // is found out here.
+          if (sale.tip) {
+            registry.put(withPersonState(resolved.campaign, { rumors: markLead(personState(resolved.campaign).rumors, sale.tip.id, { used: true }) }));
+            reload();
+            if (!sale.quote.tipDM) log('TRADE', `The premium on ${sale.quote.name.toLowerCase()} the rumour promised at ${facts.system.name} is not there.`);
+          }
           const netCr = result.revenueCr - shuttle.costCr;
           const profitCr = result.profitCr - shuttle.costCr;
           message = `${sale.cargo.tons} t ${sale.quote.name} sold at ${facts.system.name}, ${cr(netCr)} net${shuttle.costCr ? ` after ${cr(shuttle.costCr)} shuttle` : ''}, ${profitCr >= 0 ? 'up' : 'down'} ${cr(Math.abs(profitCr))}`;
@@ -6655,7 +6787,24 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             command: writable && !waiting ? `patrons:task:${id}` : null
           };
         }).filter(Boolean);
+        // v0.341.0: a rumour's find on this world is a search to carry out,
+        // like a retrieval job; every open lead is listed with its words.
+        const leads = openLeads(people.rumors, day);
+        for (const rumor of leads.filter((entry) => entry.lead.kind === 'find' && entry.lead.systemId === here)) {
+          const task = MISSION_TASKS.retrieval;
+          const best = bestPartySkill(resolved, task.skills);
+          const progress = rumor.lead.progress ?? null;
+          const waiting = Boolean(people.pending || animalState(resolved.campaign).pending);
+          tasks.push({
+            id: rumor.id, title: `Search for ${rumor.lead.thing}`, kind: 'find', attempts: rumor.lead.attempts ?? 0, progress,
+            figure: `${progress ? `${progress.spent} of ${progress.days} days searching done` : `${task.days} days searching`}, then 2D${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} for ${task.needed}+; a rumour`,
+            label: progress ? `Carry on (${progress.days - progress.spent} day${progress.days - progress.spent === 1 ? '' : 's'} left)` : 'Search',
+            blocked: waiting ? 'An encounter is waiting; deal with it first.' : null,
+            command: writable && !waiting ? `rumors:search:${rumor.id}` : null
+          });
+        }
         state.patrons = {
+          leads: leads.map((rumor) => ({ id: rumor.id, text: rumor.text, kind: rumor.lead.kind, where: rumor.lead.worldName, here: rumor.lead.systemId === here, heard: rumor.date })),
           mode, tasks, seat,
           list: people.patronList, wait,
           patron: people.patron,

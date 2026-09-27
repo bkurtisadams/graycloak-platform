@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // 0.81.0: rumours a game can write by itself (solo play).
 //
-// NOT Classic Traveller rules text. The Traveller Book (1982) p.100 gives the
+// NOT Classic Traveller rules text. The Traveller Book (1982) p.101 gives the
 // rumour matrix (a letter and a kind: background, minor fact, veiled clue,
 // completely false information...) and leaves the words to the referee. These
 // are original Graycloak tables that turn the letter into a sentence built
@@ -21,6 +21,7 @@ import {
 } from '../worlds/world-profile.js';
 import { deriveTradeClassifications } from '../worlds/trade-classifications.js';
 import { TRADE_GOODS } from '../trade/commerce.js';
+import { PATRON_LISTS } from './persons.js';
 
 // What each letter asks for, and whether it is true.
 export const RUMOR_CONTENT = Object.freeze({
@@ -321,6 +322,98 @@ function partial(dice, worlds, opener) {
   return { world, fact: 'partial', omits: zoneOf(world) !== 'none' ? `${zoneOf(world)} zone` : `law level ${profileOf(world).lawLevel}`, text: inner };
 }
 
+
+// ---- leads (0.84.0) ----------------------------------------------------------
+// Kurt, Sep 2026: rumours written from world facts gave the travellers
+// nothing to act on — the map already says it. The Traveller Book (1982)
+// p.99: "a rumor is simply information leading to a patron, a job, or a
+// potential treasure"; rumours are "absent patrons", and the referee "may
+// invent rumors once a rumor is dictated by the list". So most letters now
+// carry a lead the game can follow up (original tables; the trade tip is
+// Graycloak's, the book names only patron, job and treasure):
+//
+//   patron  a patron on a world in reach is hiring: looking for patrons
+//           there finds that one, without the weekly 5+ throw
+//   find    something unclaimed lies out on a world: days searching and
+//           2D + skill for 8+ (the retrieval task), sold for its value
+//   tip     a trade good fetches a premium on a world: a DM on its
+//           speculative resale there
+//
+// The letter still decides the truth: J is a patron nobody has heard of; T a
+// find with nothing there; D a find worth half what is said; F a find that
+// is a trap (nothing there, and trouble waiting); V a premium that is not
+// there. The rest of the matrix (background, terminology, library data...)
+// stays as world facts: colour, and no lead.
+export const RUMOR_LEADS = Object.freeze({
+  C: 'patron', H: 'patron', I: 'patron', O: 'patron', P: 'patron', J: 'patron',
+  E: 'find', G: 'find', N: 'find', S: 'find', D: 'find', F: 'find', T: 'find',
+  B: 'tip', M: 'tip', R: 'tip', X: 'tip', V: 'tip'
+});
+/** Days a lead stays good after it is heard. */
+export const RUMOR_LEAD_DAYS = Object.freeze({ patron: 60, find: 60, tip: 30 });
+/** The DM a true tip gives the speculative resale it names. */
+export const RUMOR_TIP_DM = 2;
+
+const FINDS = Object.freeze([
+  'a survey probe that came down in the wilds', 'the wreck of a prospector\u2019s launch', 'a cargo pod lost from a free trader',
+  'a cache left behind by a failed colony', 'a research drone that went quiet', 'a strongbox from a crashed air/raft'
+]);
+
+/** What a find is worth, sold: 2D x Cr2,500 (original). */
+export function rollFindValue(dice) {
+  requireDice(dice);
+  return (dice.rollD6() + dice.rollD6()) * 2500;
+}
+
+function patronType(dice) {
+  for (let tries = 0; tries < 20; tries += 1) {
+    const type = PATRON_LISTS.one[dice.rollD6() * 10 + dice.rollD6()];
+    if (type && type !== 'Rumor') return type;
+  }
+  return 'Merchant';
+}
+const article = (word) => (/^[aeiou]/i.test(word) ? 'an' : 'a');
+const hiringWorld = (world) => peopled(world) && world.uwp[0] !== 'X';
+
+function patronLead(dice, pool, valid, opener, truth) {
+  const world = pick(dice, pool.filter(hiringWorld)) ?? pick(dice, valid.filter(hiringWorld));
+  if (!world) return null;
+  const type = patronType(dice);
+  return { world, fact: 'patron-lead', lead: { kind: 'patron', systemId: world.id, worldName: world.name, patronType: type },
+    text: `${opener} ${article(type)} ${type.toLowerCase()} on ${world.name} is looking for people to hire.` };
+}
+
+function findLead(dice, pool, valid, opener, truth) {
+  const risky = valid.filter((world) => zoneOf(world) !== 'none' || ['E', 'X'].includes(world.uwp[0]));
+  const world = truth === 'trap' ? (pick(dice, risky) ?? pick(dice, valid)) : pick(dice, pool) ?? pick(dice, valid);
+  if (!world) return null;
+  const thing = FINDS[dice.rollD6() - 1];
+  const valueCr = truth === 'true' || truth === 'partial' ? rollFindValue(dice) : 0;
+  return { world, fact: 'find-lead', lead: { kind: 'find', systemId: world.id, worldName: world.name, thing, valueCr },
+    text: `${opener} ${thing} lies out on ${world.name}, and nobody has claimed it.` };
+}
+
+function tipLead(dice, pool, valid, opener, truth) {
+  // News first: markets not yet visited, else any in reach.
+  const markets = pool.some(hiringWorld) ? pool.filter(hiringWorld) : valid.filter(hiringWorld);
+  if (!markets.length) return null;
+  let world = null;
+  let good = null;
+  if (truth === 'true') {
+    const choices = markets.map((entry) => ({ world: entry, best: bestResale(entry) })).filter((entry) => entry.best);
+    const chosen = pick(dice, choices);
+    if (chosen) { world = chosen.world; good = chosen.best.good; }
+  }
+  if (!world) {
+    world = pick(dice, markets);
+    const goods = Object.values(TRADE_GOODS).filter(LOADABLE);
+    good = goods[(dice.rollD6() * 6 + dice.rollD6() - 7) % goods.length];
+  }
+  return { world, fact: 'tip-lead', good: good.code,
+    lead: { kind: 'tip', systemId: world.id, worldName: world.name, good: good.code, goodName: good.name, tipDM: truth === 'true' ? RUMOR_TIP_DM : 0 },
+    text: `${opener} ${good.name.toLowerCase()} is fetching a premium on ${world.name}: the buyers there are short of it.` };
+}
+
 /**
  * The words for a rumour, from the game's own facts.
  * letter: from rollRumor; here: { id, name, uwp }; worlds: those within reach
@@ -337,6 +430,16 @@ export function draftRumor(dice, { letter, here, worlds = [] } = {}) {
   const fresh = valid.filter((world) => !world.visited);
   const pool = fresh.length >= 2 ? fresh : valid;
   const opener = pick(dice, OPENERS);
+  // 0.84.0: a letter that carries a lead is drafted as one; with no world
+  // fit for it in reach, it falls back to its old words (and no lead).
+  const leadKind = RUMOR_LEADS[letter];
+  if (leadKind) {
+    const drafted = { patron: patronLead, find: findLead, tip: tipLead }[leadKind](dice, pool, valid, opener, content.truth);
+    if (drafted) {
+      const { world, ...rest } = drafted;
+      return Object.freeze({ letter, kind: `${leadKind}-lead`, truth: content.truth, ...rest, lead: Object.freeze(rest.lead), subjectId: world.id, subjectName: world.name });
+    }
+  }
   const make = {
     background: () => backgroundFact(dice, pool, opener),
     minor: () => minorFact(dice, pool, opener),

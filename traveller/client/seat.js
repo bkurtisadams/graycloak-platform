@@ -10,19 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.340.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.340.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.340.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.340.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.340.0';
-import { kindButton } from './kind-button.js?v=v0.340.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.340.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.340.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.340.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.340.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.340.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.83.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.340.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.342.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.342.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.342.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.342.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.342.0';
+import { kindButton } from './kind-button.js?v=v0.342.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.342.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.342.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.342.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.342.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.342.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.342.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -348,6 +348,12 @@ function situationCard(envelope) {
         h('div', { class: 'lead-actions' },
           requestButton({ command: offer.accept, label: 'Take the job', kind: 'money', primary: true }),
           requestButton({ command: offer.decline, label: 'Turn it down', kind: 'neutral' }))));
+    }
+    // v0.341.0: rumours that can still be followed up.
+    if ((patrons.leads ?? []).length) {
+      const how = { patron: 'look for patrons there', find: 'search there', tip: 'sell it there' };
+      parts.push(h('h3', { text: 'Leads from rumours' }), h('ul', { class: 'seat-steps' }, ...patrons.leads.map((lead) => h('li', { class: 'seat-step' },
+        h('span', { class: 'seat-step-title', text: lead.text }), h('span', { class: 'cite', text: ` ${how[lead.kind] ?? ''}${lead.here ? ' (here)' : ` \u00b7 ${lead.where}`} \u00b7 heard ${lead.heard}` })))));
     }
     if (patrons.seek?.command) parts.push(h('div', { class: 'lead-actions' }, requestButton(patrons.seek)));
   }
