@@ -1600,6 +1600,9 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
   const awaiting = new Set(undeclaredCombatantIds(encounter));
   const line = encounter.map?.spatialMode === 'range-line';
 
+  // v0.345.0: each side's NPCs spread their fire across the enemy.
+  const npcAims = new Map();
+  const aimsFor = (side) => { if (!npcAims.has(side)) npcAims.set(side, new Map()); return npcAims.get(side); };
   const fighters = encounter.combatants.map((entry) => {
     const order = declared.get(entry.id) ?? null;
     const source = byId.get(entry.sourceActorId ?? entry.id) ?? null;
@@ -1684,7 +1687,7 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
       suggestion: (() => {
         if (entry.status !== 'active' || entry.side === 'party') return null;
         try {
-          const choice = chooseNpcDeclaration(encounter, entry);
+          const choice = chooseNpcDeclaration(encounter, entry, { assigned: aimsFor(entry.side) });
           return choice ? { move: engineToSheetMove(choice.action), targetId: choice.targetId ?? null, reason: choice.reason } : null;
         } catch { return null; }
       })(),
@@ -3197,6 +3200,27 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       catch (error) { skipped.push(`${actor.identity.name}: ${error.message.replace(`${actor.identity.name} `, '')}`); }
     }
     return { changed, rested, skipped, campaign };
+  }
+
+  // v0.345.1 (Kurt, Sep 2026: after the fight "it is as if nothing
+  // happened"): a fight that ends settles the encounter that brought it —
+  // the waiting person or animal encounter whose statblocks fought is set
+  // aside, so the interrupted search or job can go on.
+  function settleEncounterAfterFight(encounter) {
+    const fought = new Set((encounter.combatants ?? []).flatMap((entry) => [entry.sourceActorId, entry.id]).filter(Boolean));
+    const people = personState(resolved.campaign);
+    const animals = animalState(resolved.campaign);
+    const personDone = people.pending && (people.pending.actorIds ?? []).some((id) => fought.has(id));
+    const animalDone = animals.pending && animals.pending.actorId && fought.has(animals.pending.actorId);
+    if (!personDone && !animalDone) return;
+    let campaign = resolved.campaign;
+    if (personDone) campaign = withPersonState(campaign, { pending: null });
+    if (animalDone) campaign = withAnimalState(campaign, { pending: null });
+    registry.put(campaign);
+    reload();
+    const how = encounter.outcome ?? encounter.status;
+    if (personDone) log('ENCOUNTER', `The encounter with the ${people.pending.type.toLowerCase()} is over (${String(how).replace(/-/g, ' ')}).`);
+    if (animalDone) log('ENCOUNTER', 'The animal encounter is over.');
   }
 
   function writeFightToCharacters(encounter) {
@@ -6246,6 +6270,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         if (settled && settled.status !== 'active') {
           const changed = writeFightToCharacters(settled);
           if (changed.length) persist(changed);
+          settleEncounterAfterFight(settled);
         }
         if (!alreadyLogged) log('COMBAT', message);
         lastMessage = { ok: true, message };

@@ -64,7 +64,7 @@ test('an NPC whose weapon cannot reach closes instead, and says why', async () =
   const pc = encounter.combatants.find((entry) => entry.side === 'party');
   encounter = repositionEncounterCombatant(encounter, { combatantId: npc.id, column: pc.position.column + 20, row: pc.position.row }).encounter;
   const declaration = chooseNpcDeclaration(encounter, encounter.combatants.find((entry) => entry.id === npc.id));
-  assert.equal(declaration.action, 'close');
+  assert.equal(declaration.action, 'close-run', 'v0.345.1: nothing in reach, so it runs');
   assert.equal(declaration.targetId, pc.id);
   assert.match(declaration.reason, /cannot reach/);
 });

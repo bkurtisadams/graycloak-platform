@@ -885,7 +885,7 @@ test('NPC tactics read range from the board in use: four bands is medium, not fo
   const party = encounter.combatants.find((entry) => entry.side === 'party');
   const staged = { ...encounter, combatants: [{ ...party, position: { column: 0, row: 0 } }, { ...thug, position: { column: 4, row: 0 } }] };
   const choice = chooseNpcDeclaration(staged, staged.combatants[1]);
-  assert.equal(choice.action, 'close', 'a club cannot reach at medium, so it closes');
+  assert.equal(choice.action, 'close-run', 'a club cannot reach at medium, so it runs to close (v0.345.1)');
   assert.match(choice.reason, /cannot reach at medium range/);
 });
 
@@ -2844,4 +2844,30 @@ test('v0.342.0 a random encounter comes off the 1982 list, equipped for the worl
   assert.ok(leader, 'the leader is on the board');
   assert.match(JSON.stringify(leader), new RegExp(led.leader.weapon));
   assert.match(JSON.stringify(leader), /The Traveller Book p\.101 row/);
+});
+
+// v0.345.1 (Kurt, Sep 2026): after the fight "it is as if nothing happened"
+// — the person encounter was still waiting. A finished fight settles it.
+test('v0.345.1 a fight against an encounter\u2019s people settles the encounter', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  let session;
+  let pending = null;
+  for (let tries = 0; tries < 100 && !pending; tries += 1) {
+    session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    session.run('persons:roll');
+    pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+    if (pending?.law) { session.run('persons:clear'); pending = null; }
+  }
+  assert.ok(pending);
+  assert.equal(session.run('persons:board').ok, true);
+  const actorIds = personState(registry.resolveCampaign(campaignId).campaign).pending.actorIds;
+  const me = registry.resolveCampaign(campaignId).campaign.party.characterIds[0];
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 0 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: actorIds[0], column: 3 } } });
+  assert.equal(session.run('fight:begin', { fight: { value: { surprise: 'none' } } }).ok, true);
+  assert.equal(session.run('fight:end').ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(personState(after.campaign).pending, null, 'no encounter left waiting');
+  assert.match(JSON.stringify(after.activityLogs), /The encounter with the .* is over/);
 });

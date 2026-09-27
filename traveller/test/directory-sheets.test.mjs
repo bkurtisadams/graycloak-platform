@@ -2303,3 +2303,31 @@ test('v0.344.0 when the game referees, NPCs take their own orders; the party sti
   assert.equal(npc.source, 'suggested');
   assert.equal(pc.targetId, null, 'a character is still the player\u2019s to aim');
 });
+
+// v0.345.0 (Kurt, Sep 2026: "everyone targets one character on both
+// sides"): automatic aims spread across the enemy.
+test('v0.345.0 automatic aims spread across the enemy, on both sides', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const first = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  session.run('character:copy', { fight: { id: first } });
+  session.run('character:copy', { fight: { id: first } });
+  const characters = registry.resolveCampaign(campaignId).characters.slice(0, 3).map((entry) => entry.identity.id);
+  assert.equal(characters.length, 3, 'three to spread');
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  session.run('fight:setup');
+  for (const id of characters) session.run('fight:place', { fight: { value: { kind: 'character', id, column: 0 } } });
+  for (let copy = 0; copy < 4; copy += 1) session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 0 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const { sheetRows } = await import('../client/play-views.js');
+  const rows = sheetRows({ ...session.view(), autoTarget: true }, {});
+  const aimed = (side) => rows.filter((row) => (row.fighter.side === 'party') === side && row.targetId).map((row) => row.targetId);
+  const partyAims = aimed(true);
+  const npcAims = aimed(false);
+  assert.ok(partyAims.length >= 2 && new Set(partyAims).size === partyAims.length, `the party spreads: ${partyAims}`);
+  assert.ok(npcAims.length >= 2 && new Set(npcAims).size > 1, `the thugs spread: ${npcAims}`);
+  // A target someone chose counts: the next automatic aim goes elsewhere.
+  const lead = rows.find((row) => row.fighter.side === 'party');
+  const picked = sheetRows({ ...session.view(), autoTarget: true }, { [lead.fighter.id]: { move: 'Stand', targetId: partyAims[1] } });
+  const again = picked.filter((row) => row.fighter.side === 'party' && row.targetId).map((row) => row.targetId);
+  assert.equal(new Set(again).size, again.length);
+});

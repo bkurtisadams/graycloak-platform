@@ -660,6 +660,21 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- A finished fight settles its encounter (Kurt, Sep 2026: after the fight
+  "it is as if nothing happened"; v0.345.1). However a fight ends — the
+  foe down or withdrawn, an escape, or End fight — the waiting person
+  encounter whose statblocks fought (or the animal encounter whose animal
+  did) is set aside and logged as over, so an interrupted search or job
+  can go on. NPC tactics: with nothing in reach, an NPC runs to close (two
+  bands, no attack, Book 1 p.28) instead of walking in and "cannot engage"
+  every round; reachable but hopeless still closes at a walk.
+- Automatic aims spread (Kurt, Sep 2026: "everyone targets one character
+  on both sides"; v0.345.0). Each automatic aim — an NPC's own choice, or a
+  character's with Auto-target on — goes, among the foes it can hit within
+  1 of its best throw, to the one fewest of its side already aim at (aims
+  chosen or declared count first); ties by the better throw, then the
+  nearer. Nothing reachable: close on the nearest, as before. Graycloak
+  policy (npc-tactics.js SPREAD_TOLERANCE); the books give no NPC tactics.
 - NPCs act on their own when the game referees (Kurt, Sep 2026: 12
   fugitives stood holding fire; v0.344.0). Since v0.255.0 nobody targets
   anybody until told (Auto-target is the option). With no person

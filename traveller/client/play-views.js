@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.344.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.344.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.344.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.344.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.345.1';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.345.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.345.1';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.345.1';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.344.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.344.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.344.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.345.1';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.345.1';
+import { renderSectionStrip } from './section-strip.js?v=v0.345.1';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.344.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.344.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.345.1';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.345.1';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.344.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.345.1';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -516,6 +516,23 @@ const NO_ATTACK_MOVES = new Set(['Close (run)', 'Open (run)', 'Evade', 'Escape']
 // plain default — attack the nearest enemy, closing if the weapon cannot reach.
 export function sheetRows(state, chosen = {}) {
   const fighters = state.fighters ?? [];
+  // v0.345.0 (Kurt, Sep 2026: "everyone targets one character on both
+  // sides"): an automatic aim for a character spreads across the enemy —
+  // among the foes it can hit within 1 of its best throw, the one fewest of
+  // its side already aim at (chosen and declared aims count first).
+  const aims = new Map();
+  const aim = (side, id) => { if (!id) return; const map = aims.get(side) ?? new Map(); map.set(id, (map.get(id) ?? 0) + 1); aims.set(side, map); };
+  for (const fighter of fighters) aim(fighter.side, chosen[fighter.id]?.targetId ?? fighter.order?.targetId ?? null);
+  const spreadAim = (fighter, foes) => {
+    const map = aims.get(fighter.side) ?? new Map();
+    const lines = foes.map((foe) => ({ foe, preview: hitLine(fighter, foe).preview, gap: Math.abs(foe.band - fighter.band) }));
+    const able = lines.filter((entry) => entry.preview?.canAttack && entry.preview.requiredRoll <= 12);
+    if (!able.length) return null;
+    const bestRoll = Math.min(...able.map((entry) => entry.preview.requiredRoll));
+    const pick = able.filter((entry) => entry.preview.requiredRoll <= bestRoll + 1)
+      .sort((left, right) => ((map.get(left.foe.id) ?? 0) - (map.get(right.foe.id) ?? 0)) || (left.preview.requiredRoll - right.preview.requiredRoll) || (left.gap - right.gap))[0];
+    return pick?.foe ?? null;
+  };
   return fighters.map((fighter) => {
     const down = isDown(fighter);
     const foes = fighters.filter((other) => other.side !== fighter.side && !isDown(other));
@@ -529,8 +546,10 @@ export function sheetRows(state, chosen = {}) {
     // for a character, the NPC's own choice for an NPC.
     // v0.344.0: when the game referees, the other side acts on its own.
     const auto = Boolean(state.autoTarget) || (Boolean(state.npcsActAlone) && fighter.side !== 'party');
+    const spread = auto && !pick && !fighter.order && !(fighter.suggestion) && !down ? spreadAim(fighter, foes) : null;
+    if (spread) aim(fighter.side, spread.id);
     const fallback = auto
-      ? { move: nearest && !reachNearest ? 'Close' : 'Stand', targetId: nearest?.id ?? null }
+      ? (spread ? { move: 'Stand', targetId: spread.id } : { move: nearest && !reachNearest ? 'Close' : 'Stand', targetId: nearest?.id ?? null })
       : { move: 'Stand', targetId: null };
     const base = pick ?? held ?? (auto ? fighter.suggestion : null) ?? fallback;
     const source = pick ? 'chosen' : held ? 'declared' : auto && fighter.suggestion ? 'suggested' : 'default';

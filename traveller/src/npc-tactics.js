@@ -76,12 +76,27 @@ export function rankNpcTargets(encounter, combatant) {
 //      since closing improves most bands and nothing is lost by waiting.
 //   4. Nothing reachable -> close on the nearest enemy.
 //   5. Nothing at all to close on -> stand.
-export function chooseNpcDeclaration(encounter, combatant) {
+// v0.345.0 (Kurt, Sep 2026: "everyone targets one character on both
+// sides"): given `assigned` (enemy id -> how many of this side already aim
+// at them), a combatant spreads its fire — among the targets it can hit
+// within 1 of its best throw, the one fewest are already aiming at.
+export const SPREAD_TOLERANCE = 1;
+function spreadPick(ranked, assigned) {
+  const best = ranked[0];
+  if (!assigned) return best;
+  const tier = ranked.filter((entry) => entry.reachable && !entry.hopeless && entry.requiredRoll <= best.requiredRoll + SPREAD_TOLERANCE);
+  const pick = [...tier].sort((left, right) => ((assigned.get(left.enemy.id) ?? 0) - (assigned.get(right.enemy.id) ?? 0))
+    || (left.requiredRoll - right.requiredRoll) || (left.distance - right.distance))[0] ?? best;
+  assigned.set(pick.enemy.id, (assigned.get(pick.enemy.id) ?? 0) + 1);
+  return pick;
+}
+
+export function chooseNpcDeclaration(encounter, combatant, { assigned = null } = {}) {
   if (!combatant || combatant.status !== 'active') return null;
   const ranked = rankNpcTargets(encounter, combatant);
   if (!ranked.length) return { actorId: combatant.id, action: 'wait', targetId: null, modifier: 0, reason: 'no active enemy' };
 
-  const best = ranked[0];
+  const best = spreadPick(ranked, assigned);
   if (best.reachable && !best.hopeless) {
     const readiness = meleeReadiness(combatant);
     return {
@@ -94,15 +109,20 @@ export function chooseNpcDeclaration(encounter, combatant) {
   }
 
   const closest = [...ranked].sort((left, right) => left.distance - right.distance)[0];
+  if (assigned && closest) assigned.set(closest.enemy.id, (assigned.get(closest.enemy.id) ?? 0) + 1);
   if (closest) {
+    // v0.345.1: nothing in reach at all — run (two bands, no attack, Book 1
+    // p.28) rather than walk and swing at the air. Reachable but hopeless
+    // still closes at a walk, attacking if it comes in reach.
+    const run = !best.reachable && !ranked.some((entry) => entry.reachable);
     return {
       actorId: combatant.id,
-      action: 'close',
+      action: run ? 'close-run' : 'close',
       targetId: closest.enemy.id,
       modifier: 0,
       reason: best.reachable
         ? `no throw can hit at ${best.band} range; closing`
-        : `${getPersonalWeapon(combatant.weaponKey).name} cannot reach at ${closest.band} range`
+        : `${getPersonalWeapon(combatant.weaponKey).name} cannot reach at ${closest.band} range; running to close`
     };
   }
   return { actorId: combatant.id, action: 'wait', targetId: null, modifier: 0, reason: 'nothing to engage' };
@@ -116,9 +136,22 @@ export function pendingNpcDeclarations(encounter) {
   const declared = new Set((encounter.roundState?.declaredActions ?? []).map((entry) => entry.actorId));
   const surpriseRound = encounter.round === 1 ? encounter.surprise?.surpriseSideId ?? null : null;
   const mayAct = (side) => surpriseRound === null || surpriseRound === side;
+  // Each side spreads its fire, counting the aims already declared.
+  const bySide = new Map();
+  const aimsOf = (side) => {
+    if (!bySide.has(side)) {
+      const map = new Map();
+      for (const action of encounter.roundState?.declaredActions ?? []) {
+        const actor = encounter.combatants.find((entry) => entry.id === action.actorId);
+        if (actor?.side === side && action.targetId) map.set(action.targetId, (map.get(action.targetId) ?? 0) + 1);
+      }
+      bySide.set(side, map);
+    }
+    return bySide.get(side);
+  };
   return encounter.combatants
     .filter((entry) => entry.status === 'active' && entry.tactics === 'auto' && !declared.has(entry.id))
     .filter((entry) => mayAct(entry.side))
-    .map((entry) => chooseNpcDeclaration(encounter, entry))
+    .map((entry) => chooseNpcDeclaration(encounter, entry, { assigned: aimsOf(entry.side) }))
     .filter(Boolean);
 }
