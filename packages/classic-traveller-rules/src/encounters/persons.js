@@ -229,9 +229,13 @@ export const RUMOR_MATRIX = Object.freeze([
   'ABCDEF', 'GUUWWH', 'IUYYWJ', 'KXZZVL', 'MXXVVN', 'OPQRST'
 ].map((row) => Object.freeze(row.split(''))));
 
-export function rumorCheck(dice) {
-  const total = sum(dice, 2);
-  return Object.freeze({ total, found: total >= 7 });
+// 0.86.0 (Kurt, Sep 2026): a DM on the weekly throw — Graycloak's, for
+// Streetwise; p.101 leaves rumour DMs to the referee.
+export function rumorCheck(dice, { dm = 0 } = {}) {
+  if (!Number.isInteger(dm)) throw new TypeError('rumour dm must be an integer');
+  const natural = sum(dice, 2);
+  const total = natural + dm;
+  return Object.freeze({ natural, dm, total, found: total >= 7 });
 }
 
 export function rollRumor(dice) {

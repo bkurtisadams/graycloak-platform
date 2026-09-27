@@ -3,7 +3,7 @@ import {
   generateAnimalEncounterTable, rollAnimalTableRow, animalDisplayName, resolveAnimalBehaviour,
   getPersonalWeapon, parseUniversalWorldProfile,
   TERRAIN_DMS, rollEncounterRange, resolvePersonalSurprise, SURPRISE_DMS, butcherAnimal
-} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
 import { createNpcActorDocument } from './npc-actor-document.js';
 
 // ---------------------------------------------------------------------------

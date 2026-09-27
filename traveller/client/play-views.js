@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.342.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.342.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.342.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.342.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.344.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.344.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.344.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.344.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.342.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.342.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.342.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.344.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.344.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.344.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.342.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.342.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.344.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.344.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.342.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.344.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -190,7 +190,7 @@ function patronsPanel(p, handlers) {
     } : {});
     const waiting = !solo && !referee && !draft;
     parts.push(h('section', { class: 'patron-card', 'aria-label': 'A patron' },
-      h('p', { class: 'eyebrow', text: `Patron \u00b7 ${patron.date} \u00b7 ${patron.worldName} \u00b7 ${patron.fromRumor ? 'from a rumour' : `list ${patron.listKey}, ${patron.code}`}` }),
+      h('p', { class: 'eyebrow', text: `Patron \u00b7 ${patron.date} \u00b7 ${patron.worldName} \u00b7 ${patron.fromRumor ? 'from a rumour' : patron.fromEnforcer ? `through a local enforcer \u00b7 list one, ${patron.code}` : `list ${patron.listKey}, ${patron.code}`}` }),
       h('h3', { text: patron.type }),
       h('p', { text: `Reaction ${patron.reaction.total}: ${patron.reaction.description}${patron.speaker ? ` Speaking for the party: ${patron.speaker}.` : ''}${patron.dms.length ? ` Matrix DMs: ${patron.dms.join(', ')}.` : ''}` }),
       solo ? h('p', { class: 'cite', text: 'Solo: the game says what the patron wants (original tables, not the book\u2019s).' })
@@ -527,7 +527,8 @@ export function sheetRows(state, chosen = {}) {
     // dragged onto the board were aiming at the nearest enemy by themselves).
     // Auto-target puts the old behaviour back as an option: the nearest foe
     // for a character, the NPC's own choice for an NPC.
-    const auto = Boolean(state.autoTarget);
+    // v0.344.0: when the game referees, the other side acts on its own.
+    const auto = Boolean(state.autoTarget) || (Boolean(state.npcsActAlone) && fighter.side !== 'party');
     const fallback = auto
       ? { move: nearest && !reachNearest ? 'Close' : 'Stand', targetId: nearest?.id ?? null }
       : { move: 'Stand', targetId: null };
@@ -1117,8 +1118,14 @@ export function renderNow(state, handlers = {}) {
   if (state.patrons && state.live && state.situation.kind === 'port') parts.push(patronsPanel(state.patrons, handlers));
   // v0.315.6: a hijacking or a boarding halts the trip for a personal fight.
   if (state.boardFight) {
-    parts.push(startFight(state, handlers, { open: true })
-      ?? h('p', { class: 'empty', text: `There are no actors to put against the party yet. Add ${state.boardFight.opponents} as a statblock in the Actors tab, then start the fight here.` }));
+    // v0.343.0: the game makes the party (at once when it referees; a person
+    // refereeing brings it in here), ticked for the fight.
+    const bring = state.boardFight.bringIn && state.live
+      ? h('div', { class: 'lead-actions' }, h('button', { type: 'button', class: 'button is-small', text: state.boardFight.bringIn.label, title: 'Book 2 p.3; equipped by The Traveller Book p.101 codes', onclick: () => handlers.onCommand?.(state.boardFight.bringIn.command) }))
+      : null;
+    if (bring) parts.push(bring);
+    parts.push(startFight(state, handlers, { open: true, foeIds: state.boardFight.actorIds ?? null })
+      ?? h('p', { class: 'empty', text: `There are no actors to put against the party yet. Bring in ${state.boardFight.opponents} above, or add your own in the Actors tab, then start the fight here.` }));
   }
   if (state.hold) parts.push(h('p', { class: 'hold-note', text: state.hold }));
   if (state.roster?.length) parts.push(h('ul', { class: 'roster', 'aria-label': 'Who is fighting' }, state.roster.map(rosterRow)));

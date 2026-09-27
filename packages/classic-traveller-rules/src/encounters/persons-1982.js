@@ -152,3 +152,30 @@ export function rollPersonEncounter1982(dice, { reactionDM = 0, techLevel = 7, p
     enforcement: entry.enforcement, ...gear, characteristics, extraordinary: null, reaction
   });
 }
+
+// ---------------------------------------------------------------------------
+// 0.86.0 (Kurt, Sep 2026): boarding parties, equipped the same way. Book 2
+// p.3 says only that "one or more passengers" attempt a hijacking and that an
+// "armed repossession party" boards; who they are and what they carry are
+// Graycloak's, in the list's own terms:
+//   hijackers           1D (no more than the passengers in staterooms), L:
+//                       blades smuggled aboard, the leader a gun — outlaws
+//   repossession party  2D, LGA, issued (they ignore the law level)
+// ---------------------------------------------------------------------------
+export const BOARDING_PARTIES = Object.freeze({
+  hijack: row('Hijackers', '1D', 'L', 'outlaw'),
+  'repossession-boarding': row('Repossession Party', '2D', 'LGA', 'police')
+});
+
+export function rollBoardingParty(dice, kind, { techLevel = 7, maxQuantity = Infinity } = {}) {
+  requireDice(dice);
+  const entry = BOARDING_PARTIES[kind];
+  if (!entry) throw new RangeError(`no boarding party for ${kind}`);
+  const thrown = sum(dice, Number(entry.quantity[0]));
+  const quantity = Math.max(1, Math.min(thrown, Number.isFinite(maxQuantity) ? maxQuantity : thrown));
+  const characteristics = Object.freeze({ strength: sum(dice, 2), dexterity: sum(dice, 2), endurance: sum(dice, 2) });
+  const gear = equipEncounterGroup(dice, entry, { techLevel });
+  return Object.freeze({
+    kind, type: entry.type, quantity, thrown, quantityDice: entry.quantity, remarks: entry.remarks, gearRule: entry.gear, ...gear, characteristics
+  });
+}

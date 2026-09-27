@@ -660,6 +660,36 @@ berthing past six days, salaries) reach `play.html` with it.
   player turned it off ("don't ask again" in the dialog; the lobby's "Ask
   before deleting a character" checkbox turns it back on; per browser).
   Deleting a campaign always asks.
+- NPCs act on their own when the game referees (Kurt, Sep 2026: 12
+  fugitives stood holding fire; v0.344.0). Since v0.255.0 nobody targets
+  anybody until told (Auto-target is the option). With no person
+  refereeing, nobody told the other side, so it never fought. Now, when the
+  game referees, each NPC row takes the NPC's own choice (npc-tactics.js:
+  attack the best reachable target, else close) every round; the party's
+  rows still wait for the players; a person refereeing sets NPC orders as
+  before. Morale and fleeing are unchanged (Book 1 p.33).
+- Rumours and friendly enforcers; boarding parties (Kurt, Sep 2026;
+  v0.343.0, rules 0.86.0). Streetwise (option B): the party's best
+  Streetwise-1+ is +1 on the weekly 7+ rumour throw (58% to 72%) —
+  Graycloak's; p.101's matrix DMs were weighed and dropped (with leads
+  spread over the matrix, a ±1 on either die moves 22 of 36 to 22 or 23).
+  p.99, a positive enforcer reaction is "a potential source of rumors,
+  assistance, or patrons": Interested to Enthusiastic (8-11) passes on a
+  rumour at once (it may carry a lead); Genuinely friendly (12) points to a
+  patron off list one, without the weekly 5+ (a Rumor result, or a patron
+  already waiting, gives a rumour instead). Assistance left out: nothing for
+  it to do. 7 is Non-committal, not positive. Adverse reactions stay as the
+  reaction text. Solo slice 3: a hijacking or a repossession boarding
+  (Book 2 p.3) now comes with its party as statblocks, equipped by the
+  p.101 codes (Graycloak's reading, rules persons-1982.js
+  BOARDING_PARTIES): hijackers 1D, no more than the passengers in
+  staterooms, "L" — smuggled blades, the leader a gun — outlaws; a
+  repossession party 2D, "LGA", issued. The world's tech level. Made the
+  moment it happens when the game referees; a person refereeing has "Bring
+  in the hijackers / the repossession party" on the halt, or adds their
+  own. The party is ticked in Start a fight. Still to do: NPCs acting on
+  their own in the fight (slice 4); Book 2 p.3's anti-hijack program
+  (rules rollHijackersReachBridge) is not yet thrown.
 - Random encounters off the 1982 list (Kurt, Sep 2026; v0.342.0, rules
   0.85.0, persons-1982.js). The Traveller Book p.101 list (30 rows, 61-66
   blank; remarks as Kurt read them from the book) replaces Book 3 p.21 on

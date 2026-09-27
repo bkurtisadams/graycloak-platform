@@ -1489,9 +1489,85 @@ test('v0.315.6 a hijacking halts the trip with the Start a fight panel, the part
   } } });
   const view = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view();
   assert.equal(view.situation.kind, 'halted');
-  assert.deepEqual(view.boardFight, { reason: 'hijack', opponents: 'the hijackers' });
+  assert.deepEqual(view.boardFight, { reason: 'hijack', opponents: 'the hijackers', actorIds: [], bringIn: { command: 'trip:board-party', label: 'Bring in the hijackers' } });
   assert.ok(view.partyChoices.length >= 1);
   assert.deepEqual(view.next.actions.map((action) => action.command), ['trip:resume:continue']);
+});
+
+// v0.343.0 (solo slice 3): the hijackers are made, equipped by the p.101
+// codes, and ticked for the fight.
+test('v0.343.0 Bring in the hijackers: 1D of them (no more than the passengers), a leader, ready for the board', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  const ship = r.ships[0];
+  const passenger = (id, passageClass) => ({ id, class: passageClass, originSystemId: 'aster', destinationSystemId: 'calder', fareCr: 8000 });
+  registry.putAll([
+    { ...ship, state: { ...ship.state, passengerManifest: [passenger('p1', 'high'), passenger('p2', 'middle'), { ...passenger('p3', 'low'), endurance: 7 }] } },
+    { ...r.campaign, roster: { ...r.campaign.roster, trip: {
+      situation: 'halted', halt: { reason: 'hijack', detail: 'a passenger attempts a hijacking (3D: 18) on day 3 of the voyage (Book 2 p.3)', from: 'in-jump' },
+      jump: { fromSystemId: 'aster', toSystemId: 'calder', startedOn: '106-4800', weeks: 1, weeksDone: 0, misjump: false, destroyed: false, landedHex: '0606', landedSystemId: 'calder' } } } }
+  ]);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const result = session.run('trip:board-party');
+  assert.equal(result.ok, true, result.message);
+  assert.match(result.message, /The hijackers: [12] hijackers \(.*a leader with/);
+  const after = registry.resolveCampaign(campaignId);
+  const party = after.campaign.roster.boardingParty;
+  assert.ok(party.quantity >= 1 && party.quantity <= 2, 'the sleeping low passenger does not count');
+  const view = session.view();
+  assert.deepEqual(view.boardFight.actorIds, party.actorIds);
+  assert.equal(view.boardFight.bringIn, null);
+  assert.ok(view.opponents.some((foe) => foe.id === party.actorIds[0]));
+  const leader = after.npcActors.find((actor) => actor.identity.id === party.actorIds[0]);
+  assert.match(leader.identity.name, /Hijacker leader/);
+  assert.equal(session.run('trip:board-party').message, 'They are already in the Actors directory.');
+});
+
+test('v0.343.0 a repossession party: 2D agents, a leader first', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, settings: { ...(r.campaign.roster?.settings ?? {}), referee: 'game' }, trip: {
+    situation: 'halted', halt: { reason: 'repossession-boarding', detail: 'an armed repossession party boards (Book 2 p.3)', from: 'port' } } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  session.run('trip:board-party');
+  const party = registry.resolveCampaign(campaignId).campaign.roster.boardingParty;
+  assert.equal(party.reason, 'repossession-boarding');
+  assert.ok(party.quantity >= 2);
+  const agent = registry.resolveCampaign(campaignId).npcActors.find((actor) => actor.identity.id === party.actorIds[1]);
+  assert.match(agent.identity.name, /Repossession agent 2/);
+});
+
+// v0.343.0: p.99, a friendly enforcer passes on a rumour (8-11) or points to
+// a patron (12); and Streetwise helps hear rumours.
+test('v0.343.0 a friendly enforcer passes on a rumour, and a genuinely friendly one a patron', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.campaign, roster: { ...r.campaign.roster, settings: { ...(r.campaign.roster?.settings ?? {}), referee: 'game' } } });
+  let rumours = 0; let patrons = 0; let unfriendly = 0;
+  for (let tries = 0; tries < 400 && (rumours === 0 || patrons === 0 || unfriendly === 0); tries += 1) {
+    const c = registry.resolveCampaign(campaignId).campaign;
+    registry.put({ ...c, roster: { ...c.roster, persons: { ...(c.roster.persons ?? {}), pending: null, patron: null, rumors: [] } } });
+    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    session.run('time:pass', { fight: { value: { amount: 1, unit: 'days', reason: 'in town', checks: 'surface' } } });
+    const people = personState(registry.resolveCampaign(campaignId).campaign);
+    if (!people.pending?.legal) continue;
+    const table = people.pending.reaction.total;
+    if (table >= 12 && people.patron) { patrons += 1; assert.equal(people.patron.fromEnforcer, true); assert.ok(people.patron.draft); }
+    else if (table >= 8) { rumours += 1; assert.equal(people.rumors.at(-1).source, 'enforcer'); assert.ok(people.rumors.at(-1).text); }
+    else { unfriendly += 1; assert.equal(people.rumors.length, 0); assert.equal(people.patron, null); }
+  }
+  assert.ok(rumours > 0, 'an interested enforcer passes on talk');
+  assert.ok(unfriendly > 0);
+});
+
+test('v0.343.0 Streetwise-1+ in the party is +1 on the weekly rumour throw', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const r = registry.resolveCampaign(campaignId);
+  const who = r.characters.find((entry) => r.campaign.party.characterIds.includes(entry.identity.id));
+  registry.put({ ...who, skills: { ...(who.skills ?? {}), Streetwise: 2 } });
+  const result = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).run('patrons:seek');
+  assert.equal(result.ok, true, result.message);
+  assert.match(result.message, /rumour 2D \d+ \+1 .*\u2019s Streetwise \(7\+\)/);
 });
 
 // ---------------------------------------------------------------- v0.316.0

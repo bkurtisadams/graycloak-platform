@@ -39,8 +39,8 @@ import {
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
-  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982
-} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty
+} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -55,12 +55,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.85.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.86.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -2291,6 +2291,8 @@ function encounterReactionDM(resolved, profile) {
   return reactionModifiers({ speaker: partySpeaker(resolved), population: profile ? Number(profile.population) : null }).dm;
 }
 
+const article = (word) => (/^[aeiou]/i.test(String(word)) ? 'an' : 'a');
+
 export function withPersonState(campaign, patch) {
   return { ...campaign, roster: { ...campaign.roster, persons: { ...personState(campaign), ...patch } } };
 }
@@ -2752,6 +2754,7 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
 
   if (trip.situation === 'halted') {
     const halt = trip.halt;
+    const boardingParty = resolved.campaign.roster?.boardingParty ?? null;
     const guidance = {
       'ship-fight': fightLive ? '' : ' The fight is over. Say how the trip goes on.',
       hijack: ' Put it on the board below: the party against the hijackers. When it is settled, go on with the jump.',
@@ -2769,7 +2772,12 @@ export function tripSituationView(resolved, trip, { subsector, writable = true, 
       // Start a fight panel comes up here, the party already ticked, rather
       // than in the Combat drawer.
       boardFight: writable && ['hijack', 'repossession-boarding'].includes(halt.reason)
-        ? { reason: halt.reason, opponents: halt.reason === 'hijack' ? 'the hijackers' : 'the repossession party' } : null,
+        ? {
+          reason: halt.reason, opponents: halt.reason === 'hijack' ? 'the hijackers' : 'the repossession party',
+          // v0.343.0: the generated party, preselected for the fight.
+          actorIds: boardingParty?.key === `${halt.reason}|${halt.detail}` ? [...boardingParty.actorIds] : [],
+          bringIn: boardingParty?.key === `${halt.reason}|${halt.detail}` ? null : { command: 'trip:board-party', label: halt.reason === 'hijack' ? 'Bring in the hijackers' : 'Bring in the repossession party' }
+        } : null,
       scene: trip.jump ? jumpSceneFor(trip, seat) : null
     };
   }
@@ -3814,6 +3822,79 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     persist([state.ship, ...state.characters, ...state.contracts]);
     chartAndVisit();
     if (state.situation === 'port') { settleSmuggling(); settleDeliveries(); }
+    if (state.situation === 'halted' && ['hijack', 'repossession-boarding'].includes(state.halt?.reason) && refereeMode(resolved.campaign) === 'game') bringInBoardingParty();
+  }
+
+  // v0.343.0 (Kurt, Sep 2026): p.99, a positive reaction makes a local
+  // enforcer "a potential source of rumors, assistance, or patrons".
+  // Interested to Enthusiastic (8-11): a rumour, thrown on the matrix at once
+  // (it may carry a lead). Genuinely friendly (12): a patron off list one,
+  // without the weekly 5+ (a Rumor result, or a patron already waiting,
+  // gives a rumour instead). Assistance has nothing to do here: left out.
+  function enforcerFavour(dice, reaction, { date, day }) {
+    const table = Number(reaction?.tableTotal ?? reaction?.total ?? 0);
+    if (table < 8) return null;
+    const { system, profile } = currentWorldProfile(resolved, subsector);
+    if (!system) return null;
+    const people = personState(resolved.campaign);
+    const solo = refereeMode(resolved.campaign) === 'game';
+    if (table >= 12 && !people.patron) {
+      const rolled = rollPatron(dice, { listKey: 'one', reactionDM: encounterReactionDM(resolved, profile) });
+      if (!rolled.rumor) {
+        const patron = { date, worldName: system.name, systemId: system.id, listKey: 'one', code: rolled.code, type: rolled.type, fromEnforcer: true,
+          reaction: { total: rolled.reaction.total, description: rolled.reaction.description }, speaker: partySpeaker(resolved)?.identity.name ?? null, dms: [],
+          draft: solo ? { ...draftPatronMission(dice, { patronType: rolled.type, candidates: missionCandidates(subsector, system.id) }) } : null };
+        return { patch: { patron }, note: `Genuinely friendly, the enforcer points the travellers to someone hiring: ${article(rolled.type)} ${rolled.type.toLowerCase()} (list one ${rolled.code}).` };
+      }
+    }
+    const record = rumorRecord(dice, { id: `rumor-${day}-${people.rumors.length + 1}`, date, day, system, source: 'enforcer', solo, subsector, visited: sectorState(resolved.campaign).visited });
+    return {
+      patch: { rumors: [...people.rumors, record] },
+      note: solo ? `The enforcer passes on some talk: ${record.text}` : `The enforcer passes on a rumour (${record.letter}: ${record.type.toLowerCase()}).`
+    };
+  }
+
+  // v0.343.0 (solo slice 3): the hijackers or the repossession party a
+  // halted trip calls for, as statblocks (persons-1982.js BOARDING_PARTIES,
+  // equipped by the p.101 codes). Made at once when the game referees; a
+  // person refereeing brings them in with a button, or makes their own.
+  function boardingKey(halt) { return `${halt.reason}|${halt.detail}`; }
+  function bringInBoardingParty() {
+    const trip = safeTrip(resolved);
+    const halt = trip?.situation === 'halted' ? trip.halt : null;
+    if (!halt || !['hijack', 'repossession-boarding'].includes(halt.reason)) throw new Error('nobody is boarding');
+    const existing = resolved.campaign.roster?.boardingParty;
+    if (existing?.key === boardingKey(halt)) return null;
+    const { system, profile } = currentWorldProfile(resolved, subsector);
+    const ship = activeShip();
+    const passengers = (ship?.state.passengerManifest ?? []).filter((entry) => entry.class !== 'low').length;
+    const dice = createDice();
+    const party = rollBoardingParty(dice, halt.reason, { techLevel: Number(profile?.techLevel ?? 7), maxQuantity: halt.reason === 'hijack' ? Math.max(1, passengers) : Infinity });
+    const date = formatCampaignDate(resolved.campaign.time);
+    const skillFor = (key) => {
+      const name = key && key !== 'hands' ? getPersonalWeapon(key).skillNames?.[0] : null;
+      return name ? { [name]: 1 } : {};
+    };
+    const singular = party.type.replace(/s$/, '').replace(/ Party$/, ' agent');
+    const actors = Array.from({ length: party.quantity }, (_, index) => {
+      const leads = index === 0 && party.leader;
+      const weaponKey = leads ? party.leader.weapon : party.weapon;
+      return createNpcActorDocument({
+        name: leads ? `${singular} leader` : `${singular} ${index + 1}`, role: party.type, folder: `Encounters/${date} ${party.type}`,
+        characteristics: { STR: party.characteristics.strength, DEX: party.characteristics.dexterity, END: party.characteristics.endurance, INT: 7, EDU: 7, SOC: 7 },
+        skills: skillFor(weaponKey), weaponKey, armor: leads ? party.leader.armorKey : party.armorKey, numberTokens: false,
+        refereeNotes: `${party.quantityDice} ${party.type} ${party.remarks}, TL ${party.techLevel} (Book 2 p.3; equipped by The Traveller Book p.101 codes, Graycloak ruling), ${date}.`
+      });
+    });
+    let campaign = resolved.campaign;
+    for (const actor of actors) campaign = addNpcActorToCampaign(campaign, actor);
+    campaign = { ...campaign, roster: { ...campaign.roster, boardingParty: { key: boardingKey(halt), reason: halt.reason, actorIds: actors.map((actor) => actor.identity.id), type: party.type, quantity: party.quantity } } };
+    registry.putAll([...actors, campaign]);
+    reload();
+    const gear = describePersonEncounter({ quantity: party.quantity, type: party.type, vehicle: false, weaponry: party.weaponry, armor: party.armor, leader: party.leader, edition: 1982, techLevel: party.techLevel });
+    const message = `${halt.reason === 'hijack' ? 'The hijackers' : 'The repossession party'}: ${gear}. They are in the Actors directory, ready for the board.`;
+    log('ENCOUNTER', message);
+    return message;
   }
 
   // v0.340.0: a patron's job settled — p.124's hidden 1D, thrown when it
@@ -4282,7 +4363,11 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
               personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: personWhere.worldName, law }) };
               personNote = legalHit
                 ? `Legal encounter on ${date} (${personWhere.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
-                : `Person encounter on ${date} (${personWhere.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21). The clock stopped here.`;
+                : `Person encounter on ${date} (${personWhere.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book pp.99-101). The clock stopped here.`;
+              if (legalHit) {
+                const favour = enforcerFavour(dice, encounter.reaction, { date, day: hitDay });
+                if (favour) { Object.assign(personPatch, favour.patch); personNote += ` ${favour.note}`; }
+              }
             }
           }
         }
@@ -5251,10 +5336,14 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
               lines.push(`a patron: ${rolled.type.toLowerCase()} (${rolled.code}, list ${listKey}), ${rolled.reaction.description.replace(/\.$/, '').toLowerCase()}`);
             }
           }
-          const heard = rumorCheck(dice);
+          // v0.343.0 (Kurt, Sep 2026): the party's best Streetwise-1+ is
+          // +1 on the weekly throw (Graycloak's; p.101 leaves DMs to the
+          // referee).
+          const street = bestPartySkill(resolved, ['Streetwise']);
+          const heard = rumorCheck(dice, { dm: street.level >= 1 ? 1 : 0 });
           if (heard.found) newRumor('weekly');
           put({ patron, rumors, lastLookDay: day });
-          const message = `A week looking for patrons on ${system.name}: ${led ? 'patron from a rumour' : `patron 1D ${found.die} (5+)`}, rumour 2D ${heard.total} (7+) \u2014 ${lines.length ? lines.join('; ') : 'nothing'} (The Traveller Book p.100).`;
+          const message = `A week looking for patrons on ${system.name}: ${led ? 'patron from a rumour' : `patron 1D ${found.die} (5+)`}, rumour 2D ${heard.natural}${heard.dm ? ` +1 ${street.name}\u2019s Streetwise` : ''} (7+) \u2014 ${lines.length ? lines.join('; ') : 'nothing'} (The Traveller Book p.100).`;
           log('ENCOUNTER', message, { visibility: 'referee' });
           for (const record of heardNow) log('ENCOUNTER', `Rumour heard on ${record.worldName}: ${record.text}`);
           return finish(heardNow.length ? `${message} ${heardNow.map((record) => record.text).join(' ')}` : message);
@@ -6255,6 +6344,14 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         saveToCloud();
         return lastMessage;
       }
+      if (command === 'trip:board-party') {
+        // v0.343.0: a person refereeing brings in the generated party.
+        const message = bringInBoardingParty();
+        lastMessage = { ok: true, message: message ?? 'They are already in the Actors directory.' };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('trip:')) {
         lastMessage = { ok: true, message: runTripCommand(command) };
         onChange();
@@ -7095,6 +7192,11 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           ...state,
           encounterId: fight.encounterId,
           fighters: fight.fighters,
+          // v0.344.0 (Kurt, Sep 2026: fugitives "not fighting back"): when the
+          // game referees there is nobody to give the other side its orders,
+          // so each NPC takes its own choice (npc-tactics.js), Auto-target
+          // or not. A person refereeing keeps setting them.
+          npcsActAlone: refereeMode(resolved.campaign) === 'game',
           declaredList: fight.declaredList,
           setup: fight.setup,
           casualties: fight.casualties,

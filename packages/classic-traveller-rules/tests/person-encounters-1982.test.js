@@ -93,3 +93,35 @@ test('a roll gives the row, a shared set of characteristics and one reaction; a 
   }
   assert.ok(Object.values(WEAPONS_BY_TECH_LEVEL_1982).flat().includes('laser-rifle'));
 });
+
+// 0.86.0: boarding parties and the rumour DM.
+import { BOARDING_PARTIES, rollBoardingParty } from '../src/encounters/persons-1982.js';
+import { rumorCheck } from '../src/encounters/persons.js';
+
+test('hijackers: 1D, no more than the passengers aboard, blades and a leader with a gun', () => {
+  for (let round = 0; round < 60; round += 1) {
+    const party = rollBoardingParty(createDice(), 'hijack', { techLevel: 9, maxQuantity: 2 });
+    assert.ok(party.quantity >= 1 && party.quantity <= 2);
+    assert.ok(['dagger', 'sword', 'broadsword', 'foil', 'cutlass', 'blade'].includes(party.weapon), party.weapon);
+    assert.equal(party.leader.weapon, 'laser-rifle');
+    assert.equal(party.armorKey, 'none');
+    assert.equal(party.type, 'Hijackers');
+  }
+});
+
+test('a repossession party: 2D, guns and armor, a leader', () => {
+  const party = rollBoardingParty(createDice(), 'repossession-boarding', { techLevel: 12 });
+  assert.ok(party.quantity >= 2 && party.quantity <= 12);
+  assert.ok(party.leader);
+  assert.notEqual(party.armorKey, 'none');
+  assert.notEqual(party.armorKey, 'combat', 'not military');
+  assert.equal(BOARDING_PARTIES['repossession-boarding'].remarks, 'LGA');
+  assert.throws(() => rollBoardingParty(createDice(), 'pirates'), /no boarding party/);
+});
+
+test('the weekly rumour throw takes a DM', () => {
+  const plain = rumorCheck(createSequenceDice([3, 3]));
+  assert.deepEqual({ total: plain.total, found: plain.found }, { total: 6, found: false });
+  const streetwise = rumorCheck(createSequenceDice([3, 3]), { dm: 1 });
+  assert.deepEqual({ natural: streetwise.natural, total: streetwise.total, found: streetwise.found }, { natural: 6, total: 7, found: true });
+});

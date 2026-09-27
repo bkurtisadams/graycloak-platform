@@ -2287,3 +2287,19 @@ test('v0.339.0 the Vehicles tab adds a ship and offers the change on the row', a
   row.click();
   assert.deepEqual(opened, [['ship', made.createdId]]);
 });
+
+// v0.344.0 (Kurt, Sep 2026): fugitives stood holding fire because nobody gave
+// them orders. When the game referees, the other side acts on its own.
+test('v0.344.0 when the game referees, NPCs take their own orders; the party still waits to be told', async () => {
+  const { session } = await begunFixture();
+  const { sheetRows } = await import('../client/play-views.js');
+  const person = session.view();
+  assert.equal(person.npcsActAlone, false, 'a person referees in this fixture');
+  assert.ok(sheetRows({ ...person, autoTarget: false }, {}).every((row) => row.targetId === null));
+  const rows = sheetRows({ ...person, autoTarget: false, npcsActAlone: true }, {});
+  const npc = rows.find((row) => row.fighter.side !== 'party');
+  const pc = rows.find((row) => row.fighter.side === 'party');
+  assert.ok(npc.targetId !== null || npc.move === 'Close', 'the NPC attacks or closes by itself');
+  assert.equal(npc.source, 'suggested');
+  assert.equal(pc.targetId, null, 'a character is still the player\u2019s to aim');
+});
