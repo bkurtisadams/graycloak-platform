@@ -2691,7 +2691,9 @@ async function courierWith(outcome, die, extra = {}) {
   live.run('trip:depart');
   const seen = playTo(live, 'calder');
   const after = registry.resolveCampaign(campaignId);
-  return { job: after.contracts.find((entry) => entry.identity.id === job.identity.id), paid: ledger() - before, seen, after, balance };
+  const settled = after.contracts.find((entry) => entry.identity.id === job.identity.id);
+  // v0.348.0: all received, the advance included.
+  return { job: settled, paid: settled.resolution?.paymentCr ?? 0, balancePaid: ledger() - before, seen, after, balance };
 }
 
 test('v0.340.0 the 1D is thrown when a game-refereed job is taken, and kept off every screen', async () => {
@@ -2715,11 +2717,13 @@ test('v0.340.0 honest pays as agreed; swindled pays half; dishonest pays nothing
   assert.equal(swindled.paid, 4000);
   assert.equal(swindled.job.economics.paymentCr, 8000, 'what was agreed stays on the job');
   const log = JSON.stringify(swindled.after.activityLogs);
-  assert.match(log, /swindled himself and can pay only half\. Cr 4,000 paid of Cr 8,000/i);
+  assert.match(log, /swindled himself and can pay only half\. Cr 4,000 in all \(Cr 800 advanced, Cr 3,200 now\) of Cr 8,000/i);
+  assert.equal(swindled.balancePaid, 3200);
   const dishonest = await courierWith('dishonest', 6);
   assert.equal(dishonest.job.status, 'completed');
-  assert.equal(dishonest.paid, 0);
-  assert.match(JSON.stringify(dishonest.after.activityLogs), /the patron never pays\. Nothing paid/i);
+  assert.equal(dishonest.paid, 800, 'only the advance');
+  assert.equal(dishonest.balancePaid, 0);
+  assert.match(JSON.stringify(dishonest.after.activityLogs), /the patron never pays\. Cr 800 in all \(Cr 800 advanced, nothing more\)/i);
 });
 
 test('v0.347.0 crazy has six meanings; lying pays and brings a hostile encounter; devious throws against the law', async () => {
@@ -2729,7 +2733,8 @@ test('v0.347.0 crazy has six meanings; lying pays and brings a hostile encounter
   const unstable = await courierWith('crazy', 2, { crazy: { die: 3, kind: 'unstable', shiftDie: 5, factor: 4 / 3 } });
   assert.equal(unstable.paid, Math.round(8000 * 4 / 3));
   const family = await courierWith('crazy', 2, { crazy: { die: 4, kind: 'not-his' } });
-  assert.equal(family.paid, 800, 'expenses: a tenth of the fee');
+  assert.equal(family.paid, 800, 'expenses: a tenth of the fee, the advance');
+  assert.equal(family.balancePaid, 0);
   const right = await courierWith('crazy', 2, { crazy: { die: 6, kind: 'right' } });
   assert.ok(personState(right.after.campaign).rumors.some((rumor) => rumor.source === 'job' && rumor.lead?.kind === 'find'), 'a lead to something bigger');
   const lying = await courierWith('lying', 4);
@@ -2742,7 +2747,7 @@ test('v0.347.0 crazy has six meanings; lying pays and brings a hostile encounter
   const devious = await courierWith('devious', 5);
   assert.equal(devious.job.status, 'completed');
   assert.match(JSON.stringify(devious.after.activityLogs), /purpose of his own/);
-  assert.ok([0, 8000].includes(devious.paid));
+  assert.ok([800, 8000].includes(devious.paid), 'seized: only the advance is theirs');
 });
 
 test('v0.347.0 wrong about the facts: a search job has to be searched for again, once', async () => {
@@ -3006,7 +3011,7 @@ test('v0.347.0 the Jobs tab lists current and finished jobs; a job\u2019s sheet 
   let live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   let tab = live.view({ referee: { tab: 'Jobs', folder: 'Current' } }).referee;
   const row = tab.shown.find((entry) => entry.id === job.identity.id);
-  assert.match(row.note, /Patron\u2019s job \u00b7 Cr 8,000 agreed \u00b7 30 days left/);
+  assert.match(row.note, /Patron\u2019s job \u00b7 Cr 8,000 agreed, Cr 800 advanced \u00b7 30 days left/);
   let sheet = live.view({ sheets: [{ kind: 'job', id: job.identity.id }] }).sheets[0];
   assert.equal(sheet.kind, 'job');
   assert.doesNotMatch(JSON.stringify(sheet), /swindled|outcome/i, 'the outcome stays hidden while the job is current');
@@ -3019,4 +3024,147 @@ test('v0.347.0 the Jobs tab lists current and finished jobs; a job\u2019s sheet 
   sheet = live.view({ sheets: [{ kind: 'job', id: job.identity.id }] }).sheets[0];
   assert.ok(sheet.rows.some(([label, value]) => label === 'What happened' && /swindled/.test(value)));
   assert.ok(sheet.history.length >= 2);
+});
+
+test('v0.348.0 a patron advances a tenth of the fee for expenses when the job is taken', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
+  const before = registry.resolveCampaign(campaignId).ships[0].state.finances.balanceCr;
+  const taken = session.run('patrons:accept');
+  assert.equal(taken.ok, true);
+  const after = registry.resolveCampaign(campaignId);
+  assert.equal(after.ships[0].state.finances.balanceCr - before, 800);
+  assert.ok(after.ships[0].state.finances.ledger.some((line) => /expenses advanced/.test(line.description)));
+  assert.match(JSON.stringify(after.activityLogs), /Cr 800 advanced for expenses \(The Traveller Book p\.99\)/);
+});
+
+// ---------------------------------------------------------------- v0.349.0
+// design.md 9.6: a job is stages.
+async function stagedJob(kind, title, { outcome = 'honest', die = 1, extra = {} } = {}) {
+  const { registry, campaignId, session } = await soloWithPatron('Noble', { kind, thing: 'the thing', destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title, task: null, paymentCr: 30000, deadlineDays: 90 });
+  assert.equal(session.run('patrons:accept').ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === title);
+  forceOutcome(registry, campaignId, job.identity.id, outcome, die, extra);
+  const going = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const card = going.view().quest;
+  assert.equal(card.steps[0].title, 'Travel to Calder');
+  assert.equal(card.action.command, 'trip:choose-destination:calder');
+  going.run('trip:choose-destination:calder');
+  going.run('trip:depart');
+  playTo(going, 'calder');
+  return { registry, campaignId, id: job.identity.id };
+}
+const clearWaiting = (registry, campaignId) => {
+  const c = registry.resolveCampaign(campaignId).campaign;
+  registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, pending: null }, animals: { ...(c.roster.animals ?? {}), pending: null }, aftermath: null } });
+};
+
+test('v0.349.0 a find job runs its four stages at its world and is settled at the handover', async () => {
+  const { registry, campaignId, id } = await stagedJob('retrieval', 'Recover the thing on Calder');
+  let session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  let card = session.view().quest;
+  assert.equal(card.here, true);
+  assert.equal(card.foldPort, true);
+  assert.deepEqual(card.steps.map((step) => [step.title, step.state]), [['Learn where it is', 'now'], ['Get there', 'todo'], ['Recover it', 'todo'], ['Bring it back', 'todo']]);
+  assert.match(card.steps[0].how, /1D days in town; 2D \+ .* for 8\+/);
+  assert.equal(card.action.label, 'Ask around (stage 1)');
+  for (let tries = 0; tries < 60; tries += 1) {
+    clearWaiting(registry, campaignId);
+    session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    if (registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === id).status !== 'accepted') break;
+    const result = session.run(`quest:stage:${id}`);
+    assert.equal(result.ok, true, result.message);
+  }
+  const after = registry.resolveCampaign(campaignId);
+  const contract = after.contracts.find((entry) => entry.identity.id === id);
+  assert.equal(contract.status, 'completed');
+  assert.equal(contract.resolution.paymentCr, 30000);
+  const mission = personState(after.campaign).missions[id];
+  assert.equal(mission.stage, 4);
+  assert.match(mission.stageNotes[0], /^Done: .* against 8\+\. It is \d+ km out/);
+  assert.ok(mission.history.some((entry) => /^Get there: Done/.test(entry.text)));
+  assert.equal(after.campaign.roster.jobResult.id, id);
+  assert.deepEqual(after.campaign.roster.jobResult.steps.map((step) => step.state), ['done', 'done', 'done', 'done']);
+  assert.equal(createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view().quest, null, 'the card gives way to the result');
+  assert.equal(createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).run('jobresult:done').ok, true);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.jobResult, null);
+});
+
+test('v0.349.0 a lying patron\u2019s job: guards nobody mentioned, hostile, on the way', async () => {
+  const { registry, campaignId, id } = await stagedJob('retrieval', 'Recover the thing on Calder', { outcome: 'lying', die: 4 });
+  let met = null;
+  for (let tries = 0; tries < 40 && !met; tries += 1) {
+    const pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+    if (pending?.quest) { met = pending; break; }
+    clearWaiting(registry, campaignId);
+    createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).run(`quest:stage:${id}`);
+    const now = personState(registry.resolveCampaign(campaignId).campaign).pending;
+    if (now?.quest) met = now;
+  }
+  assert.ok(met, 'the guards turn up');
+  assert.equal(met.type, 'Guards nobody mentioned');
+  assert.equal(met.reaction.total, 3);
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).missions[id].lyingShown, true);
+});
+
+test('v0.349.0 a kill job\u2019s deed is a fight that must be won; beaten, the job settles and the law may come', async () => {
+  const { registry, campaignId, id } = await stagedJob('kill', 'Kill the thing, on Calder');
+  let session;
+  for (let tries = 0; tries < 60; tries += 1) {
+    clearWaiting(registry, campaignId);
+    session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    if (personState(registry.resolveCampaign(campaignId).campaign).missions[id].stage === 2) break;
+    session.run(`quest:stage:${id}`);
+  }
+  assert.equal(personState(registry.resolveCampaign(campaignId).campaign).missions[id].stage, 2, 'at the deed');
+  session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.equal(session.view().quest.action.label, 'Go in (stage 3)');
+  assert.equal(session.run(`quest:stage:${id}`).ok, true);
+  let pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+  assert.deepEqual(pending.quest, { jobId: id, stageKey: 'deed', needsWin: true });
+  assert.equal(pending.type, 'The target and bodyguards');
+  assert.deepEqual(pending.names, { leader: 'The target', member: 'Bodyguard' });
+  // Walked away from: the deed is not done.
+  if (!pending.stance?.attacking) {
+    session.run('persons:walk');
+    assert.equal(personState(registry.resolveCampaign(campaignId).campaign).missions[id].stage, 2);
+    session.run(`quest:stage:${id}`);
+    pending = personState(registry.resolveCampaign(campaignId).campaign).pending;
+  }
+  // Fought and beaten: every one of them down.
+  session.run('persons:fight');
+  const actorIds = personState(registry.resolveCampaign(campaignId).campaign).pending.actorIds;
+  const party = registry.resolveCampaign(campaignId).campaign.party.characterIds;
+  assert.equal(session.run('fight:start', { fight: { opponentIds: actorIds, range: 'close', characterIds: party } }).ok, true);
+  const fighters = session.view().fighters.filter((entry) => entry.side !== 'party');
+  for (const foe of fighters) session.run('edit:combatant:current', { fight: { id: foe.id, value: { STR: 0, DEX: 0, END: 0 } } });
+  for (let round = 0; round < 3 && session.view().fighters?.length && session.view().situation.kind === 'fight'; round += 1) session.run('fight:resolve-auto');
+  session.run('fight:dismiss');
+  const after = registry.resolveCampaign(campaignId);
+  const mission = personState(after.campaign).missions[id];
+  assert.equal(after.contracts.find((entry) => entry.identity.id === id).status, 'completed', JSON.stringify(after.campaign.roster.aftermath));
+  assert.equal(mission.stage, 4);
+  assert.ok(after.campaign.roster.aftermath.lines.some((line) => /The deed: Done/.test(line)));
+});
+
+test('v0.349.0 a failed throw can be tried again, or the job given up (the advance is kept)', async () => {
+  const { registry, campaignId, id } = await stagedJob('investigation', 'Find out the thing, on Calder');
+  let failed = false;
+  for (let tries = 0; tries < 40 && !failed; tries += 1) {
+    clearWaiting(registry, campaignId);
+    const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    const result = session.run(`quest:stage:${id}`);
+    if (/Not yet/.test(result.message)) failed = true;
+    if (personState(registry.resolveCampaign(campaignId).campaign).missions[id].stage > 0) break;
+  }
+  if (!failed) return; // every throw made it; the give-up path needs a failure
+  clearWaiting(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const card = session.view().quest;
+  assert.match(card.action.label, / again \(stage 1\)$/);
+  assert.equal(card.giveUp.command, `quest:abandon:${id}`);
+  assert.match(card.steps[0].note, /^Not yet: /);
+  assert.equal(session.run(`quest:abandon:${id}`).ok, true);
+  const contract = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === id);
+  assert.equal(contract.status, 'failed');
+  assert.match(contract.resolution.notes, /given up; the Cr 3,000 advance is kept/);
 });

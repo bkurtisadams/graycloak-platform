@@ -59,3 +59,45 @@ test('each outcome settles the job its own way', () => {
   assert.equal(s('crazy').crazyKind, 'eccentric', 'a crazy job taken before 0.88.0');
   assert.throws(() => s('sly'), /unknown patron outcome/);
 });
+
+import { patronAdvance } from '../src/encounters/missions.js';
+test('0.89.0 the advance on expenses is a tenth of the fee', () => {
+  assert.equal(patronAdvance(35000), 3500);
+  assert.equal(patronAdvance(8000), 800);
+  assert.equal(patronAdvance(0), 0);
+});
+
+// 0.90.0 (design.md 9.6): quests as stages; spoils.
+import { QUEST_STAGES, QUEST_FOES, throwQuestStage, questStageDays, rollSpoils } from '../src/encounters/missions.js';
+import { RANDOM_PERSON_ENCOUNTERS_1982 } from '../src/encounters/persons-1982.js';
+
+test('0.90.0 every staged kind has four stages, ending in the handover; foes are rows of the p.101 list', () => {
+  for (const [kind, stages] of Object.entries(QUEST_STAGES)) {
+    assert.equal(stages.length, 4, kind);
+    assert.equal(stages.at(-1).type, 'handover');
+    assert.ok(MISSION_KINDS.includes(kind));
+  }
+  assert.deepEqual(QUEST_STAGES.kill.map((entry) => entry.key), ['find', 'reach', 'deed', 'handover']);
+  for (const code of Object.values(QUEST_FOES)) assert.ok(RANDOM_PERSON_ENCOUNTERS_1982[code]);
+  assert.equal(questStageDays(createSequenceDice([4]), QUEST_STAGES.retrieval[0]), 4);
+  assert.equal(questStageDays(createSequenceDice([]), QUEST_STAGES.steal[2]), 0);
+  assert.deepEqual({ ...throwQuestStage(createSequenceDice([3, 4]), { skillLevel: 1 }) }, { roll: 7, skillLevel: 1, total: 8, needed: 8, success: true });
+});
+
+test('0.90.0 spoils: 5+ after a fight won, 6 otherwise; 3D x Cr2,500', () => {
+  assert.equal(rollSpoils(createSequenceDice([5]), {}).found, false);
+  const won = rollSpoils(createSequenceDice([5, 1, 3, 4, 5]), { afterFight: true });
+  assert.deepEqual({ found: won.found, what: won.what, valueCr: won.valueCr }, { found: true, what: 'a crate of electronic parts', valueCr: 30000 });
+});
+
+test('0.90.0 steal, kill and rescue jobs are drafted for the patrons who want them', () => {
+  const kinds = new Set();
+  for (let round = 0; round < 200; round += 1) {
+    kinds.add(draftPatronMission(createDice(), { patronType: 'Assassin', candidates: [{ id: 'x', name: 'X', distance: 1 }] }).kind);
+  }
+  assert.ok(kinds.has('kill'));
+  const rescue = draftPatronMission(createSequenceDice([1, 1, 1, 1, 3, 3]), { patronType: 'Financier', candidates: [{ id: 'x', name: 'X', distance: 1 }] });
+  assert.equal(rescue.kind, 'rescue');
+  assert.match(rescue.title, /^Rescue /);
+  assert.equal(rescue.deadlineDays, 14 + 7 + 21);
+});

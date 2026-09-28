@@ -39,8 +39,9 @@ import {
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
-  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical
-} from '../vendor/classic-traveller-rules/index.js?v=r0.88.0';
+  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance,
+  QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
+} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -55,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.88.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.88.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.88.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -531,13 +532,14 @@ function jobEntries(resolved) {
   return (resolved.contracts ?? []).map((contract) => {
     const current = contract.status === 'accepted';
     const left = current && contract.timing?.deadlineDate ? contractDaysLeft(contract, now) : null;
-    const paid = contract.resolution?.paymentCr ?? 0;
+    const advanced = Number(personState(resolved.campaign).missions?.[contract.identity.id]?.advanceCr ?? 0);
+    const paid = Math.max(contract.resolution?.paymentCr ?? 0, contract.status === 'failed' ? advanced : 0);
     return {
       id: contract.identity.id,
       name: contract.identity.title,
       note: [
         CONTRACT_KIND_LABELS[contract.kind] ?? contract.kind,
-        current ? `${cr(contract.economics.paymentCr)} agreed` : `${cr(paid)} paid of ${cr(contract.economics.paymentCr)}`,
+        current ? `${cr(contract.economics.paymentCr)} agreed${advanced ? `, ${cr(advanced)} advanced` : ''}` : `${cr(paid)} paid of ${cr(contract.economics.paymentCr)}`,
         current ? (left === null ? null : left < 0 ? 'past its deadline' : `${left} day${left === 1 ? '' : 's'} left`) : `${contract.status} ${dateText(contract.resolution?.date) ?? ''}`.trim()
       ].filter(Boolean).join(' \u00b7 '),
       folder: current ? 'Current' : 'Finished',
@@ -561,6 +563,7 @@ function jobSheet(resolved, id) {
     ['From', contract.origin?.systemName ?? null],
     ['To', contract.destination?.systemName ?? null],
     ['Agreed', cr(contract.economics.paymentCr)],
+    mission?.advanceCr ? ['Advanced', cr(mission.advanceCr)] : null,
     ['Taken', dateText(contract.timing?.acceptedDate)],
     current ? ['Deadline', `${dateText(contract.timing?.deadlineDate) ?? '?'}${left === null ? '' : left < 0 ? ' (passed)' : ` (${left} day${left === 1 ? '' : 's'} left)`}`] : null,
     current ? null : ['Paid', cr(contract.resolution?.paymentCr ?? 0)],
@@ -2358,6 +2361,60 @@ function encounterReactionDM(resolved, profile) {
 
 const article = (word) => (/^[aeiou]/i.test(String(word)) ? 'an' : 'a');
 
+// v0.349.0 (Kurt, Sep 2026; design.md 9.8): the job card — the staged job in
+// hand (the one here first, else the nearest deadline), its stages as steps,
+// and the one thing to do next.
+export function questView(resolved, { writable = true, situation = null } = {}) {
+  const people = personState(resolved.campaign);
+  const here = resolved.campaign.location?.systemId ?? null;
+  const contractOf = (id) => (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+  const open = Object.entries(people.missions ?? {}).filter(([id, mission]) => mission.staged && !mission.done && contractOf(id)?.status === 'accepted');
+  if (!open.length) return null;
+  const now = campaignDayNumber(resolved.campaign.time);
+  const left = (id) => { try { return campaignDayNumber(contractOf(id).timing.deadlineDate) - now; } catch { return 999; } };
+  open.sort(([a, ma], [b, mb]) => (ma.destinationSystemId === here ? -1 : 0) - (mb.destinationSystemId === here ? -1 : 0) || left(a) - left(b));
+  const [id, mission] = open[0];
+  const contract = contractOf(id);
+  const stages = QUEST_STAGES[mission.kind] ?? [];
+  const atIt = mission.destinationSystemId === here;
+  const days = left(id);
+  const skillText = (skills) => {
+    if (!skills.length) return '';
+    const best = bestPartySkill(resolved, skills);
+    return `; 2D + ${best.skill ? `${best.name}\u2019s ${best.skill}-${best.level}` : skills.join(' or ')} for 8+`;
+  };
+  const how = (st) => {
+    const time = st.days === 0 ? '' : `1D days ${st.where === 'surface' ? 'on the surface' : 'in town'}`;
+    if (st.type === 'handover') return `The patron pays the rest: ${cr(Math.max(0, contract.economics.paymentCr - Number(mission.advanceCr ?? 0)))}`;
+    if (st.type === 'away') return `2D against the law level, or the law takes an interest`;
+    if (st.type === 'fight') return `${time ? `${time}; then ` : ''}${QUEST_FOE_NAMES[st.foe] ?? 'they'}: they have to be beaten`;
+    if (st.type === 'break-in') return `${time}${skillText(st.skills)}; a failure brings the guards`;
+    if (st.type === 'go') return `${time}; encounters as they come`;
+    return `${time}${skillText(st.skills)}`;
+  };
+  const steps = [];
+  if (!atIt) steps.push({ n: 0, title: `Travel to ${contract.destination.systemName}`, how: 'The job is done there', state: 'now', note: null });
+  stages.forEach((st, index) => {
+    const state = index < mission.stage ? 'done' : index === mission.stage && atIt ? 'now' : 'todo';
+    steps.push({ n: index + 1, title: st.title, how: state === 'done' ? (mission.stageNotes?.[index] ?? 'Done') : how(st), state, note: state === 'now' ? mission.stageNote ?? null : null });
+  });
+  const current = stages[mission.stage];
+  const waiting = Boolean(people.pending || animalState(resolved.campaign).pending);
+  const tries = Number(mission.stageTries ?? 0);
+  const action = !writable ? null
+    : !atIt ? (situation === 'port' ? { command: `trip:choose-destination:${mission.destinationSystemId}`, label: `Set course for ${contract.destination.systemName}` } : null)
+      : waiting || !current ? null
+        : { command: `quest:stage:${id}`, label: `${current.verb}${tries ? ' again' : ''} (stage ${mission.stage + 1})` };
+  return {
+    id, title: contract.identity.title,
+    eyebrow: `Patron\u2019s job \u00b7 from ${article(mission.patronType ?? 'patron')} ${String(mission.patronType ?? 'patron').toLowerCase()} \u00b7 ${mission.patronWorld ?? contract.origin.systemName}`,
+    facts: [cr(contract.economics.paymentCr), mission.advanceCr ? `${cr(mission.advanceCr)} advanced` : null, days < 0 ? 'past its deadline' : `${days} day${days === 1 ? '' : 's'} left`].filter(Boolean),
+    steps, action,
+    giveUp: writable && tries ? { command: `quest:abandon:${id}`, label: 'Give up the job' } : null,
+    here: atIt, foldPort: atIt && situation === 'port'
+  };
+}
+
 // v0.346.0: the encounter card's buttons, from the stance (design.md 9.2).
 // Players have Walk away and Talk; the fight is set up on the play page.
 function encounterActions(pending, { mode, seat }) {
@@ -3343,29 +3400,58 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     const task = Object.entries(people.missions ?? {}).find(([, mission]) => mission.progress && !mission.done);
     const lead = (people.rumors ?? []).find((rumor) => rumor.lead?.progress && !rumor.lead.used);
     const contract = task ? (resolved.contracts ?? []).find((entry) => entry.identity.id === task[0]) : null;
-    const back = task && contract?.status === 'accepted'
+    const here = resolved.campaign.location?.systemId;
+    const staged = Object.entries(people.missions ?? {}).find(([id, mission]) => mission.staged && !mission.done && mission.destinationSystemId === here
+      && (resolved.contracts ?? []).find((entry) => entry.identity.id === id)?.status === 'accepted');
+    const stagedNext = staged ? QUEST_STAGES[staged[1].kind]?.[staged[1].stage] : null;
+    const back = staged && stagedNext
+      ? { command: `quest:stage:${staged[0]}`, label: `Back to: ${stagedNext.title}` }
+      : task && contract?.status === 'accepted'
       ? { command: `patrons:task:${task[0]}`, label: `Back to: ${contract.identity.title}` }
       : lead ? { command: `rumors:search:${lead.id}`, label: `Back to the search for ${lead.lead.thing}` } : null;
     return { date: formatCampaignDate(resolved.campaign.time), title: `After the fight (${encounter.round ?? 1} round${encounter.round === 1 ? '' : 's'})`, lines, back };
   }
 
   function settleEncounterAfterFight(encounter) {
-    registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: aftermathOf(encounter) } });
-    reload();
     const fought = new Set((encounter.combatants ?? []).flatMap((entry) => [entry.sourceActorId, entry.id]).filter(Boolean));
     const people = personState(resolved.campaign);
     const animals = animalState(resolved.campaign);
-    const personDone = people.pending && (people.pending.actorIds ?? []).some((id) => fought.has(id));
+    const pendingThen = people.pending;
+    const personDone = pendingThen && (pendingThen.actorIds ?? []).some((id) => fought.has(id));
     const animalDone = animals.pending && animals.pending.actorId && fought.has(animals.pending.actorId);
-    if (!personDone && !animalDone) return;
-    let campaign = resolved.campaign;
-    if (personDone) campaign = withPersonState(campaign, { pending: null });
-    if (animalDone) campaign = withAnimalState(campaign, { pending: null });
-    registry.put(campaign);
+    if (personDone || animalDone) {
+      let campaign = resolved.campaign;
+      if (personDone) campaign = withPersonState(campaign, { pending: null });
+      if (animalDone) campaign = withAnimalState(campaign, { pending: null });
+      registry.put(campaign);
+      reload();
+      const how = String(encounter.status ?? 'over').replace(/-/g, ' ');
+      if (personDone) log('ENCOUNTER', `The encounter with the ${pendingThen.type.toLowerCase()} is over (${how}).`);
+      if (animalDone) log('ENCOUNTER', 'The animal encounter is over.');
+    }
+    // v0.349.0 (design.md 9.5-9.6): a fight during a job — spoils on a win
+    // (1D 5+), and a fight stage done when its group is beaten.
+    const extra = [];
+    const won = encounter.outcome?.winner === 'party';
+    const here = resolved.campaign.location?.systemId;
+    const quest = personDone ? pendingThen.quest ?? null : null;
+    const jobId = quest?.jobId ?? Object.entries(personState(resolved.campaign).missions ?? {}).find(([, mission]) => mission.staged && !mission.done && mission.destinationSystemId === here)?.[0] ?? null;
+    if (jobId && personState(resolved.campaign).missions?.[jobId]?.staged) {
+      setMission(jobId, { foughtThisStage: true });
+      if (won) { const spoils = spoilsFor(jobId, { afterFight: true }); if (spoils) extra.push(spoils); }
+      const mission = personState(resolved.campaign).missions[jobId];
+      const st = QUEST_STAGES[mission.kind]?.[mission.stage];
+      if (quest?.needsWin && st?.key === quest.stageKey) {
+        if (won) extra.push(`${st.title}: ${completeStage(jobId, `Done: ${pendingThen.type.toLowerCase()} beaten.`)}`);
+        else { setMission(jobId, { stageNote: `${st.title} not done: they were not beaten. Try again.` }); extra.push(`${st.title} is not done: they were not beaten.`); }
+      }
+    }
+    // v0.349.0 (Kurt, Sep 2026): the party attacked people who were not
+    // hostile — the law may take an interest the next day.
+    if (personDone && pendingThen.lawAfter) { const law = lawTakesAnInterest('The fight'); if (law) extra.push(law); }
+    const aftermath = aftermathOf(encounter);
+    registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: { ...aftermath, lines: [...aftermath.lines, ...extra] } } });
     reload();
-    const how = encounter.outcome ?? encounter.status;
-    if (personDone) log('ENCOUNTER', `The encounter with the ${people.pending.type.toLowerCase()} is over (${String(how).replace(/-/g, ' ')}).`);
-    if (animalDone) log('ENCOUNTER', 'The animal encounter is over.');
   }
 
   function writeFightToCharacters(encounter) {
@@ -4073,6 +4159,123 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   // fails), or hid the danger (lying: paid, and a person encounter comes at
   // once, Book 3 p.21). This is the first the travellers learn of it. A job
   // with no outcome (a person referees, or taken before v0.340.0) is honest.
+  // ---------------------------------------------------------------- quests
+  // v0.349.0 (Kurt, Sep 2026; design.md 9.6): a job is stages; each stage is
+  // days in town or on the surface (with the usual encounters) and usually a
+  // throw; the fight stages meet a group that has to be beaten. The patron's
+  // hidden outcome shows in the stages: lying brings a group he never
+  // mentioned. Rules: missions.js QUEST_STAGES (original).
+  function setMission(id, patch) {
+    const people = personState(resolved.campaign);
+    registry.put(withPersonState(resolved.campaign, { missions: { ...people.missions, [id]: { ...people.missions[id], ...patch } } }));
+    reload();
+  }
+
+  const REACTION_WORDS = Object.freeze({ 3: 'Hostile. Attack on 5+.', 4: 'Hostile. Attack on 8+.' });
+  // A group the stage calls for: a p.101 row (QUEST_FOES), equipped for the
+  // world; its reaction thrown, or set (hostile, for guards and targets).
+  function questEncounter(foeKey, { id, stageKey, needsWin = false, reactionTotal = null, type = null }) {
+    const { system, profile } = currentWorldProfile(resolved, subsector);
+    if (!system || !profile) return null;
+    const dice = createDice();
+    const row = RANDOM_PERSON_ENCOUNTERS_1982[QUEST_FOES[foeKey] ?? QUEST_FOES.guards];
+    const count = Number(row.quantity[0]);
+    const quantity = Math.max(foeKey === 'target' ? 2 : 1, Array.from({ length: count }, () => dice.rollD6()).reduce((sum, die) => sum + die, 0));
+    const lawLevel = Number(profile.lawLevel ?? 0);
+    const gear = equipEncounterGroup(dice, row, { techLevel: Number(profile.techLevel ?? 7), prohibited: prohibitedWeaponKeys(lawLevel) });
+    const thrown = rollReaction(dice, { dm: encounterReactionDM(resolved, profile) });
+    const reaction = reactionTotal === null
+      ? { dice: [...thrown.dice], roll: thrown.roll, dm: thrown.dm, total: thrown.total, tableTotal: thrown.tableTotal, description: thrown.description }
+      : { dice: [], roll: reactionTotal, dm: 0, total: reactionTotal, tableTotal: reactionTotal, description: REACTION_WORDS[reactionTotal] ?? REACTION_TABLE[reactionTotal] };
+    const characteristics = { strength: dice.rollD6() + dice.rollD6(), dexterity: dice.rollD6() + dice.rollD6(), endurance: dice.rollD6() + dice.rollD6() };
+    const encounter = { code: QUEST_FOES[foeKey], blank: false, edition: 1982, type: type ?? QUEST_FOE_NAMES[foeKey] ?? row.type, quantity, quantityDice: row.quantity, remarks: row.remarks, gearRule: row.gear,
+      enforcement: false, ...gear, characteristics, extraordinary: null, reaction };
+    const record = personEncounterRecord(dice, encounter, { date: formatCampaignDate(resolved.campaign.time), worldName: system.name, law: portExtras(resolved, subsector).world?.law ?? null, lawLevel });
+    record.quest = { jobId: id, stageKey, needsWin };
+    // What the statblocks are called on the board.
+    record.names = { target: { leader: 'The target', member: 'Bodyguard' }, kidnappers: { leader: 'Kidnapper leader', member: 'Kidnapper' }, guards: { leader: 'Guard captain', member: 'Guard' } }[foeKey] ?? null;
+    registry.put(withPersonState(resolved.campaign, { pending: record }));
+    reload();
+    return record;
+  }
+
+  // The law after a killing, or after the party attacked people who were not
+  // hostile (Kurt, Sep 2026): the next day, on 2D under the law level, an
+  // enforcer comes asking.
+  function lawTakesAnInterest(why) {
+    const { system, profile } = currentWorldProfile(resolved, subsector);
+    if (!system || !profile) return null;
+    const lawLevel = Number(profile.lawLevel ?? 0);
+    const dice = createDice();
+    const thrown = dice.roll2D6().total;
+    if (!(thrown < lawLevel)) {
+      const quiet = `${why}: the law never hears of it (2D ${thrown}, not under law level ${lawLevel}).`;
+      log('ENCOUNTER', quiet, { visibility: 'referee' });
+      return quiet;
+    }
+    if (personState(resolved.campaign).pending) return null;
+    const next = advanceCampaignSeconds(resolved.campaign, SECONDS_PER_DAY).time;
+    const record = personEncounterRecord(dice, rollLegalEncounter(dice, { reactionDM: encounterReactionDM(resolved, profile) }),
+      { date: formatCampaignDate(next), worldName: system.name, law: portExtras(resolved, subsector).world?.law ?? null, lawLevel });
+    registry.put(withPersonState(resolved.campaign, { pending: record }));
+    reload();
+    const message = `${why}: the next day a local enforcer comes asking questions (2D ${thrown}, under law level ${lawLevel}).`;
+    log('ENCOUNTER', message);
+    return message;
+  }
+
+  // Spoils (Kurt, Sep 2026): after a fight won during a job 1D 5+, after a
+  // stage done without one 6; worth 3D x Cr2,500, sold.
+  function spoilsFor(id, { afterFight }) {
+    const found = rollSpoils(createDice(), { afterFight });
+    if (!found.found) return null;
+    const people = personState(resolved.campaign);
+    const mission = people.missions?.[id];
+    persist([creditShipAccount(activeShip(), found.valueCr, { kind: 'salvage', description: `${found.what} (spoils)`, dateLabel: formatCampaignDate(resolved.campaign.time) })]);
+    if (mission) setMission(id, { spoilsCr: Number(mission.spoilsCr ?? 0) + found.valueCr });
+    const line = `Spoils: ${found.what}, sold for ${cr(found.valueCr)} (3D \u00d7 Cr 2,500; The Traveller Book p.99).`;
+    log('ENCOUNTER', line);
+    noteJob(id, line);
+    return line;
+  }
+
+  // A stage done: noted, spoils thrown if it went without a fight, and the
+  // handover run at once when it comes next (it takes no days).
+  function completeStage(id, note) {
+    const mission = personState(resolved.campaign).missions[id];
+    const stages = QUEST_STAGES[mission.kind];
+    const notes = [...(mission.stageNotes ?? [])];
+    notes[mission.stage] = note;
+    const lines = [note];
+    setMission(id, { stage: mission.stage + 1, stageNotes: notes, stageNote: null, stageTries: 0, stageProgress: null, foughtThisStage: false });
+    noteJob(id, `${stages[mission.stage].title}: ${note}`);
+    if (!mission.foughtThisStage) { const spoils = spoilsFor(id, { afterFight: false }); if (spoils) lines.push(spoils); }
+    const next = stages[mission.stage + 1];
+    if (next?.type === 'handover') lines.push(handOver(id));
+    return lines.join(' ');
+  }
+
+  function handOver(id) {
+    const mission = personState(resolved.campaign).missions[id];
+    const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+    const stages = QUEST_STAGES[mission.kind];
+    setMission(id, { done: true });
+    const settled = settleMission(contract, { ...mission, done: true }, { how: stages.map((entry) => entry.title.toLowerCase()).slice(0, -1).join(', '), done: stages.at(-1).title.toLowerCase() });
+    const after = personState(resolved.campaign).missions[id];
+    if (!after.done) return settled.message; // wrong about the facts: back to a stage
+    const notes = [...(after.stageNotes ?? [])];
+    notes[stages.length - 1] = settled.tail;
+    setMission(id, { stage: stages.length, stageNotes: notes });
+    const lines = [settled.tail];
+    if (after.spoilsCr) lines.push(`Spoils along the way: ${cr(after.spoilsCr)}.`);
+    if (mission.kind === 'kill') { const law = lawTakesAnInterest(contract.identity.title); if (law) lines.push(law); }
+    // As the mockup's result frame: every stage ticked, with what it came to.
+    const steps = stages.map((entry, index) => ({ n: index + 1, title: entry.title, how: notes[index] ?? 'Done', state: 'done' }));
+    registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, jobResult: { id, title: contract.identity.title, date: formatCampaignDate(resolved.campaign.time), lines, steps } } });
+    reload();
+    return settled.message;
+  }
+
   // v0.347.0 (design.md 9.4, 9.8): a line in a patron job's own history,
   // for the Jobs tab.
   function noteJob(id, text) {
@@ -4131,11 +4334,12 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     const settlement = patronOutcomeSettlement(mission?.outcome ?? null, contract.economics.paymentCr);
     const title = contract.identity.title;
     const date = formatCampaignDate(resolved.campaign.time);
-    const task = Boolean(MISSION_TASKS[mission?.kind]);
+    const task = Boolean(MISSION_TASKS[mission?.kind]) || Boolean(mission?.staged);
     // Crazy, wrong about the facts: not where he said — search once more.
     if (settlement.extraSearch && task && !mission.searchedAgain) {
       const people = personState(resolved.campaign);
-      registry.put(withPersonState(resolved.campaign, { missions: { ...people.missions, [id]: { ...people.missions[id], done: false, progress: null, searchedAgain: true } } }));
+      const back = mission.staged ? { stage: Math.max(0, QUEST_STAGES[mission.kind].length - 2), stageProgress: null, stageNote: `Not where the patron said: ${settlement.reason}. Search again.` } : { progress: null };
+      registry.put(withPersonState(resolved.campaign, { missions: { ...people.missions, [id]: { ...people.missions[id], done: false, searchedAgain: true, ...back } } }));
       reload();
       const tail = `But ${settlement.reason}: it has to be searched for again.`;
       const message = `${title}: ${done} (${how}). ${tail}`;
@@ -4154,26 +4358,33 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       if (seized.caught) paidCr = 0;
     }
     if (!settlement.completes) {
-      persist([failContractDocument(contract, { date: resolved.campaign.time, notes: `${how}; ${settlement.reason}` })]);
+      persist([failContractDocument(contract, { date: resolved.campaign.time, notes: `${how}; ${settlement.reason}${mission?.advanceCr ? `; the ${cr(mission.advanceCr)} advance is kept` : ''}` })]);
       const tail = `But ${settlement.reason}. Nothing is paid.`;
       const message = `${title}: ${done} (${how}). ${tail}`;
       log('ENCOUNTER', message);
       noteJob(id, message);
       return { message, tail, settlement };
     }
-    const ship = paidCr > 0 ? creditShipAccount(activeShip(), paidCr, { kind: 'contract', description: `${title} completed`, dateLabel: date }) : activeShip();
+    // v0.348.0: the advance is part of the fee: what is still owed is paid.
+    const advanceCr = Number(mission?.advanceCr ?? 0);
+    const balanceCr = Math.max(0, paidCr - advanceCr);
+    const totalCr = advanceCr + balanceCr;
+    const ship = balanceCr > 0 ? creditShipAccount(activeShip(), balanceCr, { kind: 'contract', description: `${title} completed`, dateLabel: date }) : activeShip();
     const lawWords = seized ? (seized.caught
       ? ` The goods were not what he said: the law takes an interest (2D ${seized.total} against law level ${seized.lawLevel}), and the pay is seized as evidence`
       : ` What he was really after stays his business (2D ${seized.total} against law level ${seized.lawLevel}: the law never hears of it)`) : '';
     const notes = settlement.reason ? `${how}; ${settlement.reason}${lawWords ? `;${lawWords.toLowerCase()}` : ''}` : how;
-    persist([completeContractDocument(contract, { date: resolved.campaign.time, paymentCr: paidCr, notes }), ship]);
-    const paid = paidCr > 0 ? `${cr(paidCr)} paid` : 'nothing paid';
-    const of = paidCr !== contract.economics.paymentCr ? ` of ${cr(contract.economics.paymentCr)}` : '';
+    persist([completeContractDocument(contract, { date: resolved.campaign.time, paymentCr: totalCr, notes }), ship]);
+    const paid = advanceCr
+      ? `${cr(totalCr)} in all (${cr(advanceCr)} advanced${balanceCr ? `, ${cr(balanceCr)} now` : ', nothing more'})`
+      : paidCr > 0 ? `${cr(paidCr)} paid` : 'nothing paid';
+    const of = totalCr !== contract.economics.paymentCr ? ` of ${cr(contract.economics.paymentCr)}` : '';
     const tail = settlement.reason ? `${settlement.reason.charAt(0).toUpperCase()}${settlement.reason.slice(1)}.${lawWords ? `${lawWords}.` : ''} ${paid.charAt(0).toUpperCase()}${paid.slice(1)}${of}.` : `${paid.charAt(0).toUpperCase()}${paid.slice(1)}.`;
     const message = `${title}: ${done} (${how}). ${tail}`;
     log('ENCOUNTER', message);
     noteJob(id, message);
-    if (settlement.trouble === 'hostile' || settlement.trouble === 'legal') {
+    // A staged job's lying patron showed it in a stage already.
+    if ((settlement.trouble === 'hostile' && !mission?.staged) || settlement.trouble === 'legal') {
       const trouble = troubleNow(settlement.trouble, title);
       if (trouble) { log('ENCOUNTER', trouble); noteJob(id, trouble); }
     }
@@ -5519,7 +5730,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // throws the checks, and these are the referee's own hands on it.
       // v0.319.0: patrons and rumours (The Traveller Book pp.99-100), and
       // the referee's word on a patron's job.
-      if (command.startsWith('patrons:') || command.startsWith('rumors:') || command.startsWith('contract:')) {
+      if (command.startsWith('patrons:') || command.startsWith('rumors:') || command.startsWith('contract:') || command.startsWith('quest:') || command === 'jobresult:done') {
         const value = fight?.value ?? {};
         const { system, profile } = currentWorldProfile(resolved, subsector);
         const today = formatCampaignDate(resolved.campaign.time);
@@ -5531,6 +5742,144 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           return lastMessage;
         };
         const put = (patch) => { registry.put(withPersonState(resolved.campaign, patch)); reload(); };
+        // v0.349.0 (design.md 9.6): a job's stages.
+        if (command === 'jobresult:done') {
+          registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, jobResult: null } });
+          reload();
+          lastMessage = null;
+          onChange();
+          saveToCloud();
+          return { ok: true, message: 'Closed.' };
+        }
+        if (command.startsWith('quest:abandon:')) {
+          const id = command.slice('quest:abandon:'.length);
+          const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+          const mission = people.missions[id];
+          if (!contract || contract.status !== 'accepted' || !mission) throw new Error('no such job in hand');
+          persist([failContractDocument(contract, { date: resolved.campaign.time, notes: `given up${mission.advanceCr ? `; the ${cr(mission.advanceCr)} advance is kept` : ''}` })]);
+          setMission(id, { done: true });
+          const message = `${contract.identity.title}: given up.${mission.advanceCr ? ` The ${cr(mission.advanceCr)} advance is kept.` : ''}`;
+          log('ENCOUNTER', message);
+          noteJob(id, message);
+          return finish(message);
+        }
+        if (command.startsWith('quest:stage:')) {
+          if (resolved.campaign.roster?.aftermath) { registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, aftermath: null } }); reload(); }
+          const id = command.slice('quest:stage:'.length);
+          const mission = people.missions[id];
+          const contract = (resolved.contracts ?? []).find((entry) => entry.identity.id === id);
+          if (!mission?.staged || !contract || contract.status !== 'accepted' || mission.done) throw new Error('no such job in hand');
+          if (resolved.campaign.location?.systemId !== mission.destinationSystemId) throw new Error(`the job is on ${contract.destination.systemName}`);
+          if (people.pending || animalState(resolved.campaign).pending) throw new Error('an encounter is waiting; deal with it first');
+          const stages = QUEST_STAGES[mission.kind];
+          const st = stages[mission.stage];
+          if (!st) throw new Error('nothing left to do on this job');
+          const dice = createDice();
+          const lawLevel = Number(profile?.lawLevel ?? 0);
+          if (st.type === 'handover') return finish(handOver(id));
+          // The days, on the surface or in town, checked for encounters.
+          let daysText = '';
+          if (st.days !== 0) {
+            const days = mission.stageProgress?.days ?? questStageDays(dice, st);
+            const spentBefore = mission.stageProgress?.spent ?? 0;
+            const left = Math.max(1, days - spentBefore);
+            const startDay = campaignDayNumber(resolved.campaign.time);
+            const waitingNow = () => Boolean(personState(resolved.campaign).pending || animalState(resolved.campaign).pending);
+            let spentNow = 0;
+            for (let leg = 0; leg < 60 && spentNow < left && !waitingNow(); leg += 1) {
+              const passed = run('time:pass', { fight: { value: { amount: left - spentNow, unit: 'days', reason: `${st.title.toLowerCase()} (${contract.identity.title})`, checks: st.where === 'surface' ? 'surface' : 'town' } } });
+              if (!passed.ok) throw new Error(passed.message);
+              const now = Math.max(0, campaignDayNumber(resolved.campaign.time) - startDay);
+              if (now === spentNow && !waitingNow()) break;
+              spentNow = now;
+            }
+            if ((resolved.contracts ?? []).find((entry) => entry.identity.id === id)?.status !== 'accepted') {
+              return finish(`${spentNow} days pass; the job is no longer in hand (the deadline has passed).`);
+            }
+            if (spentNow < left) {
+              const spent = spentBefore + spentNow;
+              const note = `Day ${spent} of ${days} \u2014 interrupted.`;
+              setMission(id, { stageProgress: { days, spent }, stageNote: note });
+              noteJob(id, `${st.title}: interrupted after ${spent} of ${days} days${personState(resolved.campaign).pending ? ` by ${describePersonEncounter(personState(resolved.campaign).pending)}` : ''}.`);
+              return finish(`${st.title}: ${note}`);
+            }
+            daysText = `${days} day${days === 1 ? '' : 's'}`;
+          }
+          const fresh = personState(resolved.campaign).missions[id];
+          const lying = fresh.outcome?.outcome === 'lying' && !fresh.lyingShown;
+          const throwIt = () => {
+            const best = bestPartySkill(resolved, st.skills);
+            const result = throwQuestStage(createDice(), { skillLevel: best.level });
+            return { result, how: `2D ${result.roll}${best.skill ? ` + ${best.name}\u2019s ${best.skill}-${best.level}` : ''} = ${result.total} against 8+` };
+          };
+          const tryAgain = (how) => {
+            const note = `Not yet: ${daysText ? `${daysText}, ` : ''}${how}.`;
+            setMission(id, { stageProgress: null, stageNote: note, stageTries: Number(fresh.stageTries ?? 0) + 1 });
+            noteJob(id, `${st.title}: ${note}`);
+            log('ENCOUNTER', `${contract.identity.title} \u2014 ${st.title}: ${note}`);
+            return finish(`${st.title}: ${note}`);
+          };
+          const lyingEncounter = (foe = 'guards') => {
+            setMission(id, { lyingShown: true });
+            const record = questEncounter(foe, { id, stageKey: st.key, reactionTotal: 3, type: foe === 'guards' ? 'Guards nobody mentioned' : null });
+            const line = record ? `${describePersonEncounter(record)} \u2014 nobody mentioned them. ${record.stance?.text ?? ''}`.trim() : null;
+            if (line) { log('ENCOUNTER', `${contract.identity.title}: ${line}`); noteJob(id, line); }
+            return line;
+          };
+          if (st.type === 'go') {
+            const done = completeStage(id, `Done: ${daysText || 'at once'}.`);
+            const trouble = st.trouble && lying ? lyingEncounter() : null;
+            log('ENCOUNTER', `${contract.identity.title} \u2014 ${st.title}: ${done}${trouble ? ` ${trouble}` : ''}`);
+            return finish(`${st.title}: ${done}${trouble ? ` ${trouble}` : ''}`);
+          }
+          if (st.type === 'ask') {
+            const { result, how } = throwIt();
+            if (!result.success) return tryAgain(how);
+            const place = st.done === 'place' ? ` It is ${dice.rollD6() * 10} km out, ${['to the north', 'to the east', 'to the south', 'to the west', 'in the hills', 'past the old road'][dice.rollD6() - 1]}.` : '';
+            const done = completeStage(id, `Done: ${daysText ? `${daysText}, ` : ''}${how}.${place}`);
+            const trouble = st.trouble && lying ? lyingEncounter() : null;
+            log('ENCOUNTER', `${contract.identity.title} \u2014 ${st.title}: ${done}${trouble ? ` ${trouble}` : ''}`);
+            return finish(`${st.title}: ${done}${trouble ? ` ${trouble}` : ''}`);
+          }
+          if (st.type === 'break-in') {
+            if (lying) {
+              const trouble = lyingEncounter();
+              setMission(id, { stageNote: 'Guards nobody mentioned. Deal with them, then go in.' });
+              return finish(`${st.title}: ${trouble}`);
+            }
+            const { result, how } = throwIt();
+            if (!result.success) {
+              const record = questEncounter(st.foe ?? 'guards', { id, stageKey: st.key, reactionTotal: 4 });
+              setMission(id, { stageProgress: null, stageNote: `Seen: ${how}. The guards come.`, stageTries: Number(fresh.stageTries ?? 0) + 1 });
+              const line = `${st.title}: seen (${how}). ${record ? describePersonEncounter(record) : 'The guards'} come.`;
+              log('ENCOUNTER', `${contract.identity.title} \u2014 ${line}`);
+              noteJob(id, line);
+              return finish(line);
+            }
+            const done = completeStage(id, `Done: ${daysText ? `${daysText}, ` : ''}${how}.`);
+            log('ENCOUNTER', `${contract.identity.title} \u2014 ${st.title}: ${done}`);
+            return finish(`${st.title}: ${done}`);
+          }
+          if (st.type === 'away') {
+            // The law's own throw: 2D, the law level or more to get clear.
+            const thrown = dice.roll2D6().total;
+            const clear = lawLevel === 0 || thrown >= lawLevel;
+            const done = completeStage(id, clear ? `Clear: 2D ${thrown} against law level ${lawLevel}.` : `Away, but seen: 2D ${thrown} against law level ${lawLevel}.`);
+            const law = clear ? null : lawTakesAnInterest(contract.identity.title);
+            log('ENCOUNTER', `${contract.identity.title} \u2014 ${st.title}: ${done}${law ? ` ${law}` : ''}`);
+            return finish(`${st.title}: ${done}`);
+          }
+          if (st.type === 'fight') {
+            const record = questEncounter(st.foe, { id, stageKey: st.key, needsWin: true, reactionTotal: 3 });
+            if (!record) throw new Error('nobody to meet here');
+            const note = `${describePersonEncounter(record)}. They have to be beaten.`;
+            setMission(id, { stageNote: note });
+            noteJob(id, `${st.title}: ${note}`);
+            log('ENCOUNTER', `${contract.identity.title} \u2014 ${st.title}: ${note}`);
+            return finish(`${st.title}: ${note}`);
+          }
+          throw new Error(`no way to carry out ${st.title}`);
+        }
         if (command === 'patrons:list') {
           if (!['one', 'two'].includes(value.list)) throw new Error('patron list one or two');
           put({ patronList: value.list });
@@ -5642,16 +5991,23 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             destinationSystemId: destination.id, destinationSystemName: destination.name, paymentCr, deadlineDays, cargoTons: 0,
             exclusiveShip: false, requirementsDescription: String(value.notes ?? ''), rulesBasis: 'the-traveller-book-1982-p99', notes: `Patron met ${patron.date} on ${patron.worldName} (list ${patron.listKey}, ${patron.code}).`
           }, { acceptedByCharacterId: speaker.identity.id, acceptedShipId: ship.identity.id, acceptedDate: resolved.campaign.time });
-          const missions = draft ? { ...people.missions, [contract.identity.id]: { kind: draft.kind, destinationSystemId: destination.id, cargoTons: draft.cargoTons, thing: draft.thing, attempts: 0, ...(hidden ? { outcome: JSON.parse(JSON.stringify(hidden)) } : {}), history: [{ date: formatCampaignDate(resolved.campaign.time), text: `Taken from ${article(patron.type)} ${patron.type.toLowerCase()} on ${patron.worldName}: ${contract.identity.title}, ${cr(contract.economics.paymentCr)}.` }] } } : people.missions;
+          const missions = draft ? { ...people.missions, [contract.identity.id]: { kind: draft.kind, destinationSystemId: destination.id, cargoTons: draft.cargoTons, thing: draft.thing, attempts: 0,
+            // v0.349.0 (design.md 9.6): a job of stages.
+            ...(QUEST_STAGES[draft.kind] ? { staged: true, stage: 0, stageNotes: [], stageNote: null, stageTries: 0, patronType: patron.type, patronWorld: patron.worldName } : {}), ...(hidden ? { outcome: JSON.parse(JSON.stringify(hidden)) } : {}), history: [{ date: formatCampaignDate(resolved.campaign.time), text: `Taken from ${article(patron.type)} ${patron.type.toLowerCase()} on ${patron.worldName}: ${contract.identity.title}, ${cr(contract.economics.paymentCr)}.` }] } } : people.missions;
           let smuggled = null;
           if (draft?.kind === 'smuggling') {
             const free = ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons;
             if (free < draft.cargoTons) throw new Error(`the ${draft.cargoTons} t of ${draft.thing} need ${draft.cargoTons} t of hold; ${free} t is free`);
             smuggled = loadCargo(ship, { id: `${contract.identity.id}:cargo`, category: 'contract', description: `${draft.thing} (${patron.type.toLowerCase()}\u2019s)`, tons: draft.cargoTons, originSystemId: patron.systemId, destinationSystemId: destination.id, acquisitionCostCr: 0 });
           }
-          registry.putAll([contract, withPersonState(addContractToCampaign(resolved.campaign, contract), { patron: null, missions }), ...(smuggled ? [smuggled] : [])]);
+          // v0.348.0 (design.md 9.5): a drafted job comes with an advance on
+          // expenses, a tenth of the fee, theirs whatever happens.
+          const advanceCr = draft ? patronAdvance(paymentCr) : 0;
+          if (advanceCr > 0) missions[contract.identity.id] = { ...missions[contract.identity.id], advanceCr, history: [...missions[contract.identity.id].history, { date: formatCampaignDate(resolved.campaign.time), text: `${cr(advanceCr)} advanced for expenses.` }] };
+          const funded = advanceCr > 0 ? creditShipAccount(smuggled ?? ship, advanceCr, { kind: 'contract', description: `${title}: expenses advanced`, dateLabel: formatCampaignDate(resolved.campaign.time) }) : smuggled;
+          registry.putAll([contract, withPersonState(addContractToCampaign(resolved.campaign, contract), { patron: null, missions }), ...(funded ? [funded] : [])]);
           reload();
-          log('ENCOUNTER', `Job taken from the ${patron.type.toLowerCase()}: ${title}, at ${destination.name}, ${cr(paymentCr)}, ${deadlineDays} days.`);
+          log('ENCOUNTER', `Job taken from the ${patron.type.toLowerCase()}: ${title}, at ${destination.name}, ${cr(paymentCr)}, ${deadlineDays} days.${advanceCr ? ` ${cr(advanceCr)} advanced for expenses (The Traveller Book p.99).` : ''}`);
           return finish(`${title}: on the job board.`);
         }
         if (command === 'patrons:referee') {
@@ -5936,7 +6292,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             reaction = { total: again.total, dice: [...again.dice], description: again.description };
             note = ` Attacked, their reaction is thrown again: ${again.total}, ${again.description.replace(/\.$/, '').toLowerCase()} (p.102).`;
           }
-          registry.put(withPersonState(resolved.campaign, { pending: { ...fresh, reaction, fighting: true } }));
+          const lawAfter = !stance?.attacking && !['hostile', 'violent', 'harassing'].includes(stance?.kind);
+          registry.put(withPersonState(resolved.campaign, { pending: { ...fresh, reaction, fighting: true, lawAfter } }));
           reload();
           const message = `${stance?.attacking ? `The ${fresh.type.toLowerCase()} attack.` : `The party moves against the ${fresh.type.toLowerCase()}.`}${note} Choose who takes the field and the range, then Begin.`;
           log('ENCOUNTER', message);
@@ -5964,7 +6321,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             const leads = index === 0 && pending.leader;
             const weaponKey = leads ? pending.leader.weapon : index === 0 && pending.extraordinary ? pending.extraordinary : pending.weapon;
             return createNpcActorDocument({
-            name: leads ? `${pending.type.replace(/s$/, '')} leader` : `${pending.type.replace(/s$/, '')} ${index + 1}`,
+            name: pending.names ? (leads ? pending.names.leader : `${pending.names.member} ${index + (pending.leader ? 0 : 1)}`) : leads ? `${pending.type.replace(/s$/, '')} leader` : `${pending.type.replace(/s$/, '')} ${index + 1}`,
             role: pending.type, folder: `Encounters/${pending.date} ${pending.type}`,
             characteristics: { STR: pending.characteristics.strength, DEX: pending.characteristics.dexterity, END: pending.characteristics.endurance, INT: 7, EDU: 7, SOC: 7 },
             skills: skillFor(weaponKey),
@@ -7241,6 +7598,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       if (state.personEncounter) state.personEncounter.stance = stanceOf(personPending);
       // v0.346.0: the last fight's aftermath, until it is closed.
       state.aftermath = resolved.campaign.roster?.aftermath ?? null;
+      // v0.349.0 (design.md 9.8): the job card, and a finished job's result.
+      state.quest = questView(resolved, { writable: save.state !== 'stale' && (seat !== 'player' || mode === 'game'), situation: state.situation?.kind ?? null });
+      state.jobResult = resolved.campaign.roster?.jobResult ?? null;
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating

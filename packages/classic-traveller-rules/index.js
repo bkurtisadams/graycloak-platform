@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.88.0';
+export const RULES_VERSION = '0.90.0';
 
 export {
   createDice,
@@ -908,7 +908,9 @@ export { npcRandom, withNpcRandom } from './src/npc-random.js';
 // v0.79.0: patron missions for solo play (original, not rules text).
 export { MISSION_KINDS, MISSION_TASKS, draftPatronMission, throwMissionTask, missionTaskDays } from './src/encounters/missions.js';
 // 0.88.0: p.124's six outcomes on 1D, crazy's second 1D (design.md 9.4).
-export { PATRON_OUTCOMES, CRAZY_OUTCOMES, rollPatronOutcome, patronOutcomeSettlement } from './src/encounters/missions.js';
+export { PATRON_OUTCOMES, CRAZY_OUTCOMES, rollPatronOutcome, patronOutcomeSettlement, PATRON_ADVANCE_FRACTION, patronAdvance } from './src/encounters/missions.js';
+// 0.90.0: quests as stages; spoils (design.md 9.5-9.6).
+export { QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, SPOILS, rollSpoils } from './src/encounters/missions.js';
 // 0.81.0: rumours written from game facts (original tables, not rules text).
 export { RUMOR_CONTENT, draftRumor } from './src/encounters/rumor-facts.js';
 // 0.85.0: The Traveller Book (1982) p.101 random encounter list and equipping.

@@ -1648,3 +1648,25 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .job-sheet .pairs { margin: 0 0 10px; }
 .job-sheet h4 { margin: 10px 0 4px; }
 .job-history { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+
+/* v0.349.0: the job card (design.md 9.8, the approved mockup). */
+.job-card { border-top: 3px solid var(--ink); background: var(--raise); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.job-card .eyebrow { margin: 0; }
+.job-card .job-title { margin: 0; font-size: 22px; line-height: 1.2; }
+.job-card .job-facts { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; color: var(--ink-2); }
+.job-stages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.job-stage { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.job-stage.is-now { background: color-mix(in srgb, var(--signal) 14%, transparent); padding: 8px 10px; margin: 0 -10px; }
+.job-stage.is-now .job-stage-title { font-weight: 700; }
+.job-stage.is-todo .job-stage-title { color: var(--ink-2); }
+.job-mark { min-width: 18px; font-weight: 700; color: var(--line); }
+.job-stage.is-done .job-mark { color: var(--success, #22381f); }
+.job-stage.is-now .job-mark { color: var(--signal); }
+.job-stage-body { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.job-stage-body p { margin: 0; }
+.job-stage-note { color: var(--signal); font-size: 14px; }
+.job-card .person-encounter { margin: 0; }
+.job-card.is-result .job-result-lead { font-weight: 700; }
+.port-business { border-top: 1px solid var(--ink); padding-top: 10px; }
+.port-business > summary { display: flex; justify-content: space-between; cursor: pointer; color: var(--ink-2); font-size: 14px; min-height: 28px; }
+.port-business[open] > summary { margin-bottom: 10px; }

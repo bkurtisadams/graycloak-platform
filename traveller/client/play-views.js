@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.347.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.347.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.347.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.347.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.349.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.349.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.349.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.349.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.88.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.347.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.347.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.347.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.349.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.349.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.349.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.347.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.347.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.349.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.349.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.347.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.349.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1147,13 +1147,22 @@ export function renderNow(state, handlers = {}) {
   if (state.notice?.message) parts.push(h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status' },
     h('span', { text: state.notice.message }),
     h('button', { type: 'button', class: 'notice-close', 'aria-label': 'Close', text: '\u00d7', onclick: () => handlers.onDismissNotice?.(state.notice.message) })));
-  if (state.aftermath) parts.push(aftermathCard(state.aftermath, state, handlers));
-  // v0.318.0: a person encounter met on the surface leads the column.
-  if (state.personEncounter) parts.push(personEncounterCard(state.personEncounter, state, handlers));
-  parts.push(leadCard(state.next, state, handlers));
-  if (state.checklist) parts.push(checklistPanel(state.checklist));
+  // v0.349.0 (design.md 9.8): a finished job's result, then the job card,
+  // which takes the encounter and the aftermath inside it at the job's world.
+  if (state.jobResult) parts.push(jobResultCard(state.jobResult, state, handlers));
+  const quest = state.quest && ['port', 'jump'].includes(state.situation.kind) ? state.quest : null;
+  if (quest) parts.push(questCard(quest, state, handlers));
+  if (!quest?.here) {
+    if (state.aftermath) parts.push(aftermathCard(state.aftermath, state, handlers));
+    // v0.318.0: a person encounter met on the surface leads the column.
+    if (state.personEncounter) parts.push(personEncounterCard(state.personEncounter, state, handlers));
+  }
+  // At the job's world the rest of the port folds into one line.
+  const port = [];
+  port.push(leadCard(state.next, state, handlers));
+  if (state.checklist) port.push(checklistPanel(state.checklist));
   // v0.331.0: patrons and jobs after the ship's own business.
-  if (state.patrons && state.live && state.situation.kind === 'port') parts.push(patronsPanel(state.patrons, handlers));
+  if (state.patrons && state.live && state.situation.kind === 'port') port.push(patronsPanel(state.patrons, handlers));
   // v0.315.6: a hijacking or a boarding halts the trip for a personal fight.
   if (state.boardFight) {
     // v0.343.0: the game makes the party (at once when it referees; a person
@@ -1169,9 +1178,52 @@ export function renderNow(state, handlers = {}) {
   if (state.roster?.length) parts.push(h('ul', { class: 'roster', 'aria-label': 'Who is fighting' }, state.roster.map(rosterRow)));
   const open = (state.steps ?? []).filter((step) => step.state !== 'done');
   const finished = [...(state.done ?? []), ...(state.steps ?? []).filter((step) => step.state === 'done').map((step) => `${step.title}, ${step.figure}`)];
-  if (open.length) parts.push(h('ul', { class: 'steps', 'aria-label': 'Also possible now' }, open.map((step) => stepRow(step, handlers))));
-  if (finished.length) parts.push(h('p', { class: 'done-line' }, h('span', { class: 'done-label', text: 'Done ' }), finished.join('. ') + '.'));
+  if (open.length) port.push(h('ul', { class: 'steps', 'aria-label': 'Also possible now' }, open.map((step) => stepRow(step, handlers))));
+  if (finished.length) port.push(h('p', { class: 'done-line' }, h('span', { class: 'done-label', text: 'Done ' }), finished.join('. ') + '.'));
+  if (quest?.foldPort) {
+    parts.push(h('details', { class: 'port-business' },
+      h('summary', {}, h('span', { text: 'Port business: berthing, fuel, trade, depart' }), h('span', { class: 'port-count', text: String(open.length) })),
+      ...port.filter(Boolean)));
+  } else parts.push(...port.filter(Boolean));
   return parts;
+}
+
+// v0.349.0 (Kurt, Sep 2026; design.md 9.8): the job card — the approved
+// mockup: the stages as steps, the current one highlighted with its throw,
+// an interruption and the aftermath inside the card, one main button.
+function questCard(q, state, handlers) {
+  const marks = { done: '\u2713', now: '\u25b6' };
+  const inner = q.here ? [
+    state.personEncounter ? personEncounterCard(state.personEncounter, state, handlers) : null,
+    state.aftermath ? aftermathCard(state.aftermath, state, handlers) : null
+  ].filter(Boolean) : [];
+  return h('section', { class: 'job-card', 'aria-label': 'The job in hand' },
+    h('p', { class: 'eyebrow', text: q.eyebrow }),
+    h('h2', { class: 'job-title', text: q.title }),
+    h('p', { class: 'job-facts' }, ...q.facts.map((fact) => h('span', { text: fact }))),
+    h('ol', { class: 'job-stages' }, ...q.steps.map((step) => h('li', { class: `job-stage is-${step.state}` },
+      h('span', { class: 'job-mark', 'aria-hidden': 'true', text: marks[step.state] ?? String(step.n) }),
+      h('div', { class: 'job-stage-body' },
+        h('p', { class: 'job-stage-title', text: step.title }),
+        h('p', { class: 'cite', text: step.how }),
+        step.note ? h('p', { class: 'job-stage-note', text: step.note }) : null)))),
+    ...inner,
+    !inner.length && state.live && (q.action || q.giveUp) ? h('div', { class: 'lead-actions' },
+      q.action ? kindButton({ label: q.action.label, kind: 'travel', primary: true }, { onclick: () => handlers.onCommand?.(q.action.command) }) : null,
+      q.giveUp ? kindButton({ label: q.giveUp.label, kind: 'neutral' }, { onclick: () => handlers.onCommand?.(q.giveUp.command) }) : null) : null);
+}
+
+function jobResultCard(r, state, handlers) {
+  return h('section', { class: 'job-card is-result', 'aria-label': 'Job done' },
+    h('p', { class: 'eyebrow', text: `Done \u00b7 ${r.date}` }),
+    h('h2', { class: 'job-title', text: r.title }),
+    r.steps?.length ? h('ol', { class: 'job-stages' }, ...r.steps.map((step) => h('li', { class: 'job-stage is-done' },
+      h('span', { class: 'job-mark', 'aria-hidden': 'true', text: '\u2713' }),
+      h('div', { class: 'job-stage-body' }, h('p', { class: 'job-stage-title', text: step.title }), h('p', { class: 'cite', text: step.how }))))) : null,
+    ...r.lines.map((line, index) => h('p', { class: index === 0 ? 'job-result-lead' : '', text: line })),
+    state.live ? h('div', { class: 'lead-actions' },
+      kindButton({ label: 'See it in Jobs', kind: 'travel', primary: true }, { onclick: () => handlers.onOpenJob?.(r.id) }),
+      kindButton({ label: 'Close', kind: 'neutral' }, { onclick: () => handlers.onCommand?.('jobresult:done') })) : null);
 }
 
 // ------------------------------------------------------------------ scenes

@@ -951,7 +951,7 @@ build.
    the outcome. Size open (proposal: 10% of the fee).
 2. Spoils (p.99: the patron receives the item sought; "all other goods
    or items acquired will belong to the adventurers"): stages may turn
-   up salable goods, valued as rumour finds are (2D x Cr2,500).
+   up salable goods, valued 3D x Cr2,500 (Kurt, Sep 2026).
 3. Warning signs: rumours about the patron (9.7); his reaction shown.
 
 ### 9.6 A quest is stages
@@ -1009,6 +1009,35 @@ stage; set the patron's outcome instead of throwing it; see the outcome
 
 ### 9.10 Build order (proposed)
 
+Built: step 4 in v0.349.0 (rules 0.90.0), from the approved mockup
+(canvas "Traveller — the job card"). New kinds steal, kill, rescue; find
+(retrieval) and investigation get stages; courier, escort and smuggling
+keep travel-and-deliver. missions.js QUEST_STAGES: four stages each, the
+last the handover (no days: the job settles). Stage types: ask (1D days,
+then 2D + best skill for 8+; a failure costs the days, try again), go (1D
+days, no throw), break-in (a failure brings guards, reaction 4), away
+(2D against the law level; seen: the law next day), fight (a group from
+the p.101 list, reaction 3, that has to be beaten — walking away leaves
+the stage undone). Lying shows at the trouble stage: "Guards nobody
+mentioned", reaction 3; the settlement then brings no second encounter.
+Crazy wrong-facts sends the job back to its last search. Spoils (1D 5+
+after a fight won during a job, 6 after a stage done without one; 3D x
+Cr2,500, sold). After a kill, and after the party attacks a group that
+was not hostile: the next day on 2D under the law level, an enforcer.
+The job card leads the port column (the job here first, else the nearest
+deadline): stages as steps, the current highlighted with its throw, the
+encounter and the aftermath inside the card, one main button, "Give up
+the job" after a failed throw; away from its world, "Set course for".
+At its world the rest of the port folds into "Port business". A finished
+job shows a result card (See it in Jobs / Close). Jobs taken before
+v0.349.0 keep the one-task flow. Not yet on the player's page.
+Built: step 5's advance in v0.348.0 (rules 0.89.0): a drafted job pays a
+tenth of the fee when taken, for expenses; the rest is owed at the end
+(dishonest: the advance is all they get). Spoils wait for the stages
+(step 4). Rulings for step 4 (Kurt, Sep 2026): stages of 1D days, 2D +
+skill for 8+ with the skills in 9.6; after a kill mission, or attacking a
+group that was not hostile, a legal encounter the next day on 2D under
+the law level; "kill someone" modelled in full, four stages.
 Built: steps 2 and 3 in v0.347.0 (rules 0.88.0). The six at settlement:
 lying brings a hostile encounter at once (reaction 3, attack on 5+);
 devious throws 2D against the law level at the handover (under it: the
@@ -1040,6 +1069,6 @@ aside (referee)". The legal (enforcer) card is unchanged.
 
 ### 9.11 Open
 
-Advance size; spoils values; stage lengths and which skills; whether the
-law takes an interest after the party attacks a group that was not
-hostile, or after a kill mission; how much of "kill someone" to model.
+Settled (Kurt, Sep 2026): spoils 3D x Cr2,500 (not 2D); the
+advance, a tenth; stage lengths and skills as 9.6; the law after a kill
+or an attack on a group not hostile; "kill someone" in full.

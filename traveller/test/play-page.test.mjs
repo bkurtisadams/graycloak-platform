@@ -108,8 +108,9 @@ test('v0.331.0 rumours to write live in the Journal; the port column leads with 
   assert.match(views, /export function rumorCards\(rumors, handlers\)/);
   assert.ok(views.includes("to write \\u00b7 Journal"));
   assert.match(views, /Rumours to write \(\$\{waitingRumors\.length\}\)/);
-  const lead = views.indexOf("parts.push(leadCard(state.next, state, handlers));");
-  const patrons = views.indexOf("parts.push(patronsPanel(state.patrons, handlers));");
+  // v0.349.0: both now gather into the port's own list (folded at a job's world).
+  const lead = views.indexOf("port.push(leadCard(state.next, state, handlers));");
+  const patrons = views.indexOf("port.push(patronsPanel(state.patrons, handlers));");
   assert.ok(lead > 0 && patrons > lead, 'patrons after the lead card');
   assert.match(views, /SIDEBAR_TAB_LABELS = Object\.freeze\(\{ Players: 'Travellers' \}\)/);
   assert.match(views, /Travelling together \(\$\{travellers\.length\}\)/);

@@ -2372,3 +2372,38 @@ test('v0.347.0 the Jobs tab is in the sidebar and a job sheet renders', async ()
   assert.match(text, /253-4807 Taken\./);
   assert.equal(document.querySelectorAll('.job-history li').length, 2);
 });
+
+// v0.349.0 (design.md 9.8, the approved mockup): the job card — stages as
+// steps, the current one highlighted with its throw, the encounter inside,
+// one main button; the rest of the port folded into one line.
+test('v0.349.0 the job card renders the stages, takes the encounter inside, and folds the port', async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderNow } = await import('../client/play-views.js');
+  const quest = { id: 'j1', title: 'Recover a crashed courier\u2019s log', eyebrow: 'Patron\u2019s job \u00b7 from a noble \u00b7 Thogafarn', facts: ['Cr 35,000', 'Cr 3,500 advanced', '12 days left'],
+    steps: [
+      { n: 1, title: 'Learn where it is', how: '1D days in town; 2D + Alina Voss\u2019s Streetwise-1 for 8+', state: 'now', note: 'Not yet: 3 days, 2D 6 + 1 = 7 against 8+.' },
+      { n: 2, title: 'Get there', how: '1D days on the surface; encounters as they come', state: 'todo', note: null },
+      { n: 3, title: 'Recover it', how: '1D days on the surface; 2D + Recon for 8+', state: 'todo', note: null },
+      { n: 4, title: 'Bring it back', how: 'The patron pays the rest: Cr 31,500', state: 'todo', note: null }],
+    action: { command: 'quest:stage:j1', label: 'Ask around again (stage 1)' }, giveUp: { command: 'quest:abandon:j1', label: 'Give up the job' }, here: true, foldPort: true };
+  const base = { live: true, situation: { kind: 'port', title: 'Port call', detail: 'Thogafarn' }, next: { title: 'Depart', copy: 'c', actions: [] }, steps: [{ id: 's1', title: 'Buy fuel', figure: 'Cr 500', state: 'ready' }], done: [], opponents: [], partyChoices: [] };
+  const seen = [];
+  document.querySelector('main').replaceChildren(...renderNow({ ...base, quest }, { onCommand: (command) => seen.push(command) }).filter(Boolean));
+  const card = document.querySelector('.job-card');
+  assert.ok(card);
+  assert.equal(card.querySelectorAll('.job-stage').length, 4);
+  assert.ok(card.querySelector('.job-stage.is-now').textContent.includes('Streetwise-1 for 8+'));
+  assert.match(card.textContent, /Not yet: 3 days/);
+  assert.ok(document.querySelector('details.port-business'), 'the port folds');
+  assert.ok(document.querySelector('details.port-business').textContent.includes('Buy fuel'));
+  for (const button of card.querySelectorAll('button')) button.click();
+  assert.deepEqual(seen, ['quest:stage:j1', 'quest:abandon:j1']);
+  // An encounter goes inside the card, and the card's own buttons wait.
+  const withEncounter = { ...base, quest, personEncounter: { date: 'd', worldName: 'W', quantity: 7, type: 'Thugs', characteristics: { strength: 7, dexterity: 7, endurance: 7 }, reaction: { total: 9, description: 'Intrigued.' },
+    weaponry: 'Broadsword', armor: null, stance: { kind: 'open', talk: 'rumour', text: 'Open to talk.' }, actions: [{ command: 'persons:talk', label: 'Talk', kind: 'optional', primary: true }], actorIds: [] } };
+  document.querySelector('main').replaceChildren(...renderNow(withEncounter, {}).filter(Boolean));
+  assert.ok(document.querySelector('.job-card .person-encounter'), 'inside the card');
+  assert.equal([...document.querySelectorAll('.job-card button')].map((button) => button.textContent.trim()).join(), 'Talk');
+});
