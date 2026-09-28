@@ -261,7 +261,7 @@ test('v0.249.0 sheets draw as panels of their own, and a statblock\u2019s fields
 
 test('v0.249.0 the tab strip is the five Foundry-shaped directories', async () => {
   const { session } = await freshSession();
-  assert.deepEqual([...REFEREE_TABS], ['Journal', 'Actors', 'Players', 'Vehicles', 'Scenes']);
+  assert.deepEqual([...REFEREE_TABS], ['Journal', 'Jobs', 'Actors', 'Players', 'Vehicles', 'Scenes']);
   assert.deepEqual(session.view().referee.tabs, [...REFEREE_TABS]);
   // Every Vehicles row opens a sheet too, badge and all.
   const vehicles = session.view({ referee: { tab: 'Vehicles' } }).referee.shown;
@@ -2354,4 +2354,21 @@ test('v0.346.0 the stance line, the aftermath card and a closable notice render 
   assert.match(text, /Open to talk\./);
   for (const button of document.querySelectorAll('button')) button.click();
   assert.deepEqual(seen.sort(), ['aftermath:done', 'close:Hello', 'patrons:task:x', 'persons:talk'].sort());
+});
+
+// v0.347.0: a job's sheet renders its terms and history; Jobs is a tab.
+test('v0.347.0 the Jobs tab is in the sidebar and a job sheet renders', async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { SIDEBAR_TABS } = await import('../client/play-views.js');
+  assert.deepEqual([...SIDEBAR_TABS].slice(0, 3), ['Chat', 'Journal', 'Jobs']);
+  const { renderSheets } = await import('../client/sheets.js');
+  const layer = renderSheets([{ kind: 'job', id: 'j1', title: 'Recover a log', subtitle: 'Patron\u2019s job \u00b7 completed', compact: true, compactOnly: true,
+    rows: [['Agreed', 'Cr 35,000'], ['Paid', 'Cr 17,500'], ['What happened', 'the patron was swindled himself']], history: [{ date: '253-4807', text: 'Taken.' }, { date: '261-4807', text: 'Found.' }] }], {});
+  document.querySelector('main').append(layer);
+  const text = document.querySelector('main').textContent;
+  assert.match(text, /Cr 17,500/);
+  assert.match(text, /253-4807 Taken\./);
+  assert.equal(document.querySelectorAll('.job-history li').length, 2);
 });

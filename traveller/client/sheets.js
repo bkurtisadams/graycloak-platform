@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.346.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.346.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.346.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.347.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.347.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.347.0';
 
 const DRAGGED = new Map();
 
@@ -774,12 +774,22 @@ function animalTableBody(sheet, handlers) {
  *             onNumberTokens, onStageDocument, onCopyDocument,
  *             onRenameScene, onSceneAction }
  */
+// v0.347.0 (design.md 9.8): a job's sheet — its terms, and its history.
+function jobBody(sheet) {
+  return h('div', { class: 'job-sheet' },
+    h('dl', { class: 'pairs' }, ...sheet.rows.flatMap(([label, value]) => [h('dt', { text: label }), h('dd', { text: value })])),
+    h('h4', { text: 'History' }),
+    h('ol', { class: 'job-history' }, ...sheet.history.map((entry) => h('li', {},
+      entry.date ? h('span', { class: 'cite', text: `${entry.date} ` }) : null, h('span', { text: entry.text })))));
+}
+
 export function renderSheets(sheets, handlers = {}) {
   const layer = h('div', { class: 'sheet-layer' });
   sheets.forEach((sheet, index) => {
     const key = `${sheet.kind}:${sheet.id}`;
     const compact = Boolean(sheet.compact);
-    const body = sheet.kind === 'ship' ? shipBody(sheet, handlers)
+    const body = sheet.kind === 'job' ? jobBody(sheet)
+      : sheet.kind === 'ship' ? shipBody(sheet, handlers)
       : sheet.kind === 'scene' ? sceneBody(sheet, handlers)
         : sheet.kind === 'animals' ? animalTableBody(sheet, handlers)
           : sheet.animal ? animalCompact(sheet, handlers)

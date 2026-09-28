@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.346.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.346.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.346.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.346.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.347.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.347.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.347.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.347.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.87.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.346.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.346.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.346.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.88.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.347.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.347.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.347.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.346.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.346.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.347.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.347.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.346.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.347.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -2741,7 +2741,8 @@ export function chatExportText({ campaignName = 'Campaign', date = '', lines = [
 }
 
 // The sidebar's tabs: Chat first, then the directories.
-export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Actors', 'Players', 'Vehicles', 'Scenes', 'Compendium']);
+// v0.347.0: Jobs (design.md 9.8).
+export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Jobs', 'Actors', 'Players', 'Vehicles', 'Scenes', 'Compendium']);
 // v0.331.0 (Kurt): the Players tab is shown as Travellers — what the books
 // call the player characters ("a band of travellers", 1977 Book 1 p.2).
 // The key stays 'Players' so saved page state and handlers keep working.

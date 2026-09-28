@@ -1643,3 +1643,8 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .person-stance { display: flex; gap: 6px; align-items: flex-start; margin: 8px 0; }
 .person-stance.is-violent, .person-stance.is-hostile { color: var(--red); }
 .person-encounter.is-aftermath p { margin: 4px 0; }
+
+/* v0.347.0: a job's sheet. */
+.job-sheet .pairs { margin: 0 0 10px; }
+.job-sheet h4 { margin: 10px 0 4px; }
+.job-history { margin: 0; padding-left: 18px; display: grid; gap: 6px; }

@@ -1116,7 +1116,7 @@ test('the Players tab files seats, open invites and requests to join', async () 
 test('v0.249.0 the Tables tab is gone; its reference is Journal material, not a directory', async () => {
   const { registry, campaignId } = await campaignInAFight();
   assert.equal(REFEREE_TABS.includes('Tables'), false);
-  assert.deepEqual([...REFEREE_TABS], ['Journal', 'Actors', 'Players', 'Vehicles', 'Scenes']);
+  assert.deepEqual([...REFEREE_TABS], ['Journal', 'Jobs', 'Actors', 'Players', 'Vehicles', 'Scenes']);
   // An unknown tab still falls back rather than throwing, so a stale link
   // or a saved tab name from before the change opens the Journal.
   const view = refereeView(registry.resolveCampaign(campaignId), { tab: 'Tables' });
@@ -2670,19 +2670,19 @@ test('v0.339.0 New ship refuses what it cannot build, and offers every standard 
 
 // ---------------------------------------------------------------- v0.340.0
 // p.124: a game-refereed job carries a hidden 1D, thrown when it is taken.
-function forceOutcome(registry, campaignId, jobId, outcome, die) {
+function forceOutcome(registry, campaignId, jobId, outcome, die, extra = {}) {
   const c = registry.resolveCampaign(campaignId).campaign;
   const people = personState(c);
-  registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, missions: { ...people.missions, [jobId]: { ...people.missions[jobId], outcome: { die, outcome } } } } } });
+  registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, missions: { ...people.missions, [jobId]: { ...people.missions[jobId], outcome: { die, outcome, ...extra } } } } } });
 }
 
 const COURIER = { kind: 'courier', thing: 'a sealed data wafer', destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Carry a sealed data wafer to Calder', task: null, paymentCr: 8000, deadlineDays: 30 };
 
-async function courierWith(outcome, die) {
+async function courierWith(outcome, die, extra = {}) {
   const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
   assert.equal(session.run('patrons:accept').ok, true);
   const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === COURIER.title);
-  forceOutcome(registry, campaignId, job.identity.id, outcome, die);
+  forceOutcome(registry, campaignId, job.identity.id, outcome, die, extra);
   const live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
   const balance = () => registry.resolveCampaign(campaignId).ships[0].state.finances.balanceCr;
   const ledger = () => registry.resolveCampaign(campaignId).ships[0].state.finances.ledger.filter((line) => line.kind === 'contract').reduce((sum, line) => sum + Number(line.amountCr ?? 0), 0);
@@ -2715,24 +2715,62 @@ test('v0.340.0 honest pays as agreed; swindled pays half; dishonest pays nothing
   assert.equal(swindled.paid, 4000);
   assert.equal(swindled.job.economics.paymentCr, 8000, 'what was agreed stays on the job');
   const log = JSON.stringify(swindled.after.activityLogs);
-  assert.match(log, /swindled himself and can pay only half: Cr 4,000 paid of Cr 8,000/i);
-  const dishonest = await courierWith('dishonest', 4);
+  assert.match(log, /swindled himself and can pay only half\. Cr 4,000 paid of Cr 8,000/i);
+  const dishonest = await courierWith('dishonest', 6);
   assert.equal(dishonest.job.status, 'completed');
   assert.equal(dishonest.paid, 0);
-  assert.match(JSON.stringify(dishonest.after.activityLogs), /the patron never pays: nothing paid/i);
+  assert.match(JSON.stringify(dishonest.after.activityLogs), /the patron never pays\. Nothing paid/i);
 });
 
-test('v0.340.0 crazy: there was nothing to it, and the job fails; lying: paid, and trouble follows', async () => {
-  const crazy = await courierWith('crazy', 5);
-  assert.equal(crazy.job.status, 'failed');
-  assert.equal(crazy.paid, 0);
-  assert.match(JSON.stringify(crazy.after.activityLogs), /nothing to it/);
-  const lying = await courierWith('lying', 6);
+test('v0.347.0 crazy has six meanings; lying pays and brings a hostile encounter; devious throws against the law', async () => {
+  const eccentric = await courierWith('crazy', 2, { crazy: { die: 1, kind: 'eccentric' } });
+  assert.equal(eccentric.job.status, 'completed');
+  assert.equal(eccentric.paid, 8000);
+  const unstable = await courierWith('crazy', 2, { crazy: { die: 3, kind: 'unstable', shiftDie: 5, factor: 4 / 3 } });
+  assert.equal(unstable.paid, Math.round(8000 * 4 / 3));
+  const family = await courierWith('crazy', 2, { crazy: { die: 4, kind: 'not-his' } });
+  assert.equal(family.paid, 800, 'expenses: a tenth of the fee');
+  const right = await courierWith('crazy', 2, { crazy: { die: 6, kind: 'right' } });
+  assert.ok(personState(right.after.campaign).rumors.some((rumor) => rumor.source === 'job' && rumor.lead?.kind === 'find'), 'a lead to something bigger');
+  const lying = await courierWith('lying', 4);
   assert.equal(lying.job.status, 'completed');
   assert.equal(lying.paid, 8000);
   const log = JSON.stringify(lying.after.activityLogs);
   assert.match(log, /lied about the danger/);
-  assert.ok(personState(lying.after.campaign).pending || /Person encounter on Calder|does not find the travellers here/.test(log), 'a person encounter is thrown at once');
+  const trouble = personState(lying.after.campaign).pending;
+  assert.ok(trouble ? trouble.reaction.total === 3 : /trouble must wait|are waiting/.test(log), 'a hostile encounter comes');
+  const devious = await courierWith('devious', 5);
+  assert.equal(devious.job.status, 'completed');
+  assert.match(JSON.stringify(devious.after.activityLogs), /purpose of his own/);
+  assert.ok([0, 8000].includes(devious.paid));
+});
+
+test('v0.347.0 wrong about the facts: a search job has to be searched for again, once', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Retrieval', { kind: 'retrieval', thing: 'a crashed courier\u2019s log', destinationSystemId: 'calder', destinationName: 'Calder', distance: 1, title: 'Recover a log on Calder', task: null, paymentCr: 10000, deadlineDays: 60 });
+  const taken = session.run('patrons:accept');
+  assert.equal(taken.ok, true, taken.message);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === 'Recover a log on Calder');
+  forceOutcome(registry, campaignId, job.identity.id, 'crazy', 2, { crazy: { die: 2, kind: 'wrong-facts' } });
+  const going = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  going.run('trip:choose-destination:calder');
+  going.run('trip:depart');
+  playTo(going, 'calder');
+  let again = false;
+  for (let tries = 0; tries < 40; tries += 1) {
+    const live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    const result = live.run(`patrons:task:${job.identity.id}`);
+    const c = registry.resolveCampaign(campaignId).campaign;
+    registry.put({ ...c, roster: { ...c.roster, persons: { ...c.roster.persons, pending: null }, animals: { ...(c.roster.animals ?? {}), pending: null } } });
+    if (/searched for again/.test(result.message ?? '')) again = true;
+    if (registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === job.identity.id).status !== 'accepted') break;
+  }
+  assert.ok(again, 'not where he said');
+  const done = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.id === job.identity.id);
+  assert.equal(done.status, 'completed');
+  assert.equal(done.resolution.paymentCr, 10000);
+  const history = personState(registry.resolveCampaign(campaignId).campaign).missions[job.identity.id].history;
+  assert.match(history[0].text, /^Taken from/);
+  assert.ok(history.some((entry) => /searched for again/.test(entry.text)));
 });
 
 test('v0.340.0 a person referees: no hidden throw; the courier job is an ordinary delivery', async () => {
@@ -2957,4 +2995,28 @@ test('v0.345.1 a fight against an encounter\u2019s people settles the encounter'
   const after = registry.resolveCampaign(campaignId);
   assert.equal(personState(after.campaign).pending, null, 'no encounter left waiting');
   assert.match(JSON.stringify(after.activityLogs), /The encounter with the .* is over/);
+});
+
+// v0.347.0 (design.md 9.8): the Jobs tab.
+test('v0.347.0 the Jobs tab lists current and finished jobs; a job\u2019s sheet shows its history, not its hidden outcome', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
+  assert.equal(session.run('patrons:accept').ok, true);
+  const job = registry.resolveCampaign(campaignId).contracts.find((entry) => entry.identity.title === COURIER.title);
+  forceOutcome(registry, campaignId, job.identity.id, 'swindled', 3);
+  let live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  let tab = live.view({ referee: { tab: 'Jobs', folder: 'Current' } }).referee;
+  const row = tab.shown.find((entry) => entry.id === job.identity.id);
+  assert.match(row.note, /Patron\u2019s job \u00b7 Cr 8,000 agreed \u00b7 30 days left/);
+  let sheet = live.view({ sheets: [{ kind: 'job', id: job.identity.id }] }).sheets[0];
+  assert.equal(sheet.kind, 'job');
+  assert.doesNotMatch(JSON.stringify(sheet), /swindled|outcome/i, 'the outcome stays hidden while the job is current');
+  live.run('trip:choose-destination:calder');
+  live.run('trip:depart');
+  playTo(live, 'calder');
+  live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  tab = live.view({ referee: { tab: 'Jobs', folder: 'Finished' } }).referee;
+  assert.match(tab.shown.find((entry) => entry.id === job.identity.id).note, /Cr 4,000 paid of Cr 8,000/);
+  sheet = live.view({ sheets: [{ kind: 'job', id: job.identity.id }] }).sheets[0];
+  assert.ok(sheet.rows.some(([label, value]) => label === 'What happened' && /swindled/.test(value)));
+  assert.ok(sheet.history.length >= 2);
 });

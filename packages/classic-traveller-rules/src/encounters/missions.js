@@ -111,43 +111,77 @@ export function missionTaskDays(dice, kind) {
 }
 
 // ---------------------------------------------------------------------------
-// v0.83.0: what the patron is really about. The Traveller Book (1982) p.124
-// gives each patron a players' paragraph and about six referee outcomes, one
-// picked by a 1D throw (the patron is honest, lying, crazy, swindled ...);
-// the four sample patrons (pp.126-127) each follow it. The book writes the
-// outcomes per patron; this one table, and what each does to the job, are
-// original Graycloak content (Kurt, Sep 2026: the shape for every
-// game-refereed mission, the 1D thrown at acceptance, kept off-screen).
+// What the patron is really about. The Traveller Book (1982) p.124: for a
+// patron encounter the referee makes up "perhaps six possible rationales or
+// outcomes" — the patron is lying, crazy, honest, swindled, "deviously trying
+// to achieve something he hasn't mentioned", or dishonest — and "the true
+// outcome [is] picked by the referee from the list, influencing the referee's
+// description of the encounter and the ensuing job". The book names no die:
+// throwing 1D for it when the game referees is Kurt's ruling, and 0.88.0
+// (design.md 9.4) takes the book's six, one each, with a second 1D for what
+// "crazy" means. What each does at the job's settlement is Graycloak's; the
+// quest stages (design.md 9.6, to come) move lying and devious into the job.
 //
-//   honest     as agreed                                   (1-2)
-//   swindled   the patron was cheated too: half the pay    (3)
-//   dishonest  the work is done; the patron never pays     (4)
-//   crazy      there was nothing to it: the job fails      (5)
-//   lying      paid, but the danger was hidden: trouble    (6)
+//   1 honest     as agreed
+//   2 crazy      second 1D: 1 eccentric but rich (pays anyway); 2 wrong about
+//                the facts (search again); 3 unstable (the fee moves a third,
+//                1D 1-3 down, 4-6 up); 4 not his to give (his family cancels
+//                it, expenses covered: a tenth of the fee); 5 paranoid (paid;
+//                the law takes notice); 6 crazy but right (paid; a lead)
+//   3 swindled   half the pay
+//   4 lying      paid; the danger was hidden: a hostile encounter
+//   5 devious    paid; his own purpose: a throw against the law level at the
+//                handover, the pay seized if it fails
+//   6 dishonest  the work is done; nothing paid
 // ---------------------------------------------------------------------------
 
-export const PATRON_OUTCOMES = Object.freeze(['honest', 'honest', 'swindled', 'dishonest', 'crazy', 'lying']);
+export const PATRON_OUTCOMES = Object.freeze(['honest', 'crazy', 'swindled', 'lying', 'devious', 'dishonest']);
+export const CRAZY_OUTCOMES = Object.freeze(['eccentric', 'wrong-facts', 'unstable', 'not-his', 'paranoid', 'right']);
 
-/** The hidden 1D, thrown when the job is taken. */
+/** The hidden throws, made when the job is taken. */
 export function rollPatronOutcome(dice) {
   requireDice(dice);
   const die = dice.rollD6();
-  return Object.freeze({ die, outcome: PATRON_OUTCOMES[die - 1] });
+  const outcome = PATRON_OUTCOMES[die - 1];
+  if (outcome !== 'crazy') return Object.freeze({ die, outcome });
+  const crazyDie = dice.rollD6();
+  const kind = CRAZY_OUTCOMES[crazyDie - 1];
+  const shiftDie = kind === 'unstable' ? dice.rollD6() : null;
+  return Object.freeze({ die, outcome, crazy: Object.freeze({ die: crazyDie, kind, ...(shiftDie ? { shiftDie, factor: shiftDie <= 3 ? 2 / 3 : 4 / 3 } : {}) }) });
 }
 
 /**
- * What the outcome does when the job is settled: the credits paid, whether
- * the job completes (crazy fails it), whether trouble follows (lying), and
- * the words that tell the travellers — the first they learn of it.
+ * What the outcome does when the job is settled. outcome: the record
+ * rollPatronOutcome gave, or a bare name (a job taken before 0.88.0).
+ * trouble: null | 'hostile' (an encounter) | 'legal' (an enforcer) | 'law'
+ * (the throw against the law level). extraSearch: search again once.
+ * lead: a rumour's find lead follows.
  */
 export function patronOutcomeSettlement(outcome, paymentCr) {
   const pay = Math.max(0, Math.round(Number(paymentCr) || 0));
-  switch (outcome ?? 'honest') {
-    case 'honest': return Object.freeze({ outcome: 'honest', paidCr: pay, completes: true, trouble: false, reason: null });
-    case 'swindled': return Object.freeze({ outcome: 'swindled', paidCr: Math.floor(pay / 2), completes: true, trouble: false, reason: 'the patron was swindled himself and can pay only half' });
-    case 'dishonest': return Object.freeze({ outcome: 'dishonest', paidCr: 0, completes: true, trouble: false, reason: 'the patron never pays' });
-    case 'crazy': return Object.freeze({ outcome: 'crazy', paidCr: 0, completes: false, trouble: false, reason: 'there was nothing to it: the patron\u2019s story was a madman\u2019s' });
-    case 'lying': return Object.freeze({ outcome: 'lying', paidCr: pay, completes: true, trouble: true, reason: 'the patron lied about the danger, and trouble follows' });
-    default: throw new RangeError(`unknown patron outcome: ${outcome}`);
+  const record = typeof outcome === 'string' || outcome == null ? { outcome: outcome ?? 'honest' } : outcome;
+  const base = { outcome: record.outcome, crazyKind: null, paidCr: pay, completes: true, trouble: null, extraSearch: false, lead: false, reason: null };
+  const done = (patch) => Object.freeze({ ...base, ...patch });
+  switch (record.outcome) {
+    case 'honest': return done({});
+    case 'swindled': return done({ paidCr: Math.floor(pay / 2), reason: 'the patron was swindled himself and can pay only half' });
+    case 'lying': return done({ trouble: 'hostile', reason: 'the patron lied about the danger, and trouble comes' });
+    case 'devious': return done({ trouble: 'law', reason: 'the patron had a purpose of his own he never mentioned' });
+    case 'dishonest': return done({ paidCr: 0, reason: 'the patron never pays' });
+    case 'crazy': {
+      const kind = record.crazy?.kind ?? 'eccentric';
+      const crazy = { crazyKind: kind };
+      if (kind === 'eccentric') return done({ ...crazy, reason: 'there was nothing to it, but the patron, eccentric and rich, pays anyway' });
+      if (kind === 'wrong-facts') return done({ ...crazy, extraSearch: true, reason: 'it was not where the patron said' });
+      if (kind === 'unstable') {
+        const factor = Number(record.crazy?.factor ?? 1);
+        return done({ ...crazy, paidCr: Math.round(pay * factor), reason: `the patron changed the terms: the fee is now a third ${factor < 1 ? 'less' : 'more'}` });
+      }
+      if (kind === 'not-his') return done({ ...crazy, paidCr: Math.round(pay / 10), reason: 'the patron\u2019s family steps in: the money was never his to give; they cancel the job and cover expenses' });
+      if (kind === 'paranoid') return done({ ...crazy, trouble: 'legal', reason: 'the patron\u2019s nerves have drawn the law\u2019s notice' });
+      if (kind === 'right') return done({ ...crazy, lead: true, reason: 'the patron was right, and there is more to it than he said' });
+      throw new RangeError(`unknown crazy outcome: ${kind}`);
+    }
+    default: throw new RangeError(`unknown patron outcome: ${record.outcome}`);
   }
 }

@@ -1009,6 +1009,16 @@ stage; set the patron's outcome instead of throwing it; see the outcome
 
 ### 9.10 Build order (proposed)
 
+Built: steps 2 and 3 in v0.347.0 (rules 0.88.0). The six at settlement:
+lying brings a hostile encounter at once (reaction 3, attack on 5+);
+devious throws 2D against the law level at the handover (under it: the
+pay seized as evidence); crazy as its table — wrong about the facts makes
+a search job search once more; paranoid brings an enforcer; right leaves
+a find lead (a location-data rumour). Each patron job keeps a history
+(taken, each try, interruptions, the settlement). The Jobs tab (Journal's
+neighbour): Current and Finished, every contract; a job's sheet shows its
+terms and history, the outcome only in what happened. Not yet on the
+player's page.
 Built: step 1 in v0.346.0 (rules 0.87.0 hostileAttackIsPhysical;
 play-session encounterStance / stanceOf; persons:walk, persons:talk,
 persons:fight; the aftermath card and aftermath:done; notices close with
