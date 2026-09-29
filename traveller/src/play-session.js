@@ -39,9 +39,9 @@ import {
   generateSubsector, generateWorldName, sectorMap, rollNewLanes, rollLanesBetween, neighbouringSubsectors, SUBSECTOR_LETTERS, subsectorOffset, subsectorOfSectorHex, subsectorHexDistance,
   draftPatronMission, throwMissionTask, missionTaskDays, MISSION_TASKS, loadCargo, unloadCargo, beginPortCall, getJumpDestinations,
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
-  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance,
+  rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -1934,7 +1934,9 @@ export function compendiumView(resolved, subsector) {
         weightGrams: entry.weaponKey ? (PERSONAL_WEAPON_WEIGHTS_GRAMS[entry.weaponKey]?.weapon ?? 0) + (PERSONAL_WEAPON_WEIGHTS_GRAMS[entry.weaponKey]?.ammunition ?? 0) : entry.weightGrams,
         techLevel: entry.techLevel, note: entry.note, page: entry.page,
         kind: entry.weaponKey ? 'weapon' : entry.armourKey ? 'armour' : 'item',
-        ...catalogueAvailability(entry, profile, { prohibitedWeaponKeys: banned })
+        ...catalogueAvailability(entry, profile, { prohibitedWeaponKeys: banned }),
+        // v0.353.0: what the black market would ask, for what is not on sale.
+        black: profile && !catalogueAvailability(entry, profile, { prohibitedWeaponKeys: banned }).buy ? blackMarketTerms(entry, profile) : null
       }))
     }))
   };
@@ -2019,7 +2021,7 @@ function portExtras(resolved, subsector) {
       const weaponKey = entry.loadout?.weaponKey ?? 'hands';
       let weaponName = weaponKey;
       try { weaponName = getPersonalWeapon(weaponKey).name; } catch { /* an unknown key reads as itself */ }
-      return { id: entry.identity.id, name: entry.identity.name || '(unnamed)', weaponKey, weaponName };
+      return { id: entry.identity.id, name: entry.identity.name || '(unnamed)', weaponKey, weaponName, armorKey: entry.loadout?.armor ?? 'none' };
     });
   const world = profile
     ? { detail: worldDetail(profile), starport: starportLine(profile.starport), gear: atmosphereGear(profile.atmosphere), law: lawCheck(profile, carriers) }
@@ -2523,7 +2525,7 @@ export function personEncounterRecord(dice, encounter, { date, worldName, law = 
       arrested: arrest.avoided ? [] : [...new Set(law.caught.map((entry) => entry.name))],
       jailDays: arrest.avoided ? null : weaponsViolationJailDays(dice),
       // v0.318.2 (Kurt, Sep 2026): the forbidden weapons are confiscated.
-      seized: arrest.avoided ? [] : law.caught.map((entry) => ({ id: entry.id ?? null, name: entry.name, weaponKey: entry.weaponKey, weaponName: entry.weaponName }))
+      seized: arrest.avoided ? [] : law.caught.map((entry) => ({ id: entry.id ?? null, name: entry.name, weaponKey: entry.weaponKey, weaponName: entry.weaponName, ...(entry.weaponName === 'battle dress' ? { armorKey: 'combat' } : {}) }))
     };
   }
   return record;
@@ -4527,9 +4529,87 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // is the referee's grant and costs nothing. A weapon or an item goes
       // into the inventory, carried; armour is put on (Book 1 allows one
       // suit at a time).
+      // v0.353.0 (Kurt, Sep 2026): the black market — for an import above the
+      // world's tech level or a military item. A Streetwise search (1D days in
+      // town, 2D + the party's best for 8+), then the seller's reaction with
+      // the buyer's Bribery (or Admin) as a DM (The Traveller Book p.102):
+      // 8+ an offer at the black-market price; 6-7 no deal; 5 or less they
+      // do not like the question, and the law may hear of it (2D under the
+      // law level: an enforcer the next day).
+      if (command === 'gear:seek' || command === 'gear:black-buy' || command === 'gear:black-decline') {
+        const whoId = fight?.id ?? fight?.value?.characterId ?? null;
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === whoId);
+        const offer = resolved.campaign.roster?.blackMarket ?? null;
+        const setOffer = (next) => { registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, blackMarket: next } }); reload(); };
+        const done = (message, extra = {}) => { lastMessage = { ok: true, message, ...extra }; log('GEAR', message); onChange(); saveToCloud(); return lastMessage; };
+        if (command === 'gear:black-decline') {
+          if (!offer) throw new Error('no seller is waiting');
+          setOffer(null);
+          return done('The seller is sent away.');
+        }
+        if (!who) throw new Error('choose a character first');
+        const { system, profile } = currentWorldProfile(resolved, subsector);
+        if (!profile) throw new Error('Buying needs a world: the party is not in port.');
+        if (command === 'gear:black-buy') {
+          if (!offer || offer.characterId !== who.identity.id || offer.systemId !== system.id) throw new Error('no seller is waiting for this character here');
+          const entry = catalogueEntry(offer.key);
+          const cash = Number(who.finances?.credits ?? 0);
+          if (offer.priceCr > cash) throw new Error(`${who.identity.name} has Cr ${cash.toLocaleString('en-US')}; the seller wants Cr ${offer.priceCr.toLocaleString('en-US')}`);
+          let next = who;
+          if (entry.armourKey) next = updateCharacterGameplayState(next, { armor: entry.armourKey });
+          else if (entry.weaponKey) next = addCharacterInventoryItem(next, { weaponKey: entry.weaponKey, carried: true });
+          else next = addCharacterInventoryItem(next, { name: entry.name, weightGrams: entry.weightGrams, quantity: 1, carried: true });
+          next = importCharacterDocument({ ...next, finances: { ...next.finances, credits: cash - offer.priceCr } });
+          persist([next]);
+          setOffer(null);
+          return done(`${who.identity.name} buys ${entry.name} on the black market for Cr ${offer.priceCr.toLocaleString('en-US')} (list Cr ${entry.priceCr.toLocaleString('en-US')}; Cr ${(cash - offer.priceCr).toLocaleString('en-US')} left).${entry.military ? ' Strictly military: wearing it where the law forbids military weapons (law 3+) is a violation.' : ''}`);
+        }
+        const key = String(fight?.value?.key ?? '');
+        const entry = catalogueEntry(key);
+        const terms = blackMarketTerms(entry, profile);
+        if (!terms) throw new Error(`${entry.name} is on sale here: buy it openly`);
+        if (!terms.available) throw new Error(terms.reason);
+        if (personState(resolved.campaign).pending || animalState(resolved.campaign).pending) throw new Error('an encounter is waiting; deal with it first');
+        const same = offer?.searching && offer.key === key && offer.characterId === who.identity.id && offer.systemId === system.id ? offer : null;
+        const dice = createDice();
+        const days = same?.progress?.days ?? dice.rollD6();
+        const spentBefore = same?.progress?.spent ?? 0;
+        const left = Math.max(1, days - spentBefore);
+        const startDay = campaignDayNumber(resolved.campaign.time);
+        const waitingNow = () => Boolean(personState(resolved.campaign).pending || animalState(resolved.campaign).pending);
+        let spentNow = 0;
+        for (let leg = 0; leg < 60 && spentNow < left && !waitingNow(); leg += 1) {
+          const passed = run('time:pass', { fight: { value: { amount: left - spentNow, unit: 'days', reason: `asking around for ${entry.name.toLowerCase()}`, checks: 'town' } } });
+          if (!passed.ok) throw new Error(passed.message);
+          const now = Math.max(0, campaignDayNumber(resolved.campaign.time) - startDay);
+          if (now === spentNow && !waitingNow()) break;
+          spentNow = now;
+        }
+        if (spentNow < left) {
+          const spent = spentBefore + spentNow;
+          setOffer({ searching: true, key, characterId: who.identity.id, systemId: system.id, progress: { days, spent } });
+          return done(`Asking around for ${entry.name}: interrupted after ${spent} of ${days} days. Carry on once the encounter is dealt with.`);
+        }
+        const street = bestPartySkill(resolved, ['Streetwise']);
+        const search = throwQuestStage(createDice(), { skillLevel: street.level });
+        const searchHow = `${days} day${days === 1 ? '' : 's'}; 2D ${search.roll}${street.skill ? ` + ${street.name}\u2019s Streetwise-${street.level}` : ''} = ${search.total} against 8+`;
+        if (!search.success) { setOffer(null); return done(`No seller for ${entry.name} (${searchHow}). Try again if there is time.`); }
+        const deal = Math.max(Number(who.skills?.Bribery ?? 0), Number(who.skills?.Admin ?? 0));
+        const reaction = rollReaction(createDice(), { dm: encounterReactionDM(resolved, profile) + deal });
+        const table = Number(reaction.tableTotal ?? reaction.total);
+        const found = `A seller for ${entry.name} (${searchHow}); their reaction ${table}, ${reaction.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()}${deal ? ` (DM +${deal} for ${who.identity.name}\u2019s dealing)` : ''}`;
+        if (table >= 8) {
+          setOffer({ searching: false, key, characterId: who.identity.id, systemId: system.id, priceCr: terms.priceCr, factor: terms.factor, date: formatCampaignDate(resolved.campaign.time) });
+          return done(`${found}: they will sell it for Cr ${terms.priceCr.toLocaleString('en-US')} (list Cr ${entry.priceCr.toLocaleString('en-US')}, ${terms.why}).`);
+        }
+        setOffer(null);
+        if (table >= 6) return done(`${found}: no deal.`);
+        const law = lawTakesAnInterest(`Asking about ${entry.name.toLowerCase()}`);
+        return done(`${found}: they do not like the question.${law && /enforcer/.test(law) ? ' The next day a local enforcer comes asking questions.' : ''}`);
+      }
       if (command === 'gear:buy' || command === 'gear:give') {
-        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === fight?.id)
-          ?? (resolved.npcActors ?? []).find((entry) => entry.identity.id === fight?.id);
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? fight?.value?.characterId))
+          ?? (resolved.npcActors ?? []).find((entry) => entry.identity.id === (fight?.id ?? fight?.value?.characterId));
         if (!who) throw new Error('choose a character first');
         // v0.267.0: an NPC actor takes a drop too; its gear goes through the
         // NPC document's own helpers.
@@ -6256,9 +6336,14 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           for (const item of law.seized ?? []) {
             let character = (resolved.characters ?? []).find((entry) => entry.identity.id === item.id);
             if (!character) continue;
-            const carried = (character.inventory ?? []).find((entry) => entry.weaponKey === item.weaponKey);
-            if (carried) character = removeCharacterInventoryItem(character, carried.id);
-            if (character.loadout?.weaponKey === item.weaponKey) character = updateCharacterGameplayState(character, { weaponKey: 'hands', armor: character.loadout.armor });
+            if (item.armorKey === 'combat' && !item.weaponKey) {
+              // v0.353.0: battle dress off, and kept.
+              character = updateCharacterGameplayState(character, { weaponKey: character.loadout?.weaponKey ?? 'hands', armor: 'none' });
+            } else {
+              const carried = (character.inventory ?? []).find((entry) => entry.weaponKey === item.weaponKey);
+              if (carried) character = removeCharacterInventoryItem(character, carried.id);
+              if (character.loadout?.weaponKey === item.weaponKey) character = updateCharacterGameplayState(character, { weaponKey: 'hands', armor: character.loadout.armor });
+            }
             confiscated.push(character);
             seizedNotes.push(`${item.name}\u2019s ${item.weaponName}`);
           }
@@ -7531,6 +7616,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.chat = mergedChat(state.chat ?? []);
       state.compendium = compendiumView(resolved, subsector);
+      // v0.353.0: a black-market seller waiting, or a search in hand.
+      state.blackMarket = resolved.campaign.roster?.blackMarket ?? null;
       // v0.329.2: who referees, for Settings (Kurt: the switch was buried in
       // the patrons column and only shown in port).
       state.refereeMode = refereeMode(resolved.campaign);

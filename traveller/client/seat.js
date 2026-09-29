@@ -10,19 +10,19 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.352.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene } from './play-views.js?v=v0.352.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.352.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.352.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.352.0';
-import { kindButton } from './kind-button.js?v=v0.352.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.352.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.352.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.352.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.352.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.352.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.352.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.353.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.353.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.353.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.353.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.353.0';
+import { kindButton } from './kind-button.js?v=v0.353.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.353.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.353.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.353.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.353.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.353.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.353.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -688,12 +688,43 @@ function renderChat() {
   if (atBottom) log.scrollTop = log.scrollHeight;
 }
 
+// v0.353.0 (Kurt, Sep 2026): the Store — every item, the ones this world
+// does not sell greyed with the reason, the black market's Find a seller;
+// the player buys for a character of their own. The game carries it out when
+// it referees (a person refereeing: the request is refused for now).
+function renderSideTabs() {
+  const tabs = ['Chat', 'Store'];
+  const current = state.sideTab ?? 'Chat';
+  $('side-tabs').replaceChildren(...tabs.map((tab) => h('button', { type: 'button', class: 'side-tab', 'aria-pressed': String(tab === current), text: tab,
+    onclick: () => { state.sideTab = tab; render(); } })));
+  $('side-chat').hidden = current !== 'Chat';
+  $('side-store').hidden = current !== 'Store';
+}
+
+function renderStore() {
+  const box = $('side-store');
+  if (state.sideTab !== 'Store') return;
+  const store = state.envelope?.situation?.store ?? null;
+  if (!store) { box.replaceChildren(h('p', { class: 'empty', text: 'The store opens once the campaign has published where you are.' })); return; }
+  const mine = characters().map((entry) => ({ id: entry.identity.id, name: entry.identity.name }));
+  const game = state.envelope?.situation?.mode === 'game';
+  const view = { compendium: store, compendiumUi: state.storeUi ?? {}, compendiumCharacters: mine, live: game && state.request?.status !== 'pending', seat: 'player', blackMarket: state.envelope?.situation?.blackMarket ?? null };
+  box.replaceChildren(
+    game ? null : h('p', { class: 'sheet-note', text: 'A person referees this campaign: ask your referee to buy for you.' }),
+    ...compendiumDrawer(view, {
+      onCompendium: (patch) => { state.storeUi = { ...(state.storeUi ?? {}), ...patch }; renderStore(); },
+      onGear: (how, characterId, key, quantity) => sendRequest(`gear:${how}`, { characterId, key, quantity: Number(quantity) || 1 })
+    }).filter(Boolean));
+}
+
 function render() {
   renderMast();
   renderNow();
   renderScene();
   renderOverlay();
+  renderSideTabs();
   renderChat();
+  renderStore();
   renderWoundPrompt();
 }
 

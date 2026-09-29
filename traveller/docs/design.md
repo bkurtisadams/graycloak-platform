@@ -675,6 +675,26 @@ berthing past six days, salaries) reach `play.html` with it.
   chosen or declared count first); ties by the better throw, then the
   nearer. Nothing reachable: close on the nearest, as before. Graycloak
   policy (npc-tactics.js SPREAD_TOLERANCE); the books give no NPC tactics.
+- The Store and the black market (Kurt, Sep 2026; v0.353.0, rules
+  0.91.0). The player's page gets a Store tab beside Chat: every item, the
+  ones this world does not sell greyed with the reason; a player buys for a
+  character of his own with its cash (the server checks whose character it
+  is), when the game referees. The referee's Compendium is the same list,
+  with Give. Book 3 p.13 / p.8 and Book 1 p.41 as before: too low a tech
+  level, or military, is not on sale; a weapon the law bans is sold with a
+  warning (the law forbids carrying it outside the starport). The black
+  market, for imports and military items (catalogue.js blackMarketTerms,
+  Graycloak's figures): one tech level short +50%, two or three short or
+  military double, four or more not to be had. Find a seller: 1D days in
+  town (the usual encounters), 2D + the party's best Streetwise for 8+ (a
+  failure costs only the days); then the seller's reaction with the
+  buyer's Bribery or Admin as a DM (The Traveller Book p.102): 8+ an offer
+  (Buy / Send away), 6-7 no deal, 5 or less they do not like the question
+  and, on 2D under the law level, an enforcer comes the next day. Battle
+  dress worn where military weapons are banned (law 3+) is a violation, and
+  confiscated with the arrest like a weapon. Weapons carry no tech level in
+  the catalogue, so they are never an import (open question: gate them by
+  The Traveller Book p.101's available-weapons-by-TL table).
 - Backing away (Kurt, Sep 2026; v0.352.0). On the range line the party
   started at band 0, the line's left end, so opening range was clamped to
   nothing and the party could never back off or escape by opening. It now

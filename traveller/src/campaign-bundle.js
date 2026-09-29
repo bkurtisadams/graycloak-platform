@@ -3,7 +3,7 @@ import {
   assertValidShipDocument,
   importCharacterDocument,
   importShipDocument
-} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
 
 import {
   CAMPAIGN_DOCUMENT_TYPE,

@@ -1695,3 +1695,9 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .fight-orders .tracker.sheet .tr-arms .weapon-tag, .fight-orders .tracker.sheet .tr-arms .blows { font-size: 11px; margin-left: 4px; }
 .fight-orders .tracker.sheet .sheet-needs { font-size: 12px; }
 .fight-orders .fight-actions { position: sticky; bottom: 0; z-index: 1; background: var(--ground); padding: 6px 0 2px; }
+
+/* v0.353.0: the store — unavailable items greyed; a black-market seller. */
+.gear-row.is-unavailable .gear-name, .gear-row.is-unavailable .gear-price { color: var(--ink-2); opacity: .7; }
+.black-offer { border: 1px solid var(--ink); background: var(--raise); padding: 8px 10px; margin: 6px 0; display: grid; gap: 6px; font-size: 14px; }
+.side-store { overflow: auto; padding: 8px 12px; display: grid; gap: 6px; align-content: start; }
+.side-store[hidden] { display: none; }

@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.352.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.352.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.352.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.352.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.353.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.353.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.353.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.353.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.352.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.352.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.352.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.353.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.353.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.353.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.352.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.352.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.353.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.353.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.352.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.353.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -2626,7 +2626,9 @@ function formatGrams(grams) {
   return grams ? `${grams} g` : '\u2014';
 }
 
-function compendiumDrawer(state, handlers) {
+// v0.353.0: also the player's Store (seat.js), with Give and dragging left
+// out, and the black market's Find a seller.
+export function compendiumDrawer(state, handlers) {
   const compendium = state.compendium;
   if (!compendium) return [h('p', { class: 'empty', text: 'The Compendium is not loaded.' })];
   const view = state.compendiumUi ?? {};
@@ -2634,12 +2636,14 @@ function compendiumDrawer(state, handlers) {
   const go = (patch) => handlers.onCompendium?.(patch);
   const characters = state.compendiumCharacters ?? [];
   const world = compendium.world;
+  const player = state.seat === 'player';
+  const offer = state.blackMarket && !state.blackMarket.searching && state.blackMarket.priceCr ? state.blackMarket : null;
   const row = (entry) => {
     const open = view.expanded === entry.key;
     const flag = !entry.buy ? h('span', { class: 'gear-flag is-no', title: entry.reason, text: entry.reason?.startsWith('Needs tech') ? `TL${entry.techLevel}` : entry.reason?.startsWith('Strictly') ? 'Military' : '\u2014' })
       : entry.warning ? h('span', { class: 'gear-flag is-warn', title: entry.warning, text: `Law ${world?.lawLevel}` }) : null;
     const summary = h('div', {
-      class: `gear-row${open ? ' is-open' : ''}`, draggable: state.live ? 'true' : 'false', role: 'button', tabindex: '0',
+      class: `gear-row${open ? ' is-open' : ''}${entry.buy ? '' : ' is-unavailable'}`, draggable: state.live && !player ? 'true' : 'false', role: 'button', tabindex: '0',
       title: `${entry.note || entry.name}${entry.reason ? `\n\n${entry.reason}` : entry.warning ? `\n\n${entry.warning}` : ''}\n\nDrag onto a character sheet, or click for Buy and Give.`,
       ondragstart: (event) => { event.dataTransfer.setData(GEAR_DRAG_TYPE, entry.key); event.dataTransfer.setData('text/plain', entry.name); event.dataTransfer.effectAllowed = 'copy'; },
       onclick: () => go({ expanded: open ? null : entry.key }),
@@ -2660,14 +2664,25 @@ function compendiumDrawer(state, handlers) {
         entry.techLevel !== null ? h('p', { class: 'cite', text: `Tech level ${entry.techLevel}` }) : null,
         entry.reason ? h('p', { class: 'sheet-note is-error', text: entry.reason }) : null,
         entry.warning ? h('p', { class: 'sheet-note is-warn', text: entry.warning }) : null,
+        // v0.353.0: what the black market asks, and why it is there at all.
+        entry.black?.available ? h('p', { class: 'sheet-note', text: `Black market: Cr ${entry.black.priceCr.toLocaleString('en-US')} (${entry.black.why}). Finding a seller takes 1D days and Streetwise; a buyer who deals badly may draw the law.` })
+          : entry.black && !entry.black.available ? h('p', { class: 'cite', text: entry.black.reason }) : null,
         state.live && characters.length ? h('div', { class: 'gear-actions' },
           who, quantity,
           h('button', { type: 'button', class: 'button is-small is-primary', disabled: !entry.buy, title: entry.reason ?? '', text: 'Buy', onclick: () => handlers.onGear?.('buy', who.value, entry.key, quantity ? quantity.value : 1) }),
-          h('button', { type: 'button', class: 'button is-small', text: 'Give', title: 'The referee\u2019s grant: no charge', onclick: () => handlers.onGear?.('give', who.value, entry.key, quantity ? quantity.value : 1) })) : null,
+          entry.black?.available ? h('button', { type: 'button', class: 'button is-small', text: 'Find a seller', title: 'The black market (Graycloak): 1D days asking, 2D + Streetwise for 8+, then the seller\u2019s reaction with Bribery as a DM', onclick: () => handlers.onGear?.('seek', who.value, entry.key, 1) }) : null,
+          player ? null : h('button', { type: 'button', class: 'button is-small', text: 'Give', title: 'The referee\u2019s grant: no charge', onclick: () => handlers.onGear?.('give', who.value, entry.key, quantity ? quantity.value : 1) })) : null,
         h('p', { class: 'cite', text: `Book ${entry.kind === 'item' ? 3 : 1} p.${entry.page}` })));
   };
+  const offered = offer ? compendium.packs.flatMap((pack) => pack.entries).find((entry) => entry.key === offer.key) : null;
   return [
     h('p', { class: 'side-count-line', text: world ? `Prices and availability at ${world.name}: tech level ${world.techLevel}, law level ${world.lawLevel}` : 'In space: nothing can be bought until the party is in port' }),
+    offer && offered ? h('section', { class: 'black-offer', role: 'status' },
+      h('b', { text: `A seller offers ${offered.name}` }),
+      h('span', { text: ` for Cr ${offer.priceCr.toLocaleString('en-US')} (list Cr ${offered.priceCr.toLocaleString('en-US')})${characters.find((entry) => entry.id === offer.characterId) ? `, to ${characters.find((entry) => entry.id === offer.characterId).name}` : ''}.` }),
+      state.live ? h('div', { class: 'gear-actions' },
+        h('button', { type: 'button', class: 'button is-small is-primary', text: 'Buy', onclick: () => handlers.onGear?.('black-buy', offer.characterId, offer.key, 1) }),
+        h('button', { type: 'button', class: 'button is-small', text: 'Send away', onclick: () => handlers.onGear?.('black-decline', offer.characterId, offer.key, 1) })) : null) : null,
     h('input', { type: 'search', class: 'search', placeholder: 'Search the compendium', 'aria-label': 'Search the compendium', value: view.query ?? '', oninput: (event) => go({ query: event.target.value }) }),
     ...compendium.packs.map((pack) => {
       const entries = pack.entries.filter((entry) => !query || entry.name.toLowerCase().includes(query) || String(entry.group).toLowerCase().includes(query));
@@ -2681,7 +2696,7 @@ function compendiumDrawer(state, handlers) {
           groups.length > 1 || group !== pack.name ? h('div', { class: 'gear-group-label', text: group }) : null,
           entries.filter((entry) => entry.group === group).map(row))));
     }),
-    h('p', { class: 'cite', text: 'Drag an item onto an open character sheet. Buy pays from that character\u2019s cash; Give is the referee\u2019s grant.' })
+    h('p', { class: 'cite', text: player ? 'Buy pays from your character\u2019s cash. Greyed items are not sold here; some may be found on the black market.' : 'Drag an item onto an open character sheet. Buy pays from that character\u2019s cash; Give is the referee\u2019s grant.' })
   ];
 }
 

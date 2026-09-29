@@ -148,3 +148,22 @@ export function catalogueAvailability(entry, profile, { prohibitedWeaponKeys = [
   const banned = entry.weaponKey && (prohibitedWeaponKeys.includes('*') || prohibitedWeaponKeys.includes(entry.weaponKey));
   return { buy: true, reason: null, warning: banned ? `Law level ${profile.lawLevel}: may not be carried outside the starport (Book 3 p.8).` : null };
 }
+
+// ---------------------------------------------------------------------------
+// 0.91.0 (Kurt, Sep 2026): the black market — for what the world will not
+// sell openly: an import above its tech level (Book 3 p.13 leaves an import
+// "at a higher price" to the referee) or a strictly military item (Book 1
+// p.41). Graycloak's figures: one tech level short, the listed price +50%;
+// two or three short, or military, double; four or more short, not to be
+// had. Finding a seller and the deal are the session's (a Streetwise search,
+// then a reaction with Bribery as a DM, The Traveller Book p.102).
+// ---------------------------------------------------------------------------
+export function blackMarketTerms(entry, profile) {
+  if (!profile) return null;
+  const short = entry.techLevel === null ? 0 : entry.techLevel - Number(profile.techLevel);
+  if (short >= 4) return { available: false, reason: `${short} tech levels beyond this world: not to be had at any price.` };
+  if (entry.military) return { available: true, factor: 2, priceCr: entry.priceCr * 2, why: 'military' };
+  if (short >= 2) return { available: true, factor: 2, priceCr: entry.priceCr * 2, why: `an import, ${short} tech levels short` };
+  if (short === 1) return { available: true, factor: 1.5, priceCr: Math.round(entry.priceCr * 1.5), why: 'an import, 1 tech level short' };
+  return null;
+}

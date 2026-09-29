@@ -112,9 +112,15 @@ export function lawCheck(profile, carriers = []) {
   const prohibited = new Set(prohibitedWeaponKeys(level));
   if (!prohibited.size) return null;
   const everything = prohibited.has('*');
-  const caught = carriers
-    .filter((entry) => entry.weaponKey && entry.weaponKey !== 'hands')
-    .filter((entry) => everything || prohibited.has(entry.weaponKey));
+  const caught = [
+    ...carriers
+      .filter((entry) => entry.weaponKey && entry.weaponKey !== 'hands')
+      .filter((entry) => everything || prohibited.has(entry.weaponKey)),
+    // v0.353.0 (Kurt, Sep 2026): battle dress is strictly military (Book 1
+    // p.41) — worn where "weapons of a strict military nature" are
+    // prohibited (law 3+, Book 3 p.8), it counts as a violation too.
+    ...(level >= 3 ? carriers.filter((entry) => entry.armorKey === 'combat').map((entry) => ({ ...entry, weaponKey: null, weaponName: 'battle dress' })) : [])
+  ];
   return {
     level,
     everything,

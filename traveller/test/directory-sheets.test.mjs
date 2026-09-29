@@ -2476,3 +2476,26 @@ test('v0.352.0 the range board starts three bands behind the rearmost token', as
   assert.match(me1.getAttribute('aria-label'), /band 4$/, 'three bands drawn behind the party');
   assert.match(bar.textContent, /15 from the nearest enemy is escaped/);
 });
+
+// v0.353.0: the Store, as the player sees it — no Give; Find a seller; an offer.
+test('v0.353.0 the Store shows everything, greys what is not sold, and offers the black market', async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { compendiumDrawer } = await import('../client/play-views.js');
+  const compendium = { world: { name: 'Aster', techLevel: 9, lawLevel: 5 }, packs: [{ name: 'Equipment', entries: [
+    { key: 'a', name: 'Rope', group: 'Tools', priceCr: 10, weightGrams: 1000, techLevel: 1, note: '', page: 1, kind: 'item', buy: true, reason: null, warning: null, black: null },
+    { key: 'b', name: 'Holo Crystal', group: 'Tools', priceCr: 1000, weightGrams: 10, techLevel: 11, note: '', page: 2, kind: 'item', buy: false, reason: 'Needs tech level 11; this world is 9.', warning: null, black: { available: true, priceCr: 2000, why: 'an import, 2 tech levels short' } }] }] };
+  const seen = [];
+  const state = { compendium, compendiumUi: { expanded: 'b' }, compendiumCharacters: [{ id: 'c1', name: 'Hawkeye' }], live: true, seat: 'player', blackMarket: { key: 'b', characterId: 'c1', priceCr: 2000 } };
+  document.querySelector('main').replaceChildren(...compendiumDrawer(state, { onGear: (...args) => seen.push(args[0]) }).filter(Boolean));
+  const text = document.querySelector('main').textContent;
+  assert.match(text, /A seller offers Holo Crystal/);
+  assert.match(text, /Black market: Cr 2,000 \(an import, 2 tech levels short\)/);
+  assert.ok(document.querySelector('.gear-row.is-unavailable'));
+  const labels = [...document.querySelectorAll('button')].map((button) => button.textContent);
+  assert.ok(labels.includes('Find a seller'));
+  assert.ok(!labels.includes('Give'), 'no Give for a player');
+  for (const button of document.querySelectorAll('.black-offer button, .gear-actions button')) if (!button.disabled) button.click();
+  assert.ok(seen.includes('black-buy') && seen.includes('black-decline') && seen.includes('seek'));
+});

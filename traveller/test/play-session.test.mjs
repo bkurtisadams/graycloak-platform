@@ -3186,3 +3186,65 @@ test('v0.350.0 the map carries every accepted job\u2019s world and every open le
   assert.deepEqual(published.marks.leads.map((entry) => entry.text), ['A strongbox lies out on Aster.']);
   assert.doesNotMatch(JSON.stringify(published.marks), /truth|valueCr/);
 });
+
+// ---------------------------------------------------------------- v0.353.0
+// The black market (Kurt, Sep 2026): imports and military items.
+import { lawCheck } from '../src/world-notes.js';
+
+test('v0.353.0 the compendium prices the black market, and a seller may be found and paid', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  let session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const view = session.view();
+  const world = view.compendium.world;
+  const entries = view.compendium.packs.flatMap((pack) => pack.entries);
+  const item = entries.find((entry) => !entry.buy && entry.black?.available && entry.techLevel > world.techLevel);
+  assert.ok(item, `an import for ${world.name}`);
+  assert.equal(item.black.factor, item.techLevel - world.techLevel >= 2 ? 2 : 1.5);
+  const who = registry.resolveCampaign(campaignId).campaign.party.characterIds[0];
+  const c = registry.resolveCampaign(campaignId);
+  const char = c.characters.find((entry) => entry.identity.id === who);
+  registry.put({ ...char, finances: { ...char.finances, credits: 1000000 } });
+  let offer = null;
+  const seen = new Set();
+  for (let tries = 0; tries < 40 && !offer; tries += 1) {
+    const cc = registry.resolveCampaign(campaignId).campaign;
+    registry.put({ ...cc, roster: { ...cc.roster, persons: { ...(cc.roster.persons ?? {}), pending: null }, animals: { ...(cc.roster.animals ?? {}), pending: null } } });
+    session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+    const result = session.run('gear:seek', { fight: { id: who, value: { key: item.key } } });
+    assert.equal(result.ok, true, result.message);
+    if (/they will sell it/.test(result.message)) seen.add('offer');
+    else if (/no deal/.test(result.message)) seen.add('no deal');
+    else if (/do not like the question/.test(result.message)) seen.add('bad');
+    else if (/No seller/.test(result.message)) seen.add('none');
+    offer = registry.resolveCampaign(campaignId).campaign.roster.blackMarket;
+    if (offer?.searching) offer = null;
+  }
+  assert.ok(offer, `a seller at last (saw ${[...seen].join(', ')})`);
+  assert.equal(offer.priceCr, item.black.priceCr);
+  assert.equal(session.view().blackMarket.priceCr, offer.priceCr);
+  const before = registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === who).finances.credits;
+  const bought = session.run('gear:black-buy', { fight: { id: who } });
+  assert.equal(bought.ok, true, bought.message);
+  assert.match(bought.message, /on the black market/);
+  const after = registry.resolveCampaign(campaignId).characters.find((entry) => entry.identity.id === who);
+  assert.equal(before - after.finances.credits, offer.priceCr);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.blackMarket, null);
+  assert.match(session.run('gear:seek', { fight: { id: who, value: { key: entries.find((entry) => entry.buy).key } } }).message, /on sale here: buy it openly/);
+});
+
+test('v0.353.0 battle dress worn where military weapons are banned (law 3+) is a violation', () => {
+  const carriers = [{ id: 'a', name: 'Hawkeye', weaponKey: 'hands', weaponName: 'Hands', armorKey: 'combat' }];
+  assert.equal(lawCheck({ lawLevel: 2 }, carriers)?.caught?.length ?? 0, 0);
+  const law3 = lawCheck({ lawLevel: 3 }, carriers);
+  assert.deepEqual(law3.caught.map((entry) => entry.weaponName), ['battle dress']);
+});
+
+test('v0.353.0 the player\u2019s page gets the Store listing', async () => {
+  const { registry, campaignId } = await traderAtAster({ steward: true });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const published = playerSituation(session.view({ seat: 'player' }), { mode: 'game' });
+  assert.ok(published.store.packs.length >= 3);
+  const entries = published.store.packs.flatMap((pack) => pack.entries);
+  assert.ok(entries.some((entry) => !entry.buy && entry.reason));
+  assert.ok(entries.some((entry) => entry.black?.available));
+});

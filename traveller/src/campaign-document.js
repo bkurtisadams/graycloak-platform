@@ -1,4 +1,4 @@
-import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
+import { stableDocumentId } from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
 
 export const CAMPAIGN_DOCUMENT_TYPE = 'graycloak-traveller-campaign';
 export const CURRENT_CAMPAIGN_DOCUMENT_SCHEMA_VERSION = 11;

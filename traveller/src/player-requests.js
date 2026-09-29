@@ -15,6 +15,9 @@ const PLAYER_COMMANDS = Object.freeze([
   'rumors:search:',              // v0.341.0: a rumour's find, searched for
   'persons:jail',
   'persons:walk', 'persons:talk', // v0.346.0: the reaction's choices
+  // v0.353.0: the Store, for the player's own character (checked on the
+  // server against whose character it is).
+  'gear:buy', 'gear:seek', 'gear:black-buy', 'gear:black-decline',
   'party:rest',
   'ship:from-benefit:',          // v0.338.0: his own character's mustering-out ship (owner checked on the server)
   'shipfight:fire', 'shipfight:hold', 'shipfight:flee', 'shipfight:end', 'shipfight:cancel-repair'
@@ -78,6 +81,17 @@ export function playerSituation(view, { mode = 'person' } = {}) {
     patrons, person,
     courseId: text(view.destinationId ?? view.scene?.courseId),
     canSetCourse: mode === 'game' && Boolean(view.scene?.canSetCourse),
+    // v0.353.0: the Store — the listing, and a black-market seller waiting.
+    store: view.compendium ? {
+      world: view.compendium.world ? { name: text(view.compendium.world.name), techLevel: Number(view.compendium.world.techLevel), lawLevel: Number(view.compendium.world.lawLevel) } : null,
+      packs: (view.compendium.packs ?? []).map((pack) => ({ name: text(pack.name), entries: (pack.entries ?? []).map((entry) => ({
+        key: text(entry.key), name: text(entry.name), group: text(entry.group), priceCr: Number(entry.priceCr ?? 0), priceNote: entry.priceNote ? text(entry.priceNote) : null,
+        weightGrams: Number(entry.weightGrams ?? 0), techLevel: entry.techLevel === null ? null : Number(entry.techLevel), note: text(entry.note), page: entry.page ?? null, kind: text(entry.kind),
+        buy: Boolean(entry.buy), reason: entry.reason ? text(entry.reason) : null, warning: entry.warning ? text(entry.warning) : null,
+        black: entry.black ? { available: Boolean(entry.black.available), priceCr: Number(entry.black.priceCr ?? 0), why: text(entry.black.why), reason: entry.black.reason ? text(entry.black.reason) : null } : null
+      })) }))
+    } : null,
+    blackMarket: view.blackMarket && !view.blackMarket.searching && view.blackMarket.priceCr ? { key: text(view.blackMarket.key), characterId: text(view.blackMarket.characterId), priceCr: Number(view.blackMarket.priceCr) } : null,
     // v0.350.0: "!" and "?" on the player's map.
     marks: view.scene?.marks ? {
       jobs: (view.scene.marks.jobs ?? []).map((entry) => ({ systemId: text(entry.systemId), title: text(entry.title), due: text(entry.due) })),

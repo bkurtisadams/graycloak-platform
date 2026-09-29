@@ -145,3 +145,20 @@ test('v0.338.0 a player may ask to bring in only his own character\u2019s ship',
   assert.match(refused.message, /only the player of that character/);
   assert.equal(store.saves, 0);
 });
+
+// v0.353.0: the Store — a player buys only for a character of his own.
+test('v0.353.0 a player may shop, but only for his own character', async () => {
+  for (const command of ['gear:buy', 'gear:seek', 'gear:black-buy', 'gear:black-decline']) assert.equal(playerMayRun(command), true, command);
+  const { campaignId, store } = await setup('game');
+  const refused = await apply(campaignId, store, 'gear:buy', { value: { characterId: 'char-04164baa70c3b5a6', key: 'weapon:dagger', quantity: 1 } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /only for your own character/);
+  assert.equal(store.saves, 0);
+  // Owned: carried out.
+  const home = importCampaignHome(store.home);
+  home.bundle.campaign.ownership = { ...(home.bundle.campaign.ownership ?? {}), actors: { ...(home.bundle.campaign.ownership?.actors ?? {}), 'char-04164baa70c3b5a6': PLAYER } };
+  store.home = JSON.parse(JSON.stringify({ ...store.home, bundle: home.bundle }));
+  const bought = await apply(campaignId, store, 'gear:buy', { value: { characterId: 'char-04164baa70c3b5a6', key: 'weapon:dagger', quantity: 1 } });
+  assert.equal(bought.ok, true, bought.message);
+  assert.match(bought.message, /buys a Dagger/);
+});

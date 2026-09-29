@@ -58,6 +58,11 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
       const characterId = command.slice('ship:from-benefit:'.length);
       if ((campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('only the player of that character can bring in its ship');
     }
+    // v0.353.0: a player shops only for a character of his own.
+    if (command.startsWith('gear:') && command !== 'gear:black-decline') {
+      const characterId = String(request.value?.characterId ?? '');
+      if (!characterId || (campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('you can buy only for your own character');
+    }
     const cloud = {
       userId: () => ownerUid,
       account: () => ({ displayName: refereeName }),
