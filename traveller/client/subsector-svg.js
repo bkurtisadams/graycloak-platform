@@ -208,7 +208,7 @@ function zoneArc(system, center) {
   return createSvgNode('path', { d: `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 1 1 ${x1.toFixed(1)} ${y0.toFixed(1)}`, class: `world-zone is-${system.travelZone}` });
 }
 
-export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set(), firstColumn = 1, firstRow = 1, borders = [], worldStyle = 'classic', edges = [] } = {}) {
+export function renderSubsectorMap({ subsector, columns, rows, current = null, selected = null, reachable = new Map(), objectives = new Set(), onSelect = null, lanes = [], offLane = new Set(), firstColumn = 1, firstRow = 1, borders = [], worldStyle = 'classic', edges = [], marks = null } = {}) {
   const book = worldStyle === 'book';
   const baseBox = subsectorSvgViewBox(columns, rows, SUBSECTOR_SVG_GEOMETRY);
   // Room round the outside for the neighbours' names.
@@ -274,6 +274,11 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       // player has taken on is marked on the map, not only in a panel.
       if (objectives.has?.(system.id)) group.classList.add('objective');
 
+      // v0.350.0 (Kurt, Sep 2026): "!" where a job is to be done, "?" where
+      // a lead from a rumour points. A true lead and a false one look the same.
+      const jobsHere = (marks?.jobs ?? []).filter((entry) => entry.systemId === system.id);
+      const leadsHere = (marks?.leads ?? []).filter((entry) => entry.systemId === system.id);
+      if (jobsHere.length) group.classList.add('objective');
       const relation = current?.id === system.id
         ? 'current system'
         : reachable.has(system.id)
@@ -287,11 +292,12 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
       }
       const baseNames = [system.bases?.scout ? 'Scout Base' : null, system.bases?.naval ? 'Naval Base' : null].filter(Boolean);
       const baseLabel = baseNames.length ? `, ${baseNames.join(' and ')}` : '';
-      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}${baseLabel}`);
+      const markLabel = [jobsHere.length ? `${jobsHere.length} job${jobsHere.length === 1 ? '' : 's'} here` : null, leadsHere.length ? `${leadsHere.length} lead${leadsHere.length === 1 ? '' : 's'} from rumours` : null].filter(Boolean).join(', ');
+      group.setAttribute('aria-label', `${system.name}, hex ${hex}, ${relation}${baseLabel}${markLabel ? `, ${markLabel}` : ''}`);
       group.dataset.systemId = system.id;
 
       const title = createSvgNode('title');
-      const objective = objectives.has?.(system.id) ? ' / ACCEPTED JOB DESTINATION' : '';
+      const objective = objectives.has?.(system.id) || jobsHere.length ? ' / ACCEPTED JOB DESTINATION' : '';
       title.textContent = `${system.name} / ${system.mainWorld.name} / ${system.mainWorld.uwp} / ${hex} / ${relation}${baseNames.length ? ` / ${baseNames.join(' + ')}` : ''}${objective}`;
       group.append(title);
 
@@ -332,6 +338,28 @@ export function renderSubsectorMap({ subsector, columns, rows, current = null, s
 
         appendBaseMarkers(group, system, center);
       }
+
+      // v0.350.0: where the party is — a red ship mark in the hex's lower
+      // left, as well as the red outline.
+      if (current?.id === system.id) {
+        const r = SUBSECTOR_SVG_GEOMETRY.radius;
+        const sx = center.x - r * 0.68;
+        const sy = center.y + r * 0.36;
+        group.append(createSvgNode('polygon', { points: `${sx - 5.5},${sy + 5} ${sx + 5.5},${sy + 5} ${sx},${sy - 7}`, class: 'map-here-ship' }));
+      }
+      const badge = (x, y, glyph, kind, lines, count) => {
+        const mark = createSvgNode('g', { class: `map-mark is-${kind}` });
+        const tip = createSvgNode('title');
+        tip.textContent = lines.join('\n');
+        mark.append(tip, createSvgNode('circle', { cx: x, cy: y, r: 7, class: 'map-mark-disc' }));
+        const text = createSvgNode('text', { x, y: y + 3.6, class: 'map-mark-glyph', 'text-anchor': 'middle' });
+        text.textContent = count > 1 ? `${glyph}${count}` : glyph;
+        mark.append(text);
+        group.append(mark);
+      };
+      const r = SUBSECTOR_SVG_GEOMETRY.radius;
+      if (jobsHere.length) badge(center.x + r * 0.7, center.y + r * 0.36, '!', 'job', jobsHere.map((entry) => `Job: ${entry.title}${entry.due ? `, ${entry.due}` : ''}`), jobsHere.length);
+      if (leadsHere.length) badge(center.x + r * 0.7, center.y - r * 0.38, '?', 'lead', leadsHere.map((entry) => `Lead: ${entry.text}${entry.how ? ` (${entry.how})` : ''}`), leadsHere.length);
 
       if (onSelect) {
         const select = () => onSelect(system);

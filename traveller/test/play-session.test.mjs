@@ -3168,3 +3168,20 @@ test('v0.349.0 a failed throw can be tried again, or the job given up (the advan
   assert.equal(contract.status, 'failed');
   assert.match(contract.resolution.notes, /given up; the Cr 3,000 advance is kept/);
 });
+
+// v0.350.0: what the map marks, on both pages.
+test('v0.350.0 the map carries every accepted job\u2019s world and every open lead\u2019s, and the player\u2019s page gets them', async () => {
+  const { registry, campaignId, session } = await soloWithPatron('Courier', COURIER);
+  session.run('patrons:accept');
+  withLead(registry, campaignId, { kind: 'find', systemId: 'aster', worldName: 'Aster', thing: 'a strongbox', valueCr: 5000 }, { text: 'A strongbox lies out on Aster.' });
+  const live = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const marks = live.view().scene.marks;
+  const job = marks.jobs.find((entry) => entry.title === COURIER.title);
+  assert.equal(job.systemId, 'calder');
+  assert.match(job.due, /days left/);
+  assert.equal(marks.jobs.length, registry.resolveCampaign(campaignId).contracts.filter((entry) => entry.status === 'accepted').length, 'every accepted contract');
+  assert.deepEqual(marks.leads.map((entry) => [entry.systemId, entry.how]), [['aster', 'search there']]);
+  const published = playerSituation(live.view({ seat: 'player' }), { mode: 'game' });
+  assert.deepEqual(published.marks.leads.map((entry) => entry.text), ['A strongbox lies out on Aster.']);
+  assert.doesNotMatch(JSON.stringify(published.marks), /truth|valueCr/);
+});

@@ -2407,3 +2407,25 @@ test('v0.349.0 the job card renders the stages, takes the encounter inside, and 
   assert.ok(document.querySelector('.job-card .person-encounter'), 'inside the card');
   assert.equal([...document.querySelectorAll('.job-card button')].map((button) => button.textContent.trim()).join(), 'Talk');
 });
+
+// v0.350.0 (Kurt, Sep 2026): "!" where a job is, "?" where a lead points; the
+// party's hex solid red with a ship mark; reachable worlds no longer pulse.
+test('v0.350.0 the map marks jobs and leads and draws where the party is', async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderSubsectorMap } = await import('../client/subsector-svg.js');
+  const { getSubsectorSystem } = await import('../vendor/classic-traveller-rules/index.js');
+  const current = getSubsectorSystem(FAR_MERIDIAN_SUBSECTOR, 'aster');
+  const svg = renderSubsectorMap({ subsector: FAR_MERIDIAN_SUBSECTOR, columns: 8, rows: 10, current, reachable: new Map([['calder', 1]]), worldStyle: 'book',
+    marks: { jobs: [{ systemId: 'calder', title: 'Recover a log', due: '12 days left' }], leads: [{ systemId: 'calder', text: 'They say a noble is hiring.', how: 'look for patrons there' }, { systemId: 'calder', text: 'Two', how: null }] } });
+  const calder = svg.querySelector('[data-system-id="calder"]');
+  assert.equal(calder.querySelector('.map-mark.is-job .map-mark-glyph').textContent, '!');
+  assert.equal(calder.querySelector('.map-mark.is-lead .map-mark-glyph').textContent, '?2');
+  assert.match(calder.querySelector('.map-mark.is-job title').textContent, /Job: Recover a log, 12 days left/);
+  assert.match(calder.getAttribute('aria-label'), /1 job here, 2 leads from rumours/);
+  assert.ok(calder.classList.contains('objective'));
+  assert.ok(svg.querySelector('[data-system-id="aster"] .map-here-ship'), 'the ship mark where the party is');
+  const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /animation: beckon/);
+});

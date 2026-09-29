@@ -384,8 +384,7 @@ select, .search { width: 100%; padding: 7px 8px; background: var(--raise); borde
 .subsector-jump-layer { pointer-events: none; }
 .subsector-jump-line { stroke: var(--brand-rule); stroke-width: 2; stroke-dasharray: 6 4; }
 .subsector-jump-label { font: 700 9px var(--code); fill: var(--ink); }
-.destination-pending .system-hex.reachable .subsector-hex-shape { animation: beckon 1.8s ease-in-out infinite; }
-@keyframes beckon { 50% { stroke: var(--go-border); stroke-width: 3; } }
+/* v0.350.0 (Kurt, Sep 2026): reachable worlds no longer pulse; the blue says it. */
 
 /* v0.315.0: charted lanes (Book 3 p.2), thin and under the jump line; the
    ones touching this world are ink. A world in range but off every lane
@@ -1559,8 +1558,10 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .subsector-edge-label { font: 700 11px var(--display); fill: var(--ink-2); letter-spacing: 0.12em; }
 .subsector-edge-label.is-uncharted { opacity: 0.7; }
 /* The ship's world: a heavy outline in ink, not red — red now means no water. */
-.system-hex.current .subsector-hex-shape { stroke: var(--ink); stroke-width: 3.5; }
-.system-hex.current .subsector-system-name, .system-hex.current .subsector-hex-coordinate { fill: var(--ink); }
+/* v0.350.0 (Kurt, Sep 2026): where the party is — the one solid red thing on
+   the map (this rule used to turn it heavy black). */
+.system-hex.current .subsector-hex-shape { stroke: var(--red); stroke-width: 3.5; fill: color-mix(in srgb, var(--red) 12%, transparent); }
+.system-hex.current .subsector-system-name, .system-hex.current .subsector-hex-coordinate { fill: var(--red); font-weight: 700; }
 .system-hex.selected .subsector-hex-shape { stroke: var(--travel-edge); stroke-width: 2.5; stroke-dasharray: 6 4; }
 .map-legend li.key-group { display: block; margin-top: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
 .map-legend .key-icon { overflow: visible; }
@@ -1670,3 +1671,13 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .port-business { border-top: 1px solid var(--ink); padding-top: 10px; }
 .port-business > summary { display: flex; justify-content: space-between; cursor: pointer; color: var(--ink-2); font-size: 14px; min-height: 28px; }
 .port-business[open] > summary { margin-bottom: 10px; }
+
+/* v0.350.0: the ship mark where the party is; "!" for a job, "?" for a lead. */
+.map-here-ship { fill: var(--red); stroke: var(--paper, #fff); stroke-width: 1; }
+.map-mark { cursor: help; }
+.map-mark-disc { stroke-width: 1.5; }
+.map-mark.is-job .map-mark-disc { fill: #7a3b12; stroke: #7a3b12; }
+.map-mark.is-job .map-mark-glyph { fill: #fff; }
+.map-mark.is-lead .map-mark-disc { fill: var(--raise, #fff); stroke: var(--signal); }
+.map-mark.is-lead .map-mark-glyph { fill: var(--signal); }
+.map-mark-glyph { font: 700 10px var(--display, monospace); pointer-events: none; }

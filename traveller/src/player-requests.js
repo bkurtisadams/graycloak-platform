@@ -77,7 +77,12 @@ export function playerSituation(view, { mode = 'person' } = {}) {
     jobs: (view.jobs ?? []).map((job) => ({ id: text(job.id), title: text(job.title), to: text(job.to), payCr: Number(job.payCr ?? 0), due: text(job.due), urgent: Boolean(job.urgent) })),
     patrons, person,
     courseId: text(view.destinationId ?? view.scene?.courseId),
-    canSetCourse: mode === 'game' && Boolean(view.scene?.canSetCourse)
+    canSetCourse: mode === 'game' && Boolean(view.scene?.canSetCourse),
+    // v0.350.0: "!" and "?" on the player's map.
+    marks: view.scene?.marks ? {
+      jobs: (view.scene.marks.jobs ?? []).map((entry) => ({ systemId: text(entry.systemId), title: text(entry.title), due: text(entry.due) })),
+      leads: (view.scene.marks.leads ?? []).map((entry) => ({ systemId: text(entry.systemId), text: text(entry.text), how: text(entry.how) }))
+    } : null
   };
 }
 

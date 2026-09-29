@@ -675,6 +675,16 @@ berthing past six days, salaries) reach `play.html` with it.
   chosen or declared count first); ties by the better throw, then the
   nearer. Nothing reachable: close on the nearest, as before. Graycloak
   policy (npc-tactics.js SPREAD_TOLERANCE); the books give no NPC tactics.
+- The map (Kurt, Sep 2026; v0.350.0). Reachable worlds no longer pulse:
+  the blue fill says it. Where the party is is the one solid red thing on
+  the map — a thick red outline, a red tint, the name in red, and a red
+  ship mark in the hex's lower left (dashes already mean off-lane reach
+  and the chosen course). "!" (a solid badge) at every accepted job's
+  world; "?" (an outlined badge) at every open lead's, "?2" for two; true
+  and false leads look the same. Hover: the job and its days left, or the
+  rumour's words and what to do. Both on the referee's map and the
+  player's page. Not "$": Traveller's money is the credit, and a job is
+  about where the work is.
 - NPCs act on their own when the game referees (Kurt, Sep 2026: 12
   fugitives stood holding fire; v0.344.0). Since v0.255.0 nobody targets
   anybody until told (Auto-target is the option). With no person

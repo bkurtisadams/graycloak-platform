@@ -2361,6 +2361,23 @@ function encounterReactionDM(resolved, profile) {
 
 const article = (word) => (/^[aeiou]/i.test(String(word)) ? 'an' : 'a');
 
+// v0.350.0 (Kurt, Sep 2026): what the map marks — "!" at every accepted
+// job's world, "?" at every open lead's. The words are the rumour's own; its
+// truth is never shown.
+const LEAD_HOW = Object.freeze({ patron: 'look for patrons there', find: 'search there', tip: 'sell it there' });
+export function mapMarks(resolved) {
+  const now = resolved.campaign.time;
+  let day = null;
+  try { day = campaignDayNumber(now); } catch { day = null; }
+  const jobs = (resolved.contracts ?? []).filter((contract) => contract.status === 'accepted' && contract.destination?.systemId).map((contract) => {
+    let left = null;
+    try { left = campaignDayNumber(contract.timing.deadlineDate) - day; } catch { left = null; }
+    return { systemId: contract.destination.systemId, title: contract.identity.title, due: left === null ? null : left < 0 ? 'past its deadline' : `${left} day${left === 1 ? '' : 's'} left` };
+  });
+  const leads = day === null ? [] : openLeads(personState(resolved.campaign).rumors, day).map((rumor) => ({ systemId: rumor.lead.systemId, text: rumor.text, how: LEAD_HOW[rumor.lead.kind] ?? null }));
+  return { jobs, leads };
+}
+
 // v0.349.0 (Kurt, Sep 2026; design.md 9.8): the job card — the staged job in
 // hand (the one here first, else the nearest deadline), its stages as steps,
 // and the one thing to do next.
@@ -7956,7 +7973,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       return {
         ...state, ...procedure,
         situation: { kind: 'port', title: 'Port call', detail: state.place.name },
-        scene: { ...sceneBase, selectedId: selectedSystemId ?? procedure.destinationId, courseId: procedure.destinationId, canSetCourse: writable && !procedure.next.title.startsWith('A fight'), world: procedure.world },
+        scene: { ...sceneBase, selectedId: selectedSystemId ?? procedure.destinationId, courseId: procedure.destinationId, canSetCourse: writable && !procedure.next.title.startsWith('A fight'), world: procedure.world, marks: mapMarks(resolved) },
         save, notice: lastMessage
       };
     }
