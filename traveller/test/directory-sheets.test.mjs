@@ -2455,3 +2455,24 @@ test('v0.351.0 the bands take the larger share; the combatants scroll in their o
   assert.match(css, /\.fight-shell > \.fight-orders \{ flex: 1 1 42%; min-height: 160px; overflow: auto; \}/);
   assert.match(css, /\.fight-orders \.fight-actions \{ position: sticky; bottom: 0;/);
 });
+
+// v0.352.0 (Kurt, Sep 2026): the board shows room behind the party to back into.
+test('v0.352.0 the range board starts three bands behind the rearmost token', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  session.run('fight:setup');
+  session.run('fight:place', { fight: { value: { kind: 'character', id: me, column: 15 } } });
+  session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 20 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { bandsScene } = await import('../client/play-views.js');
+  const state = session.view();
+  const [bar, svg] = bandsScene({ ...state, sheetRows: [] }, { onSelectMarker() {}, onBandZoom() {} });
+  document.querySelector('main').append(bar, svg);
+  const me1 = [...svg.querySelectorAll('.marker.is-party')][0];
+  assert.match(me1.getAttribute('aria-label'), /band 4$/, 'three bands drawn behind the party');
+  assert.match(bar.textContent, /15 from the nearest enemy is escaped/);
+});

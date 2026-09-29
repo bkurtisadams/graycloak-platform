@@ -15,7 +15,7 @@ import {
   rangeBandForBandGap,
   encounterPairRange,
   importEncounterDocument,
-  ENCOUNTER_RANGE_LINE_BAND_GAP,
+  ENCOUNTER_RANGE_LINE_BAND_GAP, ENCOUNTER_RANGE_LINE_PARTY_START,
   ENCOUNTER_RANGE_LINE_ESCAPE_BANDS,
   ENCOUNTER_RANGE_LINE_COLUMNS,
   ENCOUNTER_RANGE_LINE_GUIDE_VERSION
@@ -83,11 +83,13 @@ test('spatialMode: range-line builds Book 1\'s single-row line instead of a gene
   });
   const party = encounter.combatants.find((entry) => entry.side === 'party');
   const sniper = encounter.combatants.find((entry) => entry.side === 'opposition');
-  // The party anchors the line at 0; the opposition starts at the far edge
-  // of the rolled/chosen named range — long's edge is 9 bands (Book 1 p.29).
-  assert.deepEqual(party.position, { column: 0, row: 0 });
+  // v0.352.0: the party starts fifteen bands in, room to back away and
+  // escape; the opposition at the far edge of the rolled/chosen named range
+  // from there — long's edge is 9 bands (Book 1 p.29).
+  assert.deepEqual(party.position, { column: ENCOUNTER_RANGE_LINE_PARTY_START, row: 0 });
+  assert.equal(ENCOUNTER_RANGE_LINE_PARTY_START, 15);
   assert.equal(sniper.position.row, 0);
-  assert.equal(sniper.position.column, ENCOUNTER_RANGE_LINE_BAND_GAP.long);
+  assert.equal(sniper.position.column, ENCOUNTER_RANGE_LINE_PARTY_START + ENCOUNTER_RANGE_LINE_BAND_GAP.long);
   assert.equal(encounterPairRange(party, sniper, 'range-line'), 'long');
 });
 
@@ -108,15 +110,31 @@ test('closing walks one band, running closes two, matching Book 1 p.29\'s line-g
   });
   const party = encounter.combatants.find((entry) => entry.side === 'party');
   const thug = encounter.combatants.find((entry) => entry.side === 'opposition');
-  assert.equal(thug.position.column, ENCOUNTER_RANGE_LINE_BAND_GAP['very-long']);
+  assert.equal(thug.position.column, ENCOUNTER_RANGE_LINE_PARTY_START + ENCOUNTER_RANGE_LINE_BAND_GAP['very-long']);
   encounter = declareEncounterAction(encounter, { action: 'close', actorId: party.id, targetId: thug.id }).encounter;
   encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1]), date: { year: 4800, dayOfYear: 141 } }).encounter;
   const afterWalk = encounter.combatants.find((entry) => entry.id === party.id);
-  assert.equal(afterWalk.position.column, 1, 'walking closes exactly one band');
+  assert.equal(afterWalk.position.column, ENCOUNTER_RANGE_LINE_PARTY_START + 1, 'walking closes exactly one band');
   encounter = declareEncounterAction(encounter, { action: 'close-run', actorId: party.id, targetId: thug.id }).encounter;
   encounter = resolveDeclaredRound(encounter, { dice: sequenceDice([1, 1, 1, 1]), date: { year: 4800, dayOfYear: 141 } }).encounter;
   const afterRun = encounter.combatants.find((entry) => entry.id === party.id);
-  assert.equal(afterRun.position.column, 3, 'running closes exactly two bands');
+  assert.equal(afterRun.position.column, ENCOUNTER_RANGE_LINE_PARTY_START + 3, 'running closes exactly two bands');
+});
+
+// v0.352.0 (Kurt, Sep 2026): backing away while firing — a walk opens one
+// band and the attack still goes; running opens two with no attack.
+test('v0.352.0 the party can open range from its start, firing at a walk', async () => {
+  const { campaign, character } = await fixture();
+  const date = { year: 4800, dayOfYear: 141 };
+  let encounter = createEncounterDocument({ campaign, character, opponent: { name: 'Thug' }, spatialMode: 'range-line', date, range: 'short', dice: sequenceDice([6, 1]) });
+  const party = encounter.combatants.find((entry) => entry.side === 'party');
+  const thug = encounter.combatants.find((entry) => entry.side === 'opposition');
+  encounter = declareEncounterAction(encounter, { action: 'open', actorId: party.id, targetId: thug.id }).encounter;
+  encounter = declareEncounterAction(encounter, { action: 'wait', actorId: thug.id }).encounter;
+  encounter = resolveDeclaredRound(encounter, { dice: sequenceDice(Array(12).fill(3)), date }).encounter;
+  const after = encounter.combatants.find((entry) => entry.id === party.id);
+  assert.equal(after.position.column, ENCOUNTER_RANGE_LINE_PARTY_START - 1, 'one band back, not stuck at the edge');
+  assert.ok(encounter.history.some((entry) => entry.round === 1 && entry.actorId === party.id && /attack|hits|misses/i.test(entry.text ?? '')), 'and fired');
 });
 
 test('moving fifteen bands from the nearest enemy escapes, per Book 1 p.29, not the scene\'s twenty-band/500m threshold', async () => {

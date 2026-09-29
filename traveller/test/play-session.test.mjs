@@ -1805,8 +1805,9 @@ test('v0.318.0 a person encounter waits on the campaign, goes on the board as st
   assert.equal(ids.length, pending.quantity);
   const actor = after.npcActors.find((entry) => entry.identity.id === ids.at(-1));
   assert.equal(actor.characteristics.STR, pending.characteristics.strength);
-  // The first carries the extraordinary weapon; with a group of one, that is the last too.
-  assert.equal(actor.loadout.weaponKey, pending.quantity === 1 && pending.extraordinary ? pending.extraordinary : pending.weapon);
+  // The first is the leader (1982 list) or carries the extraordinary weapon
+  // (1977); with a group of one, that is the last too.
+  assert.equal(actor.loadout.weaponKey, pending.quantity === 1 && pending.leader ? pending.leader.weapon : pending.quantity === 1 && pending.extraordinary ? pending.extraordinary : pending.weapon);
   assert.ok(session.view().personEncounter.actions.some((action) => action.command === 'persons:clear'));
   assert.equal(session.run('persons:clear').ok, true);
   assert.equal(personState(registry.resolveCampaign(campaignId).campaign).pending, null);

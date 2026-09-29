@@ -99,7 +99,7 @@ import {
   ESCAPE_TARGET, ESCAPE_RANGE_DMS, avoidEncounter, rangeBandForBandGap, addEncounterCombatantFromCharacter, addEncounterCombatantFromActor,
   repositionEncounterCombatant, removeEncounterCombatant, beginEncounter, setEncounterOpeningRange, moraleStanding, setEncounterMorale,
   setCombatantWeapon, setCombatantArmor, allocateRoundWound, createEncounterDocument, declareEncounterAction, endEncounterByReferee,
-  opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction, undeclaredCombatantIds
+  opponentSpecFromNpcActor, pendingWoundAllocation, resolveDeclaredRound, undeclareEncounterAction, undeclaredCombatantIds, ENCOUNTER_RANGE_LINE_PARTY_START
 } from './encounter-document.js';
 import { addEncounterToCampaign, removeEncounterFromCampaign, addNpcActorToCampaign, removeNpcActorFromCampaign, addContractToCampaign } from './campaign-document.js';
 import { createContractDocument, completeContractDocument, failContractDocument } from './contract-document.js';
@@ -6575,7 +6575,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           // with the party, not every character in the campaign.
           if (!encounter.combatants.some((entry) => entry.side === 'party')) {
             for (const character of surfaceParty(resolved)) {
-              encounter = addEncounterCombatantFromCharacter(encounter, { character, column: 0, row: 0, gravityFactor }).encounter;
+              encounter = addEncounterCombatantFromCharacter(encounter, { character, column: ENCOUNTER_RANGE_LINE_PARTY_START, row: 0, gravityFactor }).encounter;
             }
           }
           const before = new Set(encounter.combatants.map((entry) => entry.id));

@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.351.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.351.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.351.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS } from '../src/encounter-document.js?v=v0.351.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.352.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.352.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.352.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.352.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.90.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.351.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.351.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.351.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.352.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.352.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.352.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.351.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.351.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.352.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.352.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.351.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.352.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1635,14 +1635,21 @@ export function bandsScene(state, handlers) {
   // read ranges from; the bands then read from band 1.
   const reader = state.fighters.find((fighter) => fighter.id === state.scene.selected) ?? state.fighters[0] ?? null;
   const edge = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS + 1;
-  const furthest = state.fighters.reduce((most, fighter) => Math.max(most, Number(fighter.band ?? 0)), 0);
+  // v0.352.0 (Kurt, Sep 2026): the board is a window on the line, starting a
+  // few bands behind the rearmost token, so there is room drawn to back away
+  // into. Band numbers count from the window's left edge.
+  const bands = state.fighters.map((fighter) => Number(fighter.band ?? 0));
+  const rearmost = bands.length ? Math.min(...bands) : 0;
+  const furthest = bands.length ? Math.max(...bands) : 0;
+  const BEHIND = 3;
   // Room to drag someone a few bands out while setting up, and to see where
   // the next band or two of movement lands; never fewer than eight.
-  const fitted = Math.min(edge, Math.max(8, furthest + 4));
+  const fitted = Math.min(edge, Math.max(8, furthest - Math.max(0, rearmost - BEHIND) + 4));
   // v0.257.0: the referee can zoom — out to the whole field to show how far
   // the edge is, or in on a few bands. state.bandsShown is that choice; left
   // unset the board fits the bands in play.
   const shown = Math.max(3, Math.min(edge, Number(state.bandsShown) || fitted));
+  const first = Math.max(0, Math.min(rearmost - BEHIND, ENCOUNTER_RANGE_LINE_COLUMNS - shown));
   // v0.265.0: a crowded band widens instead of the whole board shrinking.
   // The board used to grow taller with the deepest stack, and since it is
   // drawn to fit its box, eleven Mercenaries in one band shrank every token
@@ -1657,7 +1664,7 @@ export function bandsScene(state, handlers) {
   const rowH = (height - ribbon - 12 - foot) / ROWS;
   const baseW = 1200 / shown;
   const perBand = new Map();
-  for (const fighter of state.fighters) perBand.set(fighter.band, (perBand.get(fighter.band) ?? 0) + 1);
+  for (const fighter of state.fighters) perBand.set(fighter.band - first, (perBand.get(fighter.band - first) ?? 0) + 1);
   const subColumns = (band) => Math.max(1, Math.ceil((perBand.get(band) ?? 0) / ROWS));
   const bandW = [];
   const bandX = [];
@@ -1674,7 +1681,7 @@ export function bandsScene(state, handlers) {
   // The range names across the top, read from the selected token.
   const spans = [];
   for (let band = 0; band < shown; band += 1) {
-    const gap = Math.abs(band - (reader?.band ?? 0));
+    const gap = Math.abs(band + first - (reader?.band ?? first));
     const name = gap >= ENCOUNTER_RANGE_LINE_ESCAPE_BANDS ? 'Out of range' : RANGE_NAMES[rangeBandForBandGap(gap)];
     const last = spans[spans.length - 1];
     if (last && last.name === name) last.to = band; else spans.push({ name, from: band, to: band, own: gap === 0 });
@@ -1688,7 +1695,7 @@ export function bandsScene(state, handlers) {
     svg.append(label);
   }
   for (let band = 0; band < shown; band += 1) {
-    const gap = Math.abs(band - (reader?.band ?? 0));
+    const gap = Math.abs(band + first - (reader?.band ?? first));
     const rect = createSvgNode('rect', { x: bandX[band], y: ribbon + 4, width: bandW[band], height: height - ribbon - 4 - foot, class: `band${gap === 0 ? ' is-own' : ''}` });
     bandRects.push(rect);
     svg.append(rect);
@@ -1705,7 +1712,7 @@ export function bandsScene(state, handlers) {
   const at = new Map();
   const placed = new Map();
   for (const fighter of state.fighters) {
-    const band = Number(fighter.band ?? 0);
+    const band = Number(fighter.band ?? 0) - first;
     const index = placed.get(band) ?? 0;
     placed.set(band, index + 1);
     const row = index % ROWS;
@@ -1728,7 +1735,7 @@ export function bandsScene(state, handlers) {
     const down = isDown(fighter);
     const group = createSvgNode('g', {
       class: `marker is-${fighter.side}${down ? ' is-down' : ''}${fighter === reader ? ' is-selected' : ''}`,
-      role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band + 1}`
+      role: 'button', tabindex: '0', 'aria-label': `${fighter.name}, band ${fighter.band - first + 1}`
     });
     // The selected token wears a ring, so which one is selected can be read
     // off the board itself (Kurt, Sep 2026).
@@ -1767,7 +1774,7 @@ export function bandsScene(state, handlers) {
           if (lit === band) return;
           if (lit !== null) bandRects[lit]?.classList.remove('is-drop');
           lit = band;
-          if (lit !== null && lit !== fighter.band) bandRects[lit]?.classList.add('is-drop');
+          if (lit !== null && lit !== fighter.band - first) bandRects[lit]?.classList.add('is-drop');
         };
         const move = (moved) => {
           if (Math.abs(moved.clientX - start) > 6) { group.dataset.dragged = '1'; group.classList.add('is-dragging'); }
@@ -1784,7 +1791,7 @@ export function bandsScene(state, handlers) {
           group.removeAttribute('transform');
           if (!group.dataset.dragged) return;
           const band = bandAt(svg, released.clientX, released.clientY, bandX, bandW);
-          if (band !== null && band !== fighter.band) handlers.onRepositionToken?.(fighter.id, band);
+          if (band !== null && band + first !== fighter.band) handlers.onRepositionToken?.(fighter.id, band + first);
         };
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', drop);
@@ -1802,14 +1809,14 @@ export function bandsScene(state, handlers) {
       try { data = JSON.parse(event.dataTransfer.getData('application/x-traveller-actor') || 'null'); } catch { data = null; }
       if (!data) return;
       const band = bandAt(svg, event.clientX, event.clientY, bandX, bandW);
-      if (band !== null) handlers.onDropActor?.(data, band);
+      if (band !== null) handlers.onDropActor?.(data, band + first);
     });
   }
   const zoom = (next) => handlers.onBandZoom?.(next);
   return [
     h('div', { class: 'band-bar' },
       h('p', { class: 'scene-title', text: reader
-        ? `Ranges read from ${reader.name}. Bands 1\u2013${shown} of ${ENCOUNTER_RANGE_LINE_ESCAPE_BANDS} shown; one band a round, two at a run.`
+        ? `Ranges read from ${reader.name}. ${shown} bands shown; one band a round, two at a run; ${ENCOUNTER_RANGE_LINE_ESCAPE_BANDS} from the nearest enemy is escaped.`
         : 'Drag characters and actors from the Actors tab onto a band.' }),
       h('span', { class: 'band-zoom', role: 'group', 'aria-label': 'Zoom the band line' },
         h('button', { type: 'button', class: 'button is-small', 'aria-label': 'Show fewer bands', disabled: shown <= 3, text: '+', onclick: () => zoom(Math.max(3, shown - 2)) }),

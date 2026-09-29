@@ -65,6 +65,12 @@ export const ENCOUNTER_RANGE_LINE_BAND_GAP = Object.freeze({ close: 0, short: 1,
 // "A character which moves 15 bands away ... is out of range, and has escaped."
 export const ENCOUNTER_RANGE_LINE_ESCAPE_BANDS = 15;
 export const ENCOUNTER_RANGE_LINE_COLUMNS = 41;
+// v0.352.0 (Kurt, Sep 2026: "What if the PCs want to back away?"): the party
+// starts fifteen bands in from the line's left end, so it can open range —
+// firing as it goes, at a walk — and escape (fifteen bands from the nearest
+// enemy, p.29) on its own side too. It used to start at band 0, where opening
+// was clamped to nothing.
+export const ENCOUNTER_RANGE_LINE_PARTY_START = ENCOUNTER_RANGE_LINE_ESCAPE_BANDS;
 // v0.94.0: 'setup' is the phase Foundry's tracker occupies — the encounter
 // exists and collects combatants, and BEGIN COMBAT turns it into a fight. Our
 // document required two combatants with opposing sides at creation, which is
@@ -141,7 +147,8 @@ function initialPosition(side, index, total, range, { columns, rows, gridScale, 
   // the far edge of the rolled/chosen range for the opposition, mirroring how
   // the scene board already uses each named range's far edge as "placement".
   if (spatialMode === 'range-line') {
-    const column = side === 'party' ? 0 : clamp(ENCOUNTER_RANGE_LINE_BAND_GAP[range], 0, columns - 1);
+    const start = Math.min(ENCOUNTER_RANGE_LINE_PARTY_START, Math.max(0, columns - 1 - ENCOUNTER_RANGE_LINE_BAND_GAP['very-long']));
+    const column = side === 'party' ? start : clamp(start + ENCOUNTER_RANGE_LINE_BAND_GAP[range], 0, columns - 1);
     return { column, row: 0 };
   }
   const spacing = gridScale * 2;

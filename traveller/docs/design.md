@@ -675,6 +675,15 @@ berthing past six days, salaries) reach `play.html` with it.
   chosen or declared count first); ties by the better throw, then the
   nearer. Nothing reachable: close on the nearest, as before. Graycloak
   policy (npc-tactics.js SPREAD_TOLERANCE); the books give no NPC tactics.
+- Backing away (Kurt, Sep 2026; v0.352.0). On the range line the party
+  started at band 0, the line's left end, so opening range was clamped to
+  nothing and the party could never back off or escape by opening. It now
+  starts fifteen bands in (ENCOUNTER_RANGE_LINE_PARTY_START, the escape
+  distance), the opposition at the rolled range from there. Opening at a
+  walk moves one band back and the attack still goes; at a run, two bands
+  and no attack (Book 1 p.29). The board is a window on the line starting
+  three bands behind the rearmost token, so there is room drawn to back
+  into; band numbers count from its left edge.
 - The fight screen (Kurt, Sep 2026; v0.351.0): the range bands take the
   larger share of the screen (about 58%, at least 320px); the combatants'
   table below is compact (single-line rows, the weapon's notes beside its
