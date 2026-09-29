@@ -675,6 +675,13 @@ berthing past six days, salaries) reach `play.html` with it.
   chosen or declared count first); ties by the better throw, then the
   nearer. Nothing reachable: close on the nearest, as before. Graycloak
   policy (npc-tactics.js SPREAD_TOLERANCE); the books give no NPC tactics.
+- The fight screen (Kurt, Sep 2026; v0.351.0): the range bands take the
+  larger share of the screen (about 58%, at least 320px); the combatants'
+  table below is compact (single-line rows, the weapon's notes beside its
+  list) and scrolls in its own box with its header and Resolve kept in
+  view. NPCs out of reach spread when they close, as they do when they
+  shoot (fourteen rowdies had all run at Hawkeye). Reactions read
+  "hostile, may attack", not "hostile. may attack".
 - The map (Kurt, Sep 2026; v0.350.0). Reachable worlds no longer pulse:
   the blue fill says it. Where the party is is the one solid red thing on
   the map — a thick red outline, a red tint, the name in red, and a red

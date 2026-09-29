@@ -4843,8 +4843,8 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
               const law = portExtras(resolved, subsector).world?.law ?? null;
               personPatch = { pending: personEncounterRecord(dice, encounter, { date, worldName: personWhere.worldName, law, lawLevel }) };
               personNote = legalHit
-                ? `Legal encounter on ${date} (${personWhere.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
-                : `Person encounter on ${date} (${personWhere.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').toLowerCase()} (The Traveller Book pp.99-101). The clock stopped here.`;
+                ? `Legal encounter on ${date} (${personWhere.worldName}): a local enforcer stops the party and asks for identification, ${encounter.reaction.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()} (The Traveller Book p.99). The clock stopped here.`
+                : `Person encounter on ${date} (${personWhere.worldName}): ${describePersonEncounter(personPatch.pending)}, ${encounter.reaction.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()} (The Traveller Book pp.99-101). The clock stopped here.`;
               if (legalHit) {
                 const favour = enforcerFavour(dice, encounter.reaction, { date, day: hitDay });
                 if (favour) { Object.assign(personPatch, favour.patch); personNote += ` ${favour.note}`; }
@@ -5941,7 +5941,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             patron = { date: today, worldName: system.name, systemId: system.id, listKey, code: 'lead', fromRumor: true, type: led.patronType,
               reaction: { total: reaction.total, description: reaction.description }, speaker: speaker?.identity.name ?? null, dms: [],
               draft: refereeMode(resolved.campaign) === 'game' ? { ...draftPatronMission(dice, { patronType: led.patronType, candidates: missionCandidates(subsector, system.id) }) } : null };
-            lines.push(`the ${led.patronType.toLowerCase()} the rumour spoke of, ${reaction.description.replace(/\.$/, '').toLowerCase()}`);
+            lines.push(`the ${led.patronType.toLowerCase()} the rumour spoke of, ${reaction.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()}`);
             log('ENCOUNTER', `The ${led.patronType.toLowerCase()} the rumour spoke of is on ${system.name}, hiring.`);
           } else if (found.found) {
             const rolled = rollPatron(dice, { listKey, firstDM: dms.first, secondDM: dms.second, reactionDM: encounterReactionDM(resolved, profile) });
@@ -5952,7 +5952,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
                 dms: [...dms.parts.first.map((part) => `${part.label} ${signed(part.dm)} first die`), ...dms.parts.second.map((part) => `${part.label} ${signed(part.dm)} second die`)],
                 // v0.322.0: solo, the game decides what the patron wants.
                 draft: refereeMode(resolved.campaign) === 'game' ? { ...draftPatronMission(dice, { patronType: rolled.type, candidates: missionCandidates(subsector, system.id) }) } : null };
-              lines.push(`a patron: ${rolled.type.toLowerCase()} (${rolled.code}, list ${listKey}), ${rolled.reaction.description.replace(/\.$/, '').toLowerCase()}`);
+              lines.push(`a patron: ${rolled.type.toLowerCase()} (${rolled.code}, list ${listKey}), ${rolled.reaction.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()}`);
             }
           }
           // v0.343.0 (Kurt, Sep 2026): the party's best Streetwise-1+ is
@@ -6236,7 +6236,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const record = personEncounterRecord(dice, encounter, { date: today, worldName: system.name, law, lawLevel: Number(worldProfile?.lawLevel ?? 0) });
           registry.put(withPersonState(resolved.campaign, { pending: record }));
           reload();
-          const message = `Person encounter on ${system.name}: ${describePersonEncounter(record)}, ${record.reaction.description.replace(/\.$/, '').toLowerCase()} (Book 3 pp.19-21).`;
+          const message = `Person encounter on ${system.name}: ${describePersonEncounter(record)}, ${record.reaction.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()} (Book 3 pp.19-21).`;
           log('ENCOUNTER', message);
           return finish(message);
         }
@@ -6307,7 +6307,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           if (!stance?.attacking && !['hostile', 'violent', 'harassing'].includes(stance?.kind)) {
             const again = rollReaction(createDice(), { dm: encounterReactionDM(resolved, currentWorldProfile(resolved, subsector).profile) });
             reaction = { total: again.total, dice: [...again.dice], description: again.description };
-            note = ` Attacked, their reaction is thrown again: ${again.total}, ${again.description.replace(/\.$/, '').toLowerCase()} (p.102).`;
+            note = ` Attacked, their reaction is thrown again: ${again.total}, ${again.description.replace(/\.$/, '').replace(/\. /g, ', ').toLowerCase()} (p.102).`;
           }
           const lawAfter = !stance?.attacking && !['hostile', 'violent', 'harassing'].includes(stance?.kind);
           registry.put(withPersonState(resolved.campaign, { pending: { ...fresh, reaction, fighting: true, lawAfter } }));

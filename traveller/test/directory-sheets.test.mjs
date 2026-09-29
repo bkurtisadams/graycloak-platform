@@ -2429,3 +2429,29 @@ test('v0.350.0 the map marks jobs and leads and draws where the party is', async
   const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /animation: beckon/);
 });
+
+// v0.351.0 (Kurt, Sep 2026: fourteen rowdies ran at Hawkeye): closing spreads too.
+test('v0.351.0 NPCs out of reach run at different enemies, not all at one', async () => {
+  const { session, registry, campaignId } = await freshSession();
+  const first = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  session.run('character:copy', { fight: { id: first } });
+  session.run('character:copy', { fight: { id: first } });
+  const characters = registry.resolveCampaign(campaignId).characters.slice(0, 3).map((entry) => entry.identity.id);
+  const thug = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  session.run('fight:setup');
+  for (const id of characters) session.run('fight:place', { fight: { value: { kind: 'character', id, column: 0 } } });
+  for (let copy = 0; copy < 4; copy += 1) session.run('fight:place', { fight: { value: { kind: 'actor', id: thug, column: 14 } } });
+  session.run('fight:begin', { fight: { value: { surprise: 'none' } } });
+  const { sheetRows } = await import('../client/play-views.js');
+  const npc = sheetRows({ ...session.view(), autoTarget: true }, {}).filter((row) => row.fighter.side !== 'party' && row.targetId);
+  assert.ok(npc.length >= 3);
+  assert.ok(npc.every((row) => /^Close/.test(row.move)), npc.map((row) => row.move).join());
+  assert.ok(new Set(npc.map((row) => row.targetId)).size >= 3, 'three enemies, three targets');
+});
+
+test('v0.351.0 the bands take the larger share; the combatants scroll in their own box, Resolve stays in view', async () => {
+  const css = await readFile(new URL('../client/play.css', import.meta.url), 'utf8');
+  assert.match(css, /\.fight-shell > \.fight-board \{ flex: 1 1 58%; min-height: 320px; \}/);
+  assert.match(css, /\.fight-shell > \.fight-orders \{ flex: 1 1 42%; min-height: 160px; overflow: auto; \}/);
+  assert.match(css, /\.fight-orders \.fight-actions \{ position: sticky; bottom: 0;/);
+});

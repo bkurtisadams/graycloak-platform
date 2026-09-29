@@ -85,6 +85,8 @@ function spreadPick(ranked, assigned) {
   const best = ranked[0];
   if (!assigned) return best;
   const tier = ranked.filter((entry) => entry.reachable && !entry.hopeless && entry.requiredRoll <= best.requiredRoll + SPREAD_TOLERANCE);
+  // Nothing it can hit: no aim counted here (closing counts its own).
+  if (!tier.length) return best;
   const pick = [...tier].sort((left, right) => ((assigned.get(left.enemy.id) ?? 0) - (assigned.get(right.enemy.id) ?? 0))
     || (left.requiredRoll - right.requiredRoll) || (left.distance - right.distance))[0] ?? best;
   assigned.set(pick.enemy.id, (assigned.get(pick.enemy.id) ?? 0) + 1);
@@ -108,7 +110,11 @@ export function chooseNpcDeclaration(encounter, combatant, { assigned = null } =
     };
   }
 
-  const closest = [...ranked].sort((left, right) => left.distance - right.distance)[0];
+  // v0.351.0 (Kurt, Sep 2026: fourteen rowdies all ran at Hawkeye): closing,
+  // too, spreads — among the nearest enemies, the one fewest already head for.
+  const nearest = Math.min(...ranked.map((entry) => entry.distance));
+  const closest = [...ranked].filter((entry) => entry.distance === nearest)
+    .sort((left, right) => ((assigned?.get(left.enemy.id) ?? 0) - (assigned?.get(right.enemy.id) ?? 0)))[0];
   if (assigned && closest) assigned.set(closest.enemy.id, (assigned.get(closest.enemy.id) ?? 0) + 1);
   if (closest) {
     // v0.345.1: nothing in reach at all — run (two bands, no attack, Book 1
