@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OD&amp;D Combat Tester: Grid</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,8 +13,20 @@
   --side-a: #2f5c8a; --side-b: #8a5a17; --card: #fbfdfe; --rock: #3a4552; --floor: #f7fafb;
   --serif: "Source Serif 4", Georgia, serif; --type: "Courier Prime", "Courier New", monospace;
 }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #172029; --grid: #22303c; --ink: #e3eaf0; --pencil: #9aa7b3; --red: #ff7b6b;
+  --side-a: #6fa3d8; --side-b: #d9a85a; --card: #1e2a35; --rock: #0e141a; --floor: #2a3845; } }
+:root[data-theme="dark"] { --paper: #172029; --grid: #22303c; --ink: #e3eaf0; --pencil: #9aa7b3; --red: #ff7b6b; --side-a: #6fa3d8; --side-b: #d9a85a; --card: #1e2a35; --rock: #0e141a; --floor: #2a3845; }
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+select, input, button { background: var(--card) !important; color: var(--ink) !important; }
+button.primary { background: var(--ink) !important; color: var(--card) !important; }
+.card { background: var(--card) !important; }
+.roster tr.sel td { background: rgba(111,163,216,.18) !important; }
+.map-wrap.zoom svg.map { width: 1300px !important; max-width: none; }
+@media (max-width: 700px) { header, main { padding-left: 12px; padding-right: 12px; } h1 { font-size: 1.5rem; } }
 body {
   background-color: var(--paper);
   background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
@@ -24,7 +36,7 @@ header { padding: 20px 24px 8px; max-width: 1400px; margin: 0 auto; }
 h1 { font-size: 1.9rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
 header p { margin: 4px 0 0; color: var(--pencil); max-width: 80ch; }
 main { max-width: 1400px; margin: 0 auto; padding: 12px 24px 40px; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 20px; }
-@media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { main { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--card); border: 1px solid #b7c7d2; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; }
 h2 { font-size: 1.2rem; margin: 0 0 8px; }
 .map-wrap { overflow: auto; border: 1px solid #9fb2c0; border-radius: 4px; background: var(--rock); }
@@ -87,10 +99,12 @@ table.roster { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
         <button id="start" class="primary">Start fight</button>
         <button id="step" disabled>Roll initiative</button>
         <button id="reset" disabled>Reset</button>
+        <label style="white-space:nowrap"><input type="checkbox" id="tapTarget"> Tap enemy to target</label>
+        <button id="zoom">Zoom map</button>
       </div>
       <div class="map-wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg></div>
       <p class="step" id="stepText"></p>
-      <p class="hint">Click a figure to select it; click a highlighted cell to move it (figures may pass through friends, not enemies). Hover an enemy and press T to target it, or right-click it. Esc clears the selection.</p>
+      <p class="hint">A red F or R on a figure means it is attacking its target's flank or rear; the selected figure's panel lists everyone it is engaged with. Tap or click a figure to select it; tap a highlighted cell to move it (figures may pass through friends, not enemies). To target: with "Tap enemy to target" on, select your figure and tap an enemy; on a keyboard, hover an enemy and press T, or right-click it.</p>
     </div>
     <div class="panel">
       <h2>Log</h2>
@@ -415,8 +429,10 @@ const hdOf = (f) => { if (f.kind === "pc") { const h = hitDiceFor(f.cls, f.level
 function resolveMissiles() {
   const cards = []; const plans = [];
   for (const f of state.figures) {
-    if (!active(f) || !f.action || f.action === "melee" || f.target == null) continue;
-    const t = byId(f.target); if (!t || !present(t)) continue;
+    if (!active(f) || !f.action || f.action === "melee") continue;
+    const selfSpell = f.action === "cast:protectionEvil";
+    if (!selfSpell && f.target == null) { cards.push(`<div class="card note">${esc(f.name)} has no target for that action.</div>`); continue; }
+    const t = selfSpell ? f : byId(f.target); if (!t || !present(t)) continue;
     const d = distIn(f, t);
     if (f.action === "fire") {
       if (!f.missile) continue;
@@ -515,7 +531,7 @@ function startFight() {
   const seed = Math.trunc(Number($("#seed").value)) || 1;
   state.rng = mulberry32(seed);
   state.saved = state.figures.map((f) => ({ id: f.id, x: f.x, y: f.y, facing: f.facing }));
-  for (const f of state.figures) { f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
+  for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
   Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set() }); moveSeq = 0;
   $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>`;
   render();
@@ -536,7 +552,7 @@ function nextStep() {
 }
 function resetFight() {
   for (const s of state.saved ?? []) Object.assign(byId(s.id) ?? {}, { x: s.x, y: s.y, facing: s.facing });
-  for (const f of state.figures) { f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; f.status = null; }
+  for (const f of state.figures) { if (f.origSide) f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; f.status = null; }
   Object.assign(state, { phase: "setup", round: 0, step: "init", contacts: new Map(), winner: null, selected: null });
   $("#log").innerHTML = `<p class="empty">Same seed, same positions and same moves replay the same fight.</p>`;
   render();
@@ -564,12 +580,16 @@ function renderMap() {
     const cx = f.x * PX + PX / 2, cy = f.y * PX + PX / 2, col = f.side === "A" ? "var(--side-a)" : "var(--side-b)";
     if (!alive(f)) { parts.push(`<g pointer-events="none" opacity=".5"><line x1="${cx - 5}" y1="${cy - 5}" x2="${cx + 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/><line x1="${cx + 5}" y1="${cy - 5}" x2="${cx - 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/></g>`); continue; }
     const [fx, fy] = DV[f.facing ?? 0];
+    const tt = f.target != null ? byId(f.target) : null;
+    const side = tt && active(f) && present(tt) && adjacent(f, tt) && tt.target !== f.id ? attackFacing({ x: tt.x, y: tt.y }, tt.facing, { x: f.x, y: f.y }) : "front";
+    const badge = side === "rear" ? "R" : side === "leftFlank" || side === "rightFlank" ? "F" : "";
     const isSel = state.selected === f.id;
     parts.push(`<g data-fig="${f.id}" style="cursor:pointer"><title>${esc(f.name)}</title>
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="8.2" fill="none" stroke="var(--red)" stroke-width="2"/>` : ""}
       <circle cx="${cx}" cy="${cy}" r="6.4" fill="${col}"/>
       <line x1="${cx}" y1="${cy}" x2="${cx + fx * 7.5}" y2="${cy + fy * 7.5}" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
       <text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(f.name.replace(/\D/g, "") || f.name[0])}</text>
+      ${badge ? `<g pointer-events="none"><circle cx="${cx - 6}" cy="${cy - 6}" r="3.6" fill="var(--red)"/><text x="${cx - 6}" y="${cy - 4.4}" text-anchor="middle" font-size="5" font-weight="700" fill="#fff">${badge}</text></g>` : ""}
       ${helpless(f) ? `<text x="${cx + 6}" y="${cy - 5}" font-size="9" font-weight="700" fill="var(--red)" pointer-events="none">${f.status === "asleep" ? "z" : "H"}</text>` : ""}</g>`);
   }
   svg.innerHTML = parts.join("");
@@ -609,8 +629,24 @@ function holdPicker(f) {
 function actionsFor(f) {
   const list = [["melee", "Melee"]];
   if (f.missile) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`]);
-  if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft)) list.push([`cast:${sp.id}`, `Cast ${sp.name}`]);
+  if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft)) list.push([`cast:${sp.id}`, `Cast ${sp.name}${sp.id === "protectionEvil" ? " (self)" : ""}`]);
   return list;
+}
+function engagementsOf(f) {
+  const out = [];
+  for (const e of state.figures) {
+    if (!present(e) || e.side === f.side || !adjacent(e, f)) continue;
+    const theyTarget = e.target === f.id && active(e), iTarget = f.target === e.id;
+    if (!theyTarget && !iTarget) continue;
+    const from = theyTarget && !iTarget ? attackFacing({ x: f.x, y: f.y }, f.facing, { x: e.x, y: e.y }) : "front";
+    out.push({ e, from, mutual: theyTarget && iTarget, attacker: theyTarget });
+  }
+  return out;
+}
+function engagedText(f) {
+  const list = engagementsOf(f);
+  if (!list.length) return "nobody";
+  return list.map(({ e, from, mutual, attacker }) => `${esc(e.name)}${mutual ? " (fighting each other)" : attacker ? ` (attacking from ${from === "front" ? "the front" : `the ${FACING_LABEL[from]}`})` : " (you attack; no return)"}`).join("<br>");
 }
 function renderDetail() {
   const el = $("#detail"); const f = state.selected != null ? byId(state.selected) : null;
@@ -624,7 +660,9 @@ function renderDetail() {
     <dt>Hit points</dt><dd>${f.hp == null ? "rolled at start" : `${Math.max(f.hp, 0)} of ${f.maxHp}`}</dd>
     <dt>Move</dt><dd>${mv}" · used ${halfCellsToInches(used)}" · left ${halfCellsToInches(Math.max(0, moveBudget(mv) - used))}"</dd>
     <dt>Can join a melee</dt><dd>${joinOk ? "yes" : "no (moved over half)"}</dd>
-    <dt>Target</dt><dd>${t ? `${esc(t.name)}${adjacent(f, t) ? "" : " (not adjacent)"}` : "none"}</dd></dl>
+    <dt>Target</dt><dd>${t ? `${esc(t.name)}${adjacent(f, t) ? "" : " (not adjacent)"}` : "none"}</dd>
+    <dt>Engaged with</dt><dd>${engagedText(f)}</dd>
+    ${f.pfe ? `<dt>Protected</dt><dd>from evil (−1 to evil attackers)</dd>` : ""}</dl>
     ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
     ${f.action === "cast:holdPerson" ? holdPicker(f) : ""}
     ${f.slotsLeft?.some((n) => n > 0) ? `<div class="note" style="font-size:.85rem">Spell slots left: ${f.slotsLeft.map((n, i) => n > 0 ? `level ${i + 1}: ${n}` : null).filter(Boolean).join(", ")}</div>` : ""}
@@ -661,6 +699,8 @@ const figAt = (el) => { const g = el.closest?.("[data-fig]"); return g ? byId(Nu
 $("#map").addEventListener("click", (e) => {
   hideCtx();
   const f = figAt(e.target);
+  const cur = state.selected != null ? byId(state.selected) : null;
+  if (f && $("#tapTarget").checked && cur && state.phase === "fight" && f.side !== cur.side) { setTarget(cur, f); return; }
   if (f) { state.selected = f.id; render(); return; }
   const cell = e.target.closest?.("[data-cell]"); const sel = state.selected != null ? byId(state.selected) : null;
   if (cell && sel && canMoveNow(sel)) { const [x, y] = cell.dataset.cell.split(",").map(Number); moveTo(sel, x, y); }
@@ -696,6 +736,8 @@ $("#layout").addEventListener("change", (e) => { state.walls = buildWalls(e.targ
 $("#start").addEventListener("click", startFight);
 $("#step").addEventListener("click", nextStep);
 $("#reset").addEventListener("click", resetFight);
+$("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+$("#zoom").addEventListener("click", () => { const w = $(".map-wrap"); w.classList.toggle("zoom"); $("#zoom").textContent = w.classList.contains("zoom") ? "Fit map" : "Zoom map"; });
 
 state.walls = buildWalls("room");
 addCharacter("A", "fighter", 1, "chain+shield", "sword", 10, "shortbow");

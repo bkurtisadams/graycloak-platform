@@ -29,7 +29,9 @@ const CLERIC_MAX = 13;
 
 /** Per-spell-level capacity array for a caster class + level (RAW hard cap). */
 export function slotsFor(rawClass, level) {
-  const isCleric = String(rawClass || "").toLowerCase() === "cleric";
+  const cls = String(rawClass || "").toLowerCase();
+  if (["fighter", "fighting-man", "fightingman", "thief"].includes(cls)) return [];
+  const isCleric = cls === "cleric";
   const table = isCleric ? CLERIC : MU;
   const max = isCleric ? CLERIC_MAX : MU_MAX;
   const lvl = Math.max(1, Math.min(max, Math.floor(Number(level) || 1)));
@@ -43,6 +45,8 @@ export function runSelfTests() {
   const eq = (a, b, msg) => ok(JSON.stringify(a) === JSON.stringify(b), msg);
 
   eq(slotsFor("magic-user", 1), [1], "MU 1 = 1");
+  eq(slotsFor("fighter", 5), [], "fighters have no spell slots");
+  eq(slotsFor("thief", 9), [], "thieves have no spell slots");
   eq(slotsFor("magic-user", 6), [4, 2, 2], "MU 6 Magician = 4/2/2");
   eq(slotsFor("magic-user", 11), [4, 4, 4, 3, 3], "MU 11 Wizard = 4/4/4/3/3");
   eq(slotsFor("magic-user", 12), [4, 4, 4, 4, 4, 1], "MU 12 opens 6th");

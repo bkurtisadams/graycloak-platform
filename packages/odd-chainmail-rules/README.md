@@ -59,6 +59,7 @@ Changes made during extraction:
   and `damageDoubled` on the target; used for held targets (+4, double
   damage) and Protection from Evil (-1). `castingGate` now keys on a hit
   (`hitFirst`), per Kurt's ruling.
+- 0.3.2: `slotsFor` returns no spell slots for Fighting-Men and Thieves.
 
 ## Open items
 
