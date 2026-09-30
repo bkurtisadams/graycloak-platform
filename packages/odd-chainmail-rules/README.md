@@ -46,6 +46,12 @@ Changes made during extraction:
   an ogre in a two-way exchange hit for 1d6 instead of 1d6+2 and gained
   weapon-speed blows it shouldn't have.
 
+- 0.2.0: new `engagement.mjs` for grid combat: movement budget in 3⅓'
+  cells (1" indoors = 3 cells; diagonals 1½), reachable cells around walls,
+  adjacency, facing from position (front, left or right flank, rear), the
+  Chainmail p.16 half-move join rule, and melee rounds counted from first
+  contact.
+
 ## Open items
 
 - Spellcasting: rebuild the casting resolver without Chainmail spell

@@ -12,6 +12,7 @@ export * from "./src/dice.mjs";
 export * from "./src/encounter-settlement.mjs";
 export * from "./src/encounter-xp.mjs";
 export * from "./src/encumbrance.mjs";
+export * from "./src/engagement.mjs";
 export * from "./src/equipment.mjs";
 export * from "./src/facing.mjs";
 export * from "./src/fighting-capability.mjs";

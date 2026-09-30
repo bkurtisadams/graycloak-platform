@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OD&amp;D Combat Tester: Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #edf2f4; --grid: #c9d8e2; --ink: #1f2b38; --pencil: #66717d; --red: #b3362b;
+  --side-a: #2f5c8a; --side-b: #8a5a17; --card: #fbfdfe; --rock: #3a4552; --floor: #f7fafb;
+  --serif: "Source Serif 4", Georgia, serif; --type: "Courier Prime", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 16px 16px; color: var(--ink); font: 16px/1.5 var(--serif);
+}
+header { padding: 20px 24px 8px; max-width: 1400px; margin: 0 auto; }
+h1 { font-size: 1.9rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+header p { margin: 4px 0 0; color: var(--pencil); max-width: 80ch; }
+main { max-width: 1400px; margin: 0 auto; padding: 12px 24px 40px; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); gap: 20px; }
+@media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+.panel { background: var(--card); border: 1px solid #b7c7d2; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; }
+h2 { font-size: 1.2rem; margin: 0 0 8px; }
+.map-wrap { overflow: auto; border: 1px solid #9fb2c0; border-radius: 4px; background: var(--rock); }
+svg.map { display: block; user-select: none; width: 100%; height: auto; }
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.bar label { color: var(--pencil); font-size: 0.9rem; }
+select, input, button { font: inherit; font-size: 0.9rem; color: var(--ink); }
+select, input { border: 1px solid #9fb2c0; border-radius: 4px; padding: 3px 5px; background: #fff; max-width: 100%; }
+input[type=number] { width: 4.2em; }
+button { border: 1px solid var(--ink); background: #fff; border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+button.primary { background: var(--ink); color: #fff; }
+button:disabled { opacity: 0.4; cursor: default; }
+button.x { border: none; background: none; color: var(--pencil); padding: 2px 6px; }
+:focus-visible { outline: 2px solid var(--side-a); outline-offset: 2px; }
+.step { font-family: var(--type); font-size: 1rem; margin: 6px 0 0; }
+.step b { color: var(--red); }
+.hint { color: var(--pencil); font-size: 0.88rem; margin: 6px 0 0; }
+table.roster { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.roster th { text-align: left; font-weight: 600; color: var(--pencil); padding: 2px 4px; }
+.roster td { padding: 3px 4px; border-top: 1px dotted #c5d1d9; }
+.roster tr.down td { color: var(--pencil); text-decoration: line-through; }
+.roster tr.sel td { background: #e3edf5; }
+.roster tr { cursor: pointer; }
+.hp, .mono { font-family: var(--type); white-space: nowrap; }
+.a-name { color: var(--side-a); font-weight: 600; }
+.b-name { color: var(--side-b); font-weight: 600; }
+.adders { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 8px; font-size: 0.9rem; }
+.detail { font-size: 0.92rem; }
+.detail dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 6px 0; }
+.detail dt { color: var(--pencil); }
+.detail dd { margin: 0; font-family: var(--type); }
+#log { font-family: var(--type); font-size: 0.86rem; max-height: 60vh; overflow-y: auto; }
+.round-head { font-family: var(--serif); font-weight: 700; font-size: 1.05rem; margin: 14px 0 6px; border-bottom: 1px solid var(--ink); }
+.round-head span { font-weight: 400; color: var(--pencil); font-size: 0.9rem; }
+.card { border: 1px solid #c5d1d9; border-radius: 4px; padding: 6px 8px; margin: 6px 0; background: #fff; }
+.card .who { font-weight: 700; }
+.card .who .a { color: var(--side-a); } .card .who .b { color: var(--side-b); }
+.card .line { padding-left: 1ch; }
+.card .hit, .hit { color: var(--red); font-weight: 700; }
+.note { color: var(--pencil); }
+.empty { color: var(--pencil); font-style: italic; }
+#ctx { position: fixed; z-index: 10; background: #fff; border: 1px solid var(--ink); border-radius: 4px; box-shadow: 0 4px 14px rgba(31,43,56,.25); padding: 4px 0; display: none; min-width: 150px; }
+#ctx button { display: block; width: 100%; text-align: left; border: none; border-radius: 0; padding: 6px 12px; }
+#ctx button:hover, #ctx button:focus-visible { background: #e3edf5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OD&amp;D combat tester: grid</h1>
+  <p>Man-to-man on a dungeon map: 10' squares of 3⅓' cells, every inch of movement counted, targets set by hand, facing from position.</p>
+</header>
+<main>
+  <div>
+    <div class="panel">
+      <div class="bar">
+        <label for="layout">Map</label>
+        <select id="layout"><option value="corridor">10' corridor</option><option value="room" selected>40' room with corridors</option><option value="open">Open floor</option></select>
+        <label for="seed">Seed</label>
+        <input id="seed" type="number" value="1974" style="width:6em">
+        <button id="start" class="primary">Start fight</button>
+        <button id="step" disabled>Roll initiative</button>
+        <button id="reset" disabled>Reset</button>
+      </div>
+      <div class="map-wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg></div>
+      <p class="step" id="stepText"></p>
+      <p class="hint">Click a figure to select it; click a highlighted cell to move it (figures may pass through friends, not enemies). Hover an enemy and press T to target it, or right-click it. Esc clears the selection.</p>
+    </div>
+    <div class="panel">
+      <h2>Log</h2>
+      <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
+    </div>
+  </div>
+  <div>
+    <div class="panel detail" id="detail"></div>
+    <div class="panel" id="side-A"></div>
+    <div class="panel" id="side-B"></div>
+  </div>
+</main>
+<div id="ctx" role="menu"></div>
+<script type="module">
+import {
+  MONSTERS, WEAPON_CLASS, EQUIPMENT_BY_KEY, weaponIdForClass, mulberry32, sumHitDice,
+  hitDiceFor, fightingCapabilityFor, monsterAttackProfile, monsterAttackDice, encumbranceFor,
+  rollInitiative, resolveExchange, resolveAttackPool,
+  moveBudget, halfCellsToInches, canJoinMelee, reachable, adjacent, dir8, attackFacing, recordContact, pairKey
+} from "../packages/odd-chainmail-rules/index.js";
+
+/* ---------- data ---------- */
+const ARMOR = [
+  { id: "none", label: "No armour", ac: 9, wt: 0 }, { id: "leather", label: "Leather", ac: 7, wt: 250 },
+  { id: "shield", label: "Shield only", ac: 8, wt: 150 }, { id: "leather+shield", label: "Leather + shield", ac: 6, wt: 400 },
+  { id: "chain", label: "Chain", ac: 5, wt: 500 }, { id: "chain+shield", label: "Chain + shield", ac: 4, wt: 650 },
+  { id: "plate", label: "Plate", ac: 3, wt: 750 }, { id: "plate+shield", label: "Plate + shield", ac: 2, wt: 900 }
+];
+const CLASSES = [
+  { id: "fighter", label: "Fighting-Man", weapon: "sword", armor: "chain+shield" },
+  { id: "cleric", label: "Cleric", weapon: "mace", armor: "chain+shield" },
+  { id: "magic-user", label: "Magic-User", weapon: "dagger", armor: "none" },
+  { id: "thief", label: "Thief", weapon: "sword", armor: "leather" }
+];
+const WEAPON_LABEL = { dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe", morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd", twohanded: "Two-handed sword", lance: "Lance", pike: "Pike" };
+const FACING_LABEL = { front: "front", leftFlank: "left flank", rightFlank: "right flank", rear: "rear" };
+const MISC_LOAD = 80;
+const W = 54, H = 30, PX = 16;
+
+/* ---------- state ---------- */
+const state = {
+  figures: [], nextId: 1, phase: "setup", round: 0, rng: null, walls: null,
+  step: "init", firstSide: null, contacts: new Map(), selected: null, hover: null, winner: null
+};
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const byId = (id) => state.figures.find((f) => f.id === id);
+const alive = (f) => f.hp == null || f.hp > 0;
+const other = (s) => (s === "A" ? "B" : "A");
+
+/* ---------- maps ---------- */
+function buildWalls(layout) {
+  const walls = Array.from({ length: H }, () => Array(W).fill(true));
+  const carve = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) walls[y][x] = false; };
+  if (layout === "corridor") carve(2, 13, W - 3, 15);
+  else if (layout === "room") { carve(21, 9, 32, 20); carve(2, 13, 20, 15); carve(33, 13, W - 3, 15); }
+  else carve(1, 1, W - 2, H - 2);
+  return walls;
+}
+const isWall = (x, y) => x < 0 || y < 0 || x >= W || y >= H || state.walls[y][x];
+const occupant = (x, y) => state.figures.find((f) => alive(f) && f.x === x && f.y === y);
+
+function deploy() {
+  const place = (side, fromLeft) => {
+    const figs = state.figures.filter((f) => f.side === side);
+    const cols = fromLeft ? [...Array(W).keys()] : [...Array(W).keys()].reverse();
+    let i = 0;
+    for (const x of cols) {
+      for (const y of [14, 13, 15, 12, 16, 11, 17, 10, 18, 9, 19, 8, 20]) {
+        if (i >= figs.length) return;
+        if (isWall(x, y) || state.figures.some((o) => o !== figs[i] && o.x === x && o.y === y && o.placed)) continue;
+        Object.assign(figs[i], { x, y, facing: fromLeft ? 0 : 4, placed: true });
+        i++;
+      }
+    }
+  };
+  for (const f of state.figures) f.placed = false;
+  place("A", true); place("B", false);
+}
+
+/* ---------- figures ---------- */
+function addCharacter(side, cls, level, armorId, weaponId) {
+  const c = CLASSES.find((x) => x.id === cls);
+  const n = state.figures.filter((f) => f.side === side && f.cls === cls).length + 1;
+  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, stance: "attack", target: null });
+}
+function addMonsters(side, key, count) {
+  const m = MONSTERS.find((x) => x.key === key);
+  const have = state.figures.filter((f) => f.monsterKey === key).length;
+  for (let i = 1; i <= count; i++) state.figures.push({ id: state.nextId++, side, kind: "monster", monsterKey: key, name: `${m.name} ${have + i}`, ac: m.ac, stance: "attack", target: null });
+}
+function moveInches(f) {
+  if (f.kind === "monster") return MONSTERS.find((x) => x.key === f.monsterKey).move?.ground ?? 9;
+  const load = ARMOR.find((a) => a.id === f.armor).wt + (EQUIPMENT_BY_KEY[f.weaponId]?.system?.weight ?? 50) + MISC_LOAD;
+  return encumbranceFor(load).move;
+}
+function combatProfile(f) {
+  if (f.kind === "pc") {
+    const fc = fightingCapabilityFor(f.cls, f.level);
+    return { weaponId: f.weaponId, parryWeaponId: f.weaponId, dice: fc.attacks, bonus: fc.bonus, fcLabel: fc.label, profileAttack: false };
+  }
+  const m = MONSTERS.find((x) => x.key === f.monsterKey);
+  const p = monsterAttackProfile(m); const dice = monsterAttackDice(m);
+  if (p.method === "weapon") { const w = weaponIdForClass(p.weaponClass); return { weaponId: w, parryWeaponId: w, dice, bonus: 0, fcLabel: `${dice} HD`, profileAttack: false }; }
+  return { weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`, profileAttack: true, damageDice: p.damage.dice || 1, damageFlat: p.damage.bonus || 0 };
+}
+function rollHp(f, rng) {
+  if (f.kind === "pc") { const hd = hitDiceFor(f.cls, f.level); return Math.max(1, sumHitDice(hd.dice, rng).sum + hd.bonus); }
+  const hd = MONSTERS.find((x) => x.key === f.monsterKey).hd; const size = hd.dieSize || 6;
+  let sum = hd.bonus || 0; for (let i = 0; i < hd.count; i++) sum += 1 + Math.floor(rng() * size);
+  return Math.max(1, sum);
+}
+function combatant(f, facing) {
+  const p = combatProfile(f); const parrying = f.stance === "parry";
+  return { name: f.name, weaponId: p.weaponId, ac: f.ac, parryWeaponId: p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat };
+}
+
+/* ---------- movement and targeting ---------- */
+const canMoveNow = (f) => state.phase === "setup" || (state.phase === "fight" && state.step === `move-${f.side}` && alive(f));
+function reachFor(f) {
+  const budget = moveBudget(moveInches(f)) - (f.moved ?? 0);
+  const enemyAt = (x, y) => { const o = occupant(x, y); return !!o && o.side !== f.side; };
+  const r = reachable({ x: f.x, y: f.y }, budget, (x, y) => isWall(x, y) || enemyAt(x, y));
+  for (const [k, n] of r) if (n.cost > 0 && occupant(n.x, n.y)) r.set(k, { ...n, passOnly: true });
+  return r;
+}
+function moveTo(f, x, y) {
+  if (state.phase === "setup") {
+    if (isWall(x, y) || occupant(x, y)) return;
+    f.x = x; f.y = y; render(); return;
+  }
+  const r = reachFor(f); const node = r.get(`${x},${y}`); if (!node || node.passOnly || (x === f.x && y === f.y)) return;
+  const stepNode = r.get(node.prev) ?? { x: f.x, y: f.y };
+  f.facing = dir8(x - stepNode.x, y - stepNode.y) ?? f.facing;
+  if (state.phase === "fight") f.moved += node.cost;
+  f.x = x; f.y = y;
+  const t = f.target != null ? byId(f.target) : null; if (t) f.facing = dir8(t.x - f.x, t.y - f.y) ?? f.facing;
+  render();
+}
+function setTarget(f, t) {
+  if (!f || !t || f.side === t.side || !alive(f) || !alive(t) || state.phase !== "fight") return;
+  f.target = t.id; f.facing = dir8(t.x - f.x, t.y - f.y) ?? f.facing; render();
+}
+function clearTarget(f) { if (f) { f.target = null; render(); } }
+
+/* ---------- melee ---------- */
+function inMeleeLastRound(t, exceptId) {
+  for (const [k, c] of state.contacts) {
+    if (c.lastRound !== state.round - 1) continue;
+    const [a, b] = k.split("-").map(Number);
+    if (a !== t.id && b !== t.id) continue;
+    const o = a === t.id ? b : a;
+    if (o !== exceptId && alive(byId(o))) return true;
+  }
+  return false;
+}
+function strikeCard(res, atk, def, facing) {
+  if (res.immune) return `<div class="line note">${esc(res.caption)}</div>`;
+  const prof = combatProfile(atk);
+  const w = prof.profileAttack ? "natural attack" : (WEAPON_LABEL[prof.weaponId] ?? prof.weaponId).toLowerCase();
+  const where = facing && facing !== "front" ? `, from the ${FACING_LABEL[facing]}` : "";
+  const head = `<div class="line note">${esc(atk.name)} (${w}) → ${esc(def.name)}, AC ${def.ac}${where}: needs ${res.toHitNumber}</div>`;
+  if (!res.dice.length) return head + `<div class="line note">no blows thrown (parrying)</div>`;
+  return head + res.dice.map((d) => {
+    const mods = []; if (d.bonus) mods.push(d.bonus > 0 ? `+${d.bonus}` : `${d.bonus}`); if (d.parried) mods.push("−2 parry");
+    const out = d.hit ? `<span class="hit">hit, ${d.damage} damage</span>` : "miss";
+    return `<div class="line">2d6 [${d.roll.join(",")}]${mods.length ? " " + mods.join(" ") : ""} = ${d.effective} vs ${res.toHitNumber}: ${out}${d.speed ? " (extra blow)" : ""}${d.broke ? ' <span class="hit">— parrying weapon breaks</span>' : ""}</div>`;
+  }).join("");
+}
+const nameSpan = (f) => `<span class="${f.side === "A" ? "a" : "b"}">${esc(f.name)}</span>`;
+
+function resolveMelee() {
+  const start = new Map(state.figures.map((f) => [f.id, f.hp]));
+  const dmg = new Map(); const add = (id, n) => dmg.set(id, (dmg.get(id) ?? 0) + n);
+  const cards = []; const done = new Set();
+  for (const f of state.figures) {
+    if (!alive(f)) continue;
+    const cur = f.target != null ? byId(f.target) : null;
+    if (cur && alive(cur) && adjacent(f, cur)) continue;
+    const foe = state.figures.find((e) => alive(e) && e.side !== f.side && e.target === f.id && adjacent(e, f));
+    if (!foe) continue;
+    f.target = foe.id; f.facing = dir8(foe.x - f.x, foe.y - f.y) ?? f.facing;
+    cards.push(`<div class="card note">${esc(f.name)} turns to fight ${esc(foe.name)}, who attacked him.</div>`);
+  }
+  const attackers = state.figures.filter((f) => alive(f) && f.target != null);
+  const legal = new Map();
+  for (const f of attackers) {
+    const t = byId(f.target);
+    if (!t || !alive(t)) continue;
+    if (!adjacent(f, t)) { cards.push(`<div class="card note">${esc(f.name)} targets ${esc(t.name)} but isn't adjacent: no attack.</div>`); continue; }
+    if (f.stance === "parry" && t.target !== f.id) continue;
+    const priorContact = state.contacts.get(pairKey(f.id, t.id))?.lastRound === state.round - 1;
+    if (!priorContact && t.target !== f.id && inMeleeLastRound(t, f.id) && !canJoinMelee(f.moved, moveInches(f))) {
+      cards.push(`<div class="card note">${esc(f.name)} can't join the melee around ${esc(t.name)}: moved ${halfCellsToInches(f.moved)}" of ${moveInches(f)}" (more than half).</div>`);
+      continue;
+    }
+    legal.set(f.id, t.id);
+  }
+  for (const [fid, tid] of legal) {
+    if (done.has(fid)) continue;
+    const f = byId(fid), t = byId(tid);
+    if (legal.get(tid) === fid && !done.has(tid)) {
+      done.add(fid); done.add(tid);
+      const closer = (f.moved > 0) !== (t.moved > 0) ? (f.moved > 0 ? f : t) : (f.side === state.firstSide ? f : t);
+      const c = recordContact(state.contacts, closer.id, closer === f ? tid : fid, state.round);
+      const A = byId(c.first), B = A === f ? t : f;
+      const ca = combatant(A, "front"), cb = combatant(B, "front");
+      ca.hp = start.get(A.id); cb.hp = start.get(B.id);
+      const ex = resolveExchange({ first: ca, second: cb, round: c.rounds, prevFirst: c.prevFirst }, state.rng);
+      c.prevFirst = ex.striker;
+      const lead = ex.striker === "first" ? A : B, lag = lead === A ? B : A;
+      add(lag.id, ex.firstStrike.damage); if (ex.counter) add(lead.id, ex.counter.damage);
+      const why = ex.killed ? `<div class="line note">${esc(lag.name)} falls before striking back.</div>` : ex.brokeOut ? `<div class="line note">${esc(lag.name)}'s weapon broke: no return blow.</div>` : "";
+      cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(melee round ${c.rounds})</span></div>${strikeCard(ex.firstStrike, lead, lag)}${ex.counter ? strikeCard(ex.counter, lag, lead) : ""}${why}</div>`);
+    } else {
+      done.add(fid);
+      if (f.stance === "parry") continue;
+      const c = recordContact(state.contacts, fid, tid, state.round);
+      const facing = attackFacing({ x: t.x, y: t.y }, t.facing, { x: f.x, y: f.y });
+      const res = resolveAttackPool({ attacker: { ...combatant(f, facing), dice: combatant(f, facing).thrown }, target: combatant(t, "front") }, state.rng);
+      add(t.id, res.damage);
+      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${esc(t.name)} is fighting someone else: no return blow)</span></div>${strikeCard(res, f, t, facing)}</div>`);
+    }
+  }
+  const fell = [];
+  for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; f.hp -= dmg.get(f.id); if (f.hp <= 0) fell.push(f); }
+  for (const f of state.figures) if (f.target != null && !alive(byId(f.target))) f.target = null;
+  const body = cards.length ? cards.join("") : `<div class="card note">No melee this round.</div>`;
+  const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((f) => esc(f.name)).join(", ")}</span></div>` : "";
+  logAppend(`<div class="round-head">Round ${state.round}: melee</div>` + body + tail);
+  const aUp = state.figures.some((f) => f.side === "A" && alive(f)), bUp = state.figures.some((f) => f.side === "B" && alive(f));
+  if (!aUp || !bUp) { state.phase = "over"; state.winner = aUp ? "A" : bUp ? "B" : "none"; }
+}
+function logAppend(html) { const log = $("#log"); log.insertAdjacentHTML("beforeend", html); log.scrollTop = log.scrollHeight; }
+
+/* ---------- flow ---------- */
+function startFight() {
+  if (!state.figures.some((f) => f.side === "A") || !state.figures.some((f) => f.side === "B")) return;
+  const seed = Math.trunc(Number($("#seed").value)) || 1;
+  state.rng = mulberry32(seed);
+  state.saved = state.figures.map((f) => ({ id: f.id, x: f.x, y: f.y, facing: f.facing }));
+  for (const f of state.figures) { f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; }
+  Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null });
+  $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>`;
+  render();
+}
+function nextStep() {
+  if (state.phase !== "fight") return;
+  if (state.step === "init") {
+    state.round++;
+    for (const f of state.figures) f.moved = 0;
+    const init = rollInitiative(state.rng);
+    state.firstSide = init.winner; state.step = `move-${init.winner}`;
+    logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${init.a}, B ${init.b}: side ${init.winner} moves first</span></div>`);
+  } else if (state.step === `move-${state.firstSide}`) state.step = `move-${other(state.firstSide)}`;
+  else if (state.step.startsWith("move-")) state.step = "melee";
+  else if (state.step === "melee") { resolveMelee(); state.step = "init"; }
+  state.selected = null; render();
+}
+function resetFight() {
+  for (const s of state.saved ?? []) Object.assign(byId(s.id) ?? {}, { x: s.x, y: s.y, facing: s.facing });
+  for (const f of state.figures) { f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; }
+  Object.assign(state, { phase: "setup", round: 0, step: "init", contacts: new Map(), winner: null, selected: null });
+  $("#log").innerHTML = `<p class="empty">Same seed, same positions and same moves replay the same fight.</p>`;
+  render();
+}
+
+/* ---------- rendering ---------- */
+const DV = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+function renderMap() {
+  const svg = $("#map"); svg.setAttribute("viewBox", `0 0 ${W * PX} ${H * PX}`);
+  const parts = [`<defs><marker id="arr-A" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-a)"/></marker><marker id="arr-B" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-b)"/></marker></defs>`];
+  parts.push(`<rect width="${W * PX}" height="${H * PX}" fill="var(--rock)"/>`);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!state.walls[y][x]) parts.push(`<rect data-cell="${x},${y}" x="${x * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="var(--floor)" stroke="#dde6ec" stroke-width="0.5"/>`);
+  for (let x = 0; x <= W; x += 3) parts.push(`<line x1="${x * PX}" y1="0" x2="${x * PX}" y2="${H * PX}" stroke="#9fb4c4" stroke-width="0.8" pointer-events="none" opacity=".55"/>`);
+  for (let y = 0; y <= H; y += 3) parts.push(`<line x1="0" y1="${y * PX}" x2="${W * PX}" y2="${y * PX}" stroke="#9fb4c4" stroke-width="0.8" pointer-events="none" opacity=".55"/>`);
+  const sel = state.selected != null ? byId(state.selected) : null;
+  if (sel && canMoveNow(sel) && state.phase === "fight") for (const [k, n] of reachFor(sel)) { if (n.cost === 0 || n.passOnly) continue; const [x, y] = k.split(",").map(Number); parts.push(`<rect data-cell="${x},${y}" x="${x * PX + 1}" y="${y * PX + 1}" width="${PX - 2}" height="${PX - 2}" fill="${sel.side === "A" ? "#2f5c8a" : "#8a5a17"}" opacity=".16"/>`); }
+  for (const f of state.figures) {
+    if (!alive(f) || f.target == null || !f.placed) continue; const t = byId(f.target); if (!t) continue;
+    const x1 = f.x * PX + PX / 2, y1 = f.y * PX + PX / 2, x2 = t.x * PX + PX / 2, y2 = t.y * PX + PX / 2;
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
+    parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})" pointer-events="none"/>`);
+  }
+  for (const f of state.figures) {
+    if (!f.placed) continue;
+    const cx = f.x * PX + PX / 2, cy = f.y * PX + PX / 2, col = f.side === "A" ? "var(--side-a)" : "var(--side-b)";
+    if (!alive(f)) { parts.push(`<g pointer-events="none" opacity=".5"><line x1="${cx - 5}" y1="${cy - 5}" x2="${cx + 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/><line x1="${cx + 5}" y1="${cy - 5}" x2="${cx - 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/></g>`); continue; }
+    const [fx, fy] = DV[f.facing ?? 0];
+    const isSel = state.selected === f.id;
+    parts.push(`<g data-fig="${f.id}" style="cursor:pointer"><title>${esc(f.name)}</title>
+      ${isSel ? `<circle cx="${cx}" cy="${cy}" r="8.2" fill="none" stroke="var(--red)" stroke-width="2"/>` : ""}
+      <circle cx="${cx}" cy="${cy}" r="6.4" fill="${col}"/>
+      <line x1="${cx}" y1="${cy}" x2="${cx + fx * 7.5}" y2="${cy + fy * 7.5}" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+      <text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(f.name.replace(/\D/g, "") || f.name[0])}</text></g>`);
+  }
+  svg.innerHTML = parts.join("");
+}
+const opts = (list, sel) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(sel) ? " selected" : ""}>${esc(l)}</option>`).join("");
+function renderSide(side) {
+  const el = $(`#side-${side}`); const setup = state.phase === "setup";
+  const rows = state.figures.filter((f) => f.side === side).map((f) => {
+    const p = combatProfile(f); const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
+    const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
+    return `<tr data-row="${f.id}" class="${alive(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}, AC ${f.ac}, move ${moveInches(f)}"</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
+  }).join("");
+  const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
+  const adders = setup ? `<div class="adders">
+    <select id="cls-${side}" aria-label="Class">${opts(CLASSES.map((c) => [c.id, c.label]), "fighter")}</select>
+    <label>Level <input id="lvl-${side}" type="number" min="1" max="14" value="1"></label>
+    <select id="arm-${side}" aria-label="Armour">${opts(ARMOR.map((a) => [a.id, a.label]), "chain+shield")}</select>
+    <select id="wpn-${side}" aria-label="Weapon">${opts(weapons, "sword")}</select>
+    <button data-add-pc="${side}">Add character</button></div>
+    <div class="adders"><input id="cnt-${side}" type="number" min="1" max="30" value="1" aria-label="How many">
+    <select id="mon-${side}" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), "orc")}</select>
+    <button data-add-mon="${side}">Add monsters</button></div>` : "";
+  el.innerHTML = `<h2 class="${side === "A" ? "a-name" : "b-name"}">Side ${side}</h2>${rows ? `<table class="roster"><tbody>${rows}</tbody></table>` : `<p class="empty">No figures yet.</p>`}${adders}`;
+  const cls = $(`#cls-${side}`, el);
+  if (cls) cls.addEventListener("change", () => { const c = CLASSES.find((x) => x.id === cls.value); $(`#arm-${side}`, el).value = c.armor; $(`#wpn-${side}`, el).value = c.weapon; });
+}
+function renderDetail() {
+  const el = $("#detail"); const f = state.selected != null ? byId(state.selected) : null;
+  if (!f) { el.innerHTML = `<h2>Selected figure</h2><p class="empty">Click a figure on the map or in a roster.</p>`; return; }
+  const p = combatProfile(f), mv = moveInches(f), used = f.moved ?? 0, t = f.target != null ? byId(f.target) : null;
+  const joinOk = canJoinMelee(used, mv);
+  el.innerHTML = `<h2 class="${f.side === "A" ? "a-name" : "b-name"}">${esc(f.name)}</h2><dl>
+    <dt>Fights as</dt><dd>${esc(p.fcLabel)}</dd>
+    <dt>Weapon</dt><dd>${p.profileAttack ? "natural attack" : esc(WEAPON_LABEL[p.weaponId])}</dd>
+    <dt>Armour</dt><dd>AC ${f.ac}</dd>
+    <dt>Hit points</dt><dd>${f.hp == null ? "rolled at start" : `${Math.max(f.hp, 0)} of ${f.maxHp}`}</dd>
+    <dt>Move</dt><dd>${mv}" · used ${halfCellsToInches(used)}" · left ${halfCellsToInches(Math.max(0, moveBudget(mv) - used))}"</dd>
+    <dt>Can join a melee</dt><dd>${joinOk ? "yes" : "no (moved over half)"}</dd>
+    <dt>Target</dt><dd>${t ? `${esc(t.name)}${adjacent(f, t) ? "" : " (not adjacent)"}` : "none"}</dd></dl>
+    ${p.profileAttack || !alive(f) ? "" : `<label>Stance <select id="stance">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select></label>`}
+    ${t ? ` <button id="clearTarget">Clear target</button>` : ""}`;
+  $("#stance")?.addEventListener("change", (e) => { f.stance = e.target.value; render(); });
+  $("#clearTarget")?.addEventListener("click", () => clearTarget(f));
+}
+function render() {
+  renderMap(); renderSide("A"); renderSide("B"); renderDetail();
+  const fight = state.phase === "fight";
+  $("#start").disabled = state.phase !== "setup"; $("#reset").disabled = state.phase === "setup";
+  $("#seed").disabled = !( state.phase === "setup"); $("#layout").disabled = state.phase !== "setup";
+  const stepBtn = $("#step"); stepBtn.disabled = !fight;
+  const label = { init: "Roll initiative", melee: "Resolve melee" }[state.step] ?? `End side ${state.step.slice(5)}'s move`;
+  stepBtn.textContent = label;
+  $("#stepText").innerHTML = state.phase === "over"
+    ? `<b>${state.winner === "none" ? "Both sides are down." : `Side ${state.winner} wins after ${state.round} round${state.round === 1 ? "" : "s"}.`}</b>`
+    : !fight ? "Setup: click a figure, then click any open floor cell to place it."
+    : state.step === "init" ? `Round ${state.round + 1}: roll initiative.`
+    : state.step === "melee" ? `Round ${state.round}: set or change targets, then resolve melee.`
+    : `Round ${state.round}: <b>side ${state.step.slice(5)}</b> moves. Targets can be set at any time.`;
+}
+
+/* ---------- input ---------- */
+const figAt = (el) => { const g = el.closest?.("[data-fig]"); return g ? byId(Number(g.dataset.fig)) : null; };
+$("#map").addEventListener("click", (e) => {
+  hideCtx();
+  const f = figAt(e.target);
+  if (f) { state.selected = f.id; render(); return; }
+  const cell = e.target.closest?.("[data-cell]"); const sel = state.selected != null ? byId(state.selected) : null;
+  if (cell && sel && canMoveNow(sel)) { const [x, y] = cell.dataset.cell.split(",").map(Number); moveTo(sel, x, y); }
+});
+$("#map").addEventListener("mousemove", (e) => { const f = figAt(e.target); state.hover = f ? f.id : null; });
+$("#map").addEventListener("mouseleave", () => { state.hover = null; });
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches?.("input, select")) return;
+  if (e.key === "Escape") { state.selected = null; hideCtx(); render(); }
+  if ((e.key === "t" || e.key === "T") && state.hover != null && state.selected != null) setTarget(byId(state.selected), byId(state.hover));
+});
+const ctx = $("#ctx");
+function hideCtx() { ctx.style.display = "none"; }
+$("#map").addEventListener("contextmenu", (e) => {
+  const f = figAt(e.target); if (!f) return; e.preventDefault();
+  const sel = state.selected != null ? byId(state.selected) : null;
+  const items = [[`Select ${f.name}`, () => { state.selected = f.id; render(); }]];
+  if (sel && sel.side !== f.side && alive(sel) && state.phase === "fight") items.unshift([`${sel.name}: target ${f.name}`, () => setTarget(sel, f)]);
+  if (f.target != null) items.push([`Clear ${f.name}'s target`, () => clearTarget(f)]);
+  ctx.innerHTML = items.map(([l], i) => `<button role="menuitem" data-i="${i}">${esc(l)}</button>`).join("");
+  ctx.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; hideCtx(); items[Number(b.dataset.i)][1](); };
+  ctx.style.left = `${e.clientX}px`; ctx.style.top = `${e.clientY}px`; ctx.style.display = "block"; ctx.querySelector("button")?.focus();
+});
+document.addEventListener("click", (e) => {
+  if (!ctx.contains(e.target)) hideCtx();
+  const row = e.target.closest?.("[data-row]"); if (row && !e.target.closest("button")) { state.selected = Number(row.dataset.row); render(); return; }
+  const b = e.target.closest?.("button"); if (!b) return;
+  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value); deploy(); render(); }
+  else if (b.dataset.addMon) { const s = b.dataset.addMon; addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1))); deploy(); render(); }
+  else if (b.dataset.remove) { state.figures = state.figures.filter((f) => f.id !== Number(b.dataset.remove)); if (state.selected === Number(b.dataset.remove)) state.selected = null; deploy(); render(); }
+});
+$("#layout").addEventListener("change", (e) => { state.walls = buildWalls(e.target.value); deploy(); render(); });
+$("#start").addEventListener("click", startFight);
+$("#step").addEventListener("click", nextStep);
+$("#reset").addEventListener("click", resetFight);
+
+state.walls = buildWalls("room");
+addCharacter("A", "fighter", 1, "chain+shield", "sword");
+addCharacter("A", "cleric", 1, "chain+shield", "mace");
+addCharacter("A", "magic-user", 1, "none", "dagger");
+addMonsters("B", "orc", 6);
+deploy(); render();
+</script>
+</body>
+</html>
