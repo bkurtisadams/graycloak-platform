@@ -266,7 +266,11 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
   const mountedMod = unhorsing
     ? 0
     : mountedDieBonus({ attackerMounted, defenderMounted, charge: !!attacker.charge });
-  const perDie = facingBonus(facing) + mountedMod;
+  // everyDieBonus: a flat modifier on every blow (+4 against a magically held or
+  // paralyzed target, Kurt's ruling; -1 for an evil attacker against Protection
+  // from Evil). damageDoubled: held or paralyzed targets take double damage.
+  const perDie = facingBonus(facing) + mountedMod + (Math.trunc(attacker.everyDieBonus) || 0);
+  const damageDoubled = !!target.damageDoubled;
 
   const dice = [];
   let hits = 0;
@@ -304,6 +308,7 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
         dmg = damageBonus + damageFlat;              // pips: elf magic + a creature's innate +N
         for (let d = 0; d < damageDice; d++) dmg += rollDie(rng);  // 1d6 default; 2d6+ for big naturals
         if (damageHalved) dmg = Math.floor(dmg / 2); // clumsy giant scores half HP on a dwarf
+        if (damageDoubled) dmg *= 2;
         damage += dmg;
         hits++;
       }
@@ -426,9 +431,10 @@ function poolArgs(atk, def, facing) {
   return {
     attacker: {
       name: atk.name, weaponId: atk.weaponId, dice: atk.thrown, bonus: atk.bonus, bonusDie: atk.bonusDie, magical: atk.magical, silver: atk.silver, facing,
-      profileAttack: atk.profileAttack, damageDice: atk.damageDice, damageFlat: atk.damageFlat, damageBonus: atk.damageBonus
+      profileAttack: atk.profileAttack, damageDice: atk.damageDice, damageFlat: atk.damageFlat, damageBonus: atk.damageBonus,
+      everyDieBonus: atk.everyDieBonus
     },
-    target: { name: def.name, ac: def.ac, held: def.held, parryWeaponId: def.parryWeaponId, hitOnlyBy: def.hitOnlyBy, damageHalved: def.damageHalved }
+    target: { name: def.name, ac: def.ac, held: def.held, parryWeaponId: def.parryWeaponId, hitOnlyBy: def.hitOnlyBy, damageHalved: def.damageHalved, damageDoubled: def.damageDoubled }
   };
 }
 
@@ -763,6 +769,15 @@ function runSelfTests() {
     const ex = resolveExchange({ first: ogre, second: man }, forceDice([6, 6, 1, 1, 1]));
     ok(ex.firstStrike.attacker.profileAttack === true && ex.firstStrike.speedDice === 0, "exchange keeps profileAttack (no speed dice)");
     ok(ex.firstStrike.damage === 3, "exchange keeps damageFlat: 1d6 (1) + 2 = 3");
+  }
+
+  // everyDieBonus and damageDoubled (held target: +4 to hit, double damage)
+  {
+    const res = resolveAttackPool({ attacker: { name: "A", weaponId: "sword", dice: 2, everyDieBonus: 4 }, target: { name: "T", ac: 4, damageDoubled: true } }, forceDice([2, 3, 1, 3, 4, 4]));
+    ok(res.dice[0].effective === 9 && res.dice[0].hit && res.dice[0].damage === 2, "+4 every die: 2+3+4 = 9 hits; 1 damage doubled = 2");
+    ok(res.dice[1].effective === 11 && res.dice[1].hit && res.dice[1].damage === 8, "second die also +4; 4 damage doubled = 8");
+    const ex = resolveExchange({ first: { name: "A", weaponId: "sword", ac: 4, thrown: 1, held: 0, everyDieBonus: -1 }, second: { name: "B", weaponId: "sword", ac: 4, thrown: 1, held: 0 } }, forceDice([5, 5, 1, 1, 1]));
+    ok(ex.firstStrike.dice[0].effective === 9, "exchange passes everyDieBonus (-1)");
   }
 
   // T1: plain hit + miss. sword vs AC6 -> 9. die0 [6,4]=10 hit (dmg 5); die1 [3,3]=6 miss.

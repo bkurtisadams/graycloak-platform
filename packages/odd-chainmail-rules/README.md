@@ -55,11 +55,13 @@ Changes made during extraction:
 - 0.3.0: new `casting.mjs` (casting gate, Sleep, Charm Person, Hold Person,
   Protection from Evil, monster saves); `morale.mjs` adds troop-type Loss
   Table rows (`troopLossLine`) and Book II morale adjustments.
+- 0.3.1: `resolveAttackPool` takes `everyDieBonus` (a modifier on every blow)
+  and `damageDoubled` on the target; used for held targets (+4, double
+  damage) and Protection from Evil (-1). `castingGate` now keys on a hit
+  (`hitFirst`), per Kurt's ruling.
 
 ## Open items
 
-- Protection from Evil needs a per-die attack modifier in
-  `resolveAttackPool` before it can apply.
 - `chargen.mjs` / `multiclass.mjs` include Greyhawk multi-class thief combos
   (e.g. elf Fighter/Magic-User/Thief). Confirm whether these stay, given the
   ruling that only the Thief class comes from Greyhawk.

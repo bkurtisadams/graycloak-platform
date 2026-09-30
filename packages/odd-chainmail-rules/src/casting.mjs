@@ -4,10 +4,10 @@
  *
  * Pure. The rules a caster needs in a fight (Book I p.19-34, Chainmail p.32):
  *   - OD&D spell slots govern casting; no Chainmail complexity roll (ruling).
- *   - A caster must be stationary and undisturbed by attack to cast or keep a
- *     spell going (Chainmail p.32, ruling): any movement this round, or any
- *     attack aimed at him earlier in the missile-and-spell step (Dexterity
- *     order), spoils the casting. The slot is still spent.
+ *   - A caster must be stationary and undisturbed to cast or keep a spell going
+ *     (Chainmail p.32). Kurt's ruling: any movement this round, or being HIT
+ *     earlier in the missile-and-spell step (Dexterity order), spoils the
+ *     casting. A miss does not. The slot is still spent.
  *   - First combat spells: Sleep, Hold Person, Charm Person, Protection from Evil.
  *
  * Referee calls marked OPEN below are defaults the rulings log hasn't settled.
@@ -33,9 +33,9 @@ export function combatSpellsFor(rawClass, slots) {
 }
 
 /** Chainmail p.32: stationary and undisturbed by attack. */
-export function castingGate({ moved = 0, attackedFirst = false } = {}) {
+export function castingGate({ moved = 0, hitFirst = false } = {}) {
   if (moved > 0) return { ok: false, reason: "moved this round" };
-  if (attackedFirst) return { ok: false, reason: "attacked before the spell went off" };
+  if (hitFirst) return { ok: false, reason: "hit before the spell went off" };
   return { ok: true, reason: null };
 }
 
@@ -98,6 +98,10 @@ export function saveVsSpells(saves, rng, mod = 0) {
 export function holdPersonCount(single, rng) {
   return single ? 1 : 1 + Math.floor(rng() * 4);
 }
+export const HOLD_PERSON_MAX = 4;
+
+/** Kurt's ruling: a magically held or paralyzed target is hit at +4 and takes double damage. */
+export const HELD_TARGET = Object.freeze({ everyDieBonus: 4, damageDoubled: true });
 
 /**
  * Protection from Evil (Book I p.23): +1 on the caster's saves and -1 from the
@@ -114,7 +118,7 @@ function runSelfTests() {
 
   ok(castingGate({ moved: 0 }).ok, "stationary and unattacked casts");
   ok(!castingGate({ moved: 2 }).ok && castingGate({ moved: 2 }).reason === "moved this round", "moving spoils");
-  ok(!castingGate({ attackedFirst: true }).ok, "attack before the spell spoils");
+  ok(!castingGate({ hitFirst: true }).ok, "a hit before the spell spoils");
 
   ok(hdValue(1, 1) === 1.5 && hdValue(1, -1) === 0.75 && hdValue(4, 1) === 4.5, "hd values");
   ok(sleepCapacity(1, 0, seq([0.99])).dice === "2d8" && sleepCapacity(1, 0, seq([0.99])).n === 16, "orc: 2d8, max 16");

@@ -112,7 +112,7 @@ import {
   moveBudget, halfCellsToInches, canJoinMelee, reachable, adjacent, dir8, attackFacing, recordContact, pairKey,
   resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
   slotsFor, combatSpellsFor, castingGate, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
-  lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod
+  lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX
 } from "../packages/odd-chainmail-rules/index.js";
 
 /* ---------- data ---------- */
@@ -145,10 +145,12 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const byId = (id) => state.figures.find((f) => f.id === id);
 const alive = (f) => f.hp == null || f.hp > 0;
-const GONE = ["fled", "surrendered", "charmed"];
+const GONE = ["fled", "surrendered"];
 const present = (f) => alive(f) && !GONE.includes(f.status);
 const active = (f) => present(f) && !["asleep", "held"].includes(f.status);
 const helpless = (f) => present(f) && ["asleep", "held"].includes(f.status);
+const isEvil = (f) => f.kind === "monster" && MONSTERS.find((m) => m.key === f.monsterKey)?.alignment === "chaos";
+const pfePenalty = (atk, def) => (def.pfe && isEvil(atk) ? -1 : 0);
 const dexOf = (f) => f.kind === "pc" ? f.dex : MONSTER_DEX;
 let moveSeq = 0;
 const other = (s) => (s === "A" ? "B" : "A");
@@ -215,9 +217,9 @@ function rollHp(f, rng) {
   let sum = hd.bonus || 0; for (let i = 0; i < hd.count; i++) sum += 1 + Math.floor(rng() * size);
   return Math.max(1, sum);
 }
-function combatant(f, facing) {
-  const p = combatProfile(f); const parrying = f.stance === "parry";
-  return { name: f.name, weaponId: p.weaponId, ac: f.ac, parryWeaponId: p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat };
+function combatant(f, facing, extra = {}) {
+  const p = combatProfile(f); const parrying = f.stance === "parry" && !helpless(f);
+  return { name: f.name, weaponId: p.weaponId, ac: f.ac, parryWeaponId: helpless(f) ? null : p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat, ...extra };
 }
 
 /* ---------- movement and targeting ---------- */
@@ -303,6 +305,16 @@ function resolveMelee() {
     }
     legal.set(f.id, t.id);
   }
+  const slain = new Set();
+  for (const [fid, tid] of [...legal]) {
+    const f = byId(fid), t = byId(tid);
+    if (t.status !== "asleep") continue;
+    legal.delete(fid); done.add(fid);
+    if (slain.has(tid)) continue;
+    slain.add(tid); add(tid, start.get(tid));
+    recordContact(state.contacts, fid, tid, state.round);
+    cards.push(`<div class="card"><div class="who">${nameSpan(f)} slays the sleeping ${nameSpan(t)}</div><div class="line note">A sleeping figure is killed outright, one per attacker per round (Kurt's ruling).</div></div>`);
+  }
   for (const [fid, tid] of legal) {
     if (done.has(fid)) continue;
     const f = byId(fid), t = byId(tid);
@@ -311,7 +323,7 @@ function resolveMelee() {
       const closer = (f.moved > 0) !== (t.moved > 0) ? (f.moved > 0 ? f : t) : (f.side === state.firstSide ? f : t);
       const c = recordContact(state.contacts, closer.id, closer === f ? tid : fid, state.round);
       const A = byId(c.first), B = A === f ? t : f;
-      const ca = combatant(A, "front"), cb = combatant(B, "front");
+      const ca = combatant(A, "front", { everyDieBonus: pfePenalty(A, B) }), cb = combatant(B, "front", { everyDieBonus: pfePenalty(B, A) });
       ca.hp = start.get(A.id); cb.hp = start.get(B.id);
       const ex = resolveExchange({ first: ca, second: cb, round: c.rounds, prevFirst: c.prevFirst }, state.rng);
       c.prevFirst = ex.striker;
@@ -323,10 +335,22 @@ function resolveMelee() {
       done.add(fid);
       if (f.stance === "parry") continue;
       const c = recordContact(state.contacts, fid, tid, state.round);
-      const facing = helpless(t) ? "rear" : attackFacing({ x: t.x, y: t.y }, t.facing, { x: f.x, y: f.y });
-      const res = resolveAttackPool({ attacker: { ...combatant(f, facing), dice: combatant(f, facing).thrown }, target: combatant(t, "front") }, state.rng);
+      const isHeld = t.status === "held";
+      const facing = isHeld ? "front" : attackFacing({ x: t.x, y: t.y }, t.facing, { x: f.x, y: f.y });
+      const atk = combatant(f, facing, { everyDieBonus: (isHeld ? HELD_TARGET.everyDieBonus : 0) + pfePenalty(f, t) });
+      const res = resolveAttackPool({ attacker: { ...atk, dice: atk.thrown }, target: combatant(t, "front", isHeld ? { damageDoubled: true } : {}) }, state.rng);
       add(t.id, res.damage);
-      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${helpless(t) ? `${esc(t.name)} is ${t.status}: struck as from the rear` : `${esc(t.name)} is fighting someone else: no return blow`})</span></div>${strikeCard(res, f, t, facing)}</div>`);
+      let ret = "";
+      const tLeft = start.get(t.id) - (dmg.get(t.id) ?? 0);
+      if (!isHeld && spent(t) && active(t) && tLeft > 0 && t.returned !== state.round) {
+        t.returned = state.round;
+        const back = combatant(t, "front", { everyDieBonus: pfePenalty(t, f) });
+        const r2 = resolveAttackPool({ attacker: { ...back, dice: back.thrown || combatProfile(t).dice }, target: combatant(f, "front") }, state.rng);
+        add(f.id, r2.damage);
+        ret = `<div class="line note">${esc(t.name)} fired or cast this round, so makes no attack of its own, but strikes back:</div>` + strikeCard(r2, t, f);
+      }
+      const why = isHeld ? `${esc(t.name)} is held: +4 to hit, double damage, no return blow` : spent(t) ? `${esc(t.name)} acted in the missile step` : `${esc(t.name)} is fighting someone else: no return blow`;
+      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${why})</span></div>${strikeCard(res, f, t, facing)}${ret}</div>`);
     }
   }
   const fell = [];
@@ -425,16 +449,17 @@ function resolveMissiles() {
         const loaded = !(f.missile === "heavycrossbow" && f.lastFired === state.round - 1);
         const shots = missileShots(1, { kind, moved, loaded });
         if (!shots) { cards.push(`<div class="card note">${esc(f.name)} is reloading.</div>`); continue; }
-        f.lastFired = state.round; shotAt.push(t.id);
-        const fireBonus = missileMod(f.dex ?? 10);
+        f.lastFired = state.round;
+        const fireBonus = missileMod(f.dex ?? 10) + pfePenalty(f, t);
         const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots, fireBonus }, target: { name: t.name, ac: t.ac, distance: p.d } }, state.rng);
         dmg.set(t.id, (dmg.get(t.id) ?? 0) + res.damage);
+        if (res.hits > 0) shotAt.push(t.id);
         const lines = res.dice.map((x) => `<div class="line">2d6 [${x.roll.join(",")}]${x.bonus ? ` ${x.bonus > 0 ? "+" : ""}${x.bonus}` : ""} = ${x.effective} vs ${res.toKillNumber}: ${x.hit ? `<span class="hit">hit, ${x.damage} damage</span>` : "miss"}</div>`).join("");
         cards.push(`<div class="card"><div class="who">${nameSpan(f)} shoots at ${nameSpan(t)} <span class="note">(Dex ${dexOf(f)})</span></div><div class="line note">${esc(MISSILE_LABEL[f.missile])}, ${p.d}" (${res.band} range), ${shots} shot${shots === 1 ? "" : "s"}${res.cannotKill ? `: ${esc(res.caption)}` : `, needs ${res.toKillNumber}`}</div>${lines}</div>`);
       } else {
         const sp = p.spell;
         f.slotsLeft[sp.level - 1]--;
-        const gate = castingGate({ moved: f.moved, attackedFirst: attacked.has(f.id) });
+        const gate = castingGate({ moved: f.moved, hitFirst: attacked.has(f.id) });
         if (!gate.ok) { cards.push(`<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line hit">Spoiled: ${gate.reason}. The spell is lost.</div></div>`); continue; }
         cards.push(castSpell(f, t, sp));
       }
@@ -458,16 +483,29 @@ function castSpell(f, t, sp) {
     for (const e of hit) { e.status = "asleep"; e.target = null; }
     return `<div class="card">${head}<div class="line note">${cap.dice} = ${cap.n}; no saving throw</div><div class="line hit">Asleep: ${hit.map((e) => esc(e.name)).join(", ") || "none"}</div></div>`;
   }
-  if (sp.id === "charmPerson" || sp.id === "holdPerson") {
+  if (sp.id === "holdPerson") {
+    const ids = [...new Set([t.id, ...(f.holdTargets ?? [])])].slice(0, HOLD_PERSON_MAX);
+    const targets = ids.map(byId).filter((e) => e && present(e) && e.side !== f.side && distIn(f, e) <= sp.range);
+    const single = targets.length === 1;
+    const lines = targets.map((e) => {
+      if (!isPerson(e)) return `<div class="line note">${esc(e.name)} isn't a person; no effect.</div>`;
+      const sv = saveVsSpells(savesOf(e), state.rng, (single ? -2 : 0) + (e.pfe ? 1 : 0));
+      if (!sv.saved) { e.status = "held"; e.target = null; }
+      return `<div class="line">${esc(e.name)}: save d20 ${sv.roll}${sv.mod ? ` ${sv.mod > 0 ? "+" : ""}${sv.mod}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : `<span class="hit">held</span>`}</div>`;
+    }).join("");
+    f.holdTargets = [];
+    return `<div class="card"><div class="who">${nameSpan(f)} casts Hold Person on ${targets.length} target${single ? " (single: −2 on the save)" : "s"}</div>${lines}</div>`;
+  }
+  if (sp.id === "charmPerson") {
     if (!isPerson(t)) return `<div class="card">${head}<div class="line note">${esc(t.name)} isn't a person; no effect.</div></div>`;
-    const sv = saveVsSpells(savesOf(t), state.rng, sp.id === "holdPerson" ? -2 : 0);
+    const sv = saveVsSpells(savesOf(t), state.rng, t.pfe ? 1 : 0);
     const txt = `<div class="line">Save vs spells d20 ${sv.roll}${sv.mod ? ` ${sv.mod}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : `<span class="hit">fails</span>`}</div>`;
-    if (!sv.saved) { t.status = sp.id === "charmPerson" ? "charmed" : "held"; t.target = null; }
-    const eff = sv.saved ? "" : `<div class="line hit">${esc(t.name)} is ${t.status}${t.status === "charmed" ? " and leaves the fight" : ""}.</div>`;
+    if (!sv.saved) { if (sp.id === "charmPerson") { t.side = f.side; t.charmed = true; } else t.status = "held"; t.target = null; }
+    const eff = sv.saved ? "" : `<div class="line hit">${esc(t.name)} ${sp.id === "charmPerson" ? `is charmed and fights for side ${f.side} from next round` : "is held"}.</div>`;
     return `<div class="card">${head}${txt}${eff}</div>`;
   }
   f.pfe = true;
-  return `<div class="card">${head}<div class="line note">Protection from Evil is recorded but not yet applied to attacks (needs a per-die modifier in the engine).</div></div>`;
+  return `<div class="card">${head}<div class="line note">Evil attackers take −1 on every blow and shot against ${esc(f.name)}; +1 on his saves.</div></div>`;
 }
 function logAppend(html) { const log = $("#log"); log.insertAdjacentHTML("beforeend", html); log.scrollTop = log.scrollHeight; }
 
@@ -561,6 +599,13 @@ function renderSide(side) {
   const cls = $(`#cls-${side}`, el);
   if (cls) cls.addEventListener("change", () => { const c = CLASSES.find((x) => x.id === cls.value); $(`#arm-${side}`, el).value = c.armor; $(`#wpn-${side}`, el).value = c.weapon; });
 }
+function holdPicker(f) {
+  const sp = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === "holdPerson"); if (!sp) return "";
+  const picks = new Set([f.target, ...(f.holdTargets ?? [])].filter((x) => x != null));
+  const cands = state.figures.filter((e) => present(e) && e.side !== f.side && distIn(f, e) <= sp.range);
+  if (!cands.length) return `<p class="note">No enemies within ${sp.range}".</p>`;
+  return `<fieldset style="border:1px solid #c5d1d9;border-radius:4px;margin:8px 0;padding:6px 10px"><legend class="note" style="font-size:.85rem">Hold Person targets (1–${HOLD_PERSON_MAX}; one alone saves at −2)</legend>${cands.map((e) => `<label style="display:block;font-size:.9rem"><input type="checkbox" data-hold="${e.id}" ${picks.has(e.id) ? "checked" : ""} ${!picks.has(e.id) && picks.size >= HOLD_PERSON_MAX ? "disabled" : ""}> ${esc(e.name)}${isPerson(e) ? "" : " (not a person)"}, ${distIn(f, e)}"</label>`).join("")}</fieldset>`;
+}
 function actionsFor(f) {
   const list = [["melee", "Melee"]];
   if (f.missile) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`]);
@@ -581,11 +626,17 @@ function renderDetail() {
     <dt>Can join a melee</dt><dd>${joinOk ? "yes" : "no (moved over half)"}</dd>
     <dt>Target</dt><dd>${t ? `${esc(t.name)}${adjacent(f, t) ? "" : " (not adjacent)"}` : "none"}</dd></dl>
     ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
+    ${f.action === "cast:holdPerson" ? holdPicker(f) : ""}
     ${f.slotsLeft?.some((n) => n > 0) ? `<div class="note" style="font-size:.85rem">Spell slots left: ${f.slotsLeft.map((n, i) => n > 0 ? `level ${i + 1}: ${n}` : null).filter(Boolean).join(", ")}</div>` : ""}
     ${p.profileAttack || !active(f) ? "" : `<label>Stance <select id="stance">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select></label>`}
     ${t ? ` <button id="clearTarget">Clear target</button>` : ""}`;
   $("#stance")?.addEventListener("change", (e) => { f.stance = e.target.value; render(); });
   $("#action")?.addEventListener("change", (e) => { f.action = e.target.value; render(); });
+  el.querySelectorAll("[data-hold]").forEach((cb) => cb.addEventListener("change", () => {
+    const id = Number(cb.dataset.hold); const cur = new Set([f.target, ...(f.holdTargets ?? [])].filter((x) => x != null));
+    if (cb.checked) cur.add(id); else cur.delete(id);
+    const list = [...cur]; f.target = list[0] ?? null; f.holdTargets = list.slice(1); render();
+  }));
   $("#clearTarget")?.addEventListener("click", () => clearTarget(f));
 }
 function render() {
