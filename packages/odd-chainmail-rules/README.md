@@ -39,6 +39,13 @@ Changes made during extraction:
 4. `index.js`: `reactionFor` exists in both `morale.mjs` and `retainers.mjs`;
    exported as `moraleReactionFor` and `retainerReactionFor`.
 
+## Changes since extraction
+
+- 0.1.1: `resolveExchange` now passes a creature's attack profile (natural
+  attack, extra damage dice, flat damage bonus) through to each blow. Before,
+  an ogre in a two-way exchange hit for 1d6 instead of 1d6+2 and gained
+  weapon-speed blows it shouldn't have.
+
 ## Open items
 
 - Spellcasting: rebuild the casting resolver without Chainmail spell

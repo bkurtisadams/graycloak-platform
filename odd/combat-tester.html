@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OD&amp;D Combat Tester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #edf2f4;
+  --grid: #c9d8e2;
+  --ink: #1f2b38;
+  --pencil: #66717d;
+  --red: #b3362b;
+  --side-a: #2f5c8a;
+  --side-b: #8a5a17;
+  --card: #fbfdfe;
+  --serif: "Source Serif 4", Georgia, serif;
+  --type: "Courier Prime", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 16px 16px;
+  color: var(--ink);
+  font: 16px/1.5 var(--serif);
+}
+header { padding: 20px 24px 8px; max-width: 1280px; margin: 0 auto; }
+h1 { font-size: 1.9rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+header p { margin: 4px 0 0; color: var(--pencil); max-width: 70ch; }
+main {
+  max-width: 1280px; margin: 0 auto; padding: 12px 24px 40px;
+  display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 20px;
+}
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+section.side, section.fight {
+  background: var(--card); border: 1px solid #b7c7d2; border-radius: 6px; padding: 14px 16px;
+}
+section.side { border-left: 5px solid var(--side-a); margin-bottom: 16px; }
+section.side.b { border-left-color: var(--side-b); }
+h2 { font-size: 1.2rem; margin: 0 0 8px; }
+.side.a h2 { color: var(--side-a); }
+.side.b h2 { color: var(--side-b); }
+table.roster { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+.roster th { text-align: left; font-weight: 600; color: var(--pencil); padding: 2px 4px; }
+.roster td { padding: 4px; border-top: 1px dotted #c5d1d9; vertical-align: middle; }
+.roster tr.down td { color: var(--pencil); text-decoration: line-through; }
+.roster tr.down td.hp { text-decoration: none; color: var(--red); }
+.hp { font-family: var(--type); white-space: nowrap; }
+select, input, button { font: inherit; font-size: 0.9rem; color: var(--ink); }
+select, input { border: 1px solid #9fb2c0; border-radius: 4px; padding: 3px 5px; background: #fff; max-width: 100%; }
+input[type=number] { width: 4.2em; }
+button {
+  border: 1px solid var(--ink); background: #fff; border-radius: 4px; padding: 5px 12px; cursor: pointer;
+}
+button.primary { background: var(--ink); color: #fff; }
+button:disabled { opacity: 0.4; cursor: default; }
+button.x { border: none; background: none; color: var(--pencil); padding: 2px 6px; }
+:focus-visible { outline: 2px solid var(--side-a); outline-offset: 2px; }
+.adders { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; font-size: 0.9rem; }
+.adders .group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.controls label { color: var(--pencil); font-size: 0.9rem; }
+.status { font-family: var(--type); font-size: 0.95rem; margin-bottom: 8px; }
+.status .win { color: var(--red); font-weight: 700; }
+#log { font-family: var(--type); font-size: 0.88rem; max-height: 70vh; overflow-y: auto; }
+.round-head { font-family: var(--serif); font-weight: 700; font-size: 1.05rem; margin: 14px 0 6px; border-bottom: 1px solid var(--ink); }
+.round-head span { font-weight: 400; color: var(--pencil); font-size: 0.9rem; }
+.card { border: 1px solid #c5d1d9; border-radius: 4px; padding: 6px 8px; margin: 6px 0; background: #fff; }
+.card .who { font-weight: 700; }
+.card .who .a { color: var(--side-a); }
+.card .who .b { color: var(--side-b); }
+.card .line { padding-left: 1ch; }
+.card .hit { color: var(--red); font-weight: 700; }
+.card .note { color: var(--pencil); }
+.empty { color: var(--pencil); font-style: italic; }
+@media (prefers-reduced-motion: no-preference) { #log .card:last-child { animation: settle 180ms ease-out; } }
+@keyframes settle { from { opacity: 0; } to { opacity: 1; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>OD&amp;D combat tester</h1>
+  <p>Chainmail man-to-man on the rules package. Build two sides, then fight round by round. The same seed and the same choices replay the same fight.</p>
+</header>
+<main>
+  <div>
+    <section class="side a" id="side-A"></section>
+    <section class="side b" id="side-B"></section>
+  </div>
+  <section class="fight">
+    <h2>Fight</h2>
+    <div class="controls">
+      <label for="seed">Seed</label>
+      <input id="seed" type="number" value="1974" style="width:6em">
+      <button id="newSeed">New seed</button>
+      <button id="start" class="primary">Start fight</button>
+      <button id="next" disabled>Next round</button>
+      <button id="auto" disabled>Fight to the end</button>
+      <button id="reset" disabled>Reset</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div id="log"><p class="empty">Add figures to both sides, then start the fight.</p></div>
+  </section>
+</main>
+<script type="module">
+import {
+  MONSTERS, WEAPON_CLASS, weaponIdForClass, mulberry32, rollDie, sumHitDice,
+  hitDiceFor, fightingCapabilityFor, monsterAttackProfile, monsterAttackDice,
+  rollInitiative, resolveExchange, resolveAttackPool
+} from "../packages/odd-chainmail-rules/index.js";
+
+const ARMOR = [
+  { id: "none", label: "No armour", ac: 9 },
+  { id: "leather", label: "Leather", ac: 7 },
+  { id: "shield", label: "Shield only", ac: 8 },
+  { id: "leather+shield", label: "Leather + shield", ac: 6 },
+  { id: "chain", label: "Chain", ac: 5 },
+  { id: "chain+shield", label: "Chain + shield", ac: 4 },
+  { id: "plate", label: "Plate", ac: 3 },
+  { id: "plate+shield", label: "Plate + shield", ac: 2 }
+];
+const CLASSES = [
+  { id: "fighter", label: "Fighting-Man", weapon: "sword", armor: "chain+shield" },
+  { id: "cleric", label: "Cleric", weapon: "mace", armor: "chain+shield" },
+  { id: "magic-user", label: "Magic-User", weapon: "dagger", armor: "none" },
+  { id: "thief", label: "Thief", weapon: "sword", armor: "leather" }
+];
+const WEAPON_LABEL = {
+  dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe",
+  morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd",
+  twohanded: "Two-handed sword", lance: "Lance", pike: "Pike"
+};
+const FACINGS = [["front", "Front"], ["left", "Left flank"], ["right", "Right flank"], ["rear", "Rear"]];
+const FACING_ENGINE = { front: "front", left: "leftFlank", right: "rightFlank", rear: "rear" };
+
+const state = { figures: [], nextId: 1, phase: "setup", round: 0, rng: null, pairs: new Map(), winner: null };
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const armorById = (id) => ARMOR.find((a) => a.id === id);
+const acLabel = (ac) => (ARMOR.find((a) => a.ac === ac)?.label ?? "") + ` (AC ${ac})`;
+
+/* ---------- figures ---------- */
+function addCharacter(side, cls, level, armorId, weaponId) {
+  const c = CLASSES.find((x) => x.id === cls);
+  const n = state.figures.filter((f) => f.side === side && f.kind === "pc").length + 1;
+  state.figures.push({
+    id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level,
+    armor: armorId, ac: armorById(armorId).ac, weaponId, facing: "front", stance: "attack", target: null
+  });
+}
+function addMonsters(side, key, count) {
+  const m = MONSTERS.find((x) => x.key === key);
+  const have = state.figures.filter((f) => f.monsterKey === key).length;
+  for (let i = 1; i <= count; i++) {
+    state.figures.push({
+      id: state.nextId++, side, kind: "monster", monsterKey: key, name: `${m.name} ${have + i}`,
+      ac: m.ac, facing: "front", stance: "attack", target: null
+    });
+  }
+}
+function combatProfile(f) {
+  if (f.kind === "pc") {
+    const fc = fightingCapabilityFor(f.cls, f.level);
+    return { weaponId: f.weaponId, parryWeaponId: f.weaponId, dice: fc.attacks, bonus: fc.bonus, fcLabel: fc.label, profileAttack: false };
+  }
+  const m = MONSTERS.find((x) => x.key === f.monsterKey);
+  const p = monsterAttackProfile(m);
+  const dice = monsterAttackDice(m);
+  if (p.method === "weapon") {
+    const w = weaponIdForClass(p.weaponClass);
+    return { weaponId: w, parryWeaponId: w, dice, bonus: 0, fcLabel: `${dice} HD`, profileAttack: false };
+  }
+  return {
+    weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`,
+    profileAttack: true, damageDice: p.damage.dice || 1, damageFlat: p.damage.bonus || 0
+  };
+}
+function rollHp(f, rng) {
+  if (f.kind === "pc") {
+    const hd = hitDiceFor(f.cls, f.level);
+    return Math.max(1, sumHitDice(hd.dice, rng).sum + hd.bonus);
+  }
+  const hd = MONSTERS.find((x) => x.key === f.monsterKey).hd;
+  const size = hd.dieSize || 6;
+  let sum = hd.bonus || 0;
+  for (let i = 0; i < hd.count; i++) sum += 1 + Math.floor(rng() * size);
+  return Math.max(1, sum);
+}
+const alive = (f) => f.hp == null || f.hp > 0;
+const enemiesOf = (f) => state.figures.filter((e) => e.side !== f.side && alive(e));
+const byId = (id) => state.figures.find((f) => f.id === id);
+
+function autoTarget() {
+  for (const f of state.figures) {
+    if (!alive(f)) { f.target = null; continue; }
+    const cur = f.target != null ? byId(f.target) : null;
+    if (cur && alive(cur)) continue;
+    const foes = enemiesOf(f);
+    if (!foes.length) { f.target = null; continue; }
+    const attackers = (e) => state.figures.filter((x) => alive(x) && x.target === e.id).length;
+    const onMe = foes.find((e) => e.target === f.id);
+    f.target = (onMe ?? foes.slice().sort((a, b) => attackers(a) - attackers(b))[0]).id;
+  }
+}
+
+/* ---------- a round ---------- */
+function combatant(f) {
+  const p = combatProfile(f);
+  const parrying = f.stance === "parry";
+  return {
+    name: f.name, weaponId: p.weaponId, ac: f.ac, parryWeaponId: p.parryWeaponId,
+    thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, dice: parrying ? 0 : p.dice,
+    bonus: p.bonus, bonusDie: 0, hp: f.hp, facing: FACING_ENGINE[f.facing],
+    profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat
+  };
+}
+function strikeCard(res, atk, def) {
+  if (!res) return "";
+  if (res.immune) return `<div class="line note">${esc(res.caption)}</div>`;
+  const lines = res.dice.map((d) => {
+    const mods = [];
+    if (d.bonus) mods.push(d.bonus > 0 ? `+${d.bonus}` : `${d.bonus}`);
+    if (d.parried) mods.push("−2 parry");
+    const tag = d.speed ? " (extra blow)" : "";
+    const out = d.hit ? `<span class="hit">hit, ${d.damage} damage</span>` : "miss";
+    const broke = d.broke ? ` <span class="hit">— parrying weapon breaks</span>` : "";
+    return `<div class="line">2d6 [${d.roll.join(",")}]${mods.length ? " " + mods.join(" ") : ""} = ${d.effective} vs ${res.toHitNumber}: ${out}${tag}${broke}</div>`;
+  });
+  if (!res.dice.length) lines.push(`<div class="line note">no blows thrown (parrying)</div>`);
+  const prof = combatProfile(atk);
+  const weaponText = prof.profileAttack ? "natural attack" : (WEAPON_LABEL[prof.weaponId] ?? prof.weaponId).toLowerCase();
+  return `<div class="line note">${esc(atk.name)} (${weaponText}) → ${esc(def.name)}, ${acLabel(def.ac)}: needs ${res.toHitNumber}</div>` + lines.join("");
+}
+function nameSpan(f) { return `<span class="${f.side === "A" ? "a" : "b"}">${esc(f.name)}</span>`; }
+
+function playRound() {
+  if (state.phase !== "fight") return;
+  state.round++;
+  autoTarget();
+  const init = rollInitiative(state.rng);
+  const firstSide = init.winner;
+  const start = new Map(state.figures.map((f) => [f.id, f.hp]));
+  const dmg = new Map();
+  const add = (id, n) => dmg.set(id, (dmg.get(id) ?? 0) + n);
+  const cards = [];
+  const done = new Set();
+  const fighters = state.figures.filter((f) => alive(f) && f.target != null);
+  for (const f of fighters) {
+    if (done.has(f.id)) continue;
+    const t = byId(f.target);
+    if (!t || !alive(t)) continue;
+    const mutual = t.target === f.id && !done.has(t.id);
+    if (mutual) {
+      done.add(f.id); done.add(t.id);
+      const key = [f.id, t.id].sort((a, b) => a - b).join("-");
+      let pair = state.pairs.get(key);
+      if (!pair) {
+        const lead = f.facing !== "front" ? f : t.facing !== "front" ? t : (f.side === firstSide ? f : t);
+        pair = { first: lead.id, second: lead === f ? t.id : f.id, prevFirst: null, rounds: 0 };
+        state.pairs.set(key, pair);
+      }
+      pair.rounds++;
+      const A = byId(pair.first), B = byId(pair.second);
+      const ca = combatant(A), cb = combatant(B);
+      ca.hp = start.get(A.id); cb.hp = start.get(B.id);
+      const ex = resolveExchange({ first: ca, second: cb, round: pair.rounds, prevFirst: pair.prevFirst }, state.rng);
+      pair.prevFirst = ex.striker;
+      const lead = ex.striker === "first" ? A : B, lag = lead === A ? B : A;
+      add(lag.id, ex.firstStrike.damage);
+      if (ex.counter) add(lead.id, ex.counter.damage);
+      const why = ex.killed ? `<div class="line note">${esc(lag.name)} falls before striking back.</div>`
+        : ex.brokeOut ? `<div class="line note">${esc(lag.name)}'s weapon broke; no return blow.</div>`
+        : !ex.counter ? `<div class="line note">Rear attack: no return blow.</div>` : "";
+      cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(round ${pair.rounds} of this melee)</span></div>${strikeCard(ex.firstStrike, lead, lag)}${ex.counter ? strikeCard(ex.counter, lag, lead) : ""}${why}</div>`);
+    } else {
+      done.add(f.id);
+      if (f.stance === "parry") continue;
+      const ca = combatant(f), ct = combatant(t);
+      const res = resolveAttackPool({ attacker: { ...ca, dice: ca.thrown }, target: ct }, state.rng);
+      add(t.id, res.damage);
+      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(${t.name} is fighting someone else: no return blow)</span></div>${strikeCard(res, f, t)}</div>`);
+    }
+  }
+  const fell = [];
+  for (const f of state.figures) {
+    if (!dmg.has(f.id) || !alive(f)) continue;
+    f.hp -= dmg.get(f.id);
+    if (f.hp <= 0) fell.push(f);
+  }
+  for (const [k, p] of state.pairs) if (!alive(byId(p.first)) || !alive(byId(p.second))) state.pairs.delete(k);
+  const head = `<div class="round-head">Round ${state.round} <span>initiative A ${init.a}, B ${init.b}: side ${firstSide} moves first</span></div>`;
+  const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((f) => esc(f.name)).join(", ")}</span></div>` : "";
+  const body = cards.length ? cards.join("") : `<div class="card note">No one is engaged this round.</div>`;
+  $("#log").insertAdjacentHTML("beforeend", head + body + tail);
+  $("#log").scrollTop = $("#log").scrollHeight;
+  const aUp = state.figures.some((f) => f.side === "A" && alive(f));
+  const bUp = state.figures.some((f) => f.side === "B" && alive(f));
+  if (!aUp || !bUp) { state.phase = "over"; state.winner = aUp ? "A" : bUp ? "B" : "none"; }
+  autoTarget();
+  render();
+}
+
+/* ---------- controls ---------- */
+function startFight() {
+  if (!state.figures.some((f) => f.side === "A") || !state.figures.some((f) => f.side === "B")) return;
+  const seed = Math.trunc(Number($("#seed").value)) || 1;
+  state.rng = mulberry32(seed);
+  for (const f of state.figures) { f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; }
+  state.pairs.clear(); state.round = 0; state.winner = null; state.phase = "fight";
+  autoTarget();
+  const roster = state.figures.map((f) => `${esc(f.name)} ${f.hp} hp`).join(", ");
+  $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points rolled: ${roster}.</div>`;
+  render();
+}
+function resetFight() {
+  for (const f of state.figures) { f.hp = undefined; f.maxHp = undefined; f.target = null; }
+  state.phase = "setup"; state.round = 0; state.pairs.clear(); state.winner = null;
+  $("#log").innerHTML = `<p class="empty">Same seed and same choices replay the same fight.</p>`;
+  render();
+}
+
+/* ---------- rendering ---------- */
+const opts = (list, sel) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(sel) ? " selected" : ""}>${esc(l)}</option>`).join("");
+function renderSide(side) {
+  const el = $(`#side-${side}`);
+  const figs = state.figures.filter((f) => f.side === side);
+  const setup = state.phase === "setup";
+  const rows = figs.map((f) => {
+    const p = combatProfile(f);
+    const foes = state.figures.filter((e) => e.side !== side && alive(e));
+    const targetSel = setup || !alive(f) ? "" :
+      `<select data-id="${f.id}" data-k="target" aria-label="Target for ${esc(f.name)}">${opts([["", "none"], ...foes.map((e) => [e.id, e.name])], f.target ?? "")}</select>`;
+    const facingSel = !alive(f) ? "" : `<select data-id="${f.id}" data-k="facing" aria-label="Facing for ${esc(f.name)}">${opts(FACINGS, f.facing)}</select>`;
+    const stanceSel = !alive(f) || p.profileAttack ? "" :
+      `<select data-id="${f.id}" data-k="stance" aria-label="Stance for ${esc(f.name)}">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select>`;
+    const weapon = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
+    const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
+    const nameCell = setup ? `<input data-id="${f.id}" data-k="name" value="${esc(f.name)}" aria-label="Name" style="width:9em">` : esc(f.name);
+    return `<tr class="${alive(f) ? "" : "down"}">
+      <td>${nameCell}<div class="note" style="font-size:.8rem;color:var(--pencil)">${esc(p.fcLabel)}, ${esc(weapon)}, AC ${f.ac}</div></td>
+      <td class="hp">${hp}</td><td>${targetSel}</td><td>${facingSel}</td><td>${stanceSel}</td>
+      <td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
+  }).join("");
+  const table = figs.length
+    ? `<table class="roster"><thead><tr><th>Figure</th><th>HP</th><th>Target</th><th>Facing</th><th>Stance</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
+    : `<p class="empty">No figures yet.</p>`;
+  const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
+  const adders = setup ? `<div class="adders">
+      <div class="group">
+        <select id="cls-${side}" aria-label="Class">${opts(CLASSES.map((c) => [c.id, c.label]), "fighter")}</select>
+        <label>Level <input id="lvl-${side}" type="number" min="1" max="14" value="1"></label>
+        <select id="arm-${side}" aria-label="Armour">${opts(ARMOR.map((a) => [a.id, a.label]), "chain+shield")}</select>
+        <select id="wpn-${side}" aria-label="Weapon">${opts(weapons, "sword")}</select>
+        <button data-add-pc="${side}">Add character</button>
+      </div>
+      <div class="group">
+        <input id="cnt-${side}" type="number" min="1" max="30" value="1" aria-label="How many">
+        <select id="mon-${side}" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), "orc")}</select>
+        <button data-add-mon="${side}">Add monsters</button>
+      </div></div>` : "";
+  el.innerHTML = `<h2>Side ${side}</h2>${table}${adders}`;
+  const cls = $(`#cls-${side}`, el);
+  if (cls) cls.addEventListener("change", () => {
+    const c = CLASSES.find((x) => x.id === cls.value);
+    $(`#arm-${side}`, el).value = c.armor; $(`#wpn-${side}`, el).value = c.weapon;
+  });
+}
+function render() {
+  renderSide("A"); renderSide("B");
+  const fight = state.phase === "fight";
+  $("#start").disabled = state.phase !== "setup";
+  $("#next").disabled = !fight; $("#auto").disabled = !fight;
+  $("#reset").disabled = state.phase === "setup";
+  $("#seed").disabled = state.phase !== "setup"; $("#newSeed").disabled = state.phase !== "setup";
+  $("#status").innerHTML = state.phase === "over"
+    ? `<span class="win">${state.winner === "none" ? "Both sides are down." : `Side ${state.winner} wins after ${state.round} round${state.round === 1 ? "" : "s"}.`}</span>`
+    : fight ? `Round ${state.round} done. Change targets, facing or stance, then play the next round.` : "";
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.addPc) {
+    const s = b.dataset.addPc;
+    addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value);
+    render();
+  } else if (b.dataset.addMon) {
+    const s = b.dataset.addMon;
+    addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1)));
+    render();
+  } else if (b.dataset.remove) {
+    state.figures = state.figures.filter((f) => f.id !== Number(b.dataset.remove)); render();
+  }
+});
+document.addEventListener("change", (e) => {
+  const el = e.target; if (!el.dataset.id) return;
+  const f = byId(Number(el.dataset.id)); if (!f) return;
+  const k = el.dataset.k;
+  if (k === "target") f.target = el.value === "" ? null : Number(el.value);
+  else if (k === "facing") f.facing = el.value;
+  else if (k === "stance") f.stance = el.value;
+  else if (k === "name") f.name = el.value.trim() || f.name;
+  render();
+});
+$("#start").addEventListener("click", startFight);
+$("#next").addEventListener("click", playRound);
+$("#auto").addEventListener("click", () => { let guard = 200; while (state.phase === "fight" && guard--) playRound(); });
+$("#reset").addEventListener("click", resetFight);
+$("#newSeed").addEventListener("click", () => { $("#seed").value = Math.floor(Math.random() * 1e6); });
+
+addCharacter("A", "fighter", 1, "chain+shield", "sword");
+addCharacter("A", "cleric", 1, "chain+shield", "mace");
+addCharacter("A", "magic-user", 1, "none", "dagger");
+addMonsters("B", "orc", 6);
+render();
+</script>
+</body>
+</html>

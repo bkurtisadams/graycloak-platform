@@ -424,7 +424,10 @@ export function firstStriker({ first, second, round = 1, charge = false, prevFir
 /** Build the resolveAttackPool args for `atk` striking `def` at `facing`. */
 function poolArgs(atk, def, facing) {
   return {
-    attacker: { name: atk.name, weaponId: atk.weaponId, dice: atk.thrown, bonus: atk.bonus, bonusDie: atk.bonusDie, magical: atk.magical, silver: atk.silver, facing },
+    attacker: {
+      name: atk.name, weaponId: atk.weaponId, dice: atk.thrown, bonus: atk.bonus, bonusDie: atk.bonusDie, magical: atk.magical, silver: atk.silver, facing,
+      profileAttack: atk.profileAttack, damageDice: atk.damageDice, damageFlat: atk.damageFlat, damageBonus: atk.damageBonus
+    },
     target: { name: def.name, ac: def.ac, held: def.held, parryWeaponId: def.parryWeaponId, hitOnlyBy: def.hitOnlyBy, damageHalved: def.damageHalved }
   };
 }
@@ -752,6 +755,15 @@ function runSelfTests() {
     if (!cond) throw new Error(`FAIL: ${label}`);
     pass++;
   };
+
+  // resolveExchange passes a creature's attack profile through (Ogre 1d6+2 natural attack).
+  {
+    const ogre = { name: "Ogre", weaponId: "polearm", ac: 5, parryWeaponId: null, thrown: 1, held: 0, profileAttack: true, damageDice: 1, damageFlat: 2 };
+    const man = { name: "Man", weaponId: "sword", ac: 4, parryWeaponId: "sword", thrown: 1, held: 0 };
+    const ex = resolveExchange({ first: ogre, second: man }, forceDice([6, 6, 1, 1, 1]));
+    ok(ex.firstStrike.attacker.profileAttack === true && ex.firstStrike.speedDice === 0, "exchange keeps profileAttack (no speed dice)");
+    ok(ex.firstStrike.damage === 3, "exchange keeps damageFlat: 1d6 (1) + 2 = 3");
+  }
 
   // T1: plain hit + miss. sword vs AC6 -> 9. die0 [6,4]=10 hit (dmg 5); die1 [3,3]=6 miss.
   {
