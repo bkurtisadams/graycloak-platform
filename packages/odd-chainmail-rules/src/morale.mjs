@@ -88,6 +88,30 @@ export function derivedMoraleRating(hdCount) {
   return Math.min(12, Math.max(4, 4 + hd));
 }
 
+/**
+ * Loss Table line by Chainmail troop type (Kurt's ruling, Sep 2026): a monster
+ * checks on the row for its Fantasy Supplement "defends as" type. Light troops
+ * of either kind use the Light row (OPEN for Light Horse).
+ */
+export function troopLossLine(troopType) {
+  switch (String(troopType || "").toUpperCase()) {
+    case "LF": case "LH": return { threshold: 1 / 4, scoreToRemain: 8, row: "Light" };
+    case "HF": return { threshold: 1 / 3, scoreToRemain: 7, row: "Heavy Foot" };
+    case "AF": return { threshold: 1 / 3, scoreToRemain: 6, row: "Armored Foot" };
+    case "MH": return { threshold: 1 / 3, scoreToRemain: 7, row: "Medium Horse" };
+    case "HH": return { threshold: 1 / 2, scoreToRemain: 6, row: "Heavy Horse" };
+    default: return null;
+  }
+}
+
+/** Book II morale adjustments to the dice. Goblins, kobolds, orcs -1 in full daylight. */
+export const BOOK_II_MORALE = Object.freeze({ hobgoblin: 1, gnoll: 2 });
+export function bookTwoMoraleBonus(monsterKey, { daylight = false } = {}) {
+  let b = BOOK_II_MORALE[monsterKey] ?? 0;
+  if (daylight && ["goblin", "kobold", "orc"].includes(monsterKey)) b -= 1;
+  return b;
+}
+
 /** Loss Table line for a Morale Rating: casualty threshold + score to remain. */
 export function lossLineFor(rating) {
   const r = Math.trunc(rating) || 0;
@@ -311,6 +335,11 @@ function runSelfTests() {
   let pass = 0;
   const ok = (c, l) => { if (!c) throw new Error(`FAIL: ${l}`); pass++; };
 
+  // troop-type Loss Table rows and Book II adjustments
+  ok(troopLossLine("HF").scoreToRemain === 7 && troopLossLine("HF").threshold === 1 / 3, "HF row");
+  ok(troopLossLine("LF").threshold === 1 / 4 && troopLossLine("HH").threshold === 1 / 2, "LF and HH rows");
+  ok(troopLossLine("") === null, "no troop type -> null");
+  ok(bookTwoMoraleBonus("gnoll") === 2 && bookTwoMoraleBonus("orc", { daylight: true }) === -1 && bookTwoMoraleBonus("orc") === 0, "Book II bonuses");
   // T1: the book's worked example. 10 HH (MR 9) attack 20 HF (MR 5), kill 8,
   // lose 2; assumed die roll 3. HH: 6×3 + 9×8 = 90. HF: 4 + 5×12 = 64.
   // Difference 26, doubled to 52 -> back 1 move, good order.

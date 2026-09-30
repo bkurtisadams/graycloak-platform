@@ -109,7 +109,10 @@ import {
   MONSTERS, WEAPON_CLASS, EQUIPMENT_BY_KEY, weaponIdForClass, mulberry32, sumHitDice,
   hitDiceFor, fightingCapabilityFor, monsterAttackProfile, monsterAttackDice, encumbranceFor,
   rollInitiative, resolveExchange, resolveAttackPool,
-  moveBudget, halfCellsToInches, canJoinMelee, reachable, adjacent, dir8, attackFacing, recordContact, pairKey
+  moveBudget, halfCellsToInches, canJoinMelee, reachable, adjacent, dir8, attackFacing, recordContact, pairKey,
+  resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
+  slotsFor, combatSpellsFor, castingGate, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
+  lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod
 } from "../packages/odd-chainmail-rules/index.js";
 
 /* ---------- data ---------- */
@@ -126,6 +129,9 @@ const CLASSES = [
   { id: "thief", label: "Thief", weapon: "sword", armor: "leather" }
 ];
 const WEAPON_LABEL = { dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe", morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd", twohanded: "Two-handed sword", lance: "Lance", pike: "Pike" };
+const MISSILES = [["", "No missile"], ["shortbow", "Short bow"], ["longbow", "Long bow"], ["lightcrossbow", "Light crossbow"], ["heavycrossbow", "Heavy crossbow"], ["sling", "Sling"]];
+const MISSILE_LABEL = Object.fromEntries(MISSILES);
+const MONSTER_DEX = 10; // OPEN: monsters have no Dexterity in Books I-III
 const FACING_LABEL = { front: "front", leftFlank: "left flank", rightFlank: "right flank", rear: "rear" };
 const MISC_LOAD = 80;
 const W = 54, H = 30, PX = 16;
@@ -139,6 +145,12 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const byId = (id) => state.figures.find((f) => f.id === id);
 const alive = (f) => f.hp == null || f.hp > 0;
+const GONE = ["fled", "surrendered", "charmed"];
+const present = (f) => alive(f) && !GONE.includes(f.status);
+const active = (f) => present(f) && !["asleep", "held"].includes(f.status);
+const helpless = (f) => present(f) && ["asleep", "held"].includes(f.status);
+const dexOf = (f) => f.kind === "pc" ? f.dex : MONSTER_DEX;
+let moveSeq = 0;
 const other = (s) => (s === "A" ? "B" : "A");
 
 /* ---------- maps ---------- */
@@ -151,7 +163,7 @@ function buildWalls(layout) {
   return walls;
 }
 const isWall = (x, y) => x < 0 || y < 0 || x >= W || y >= H || state.walls[y][x];
-const occupant = (x, y) => state.figures.find((f) => alive(f) && f.x === x && f.y === y);
+const occupant = (x, y) => state.figures.find((f) => present(f) && f.x === x && f.y === y);
 
 function deploy() {
   const place = (side, fromLeft) => {
@@ -172,15 +184,15 @@ function deploy() {
 }
 
 /* ---------- figures ---------- */
-function addCharacter(side, cls, level, armorId, weaponId) {
+function addCharacter(side, cls, level, armorId, weaponId, dex = 10, missile = "") {
   const c = CLASSES.find((x) => x.id === cls);
   const n = state.figures.filter((f) => f.side === side && f.cls === cls).length + 1;
-  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, stance: "attack", target: null });
+  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, dex, missile, stance: "attack", target: null, action: "melee" });
 }
 function addMonsters(side, key, count) {
   const m = MONSTERS.find((x) => x.key === key);
   const have = state.figures.filter((f) => f.monsterKey === key).length;
-  for (let i = 1; i <= count; i++) state.figures.push({ id: state.nextId++, side, kind: "monster", monsterKey: key, name: `${m.name} ${have + i}`, ac: m.ac, stance: "attack", target: null });
+  for (let i = 1; i <= count; i++) state.figures.push({ id: state.nextId++, side, kind: "monster", monsterKey: key, name: `${m.name} ${have + i}`, ac: m.ac, stance: "attack", target: null, action: "melee" });
 }
 function moveInches(f) {
   if (f.kind === "monster") return MONSTERS.find((x) => x.key === f.monsterKey).move?.ground ?? 9;
@@ -209,7 +221,7 @@ function combatant(f, facing) {
 }
 
 /* ---------- movement and targeting ---------- */
-const canMoveNow = (f) => state.phase === "setup" || (state.phase === "fight" && state.step === `move-${f.side}` && alive(f));
+const canMoveNow = (f) => state.phase === "setup" || (state.phase === "fight" && state.step === `move-${f.side}` && active(f));
 function reachFor(f) {
   const budget = moveBudget(moveInches(f)) - (f.moved ?? 0);
   const enemyAt = (x, y) => { const o = occupant(x, y); return !!o && o.side !== f.side; };
@@ -225,13 +237,13 @@ function moveTo(f, x, y) {
   const r = reachFor(f); const node = r.get(`${x},${y}`); if (!node || node.passOnly || (x === f.x && y === f.y)) return;
   const stepNode = r.get(node.prev) ?? { x: f.x, y: f.y };
   f.facing = dir8(x - stepNode.x, y - stepNode.y) ?? f.facing;
-  if (state.phase === "fight") f.moved += node.cost;
+  if (state.phase === "fight") { f.moved += node.cost; f.moveSeq = ++moveSeq; }
   f.x = x; f.y = y;
   const t = f.target != null ? byId(f.target) : null; if (t) f.facing = dir8(t.x - f.x, t.y - f.y) ?? f.facing;
   render();
 }
 function setTarget(f, t) {
-  if (!f || !t || f.side === t.side || !alive(f) || !alive(t) || state.phase !== "fight") return;
+  if (!f || !t || f.side === t.side || !active(f) || !present(t) || state.phase !== "fight") return;
   f.target = t.id; f.facing = dir8(t.x - f.x, t.y - f.y) ?? f.facing; render();
 }
 function clearTarget(f) { if (f) { f.target = null; render(); } }
@@ -266,24 +278,26 @@ function resolveMelee() {
   const start = new Map(state.figures.map((f) => [f.id, f.hp]));
   const dmg = new Map(); const add = (id, n) => dmg.set(id, (dmg.get(id) ?? 0) + n);
   const cards = []; const done = new Set();
+  const spent = (f) => f.acted === state.round;
   for (const f of state.figures) {
-    if (!alive(f)) continue;
+    if (!active(f) || spent(f)) continue;
     const cur = f.target != null ? byId(f.target) : null;
-    if (cur && alive(cur) && adjacent(f, cur)) continue;
-    const foe = state.figures.find((e) => alive(e) && e.side !== f.side && e.target === f.id && adjacent(e, f));
-    if (!foe) continue;
+    if (cur && present(cur) && adjacent(f, cur)) continue;
+    const foes = state.figures.filter((e) => active(e) && !spent(e) && e.side !== f.side && e.target === f.id && adjacent(e, f));
+    if (!foes.length) continue;
+    const foe = foes.sort((a, b) => (a.moveSeq ?? 0) - (b.moveSeq ?? 0))[0];
     f.target = foe.id; f.facing = dir8(foe.x - f.x, foe.y - f.y) ?? f.facing;
     cards.push(`<div class="card note">${esc(f.name)} turns to fight ${esc(foe.name)}, who attacked him.</div>`);
   }
-  const attackers = state.figures.filter((f) => alive(f) && f.target != null);
+  const attackers = state.figures.filter((f) => active(f) && !spent(f) && f.target != null);
   const legal = new Map();
   for (const f of attackers) {
     const t = byId(f.target);
-    if (!t || !alive(t)) continue;
+    if (!t || !present(t)) continue;
     if (!adjacent(f, t)) { cards.push(`<div class="card note">${esc(f.name)} targets ${esc(t.name)} but isn't adjacent: no attack.</div>`); continue; }
     if (f.stance === "parry" && t.target !== f.id) continue;
     const priorContact = state.contacts.get(pairKey(f.id, t.id))?.lastRound === state.round - 1;
-    if (!priorContact && t.target !== f.id && inMeleeLastRound(t, f.id) && !canJoinMelee(f.moved, moveInches(f))) {
+    if (!priorContact && t.target !== f.id && !helpless(t) && inMeleeLastRound(t, f.id) && !canJoinMelee(f.moved, moveInches(f))) {
       cards.push(`<div class="card note">${esc(f.name)} can't join the melee around ${esc(t.name)}: moved ${halfCellsToInches(f.moved)}" of ${moveInches(f)}" (more than half).</div>`);
       continue;
     }
@@ -292,7 +306,7 @@ function resolveMelee() {
   for (const [fid, tid] of legal) {
     if (done.has(fid)) continue;
     const f = byId(fid), t = byId(tid);
-    if (legal.get(tid) === fid && !done.has(tid)) {
+    if (legal.get(tid) === fid && !done.has(tid) && active(t)) {
       done.add(fid); done.add(tid);
       const closer = (f.moved > 0) !== (t.moved > 0) ? (f.moved > 0 ? f : t) : (f.side === state.firstSide ? f : t);
       const c = recordContact(state.contacts, closer.id, closer === f ? tid : fid, state.round);
@@ -309,20 +323,151 @@ function resolveMelee() {
       done.add(fid);
       if (f.stance === "parry") continue;
       const c = recordContact(state.contacts, fid, tid, state.round);
-      const facing = attackFacing({ x: t.x, y: t.y }, t.facing, { x: f.x, y: f.y });
+      const facing = helpless(t) ? "rear" : attackFacing({ x: t.x, y: t.y }, t.facing, { x: f.x, y: f.y });
       const res = resolveAttackPool({ attacker: { ...combatant(f, facing), dice: combatant(f, facing).thrown }, target: combatant(t, "front") }, state.rng);
       add(t.id, res.damage);
-      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${esc(t.name)} is fighting someone else: no return blow)</span></div>${strikeCard(res, f, t, facing)}</div>`);
+      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${helpless(t) ? `${esc(t.name)} is ${t.status}: struck as from the rear` : `${esc(t.name)} is fighting someone else: no return blow`})</span></div>${strikeCard(res, f, t, facing)}</div>`);
     }
   }
   const fell = [];
   for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; f.hp -= dmg.get(f.id); if (f.hp <= 0) fell.push(f); }
-  for (const f of state.figures) if (f.target != null && !alive(byId(f.target))) f.target = null;
   const body = cards.length ? cards.join("") : `<div class="card note">No melee this round.</div>`;
   const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((f) => esc(f.name)).join(", ")}</span></div>` : "";
-  logAppend(`<div class="round-head">Round ${state.round}: melee</div>` + body + tail);
-  const aUp = state.figures.some((f) => f.side === "A" && alive(f)), bUp = state.figures.some((f) => f.side === "B" && alive(f));
+  logAppend(`<div class="round-head">Round ${state.round}: melee</div>` + body + tail + checkMorale());
+  afterStep();
+}
+function afterStep() {
+  for (const f of state.figures) if (f.target != null && !present(byId(f.target))) f.target = null;
+  const up = (s) => state.figures.some((f) => f.side === s && present(f));
+  const aUp = up("A"), bUp = up("B");
   if (!aUp || !bUp) { state.phase = "over"; state.winner = aUp ? "A" : bUp ? "B" : "none"; }
+}
+
+/* ---------- morale: Chainmail casualty check (p.26) ---------- */
+function checkMorale() {
+  const out = [];
+  for (const side of ["A", "B"]) {
+    const units = new Map();
+    for (const f of state.figures) if (f.side === side && f.kind === "monster") {
+      if (!units.has(f.monsterKey)) units.set(f.monsterKey, []);
+      units.get(f.monsterKey).push(f);
+    }
+    for (const [key, figs] of units) {
+      const unitKey = `${side}:${key}`;
+      if (state.moraleChecked.has(unitKey)) continue;
+      const m = MONSTERS.find((x) => x.key === key);
+      const line = troopLossLine(monsterAttackProfile(m).chainmail.defendsAs);
+      if (m.morale?.never || !line) continue;
+      if (!figs.some(active)) continue;
+      const killed = figs.filter((f) => !alive(f)).length;
+      if (killed / figs.length < line.threshold) continue;
+      state.moraleChecked.add(unitKey);
+      const trapped = figs.filter(active).every((f) => [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]].every(([dx, dy]) => isWall(f.x + dx, f.y + dy) || occupant(f.x + dx, f.y + dy)));
+      const bonus = bookTwoMoraleBonus(key);
+      const res = lossCheck({ name: `${m.name}s (side ${side})`, original: figs.length, remaining: figs.length - killed, line, bonus, surrounded: trapped }, state.rng);
+      if (!res.holds) for (const f of figs) if (active(f)) { f.status = res.outcome === "surrender" ? "surrendered" : "fled"; f.target = null; }
+      const r = res.roll;
+      out.push(`<div class="card"><div class="who">Morale: ${esc(m.name)}s, side ${side}</div><div class="line note">${killed} of ${figs.length} killed; ${line.row} row checks at ${Math.round(line.threshold * 100)}% lost, needs ${line.scoreToRemain}+</div><div class="line">2d6 [${r.dice.join(",")}]${r.bonus ? ` ${r.bonus > 0 ? "+" : ""}${r.bonus}` : ""} = ${r.modified}: ${res.holds ? "they stand" : `<span class="hit">${res.outcome === "surrender" ? "they surrender" : "they break and flee"}</span>`}</div></div>`);
+    }
+  }
+  return out.join("");
+}
+/* ---------- missiles and spells (Dexterity order) ---------- */
+const distIn = (a, b) => Math.round((Math.hypot(a.x - b.x, a.y - b.y) / 3) * 10) / 10;
+function lineOfSight(a, b) {
+  let x0 = a.x, y0 = a.y; const x1 = b.x, y1 = b.y;
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  while (!(x0 === x1 && y0 === y1)) {
+    const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
+    if (!(x0 === x1 && y0 === y1) && isWall(x0, y0)) return false;
+  }
+  return true;
+}
+const inMelee = (f) => state.figures.some((e) => active(e) && e.side !== f.side && adjacent(e, f) && (e.target === f.id || f.target === e.id));
+const savesOf = (f) => f.kind === "pc" ? savesFor(f.cls, f.level) : monsterSaves(MONSTERS.find((m) => m.key === f.monsterKey).hd.count);
+const hdOf = (f) => { if (f.kind === "pc") { const h = hitDiceFor(f.cls, f.level); return hdValue(h.dice, h.bonus); } const h = MONSTERS.find((m) => m.key === f.monsterKey).hd; return hdValue(h.count, h.bonus); };
+
+function resolveMissiles() {
+  const cards = []; const plans = [];
+  for (const f of state.figures) {
+    if (!active(f) || !f.action || f.action === "melee" || f.target == null) continue;
+    const t = byId(f.target); if (!t || !present(t)) continue;
+    const d = distIn(f, t);
+    if (f.action === "fire") {
+      if (!f.missile) continue;
+      if (inMelee(f)) { cards.push(`<div class="card note">${esc(f.name)} is in melee and can't fire.</div>`); continue; }
+      if (inMelee(t)) { cards.push(`<div class="card note">${esc(f.name)} holds fire: ${esc(t.name)} is in a melee.</div>`); continue; }
+      if (!lineOfSight(f, t)) { cards.push(`<div class="card note">${esc(f.name)} has no line of sight to ${esc(t.name)}.</div>`); continue; }
+      if (!missileBand(d, missileRange(f.missile))) { cards.push(`<div class="card note">${esc(t.name)} is out of range (${d}" of ${missileRange(f.missile)}").</div>`); continue; }
+      plans.push({ f, t, d, kind: "fire" });
+    } else if (f.action.startsWith("cast:")) {
+      const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
+      if (!spell) { cards.push(`<div class="card note">${esc(f.name)} has no slot left for that spell.</div>`); continue; }
+      if (spell.id !== "protectionEvil" && d > spell.range) { cards.push(`<div class="card note">${esc(t.name)} is beyond ${spell.name}'s ${spell.range}" range.</div>`); continue; }
+      if (spell.id !== "protectionEvil" && !lineOfSight(f, t)) { cards.push(`<div class="card note">${esc(f.name)} can't see ${esc(t.name)}.</div>`); continue; }
+      plans.push({ f, t, d, kind: "cast", spell });
+    }
+  }
+  const groups = [...new Set(plans.map((p) => dexOf(p.f)))].sort((a, b) => b - a);
+  const attacked = new Set(); const fell = [];
+  for (const dex of groups) {
+    const dmg = new Map(); const shotAt = [];
+    for (const p of plans.filter((q) => dexOf(q.f) === dex)) {
+      const { f, t } = p;
+      if (!active(f)) continue;
+      f.acted = state.round;
+      if (p.kind === "fire") {
+        const kind = fireClassFor(f.missile);
+        const moved = classifyMove(halfCellsToInches(f.moved), moveInches(f));
+        const gate = overHalfFireGate({ kind, moved }, state.rng);
+        if (gate && !gate.beat) { cards.push(`<div class="card note">${esc(f.name)} moved over half: fire die ${gate.fireDie} vs ${gate.foeDie}, no shot.</div>`); continue; }
+        const loaded = !(f.missile === "heavycrossbow" && f.lastFired === state.round - 1);
+        const shots = missileShots(1, { kind, moved, loaded });
+        if (!shots) { cards.push(`<div class="card note">${esc(f.name)} is reloading.</div>`); continue; }
+        f.lastFired = state.round; shotAt.push(t.id);
+        const fireBonus = missileMod(f.dex ?? 10);
+        const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots, fireBonus }, target: { name: t.name, ac: t.ac, distance: p.d } }, state.rng);
+        dmg.set(t.id, (dmg.get(t.id) ?? 0) + res.damage);
+        const lines = res.dice.map((x) => `<div class="line">2d6 [${x.roll.join(",")}]${x.bonus ? ` ${x.bonus > 0 ? "+" : ""}${x.bonus}` : ""} = ${x.effective} vs ${res.toKillNumber}: ${x.hit ? `<span class="hit">hit, ${x.damage} damage</span>` : "miss"}</div>`).join("");
+        cards.push(`<div class="card"><div class="who">${nameSpan(f)} shoots at ${nameSpan(t)} <span class="note">(Dex ${dexOf(f)})</span></div><div class="line note">${esc(MISSILE_LABEL[f.missile])}, ${p.d}" (${res.band} range), ${shots} shot${shots === 1 ? "" : "s"}${res.cannotKill ? `: ${esc(res.caption)}` : `, needs ${res.toKillNumber}`}</div>${lines}</div>`);
+      } else {
+        const sp = p.spell;
+        f.slotsLeft[sp.level - 1]--;
+        const gate = castingGate({ moved: f.moved, attackedFirst: attacked.has(f.id) });
+        if (!gate.ok) { cards.push(`<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line hit">Spoiled: ${gate.reason}. The spell is lost.</div></div>`); continue; }
+        cards.push(castSpell(f, t, sp));
+      }
+    }
+    for (const id of shotAt) attacked.add(id);
+    for (const [id, n] of dmg) { const g = byId(id); if (!alive(g)) continue; g.hp -= n; if (g.hp <= 0) fell.push(g); }
+  }
+  const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((g) => esc(g.name)).join(", ")}</span></div>` : "";
+  const body = cards.length ? cards.join("") : `<div class="card note">No missiles or spells this round.</div>`;
+  logAppend(`<div class="round-head">Round ${state.round}: missiles and spells</div>` + body + tail + checkMorale());
+  afterStep();
+}
+function castSpell(f, t, sp) {
+  const head = `<div class="who">${nameSpan(f)} casts ${esc(sp.name)}${sp.id === "protectionEvil" ? "" : ` at ${nameSpan(t)}`}</div>`;
+  if (sp.id === "sleep") {
+    const cap = sleepCapacity(...(() => { const h = t.kind === "pc" ? hitDiceFor(t.cls, t.level) : MONSTERS.find((m) => m.key === t.monsterKey).hd; return t.kind === "pc" ? [h.dice, h.bonus] : [h.count, h.bonus]; })(), state.rng);
+    if (!cap.n) return `<div class="card">${head}<div class="line note">${esc(t.name)} is too powerful to sleep.</div></div>`;
+    const band = hdOf(t);
+    const pool = state.figures.filter((e) => active(e) && e.side !== f.side && hdOf(e) <= Math.max(band, 1.5) && distIn(f, e) <= sp.range && lineOfSight(f, e));
+    const hit = pickRandom(pool, cap.n, state.rng);
+    for (const e of hit) { e.status = "asleep"; e.target = null; }
+    return `<div class="card">${head}<div class="line note">${cap.dice} = ${cap.n}; no saving throw</div><div class="line hit">Asleep: ${hit.map((e) => esc(e.name)).join(", ") || "none"}</div></div>`;
+  }
+  if (sp.id === "charmPerson" || sp.id === "holdPerson") {
+    if (!isPerson(t)) return `<div class="card">${head}<div class="line note">${esc(t.name)} isn't a person; no effect.</div></div>`;
+    const sv = saveVsSpells(savesOf(t), state.rng, sp.id === "holdPerson" ? -2 : 0);
+    const txt = `<div class="line">Save vs spells d20 ${sv.roll}${sv.mod ? ` ${sv.mod}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : `<span class="hit">fails</span>`}</div>`;
+    if (!sv.saved) { t.status = sp.id === "charmPerson" ? "charmed" : "held"; t.target = null; }
+    const eff = sv.saved ? "" : `<div class="line hit">${esc(t.name)} is ${t.status}${t.status === "charmed" ? " and leaves the fight" : ""}.</div>`;
+    return `<div class="card">${head}${txt}${eff}</div>`;
+  }
+  f.pfe = true;
+  return `<div class="card">${head}<div class="line note">Protection from Evil is recorded but not yet applied to attacks (needs a per-die modifier in the engine).</div></div>`;
 }
 function logAppend(html) { const log = $("#log"); log.insertAdjacentHTML("beforeend", html); log.scrollTop = log.scrollHeight; }
 
@@ -332,8 +477,8 @@ function startFight() {
   const seed = Math.trunc(Number($("#seed").value)) || 1;
   state.rng = mulberry32(seed);
   state.saved = state.figures.map((f) => ({ id: f.id, x: f.x, y: f.y, facing: f.facing }));
-  for (const f of state.figures) { f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; }
-  Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null });
+  for (const f of state.figures) { f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
+  Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set() }); moveSeq = 0;
   $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>`;
   render();
 }
@@ -341,18 +486,19 @@ function nextStep() {
   if (state.phase !== "fight") return;
   if (state.step === "init") {
     state.round++;
-    for (const f of state.figures) f.moved = 0;
+    for (const f of state.figures) { f.moved = 0; f.action = "melee"; }
     const init = rollInitiative(state.rng);
     state.firstSide = init.winner; state.step = `move-${init.winner}`;
     logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${init.a}, B ${init.b}: side ${init.winner} moves first</span></div>`);
   } else if (state.step === `move-${state.firstSide}`) state.step = `move-${other(state.firstSide)}`;
-  else if (state.step.startsWith("move-")) state.step = "melee";
+  else if (state.step.startsWith("move-")) state.step = "missiles";
+  else if (state.step === "missiles") { resolveMissiles(); state.step = "melee"; }
   else if (state.step === "melee") { resolveMelee(); state.step = "init"; }
   state.selected = null; render();
 }
 function resetFight() {
   for (const s of state.saved ?? []) Object.assign(byId(s.id) ?? {}, { x: s.x, y: s.y, facing: s.facing });
-  for (const f of state.figures) { f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; }
+  for (const f of state.figures) { f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; f.status = null; }
   Object.assign(state, { phase: "setup", round: 0, step: "init", contacts: new Map(), winner: null, selected: null });
   $("#log").innerHTML = `<p class="empty">Same seed, same positions and same moves replay the same fight.</p>`;
   render();
@@ -370,13 +516,13 @@ function renderMap() {
   const sel = state.selected != null ? byId(state.selected) : null;
   if (sel && canMoveNow(sel) && state.phase === "fight") for (const [k, n] of reachFor(sel)) { if (n.cost === 0 || n.passOnly) continue; const [x, y] = k.split(",").map(Number); parts.push(`<rect data-cell="${x},${y}" x="${x * PX + 1}" y="${y * PX + 1}" width="${PX - 2}" height="${PX - 2}" fill="${sel.side === "A" ? "#2f5c8a" : "#8a5a17"}" opacity=".16"/>`); }
   for (const f of state.figures) {
-    if (!alive(f) || f.target == null || !f.placed) continue; const t = byId(f.target); if (!t) continue;
+    if (!active(f) || f.target == null || !f.placed) continue; const t = byId(f.target); if (!t || !present(t)) continue;
     const x1 = f.x * PX + PX / 2, y1 = f.y * PX + PX / 2, x2 = t.x * PX + PX / 2, y2 = t.y * PX + PX / 2;
     const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
     parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})" pointer-events="none"/>`);
   }
   for (const f of state.figures) {
-    if (!f.placed) continue;
+    if (!f.placed || (alive(f) && !present(f))) continue;
     const cx = f.x * PX + PX / 2, cy = f.y * PX + PX / 2, col = f.side === "A" ? "var(--side-a)" : "var(--side-b)";
     if (!alive(f)) { parts.push(`<g pointer-events="none" opacity=".5"><line x1="${cx - 5}" y1="${cy - 5}" x2="${cx + 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/><line x1="${cx + 5}" y1="${cy - 5}" x2="${cx - 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/></g>`); continue; }
     const [fx, fy] = DV[f.facing ?? 0];
@@ -385,7 +531,8 @@ function renderMap() {
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="8.2" fill="none" stroke="var(--red)" stroke-width="2"/>` : ""}
       <circle cx="${cx}" cy="${cy}" r="6.4" fill="${col}"/>
       <line x1="${cx}" y1="${cy}" x2="${cx + fx * 7.5}" y2="${cy + fy * 7.5}" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
-      <text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(f.name.replace(/\D/g, "") || f.name[0])}</text></g>`);
+      <text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(f.name.replace(/\D/g, "") || f.name[0])}</text>
+      ${helpless(f) ? `<text x="${cx + 6}" y="${cy - 5}" font-size="9" font-weight="700" fill="var(--red)" pointer-events="none">${f.status === "asleep" ? "z" : "H"}</text>` : ""}</g>`);
   }
   svg.innerHTML = parts.join("");
 }
@@ -395,7 +542,8 @@ function renderSide(side) {
   const rows = state.figures.filter((f) => f.side === side).map((f) => {
     const p = combatProfile(f); const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
     const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
-    return `<tr data-row="${f.id}" class="${alive(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}, AC ${f.ac}, move ${moveInches(f)}"</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
+    const st = f.status ? ` <span class="hit" style="font-size:.8rem">${esc(f.status)}</span>` : "";
+    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}` : ""}</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
   }).join("");
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const adders = setup ? `<div class="adders">
@@ -403,6 +551,8 @@ function renderSide(side) {
     <label>Level <input id="lvl-${side}" type="number" min="1" max="14" value="1"></label>
     <select id="arm-${side}" aria-label="Armour">${opts(ARMOR.map((a) => [a.id, a.label]), "chain+shield")}</select>
     <select id="wpn-${side}" aria-label="Weapon">${opts(weapons, "sword")}</select>
+    <select id="msl-${side}" aria-label="Missile weapon">${opts(MISSILES, "")}</select>
+    <label>Dex <input id="dex-${side}" type="number" min="3" max="18" value="10"></label>
     <button data-add-pc="${side}">Add character</button></div>
     <div class="adders"><input id="cnt-${side}" type="number" min="1" max="30" value="1" aria-label="How many">
     <select id="mon-${side}" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), "orc")}</select>
@@ -410,6 +560,12 @@ function renderSide(side) {
   el.innerHTML = `<h2 class="${side === "A" ? "a-name" : "b-name"}">Side ${side}</h2>${rows ? `<table class="roster"><tbody>${rows}</tbody></table>` : `<p class="empty">No figures yet.</p>`}${adders}`;
   const cls = $(`#cls-${side}`, el);
   if (cls) cls.addEventListener("change", () => { const c = CLASSES.find((x) => x.id === cls.value); $(`#arm-${side}`, el).value = c.armor; $(`#wpn-${side}`, el).value = c.weapon; });
+}
+function actionsFor(f) {
+  const list = [["melee", "Melee"]];
+  if (f.missile) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`]);
+  if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft)) list.push([`cast:${sp.id}`, `Cast ${sp.name}`]);
+  return list;
 }
 function renderDetail() {
   const el = $("#detail"); const f = state.selected != null ? byId(state.selected) : null;
@@ -424,9 +580,12 @@ function renderDetail() {
     <dt>Move</dt><dd>${mv}" · used ${halfCellsToInches(used)}" · left ${halfCellsToInches(Math.max(0, moveBudget(mv) - used))}"</dd>
     <dt>Can join a melee</dt><dd>${joinOk ? "yes" : "no (moved over half)"}</dd>
     <dt>Target</dt><dd>${t ? `${esc(t.name)}${adjacent(f, t) ? "" : " (not adjacent)"}` : "none"}</dd></dl>
-    ${p.profileAttack || !alive(f) ? "" : `<label>Stance <select id="stance">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select></label>`}
+    ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
+    ${f.slotsLeft?.some((n) => n > 0) ? `<div class="note" style="font-size:.85rem">Spell slots left: ${f.slotsLeft.map((n, i) => n > 0 ? `level ${i + 1}: ${n}` : null).filter(Boolean).join(", ")}</div>` : ""}
+    ${p.profileAttack || !active(f) ? "" : `<label>Stance <select id="stance">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select></label>`}
     ${t ? ` <button id="clearTarget">Clear target</button>` : ""}`;
   $("#stance")?.addEventListener("change", (e) => { f.stance = e.target.value; render(); });
+  $("#action")?.addEventListener("change", (e) => { f.action = e.target.value; render(); });
   $("#clearTarget")?.addEventListener("click", () => clearTarget(f));
 }
 function render() {
@@ -435,12 +594,13 @@ function render() {
   $("#start").disabled = state.phase !== "setup"; $("#reset").disabled = state.phase === "setup";
   $("#seed").disabled = !( state.phase === "setup"); $("#layout").disabled = state.phase !== "setup";
   const stepBtn = $("#step"); stepBtn.disabled = !fight;
-  const label = { init: "Roll initiative", melee: "Resolve melee" }[state.step] ?? `End side ${state.step.slice(5)}'s move`;
+  const label = { init: "Roll initiative", missiles: "Resolve missiles and spells", melee: "Resolve melee" }[state.step] ?? `End side ${state.step.slice(5)}'s move`;
   stepBtn.textContent = label;
   $("#stepText").innerHTML = state.phase === "over"
     ? `<b>${state.winner === "none" ? "Both sides are down." : `Side ${state.winner} wins after ${state.round} round${state.round === 1 ? "" : "s"}.`}</b>`
     : !fight ? "Setup: click a figure, then click any open floor cell to place it."
     : state.step === "init" ? `Round ${state.round + 1}: roll initiative.`
+    : state.step === "missiles" ? `Round ${state.round}: set actions and targets (fire, cast, melee), then resolve missiles and spells in Dexterity order.`
     : state.step === "melee" ? `Round ${state.round}: set or change targets, then resolve melee.`
     : `Round ${state.round}: <b>side ${state.step.slice(5)}</b> moves. Targets can be set at any time.`;
 }
@@ -477,7 +637,7 @@ document.addEventListener("click", (e) => {
   if (!ctx.contains(e.target)) hideCtx();
   const row = e.target.closest?.("[data-row]"); if (row && !e.target.closest("button")) { state.selected = Number(row.dataset.row); render(); return; }
   const b = e.target.closest?.("button"); if (!b) return;
-  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value); deploy(); render(); }
+  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value); deploy(); render(); }
   else if (b.dataset.addMon) { const s = b.dataset.addMon; addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1))); deploy(); render(); }
   else if (b.dataset.remove) { state.figures = state.figures.filter((f) => f.id !== Number(b.dataset.remove)); if (state.selected === Number(b.dataset.remove)) state.selected = null; deploy(); render(); }
 });
@@ -487,9 +647,9 @@ $("#step").addEventListener("click", nextStep);
 $("#reset").addEventListener("click", resetFight);
 
 state.walls = buildWalls("room");
-addCharacter("A", "fighter", 1, "chain+shield", "sword");
-addCharacter("A", "cleric", 1, "chain+shield", "mace");
-addCharacter("A", "magic-user", 1, "none", "dagger");
+addCharacter("A", "fighter", 1, "chain+shield", "sword", 10, "shortbow");
+addCharacter("A", "cleric", 1, "chain+shield", "mace", 9);
+addCharacter("A", "magic-user", 1, "none", "dagger", 13);
 addMonsters("B", "orc", 6);
 deploy(); render();
 </script>

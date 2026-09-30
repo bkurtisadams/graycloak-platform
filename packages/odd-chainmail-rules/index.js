@@ -4,6 +4,7 @@
  * reactionFor exists in two modules, so each is re-exported under its own name.
  */
 export * from "./src/advancement.mjs";
+export * from "./src/casting.mjs";
 export * from "./src/chargen.mjs";
 export * from "./src/coins.mjs";
 export * from "./src/combat-engine.mjs";
@@ -34,5 +35,5 @@ export * from "./src/thief-skills.mjs";
 export * from "./src/turn-sequence.mjs";
 export * from "./src/turn-undead.mjs";
 export * from "./src/unit-formation.mjs";
-export { reactionFor as moraleReactionFor, MoraleReaction, FLIGHT_REACTIONS, CommanderBond, commanderBonus, derivedMoraleRating, lossLineFor, postMeleeMorale, lossCheck, commanderLost } from "./src/morale.mjs";
+export { reactionFor as moraleReactionFor, MoraleReaction, FLIGHT_REACTIONS, CommanderBond, commanderBonus, derivedMoraleRating, lossLineFor, postMeleeMorale, lossCheck, commanderLost, troopLossLine, BOOK_II_MORALE, bookTwoMoraleBonus } from "./src/morale.mjs";
 export { reactionFor as retainerReactionFor, CHA_HIRELINGS, hirelingsFor, LOYALTY_MORALE, loyaltyMorale, RETAINER_REACTION } from "./src/retainers.mjs";

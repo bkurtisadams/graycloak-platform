@@ -52,10 +52,14 @@ Changes made during extraction:
   Chainmail p.16 half-move join rule, and melee rounds counted from first
   contact.
 
+- 0.3.0: new `casting.mjs` (casting gate, Sleep, Charm Person, Hold Person,
+  Protection from Evil, monster saves); `morale.mjs` adds troop-type Loss
+  Table rows (`troopLossLine`) and Book II morale adjustments.
+
 ## Open items
 
-- Spellcasting: rebuild the casting resolver without Chainmail spell
-  complexity (ruled out) and with the stationary-and-undisturbed rule.
+- Protection from Evil needs a per-die attack modifier in
+  `resolveAttackPool` before it can apply.
 - `chargen.mjs` / `multiclass.mjs` include Greyhawk multi-class thief combos
   (e.g. elf Fighter/Magic-User/Thief). Confirm whether these stay, given the
   ruling that only the Thief class comes from Greyhawk.
