@@ -60,6 +60,11 @@ Changes made during extraction:
   damage) and Protection from Evil (-1). `castingGate` now keys on a hit
   (`hitFirst`), per Kurt's ruling.
 - 0.3.2: `slotsFor` returns no spell slots for Fighting-Men and Thieves.
+- 0.4.0: `monsters.mjs` holds the whole Book II bestiary (76 entries:
+  men, humanoids, undead, fantastic creatures, dragons, giants,
+  lycanthropes, elementals, clean-up crew, horses) with Chainmail Fantasy
+  Reference Table troop types and morale, special abilities, and a grid
+  `size` in cells.
 
 ## Open items
 

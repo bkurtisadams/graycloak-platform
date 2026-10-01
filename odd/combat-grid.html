@@ -242,7 +242,8 @@ function rollHp(f, rng) {
 }
 function combatant(f, facing, extra = {}) {
   const p = combatProfile(f); const parrying = f.stance === "parry" && !helpless(f);
-  return { name: f.name, weaponId: p.weaponId, ac: f.ac, parryWeaponId: helpless(f) ? null : p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat, ...extra };
+  const hitOnlyBy = f.kind === "monster" ? MONSTERS.find((m) => m.key === f.monsterKey)?.specialAbilities?.hitOnlyBy : undefined;
+  return { name: f.name, hitOnlyBy, weaponId: p.weaponId, ac: f.ac, parryWeaponId: helpless(f) ? null : p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat, ...extra };
 }
 
 /* ---------- movement and targeting ---------- */
@@ -495,7 +496,7 @@ function resolveMissiles() {
           const dd = distIn(f, tg), range = missileRange(f.missile);
           if (tg !== t && (!missileBand(dd, range) || !lineOfSight(f, tg) || inMelee(tg))) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: no clear shot, the arrow is lost.</div>`); return; }
           const fireBonus = missileMod(f.dex ?? 10) + pfePenalty(f, tg);
-          const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots: 1, fireBonus }, target: { name: tg.name, ac: tg.ac, distance: dd } }, state.rng);
+          const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots: 1, fireBonus }, target: { name: tg.name, ac: tg.ac, distance: dd, hitOnlyBy: tg.kind === "monster" ? MONSTERS.find((m) => m.key === tg.monsterKey)?.specialAbilities?.hitOnlyBy : undefined } }, state.rng);
           dmg.set(tg.id, (dmg.get(tg.id) ?? 0) + res.damage);
           if (res.hits > 0) shotAt.push(tg.id);
           if (res.cannotKill) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: ${esc(res.caption)}</div>`); return; }
