@@ -1440,3 +1440,39 @@ test('Book 2 p.17: an unmanned turret still fires, it just gets no Gunner Intera
   }
   assert.throws(() => reloadLauncher(moving, { shipId: 'a', launcherId: 'T-1:1' }), /assigned gunner required/);
 });
+
+// 0.92.0: Book 2 p.30's laser range DM is taken on every vector shot, not
+// only shown — the throw measured nothing before, and no caller passed it.
+import { enableVectorMovement as enableVectorForRange, laserRangeDM } from '../index.js';
+
+async function vectorAt(distance) {
+  let encounter = enableVectorForRange(await twoScoutEncounter(), {
+    pirate: { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 } },
+    trader: { position: { x: distance, y: 0 }, velocity: { x: 0, y: 0 } }
+  });
+  for (let step = 0; step < 12 && currentPhase(encounter).key !== 'laser-fire'; step += 1) encounter = advanceShipCombatPhase(encounter);
+  assert.equal(currentPhase(encounter).key, 'laser-fire');
+  return allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+}
+const rangeOf = (shot) => shot.components.find((entry) => entry.label === 'Range')?.dm ?? 0;
+
+test('0.92.0 vector laser fire takes Book 2 p.30\u2019s range DM: 0 to 150 inches, -2 beyond, -5 beyond 300', async () => {
+  for (const [distance, dm] of [[100, 0], [150, 0], [151, -2], [300, -2], [301, -5], [400, -5]]) {
+    const encounter = await vectorAt(distance);
+    assert.deepEqual(laserRangeDM(encounter, 'pirate', 'trader'), { distance, dm });
+    const shots = resolveLaserFire(encounter, createSequenceDice([3, 3, 3, 3, 3, 3, 3, 3])).shots;
+    for (const shot of shots) assert.equal(rangeOf(shot), dm, `${distance} inches`);
+    const plain = (await vectorAt(100)) && resolveLaserFire(await vectorAt(100), createSequenceDice([3, 3, 3, 3, 3, 3, 3, 3])).shots[0];
+    assert.equal(shots[0].dm - plain.dm, dm, 'the range DM is in the total');
+  }
+});
+
+test('0.92.0 abbreviated fire has no range DM; a caller\u2019s own still overrides', async () => {
+  let encounter = await twoScoutEncounter();
+  encounter = advanceShipCombatPhase(encounter);
+  encounter = allocateLaserFire(encounter, [{ shipId: 'pirate', turretId: 'T-1', targetId: 'trader' }]);
+  assert.deepEqual(laserRangeDM(encounter, 'pirate', 'trader'), { distance: null, dm: 0 });
+  assert.ok(resolveLaserFire(encounter, createSequenceDice([3, 3, 3, 3, 3, 3, 3, 3])).shots.every((shot) => rangeOf(shot) === 0));
+  const forced = resolveLaserFire(await vectorAt(400), createSequenceDice([3, 3, 3, 3, 3, 3, 3, 3]), { rangeDM: 0 }).shots;
+  assert.ok(forced.every((shot) => rangeOf(shot) === 0));
+});

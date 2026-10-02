@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -1865,9 +1865,12 @@ function narrateShots(shots, encounter) {
   const nameOf = (id) => encounter.participants.find((entry) => entry.id === id)?.name ?? id;
   return shots.map((shot) => {
     if (!shot.fired) return `${nameOf(shot.shipId)} holds fire on ${nameOf(shot.targetId)} \u2014 ${shot.reason}.`;
+    // v0.355.0: a vector shot says what the range cost it (Book 2 p.30).
+    const range = (shot.components ?? []).find((entry) => entry.label === 'Range')?.dm ?? 0;
+    const at = range ? ` at over ${range === -5 ? 300 : 150} inches (${range})` : '';
     return shot.hit
-      ? `${nameOf(shot.shipId)} hits ${nameOf(shot.targetId)} (${shot.location}).`
-      : `${nameOf(shot.shipId)} fires on ${nameOf(shot.targetId)} and misses.`;
+      ? `${nameOf(shot.shipId)} hits ${nameOf(shot.targetId)}${at} (${shot.location}).`
+      : `${nameOf(shot.shipId)} fires on ${nameOf(shot.targetId)}${at} and misses.`;
   });
 }
 

@@ -91,6 +91,21 @@ export const LASER_RANGE_DMS = Object.freeze([
   Object.freeze({ overInches: 150, dm: -2 })
 ]);
 
+// 0.92.0: Book 2 p.30's laser range DM between two ships on the vector plot:
+// -2 beyond 150 inches, -5 beyond 300; 0 in abbreviated combat, which has no
+// range. Measured here so every laser shot gets it without each caller
+// remembering to pass it in (none did: the screen showed -5, the throw took
+// 0). vector-movement.js's vectorRangeDM reads it from here.
+export function laserRangeDM(encounter, shooterId, targetId) {
+  if (encounter?.spatialMode !== 'vector') return { distance: null, dm: 0 };
+  const a = encounter.spatial?.ships?.[shooterId]?.position;
+  const b = encounter.spatial?.ships?.[targetId]?.position;
+  if (!a || !b) return { distance: null, dm: 0 };
+  const distance = Math.hypot(a.x - b.x, a.y - b.y);
+  const band = LASER_RANGE_DMS.find((entry) => distance > entry.overInches);
+  return { distance, dm: band ? band.dm : 0 };
+}
+
 // Book 2 p.30 prices sand as "-3 per 1/2 inch of obscuring sand", which is a
 // measurement of a cloud on a playing surface. Abbreviated mode has no surface,
 // so a canister is taken as one cloud at -3.
@@ -1111,10 +1126,10 @@ export function resolveLaserFire(encounter, dice, { rangeDM = null } = {}) {
       const weapon = getTurretWeapon(weaponKey);
       const roll = dice.roll2D6();
       // Book 2 p.30's range DMs have no meaning in abbreviated mode, which has
-      // no range. In vector mode the caller measures it and passes it in —
-      // ship-combat does not import the vector module, because the vector
-      // module imports ship-combat.
-      const range = typeof rangeDM === 'function' ? rangeDM(entry.shipId, entry.targetId) : (rangeDM ?? 0);
+      // no range. 0.92.0: in vector mode it is measured here (laserRangeDM);
+      // a caller may still pass its own (a number or a function) to override.
+      const range = typeof rangeDM === 'function' ? rangeDM(entry.shipId, entry.targetId)
+        : rangeDM ?? laserRangeDM(encounter, entry.shipId, entry.targetId).dm;
       const dm = attack.dm + defense.dm + weapon.attackDM + range + (entry.shifted ? SHIFTED_FIRE_DM : 0);
       const total = roll.total + dm;
       const hit = total >= LASER_HIT_THROW;

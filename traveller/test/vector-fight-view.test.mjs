@@ -20,7 +20,7 @@ let JSDOM; try { ({ JSDOM } = await import('jsdom')); } catch { /* layout tests 
 
 const fixture = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'Sea-of-Suns-v0.11.2-buggy.campaign.json');
 
-async function stagedVectorFight({ intruder = 'party' } = {}) {
+async function stagedVectorFight({ intruder = 'party', apart = 40 } = {}) {
   const bundle = JSON.parse(await readFile(fixture, 'utf8'));
   bundle.campaign.location = { systemId: 'aster', systemName: 'Aster', worldId: 'aster-main', worldName: 'Aster' };
   const old = bundle.documents.ships[0];
@@ -38,8 +38,8 @@ async function stagedVectorFight({ intruder = 'party' } = {}) {
   const { campaign } = registry.putBundle(bundle);
 
   let scene = createSceneDocument({ id: 'scene-space-verify', campaignId: campaign.identity.id, name: 'Verify Space', boardKind: 'vector', spanThousandMiles: 400 });
-  scene = placeSceneShip(scene, { actorId: ship.identity.id, side: 'party', x: -20, y: 0, velocity: { x: 2, y: 0 }, label: 'Marisol' }).scene;
-  scene = placeSceneShip(scene, { actorId: 'design:type-s-scout-courier', side: 'opposition', x: 20, y: 0, velocity: { x: -2, y: 0 }, label: 'Corsair' }).scene;
+  scene = placeSceneShip(scene, { actorId: ship.identity.id, side: 'party', x: -apart / 2, y: 0, velocity: { x: 2, y: 0 }, label: 'Marisol' }).scene;
+  scene = placeSceneShip(scene, { actorId: 'design:type-s-scout-courier', side: 'opposition', x: apart / 2, y: 0, velocity: { x: -2, y: 0 }, label: 'Corsair' }).scene;
   registry.put(scene);
 
   let updatedCampaign = addSceneToCampaign(registry.resolveCampaign(campaign.identity.id).campaign, scene, { makeActive: false });
@@ -386,4 +386,25 @@ test('v0.247.0 the fight carries p.23\u2019s turn track and p.24\u2019s data car
   const theirs = v.dataCards.find((entry) => !entry.own);
   assert.equal(theirs.card, null, 'only what has been seen of the enemy');
   assert.equal(theirs.observed.armedTurrets, 1);
+});
+
+
+// v0.355.0 (rules 0.92.0): the range DM the ship menu shows is the one the
+// laser throw takes (Book 2 p.30), and the shot says so.
+test('v0.355.0 a vector shot beyond 300 inches takes -5, and its line in the log says so', async () => {
+  const session = await stagedVectorFight({ intruder: 'party', apart: 400 });
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance');
+  const fired = session.run('shipfight:vector-fire');
+  assert.equal(fired.ok, true, fired.message);
+  const log = session.view().shipFight.log.join('\n');
+  assert.match(log, /Marisol (hits|fires on) Corsair at over 300 inches \(-5\)/);
+});
+
+test('v0.355.0 a vector shot inside 150 inches takes no range DM', async () => {
+  const session = await stagedVectorFight({ intruder: 'party', apart: 40 });
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance');
+  assert.equal(session.run('shipfight:vector-fire').ok, true);
+  assert.doesNotMatch(session.view().shipFight.log.join('\n'), /inches \(/);
 });

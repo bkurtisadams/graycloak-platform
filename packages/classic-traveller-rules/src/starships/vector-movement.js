@@ -1,7 +1,7 @@
 // Book 2 (1977), pp.22,25-26: 1 unit = 1000 miles; 1 turn = 10 minutes.
 // Clear space only. No gravity or ordnance trajectories in this first slice.
 import { currentDriveState, damageReport } from './damage.js';
-import { currentPhase, checkShipComputer, cycleIntoCpu, shipCombatIntent, participantStatus } from './ship-combat.js';
+import { currentPhase, checkShipComputer, cycleIntoCpu, shipCombatIntent, participantStatus, laserRangeDM } from './ship-combat.js';
 import { createPlanet, moveWithGravity, applyAtmosphericBraking } from './planetary-gravity.js';
 import { previewVectorOrdnance } from './vector-ordnance.js';
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -139,10 +139,9 @@ export function coastVectorShips(encounter) {
   return { encounter: next, coasted, awaitingRuling };
 }
 
+// 0.92.0: one measure for the screen and the throw (ship-combat.js).
 export function vectorRangeDM(encounter, a, b) {
-  const x = encounter.spatial.ships[a].position, y = encounter.spatial.ships[b].position;
-  const distance = Math.hypot(x.x-y.x, x.y-y.y);
-  return { distance, dm: distance > 300 ? -5 : distance > 150 ? -2 : 0 };
+  return laserRangeDM(encounter, a, b);
 }
 
 /**

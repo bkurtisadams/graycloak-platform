@@ -906,6 +906,13 @@ Traveller Book p.141, a Shipowner-type job — how a solo character can
 later join another player's ship) and the p.124 patron template (players'
 paragraph plus a hidden 1D outcome: lying / crazy / honest / swindled /
 devious / dishonest) for every game-refereed mission.
+- Laser range in vector fights (v0.355.0, rules 0.92.0): Book 2 p.30's
+  -2 beyond 150 inches and -5 beyond 300 are measured inside the laser
+  throw itself (laserRangeDM), so every vector shot takes them — before,
+  the ship menu showed the DM and no caller passed it to the throw.
+  Abbreviated fights have no range and take none. The log line says
+  "at over 300 inches (-5)".
+
 ## 9. Quests — spec (Sep 2026, agreed in design; not yet built)
 
 ### 9.1 Basis, and what it is not
