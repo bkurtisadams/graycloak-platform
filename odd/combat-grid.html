@@ -28,7 +28,11 @@ button.primary { background: var(--ink) !important; color: var(--card) !importan
 .roster tr.sel td { background: rgba(111,163,216,.18) !important; }
 #mini { position: absolute; right: 8px; bottom: 8px; width: 200px; border: 1px solid var(--ink); border-radius: 4px; background: var(--rock); box-shadow: 0 2px 8px rgba(0,0,0,.35); cursor: pointer; }
 #mini svg { display: block; width: 100%; height: auto; }
-.mapbar { position: absolute; left: 8px; top: 8px; display: flex; gap: 4px; }
+.mapbar { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; flex-wrap: wrap; gap: 4px; pointer-events: none; }
+.mapbar button { pointer-events: auto; }
+@media (max-width: 700px) { .mapbar button { padding: 2px 7px; font-size: .78rem; } }
+#dragInfo { font-family: var(--type); font-size: .9rem; margin: 6px 0 0; min-height: 1.3em; }
+#dragInfo .bad { color: var(--red); }
 .mapbar button { padding: 3px 9px; font-size: .85rem; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 @media (max-width: 700px) { #mini { width: 130px; } }
 @media (max-width: 700px) { header, main { padding-left: 12px; padding-right: 12px; } h1 { font-size: 1.5rem; } }
@@ -119,6 +123,7 @@ table.roster { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
       <div class="map-wrap" id="wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg>
         <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="group" title="Jump to the next group of figures">Next group</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure (M)</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button><button id="selectSide" title="Select every figure of the side that is moving">Select side</button></div>
         <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div></div>
+      <p id="dragInfo" aria-live="polite"></p>
       <p class="step" id="stepText"></p>
       <p class="hint">Groups: drag a box on empty floor, shift-click to add or remove, or use Select group / Select side; drag any member to move them all (all or nothing). The selected figure has a red ring; its target has an amber crosshair. A red F or R on a figure means it is attacking its target's flank or rear; the selected figure's panel lists everyone it is engaged with. Drag a figure to move it (a ruler shows inches used); right-drag pans the map, wheel or pinch zooms. Or tap or click a figure to select it, then a highlighted cell to move it (figures may pass through friends, not enemies). To target: with "Tap enemy to target" on, select your figure and tap an enemy; on a keyboard, hover an enemy and press T, or right-click it.</p>
     </div>
@@ -408,12 +413,13 @@ function planGroupMove(lead, cx, cy) {
   const rows = members.map((m) => {
     const tx = m.x + dx, ty = m.y + dy;
     const otherAt = (x, y) => state.figures.find((o) => !ids.has(o.id) && o.placed && present(o) && covers(o, x, y));
-    const blockedDest = footCells(tx, ty, sz(m)).some(([x, y]) => isWall(x, y) || otherAt(x, y));
-    if (state.phase === "setup") return { m, tx, ty, ok: !blockedDest, why: blockedDest ? "blocked" : "" };
+    const wallDest = footCells(tx, ty, sz(m)).some(([x, y]) => isWall(x, y));
+    const blockedDest = wallDest || footCells(tx, ty, sz(m)).some(([x, y]) => otherAt(x, y));
+    if (state.phase === "setup") return { m, tx, ty, ok: !blockedDest, why: wallDest ? "wall" : blockedDest ? "occupied" : "" };
     if (!canMoveNow(m)) return { m, tx, ty, ok: false, why: "can't move now" };
     const node = (dx === 0 && dy === 0) ? { cost: 0 } : reachFor(m).get(`${tx},${ty}`);
-    if (blockedDest) return { m, tx, ty, ok: false, why: "blocked" };
-    if (!node) return { m, tx, ty, ok: false, why: "too far" };
+    if (blockedDest) return { m, tx, ty, ok: false, why: wallDest ? "wall" : "occupied" };
+    if (!node) return { m, tx, ty, ok: false, why: `too far (${halfCellsToInches(Math.max(0, moveBudget(moveInches(m)) - (m.moved ?? 0)))}\u2033 left)` };
     return { m, tx, ty, ok: true, cost: node.cost, left: moveBudget(moveInches(m)) - (m.moved ?? 0) - node.cost, node };
   });
   return { rows, ok: rows.every((r) => r.ok), bad: rows.filter((r) => !r.ok) };
@@ -1203,22 +1209,27 @@ state.measure = { on: false, a: null, b: null, locked: false };
 function pill(x, y, text, colour) {
   const fs = 9, w = Math.max(40, text.length * fs * 0.55) + 12, h = 14;
   const k = Math.max(1, 1 / cam.z);
-  return `<g transform="translate(${x + 9 * k} ${y - 20 * k}) scale(${k})" pointer-events="none"><rect width="${w}" height="${h}" rx="2" fill="${colour}" opacity=".95"/><text x="${w / 2}" y="${h / 2 + fs * 0.36}" text-anchor="middle" font-size="${fs}" font-weight="700" font-family="var(--serif)" fill="#fff">${esc(text)}</text></g>`;
+  const { vw, vh } = viewSize(); const right = cam.x + vw / 2, top = cam.y - vh / 2;
+  let px = x + 9 * k; if (px + w * k > right - 4 * k) px = x - 9 * k - w * k;
+  let py = y - 20 * k; if (py < top + 30 * k) py = y + 12 * k;
+  return `<g transform="translate(${px} ${py}) scale(${k})" pointer-events="none"><rect width="${w}" height="${h}" rx="2" fill="${colour}" opacity=".95"/><text x="${w / 2}" y="${h / 2 + fs * 0.36}" text-anchor="middle" font-size="${fs}" font-weight="700" font-family="var(--serif)" fill="#fff">${esc(text)}</text></g>`;
 }
 function renderOverlay() {
   const g = $("#overlay"); if (!g) return;
   const out = [];
   const td = state.tokenDrag;
+  if (!td) $("#dragInfo").textContent = "";
   if (state.box) { const { a, b } = state.box; out.push(`<rect x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(a.x - b.x)}" height="${Math.abs(a.y - b.y)}" fill="var(--side-a)" fill-opacity=".08" stroke="var(--side-a)" stroke-width="1" stroke-dasharray="4 3"/>`); }
   if (td && td.cell && groupOf(byId(td.fid)).length > 1) {
     const f = byId(td.fid), plan = planGroupMove(f, td.cell.x, td.cell.y);
     for (const r of plan.rows) { const h = (sz(r.m) - 1) / 2 + 0.5; out.push(`<circle cx="${(r.tx + h) * PX}" cy="${(r.ty + h) * PX}" r="${7 * sz(r.m)}" fill="none" stroke="${r.ok ? "var(--ink)" : "var(--red)"}" stroke-width="1.4" stroke-dasharray="3 2"/>`); }
     const h = (sz(f) - 1) / 2 + 0.5, px = (td.cell.x + h) * PX, py = (td.cell.y + h) * PX;
     let text, colour = "var(--ink)";
-    if (!plan.ok) { colour = "var(--red)"; text = `${plan.bad.length} of ${plan.rows.length} can't move (${[...new Set(plan.bad.map((r) => r.why))].join(", ")}) · nobody moves`; }
+    if (!plan.ok) { colour = "var(--red)"; text = `${plan.bad.length} of ${plan.rows.length} can't move · nobody moves`; }
     else if (state.phase === "setup") text = `group of ${plan.rows.length} · placing`;
     else { const worst = plan.rows.reduce((a, r) => (r.left < a.left ? r : a)); const used = halfCellsToInches(worst.cost), left = halfCellsToInches(Math.max(0, worst.left)); text = `group of ${plan.rows.length} · ${used}\u2033 · least left ${left}\u2033`; if (worst.left <= 0) { colour = "var(--target)"; text += " · MAX"; } }
     out.push(pill(px, py, text, colour));
+    $("#dragInfo").innerHTML = plan.ok ? esc(text) : `<span class="bad">Nobody moves.</span> ${plan.bad.map((r) => `${esc(r.m.name)}: ${esc(r.why)}`).join("; ")}`;
     g.innerHTML = out.join(""); return;
   }
   if (td && td.cell) {
@@ -1253,6 +1264,7 @@ function renderOverlay() {
       else if (footCells(c.x, c.y, sz(f)).some(([x, y]) => isWall(x, y))) { colour = "var(--red)"; text = sz(f) > 1 ? "doesn't fit" : "wall"; }
       else { colour = "var(--red)"; const straight = Math.round(Math.hypot(c.x - f.x, c.y - f.y) / 3 * 10) / 10; text = `OVER · about ${straight}″, ${Math.max(0, Math.round((allow - before) * 10) / 10)}″ left`; }
       out.push(pill(cx, cy, text, colour));
+      $("#dragInfo").innerHTML = colour === "var(--red)" ? `<span class="bad">${esc(text)}</span>` : esc(text);
     }
   }
   const m = state.measure;
