@@ -65,6 +65,14 @@ Changes made during extraction:
   lycanthropes, elementals, clean-up crew, horses) with Chainmail Fantasy
   Reference Table troop types and morale, special abilities, and a grid
   `size` in cells.
+- 0.5.0: new `specials.mjs` for monster special abilities in man-to-man
+  combat: energy drain, regeneration timing, breath-or-bite and breath
+  areas (cone, line, cloud), swallowing, wyvern sting, hydra heads, and
+  the creatures that hit dwarves and gnomes for half damage.
+- 0.6.0: new `treasure.mjs` (Book II treasure types A–I, gems, jewellery,
+  Magic/Maps table, every magic item table, sword alignment/intelligence/
+  egoism/purpose, maps, carried coins, lair extras) and `inventory.mjs`
+  (carried coins and items, weights, XP value, transfers, move with load).
 
 ## Open items
 
