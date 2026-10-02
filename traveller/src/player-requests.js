@@ -15,6 +15,8 @@ const PLAYER_COMMANDS = Object.freeze([
   'rumors:search:',              // v0.341.0: a rumour's find, searched for
   'persons:jail',
   'persons:walk', 'persons:talk', // v0.346.0: the reaction's choices
+  // v0.354.0: a job's stages on the player's page; any player may give it up.
+  'quest:stage:', 'quest:abandon:', 'aftermath:done',
   // v0.353.0: the Store, for the player's own character (checked on the
   // server against whose character it is).
   'gear:buy', 'gear:seek', 'gear:black-buy', 'gear:black-decline',
@@ -71,14 +73,46 @@ export function playerSituation(view, { mode = 'person' } = {}) {
   } : null;
   const person = view.personEncounter ? {
     summary: text(view.personEncounter.summary),
-    actions: (view.personEncounter.actions ?? []).map((action) => projectAction(action, mode)).filter((action) => action?.command)
+    actions: (view.personEncounter.actions ?? []).map((action) => projectAction(action, mode)).filter((action) => action?.command),
+    // v0.354.0: what the reaction makes of them, and a fight called for.
+    stance: view.personEncounter.stance ? { kind: text(view.personEncounter.stance.kind), text: text(view.personEncounter.stance.text), attacking: Boolean(view.personEncounter.stance.attacking) } : null,
+    fighting: Boolean(view.personEncounter.fighting)
   } : null;
+  // v0.354.0 (design.md 9.8): the job card, the last fight's aftermath, a
+  // finished job's result and the Jobs tab — listed field by field, so the
+  // patron's hidden outcome never reaches a player.
+  const q = view.quest;
+  const quest = q ? {
+    id: text(q.id), title: text(q.title), eyebrow: text(q.eyebrow), facts: (q.facts ?? []).map(text),
+    steps: (q.steps ?? []).map((step) => ({ n: Number(step.n ?? 0), title: text(step.title), how: text(step.how), state: text(step.state), note: text(step.note) })),
+    action: q.action ? projectAction(q.action, mode) : null,
+    giveUp: q.giveUp ? projectAction(q.giveUp, mode) : null,
+    here: Boolean(q.here), foldPort: Boolean(q.foldPort)
+  } : null;
+  const a = view.aftermath;
+  const aftermath = a ? {
+    title: text(a.title), date: text(a.date), lines: (a.lines ?? []).map(text),
+    back: a.back ? projectAction(a.back, mode) : null, close: keep('aftermath:done', mode)
+  } : null;
+  const r = view.jobResult;
+  const jobResult = r ? {
+    id: text(r.id), title: text(r.title), date: text(r.date), lines: (r.lines ?? []).map(text),
+    steps: (r.steps ?? []).map((step) => ({ title: text(step.title), how: text(step.how) }))
+  } : null;
+  const jobBook = (view.jobBook ?? []).map((entry) => ({
+    id: text(entry.id), name: text(entry.name), note: text(entry.note), folder: text(entry.folder),
+    sheet: entry.sheet ? {
+      subtitle: text(entry.sheet.subtitle),
+      rows: (entry.sheet.rows ?? []).map((row) => ({ label: text(row.label), value: text(row.value) })),
+      history: (entry.sheet.history ?? []).map((line) => ({ date: text(line.date), text: text(line.text) }))
+    } : null
+  }));
   return {
     mode,
     kind: text(view.situation.kind), title: text(view.situation.title), detail: text(view.situation.detail),
     next, steps, done: (view.done ?? []).map(text),
     jobs: (view.jobs ?? []).map((job) => ({ id: text(job.id), title: text(job.title), to: text(job.to), payCr: Number(job.payCr ?? 0), due: text(job.due), urgent: Boolean(job.urgent) })),
-    patrons, person,
+    patrons, person, quest, aftermath, jobResult, jobBook,
     courseId: text(view.destinationId ?? view.scene?.courseId),
     canSetCourse: mode === 'game' && Boolean(view.scene?.canSetCourse),
     // v0.353.0: the Store — the listing, and a black-market seller waiting.

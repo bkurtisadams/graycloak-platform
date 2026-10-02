@@ -26,7 +26,7 @@ import {
   serviceName,
   PHASE_LABELS,
   skillTableName
-} from './ui-model.js?v=v0.353.0';
+} from './ui-model.js?v=v0.354.0';
 
 export const SHEET_CHARACTERISTICS = Object.freeze([
   ['STR', 'STRENGTH'],

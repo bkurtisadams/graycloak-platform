@@ -10,19 +10,20 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.353.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.353.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.353.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.353.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.353.0';
-import { kindButton } from './kind-button.js?v=v0.353.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.353.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.353.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.353.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.353.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.353.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.354.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.354.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.354.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.354.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.354.0';
+import { kindButton } from './kind-button.js?v=v0.354.0';
+import { ask } from './dialogs.js?v=v0.354.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.354.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.354.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.354.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.354.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.354.0';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.91.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.353.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.354.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -309,43 +310,49 @@ function situationCard(envelope) {
   const s = envelope.situation;
   if (!s) return null;
   const game = s.mode === 'game';
+  const quest = s.quest && ['port', 'jump'].includes(s.kind) ? s.quest : null;
   const parts = [h('h2', { text: s.title ?? 'Now' })];
   if (s.detail) parts.push(h('p', { class: 'cite', text: s.detail }));
-  if (state.request) {
-    parts.push(h('p', { class: `notice${state.request.status === 'refused' || state.request.status === 'error' ? ' is-error' : ''}`, role: 'status', text: state.request.message || '' }));
-  }
+  // v0.354.0: a job's own request shows inside its card.
+  const jobAsked = Boolean(quest) && String(state.request?.command ?? '').startsWith('quest:');
+  if (state.request && !jobAsked) parts.push(requestNotice());
   // v0.330.0: the server running another version of the game than this page.
   const stale = engineMismatch(state.request?.engine ?? envelope.engine ?? null);
   if (stale) parts.push(h('p', { class: 'notice is-error', role: 'alert', text: stale }));
+  // v0.354.0 (design.md 9.8): a finished job's result, then the job card,
+  // which takes the encounter and the aftermath inside it at the job's world.
+  const result = s.jobResult && !closedResult(s.jobResult.id) ? s.jobResult : null;
+  if (result) parts.push(jobResultCard(result));
+  if (quest) parts.push(questCard(quest, s, { game, asked: jobAsked }));
+  if (!quest?.here) {
+    if (s.aftermath) parts.push(aftermathPanel(s.aftermath));
+    if (s.person?.summary) parts.push(personPanel(s.person, { game }));
+  }
+  const port = [];
   if (s.next) {
-    parts.push(h('h3', { text: s.next.title ?? '' }));
-    if (s.next.copy) parts.push(h('p', { text: s.next.copy }));
+    port.push(h('h3', { text: s.next.title ?? '' }));
+    if (s.next.copy) port.push(h('p', { text: s.next.copy }));
     const lead = (s.next.actions ?? []).map((action) => requestButton(action)).filter(Boolean);
-    if (lead.length) parts.push(h('div', { class: 'lead-actions' }, ...lead));
+    if (lead.length) port.push(h('div', { class: 'lead-actions' }, ...lead));
   }
   const steps = (s.steps ?? []).filter((step) => step.title);
   if (steps.length) {
-    parts.push(h('ul', { class: 'seat-steps' }, ...steps.map((step) => h('li', { class: `seat-step is-${step.state ?? 'info'}` },
+    port.push(h('ul', { class: 'seat-steps' }, ...steps.map((step) => h('li', { class: `seat-step is-${step.state ?? 'info'}` },
       h('span', { class: 'seat-step-title', text: step.title }),
       step.figure ? h('span', { class: 'cite', text: ` ${step.figure}` }) : null,
       requestButton({ command: step.command, label: step.verb ?? step.title, kind: step.kind }, { small: true })))));
   }
-  if ((s.done ?? []).length) parts.push(h('p', { class: 'cite', text: `Done: ${s.done.join(' \u00b7 ')}` }));
-  const person = s.person;
-  if (person?.summary) {
-    parts.push(h('div', { class: 'seat-person' }, h('p', { text: person.summary }),
-      h('div', { class: 'lead-actions' }, ...(person.actions ?? []).map((action) => requestButton(action)).filter(Boolean))));
-  }
+  if ((s.done ?? []).length) port.push(h('p', { class: 'cite', text: `Done: ${s.done.join(' \u00b7 ')}` }));
   const patrons = s.patrons;
   if (patrons) {
     for (const task of patrons.tasks ?? []) {
-      parts.push(h('div', { class: 'seat-job' }, h('p', {}, h('b', { text: task.title }), ` \u2014 ${task.figure ?? ''}`),
+      port.push(h('div', { class: 'seat-job' }, h('p', {}, h('b', { text: task.title }), ` \u2014 ${task.figure ?? ''}`),
         task.blocked ? h('p', { class: 'cite', text: task.blocked }) : null,
         requestButton({ command: task.command, label: task.label ?? 'Carry it out', kind: 'money', primary: true })));
     }
     if (patrons.offer) {
       const offer = patrons.offer;
-      parts.push(h('div', { class: 'seat-job' }, h('p', {}, h('b', { text: `A ${String(offer.type ?? 'patron').toLowerCase()} offers a job: ` }), offer.title ?? ''),
+      port.push(h('div', { class: 'seat-job' }, h('p', {}, h('b', { text: `A ${String(offer.type ?? 'patron').toLowerCase()} offers a job: ` }), offer.title ?? ''),
         h('p', { class: 'cite', text: `Cr ${Number(offer.paymentCr).toLocaleString('en-US')}, ${offer.deadlineDays} days` }),
         h('div', { class: 'lead-actions' },
           requestButton({ command: offer.accept, label: 'Take the job', kind: 'money', primary: true }),
@@ -354,17 +361,138 @@ function situationCard(envelope) {
     // v0.341.0: rumours that can still be followed up.
     if ((patrons.leads ?? []).length) {
       const how = { patron: 'look for patrons there', find: 'search there', tip: 'sell it there' };
-      parts.push(h('h3', { text: 'Leads from rumours' }), h('ul', { class: 'seat-steps' }, ...patrons.leads.map((lead) => h('li', { class: 'seat-step' },
+      port.push(h('h3', { text: 'Leads from rumours' }), h('ul', { class: 'seat-steps' }, ...patrons.leads.map((lead) => h('li', { class: 'seat-step' },
         h('span', { class: 'seat-step-title', text: lead.text }), h('span', { class: 'cite', text: ` ${how[lead.kind] ?? ''}${lead.here ? ' (here)' : ` \u00b7 ${lead.where}`} \u00b7 heard ${lead.heard}` })))));
     }
-    if (patrons.seek?.command) parts.push(h('div', { class: 'lead-actions' }, requestButton(patrons.seek)));
+    if (patrons.seek?.command) port.push(h('div', { class: 'lead-actions' }, requestButton(patrons.seek)));
   }
-  if ((s.jobs ?? []).length) {
-    parts.push(h('h3', { text: 'Jobs in hand' }), h('ul', { class: 'seat-steps' }, ...s.jobs.map((job) => h('li', { class: `seat-step${job.urgent ? ' is-blocked' : ''}` },
+  const jobs = (s.jobs ?? []).filter((job) => job.id !== quest?.id);
+  if (jobs.length) {
+    port.push(h('h3', { text: 'Jobs in hand' }), h('ul', { class: 'seat-steps' }, ...jobs.map((job) => h('li', { class: `seat-step${job.urgent ? ' is-blocked' : ''}` },
       h('span', { class: 'seat-step-title', text: `${job.title} to ${job.to}` }), h('span', { class: 'cite', text: ` ${job.due ?? ''} \u00b7 Cr ${Number(job.payCr).toLocaleString('en-US')}` })))));
   }
+  if (quest?.foldPort && port.length) {
+    parts.push(h('details', { class: 'port-business' },
+      h('summary', {}, h('span', { text: 'Port business: berthing, fuel, trade, depart' }), h('span', { class: 'port-count', text: String(steps.filter((step) => step.state !== 'done').length) })),
+      ...port));
+  } else parts.push(...port);
   if (!game) parts.push(h('p', { class: 'cite', text: 'Your referee runs the ship\u2019s business; this shows where it stands.' }));
   return h('section', { class: 'lead seat-situation' }, ...parts);
+}
+
+function requestNotice() {
+  return h('p', { class: `notice${state.request.status === 'refused' || state.request.status === 'error' ? ' is-error' : ''}`, role: 'status', text: state.request.message || '' });
+}
+
+// ---- jobs (v0.354.0; design.md 9.8) ----------------------------------------
+// The referee's job card, from what is published: the stages as steps, the
+// one in hand highlighted with its throw, an encounter or the aftermath of a
+// fight inside the card, one main button. Players may give a job up.
+function questCard(q, s, { game, asked }) {
+  const marks = { done: '\u2713', now: '\u25b6' };
+  const inner = q.here ? [
+    s.person?.summary ? personPanel(s.person, { game }) : null,
+    s.aftermath ? aftermathPanel(s.aftermath) : null
+  ].filter(Boolean) : [];
+  const buttons = !inner.length && game ? [
+    requestButton(q.action ? { ...q.action, kind: 'travel', primary: true } : null),
+    q.giveUp?.command ? giveUpButton(q) : null
+  ].filter(Boolean) : [];
+  return h('section', { class: 'job-card', 'aria-label': 'The job in hand' },
+    h('p', { class: 'eyebrow', text: q.eyebrow ?? '' }),
+    h('h2', { class: 'job-title', text: q.title ?? '' }),
+    h('p', { class: 'job-facts' }, ...(q.facts ?? []).map((fact) => h('span', { text: fact }))),
+    h('ol', { class: 'job-stages' }, ...(q.steps ?? []).map((step) => h('li', { class: `job-stage is-${step.state}` },
+      h('span', { class: 'job-mark', 'aria-hidden': 'true', text: marks[step.state] ?? String(step.n) }),
+      h('div', { class: 'job-stage-body' },
+        h('p', { class: 'job-stage-title', text: step.title ?? '' }),
+        h('p', { class: 'cite', text: step.how ?? '' }),
+        step.note ? h('p', { class: 'job-stage-note', text: step.note }) : null)))),
+    ...inner,
+    asked ? requestNotice() : null,
+    buttons.length ? h('div', { class: 'lead-actions' }, ...buttons) : null,
+    game ? null : h('p', { class: 'cite', text: 'Your referee runs the job; this shows where it stands.' }));
+}
+
+function giveUpButton(q) {
+  const button = kindButton({ label: q.giveUp.label ?? 'Give up the job', kind: 'neutral' }, { onclick: async () => {
+    const yes = await ask({ title: 'Give up the job', message: `Give up \u201c${q.title}\u201d? The job ends for the whole party; any advance is kept.`, confirm: 'Give it up', danger: true });
+    if (yes) sendRequest(q.giveUp.command);
+  } });
+  if (state.request?.status === 'pending') button.disabled = true;
+  return button;
+}
+
+// The encounter as players see it. A fight is begun on the play page, and
+// opens here once it starts (the server runs no fights on the band board).
+function personPanel(person, { game }) {
+  const stance = person.stance;
+  const buttons = (person.actions ?? []).map((action) => requestButton(action)).filter(Boolean);
+  const fight = person.fighting || (stance?.attacking && !buttons.length);
+  return h('section', { class: `person-encounter${fight ? ' is-fight' : ''}`, 'aria-label': 'Person encounter' },
+    h('p', { class: 'eyebrow', text: fight ? 'Fight' : 'Encounter' }),
+    h('p', { text: person.summary }),
+    stance?.text ? h('p', { class: `person-stance is-${stance.kind}`, text: stance.text }) : null,
+    buttons.length ? h('div', { class: 'lead-actions' }, ...buttons) : null,
+    fight ? h('p', { class: 'cite', text: 'The fight is begun on the play page; it opens here when it starts.' })
+      : game ? null : h('p', { class: 'cite', text: 'Your referee deals with them.' }));
+}
+
+function aftermathPanel(a) {
+  return h('section', { class: 'person-encounter is-aftermath', 'aria-label': 'After the fight' },
+    h('p', { class: 'eyebrow', text: `${a.title ?? 'After the fight'} \u00b7 ${a.date ?? ''}` }),
+    ...(a.lines ?? []).map((line) => h('p', { text: line })),
+    a.back?.command || a.close ? h('div', { class: 'lead-actions' },
+      a.back?.command ? requestButton({ ...a.back, kind: 'optional', primary: true }) : null,
+      a.close ? requestButton({ command: a.close, label: 'Close', kind: 'neutral', primary: !a.back?.command }) : null) : null);
+}
+
+// Close hides a result on this page only; the referee's page keeps its own.
+const RESULTS_KEY = `graycloak-traveller-closed-results-${campaignId}`;
+function closedResults() {
+  try { return JSON.parse(localStorage.getItem(RESULTS_KEY) ?? '[]'); } catch { return []; }
+}
+function closedResult(id) { return closedResults().includes(id); }
+function closeResult(id) {
+  try { localStorage.setItem(RESULTS_KEY, JSON.stringify([...closedResults().filter((entry) => entry !== id), id].slice(-20))); } catch { /* private mode */ }
+  render();
+}
+
+function jobResultCard(r) {
+  return h('section', { class: 'job-card is-result', 'aria-label': 'Job done' },
+    h('p', { class: 'eyebrow', text: `Done \u00b7 ${r.date ?? ''}` }),
+    h('h2', { class: 'job-title', text: r.title ?? '' }),
+    (r.steps ?? []).length ? h('ol', { class: 'job-stages' }, ...r.steps.map((step) => h('li', { class: 'job-stage is-done' },
+      h('span', { class: 'job-mark', 'aria-hidden': 'true', text: '\u2713' }),
+      h('div', { class: 'job-stage-body' }, h('p', { class: 'job-stage-title', text: step.title ?? '' }), h('p', { class: 'cite', text: step.how ?? '' }))))) : null,
+    ...(r.lines ?? []).map((line, index) => h('p', { class: index === 0 ? 'job-result-lead' : '', text: line })),
+    h('div', { class: 'lead-actions' },
+      kindButton({ label: 'See it in Jobs', kind: 'travel', primary: true }, { onclick: () => { state.sideTab = 'Jobs'; state.jobOpen = r.id; render(); } }),
+      kindButton({ label: 'Close', kind: 'neutral' }, { onclick: () => closeResult(r.id) })));
+}
+
+// The Jobs tab: Current and Finished, a row opening its sheet below.
+function renderJobs() {
+  const box = $('side-jobs');
+  if (!box || state.sideTab !== 'Jobs') return;
+  const book = state.envelope?.situation?.jobBook ?? [];
+  if (!book.length) { box.replaceChildren(h('p', { class: 'empty', text: 'No jobs taken yet.' })); return; }
+  const open = book.find((entry) => entry.id === state.jobOpen) ?? null;
+  const folder = (name) => {
+    const rows = book.filter((entry) => (name === 'Current' ? entry.folder === 'Current' : entry.folder !== 'Current'));
+    if (!rows.length) return [];
+    return [h('p', { class: 'eyebrow', text: `${name} \u00b7 ${rows.length}` }),
+      ...rows.map((entry) => h('button', { type: 'button', class: 'job-row', 'aria-pressed': String(entry.id === open?.id),
+        onclick: () => { state.jobOpen = entry.id === state.jobOpen ? null : entry.id; renderJobs(); } },
+      h('span', { class: 'job-row-name', text: entry.name ?? '' }), h('span', { class: 'cite', text: entry.note ?? '' })))];
+  };
+  const sheet = open?.sheet ? h('section', { class: 'job-sheet', 'aria-label': open.name ?? 'Job' },
+    h('h3', { text: open.name ?? '' }),
+    h('p', { class: 'cite', text: open.sheet.subtitle ?? '' }),
+    h('dl', { class: 'pairs' }, ...open.sheet.rows.flatMap((row) => [h('dt', { text: row.label ?? '' }), h('dd', { text: row.value ?? '' })])),
+    open.sheet.history.length ? h('h4', { text: 'History' }) : null,
+    open.sheet.history.length ? h('ol', { class: 'job-history' }, ...open.sheet.history.map((line) => h('li', {}, h('span', { class: 'cite', text: `${line.date ?? ''} ` }), line.text ?? ''))) : null) : null;
+  box.replaceChildren(...folder('Current'), ...folder('Finished'), sheet ?? h('span'));
 }
 
 // ---- your ships (v0.338.0) -------------------------------------------------
@@ -693,12 +821,13 @@ function renderChat() {
 // the player buys for a character of their own. The game carries it out when
 // it referees (a person refereeing: the request is refused for now).
 function renderSideTabs() {
-  const tabs = ['Chat', 'Store'];
+  const tabs = ['Chat', 'Store', 'Jobs'];
   const current = state.sideTab ?? 'Chat';
   $('side-tabs').replaceChildren(...tabs.map((tab) => h('button', { type: 'button', class: 'side-tab', 'aria-pressed': String(tab === current), text: tab,
     onclick: () => { state.sideTab = tab; render(); } })));
   $('side-chat').hidden = current !== 'Chat';
   $('side-store').hidden = current !== 'Store';
+  $('side-jobs').hidden = current !== 'Jobs';
 }
 
 function renderStore() {
@@ -725,6 +854,7 @@ function render() {
   renderSideTabs();
   renderChat();
   renderStore();
+  renderJobs();
   renderWoundPrompt();
 }
 

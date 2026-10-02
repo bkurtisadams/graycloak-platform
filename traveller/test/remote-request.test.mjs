@@ -64,7 +64,7 @@ const apply = (campaignId, store, command, extra = {}) => applyRemoteRequest({ c
 const dateOf = (store) => importCampaignHome(store.home).bundle.campaign.time;
 
 test('v0.329.0 a player\u2019s list: the ship\u2019s business, not the referee\u2019s', () => {
-  for (const command of ['trip:wait', 'trip:choose-destination:calder', 'trip:depart', 'speculation:buy', 'patrons:seek', 'patrons:task:contract-1', 'persons:jail', 'shipfight:fire', 'repair:crew:hull', 'shipyard:turret:add']) {
+  for (const command of ['trip:wait', 'trip:choose-destination:calder', 'trip:depart', 'speculation:buy', 'patrons:seek', 'patrons:task:contract-1', 'persons:jail', 'shipfight:fire', 'repair:crew:hull', 'shipyard:turret:add', 'quest:stage:job-1', 'quest:abandon:job-1', 'aftermath:done']) {
     assert.equal(playerMayRun(command), true, command);
   }
   for (const command of ['referee:move:aster', 'time:set', 'time:pass', 'sector:rechart:G', 'persons:clear', 'patrons:referee', 'patrons:suggest', 'contract:complete:x', 'edit:ship', 'fight:setup', 'shipfight:vector-adjudicate', 'chat:clear', '', 'tripwire', 'speculation:buyall']) {

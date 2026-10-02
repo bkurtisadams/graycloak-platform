@@ -582,6 +582,25 @@ function jobSheet(resolved, id) {
   return { kind: 'job', id, title: contract.identity.title, subtitle: `${CONTRACT_KIND_LABELS[contract.kind] ?? contract.kind} \u00b7 ${current ? 'current' : contract.status}`, rows, history, compactOnly: true, editable: false };
 }
 
+// v0.354.0: the Jobs tab on the player's page — the same rows and sheets as
+// the referee's, every current job and the latest finished ones.
+export function playerJobBook(resolved) {
+  const settled = (entry) => {
+    const contract = (resolved.contracts ?? []).find((item) => item.identity.id === entry.id);
+    try { return campaignDayNumber(contract?.resolution?.date); } catch { return 0; }
+  };
+  const entries = jobEntries(resolved);
+  const current = entries.filter((entry) => entry.folder === 'Current');
+  const finished = entries.filter((entry) => entry.folder !== 'Current').sort((a, b) => settled(b) - settled(a)).slice(0, 25);
+  return [...current, ...finished].map((entry) => {
+    const sheet = jobSheet(resolved, entry.id);
+    return {
+      id: entry.id, name: entry.name, note: entry.note, folder: entry.folder,
+      sheet: sheet ? { subtitle: sheet.subtitle, rows: sheet.rows.map(([label, value]) => ({ label, value })), history: sheet.history } : null
+    };
+  });
+}
+
 // v0.339.0 (Kurt, Sep 2026): the Vehicles tab is the referee's pool of
 // ships, as Actors is of people — every ship in the campaign, filed by who
 // holds it, and every mustering-out ship a character has yet to bring in.
@@ -7705,6 +7724,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // v0.349.0 (design.md 9.8): the job card, and a finished job's result.
       state.quest = questView(resolved, { writable: save.state !== 'stale' && (seat !== 'player' || mode === 'game'), situation: state.situation?.kind ?? null });
       state.jobResult = resolved.campaign.roster?.jobResult ?? null;
+      state.jobBook = seat === 'player' ? playerJobBook(resolved) : null;
       state.referee = refereeView(resolved, referee);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating

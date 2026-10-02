@@ -154,3 +154,18 @@ test('v0.341.0 the port column and the player\u2019s page list leads from rumour
   const seat = await read('seat.js');
   assert.match(seat, /h\('h3', \{ text: 'Leads from rumours' \}\)/);
 });
+
+// v0.354.0 (design.md 9.8): the job card and the Jobs tab on the player's page.
+test('v0.354.0 the player\u2019s page shows the job card, its encounter inside, and a Jobs tab', async () => {
+  const seat = await read('seat.js');
+  assert.match(seat, /if \(quest\) parts\.push\(questCard\(quest, s, \{ game, asked: jobAsked \}\)\)/);
+  assert.match(seat, /const inner = q\.here \? \[/, 'the encounter and the aftermath sit inside the card at its world');
+  assert.match(seat, /await ask\(\{ title: 'Give up the job'/, 'giving up asks first');
+  assert.match(seat, /Close hides a result on this page only/);
+  assert.match(seat, /const tabs = \['Chat', 'Store', 'Jobs'\]/);
+  assert.match(seat, /The fight is begun on the play page; it opens here when it starts\./);
+  const html = await read('seat.html');
+  assert.match(html, /<section class="side-jobs" id="side-jobs" aria-label="Jobs" hidden><\/section>/);
+  const css = await read('play.css');
+  assert.match(css, /\.side-jobs\[hidden\] \{ display: none; \}/);
+});

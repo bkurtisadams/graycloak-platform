@@ -1076,7 +1076,7 @@ encounter and the aftermath inside the card, one main button, "Give up
 the job" after a failed throw; away from its world, "Set course for".
 At its world the rest of the port folds into "Port business". A finished
 job shows a result card (See it in Jobs / Close). Jobs taken before
-v0.349.0 keep the one-task flow. Not yet on the player's page.
+v0.349.0 keep the one-task flow. On the player's page from v0.354.0 (below).
 Built: step 5's advance in v0.348.0 (rules 0.89.0): a drafted job pays a
 tenth of the fee when taken, for expenses; the rest is owed at the end
 (dishonest: the advance is all they get). Spoils wait for the stages
@@ -1101,6 +1101,17 @@ x and a dismissed fight leaves none). Players may Walk away and Talk;
 the fight is set up on the play page. A person refereeing also has "Set
 aside (referee)". The legal (enforcer) card is unchanged.
 
+Built: the job card on the player's page in v0.354.0, from the approved
+mockup (canvas "Traveller — the job card on the player's page"). The
+envelope carries the card, the aftermath, the result and a Jobs book, field
+by field, so the patron's outcome never reaches a player. Players may ask
+quest:stage, quest:abandon (any player may give a job up, Kurt, Oct 2026;
+the page asks first) and aftermath:done. A result's Close hides it on that
+player's page only. The encounter shows inside the card at the job's world;
+a fight is still begun on the play page (the server runs no band-board
+fights), and opens on the player's page when it starts. The Jobs tab sits
+beside Chat and Store: Current, the latest 25 Finished, a row opening its
+sheet.
 
 1. The reaction-driven encounter card, the law reading (9.3), Start a
    fight filled from the encounter, the aftermath card; notices that

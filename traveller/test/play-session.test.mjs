@@ -3248,3 +3248,66 @@ test('v0.353.0 the player\u2019s page gets the Store listing', async () => {
   assert.ok(entries.some((entry) => !entry.buy && entry.reason));
   assert.ok(entries.some((entry) => entry.black?.available));
 });
+
+// ---------------------------------------------------------------- v0.354.0
+// The job card on the player's page (design.md 9.8).
+const nestedArray = (value) => (Array.isArray(value)
+  ? value.some((item) => Array.isArray(item) || nestedArray(item))
+  : value && typeof value === 'object' ? Object.values(value).some(nestedArray) : false);
+
+test('v0.354.0 the player\u2019s page gets the job card with its stage button, and never the patron\u2019s outcome', async () => {
+  const { registry, campaignId, id } = await stagedJob('retrieval', 'Recover the thing on Calder', { outcome: 'lying', die: 4 });
+  clearWaiting(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const published = playerSituation(session.view({ seat: 'player' }), { mode: 'game' });
+  assert.equal(published.quest.id, id);
+  assert.equal(published.quest.here, true);
+  assert.equal(published.quest.action.command, `quest:stage:${id}`);
+  assert.equal(published.quest.action.label, 'Ask around (stage 1)');
+  assert.deepEqual(published.quest.steps.map((step) => step.state), ['now', 'todo', 'todo', 'todo']);
+  assert.equal(playerMayRun(`quest:stage:${id}`), true);
+  assert.equal(playerMayRun(`quest:abandon:${id}`), true);
+  assert.equal(playerMayRun('aftermath:done'), true);
+  assert.equal(playerMayRun('jobresult:done'), false, 'a result closes on the player\u2019s page only');
+  const book = published.jobBook.find((entry) => entry.id === id);
+  assert.equal(book.folder, 'Current');
+  assert.ok(book.sheet.rows.some((row) => row.label === 'Agreed'));
+  assert.ok(book.sheet.history.length >= 1);
+  assert.equal(nestedArray(published), false, 'Firestore takes no nested arrays');
+  assert.doesNotMatch(JSON.stringify(published), /lying|"outcome"/);
+  const person = playerSituation(session.view({ seat: 'player' }), { mode: 'person' });
+  assert.equal(person.quest.action.command, null, 'a person refereeing: no buttons');
+});
+
+test('v0.354.0 a player\u2019s give-up is offered after a failed throw and ends the job', async () => {
+  const { registry, campaignId, id } = await stagedJob('investigation', 'Find out the thing, on Calder');
+  let failed = false;
+  for (let tries = 0; tries < 40 && !failed; tries += 1) {
+    clearWaiting(registry, campaignId);
+    const result = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).run(`quest:stage:${id}`);
+    if (/Not yet/.test(result.message)) failed = true;
+    if (personState(registry.resolveCampaign(campaignId).campaign).missions[id].stage > 0) break;
+  }
+  if (!failed) return;
+  clearWaiting(registry, campaignId);
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const published = playerSituation(session.view({ seat: 'player' }), { mode: 'game' });
+  assert.equal(published.quest.giveUp.command, `quest:abandon:${id}`);
+  assert.equal(session.run(published.quest.giveUp.command).ok, true);
+  const after = playerSituation(createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR }).view({ seat: 'player' }), { mode: 'game' });
+  assert.equal(after.quest, null);
+  assert.equal(after.jobBook.find((entry) => entry.id === id).folder, 'Finished');
+});
+
+test('v0.354.0 a finished job\u2019s result and the last fight\u2019s aftermath reach the player\u2019s page', () => {
+  const view = { situation: { kind: 'port', title: 'Port call', detail: 'Calder' }, steps: [], done: [], jobs: [],
+    aftermath: { title: 'After the fight (2 rounds)', date: '120-4800', lines: ['Against them: 3 unconscious.'], back: { command: 'quest:stage:j1', label: 'Back to: Recover it' } },
+    jobResult: { id: 'j1', title: 'Recover it', date: '121-4800', lines: ['Recovered.'], steps: [{ title: 'Recover it', how: 'Done', state: 'done' }] } };
+  const game = playerSituation(view, { mode: 'game' });
+  assert.equal(game.aftermath.back.command, 'quest:stage:j1');
+  assert.equal(game.aftermath.close, 'aftermath:done');
+  assert.deepEqual(game.jobResult.steps, [{ title: 'Recover it', how: 'Done' }]);
+  const person = playerSituation(view, { mode: 'person' });
+  assert.equal(person.aftermath.back.command, null);
+  assert.equal(person.aftermath.close, null);
+});
