@@ -1468,7 +1468,11 @@ function clearAllTargets(side = null) {
   for (const f of state.figures) if (!side || f.side === side) { f.target = null; f.holdTargets = []; f.secondTarget = null; }
   logAppend(`<div class="card note">Cleared ${side ? `side ${side}'s` : "all"} targets.</div>`);
 }
-$("#map").addEventListener("mousemove", (e) => { const f = figAt(e.target); const h = f ? f.id : null; if (h !== state.hover) { state.hover = h; renderOverlay(); } });
+$("#map").addEventListener("mousemove", (e) => {
+  const f = figAt(e.target); const h = f ? f.id : null;
+  if (state.cast && !state.cast.aim) { const c = cellAt(e.clientX, e.clientY); if (!state.castHover || state.castHover.x !== c.x || state.castHover.y !== c.y) { state.castHover = c; state.hover = h; renderOverlay(); return; } }
+  if (h !== state.hover) { state.hover = h; renderOverlay(); }
+});
 $("#map").addEventListener("mouseleave", () => { state.hover = null; });
 document.addEventListener("keydown", (e) => {
   if (e.target.matches?.("input, select")) return;
@@ -1656,6 +1660,7 @@ wrap.addEventListener("pointerdown", (e) => {
   const f = figAt(e.target);
   if (mouse && e.button === 2) { drag = { mode: "pan", x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, right: true }; state.rightDragged = false; return; }
   if (state.measure.on) { drag = null; return; }
+  if (state.cast) { drag = null; return; }
   if (f && (e.button === 0 || !mouse) && f.placed && present(f)) {
     drag = { mode: "token", fid: f.id, x: e.clientX, y: e.clientY, moved: false };
     state.dragged = false; return;
@@ -1666,7 +1671,12 @@ wrap.addEventListener("pointerdown", (e) => {
 });
 wrap.addEventListener("pointermove", (e) => {
   if (state.measure.on && state.measure.a && !state.measure.locked) { state.measure.b = cellAt(e.clientX, e.clientY); renderOverlay(); }
-  if (state.cast && e.pointerType === "mouse" && !state.cast.aim) { state.castHover = cellAt(e.clientX, e.clientY); renderOverlay(); }
+  // Casting: the template follows any pointer (mouse, pen, trackpad); on touch it follows the finger while pressed.
+  if (state.cast && (e.pointerType !== "touch" || ptrs.size === 1)) {
+    const c = cellAt(e.clientX, e.clientY);
+    if (state.cast.aim && e.pointerType === "touch") state.cast.aim = c;
+    if (!state.castHover || state.castHover.x !== c.x || state.castHover.y !== c.y) { state.castHover = c; if (e.pointerType !== "touch") state.cast.aim = null; renderOverlay(); }
+  }
   if (!ptrs.has(e.pointerId) || !drag) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (drag.mode === "pinch") { if (ptrs.size < 2) return; const [p1, p2] = [...ptrs.values()]; cam.z = Math.min(ZMAX, Math.max(ZMIN, drag.z * Math.hypot(p1.x - p2.x, p1.y - p2.y) / drag.pinch)); applyView(); return; }
