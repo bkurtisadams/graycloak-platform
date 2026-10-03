@@ -251,6 +251,10 @@ button.done:disabled { opacity: .45; }
       <button id="group" title="Jump to the next group of figures">Next group</button>
       <button id="selectSide" title="Select every figure of the side that is moving">Select side</button>
     </div>
+    <div class="bar">
+      <label for="emptyClick">Left-click on empty floor</label>
+      <select id="emptyClick"><option value="deselect">Deselect</option><option value="clear">Deselect and clear all targets</option><option value="nothing">Do nothing</option></select>
+    </div>
     <div class="panel" id="side-A"></div>
     <div class="panel" id="side-B"></div>
     <p class="hint">Drag a figure to move it (a ruler shows inches used); right-drag pans, wheel or pinch zooms. Drag a box on empty floor, or use Select group, to move several at once. Tap an enemy with your figure selected to target it. Red F or R: attacking a flank or rear.</p>
@@ -1402,15 +1406,36 @@ $("#map").addEventListener("click", (e) => {
   if (f && $("#tapTarget").checked && cur && state.phase === "fight" && f.side !== cur.side) { setTarget(cur, f); return; }
   if (f) { setGroup([f.id]); return; }
   const cell = e.target.closest?.("[data-cell]"); const sel = state.selected != null ? byId(state.selected) : null;
-  if (cell && sel && canMoveNow(sel)) { const off = state.phase === "setup" ? 0 : Math.floor((sz(sel) - 1) / 2); const [x, y] = cell.dataset.cell.split(",").map(Number); moveTo(sel, x - off, y - off); }
+  if (state.measure.on) return;
+  if (cell && sel && canMoveNow(sel)) {
+    const off = state.phase === "setup" ? 0 : Math.floor((sz(sel) - 1) / 2); const [x, y] = cell.dataset.cell.split(",").map(Number);
+    const tx = x - off, ty = y - off;
+    const legal = state.phase === "setup" ? fits(sel, tx, ty) : !!(reachFor(sel).get(`${tx},${ty}`) && !reachFor(sel).get(`${tx},${ty}`).passOnly);
+    if (legal) { moveTo(sel, tx, ty); return; }
+  }
+  emptyClick();
 });
+/** Left-click on empty floor (a setting, like Foundry's release-on-click). Never clears targets unless chosen. */
+function emptyClick() {
+  const mode = $("#emptyClick")?.value ?? "deselect";
+  if (mode === "nothing") return;
+  if (mode === "clear") clearAllTargets();
+  state.selected = null; state.group = new Set(); render();
+}
+function clearAllTargets(side = null) {
+  for (const f of state.figures) if (!side || f.side === side) { f.target = null; f.holdTargets = []; f.secondTarget = null; }
+  logAppend(`<div class="card note">Cleared ${side ? `side ${side}'s` : "all"} targets.</div>`);
+}
 $("#map").addEventListener("mousemove", (e) => { const f = figAt(e.target); state.hover = f ? f.id : null; });
 $("#map").addEventListener("mouseleave", () => { state.hover = null; });
 document.addEventListener("keydown", (e) => {
   if (e.target.matches?.("input, select")) return;
   if (e.key === "Escape") { state.selected = null; state.group = new Set(); hideCtx(); if (state.measure.on) toggleMeasure(false); render(); }
   if (e.key === "m" || e.key === "M") toggleMeasure();
-  if ((e.key === "t" || e.key === "T") && state.hover != null && state.selected != null) setTarget(byId(state.selected), byId(state.hover));
+  if ((e.key === "t" || e.key === "T") && state.hover != null && state.selected != null) {
+    const sel = byId(state.selected), h = byId(state.hover);
+    if (sel && h && sel.target === h.id) clearTarget(sel); else setTarget(sel, h);
+  }
 });
 const ctx = $("#ctx");
 function hideCtx() { ctx.style.display = "none"; }
@@ -1432,13 +1457,28 @@ function closeOn(f, t, { charge = false } = {}) {
   return true;
 }
 $("#map").addEventListener("contextmenu", (e) => {
-  const f = figAt(e.target); if (!f) return; e.preventDefault();
+  const f = figAt(e.target);
+  if (!f) {
+    if (state.rightDragged) return;
+    e.preventDefault();
+    const side = state.step?.startsWith("move-") ? state.step.slice(5) : null;
+    const items = [["Map", null], ["Clear selection", () => { state.selected = null; state.group = new Set(); render(); }]];
+    if (state.phase === "fight") { if (side) items.push([`Clear side ${side}'s targets`, () => { clearAllTargets(side); render(); }]); items.push(["Clear all targets", () => { clearAllTargets(); render(); }]); }
+    ctx.innerHTML = items.map(([l, fn], i) => fn ? `<button role="menuitem" data-i="${i}">${esc(l)}</button>` : `<div class="ctx-h">${esc(l)}</div>`).join("");
+    ctx.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; hideCtx(); items[Number(b.dataset.i)][1](); };
+    ctx.style.display = "block"; const r = ctx.getBoundingClientRect();
+    ctx.style.left = `${Math.min(e.clientX, window.innerWidth - r.width - 8)}px`; ctx.style.top = `${Math.min(e.clientY, window.innerHeight - r.height - 8)}px`;
+    return;
+  }
+  e.preventDefault();
   const sel = state.selected != null ? byId(state.selected) : null;
   const fight = state.phase === "fight";
   const items = [];
   const heading = (t) => items.push([t, null]);
   if (sel && sel !== f && sel.side !== f.side && active(sel) && fight && present(f)) {
     heading(`${tokenLabel(sel)} \u2192 ${f.name}`);
+    if (sel.target === f.id) items.push([`Untarget ${tokenLabel(f)} (T)`, () => clearTarget(sel)]);
+    else items.push([`Target ${tokenLabel(f)} (T)`, () => setTarget(sel, f)]);
     const adj = adjacent(sel, f);
     if (adj) items.push([`Melee ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "melee"; sel.stance = "attack"; render(); }]);
     if (adj && !combatProfile(sel).profileAttack) items.push([`Parry against ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "melee"; sel.stance = "parry"; render(); }]);
@@ -1446,7 +1486,6 @@ $("#map").addEventListener("contextmenu", (e) => {
     if (!adj && mayCharge(sel)) items.push([`Charge ${tokenLabel(f)} (up to ${chargeInches(sel)}\u2033)`, () => { if (closeOn(sel, f, { charge: true })) render(); }]);
     if (sel.missile && !adj && missileBand(distIn(sel, f), missileRange(sel.missile)) && lineOfSight(sel, f)) items.push([`Fire ${MISSILE_LABEL[sel.missile].toLowerCase()} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "fire"; render(); }]);
     if (sel.kind === "pc") for (const sp of combatSpellsFor(sel.cls, sel.slotsLeft ?? [])) if (sp.id !== "protectionEvil" && distIn(sel, f) <= sp.range) items.push([`Cast ${sp.name} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = `cast:${sp.id}`; render(); }]);
-    items.push([`Target only`, () => setTarget(sel, f)]);
   }
   if (sel && sel.kind === "pc" && active(sel) && state.phase !== "setup" && !alive(f) && f !== sel && adjacent(sel, f) && hasLoot(f)) {
     items.push([`Search ${f.name}`, () => { const sx = searchable(sel).find((q) => q.id === `fig-${f.id}`); if (sx) openLoot(sel, sx); }]);
@@ -1486,6 +1525,8 @@ $("#start").addEventListener("click", startFight);
 $("#step").addEventListener("click", () => { if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
 $("#reset").addEventListener("click", resetFight);
 $("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
+try { const v = localStorage.getItem("odd-empty-click"); if (v) $("#emptyClick").value = v; } catch {}
+$("#emptyClick").addEventListener("change", (e) => { try { localStorage.setItem("odd-empty-click", e.target.value); } catch {} });
 /* ---------- camera: pan, zoom, minimap, default view ---------- */
 const BASE = 28 / PX; // screen px per world unit at zoom 1 (28px per 3⅓' cell)
 const cam = { x: W * PX / 2, y: H * PX / 2, z: 1 };
