@@ -78,6 +78,16 @@ Changes made during extraction:
 - 0.6.2: `casting.mjs` adds Fire Ball and Lightning Bolt (`spellDamageDice`,
   `fireBallCells` that conforms to confined spaces, `lightningCells` that
   doubles back off walls).
+- 0.7.0: new `reactions.mjs` (encounter reaction with bribe, force and
+  alignment modifiers; languages and parley; offer of service; surrender;
+  Book III pursuit; orc lair morale and tribal hostility). Every monster
+  gets a `mind` (intelligence tier, behaviour profile, language, common).
+  `specials.mjs` adds `drainLevels`, `drainerDamage`, `risesAs`,
+  `ghoulTouch`, `trollRound` with fire/acid, and gaze (`gazeCheck`, avert,
+  reflector, `BLIND`). `casting.mjs` adds `areaSpellDice`, `saveForHalf`,
+  `lightningStartOk`. `engagement.mjs` adds the 45° mounted charge curve.
+  Dragon talk and sleep chances (Book II), `oilDeters` (DMG 75% vs
+  unintelligent pursuers), `foundAsleep`.
 
 ## Open items
 

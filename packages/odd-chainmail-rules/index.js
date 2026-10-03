@@ -28,6 +28,7 @@ export * from "./src/mounts.mjs";
 export * from "./src/multiclass.mjs";
 export * from "./src/name-generator.mjs";
 export * from "./src/race.mjs";
+export * from "./src/reactions.mjs";
 export * from "./src/spell-progression.mjs";
 export * from "./src/specials.mjs";
 export * from "./src/treasure.mjs";

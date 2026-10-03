@@ -136,6 +136,30 @@ export function chargeAllowance({ move, mounted = false, troopType = "" } = {}) 
   if (!t && !mounted && move <= 6) bonus = 0;
   return move > 0 ? move + bonus : 0;
 }
+/**
+ * Mounted charge curve (Chainmail: "up to a maximum of a 45 deg. curve";
+ * Kurt's ruling, Oct 2026). Total change of direction along the path is the
+ * spread between the most-left and most-right step headings, so a straight
+ * diagonal that a grid draws as a stair-step still counts as straight.
+ * path: [{x,y}, ...] cells from the start. facing: optional dir8 at the start.
+ */
+export const CHARGE_MAX_CURVE = 45;
+export function chargeCurve(path, facing = null) {
+  const heads = [];
+  if (facing != null) heads.push(facing * 45);
+  for (let i = 1; i < path.length; i++) {
+    const d = dir8(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+    if (d != null) heads.push(d * 45);
+  }
+  if (heads.length < 2) return 0;
+  const ref = heads[0];
+  const rel = heads.map((h) => ((h - ref + 540) % 360) - 180);
+  return Math.max(...rel) - Math.min(...rel);
+}
+export function chargeCurveOk(path, { mounted = false, facing = null } = {}) {
+  return !mounted || chargeCurve(path, facing) <= CHARGE_MAX_CURVE;
+}
+
 /** May this figure charge this round? Not if it charged last round. */
 export function canCharge(chargedRound, round) { return chargedRound == null || chargedRound < round - 1; }
 
@@ -184,6 +208,14 @@ function runSelfTests() {
   ok(chargeAllowance({ move: 18, troopType: "MH" }) === 24, "medium horse 18 to 24");
   ok(chargeAllowance({ move: 0 }) === 0, "immobile: no charge");
   ok(canCharge(null, 3) && canCharge(1, 3) && !canCharge(2, 3), "no charge the round after a charge");
+  const P = (...c) => c.map(([x, y]) => ({ x, y }));
+  ok(chargeCurve(P([0, 0], [1, 0], [2, 0], [3, 0])) === 0, "straight charge: 0°");
+  ok(chargeCurve(P([0, 0], [1, 0], [2, -1], [3, -1], [4, -2])) === 45, "stair-step diagonal: 45°");
+  ok(chargeCurve(P([0, 0], [1, 0], [2, -1], [2, -2])) === 90, "east to north: 90°");
+  ok(chargeCurve(P([0, 0], [1, -1], [2, -1], [3, 0])) === 90, "S-bend: 90°");
+  ok(chargeCurve(P([0, 0], [1, -1]), 0) === 45 && chargeCurve(P([0, 0], [0, -1]), 0) === 90, "facing counts as the starting heading");
+  ok(chargeCurveOk(P([0, 0], [1, 0], [2, -1], [2, -2])) && !chargeCurveOk(P([0, 0], [1, 0], [2, -1], [2, -2]), { mounted: true }), "limit applies to mounted charges only");
+  ok(chargeCurve(P([0, 0], [-1, 0], [-2, 1])) === 45, "wraps across west");
   console.log(`engagement.mjs — all self-tests passed (${pass} assertions).`);
 }
 

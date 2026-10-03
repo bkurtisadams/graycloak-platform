@@ -17,7 +17,7 @@ for (const file of readdirSync(src).filter((f) => f.endsWith(".mjs"))) {
 
 test("index.js loads and exposes the core API", async () => {
   const api = await import("../index.js");
-  for (const name of ["toHit", "resolveExchange", "hitDiceFor", "fightingCapabilityFor", "moraleReactionFor", "retainerReactionFor"]) {
+  for (const name of ["toHit", "resolveExchange", "hitDiceFor", "fightingCapabilityFor", "moraleReactionFor", "retainerReactionFor", "encounterReaction", "offerService", "drainLevels", "gazeCheck", "chargeCurve", "areaSpellDice"]) {
     assert.equal(typeof api[name], "function", name);
   }
 });

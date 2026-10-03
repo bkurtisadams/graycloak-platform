@@ -32,6 +32,47 @@ const chainmail = (attacksAs = "", attackFigures = 0, defendsAs = "", defenseFig
   attacksAs, attackFigures, extraDice, defendsAs, defenseFigures
 });
 
+/**
+ * Mind of each monster: intelligence tier (also the default behaviour
+ * profile), language, and whether a group knows common ("always" for men,
+ * "roll" = 20% per group, Book I). null language = does not speak. talks and
+ * sleeps = % chance a dragon speaks at all or is found asleep (Book II).
+ * Monsters never speak an alignment tongue (Kurt's ruling, Oct 2026).
+ */
+const M = "mindless", B = "bestial", C = "cunning", I = "intelligent";
+const MINDS = Object.freeze({
+  goblin: [C, "goblin"], kobold: [C, "kobold"], orc: [C, "orc"], hobgoblin: [C, "hobgoblin"], gnoll: [C, "gnoll"],
+  ogre: [C, "ogre"], troll: [C, "troll"],
+  skeleton: [M], zombie: [M], ghoul: [B], wight: [C], gargoyle: [B], minotaur: [B],
+  "ochre-jelly": [M], "black-pudding": [M],
+  bandit: [C, "common", "always"], berserker: [C, "common", "always"], brigand: [C, "common", "always"], caveman: [C, "caveman"],
+  merman: [C, "merman"], gnome: [C, "gnome"], dwarf: [C, "dwarvish"], elf: [C, "elvish"],
+  pixie: [I, "pixie"], nixie: [I, "nixie"], dryad: [I, "dryad"],
+  wraith: [C], mummy: [C], spectre: [I], vampire: [I, "common", "always"],
+  cockatrice: [B], basilisk: [B], medusa: [I, "medusa"], gorgon: [B], manticore: [B], hydra: [B], chimera: [B], wyvern: [B],
+  "dragon-white": [I, "dragon", "roll", 25, 60], "dragon-black": [I, "dragon", "roll", 40, 50], "dragon-green": [I, "dragon", "roll", 55, 40],
+  "dragon-blue": [I, "dragon", "roll", 70, 30], "dragon-red": [I, "dragon", "roll", 85, 20], "dragon-golden": [I, "dragon", "roll", 100, 10],
+  "purple-worm": [M], centaur: [I, "centaur"], unicorn: [I, "unicorn"], treant: [I, "treant"], pegasus: [B], hippogriff: [B], roc: [B], griffon: [B],
+  "invisible-stalker": [I], "elemental-air": [C], "elemental-earth": [C], "elemental-fire": [C], "elemental-water": [C],
+  djinn: [I, "djinn"], efreet: [I, "efreet"],
+  "giant-hill": [I, "giant-hill"], "giant-stone": [I, "giant-stone"], "giant-frost": [I, "giant-frost"], "giant-fire": [I, "giant-fire"], "giant-cloud": [I, "giant-cloud"],
+  werewolf: [B], wereboar: [B], weretiger: [B], werebear: [B],
+  "green-slime": [M], "gray-ooze": [M], "yellow-mold": [M],
+  "horse-light": [B], "horse-medium": [B], "horse-heavy": [B], "horse-draft": [B], mule: [B]
+});
+
+function mindOf(key) {
+  const [intelligence, language = null, common, talks = null, sleeps = null] = MINDS[key] ?? [B];
+  return Object.freeze({
+    intelligence,
+    behavior: intelligence,
+    language,
+    common: language ? (common ?? "roll") : null,
+    talks,
+    sleeps
+  });
+}
+
 function monster({
   key,
   name,
@@ -58,6 +99,7 @@ function monster({
     hd: Object.freeze({ count: hd.count, dieSize: hd.dieSize ?? 6, bonus: hd.bonus ?? 0 }),
     move: Object.freeze({ ground: move.ground, fly: move.fly ?? 0, charge: move.charge ?? 0 }),
     alignment,
+    mind: mindOf(key),
     chainmailType,
     attack: Object.freeze({
       method: attack.method,
@@ -1028,6 +1070,7 @@ export function toMonsterActorData(entry) {
         chainmail: { ...entry.attack.chainmail }
       },
       alignment: entry.alignment,
+      mind: { ...entry.mind },
       chainmailType: entry.chainmailType,
       side: "",
       specialAbilities: {
@@ -1068,6 +1111,20 @@ function runSelfTests() {
   ok(MONSTERS.find((m) => m.key === "wight")?.specialAbilities.hitOnlyBy === HitOnlyBy.SILVER, "wight silver gate");
   ok(MONSTERS.find((m) => m.key === "gargoyle")?.specialAbilities.hitOnlyBy === HitOnlyBy.MAGIC, "gargoyle magic gate");
   ok(toMonsterActorData(MONSTERS.find((m) => m.key === "black-pudding")).system.attack.damage.dice === 3, "black pudding damage retained");
+  ok(MONSTERS.every((m) => Object.hasOwn(MINDS, m.key)), "every monster has a mind entry");
+  ok(Object.keys(MINDS).length === MONSTERS.length, "no stray mind entries");
+  ok(MONSTERS.every((m) => ["mindless", "bestial", "cunning", "intelligent"].includes(m.mind.intelligence) && m.mind.behavior === m.mind.intelligence), "tier and behaviour profile set");
+  ok(MONSTERS.every((m) => ["law", "chaos", "neutral"].includes(m.alignment)), "alignment set");
+  const mindFor = (k) => MONSTERS.find((m) => m.key === k).mind;
+  ok(mindFor("skeleton").intelligence === "mindless" && mindFor("skeleton").language === null, "skeleton mindless, mute");
+  ok(mindFor("orc").intelligence === "cunning" && mindFor("orc").language === "orc" && mindFor("orc").common === "roll", "orc cunning, orcish, 20% common");
+  ok(mindFor("bandit").common === "always", "bandits speak common");
+  ok(mindFor("dragon-white").talks === 25 && mindFor("dragon-red").talks === 85 && mindFor("dragon-golden").talks === 100, "dragon talk chance (Book II)");
+  ok(mindFor("dragon-white").sleeps === 60 && mindFor("dragon-blue").sleeps === 30 && mindFor("dragon-golden").sleeps === 10, "dragon sleep chance (Book II)");
+  ok(mindFor("elemental-fire").intelligence === "cunning" && mindFor("unicorn").intelligence === "intelligent" && mindFor("unicorn").language === "unicorn", "elementals low, unicorns average with own tongue");
+  ok(MONSTERS.every((m) => !String(m.mind.language).startsWith("tongue-")), "no monster speaks an alignment tongue");
+  ok(mindFor("basilisk").intelligence !== "intelligent" && mindFor("medusa").intelligence === "intelligent", "basilisk not intelligent, medusa intelligent");
+  ok(toMonsterActorData(MONSTERS.find((m) => m.key === "orc")).system.mind.language === "orc", "mind carried to actor data");
 
   console.log(`monsters.mjs — all self-tests passed (${pass} assertions).`);
 }

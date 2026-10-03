@@ -24,8 +24,41 @@ export const COMBAT_SPELLS = Object.freeze({
   lightningBolt: { id: "lightningBolt", name: "Lightning Bolt",      level: 3, classes: ["magic-user"], range: 24, area: "bolt", length: 6, width: 0.75 }
 });
 
-/** Fire Ball and Lightning Bolt (Book I p.25): one die per caster level (a 6th-level caster throws 6 dice); save for half (OPEN reading). */
+/** Fire Ball and Lightning Bolt (Book I p.25): one die per caster level (a 6th-level caster throws 6 dice). */
 export function spellDamageDice(casterLevel) { return Math.max(1, Math.trunc(casterLevel) || 1); }
+
+/**
+ * Dice and save column by source (Kurt's ruling, Oct 2026): cast = 1d6 per
+ * caster level, save as Spells; scroll = 6 dice, Spells; wand = 6 dice, Wands;
+ * staff = 8 dice, Staves. A save halves the damage.
+ */
+export const AREA_SPELL_SOURCE = Object.freeze({
+  cast:   Object.freeze({ dice: null, save: "staves" }),
+  scroll: Object.freeze({ dice: 6, save: "staves" }),
+  wand:   Object.freeze({ dice: 6, save: "wands" }),
+  staff:  Object.freeze({ dice: 8, save: "staves" })
+});
+export function areaSpellDice(source = "cast", casterLevel = 1) {
+  const s = AREA_SPELL_SOURCE[source] ?? AREA_SPELL_SOURCE.cast;
+  return { dice: s.dice ?? spellDamageDice(casterLevel), save: s.save };
+}
+/** Save for half: d20 meet or beat the column's number. Damage rounds down, minimum 1 on a hit. */
+export function saveForHalf(saves, column, damage, rng, mod = 0) {
+  const roll = 1 + Math.floor(rng() * 20);
+  const need = saves[column];
+  const saved = roll + mod >= need;
+  return { roll, need, mod, saved, damage: saved ? Math.max(1, Math.floor(damage / 2)) : damage };
+}
+
+/**
+ * Lightning Bolt start point (Kurt's ruling, Oct 2026): the caster picks the
+ * start point anywhere, as long as the far end of a straight 6" bolt stays
+ * within 24". Positions in cells.
+ */
+export function lightningStartOk(caster, start, { lengthInches = 6, rangeInches = 24 } = {}) {
+  const d = Math.hypot(start.x - caster.x, start.y - caster.y) / CELLS_PER_INCH_C;
+  return d + lengthInches <= rangeInches + 1e-9;
+}
 
 const CELLS_PER_INCH_C = 3;
 /**
@@ -149,8 +182,9 @@ export function isPerson(fig) {
 }
 
 /**
- * A monster's saving throws. OPEN: Books I-III give no monster save rule;
- * default is a Fighting-Man of level equal to its hit dice (minimum 1).
+ * A monster's saving throws (Kurt's ruling, Oct 2026): as a Fighting-Man of
+ * its hit dice. Under 1 HD uses the 1-3 row, pluses are ignored for row
+ * choice, 13+ HD uses the top row.
  */
 export function monsterSaves(count) {
   return savesFor("fighter", Math.max(1, Math.trunc(count) || 1));
@@ -200,6 +234,17 @@ function runSelfTests() {
   ok(isPerson({ kind: "pc" }) && isPerson({ kind: "monster", monsterKey: "orc" }) && !isPerson({ kind: "monster", monsterKey: "ogre" }), "persons");
 
   ok(monsterSaves(1).staves === savesFor("fighter", 1).staves, "1 HD saves as 1st-level fighter");
+  ok(monsterSaves(0).deathPoison === 12, "under 1 HD: 1-3 row");
+  ok(monsterSaves(3).staves === 16 && monsterSaves(4).staves === 14, "3+1 stays on the 1-3 row, 4 HD moves up");
+  ok(monsterSaves(13).stone === 5 && monsterSaves(20).stone === 5, "13+ HD: top row");
+  ok(savesFor("fighter", 1, "dwarf").staves === savesFor("fighter", 5).staves && savesFor("fighter", 1, "halfling").wands === savesFor("fighter", 5).wands, "dwarf and halfling save as 4 levels higher vs magic");
+  ok(savesFor("fighter", 1, "dwarf").deathPoison === 12 && savesFor("fighter", 1, "dwarf").dragon === 15, "no dwarf bonus vs death/poison or breath");
+  ok(areaSpellDice("cast", 7).dice === 7 && areaSpellDice("cast", 7).save === "staves", "cast: level dice, Spells");
+  ok(areaSpellDice("scroll").dice === 6 && areaSpellDice("wand").dice === 6 && areaSpellDice("wand").save === "wands", "scroll and wand: 6 dice; wand saves as Wands");
+  ok(areaSpellDice("staff").dice === 8 && areaSpellDice("staff").save === "staves", "staff: 8 dice, Staves");
+  ok(saveForHalf({ staves: 16 }, "staves", 21, seq([0.8])).damage === 10, "save halves");
+  ok(saveForHalf({ staves: 16 }, "staves", 21, seq([0.1])).damage === 21, "fail: full");
+  ok(lightningStartOk({ x: 0, y: 0 }, { x: 54, y: 0 }) && !lightningStartOk({ x: 0, y: 0 }, { x: 55, y: 0 }), "far end within 24\": start at most 18\" away");
   ok(saveVsSpells({ staves: 16 }, seq([0.75]), 0).roll === 16 && saveVsSpells({ staves: 16 }, seq([0.75]), 0).saved, "save roll 16 vs 16");
   ok(!saveVsSpells({ staves: 16 }, seq([0.75]), -2).saved, "Hold Person single target -2");
   ok(holdPersonCount(true, seq([0.9])) === 1 && holdPersonCount(false, seq([0.99])) === 4, "hold count");

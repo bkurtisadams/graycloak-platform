@@ -88,8 +88,8 @@ export function weaponIdForClass(weaponClass) {
 export const SAVE_KEYS = Object.freeze(["deathPoison", "wands", "stone", "dragon", "staves"]);
 
 /** Categories treated as "magic" for the dwarf/halfling +4-levels bonus: magic
- *  wands, turn-to-stone, and staves & spells. Death Ray/Poison and Dragon
- *  Breath are left at normal level (mixed/physical — referee may rule otherwise). */
+ *  wands, turn-to-stone, and staves & spells. No bonus vs Death Ray/Poison or
+ *  Dragon Breath (Kurt's ruling, Oct 2026). */
 export const MAGIC_SAVE_KEYS = Object.freeze(["wands", "stone", "staves"]);
 
 export const SAVES = Object.freeze({
