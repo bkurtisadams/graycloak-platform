@@ -117,6 +117,28 @@ export function recordContact(contacts, attackerId, defenderId, round) {
   return c;
 }
 
+/**
+ * Charge allowance (Chainmail p.9 movement table; Kurt's ruling, Oct 2026).
+ * A charge is allowed only when melee contact is expected this turn, and a
+ * figure that charged moves at normal speed on its next turn. Men on foot at
+ * 12" or 9" add 3" (Chainmail light/heavy foot); at 6" (heavy armour, like
+ * Armored Foot) no bonus; mounted figures add 6" (every Chainmail horse type).
+ * Monsters go by their Chainmail troop type: horse +6, Armored Foot +0, other
+ * foot +3; with no troop type, +3 if they move on the ground.
+ */
+export function chargeAllowance({ move, mounted = false, troopType = "" } = {}) {
+  const t = String(troopType || "").toUpperCase();
+  let bonus;
+  if (mounted || t === "LH" || t === "MH" || t === "HH") bonus = 6;
+  else if (t === "AF") bonus = 0;
+  else if (t) bonus = 3;
+  else bonus = move > 6 ? 3 : 0;
+  if (!t && !mounted && move <= 6) bonus = 0;
+  return move > 0 ? move + bonus : 0;
+}
+/** May this figure charge this round? Not if it charged last round. */
+export function canCharge(chargedRound, round) { return chargedRound == null || chargedRound < round - 1; }
+
 /* ---------------------------------------------------------------- tests */
 function runSelfTests() {
   let pass = 0;
@@ -155,6 +177,13 @@ function runSelfTests() {
   ok(recordContact(contacts, 1, 2, 4).rounds === 1, "a gap starts a new melee");
   ok(recordContact(contacts, 3, 4, 1).first === 3, "first contact records who closed");
 
+  ok(chargeAllowance({ move: 12 }) === 15 && chargeAllowance({ move: 9 }) === 12, "men on foot +3");
+  ok(chargeAllowance({ move: 6 }) === 6, "6\" heavy armour: no charge bonus");
+  ok(chargeAllowance({ move: 12, mounted: true }) === 18, "mounted +6");
+  ok(chargeAllowance({ move: 9, troopType: "HF" }) === 12 && chargeAllowance({ move: 6, troopType: "AF" }) === 6, "troop types HF +3, AF +0");
+  ok(chargeAllowance({ move: 18, troopType: "MH" }) === 24, "medium horse 18 to 24");
+  ok(chargeAllowance({ move: 0 }) === 0, "immobile: no charge");
+  ok(canCharge(null, 3) && canCharge(1, 3) && !canCharge(2, 3), "no charge the round after a charge");
   console.log(`engagement.mjs — all self-tests passed (${pass} assertions).`);
 }
 

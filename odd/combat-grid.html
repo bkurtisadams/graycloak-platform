@@ -99,6 +99,9 @@ table.roster { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 #ctx { position: fixed; z-index: 10; background: #fff; border: 1px solid var(--ink); border-radius: 4px; box-shadow: 0 4px 14px rgba(31,43,56,.25); padding: 4px 0; display: none; min-width: 150px; }
 #ctx button { display: block; width: 100%; text-align: left; border: none; border-radius: 0; padding: 6px 12px; }
 #ctx button:hover, #ctx button:focus-visible { background: #e3edf5; }
+#ctx .ctx-h { padding: 6px 12px 2px; font-size: .78rem; color: var(--pencil); font-family: var(--type); border-top: 1px solid #e3e9ee; }
+#ctx .ctx-h:first-child { border-top: none; }
+#ctx { min-width: 210px; max-width: 320px; }
 
 /* ---------- redesign: header, phase strip, chips, stage, action bar, drawer ---------- */
 header.top { max-width: none; display: flex; align-items: center; gap: 16px; padding: 14px 20px 8px; }
@@ -262,7 +265,7 @@ import {
   MONSTERS, WEAPON_CLASS, EQUIPMENT_BY_KEY, weaponIdForClass, mulberry32, sumHitDice,
   hitDiceFor, fightingCapabilityFor, monsterAttackProfile, monsterAttackDice, encumbranceFor,
   rollInitiative, resolveExchange, resolveAttackPool,
-  moveBudget, halfCellsToInches, canJoinMelee, reachable, dir8, attackFacing as attackFacingCells, recordContact, pairKey,
+  moveBudget, halfCellsToInches, canJoinMelee, reachable, chargeAllowance, canCharge, dir8, attackFacing as attackFacingCells, recordContact, pairKey,
   rollTreasure, LAIR_EXTRAS, carriedCoins, treasureValue, emptyInventory, inventoryFromTreasure, inventoryWeight, treasureXpValue, transferItem, transferCoins, displayName, isEmpty, coinCount,
   abilityOf, drainHit, regenAmount, TROLL_RISES_AT, breathOrBite, BREATH, inBreath, swallows, wyvernStings, hydraHeads, CLUMSY_BIG,
   resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
@@ -401,8 +404,15 @@ function combatant(f, facing, extra = {}) {
 
 /* ---------- movement and targeting ---------- */
 const canMoveNow = (f) => state.phase === "setup" || (state.phase === "fight" && state.step === `move-${f.side}` && active(f));
+function chargeInches(f) {
+  if (f.kind === "pc") return chargeAllowance({ move: moveInches(f) });
+  const m = mon(f); return chargeAllowance({ move: moveInches(f), troopType: monsterAttackProfile(m).chainmail.attacksAs });
+}
+const allowanceOf = (f) => (f.charging ? chargeInches(f) : moveInches(f));
+const mayCharge = (f) => state.phase === "fight" && canMoveNow(f) && canCharge(f.chargedRound, state.round) && chargeInches(f) > moveInches(f);
+const enemyAdjacentAt = (f, x, y) => state.figures.find((e) => e.side !== f.side && present(e) && e.placed && adjacent({ x, y, size: sz(f) }, e));
 function reachFor(f) {
-  const budget = moveBudget(moveInches(f)) - (f.moved ?? 0);
+  const budget = moveBudget(allowanceOf(f)) - (f.moved ?? 0);
   const n = sz(f);
   const blocked = (x, y) => footCells(x, y, n).some(([cx, cy]) => { if (isWall(cx, cy)) return true; const o = occupant(cx, cy, f); return !!o && o.side !== f.side; });
   const r = reachable({ x: f.x, y: f.y }, budget, blocked);
@@ -415,6 +425,14 @@ function moveTo(f, x, y) {
     f.x = x; f.y = y; render(); return;
   }
   const r = reachFor(f); const node = r.get(`${x},${y}`); if (!node || node.passOnly || (x === f.x && y === f.y)) return;
+  if (f.charging) {
+    const beyondNormal = (f.moved ?? 0) + node.cost > moveBudget(moveInches(f));
+    const tt = f.target != null ? byId(f.target) : null;
+    const foe = tt && present(tt) && adjacent({ x, y, size: sz(f) }, tt) ? tt : enemyAdjacentAt(f, x, y);
+    if (!foe && beyondNormal) { $("#dragInfo").innerHTML = '<span class="bad">A charge must end in contact with an enemy (Chainmail: charge only when melee contact is expected).</span>'; return; }
+    if (foe) { f.chargedRound = state.round; f.target = foe.id; f.action = "melee"; logAppend(`<div class="card note">${esc(f.name)} charges ${esc(foe.name)}.</div>`); }
+    else f.charging = false;
+  }
   const stepNode = r.get(node.prev) ?? { x: f.x, y: f.y };
   f.facing = dir8(x - stepNode.x, y - stepNode.y) ?? f.facing;
   if (state.phase === "fight") { f.moved += node.cost; f.moveSeq = ++moveSeq; }
@@ -539,8 +557,9 @@ function planGroupMove(lead, cx, cy) {
     if (!canMoveNow(m)) return { m, tx, ty, ok: false, why: "can't move now" };
     const node = (dx === 0 && dy === 0) ? { cost: 0 } : reachFor(m).get(`${tx},${ty}`);
     if (blockedDest) return { m, tx, ty, ok: false, why: wallDest ? "wall" : "occupied" };
-    if (!node) return { m, tx, ty, ok: false, why: `too far (${halfCellsToInches(Math.max(0, moveBudget(moveInches(m)) - (m.moved ?? 0)))}\u2033 left)` };
-    return { m, tx, ty, ok: true, cost: node.cost, left: moveBudget(moveInches(m)) - (m.moved ?? 0) - node.cost, node };
+    if (!node) return { m, tx, ty, ok: false, why: `too far (${halfCellsToInches(Math.max(0, moveBudget(allowanceOf(m)) - (m.moved ?? 0)))}\u2033 left)` };
+    if (m.charging && (m.moved ?? 0) + node.cost > moveBudget(moveInches(m)) && !enemyAdjacentAt(m, tx, ty)) return { m, tx, ty, ok: false, why: "a charge must end in contact" };
+    return { m, tx, ty, ok: true, cost: node.cost, left: moveBudget(allowanceOf(m)) - (m.moved ?? 0) - node.cost, node };
   });
   return { rows, ok: rows.every((r) => r.ok), bad: rows.filter((r) => !r.ok) };
 }
@@ -710,14 +729,15 @@ function resolveMelee() {
       const A = byId(c.first), B = A === f ? t : f;
       const ca = combatant(A, "front", { ...pairMods(A, B), ...defMods(B, A) }), cb = combatant(B, "front", { ...pairMods(B, A), ...defMods(A, B) });
       ca.hp = start.get(A.id); cb.hp = start.get(B.id);
-      const ex = resolveExchange({ first: ca, second: cb, round: c.rounds, prevFirst: c.prevFirst }, state.rng);
+      const charge = A.chargedRound === state.round && c.rounds === 1;
+      const ex = resolveExchange({ first: ca, second: cb, round: c.rounds, prevFirst: c.prevFirst, charge }, state.rng);
       c.prevFirst = ex.striker;
       const lead = ex.striker === "first" ? A : B, lag = lead === A ? B : A;
       add(lag.id, ex.firstStrike.damage); if (ex.counter) add(lead.id, ex.counter.damage);
       const sp1 = afterStrike(lead, lag, ex.firstStrike, add, start), sp2 = ex.counter ? afterStrike(lag, lead, ex.counter, add, start) : "";
       ev(lead, lag, ex.firstStrike.damage); if (ex.counter) ev(lag, lead, ex.counter.damage);
       const why = ex.killed ? `<div class="line note">${esc(lag.name)} falls before striking back.</div>` : ex.brokeOut ? `<div class="line note">${esc(lag.name)}'s weapon broke: no return blow.</div>` : "";
-      cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(melee round ${c.rounds})</span></div>${strikeCard(ex.firstStrike, lead, lag)}${sp1}${ex.counter ? strikeCard(ex.counter, lag, lead) + sp2 : ""}${why}</div>`);
+      cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(melee round ${c.rounds}${charge ? `; ${esc(A.name)} charged` : ""})</span></div>${strikeCard(ex.firstStrike, lead, lag)}${sp1}${ex.counter ? strikeCard(ex.counter, lag, lead) + sp2 : ""}${why}</div>`);
     } else {
       done.add(fid);
       if (f.stance === "parry") continue;
@@ -954,7 +974,7 @@ function nextStep() {
   if (state.phase !== "fight") return;
   if (state.step === "init") {
     state.round++;
-    for (const f of state.figures) { f.moved = 0; f.action = "melee"; f.secondTarget = null; if (f.status === "paralyzed" && state.round >= (f.paralyzedUntil ?? 0)) f.status = null; }
+    for (const f of state.figures) { f.moved = 0; f.action = "melee"; f.secondTarget = null; f.charging = false; if (f.status === "paralyzed" && state.round >= (f.paralyzedUntil ?? 0)) f.status = null; }
     const init = rollInitiative(state.rng);
     state.firstSide = init.winner; state.step = `move-${init.winner}`;
     logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${init.a}, B ${init.b}: side ${init.winner} moves first</span></div>`);
@@ -1006,7 +1026,18 @@ function renderMap() {
     if (!f.placed || (alive(f) && !present(f))) continue;
     const cx = (centre(f).x + 0.5) * PX, cy = (centre(f).y + 0.5) * PX, col = f.side === "A" ? "var(--side-a)" : "var(--side-b)";
     const S = sz(f);
-    if (!alive(f)) { if (f.hp != null && hasLoot(f)) parts.push(`<text x="${cx + 6}" y="${cy + 7}" font-size="6" font-weight="700" fill="#d98a00" pointer-events="none">$</text>`); parts.push(`<g pointer-events="none" opacity=".5"><line x1="${cx - 5}" y1="${cy - 5}" x2="${cx + 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/><line x1="${cx + 5}" y1="${cy - 5}" x2="${cx - 5}" y2="${cy + 5}" stroke="${col}" stroke-width="2"/></g>`); continue; }
+    if (!alive(f)) {
+      const S0 = sz(f), r0 = 7 * S0, xr = 6.2 * S0, k0 = Math.min(S0, 2);
+      const rising = f.monsterKey === "troll" && !f.burned && f.firstHitRound != null;
+      const xc = rising ? "var(--target)" : "#d0281e";
+      parts.push(`<g data-fig="${f.id}" style="cursor:context-menu"><title>${esc(f.name)}: ${rising ? "down, regenerating" : "dead"}</title>
+        <circle cx="${cx}" cy="${cy}" r="${r0}" fill="${col}" opacity=".38"/>
+        <text x="${cx}" y="${cy + 1.9 * k0}" text-anchor="middle" font-size="${5.2 * k0}" font-family="var(--serif)" font-weight="700" fill="#fff" opacity=".7" pointer-events="none">${esc(tokenLabel(f))}</text>
+        <line x1="${cx - xr}" y1="${cy - xr}" x2="${cx + xr}" y2="${cy + xr}" stroke="#fff" stroke-width="${3.4 * k0}" stroke-linecap="round"/><line x1="${cx + xr}" y1="${cy - xr}" x2="${cx - xr}" y2="${cy + xr}" stroke="#fff" stroke-width="${3.4 * k0}" stroke-linecap="round"/>
+        <line x1="${cx - xr}" y1="${cy - xr}" x2="${cx + xr}" y2="${cy + xr}" stroke="${xc}" stroke-width="${2 * k0}" stroke-linecap="round"/><line x1="${cx + xr}" y1="${cy - xr}" x2="${cx - xr}" y2="${cy + xr}" stroke="${xc}" stroke-width="${2 * k0}" stroke-linecap="round"/>
+        ${f.hp != null && hasLoot(f) ? `<text x="${cx + r0 - 1}" y="${cy + r0}" font-size="${6 * k0}" font-weight="700" fill="#d98a00" stroke="#fff" stroke-width="1.2" paint-order="stroke" pointer-events="none">$</text>` : ""}</g>`);
+      continue;
+    }
     const [fx, fy] = DV[f.facing ?? 0];
     const tt = f.target != null ? byId(f.target) : null;
     const side = tt && active(f) && present(tt) && adjacent(f, tt) && tt.target !== f.id ? attackFacing(centre(tt), tt.facing, centre(f)) : "front";
@@ -1218,6 +1249,8 @@ function actionText(f) {
 function moveText(f) {
   if (state.phase !== "fight") return `move ${moveInches(f)}\u2033`;
   const used = halfCellsToInches(f.moved ?? 0), left = halfCellsToInches(Math.max(0, moveBudget(moveInches(f)) - (f.moved ?? 0)));
+  if (f.chargedRound === state.round) return `charged ${halfCellsToInches(f.moved ?? 0)}\u2033`;
+  if (f.charging) return `charging \u00b7 up to ${chargeInches(f)}\u2033`;
   if (!f.moved) return state.step === "missiles" || state.step === "melee" ? "stationary" : "not moved";
   return left <= 0 ? `${used}\u2033 used \u00b7 done` : `${used}\u2033 used \u00b7 ${left}\u2033 left`;
 }
@@ -1245,7 +1278,7 @@ function renderActionBar() {
   const p = combatProfile(f); const t = f.target != null ? byId(f.target) : null;
   const full = f.kind === "pc" ? (CLASSES.find((c) => c.id === f.cls)?.label ?? "") : (mon(f)?.name ?? "");
   const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx;
-  const total = moveInches(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
+  const total = allowanceOf(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
   const pipN = Math.min(24, Math.ceil(total)), usedPips = Math.min(pipN, Math.round(usedIn));
   const fight = state.phase === "fight" && active(f);
   const btn = (id, text, on, cls = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}">${esc(text)}</button>`;
@@ -1254,6 +1287,7 @@ function renderActionBar() {
     acts.push(btn("melee", t ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
     if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
     if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`, "desk"));
+    if (mayCharge(f) || f.charging) acts.push(btn("charge", f.charging ? `Charging (${chargeInches(f)}\u2033)` : `Charge (${chargeInches(f)}\u2033)`, !!f.charging));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
     if (f.kind === "pc") acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
     acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
@@ -1281,6 +1315,7 @@ function renderActionBar() {
     if (a === "melee") { f.action = "melee"; f.stance = "attack"; }
     else if (a === "parry") { f.action = "melee"; f.stance = "parry"; }
     else if (a === "hold") f.action = "hold";
+    else if (a === "charge") { f.charging = !f.charging; $("#dragInfo").textContent = f.charging ? `Charging: up to ${chargeInches(f)}″, and the move must end in contact with an enemy.` : ""; render(); return; }
     else if (a === "fire") f.action = "fire";
     else if (a.startsWith("cast:")) f.action = a;
     else if (a === "search") { const list = searchable(f); if (list.length === 1) openLoot(f, list[0]); else if (list.length) openDrawer("figure"); else $("#dragInfo").textContent = "Nothing to search next to this figure."; return; }
@@ -1357,8 +1392,12 @@ $("#map").addEventListener("click", (e) => {
     if (!m.a || m.locked) Object.assign(m, { a: c, b: c, locked: false }); else Object.assign(m, { b: c, locked: true });
     renderOverlay(); return;
   }
-  const f = figAt(e.target);
+  let f = figAt(e.target);
   const cur = state.selected != null ? byId(state.selected) : null;
+  if (f && !alive(f) && cur && canMoveNow(cur) && !e.shiftKey && !state.groupMode) {
+    const c = cellAt(e.clientX, e.clientY); const off = state.phase === "setup" ? 0 : Math.floor((sz(cur) - 1) / 2);
+    moveTo(cur, c.x - off, c.y - off); return;
+  }
   if (f && (e.shiftKey || state.groupMode)) { toggleInGroup(f); return; }
   if (f && $("#tapTarget").checked && cur && state.phase === "fight" && f.side !== cur.side) { setTarget(cur, f); return; }
   if (f) { setGroup([f.id]); return; }
@@ -1375,15 +1414,63 @@ document.addEventListener("keydown", (e) => {
 });
 const ctx = $("#ctx");
 function hideCtx() { ctx.style.display = "none"; }
+/** Move a figure to the reachable cell nearest its target, ending in contact if it can. Returns true if it moved. */
+function closeOn(f, t, { charge = false } = {}) {
+  if (charge) f.charging = true;
+  const reach = reachFor(f); let best = null;
+  for (const n of reach.values()) {
+    if (n.passOnly || n.cost === 0) continue;
+    const probe = { x: n.x, y: n.y, size: sz(f) };
+    const touch = adjacent(probe, t);
+    if (charge && !touch) continue;
+    const c = centre(probe), d = Math.hypot(c.x - centre(t).x, c.y - centre(t).y);
+    const score = (touch ? 0 : 1000) + d * 10 + n.cost / 100;
+    if (!best || score < best.score) best = { n, score };
+  }
+  if (!best) { if (charge) f.charging = false; $("#dragInfo").innerHTML = `<span class="bad">${esc(f.name)} can't reach ${esc(t.name)}${charge ? " to charge" : ""} this round.</span>`; return false; }
+  f.target = t.id; moveTo(f, best.n.x, best.n.y); f.target = t.id; f.action = "melee";
+  return true;
+}
 $("#map").addEventListener("contextmenu", (e) => {
   const f = figAt(e.target); if (!f) return; e.preventDefault();
   const sel = state.selected != null ? byId(state.selected) : null;
-  const items = [[`Select ${f.name}`, () => { state.selected = f.id; render(); }]];
-  if (sel && sel.side !== f.side && alive(sel) && state.phase === "fight") items.unshift([`${sel.name}: target ${f.name}`, () => setTarget(sel, f)]);
-  if (f.target != null) items.push([`Clear ${f.name}'s target`, () => clearTarget(f)]);
-  ctx.innerHTML = items.map(([l], i) => `<button role="menuitem" data-i="${i}">${esc(l)}</button>`).join("");
+  const fight = state.phase === "fight";
+  const items = [];
+  const heading = (t) => items.push([t, null]);
+  if (sel && sel !== f && sel.side !== f.side && active(sel) && fight && present(f)) {
+    heading(`${tokenLabel(sel)} \u2192 ${f.name}`);
+    const adj = adjacent(sel, f);
+    if (adj) items.push([`Melee ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "melee"; sel.stance = "attack"; render(); }]);
+    if (adj && !combatProfile(sel).profileAttack) items.push([`Parry against ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "melee"; sel.stance = "parry"; render(); }]);
+    if (!adj && canMoveNow(sel)) items.push([`Close and melee ${tokenLabel(f)}`, () => { if (closeOn(sel, f)) render(); }]);
+    if (!adj && mayCharge(sel)) items.push([`Charge ${tokenLabel(f)} (up to ${chargeInches(sel)}\u2033)`, () => { if (closeOn(sel, f, { charge: true })) render(); }]);
+    if (sel.missile && !adj && missileBand(distIn(sel, f), missileRange(sel.missile)) && lineOfSight(sel, f)) items.push([`Fire ${MISSILE_LABEL[sel.missile].toLowerCase()} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "fire"; render(); }]);
+    if (sel.kind === "pc") for (const sp of combatSpellsFor(sel.cls, sel.slotsLeft ?? [])) if (sp.id !== "protectionEvil" && distIn(sel, f) <= sp.range) items.push([`Cast ${sp.name} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = `cast:${sp.id}`; render(); }]);
+    items.push([`Target only`, () => setTarget(sel, f)]);
+  }
+  if (sel && sel.kind === "pc" && active(sel) && state.phase !== "setup" && !alive(f) && f !== sel && adjacent(sel, f) && hasLoot(f)) {
+    items.push([`Search ${f.name}`, () => { const sx = searchable(sel).find((q) => q.id === `fig-${f.id}`); if (sx) openLoot(sel, sx); }]);
+  }
+  if (alive(f)) {
+    heading(f.name);
+    items.push([`Select`, () => { setGroup([f.id]); }]);
+    if (fight && active(f) && (f === sel || !sel || sel.side === f.side)) {
+      items.push([`Hold this round`, () => { f.action = "hold"; render(); }]);
+      if (mayCharge(f) || f.charging) items.push([f.charging ? "Stop charging" : `Charge mode (up to ${chargeInches(f)}\u2033)`, () => { f.charging = !f.charging; render(); }]);
+    }
+    if (f.target != null) items.push([`Clear target`, () => clearTarget(f)]);
+    items.push([`Details`, () => { setGroup([f.id]); openDrawer("figure"); }]);
+  } else if (f.monsterKey === "troll" && !f.burned && state.phase !== "setup") {
+    heading(f.name); items.push([`Burn it (fire or acid)`, () => { f.burned = true; logAppend(`<div class="card"><span class="hit">${esc(f.name)} is burned and will not rise again.</span></div>`); afterStep(); render(); }]);
+  }
+  if (!items.some(([, fn]) => fn)) return;
+  ctx.innerHTML = items.map(([l, fn], i) => fn ? `<button role="menuitem" data-i="${i}">${esc(l)}</button>` : `<div class="ctx-h">${esc(l)}</div>`).join("");
   ctx.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; hideCtx(); items[Number(b.dataset.i)][1](); };
-  ctx.style.left = `${e.clientX}px`; ctx.style.top = `${e.clientY}px`; ctx.style.display = "block"; ctx.querySelector("button")?.focus();
+  ctx.style.display = "block";
+  const r = ctx.getBoundingClientRect();
+  ctx.style.left = `${Math.min(e.clientX, window.innerWidth - r.width - 8)}px`;
+  ctx.style.top = `${Math.min(e.clientY, window.innerHeight - r.height - 8)}px`;
+  ctx.querySelector("button")?.focus();
 });
 document.addEventListener("click", (e) => {
   if (!ctx.contains(e.target)) hideCtx();
@@ -1562,7 +1649,7 @@ function renderOverlay() {
       out.push(pill(cx, cy, `${straightIn}″ · ${why}`, "var(--red)"));
     } else {
       const node = td.reach.get(k);
-      const allow = moveInches(f), before = halfCellsToInches(f.moved ?? 0);
+      const allow = allowanceOf(f), before = halfCellsToInches(f.moved ?? 0);
       let colour = "var(--ink)", text;
       if (node && !node.passOnly && node.cost > 0) {
         const pts = []; let n = node; while (n) { pts.push(`${(n.x + half) * PX},${(n.y + half) * PX}`); n = n.prev ? td.reach.get(n.prev) : null; }
@@ -1571,7 +1658,8 @@ function renderOverlay() {
         const thisIn = halfCellsToInches(node.cost), total = Math.round((before + thisIn) * 10) / 10;
         const atCap = allow - total <= 0.05;
         if (atCap) colour = "var(--target)";
-        text = before > 0.05 ? `${thisIn}″ · round ${total}/${allow}″` : `${thisIn}″ / ${allow}″`;
+        text = (f.charging ? "charge " : "") + (before > 0.05 ? `${thisIn}″ · round ${total}/${allow}″` : `${thisIn}″ / ${allow}″`);
+        if (f.charging && total > moveInches(f) && !enemyAdjacentAt(f, c.x, c.y)) { colour = "var(--red)"; text += " · must end in contact"; }
         if (atCap) text += " · MAX";
         const half = canJoinMelee((f.moved ?? 0) + node.cost, allow) ? "" : " · can't join a melee";
         text += half;

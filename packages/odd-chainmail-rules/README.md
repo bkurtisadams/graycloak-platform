@@ -73,6 +73,8 @@ Changes made during extraction:
   Magic/Maps table, every magic item table, sword alignment/intelligence/
   egoism/purpose, maps, carried coins, lair extras) and `inventory.mjs`
   (carried coins and items, weights, XP value, transfers, move with load).
+- 0.6.1: `engagement.mjs` adds `chargeAllowance` and `canCharge` (Chainmail
+  charge moves, Kurt's mapping for OD&D move rates).
 
 ## Open items
 
