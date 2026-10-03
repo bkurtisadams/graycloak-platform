@@ -7,6 +7,9 @@
  * events for a client to show. It mutates the state it is given; a server
  * clones before calling and saves the result.
  *
+ * Pass 2 (Oct 2026) adds movement and the behaviour loop: "move",
+ * "charge-mode", "close-on", "group-move" and "behave".
+ *
  * Pass 1 (Oct 2026) owns the Chainmail turn sequence with the initiative
  * winner's election (p.8; Kurt, Oct 2026), the step order (first move, last
  * move, artillery, missiles, melee), the morale pass after fire and after
@@ -25,6 +28,8 @@ import { MONSTERS, moraleDiceBonus, fearRadius } from "./monsters.mjs";
 import { monsterAttackProfile } from "./monster-attacks.mjs";
 import { troopLossLine, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond } from "./morale.mjs";
 import { orcLairMoraleExempt } from "./reactions.mjs";
+import { moveFigure, closeOn, planGroupMove, commitGroupMove, mayCharge, chargeInches } from "./movement.mjs";
+import { behave } from "./behaviour.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -61,12 +66,50 @@ export const AI_ELECTION = "counter";
  *   { type: "end-move", side }                  step move-<side>: that side has finished moving
  *   { type: "missiles-resolved" }               step missiles: client resolved fire; morale follows
  *   { type: "melee-resolved" }                  step melee: client resolved melee; morale and next round
+ *   { type: "move", id, x, y }                  setup: place; move step: move the figure (a charge must end in contact)
+ *   { type: "charge-mode", id, on }             move step: switch a figure's charge on or off
+ *   { type: "close-on", id, targetId, charge }  move step: move toward a target by the best route
+ *   { type: "group-move", ids, leadId, x, y }   setup or move step: move a group, all or nothing
+ *   { type: "behave", side }                    move step: every figure on the moving side decides by its profile
  */
 export function apply(state, action, rng) {
   const events = [];
   const fail = (error) => ({ ok: false, events: [], error });
-  if (state.phase !== "fight") return fail("the fight is not running");
+  const byId = (id) => state.figures.find((f) => f.id === id);
+  const setupOk = ["move", "group-move"].includes(action?.type) && state.phase === "setup";
+  if (state.phase !== "fight" && !setupOk) return fail("the fight is not running");
   switch (action?.type) {
+    case "move": {
+      const r = moveFigure(state, byId(action.id), action.x, action.y);
+      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+    }
+    case "charge-mode": {
+      const f = byId(action.id);
+      if (!f) return fail("no such figure");
+      if (action.on && !f.charging && !mayCharge(state, f)) return fail(`${f.name} can't charge now`);
+      f.charging = !!action.on;
+      events.push({ type: "charge-mode", id: f.id, name: f.name, on: f.charging, inches: chargeInches(f) });
+      return { ok: true, events };
+    }
+    case "close-on": {
+      const f = byId(action.id), t = byId(action.targetId);
+      if (!f || !t) return fail("no such figure");
+      if (action.charge && !mayCharge(state, f)) return fail(`${f.name} can't charge now`);
+      const r = closeOn(state, f, t, { charge: !!action.charge });
+      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+    }
+    case "group-move": {
+      const members = (action.ids ?? []).map(byId).filter((g) => g && g.placed && present(g));
+      const lead = byId(action.leadId);
+      if (!lead || !members.includes(lead)) return fail("the lead must be in the group");
+      const plan = planGroupMove(state, members, lead, action.x, action.y);
+      if (!plan.ok) return { ok: false, events: [], error: plan.bad.map((b) => `${byId(b.id).name}: ${b.why}`).join("; "), plan };
+      return commitGroupMove(state, plan);
+    }
+    case "behave": {
+      if (moverOf(state.step) !== action.side) return fail(`side ${action.side} is not moving`);
+      return { ok: true, events: behave(state, action.side) };
+    }
     case "begin-round": {
       if (state.step !== Step.INIT) return fail(`not at the start of a round (step ${state.step})`);
       state.round = (state.round ?? 0) + 1;
@@ -300,6 +343,23 @@ async function runSelfTests() {
   {
     const play = () => { const st = fresh([fig(1, "A"), orc(2, "B", 20)]); const rng = mulberry32(42); const ev = []; for (let i = 0; i < 3; i++) { ev.push(...apply(st, { type: "begin-round" }, rng).events); apply(st, { type: "elect", side: st.init.winner, choice: "move" }); apply(st, { type: "end-move" }); apply(st, { type: "end-move" }); apply(st, { type: "melee-resolved" }, rng); } return JSON.stringify(ev); };
     ok(play() === play(), "seeded replay is identical");
+  }
+  // Pass 2: moves, charges and behaviour through apply.
+  {
+    const st = fresh([fig(1, "A", { x: 2, y: 5, cls: "fighter", level: 1, armor: "chain+shield", weaponId: "sword" }), orc(2, "B", 25)]);
+    st.step = "move-A";
+    ok(apply(st, { type: "move", id: 1, x: 6, y: 5 }).ok && st.figures[0].x === 6, "move through apply");
+    ok(!apply(st, { type: "move", id: 2, x: 20, y: 5 }).ok, "the other side can't move");
+    ok(!apply(st, { type: "behave", side: "B" }).ok, "behave only on the moving side");
+    st.step = "move-B";
+    const r = apply(st, { type: "behave", side: "B" });
+    ok(r.ok && r.events.some((e) => e.type === "behaviour") && st.figures[1].x < 25, "side B moves by behaviour");
+    st.step = "move-A"; st.figures[0].moved = 0;
+    const c = apply(st, { type: "charge-mode", id: 1, on: true });
+    ok(c.ok && st.figures[0].charging && c.events[0].inches === 12, "charge mode on");
+    const setup = { ...fresh([fig(9, "A", { placed: false })]), phase: "setup" };
+    ok(apply(setup, { type: "move", id: 9, x: 3, y: 3 }).ok, "placing in setup");
+    ok(!apply(setup, { type: "behave", side: "A" }).ok, "nothing else in setup");
   }
   console.log(`runner.mjs — all self-tests passed (${pass} assertions).`);
 }

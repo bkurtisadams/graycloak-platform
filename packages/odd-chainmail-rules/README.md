@@ -101,6 +101,11 @@ Changes made during extraction:
   melee, and the end of the fight. New `board.mjs` (exported as `board`):
   pure geometry and figure status. `serialRng` / `rngHolder`: a seeded
   generator whose state can be saved, matching `mulberry32`.
+- 0.10.0: combat runner, pass 2. New `movement.mjs` (exported as
+  `movement`): move rates, charge allowance, reach, legal moves, closing on
+  a target, group moves. New `behaviour.mjs` (exported as `behaviour`): the
+  profile-driven decision loop. The runner adds the actions "move",
+  "charge-mode", "close-on", "group-move" and "behave".
 
 ## Open items
 

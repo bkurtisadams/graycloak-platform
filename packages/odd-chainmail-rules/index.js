@@ -33,6 +33,8 @@ export * from "./src/charge-morale.mjs";
 export * from "./src/exploration.mjs";
 export * as fightRunner from "./src/runner.mjs";
 export * as board from "./src/board.mjs";
+export * as movement from "./src/movement.mjs";
+export * as behaviour from "./src/behaviour.mjs";
 export { serialRng, rngHolder } from "./src/dice.mjs";
 export * from "./src/spell-progression.mjs";
 export * from "./src/specials.mjs";
