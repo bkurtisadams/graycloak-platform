@@ -88,6 +88,12 @@ Changes made during extraction:
   `lightningStartOk`. `engagement.mjs` adds the 45° mounted charge curve.
   Dragon talk and sleep chances (Book II), `oilDeters` (DMG 75% vs
   unintelligent pursuers), `foundAsleep`.
+- 0.8.0: man-to-man morale (`manToManMoraleDue`, `manToManLossCheck`:
+  a third of the side killed; castle defenders exempt); monster morale
+  bonuses and dragon fear (`moraleDiceBonus`, `fearRadius`) read from the
+  monster data; `commanderLost` takes a unit's own bonus. New
+  `charge-morale.mjs` (cavalry charge check and table) and
+  `exploration.mjs` (underworld turn, Book III rest rule).
 
 ## Open items
 

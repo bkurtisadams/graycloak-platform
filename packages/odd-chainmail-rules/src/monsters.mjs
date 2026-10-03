@@ -73,6 +73,23 @@ function mindOf(key) {
   });
 }
 
+/**
+ * Morale dice adjustment for a monster, read from its data (Book II): the
+ * monster's own morale bonus, plus any "light" vulnerability in full
+ * daylight (goblins, kobolds, orcs −1). Never-check monsters return null.
+ */
+/** Radius in inches inside which enemy NPC units check morale (dragons 15"; wraiths 24" and rocs 48", their full move). PCs never check. */
+export function fearRadius(entry) {
+  return (entry?.specialAbilities?.entries ?? []).find((e) => e.tag === "fear")?.value ?? 0;
+}
+
+export function moraleDiceBonus(entry, { daylight = false } = {}) {
+  if (!entry || entry.morale?.never) return null;
+  let b = entry.morale?.bonus ?? 0;
+  if (daylight) for (const e of entry.specialAbilities?.entries ?? []) if (e.tag === "light") b += e.value ?? 0;
+  return b;
+}
+
 function monster({
   key,
   name,
@@ -109,7 +126,7 @@ function monster({
       diceOverride: attack.diceOverride ?? 0,
       chainmail: Object.freeze(attack.chainmail ?? chainmail())
     }),
-    morale: Object.freeze({ rating: morale.rating ?? 0, never: morale.never ?? false }),
+    morale: Object.freeze({ rating: morale.rating ?? 0, never: morale.never ?? false, bonus: morale.bonus ?? 0 }),
     // Grid footprint in 3⅓' cells per side (1 = man-sized). Proposed defaults; Book II gives sizes only for giants.
     size,
     reference: Object.freeze({
@@ -173,7 +190,7 @@ export const MONSTERS = Object.freeze([
     hd: { count: 1, bonus: 1 }, move: { ground: 9 },
     chainmailType: "hobgoblin",
     attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, chainmail: chainmail("AF", 1, "HF", 1) },
-    morale: { rating: 6 }, reference: { numberAppearing: "2d10 × 10", inLairPct: 30, treasureType: "D" },
+    morale: { rating: 6, bonus: 1 }, reference: { numberAppearing: "2d10 × 10", inLairPct: 30, treasureType: "D" },
     abilities: [ability("other", "Fearless goblin", "Hobgoblins have 1 point better morale than goblins.")],
     description: "Large, disciplined goblins. A hobgoblin king fights as an ogre and is attended by 1d3+1 guards that do the same."
   }),
@@ -183,7 +200,7 @@ export const MONSTERS = Object.freeze([
     hd: { count: 2 }, move: { ground: 9 },
     chainmailType: "gnoll",
     attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, chainmail: chainmail("AF", 1, "HF", 1) },
-    morale: { rating: 7 }, reference: { numberAppearing: "2d10 × 10", inLairPct: 30, treasureType: "D" },
+    morale: { rating: 7, bonus: 2 }, reference: { numberAppearing: "2d10 × 10", inLairPct: 30, treasureType: "D" },
     abilities: [ability("other", "High morale", "Gnolls have 2 points better morale than ordinary goblins.")],
     description: "Gnolls otherwise resemble hobgoblins. Their king and 1d4 bodyguards fight as trolls but do not regenerate."
   }),
@@ -347,7 +364,7 @@ export const MONSTERS = Object.freeze([
     key: "brigand", name: "Brigand", folder: "humanoids", ac: 6,
     hd: { count: 1 }, move: { ground: 12 }, alignment: "chaos", size: 1,
     attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LF", 1, "LF", 1, 0) },
-    morale: { rating: 6 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
+    morale: { rating: 6, bonus: 1 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
     abilities: [
       ability("other", "Steadier", "+1 morale over bandits.", "morale", 1)
     ],
@@ -358,7 +375,7 @@ export const MONSTERS = Object.freeze([
     key: "caveman", name: "Caveman", folder: "humanoids", ac: 9,
     hd: { count: 2 }, move: { ground: 12 }, alignment: "neutral", size: 1,
     attack: { method: MonsterAttackMethod.WEAPON, description: "Club (as morning star)", weaponClass: 6, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LF", 1, "LF", 1, 0) },
-    morale: { rating: 4 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
+    morale: { rating: 4, bonus: -1 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
     abilities: [
       ability("other", "Primitive", "Fights as a 2nd-level Fighting-Man with morning-star-class clubs; no armour; −1 morale.", "morale", -1)
     ],
@@ -455,6 +472,7 @@ export const MONSTERS = Object.freeze([
     morale: { rating: 10 }, reference: { numberAppearing: "2d8", inLairPct: 20, treasureType: "E" },
     hitOnlyBy: HitOnlyBy.SILVER,
     abilities: [
+      ability("special", "Dread", "Enemy NPC units within its full move (24\") check morale as for excess casualties, as for a Super Hero within charge range (Chainmail; Kurt, Oct 2026).", "fear", 24),
       ability("attack", "Energy drain", "Each melee hit drains one level.", "drain", 1),
       ability("defense", "Enchanted body", "Silver-tipped arrows score only half a die; magic arrows one die.", "immunity")
     ],
@@ -604,6 +622,7 @@ export const MONSTERS = Object.freeze([
     abilities: [
       ability("attack", "Breath weapon", "Breathes cold, 8\" × 3\" cone, three times a day; on 2d6 it breathes on 7+, bites on 6 or less. Breath does damage equal to the dragon's hit points (save for half; Book II p.12 example).", "breath"),
       ability("other", "Talking / sleeping", "Chance to talk / be asleep: 25%/60%. Sleeping dragons give a free melee round at +2."),
+      ability("special", "Dread", "Enemy troops within 15\" check morale as if they had taken excess casualties (Chainmail; Kurt, Oct 2026).", "fear", 15),
       ability("other", "Subdual", "May be subdued and sold for 500–1,000 gp per hit point.")
     ],
     description: "Hit dice shown are the middle of the range; age (1d6) sets hit points per die from 1 to 6."
@@ -617,6 +636,7 @@ export const MONSTERS = Object.freeze([
     abilities: [
       ability("attack", "Breath weapon", "Breathes acid, 6\" × ½\" line, three times a day; on 2d6 it breathes on 7+, bites on 6 or less. Breath does damage equal to the dragon's hit points (save for half; Book II p.12 example).", "breath"),
       ability("other", "Talking / sleeping", "Chance to talk / be asleep: 40%/50%. Sleeping dragons give a free melee round at +2."),
+      ability("special", "Dread", "Enemy troops within 15\" check morale as if they had taken excess casualties (Chainmail; Kurt, Oct 2026).", "fear", 15),
       ability("other", "Subdual", "May be subdued and sold for 500–1,000 gp per hit point.")
     ],
     description: "Hit dice shown are the middle of the range; age (1d6) sets hit points per die from 1 to 6."
@@ -630,6 +650,7 @@ export const MONSTERS = Object.freeze([
     abilities: [
       ability("attack", "Breath weapon", "Breathes chlorine gas, 5\" × 4\" cloud, three times a day; on 2d6 it breathes on 7+, bites on 6 or less. Breath does damage equal to the dragon's hit points (save for half; Book II p.12 example).", "breath"),
       ability("other", "Talking / sleeping", "Chance to talk / be asleep: 55%/40%. Sleeping dragons give a free melee round at +2."),
+      ability("special", "Dread", "Enemy troops within 15\" check morale as if they had taken excess casualties (Chainmail; Kurt, Oct 2026).", "fear", 15),
       ability("other", "Subdual", "May be subdued and sold for 500–1,000 gp per hit point.")
     ],
     description: "Hit dice shown are the middle of the range; age (1d6) sets hit points per die from 1 to 6."
@@ -643,6 +664,7 @@ export const MONSTERS = Object.freeze([
     abilities: [
       ability("attack", "Breath weapon", "Breathes lightning, 10\" × ½\" line, three times a day; on 2d6 it breathes on 7+, bites on 6 or less. Breath does damage equal to the dragon's hit points (save for half; Book II p.12 example).", "breath"),
       ability("other", "Talking / sleeping", "Chance to talk / be asleep: 70%/30%. Sleeping dragons give a free melee round at +2."),
+      ability("special", "Dread", "Enemy troops within 15\" check morale as if they had taken excess casualties (Chainmail; Kurt, Oct 2026).", "fear", 15),
       ability("other", "Subdual", "May be subdued and sold for 500–1,000 gp per hit point.")
     ],
     description: "Hit dice shown are the middle of the range; age (1d6) sets hit points per die from 1 to 6."
@@ -656,6 +678,7 @@ export const MONSTERS = Object.freeze([
     abilities: [
       ability("attack", "Breath weapon", "Breathes fire, 9\" × 3\" cone, three times a day; on 2d6 it breathes on 7+, bites on 6 or less. Breath does damage equal to the dragon's hit points (save for half; Book II p.12 example).", "breath"),
       ability("other", "Talking / sleeping", "Chance to talk / be asleep: 85%/20%. Sleeping dragons give a free melee round at +2."),
+      ability("special", "Dread", "Enemy troops within 15\" check morale as if they had taken excess casualties (Chainmail; Kurt, Oct 2026).", "fear", 15),
       ability("other", "Subdual", "May be subdued and sold for 500–1,000 gp per hit point.")
     ],
     description: "Hit dice shown are the middle of the range; age (1d6) sets hit points per die from 1 to 6."
@@ -669,6 +692,7 @@ export const MONSTERS = Object.freeze([
     abilities: [
       ability("attack", "Breath weapon", "Breathes fire or gas, three times a day; on 2d6 it breathes on 7+, bites on 6 or less. Breath does damage equal to the dragon's hit points (save for half; Book II p.12 example).", "breath"),
       ability("other", "Talking / sleeping", "Chance to talk / be asleep: 100%/10%. Sleeping dragons give a free melee round at +2."),
+      ability("special", "Dread", "Enemy troops within 15\" check morale as if they had taken excess casualties (Chainmail; Kurt, Oct 2026).", "fear", 15),
       ability("other", "Subdual", "May be subdued and sold for 500–1,000 gp per hit point.")
     ],
     description: "Hit dice shown are the middle of the range; age (1d6) sets hit points per die from 1 to 6."
@@ -749,6 +773,7 @@ export const MONSTERS = Object.freeze([
     attack: { method: MonsterAttackMethod.PROFILE, description: "Talons and beak", weaponClass: 4, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LH", 4, "HH", 4, 0) },
     morale: { never: true }, reference: { numberAppearing: "1d20", inLairPct: 20, treasureType: "I" },
     abilities: [
+      ability("special", "Dread", "Enemy NPC units within its full move (48\") check morale as for excess casualties (Chainmail treats rocs as Heroes; Kurt, Oct 2026).", "fear", 48),
       ability("other", "Nest", "In the nest, 50% chance of 1–6 young, which can be tamed as steeds; adults are then always hostile.")
     ],
     description: "Giant birds; the largest double or treble these figures."
@@ -1112,6 +1137,12 @@ function runSelfTests() {
   ok(MONSTERS.find((m) => m.key === "gargoyle")?.specialAbilities.hitOnlyBy === HitOnlyBy.MAGIC, "gargoyle magic gate");
   ok(toMonsterActorData(MONSTERS.find((m) => m.key === "black-pudding")).system.attack.damage.dice === 3, "black pudding damage retained");
   ok(MONSTERS.every((m) => Object.hasOwn(MINDS, m.key)), "every monster has a mind entry");
+  const mb = (k, o) => moraleDiceBonus(MONSTERS.find((m) => m.key === k), o);
+  ok(mb("hobgoblin") === 1 && mb("gnoll") === 2 && mb("brigand") === 1 && mb("caveman") === -1 && mb("orc") === 0, "morale bonus from monster data");
+  ok(mb("orc", { daylight: true }) === -1 && mb("goblin", { daylight: true }) === -1 && mb("gnoll", { daylight: true }) === 2, "daylight from the light vulnerability");
+  ok(MONSTERS.filter((m) => fearRadius(m) === 15).length === 6 && fearRadius(MONSTERS.find((m) => m.key === "wyvern")) === 0, "dragons cause fear at 15\"");
+  ok(fearRadius(MONSTERS.find((m) => m.key === "wraith")) === 24 && fearRadius(MONSTERS.find((m) => m.key === "roc")) === 48, "wraiths and rocs cause fear within their move");
+  ok(mb("skeleton") === null && mb("berserker") === null, "never-check monsters: no check");
   ok(Object.keys(MINDS).length === MONSTERS.length, "no stray mind entries");
   ok(MONSTERS.every((m) => ["mindless", "bestial", "cunning", "intelligent"].includes(m.mind.intelligence) && m.mind.behavior === m.mind.intelligence), "tier and behaviour profile set");
   ok(MONSTERS.every((m) => ["law", "chaos", "neutral"].includes(m.alignment)), "alignment set");

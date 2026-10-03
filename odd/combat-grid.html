@@ -274,7 +274,7 @@ import {
   abilityOf, drainHit, regenAmount, TROLL_RISES_AT, breathOrBite, BREATH, inBreath, swallows, wyvernStings, hydraHeads, CLUMSY_BIG,
   resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
   slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
-  lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
+  lossCheck, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond, fearRadius, troopLossLine, moraleDiceBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk
 } from "../packages/odd-chainmail-rules/index.js";
@@ -830,9 +830,69 @@ function afterStep() {
 }
 
 /* ---------- morale: Chainmail casualty check (p.26) ---------- */
-function checkMorale() {
+/** Man-to-man morale (Chainmail p.26; Kurt, Sep 2026): once a third of a side has been killed,
+ *  each monster unit on it rolls 2d6 against its Loss Table score-to-remain, once. PCs never check. */
+/** Leaders (Kurt, Oct 2026; Chainmail p.20): his own unit +1 a die, units within 12" +1; if he falls, every unit checks at −2. */
+state.leader = state.leader ?? { A: null, B: null };
+function bondFor(figs, side) {
+  const L = byId(state.leader?.[side]);
+  if (!L || !present(L)) return CommanderBond.NONE;
+  if (figs.includes(L)) return CommanderBond.WITH;
+  return figs.some((f) => active(f) && f.placed && distIn(f, L) <= 12) ? CommanderBond.NEAR : CommanderBond.NONE;
+}
+function monsterUnits(side) {
+  const units = new Map();
+  for (const f of state.figures) if ((f.origSide ?? f.side) === side && f.kind === "monster") {
+    if (!units.has(f.monsterKey)) units.set(f.monsterKey, []);
+    units.get(f.monsterKey).push(f);
+  }
+  return units;
+}
+const isTrapped = (figs) => figs.filter(active).every((f) => [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]].every(([dx, dy]) => isWall(f.x + dx, f.y + dy) || occupant(f.x + dx, f.y + dy)));
+function applyMorale(figs, res) { if (!res.holds) for (const f of figs) if (active(f)) { f.status = res.outcome === "surrender" ? "surrendered" : "fled"; f.target = null; } }
+const moraleLine = (r, needed, holds, outcome) => `<div class="line">2d6 [${r.dice.join(",")}]${r.modified !== r.total ? ` ${r.modified - r.total > 0 ? "+" : ""}${r.modified - r.total}` : ""} = ${r.modified} vs ${needed}+: ${holds ? "they stand" : `<span class="hit">${outcome === "surrender" ? "they surrender" : "they break and flee"}</span>`}</div>`;
+/** Leader down or captured: every monster unit on his side checks once at −2 (with its own morale bonus). */
+function leaderLossChecks() {
   const out = [];
+  state.leaderLostDone = state.leaderLostDone ?? {};
   for (const side of ["A", "B"]) {
+    const L = byId(state.leader?.[side]);
+    if (!L || present(L) || state.leaderLostDone[side]) continue;
+    state.leaderLostDone[side] = true;
+    for (const [key, figs] of monsterUnits(side)) {
+      const m = MONSTERS.find((x) => x.key === key), line = troopLossLine(monsterAttackProfile(m).chainmail.defendsAs);
+      if (m.morale?.never || !line || !figs.some(active) || figs.includes(L)) continue;
+      const [res] = commanderLost([{ name: m.name, line, bonus: moraleDiceBonus(m) ?? 0, surrounded: isTrapped(figs) }], state.rng);
+      applyMorale(figs, res);
+      out.push(`<div class="card"><div class="who">Morale: ${esc(m.name)}s, side ${side}</div><div class="line note">Their leader ${esc(L.name)} has fallen: check at −2${res.roll.bonus ? `, ${res.roll.bonus > 0 ? "+" : ""}${res.roll.bonus} morale` : ""}</div>${moraleLine(res.roll, res.needed, res.holds, res.outcome)}</div>`);
+    }
+  }
+  return out.join("");
+}
+/** Fear (dragons 15", wraiths 24", rocs 48", from the monster data): enemy NPC units within range check once per monster, as for excess casualties. */
+function fearChecks() {
+  const out = [];
+  state.fearChecked = state.fearChecked ?? new Set();
+  for (const d of state.figures.filter((x) => x.kind === "monster" && present(x) && x.placed && fearRadius(mon(x)) > 0)) {
+    const side = d.side === "A" ? "B" : "A", radius = fearRadius(mon(d));
+    for (const [key, figs] of monsterUnits(side)) {
+      const m = MONSTERS.find((x) => x.key === key), line = troopLossLine(monsterAttackProfile(m).chainmail.defendsAs), k = `${side}:${key}:${d.id}`;
+      if (state.fearChecked.has(k) || m.morale?.never || !line || fearRadius(m) > 0) continue;
+      if (!figs.some((f) => active(f) && f.placed && distIn(f, d) <= radius)) continue;
+      state.fearChecked.add(k);
+      const res = manToManLossCheck({ name: m.name, original: figs.length, remaining: figs.filter(alive).length, line, bonus: moraleDiceBonus(m) ?? 0, commander: bondFor(figs, side), surrounded: isTrapped(figs) }, state.rng);
+      applyMorale(figs, res);
+      out.push(`<div class="card"><div class="who">Morale: ${esc(m.name)}s, side ${side}</div><div class="line note">${esc(d.name)} is within ${radius}": they check as for excess casualties</div>${moraleLine(res.roll, res.needed, res.holds, res.outcome)}</div>`);
+    }
+  }
+  return out.join("");
+}
+function checkMorale() {
+  const out = [leaderLossChecks(), fearChecks()];
+  for (const side of ["A", "B"]) {
+    const sideFigs = state.figures.filter((f) => (f.origSide ?? f.side) === side);
+    const sideKilled = sideFigs.filter((f) => !alive(f)).length;
+    if (!manToManMoraleDue({ sideOriginal: sideFigs.length, sideKilled })) continue;
     const units = new Map();
     for (const f of state.figures) if (f.side === side && f.kind === "monster") {
       if (!units.has(f.monsterKey)) units.set(f.monsterKey, []);
@@ -846,9 +906,8 @@ function checkMorale() {
       if (m.morale?.never || !line) continue;
       if (!figs.some(active)) continue;
       const killed = figs.filter((f) => !alive(f)).length;
-      if (killed / figs.length < line.threshold) continue;
       state.moraleChecked.add(unitKey);
-      const trapped = figs.filter(active).every((f) => [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]].every(([dx, dy]) => isWall(f.x + dx, f.y + dy) || occupant(f.x + dx, f.y + dy)));
+      const trapped = isTrapped(figs);
       if (key === "orc" && state.chests?.some((c) => c.monsterKey === "orc")) {
         const foes = state.figures.filter((e) => e.side !== side && present(e)).length;
         if (orcLairMoraleExempt({ defenders: figs.filter(active).length, attackers: foes })) {
@@ -857,11 +916,12 @@ function checkMorale() {
           continue;
         }
       }
-      const bonus = bookTwoMoraleBonus(key);
-      const res = lossCheck({ name: `${m.name}s (side ${side})`, original: figs.length, remaining: figs.length - killed, line, bonus, surrounded: trapped }, state.rng);
+      const bonus = moraleDiceBonus(m) ?? 0;
+      const bond = bondFor(figs, side);
+      const res = manToManLossCheck({ name: `${m.name}s (side ${side})`, original: figs.length, remaining: figs.length - killed, line, bonus, commander: bond, surrounded: trapped }, state.rng);
       if (!res.holds) for (const f of figs) if (active(f)) { f.status = res.outcome === "surrender" ? "surrendered" : "fled"; f.target = null; }
       const r = res.roll;
-      out.push(`<div class="card"><div class="who">Morale: ${esc(m.name)}s, side ${side}</div><div class="line note">${killed} of ${figs.length} killed; ${line.row} row checks at ${Math.round(line.threshold * 100)}% lost, needs ${line.scoreToRemain}+</div><div class="line">2d6 [${r.dice.join(",")}]${r.bonus ? ` ${r.bonus > 0 ? "+" : ""}${r.bonus}` : ""} = ${r.modified}: ${res.holds ? "they stand" : `<span class="hit">${res.outcome === "surrender" ? "they surrender" : "they break and flee"}</span>`}</div></div>`);
+      out.push(`<div class="card"><div class="who">Morale: ${esc(m.name)}s, side ${side}</div><div class="line note">A third of side ${side} has fallen (${sideKilled} of ${sideFigs.length}); ${killed} of ${figs.length} ${esc(m.name)}s killed. ${line.row} row needs ${line.scoreToRemain}+${bond !== "none" ? `; leader ${bond === "with" ? "with them (+1 a die)" : "within 12\" (+1)"}` : ""}</div><div class="line">2d6 [${r.dice.join(",")}]${r.bonus ? ` ${r.bonus > 0 ? "+" : ""}${r.bonus}` : ""} = ${r.modified}: ${res.holds ? "they stand" : `<span class="hit">${res.outcome === "surrender" ? "they surrender" : "they break and flee"}</span>`}</div></div>`);
     }
   }
   return out.join("");
@@ -1064,7 +1124,7 @@ function startFight() {
     const k = `${f.side}:${f.monsterKey}`;
     if (!state.encounter.has(k)) state.encounter.set(k, { key: k, side: f.side, monsterKey: f.monsterKey, ...groupLanguages(mon(f).mind, state.erng), reaction: null, holdRound: null });
   }
-  Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set() }); moveSeq = 0;
+  Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set(), fearChecked: new Set(), leaderLostDone: {} }); moveSeq = 0;
   $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>` + encounterCard();
   render();
 }
@@ -1291,6 +1351,7 @@ function renderDetail() {
     ${f.breathLeft != null ? `<dt>Breath left</dt><dd>${f.breathLeft}</dd>` : ""}
     ${f.pfe ? `<dt>Protected</dt><dd>from evil (−1 to evil attackers)</dd>` : ""}</dl>
     ${state.phase === "fight" && f.kind === "pc" && active(f) && state.figures.some((e) => e.side !== f.side && present(e) && ["basilisk", "medusa"].includes(e.monsterKey)) ? `<div style="margin:6px 0"><label><input type="checkbox" id="avert" ${f.averted ? "checked" : ""}> Avert eyes (safe from the gaze, but blind: \u22124 to hit, missiles only at adjacent targets)</label><br><label><input type="checkbox" id="mirror" ${f.mirror ? "checked" : ""}> Hold up a mirror (turns the gaze back in good light)</label></div>` : ""}
+    ${alive(f) ? `<div style="margin:6px 0"><label title="Chainmail p.20: his own unit +1 a die on morale, units within 12&quot; +1; if he falls, every unit checks at −2"><input type="checkbox" id="leader" ${state.leader?.[f.origSide ?? f.side] === f.id ? "checked" : ""}> Leader of side ${f.origSide ?? f.side}</label></div>` : ""}
     ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
     ${f.action === "cast:holdPerson" ? holdPicker(f) : ""}
     ${state.phase === "fight" && active(f) && f.action && f.action !== "melee" ? `<p class="step" style="font-size:.9rem">${actionPreview(f)}</p>` : ""}
@@ -1300,6 +1361,7 @@ function renderDetail() {
     ${f.kind === "pc" && active(f) && state.phase !== "setup" ? searchable(f).map((sx) => ` <button data-search="${sx.id}">Search ${esc(sx.label)}</button>`).join("") : ""}
     ${f.monsterKey === "troll" && !alive(f) && !f.burned && state.phase !== "setup" ? ` <button id="burn" class="primary">Burn it (fire or acid)</button>` : ""}`;
   $("#stance")?.addEventListener("change", (e) => { f.stance = e.target.value; render(); });
+  $("#leader")?.addEventListener("change", (e) => { const sd = f.origSide ?? f.side; state.leader[sd] = e.target.checked ? f.id : (state.leader[sd] === f.id ? null : state.leader[sd]); render(); });
   $("#avert")?.addEventListener("change", (e) => { f.averted = e.target.checked; render(); });
   $("#mirror")?.addEventListener("change", (e) => { f.mirror = e.target.checked; render(); });
   $("#burn")?.addEventListener("click", () => { f.burned = true; logAppend(`<div class="card"><span class="hit">${esc(f.name)} is burned and will not rise again.</span></div>`); afterStep(); render(); });

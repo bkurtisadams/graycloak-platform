@@ -104,7 +104,7 @@ export function troopLossLine(troopType) {
   }
 }
 
-/** Book II morale adjustments to the dice. Goblins, kobolds, orcs -1 in full daylight. */
+/** Legacy Book II table; monster data now carries morale.bonus (see moraleDiceBonus in monsters.mjs). */
 export const BOOK_II_MORALE = Object.freeze({ hobgoblin: 1, gnoll: 2 });
 export function bookTwoMoraleBonus(monsterKey, { daylight = false } = {}) {
   let b = BOOK_II_MORALE[monsterKey] ?? 0;
@@ -297,6 +297,21 @@ export function lossCheck({ name, original, remaining, rating, bonus = 0, comman
 }
 
 /**
+ * Man-to-man morale trigger (Chainmail p.26; Kurt, Sep 2026): a side checks once
+ * a third of it has been killed; defenders in a castle never check. When due,
+ * each unit rolls 2d6 against its own Loss Table score-to-remain (its row's
+ * casualty percentage is not used), via manToManLossCheck.
+ */
+export const MAN_TO_MAN_SIDE_TRIGGER = 1 / 3;
+export function manToManMoraleDue({ sideOriginal, sideKilled, castleDefenders = false }) {
+  if (castleDefenders || !(sideOriginal > 0)) return false;
+  return sideKilled / sideOriginal >= MAN_TO_MAN_SIDE_TRIGGER;
+}
+export function manToManLossCheck({ name, original, remaining, line, bonus = 0, commander = CommanderBond.NONE, surrounded = false }, rng = Math.random) {
+  return lossCheck({ name, original, remaining, bonus, commander, surrounded, line: { ...line, threshold: 0 } }, rng);
+}
+
+/**
  * Army commander killed or captured (p.20): every friendly unit immediately
  * checks as if it took excess casualties, at -2 from the dice. The check is
  * FORCED — no casualty threshold gate — and the commander's bonuses are gone.
@@ -310,7 +325,7 @@ export function commanderLost(units, rng = Math.random) {
   return list.map((u) => {
     const lossLine = u.line ?? lossLineFor(u.rating);
     const r = roll2d6(rng);
-    const total = r.total - 2;
+    const total = r.total - 2 + (Math.trunc(u.bonus) || 0);
     const holds = total >= lossLine.scoreToRemain;
     const outcome = holds ? "stand" : u.surrounded ? "surrender" : "flee";
     const name = u.name ?? "unit";
@@ -318,7 +333,7 @@ export function commanderLost(units, rng = Math.random) {
       kind: "commanderLost",
       name,
       needed: lossLine.scoreToRemain,
-      roll: { dice: r.dice, total: r.total, penalty: -2, modified: total },
+      roll: { dice: r.dice, total: r.total, penalty: -2, bonus: Math.trunc(u.bonus) || 0, modified: total },
       holds,
       outcome,
       caption: holds
@@ -339,6 +354,12 @@ function runSelfTests() {
   ok(troopLossLine("HF").scoreToRemain === 7 && troopLossLine("HF").threshold === 1 / 3, "HF row");
   ok(troopLossLine("LF").threshold === 1 / 4 && troopLossLine("HH").threshold === 1 / 2, "LF and HH rows");
   ok(troopLossLine("") === null, "no troop type -> null");
+  ok(manToManMoraleDue({ sideOriginal: 6, sideKilled: 2 }) && !manToManMoraleDue({ sideOriginal: 6, sideKilled: 1 }), "m2m: a third of the side");
+  ok(!manToManMoraleDue({ sideOriginal: 6, sideKilled: 6, castleDefenders: true }), "castle defenders never check");
+  { const r = manToManLossCheck({ name: "Orcs", original: 4, remaining: 4, line: { threshold: 1 / 3, scoreToRemain: 7 } }, () => 0.99);
+    ok(r.triggered && r.holds && r.roll.modified === 12, "unit rolls even under its own percentage"); }
+  { const r = manToManLossCheck({ name: "Orcs", original: 4, remaining: 3, line: { threshold: 1 / 3, scoreToRemain: 7 }, bonus: 2, surrounded: true }, () => 0);
+    ok(!r.holds && r.outcome === "surrender" && r.roll.modified === 4, "surrounded and failed: surrender"); }
   ok(bookTwoMoraleBonus("gnoll") === 2 && bookTwoMoraleBonus("orc", { daylight: true }) === -1 && bookTwoMoraleBonus("orc") === 0, "Book II bonuses");
   // T1: the book's worked example. 10 HH (MR 9) attack 20 HF (MR 5), kill 8,
   // lose 2; assumed die roll 3. HH: 6×3 + 9×8 = 90. HF: 4 + 5×12 = 64.
