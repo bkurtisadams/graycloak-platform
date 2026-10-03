@@ -75,6 +75,9 @@ Changes made during extraction:
   (carried coins and items, weights, XP value, transfers, move with load).
 - 0.6.1: `engagement.mjs` adds `chargeAllowance` and `canCharge` (Chainmail
   charge moves, Kurt's mapping for OD&D move rates).
+- 0.6.2: `casting.mjs` adds Fire Ball and Lightning Bolt (`spellDamageDice`,
+  `fireBallCells` that conforms to confined spaces, `lightningCells` that
+  doubles back off walls).
 
 ## Open items
 

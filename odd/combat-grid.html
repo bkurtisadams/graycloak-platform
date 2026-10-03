@@ -273,7 +273,7 @@ import {
   rollTreasure, LAIR_EXTRAS, carriedCoins, treasureValue, emptyInventory, inventoryFromTreasure, inventoryWeight, treasureXpValue, transferItem, transferCoins, displayName, isEmpty, coinCount,
   abilityOf, drainHit, regenAmount, TROLL_RISES_AT, breathOrBite, BREATH, inBreath, swallows, wyvernStings, hydraHeads, CLUMSY_BIG,
   resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
-  slotsFor, combatSpellsFor, castingGate, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
+  slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
   lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX
 } from "../packages/odd-chainmail-rules/index.js";
 
@@ -851,6 +851,16 @@ function resolveMissiles() {
   for (const f of state.figures) {
     if (!active(f) || !f.action || f.action === "melee" || f.action === "hold") continue;
     const selfSpell = f.action === "cast:protectionEvil";
+    const areaSpell = ["cast:fireBall", "cast:lightningBolt"].includes(f.action);
+    if (areaSpell) {
+      const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
+      if (!spell) { cards.push(`<div class="card note">${esc(f.name)} has no slot left for that spell.</div>`); continue; }
+      if (!f.castAim) { cards.push(`<div class="card note">${esc(f.name)} hasn't placed ${esc(spell.name)}.</div>`); continue; }
+      const aimFig = { x: f.castAim.x, y: f.castAim.y, size: 1 };
+      if (distIn(f, aimFig) > spell.range || !lineOfSight(f, aimFig)) { cards.push(`<div class="card note">${esc(spell.name)}'s aim point is out of range or sight.</div>`); continue; }
+      plans.push({ f, t: aimFig, d: distIn(f, aimFig), kind: "cast", spell });
+      continue;
+    }
     if (!selfSpell && f.target == null) { cards.push(`<div class="card note">${esc(f.name)} has no target for that action.</div>`); continue; }
     const t = selfSpell ? f : byId(f.target); if (!t || !present(t)) continue;
     const d = distIn(f, t);
@@ -924,7 +934,29 @@ function resolveMissiles() {
   logAppend(`<div class="round-head">Round ${state.round}: missiles and spells</div>` + body + tail + checkMorale());
   afterStep();
 }
+/** Cells and figures an area spell would catch, aimed at cell (x, y). */
+function areaOf(caster, spellId, x, y) {
+  const open = (cx, cy) => !isWall(cx, cy);
+  let cells, reachOk = true;
+  if (spellId === "fireBall") cells = fireBallCells({ x, y }, open, 2);
+  else { const r = lightningCells(centre(caster), { x, y }, open); cells = r.cells; reachOk = r.maxReach <= 24 * 3 + 0.5; }
+  const set = new Set(cells.map(([cx, cy]) => `${cx},${cy}`));
+  const caught = state.figures.filter((e) => e.placed && present(e) && footCells(e.x, e.y, sz(e)).some(([cx, cy]) => set.has(`${cx},${cy}`)));
+  return { cells, caught, reachOk };
+}
 function castSpell(f, t, sp) {
+  if (sp.id === "fireBall" || sp.id === "lightningBolt") {
+    const { caught } = areaOf(f, sp.id, f.castAim.x, f.castAim.y);
+    const dice = spellDamageDice(f.level);
+    const lines = caught.map((e) => {
+      let dmg = 0; for (let i = 0; i < dice; i++) dmg += 1 + Math.floor(state.rng() * 6);
+      const sv = saveVsSpellsLike(e, "staves"); const take = sv.saved ? Math.floor(dmg / 2) : dmg;
+      e.hp -= take; ev(f, e, take);
+      return `<div class="line">${esc(e.name)}: ${dice}d6 = ${dmg}; save vs spells d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${take} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`;
+    }).join("");
+    f.castAim = null;
+    return `<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line note">${sp.id === "fireBall" ? "2\u2033 burst, filling the space it bursts in" : "6\u2033 bolt, doubling back off walls"}; ${dice} dice (caster level), save for half</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`;
+  }
   const head = `<div class="who">${nameSpan(f)} casts ${esc(sp.name)}${sp.id === "protectionEvil" ? "" : ` at ${nameSpan(t)}`}</div>`;
   if (sp.id === "sleep") {
     const cap = sleepCapacity(...(() => { const h = t.kind === "pc" ? hitDiceFor(t.cls, t.level) : MONSTERS.find((m) => m.key === t.monsterKey).hd; return t.kind === "pc" ? [h.dice, h.bonus] : [h.count, h.bonus]; })(), state.rng);
@@ -985,7 +1017,7 @@ function nextStep() {
     state.init = init; state.skipMissiles = false; state.fx = []; state.banner = null;
   } else if (state.step === `move-${state.firstSide}`) state.step = `move-${other(state.firstSide)}`;
   else if (state.step.startsWith("move-")) { state.skipMissiles = !missileStepNeeded(); state.step = state.skipMissiles ? "melee" : "missiles"; }
-  else if (state.step === "missiles") { state.events = []; resolveMissiles(); finishPhase("Missiles & spells"); state.step = "melee"; }
+  else if (state.step === "missiles") { state.events = []; $("#dragInfo").textContent = ""; resolveMissiles(); finishPhase("Missiles & spells"); state.step = "melee"; }
   else if (state.step === "melee") { state.events = []; resolveMelee(); finishPhase("Melee"); state.step = "init"; }
   if (state.step?.startsWith("move-")) {
     const side = state.step.slice(5);
@@ -1290,7 +1322,7 @@ function renderActionBar() {
   if (fight) {
     acts.push(btn("melee", t ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
     if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
-    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`, "desk"));
+    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
     if (mayCharge(f) || f.charging) acts.push(btn("charge", f.charging ? `Charging (${chargeInches(f)}\u2033)` : `Charge (${chargeInches(f)}\u2033)`, !!f.charging));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
     if (f.kind === "pc") acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
@@ -1300,6 +1332,15 @@ function renderActionBar() {
     acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
   }
   const tgt = t && present(t) ? (() => { const n = needsAgainst(f, t); return `<div class="ab-target"><span class="ab-k">Target</span><span class="tn">${esc(tokenLabel(t))} \u00b7 ${esc(t.kind === "pc" ? CLASSES.find((c) => c.id === t.cls)?.label ?? "" : mon(t)?.name ?? "")}</span><span class="mono" style="font-size:.82rem">${n ? `${FACING_LABEL[n.facing] ?? "front"} \u00b7 needs ${n.needs}` : ""}${t.hp != null ? ` \u00b7 ${Math.max(0, t.hp)}/${t.maxHp} hp` : ""}</span></div>` })() : "";
+  if (state.cast && state.cast.fid === f.id) {
+    const c = state.cast, sp = spellOf(f, c.id);
+    const canConfirm = (c.picks && c.picks.length) || c.aim;
+    el.innerHTML = `<div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} casts ${esc(sp?.name ?? "")}</span><span class="ab-sub">Range ${sp?.range}\u2033${AREA_SPELLS.includes(c.id) ? ` \u00b7 ${spellDamageDice(f.level)} dice, save for half` : ""}</span></div>
+      <div class="ab-actions"><span class="ab-k" style="align-self:center">${AREA_SPELLS.includes(c.id) ? (coarse() ? "Tap the map to place it, then Confirm." : "Move the pointer to aim; click to place.") : c.picks ? `Pick up to 4 persons (${c.picks.length} picked).` : "Click a glowing target."}</span>
+      ${canConfirm ? `<button data-cast="confirm" class="on">Confirm</button>` : ""}<button data-cast="cancel">Cancel</button></div>`;
+    el.querySelectorAll("[data-cast]").forEach((b) => (b.onclick = () => (b.dataset.cast === "confirm" ? confirmCast() : exitCast("Casting cancelled."))));
+    return;
+  }
   el.innerHTML = `
     <div class="ab-row">
       <div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</span>
@@ -1321,7 +1362,7 @@ function renderActionBar() {
     else if (a === "hold") f.action = "hold";
     else if (a === "charge") { f.charging = !f.charging; $("#dragInfo").textContent = f.charging ? `Charging: up to ${chargeInches(f)}″, and the move must end in contact with an enemy.` : ""; render(); return; }
     else if (a === "fire") f.action = "fire";
-    else if (a.startsWith("cast:")) f.action = a;
+    else if (a.startsWith("cast:")) { enterCast(f, a.slice(5)); return; }
     else if (a === "search") { const list = searchable(f); if (list.length === 1) openLoot(f, list[0]); else if (list.length) openDrawer("figure"); else $("#dragInfo").textContent = "Nothing to search next to this figure."; return; }
     else if (a === "more") { openDrawer("figure"); return; }
     if (!f.target && a !== "hold" && a !== "cast:protectionEvil") $("#dragInfo").textContent = "Now tap an enemy to choose the target.";
@@ -1391,6 +1432,7 @@ const figAt = (el) => { const g = el.closest?.("[data-fig]"); return g ? byId(Nu
 $("#map").addEventListener("click", (e) => {
   hideCtx();
   if (state.dragged) return;
+  if (state.cast) { castClick(cellAt(e.clientX, e.clientY), figAt(e.target)); return; }
   if (state.measure.on) {
     const c = cellAt(e.clientX, e.clientY), m = state.measure;
     if (!m.a || m.locked) Object.assign(m, { a: c, b: c, locked: false }); else Object.assign(m, { b: c, locked: true });
@@ -1426,10 +1468,12 @@ function clearAllTargets(side = null) {
   for (const f of state.figures) if (!side || f.side === side) { f.target = null; f.holdTargets = []; f.secondTarget = null; }
   logAppend(`<div class="card note">Cleared ${side ? `side ${side}'s` : "all"} targets.</div>`);
 }
-$("#map").addEventListener("mousemove", (e) => { const f = figAt(e.target); state.hover = f ? f.id : null; });
+$("#map").addEventListener("mousemove", (e) => { const f = figAt(e.target); const h = f ? f.id : null; if (h !== state.hover) { state.hover = h; renderOverlay(); } });
 $("#map").addEventListener("mouseleave", () => { state.hover = null; });
 document.addEventListener("keydown", (e) => {
   if (e.target.matches?.("input, select")) return;
+  if (state.cast && e.key === "Escape") { exitCast("Casting cancelled."); return; }
+  if (state.cast && e.key === "Enter") { confirmCast(); return; }
   if (e.key === "Escape") { state.selected = null; state.group = new Set(); hideCtx(); if (state.measure.on) toggleMeasure(false); render(); }
   if (e.key === "m" || e.key === "M") toggleMeasure();
   if ((e.key === "t" || e.key === "T") && state.hover != null && state.selected != null) {
@@ -1457,6 +1501,7 @@ function closeOn(f, t, { charge = false } = {}) {
   return true;
 }
 $("#map").addEventListener("contextmenu", (e) => {
+  if (state.cast) { e.preventDefault(); exitCast("Casting cancelled."); return; }
   const f = figAt(e.target);
   if (!f) {
     if (state.rightDragged) return;
@@ -1485,7 +1530,12 @@ $("#map").addEventListener("contextmenu", (e) => {
     if (!adj && canMoveNow(sel)) items.push([`Close and melee ${tokenLabel(f)}`, () => { if (closeOn(sel, f)) render(); }]);
     if (!adj && mayCharge(sel)) items.push([`Charge ${tokenLabel(f)} (up to ${chargeInches(sel)}\u2033)`, () => { if (closeOn(sel, f, { charge: true })) render(); }]);
     if (sel.missile && !adj && missileBand(distIn(sel, f), missileRange(sel.missile)) && lineOfSight(sel, f)) items.push([`Fire ${MISSILE_LABEL[sel.missile].toLowerCase()} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = "fire"; render(); }]);
-    if (sel.kind === "pc") for (const sp of combatSpellsFor(sel.cls, sel.slotsLeft ?? [])) if (sp.id !== "protectionEvil" && distIn(sel, f) <= sp.range) items.push([`Cast ${sp.name} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = `cast:${sp.id}`; render(); }]);
+    if (sel.kind === "pc") for (const sp of combatSpellsFor(sel.cls, sel.slotsLeft ?? [])) {
+      if (sp.id === "protectionEvil") continue;
+      if (AREA_SPELLS.includes(sp.id)) items.push([`Cast ${sp.name}\u2026 (place it)`, () => { setGroup([sel.id]); enterCast(sel, sp.id); }]);
+      else if (sp.id === "holdPerson") items.push([`Cast Hold Person\u2026 (pick up to 4)`, () => { setGroup([sel.id]); enterCast(sel, sp.id); if (castEligible(sel, spellOf(sel, sp.id), f, null)) castClick({ x: f.x, y: f.y }, f); }]);
+      else if (castEligible(sel, sp, f, null)) items.push([`Cast ${sp.name} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = `cast:${sp.id}`; render(); }]);
+    }
   }
   if (sel && sel.kind === "pc" && active(sel) && state.phase !== "setup" && !alive(f) && f !== sel && adjacent(sel, f) && hasLoot(f)) {
     items.push([`Search ${f.name}`, () => { const sx = searchable(sel).find((q) => q.id === `fig-${f.id}`); if (sx) openLoot(sel, sx); }]);
@@ -1616,6 +1666,7 @@ wrap.addEventListener("pointerdown", (e) => {
 });
 wrap.addEventListener("pointermove", (e) => {
   if (state.measure.on && state.measure.a && !state.measure.locked) { state.measure.b = cellAt(e.clientX, e.clientY); renderOverlay(); }
+  if (state.cast && e.pointerType === "mouse" && !state.cast.aim) { state.castHover = cellAt(e.clientX, e.clientY); renderOverlay(); }
   if (!ptrs.has(e.pointerId) || !drag) return;
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (drag.mode === "pinch") { if (ptrs.size < 2) return; const [p1, p2] = [...ptrs.values()]; cam.z = Math.min(ZMAX, Math.max(ZMIN, drag.z * Math.hypot(p1.x - p2.x, p1.y - p2.y) / drag.pinch)); applyView(); return; }
@@ -1647,6 +1698,104 @@ const endPtr = (e) => {
 wrap.addEventListener("pointerup", endPtr); wrap.addEventListener("pointercancel", endPtr);
 wrap.addEventListener("contextmenu", (e) => { if (state.rightDragged) { e.preventDefault(); e.stopPropagation(); state.rightDragged = false; } else if (!figAt(e.target)) e.preventDefault(); }, true);
 
+/* ---------- casting cursor: templates, range lines, target picking ---------- */
+state.cast = null; state.castHover = null;
+const AREA_SPELLS = ["fireBall", "lightningBolt"];
+const coarse = () => window.matchMedia?.("(pointer: coarse)").matches;
+function spellOf(f, id) { return combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === id); }
+function enterCast(f, id) {
+  const sp = spellOf(f, id); if (!sp) return;
+  if (id === "protectionEvil") { f.action = `cast:${id}`; render(); return; }
+  state.cast = { fid: f.id, id, picks: id === "holdPerson" ? [] : null, aim: null };
+  f.action = `cast:${id}`;
+  $("#dragInfo").textContent = AREA_SPELLS.includes(id) ? `Place ${sp.name}: ${coarse() ? "tap where it should land, then Confirm" : "click where it should land"}. Esc or right-click cancels.`
+    : id === "holdPerson" ? `Hold Person: pick up to 4 persons in range, then Confirm (Enter). One alone saves at \u22122.` : `${sp.name}: pick a target in range.`;
+  render();
+}
+function exitCast(msg = "") { state.cast = null; state.castHover = null; $("#dragInfo").textContent = msg; render(); }
+function castEligible(f, sp, e, hoverBand) {
+  if (!e || !present(e) || e.side === f.side || !e.placed) return false;
+  if (distIn(f, e) > sp.range || !lineOfSight(f, e)) return false;
+  if (sp.id === "charmPerson" || sp.id === "holdPerson") return isPerson(e);
+  if (sp.id === "sleep") return active(e) && (hoverBand == null || hdOf(e) <= Math.max(hoverBand, 1.5));
+  return true;
+}
+function castClick(cellPt, fig) {
+  const c = state.cast, f = byId(c.fid), sp = spellOf(f, c.id); if (!f || !sp) return exitCast();
+  if (AREA_SPELLS.includes(sp.id)) {
+    const p = { x: cellPt.x, y: cellPt.y, size: 1 };
+    const { reachOk } = areaOf(f, sp.id, p.x, p.y);
+    if (isWall(p.x, p.y) || distIn(f, p) > sp.range || !lineOfSight(f, p) || !reachOk) { $("#dragInfo").innerHTML = `<span class="bad">Out of range or sight${reachOk ? "" : " (the bolt's head would pass 24\u2033)"}.</span>`; return; }
+    if (coarse() && !(c.aim && c.aim.x === p.x && c.aim.y === p.y)) { c.aim = { x: p.x, y: p.y }; state.castHover = c.aim; renderOverlay(); renderActionBar(); return; }
+    f.castAim = { x: p.x, y: p.y }; f.target = null;
+    return exitCast(`${sp.name} placed. It goes off in the missile-and-spell step, if ${f.name} stays put and isn't hit first.`);
+  }
+  if (!castEligible(f, sp, fig, sp.id === "sleep" && fig ? hdOf(fig) : null)) { if (fig) $("#dragInfo").innerHTML = `<span class="bad">${esc(fig.name)} can't be targeted by ${esc(sp.name)} from here.</span>`; return; }
+  if (sp.id === "holdPerson") {
+    const i = c.picks.indexOf(fig.id); if (i >= 0) c.picks.splice(i, 1); else if (c.picks.length < 4) c.picks.push(fig.id);
+    if (c.picks.length === 4) return confirmCast();
+    renderOverlay(); renderActionBar(); return;
+  }
+  f.target = fig.id; f.facing = dir8(centre(fig).x - centre(f).x, centre(fig).y - centre(f).y) ?? f.facing;
+  exitCast(`${sp.name} aimed at ${fig.name}.`);
+}
+function confirmCast() {
+  const c = state.cast; if (!c) return; const f = byId(c.fid);
+  if (c.picks) { if (!c.picks.length) return; f.target = c.picks[0]; f.holdTargets = c.picks.slice(1); return exitCast(`Hold Person on ${c.picks.length} target${c.picks.length === 1 ? " (single: \u22122 on the save)" : "s"}.`); }
+  if (c.aim) return castClick(c.aim, null);
+}
+function renderCastOverlay(out) {
+  const c = state.cast;
+  // declared area spells stay visible as faint outlines until they go off
+  for (const f of state.figures) if (f.castAim && active(f) && ["cast:fireBall", "cast:lightningBolt"].includes(f.action) && !(c && c.fid === f.id)) {
+    for (const [x, y] of areaOf(f, f.action.slice(5), f.castAim.x, f.castAim.y).cells) out.push(`<rect x="${x * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="#d98a00" opacity=".14"/>`);
+  }
+  if (!c) return;
+  const f = byId(c.fid), sp = spellOf(f, c.id); if (!f || !sp) return;
+  const fc = centre(f), fx = (fc.x + 0.5) * PX, fy = (fc.y + 0.5) * PX;
+  out.push(`<circle cx="${fx}" cy="${fy}" r="${sp.range * 3 * PX}" fill="none" stroke="#d98a00" stroke-width="1.2" stroke-dasharray="6 5" opacity=".7"/>`);
+  const h = c.aim ?? state.castHover;
+  if (AREA_SPELLS.includes(sp.id)) {
+    if (!h) return;
+    const p = { x: h.x, y: h.y, size: 1 };
+    const { cells, caught, reachOk } = areaOf(f, sp.id, p.x, p.y);
+    const ok = !isWall(p.x, p.y) && distIn(f, p) <= sp.range && lineOfSight(f, p) && reachOk;
+    const col = ok ? "#d98a00" : "#d0281e";
+    for (const [x, y] of cells) out.push(`<rect x="${x * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="${col}" opacity=".3"/>`);
+    for (const e of caught) { const ec = centre(e); out.push(`<circle cx="${(ec.x + 0.5) * PX}" cy="${(ec.y + 0.5) * PX}" r="${9 * sz(e)}" fill="none" stroke="${e.side === f.side ? "#2f5c8a" : col}" stroke-width="2.2"/>`); }
+    const hx = (h.x + 0.5) * PX, hy = (h.y + 0.5) * PX;
+    out.push(`<line x1="${fx}" y1="${fy}" x2="${hx}" y2="${hy}" stroke="${col}" stroke-width="1.6" stroke-dasharray="5 4"/>`);
+    const friends = caught.filter((e) => e.side === f.side).length;
+    out.push(pill(hx, hy, `${distIn(f, p)}\u2033 / ${sp.range}\u2033 \u00b7 ${caught.length} caught${friends ? ` (${friends} friend${friends > 1 ? "s" : ""})` : ""}${ok ? "" : " \u00b7 out of range"}`, ok ? "var(--ink)" : "var(--red)"));
+    return;
+  }
+  const hoverFig = state.hover != null ? byId(state.hover) : null;
+  const band = sp.id === "sleep" && hoverFig && castEligible(f, sp, hoverFig, null) ? hdOf(hoverFig) : null;
+  for (const e of state.figures) {
+    if (!e.placed || !present(e) || e.side === f.side) continue;
+    const ok = castEligible(f, sp, e, band); const ec = centre(e);
+    out.push(`<circle cx="${(ec.x + 0.5) * PX}" cy="${(ec.y + 0.5) * PX}" r="${9.5 * sz(e)}" fill="none" stroke="${ok ? "#2e8b57" : "#8a96a1"}" stroke-width="${ok ? 2.4 : 1}" ${ok ? "" : 'stroke-dasharray="2 2"'} opacity="${ok ? 1 : .6}"/>`);
+  }
+  (c.picks ?? []).forEach((id, i) => { const e = byId(id); if (!e) return; const ec = centre(e); out.push(`<g><circle cx="${(ec.x + 0.5) * PX + 7}" cy="${(ec.y + 0.5) * PX - 7}" r="4" fill="#2e8b57"/><text x="${(ec.x + 0.5) * PX + 7}" y="${(ec.y + 0.5) * PX - 5.2}" text-anchor="middle" font-size="5.5" font-weight="700" fill="#fff">${i + 1}</text></g>`); });
+  if (h) {
+    const hx = (h.x + 0.5) * PX, hy = (h.y + 0.5) * PX, p = { x: h.x, y: h.y, size: 1 };
+    const inR = distIn(f, p) <= sp.range;
+    out.push(`<line x1="${fx}" y1="${fy}" x2="${hx}" y2="${hy}" stroke="${inR ? "#2e8b57" : "#d0281e"}" stroke-width="1.6" stroke-dasharray="5 4"/>`);
+    const extra = sp.id === "holdPerson" ? ` \u00b7 ${c.picks.length}/4 picked${c.picks.length === 1 ? " (\u22122 save)" : ""}` : sp.id === "sleep" && band != null ? ` \u00b7 ${band <= 1.5 ? "2d8" : band <= 2.5 ? "2d6" : band <= 3.5 ? "1d6" : "1"} creatures, random` : "";
+    out.push(pill(hx, hy, `${distIn(f, p)}\u2033 / ${sp.range}\u2033${extra}${inR ? "" : " \u00b7 out of range"}`, inR ? "var(--ink)" : "var(--red)"));
+  }
+}
+/** Bows and crossbows: a dashed line to the hovered enemy, coloured by range band. */
+function renderFireLine(out) {
+  const f = state.selected != null ? byId(state.selected) : null, t = state.hover != null ? byId(state.hover) : null;
+  if (state.cast || !f || !t || state.phase !== "fight" || !active(f) || !f.missile || f.action !== "fire" || t.side === f.side || !present(t)) return;
+  const d = distIn(f, t), band = missileBand(d, missileRange(f.missile)), clear = lineOfSight(f, t) && !inMelee(t);
+  const col = !band || !clear ? "#d0281e" : band === "close" ? "#2e8b57" : band === "medium" ? "#d98a00" : "#b8641a";
+  const fc = centre(f), tc = centre(t);
+  out.push(`<line x1="${(fc.x + 0.5) * PX}" y1="${(fc.y + 0.5) * PX}" x2="${(tc.x + 0.5) * PX}" y2="${(tc.y + 0.5) * PX}" stroke="${col}" stroke-width="1.8" stroke-dasharray="5 4"/>`);
+  out.push(pill((tc.x + 0.5) * PX, (tc.y + 0.5) * PX, `${d}\u2033 \u00b7 ${band ? `${BAND_LABEL[band]} range` : `beyond ${missileRange(f.missile)}\u2033`}${band && !clear ? " \u00b7 no clear shot" : ""}`, col === "#d0281e" ? "var(--red)" : "var(--ink)"));
+}
+
 /* ---------- drag ruler and measure tool (borrowed from chainmail-board's pill) ---------- */
 state.measure = { on: false, a: null, b: null, locked: false };
 function pill(x, y, text, colour) {
@@ -1661,7 +1810,8 @@ function renderOverlay() {
   const g = $("#overlay"); if (!g) return;
   const out = [];
   const td = state.tokenDrag;
-  if (!td) $("#dragInfo").textContent = "";
+  if (!td && !state.cast && !$("#dragInfo").dataset.keep) { /* keep messages */ }
+  renderCastOverlay(out); renderFireLine(out);
   if (state.box) { const { a, b } = state.box; out.push(`<rect x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(a.x - b.x)}" height="${Math.abs(a.y - b.y)}" fill="var(--side-a)" fill-opacity=".08" stroke="var(--side-a)" stroke-width="1" stroke-dasharray="4 3"/>`); }
   if (td && td.cell && groupOf(byId(td.fid)).length > 1) {
     const f = byId(td.fid), plan = planGroupMove(f, td.cell.x, td.cell.y);

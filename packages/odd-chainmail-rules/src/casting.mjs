@@ -19,8 +19,77 @@ export const COMBAT_SPELLS = Object.freeze({
   sleep:         { id: "sleep",         name: "Sleep",               level: 1, classes: ["magic-user"], range: 24 },
   charmPerson:   { id: "charmPerson",   name: "Charm Person",        level: 1, classes: ["magic-user"], range: 12 },
   protectionEvil:{ id: "protectionEvil",name: "Protection from Evil",level: 1, classes: ["magic-user", "cleric"], range: 0 },
-  holdPerson:    { id: "holdPerson",    name: "Hold Person",         level: 3, classes: ["magic-user"], range: 12, clericLevel: 2, clericRange: 18 }
+  holdPerson:    { id: "holdPerson",    name: "Hold Person",         level: 3, classes: ["magic-user"], range: 12, clericLevel: 2, clericRange: 18 },
+  fireBall:      { id: "fireBall",      name: "Fire Ball",           level: 3, classes: ["magic-user"], range: 24, area: "burst", radius: 2 },
+  lightningBolt: { id: "lightningBolt", name: "Lightning Bolt",      level: 3, classes: ["magic-user"], range: 24, area: "bolt", length: 6, width: 0.75 }
 });
+
+/** Fire Ball and Lightning Bolt (Book I p.25): one die per caster level (a 6th-level caster throws 6 dice); save for half (OPEN reading). */
+export function spellDamageDice(casterLevel) { return Math.max(1, Math.trunc(casterLevel) || 1); }
+
+const CELLS_PER_INCH_C = 3;
+/**
+ * Fire Ball burst (Book I p.25): radius 2" (6 cells); in a confined space it
+ * conforms to the space. Cells fill outward from the centre by walking
+ * distance until they cover a 2"-radius circle's area, so in the open it is a
+ * circle and in a corridor it stretches along the corridor.
+ * isOpen(x, y) -> floor cell. Returns array of [x, y].
+ */
+export function fireBallCells(center, isOpen, radiusInches = 2) {
+  const r = radiusInches * CELLS_PER_INCH_C;
+  const target = Math.round(Math.PI * r * r);
+  if (!isOpen(center.x, center.y)) return [];
+  const key = (x, y) => `${x},${y}`;
+  const dist = new Map([[key(center.x, center.y), 0]]);
+  const open = [{ x: center.x, y: center.y, d: 0 }];
+  const out = [];
+  while (open.length && out.length < target) {
+    open.sort((a, b) => a.d - b.d || Math.hypot(a.x - center.x, a.y - center.y) - Math.hypot(b.x - center.x, b.y - center.y));
+    const c = open.shift();
+    if (c.d > (dist.get(key(c.x, c.y)) ?? Infinity)) continue;
+    out.push([c.x, c.y]);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const nx = c.x + dx, ny = c.y + dy;
+      if (!isOpen(nx, ny)) continue;
+      if (dx && dy && (!isOpen(c.x + dx, c.y) || !isOpen(c.x, c.y + dy))) continue;
+      const nd = c.d + (dx && dy ? Math.SQRT2 : 1);
+      if (nd < (dist.get(key(nx, ny)) ?? Infinity)) { dist.set(key(nx, ny), nd); open.push({ x: nx, y: ny, d: nd }); }
+    }
+  }
+  return out;
+}
+
+/**
+ * Lightning Bolt (Book I p.25): 6" long, up to 3/4" wide, starting where it is
+ * aimed and running straight away from the caster. Where the space is too
+ * short it doubles back to reach 6", possibly striking its creator; its head
+ * may never pass 24" from the caster. Returns { cells, maxReach } in cells.
+ */
+export function lightningCells(caster, start, isOpen, { lengthInches = 6, widthInches = 0.75 } = {}) {
+  let dx = start.x - caster.x, dy = start.y - caster.y; const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  const total = lengthInches * CELLS_PER_INCH_C, half = (widthInches * CELLS_PER_INCH_C) / 2;
+  const pts = []; let px = start.x, py = start.y, dir = 1, maxReach = 0;
+  let travelled = 0, bounces = 0;
+  pts.push([px, py]); maxReach = Math.hypot(px - caster.x, py - caster.y);
+  while (travelled < total && bounces < 8) {
+    const nx = px + dx * dir * 0.25, ny = py + dy * dir * 0.25;
+    if (!isOpen(Math.round(nx), Math.round(ny))) { dir = -dir; bounces++; continue; }
+    px = nx; py = ny; travelled += 0.25;
+    pts.push([px, py]); maxReach = Math.max(maxReach, Math.hypot(px - caster.x, py - caster.y));
+  }
+  const seen = new Set(), cells = [];
+  for (const [x, y] of pts) {
+    for (let ox = -Math.ceil(half); ox <= Math.ceil(half); ox++) for (let oy = -Math.ceil(half); oy <= Math.ceil(half); oy++) {
+      const cx = Math.round(x) + ox, cy = Math.round(y) + oy;
+      const along = (cx - x) * dx + (cy - y) * dy; const across = Math.abs(-(cx - x) * dy + (cy - y) * dx);
+      if (across > half + 0.01 || Math.abs(along) > 0.6) continue;
+      if (!isOpen(cx, cy)) continue;
+      const k = `${cx},${cy}`; if (!seen.has(k)) { seen.add(k); cells.push([cx, cy]); }
+    }
+  }
+  return { cells, maxReach };
+}
 
 /** Spells of a class that fit the caster's slot levels. */
 export function combatSpellsFor(rawClass, slots) {
@@ -144,6 +213,21 @@ function runSelfTests() {
   const cl3 = combatSpellsFor("cleric", [2, 1, 0, 0, 0]);
   ok(cl3.some((s) => s.id === "holdPerson" && s.level === 2 && s.range === 18), "cleric Hold Person is 2nd level, 18\"");
 
+  // Fire Ball and Lightning Bolt
+  ok(spellDamageDice(6) === 6 && spellDamageDice(0) === 1, "one die per caster level");
+  const open = () => true;
+  const ball = fireBallCells({ x: 20, y: 20 }, open);
+  ok(ball.length === Math.round(Math.PI * 36), "burst covers a 2-inch-radius circle's area in the open");
+  ok(ball.every(([x, y]) => Math.hypot(x - 20, y - 20) <= 7), "open burst is round (within 7 cells)");
+  const corridor = (x, y) => y >= 10 && y <= 12;
+  const cb = fireBallCells({ x: 50, y: 11 }, corridor);
+  ok(cb.length === ball.length && Math.max(...cb.map(([x]) => Math.abs(x - 50))) > 15, "in a 10-foot corridor the burst stretches along it");
+  ok(fireBallCells({ x: 0, y: 0 }, corridor).length === 0, "no burst inside rock");
+  const bolt = lightningCells({ x: 0, y: 11 }, { x: 6, y: 11 }, open);
+  ok(bolt.cells.some(([x]) => x === 24) && !bolt.cells.some(([x]) => x > 25) && Math.round(bolt.maxReach) === 24, "bolt runs 6 inches (18 cells) beyond its start");
+  const boxed = (x, y) => x <= 12 && x >= -40 && y >= 9 && y <= 13;
+  const bb = lightningCells({ x: 0, y: 11 }, { x: 6, y: 11 }, boxed);
+  ok(bb.cells.some(([x]) => x === 0), "bolt doubles back off a wall toward its caster");
   console.log(`casting.mjs — all self-tests passed (${pass} assertions).`);
 }
 
