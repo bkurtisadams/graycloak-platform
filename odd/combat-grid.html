@@ -99,45 +99,162 @@ table.roster { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 #ctx { position: fixed; z-index: 10; background: #fff; border: 1px solid var(--ink); border-radius: 4px; box-shadow: 0 4px 14px rgba(31,43,56,.25); padding: 4px 0; display: none; min-width: 150px; }
 #ctx button { display: block; width: 100%; text-align: left; border: none; border-radius: 0; padding: 6px 12px; }
 #ctx button:hover, #ctx button:focus-visible { background: #e3edf5; }
+
+/* ---------- redesign: header, phase strip, chips, stage, action bar, drawer ---------- */
+header.top { max-width: none; display: flex; align-items: center; gap: 16px; padding: 14px 20px 8px; }
+header.top h1 { font-size: 1.35rem; }
+header.top .sub { color: var(--pencil); font-size: .9rem; }
+.grow { flex-grow: 1; }
+header.top button, .strip button, .drawer button { font: inherit; font-size: .9rem; }
+.strip { margin: 0 20px; background: var(--card); border: 1px solid #b7c7d2; border-radius: 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
+.strip-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.round { display: flex; flex-direction: column; }
+.round-k { font-family: var(--type); font-size: .75rem; color: var(--pencil); letter-spacing: .06em; }
+.round-n { font-size: 1.9rem; font-weight: 700; line-height: 1; }
+.round-phone { display: none; flex-direction: column; }
+.phase-now { font-size: 1.1rem; font-weight: 700; color: var(--side-a); }
+.pills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: .9rem; }
+.pill { padding: 6px 10px; border-radius: 999px; border: 1px dashed #8a96a1; color: var(--pencil); white-space: nowrap; }
+.pill.past { border: none; background: #e3e9ee; }
+.pill.now { border: none; background: var(--side-a); color: #fff; font-weight: 600; padding: 6px 12px; }
+.pill.now.b { background: var(--side-b); }
+.pill.skip { opacity: .45; }
+.sep { color: #8a96a1; }
+.auto { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+button.done { font-size: 1rem !important; font-weight: 600; padding: 10px 18px; border: none; background: var(--ink) !important; color: var(--card) !important; border-radius: 6px; }
+button.done:disabled { opacity: .45; }
+.chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.chip { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #b7c7d2; background: var(--card); border-radius: 6px; min-width: 180px; flex-shrink: 0; cursor: pointer; }
+.chip.sel { border: 2px solid var(--red); }
+.chip.idle { border: 1px dashed #8a96a1; background: rgba(138,150,161,.08); }
+.chip .cn { font-weight: 700; font-size: .95rem; }
+.chip .cn.a { color: var(--side-a); } .chip .cn.b { color: var(--side-b); }
+.chip .cm { font-family: var(--type); font-size: .82rem; }
+.chip .ca { font-size: .82rem; color: var(--pencil); }
+.chip .ca.warn { color: var(--red); }
+.chip.down { opacity: .5; }
+.stage { margin: 12px 20px 20px; }
+.stage .map-wrap { height: max(520px, calc(100vh - 250px)); }
+.banner { position: absolute; left: 16px; top: 14px; max-width: calc(100% - 420px); display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.25); z-index: 3; font-size: .95rem; }
+.banner[hidden] { display: none; }
+.banner-k { font-family: var(--type); font-size: .8rem; color: var(--pencil); white-space: nowrap; }
+.stage .mapbar { left: auto; right: 16px; top: 14px; justify-content: flex-end; z-index: 3; }
+.stage .mapbar button { height: 40px; min-width: 40px; padding: 0 12px; font-size: .9rem; }
+.stage #mini { right: 16px; bottom: 14px; z-index: 3; }
+.actionbar { position: absolute; left: 16px; right: 236px; bottom: 14px; display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; padding: 12px 14px; box-shadow: 0 4px 14px rgba(0,0,0,.3); z-index: 3; }
+.actionbar[hidden] { display: none; }
+.ab-who { display: flex; flex-direction: column; gap: 4px; min-width: 170px; }
+.ab-name { font-size: 1.05rem; font-weight: 700; }
+.ab-name.a { color: var(--side-a); } .ab-name.b { color: var(--side-b); }
+.ab-sub { font-size: .82rem; color: var(--pencil); }
+.hpbar { width: 110px; height: 8px; background: #d9e2e8; border-radius: 4px; overflow: hidden; }
+.hpbar > div { height: 8px; }
+.ab-move { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.pips { display: flex; gap: 3px; flex-wrap: wrap; max-width: 260px; }
+.pip { width: 14px; height: 14px; border-radius: 2px; box-sizing: border-box; border: 1px solid var(--ink); }
+.pip.used { background: var(--ink); }
+.ab-actions { display: flex; gap: 8px; flex-grow: 1; flex-wrap: wrap; }
+.ab-actions button { font: inherit; min-height: 48px; padding: 0 16px; border: 1px solid var(--ink); border-radius: 6px; font-size: .95rem; }
+.ab-actions button.on { background: var(--ink) !important; color: var(--card) !important; border-width: 2px; font-weight: 600; }
+.ab-actions button.quiet { border-color: #8a96a1; color: var(--pencil) !important; }
+.ab-target { display: flex; flex-direction: column; gap: 2px; padding-left: 14px; border-left: 1px solid #c5d1d9; min-width: 150px; }
+.ab-target .tn { font-size: 1rem; font-weight: 700; color: var(--side-b); }
+.ab-k { font-size: .82rem; color: var(--pencil); }
+.ab-more { font-size: .85rem; }
+.fx { pointer-events: none; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100%); background: var(--card); border-left: 1px solid var(--ink); box-shadow: -6px 0 18px rgba(0,0,0,.25); z-index: 15; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
+.drawer[hidden] { display: none; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #c5d1d9; }
+.tabs { display: flex; gap: 4px; }
+.tabs button[aria-selected="true"] { background: var(--ink) !important; color: var(--card) !important; }
+.tabpane { overflow: auto; padding: 12px 14px 24px; flex-grow: 1; display: none; }
+.tabpane.on { display: block; }
+.tabpane #log { max-height: none; }
+@media (max-width: 700px) {
+  header.top { padding: 10px 12px 6px; } header.top .sub { display: none; }
+  .strip { margin: 0; border-radius: 0; border-left: none; border-right: none; padding: 10px 12px; }
+  .round, .pills, .auto { display: none; }
+  .round-phone { display: flex; }
+  button.done { min-height: 44px; padding: 0 14px; }
+  .chip { min-width: 0; padding: 6px 10px; }
+  .chip .ca { display: none; }
+  .stage { margin: 0; }
+  .stage .map-wrap { height: 52vh; min-height: 300px; border-radius: 0; }
+  .banner { left: 10px; right: 10px; max-width: none; top: 10px; font-size: .88rem; }
+  .banner-k { display: none; }
+  .stage .mapbar { flex-direction: column; top: 62px; right: 10px; left: auto; width: auto; }
+  .stage .mapbar button { width: 44px; height: 44px; padding: 0; font-size: .75rem; }
+  .stage .mapbar #measure, .stage .mapbar #groupMode { display: none; }
+  .actionbar { position: static; flex-direction: column; align-items: stretch; gap: 10px; border-radius: 0; border-left: none; border-right: none; box-shadow: 0 -4px 14px rgba(0,0,0,.2); }
+  .ab-row { display: flex; align-items: center; gap: 10px; }
+  .ab-move, .ab-who .ab-hp, .ab-who .ab-sub { display: none !important; }
+  .ab-target { border-left: none; padding-left: 0; align-items: flex-end; margin-left: auto; min-width: 0; }
+  .ab-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ab-actions button { padding: 0 6px; font-size: .88rem; }
+  .ab-actions .desk { display: none; }
+}
+@media (min-width: 701px) { .ab-actions .phone { display: none; } .ab-phone-line { display: none; } .ab-row { display: contents; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>OD&amp;D combat tester: grid</h1>
-  <p>Man-to-man on a dungeon map: 10' squares of 3⅓' cells, every inch of movement counted, targets set by hand, facing from position.</p>
+<header class="top">
+  <h1>OD&amp;D combat tester</h1>
+  <span class="sub" id="subline">40' room with corridors · seed 1974</span>
+  <div class="grow"></div>
+  <button id="openSetup">Setup</button>
+  <button id="reset" disabled>Reset</button>
 </header>
-<main>
-  <div>
-    <div class="panel">
-      <div class="bar">
-        <label for="layout">Map</label>
-        <select id="layout"><option value="corridor">10' corridor</option><option value="room" selected>40' room with corridors</option><option value="open">Open floor</option></select>
-        <label for="seed">Seed</label>
-        <input id="seed" type="number" value="1974" style="width:6em">
-        <button id="start" class="primary">Start fight</button>
-        <button id="step" disabled>Roll initiative</button>
-        <button id="reset" disabled>Reset</button>
-        <label style="white-space:nowrap"><input type="checkbox" id="tapTarget"> Tap enemy to target</label>
-        <button id="saveView" title="Open the tester at this view next time">Save view</button>
-      </div>
-      <div class="map-wrap" id="wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg>
-        <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="group" title="Jump to the next group of figures">Next group</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure (M)</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button><button id="selectSide" title="Select every figure of the side that is moving">Select side</button></div>
-        <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div></div>
-      <p id="dragInfo" aria-live="polite"></p>
-      <p class="step" id="stepText"></p>
-      <p class="hint">Groups: drag a box on empty floor, shift-click to add or remove, or use Select group / Select side; drag any member to move them all (all or nothing). The selected figure has a red ring; its target has an amber crosshair. A red F or R on a figure means it is attacking its target's flank or rear; the selected figure's panel lists everyone it is engaged with. Drag a figure to move it (a ruler shows inches used); right-drag pans the map, wheel or pinch zooms. Or tap or click a figure to select it, then a highlighted cell to move it (figures may pass through friends, not enemies). To target: with "Tap enemy to target" on, select your figure and tap an enemy; on a keyboard, hover an enemy and press T, or right-click it.</p>
-    </div>
-    <div class="panel">
-      <h2>Log</h2>
-      <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
-    </div>
+<section class="strip" id="strip" aria-label="Round and phase">
+  <div class="strip-row">
+    <div class="round"><span class="round-k">ROUND</span><span class="round-n" id="roundN">0</span></div>
+    <div class="round-phone"><span class="round-k" id="roundK">ROUND 0</span><span class="phase-now" id="phaseNow">Setup</span></div>
+    <div class="pills" id="pills"></div>
+    <div class="grow"></div>
+    <label class="auto"><input type="checkbox" id="autoB"> Side B on autopilot</label>
+    <button id="step" class="done" disabled>Start fight</button>
   </div>
-  <div>
-    <div class="panel detail" id="detail"></div>
+  <div class="chips" id="chips"></div>
+</section>
+<section class="stage">
+  <div class="map-wrap" id="wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg>
+    <div class="banner" id="banner" hidden><span class="banner-k" id="bannerK"></span><span id="bannerText"></span><a href="#log" id="bannerLog">Full log</a></div>
+    <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button></div>
+    <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div>
+    <div class="actionbar" id="actionbar"></div>
+  </div>
+  <p id="dragInfo" aria-live="polite"></p>
+  <p class="step" id="stepText"></p>
+</section>
+<aside class="drawer" id="drawer" hidden aria-label="Setup, figure details and log">
+  <div class="drawer-head">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="setup" id="tabSetup">Setup</button>
+      <button role="tab" data-tab="figure" id="tabFigure">Figure</button>
+      <button role="tab" data-tab="log" id="tabLog">Log</button>
+    </div>
+    <button id="closeDrawer" aria-label="Close panel">Close</button>
+  </div>
+  <div class="tabpane" data-pane="setup">
+    <div class="bar">
+      <label for="layout">Map</label>
+      <select id="layout"><option value="corridor">10' corridor</option><option value="room" selected>40' room with corridors</option><option value="open">Open floor</option></select>
+      <label for="seed">Seed</label>
+      <input id="seed" type="number" value="1974" style="width:6em">
+      <button id="start" class="primary">Start fight</button>
+    </div>
+    <div class="bar">
+      <label style="white-space:nowrap"><input type="checkbox" id="tapTarget"> Tap enemy to target</label>
+      <button id="saveView" title="Open the tester at this view next time">Save view</button>
+      <button id="group" title="Jump to the next group of figures">Next group</button>
+      <button id="selectSide" title="Select every figure of the side that is moving">Select side</button>
+    </div>
     <div class="panel" id="side-A"></div>
     <div class="panel" id="side-B"></div>
+    <p class="hint">Drag a figure to move it (a ruler shows inches used); right-drag pans, wheel or pinch zooms. Drag a box on empty floor, or use Select group, to move several at once. Tap an enemy with your figure selected to target it. Red F or R: attacking a flank or rear.</p>
   </div>
-</main>
+  <div class="tabpane" data-pane="figure"><div class="detail" id="detail"></div></div>
+  <div class="tabpane" data-pane="log"><div id="log"><p class="empty">Place both sides, then start the fight.</p></div></div>
+</aside>
 <div id="ctx" role="menu"></div>
 <div id="loot" role="dialog" aria-modal="true" aria-label="Search and loot"><div class="box" id="lootBox"></div></div>
 <script type="module">
@@ -307,7 +424,10 @@ function moveTo(f, x, y) {
 }
 function setTarget(f, t) {
   if (!f || !t || f.side === t.side || !active(f) || !present(t) || state.phase !== "fight") return;
-  f.target = t.id; f.facing = dir8(centre(t).x - centre(f).x, centre(t).y - centre(f).y) ?? f.facing; render();
+  f.target = t.id; f.facing = dir8(centre(t).x - centre(f).x, centre(t).y - centre(f).y) ?? f.facing;
+  if (f.action === "hold") f.action = "melee";
+  if (f.kind === "pc" && !f.action?.startsWith("cast:")) { if (adjacent(f, t)) f.action = "melee"; else if (f.missile && missileBand(distIn(f, t), missileRange(f.missile))) f.action = "fire"; }
+  render();
 }
 function clearTarget(f) { if (f) { f.target = null; render(); } }
 
@@ -509,7 +629,7 @@ function monsterPowers() {
       const spec = BREATH[colour];
       const dmgFull = spec.dice ? Array.from({ length: spec.dice }, () => 1 + Math.floor(state.rng() * 6)).reduce((a, b) => a + b, 0) : Math.max(1, d.hp);
       const hit = state.figures.filter((e) => e !== d && present(e) && e.placed && inBreath(inch(d), inch(t), inch(e), spec));
-      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; e.hp -= dmg; return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
+      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; e.hp -= dmg; ev(d, e, dmg); return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
       out.push(`<div class="card"><div class="who">${nameSpan(d)} breathes ${esc(spec.kind)} <span class="note">(2d6 [${bb.roll.join(",")}]; ${d.breathLeft} left; ${spec.shape} ${spec.length}" × ${spec.width}")</span></div><div class="line note">${dmgFull} damage${spec.dice ? "" : " (the dragon's hit points)"}, save vs dragon breath for half.</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`);
       continue;
     }
@@ -555,7 +675,7 @@ function resolveMelee() {
     f.target = foe.id; f.facing = dir8(centre(foe).x - centre(f).x, centre(foe).y - centre(f).y) ?? f.facing;
     cards.push(`<div class="card note">${esc(f.name)} turns to fight ${esc(foe.name)}, who attacked him.</div>`);
   }
-  const attackers = state.figures.filter((f) => active(f) && !spent(f) && f.target != null);
+  const attackers = state.figures.filter((f) => active(f) && !spent(f) && f.target != null && f.action !== "hold");
   const legal = new Map();
   for (const f of attackers) {
     const t = byId(f.target);
@@ -577,6 +697,7 @@ function resolveMelee() {
     if (slain.has(tid)) continue;
     slain.add(tid); add(tid, start.get(tid));
     recordContact(state.contacts, fid, tid, state.round);
+    ev(f, t, start.get(tid));
     cards.push(`<div class="card"><div class="who">${nameSpan(f)} slays the sleeping ${nameSpan(t)}</div><div class="line note">A sleeping figure is killed outright, one per attacker per round (Kurt's ruling).</div></div>`);
   }
   for (const [fid, tid] of legal) {
@@ -594,6 +715,7 @@ function resolveMelee() {
       const lead = ex.striker === "first" ? A : B, lag = lead === A ? B : A;
       add(lag.id, ex.firstStrike.damage); if (ex.counter) add(lead.id, ex.counter.damage);
       const sp1 = afterStrike(lead, lag, ex.firstStrike, add, start), sp2 = ex.counter ? afterStrike(lag, lead, ex.counter, add, start) : "";
+      ev(lead, lag, ex.firstStrike.damage); if (ex.counter) ev(lag, lead, ex.counter.damage);
       const why = ex.killed ? `<div class="line note">${esc(lag.name)} falls before striking back.</div>` : ex.brokeOut ? `<div class="line note">${esc(lag.name)}'s weapon broke: no return blow.</div>` : "";
       cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(melee round ${c.rounds})</span></div>${strikeCard(ex.firstStrike, lead, lag)}${sp1}${ex.counter ? strikeCard(ex.counter, lag, lead) + sp2 : ""}${why}</div>`);
     } else {
@@ -605,7 +727,7 @@ function resolveMelee() {
       const atk = combatant(f, facing, { everyDieBonus: (isHeld ? HELD_TARGET.everyDieBonus : 0) + pairMods(f, t).everyDieBonus });
       const res = resolveAttackPool({ attacker: { ...atk, dice: atk.thrown }, target: combatant(t, "front", { ...(isHeld ? { damageDoubled: true } : {}), ...defMods(f, t) }) }, state.rng);
       add(t.id, res.damage);
-      const sp = afterStrike(f, t, res, add, start);
+      const sp = afterStrike(f, t, res, add, start); ev(f, t, res.damage);
       let ret = "";
       const tLeft = start.get(t.id) - (dmg.get(t.id) ?? 0);
       if (!isHeld && spent(t) && active(t) && tLeft > 0 && t.returned !== state.round) {
@@ -613,6 +735,7 @@ function resolveMelee() {
         const back = combatant(t, "front", { everyDieBonus: pfePenalty(t, f) });
         const r2 = resolveAttackPool({ attacker: { ...back, dice: back.thrown || combatProfile(t).dice }, target: combatant(f, "front") }, state.rng);
         add(f.id, r2.damage);
+        ev(t, f, r2.damage);
         ret = afterStrike(t, f, r2, add, start) + `<div class="line note">${esc(t.name)} fired or cast this round, so makes no attack of its own, but strikes back:</div>` + strikeCard(r2, t, f);
       }
       const why = isHeld ? `${esc(t.name)} is held: +4 to hit, double damage, no return blow` : spent(t) ? `${esc(t.name)} acted in the missile step` : `${esc(t.name)} is fighting someone else: no return blow`;
@@ -665,6 +788,23 @@ function checkMorale() {
   }
   return out.join("");
 }
+/* ---------- on-map results and the phase banner ---------- */
+state.events = []; state.fx = []; state.banner = null;
+const ev = (a, t, dmg, extra) => state.events.push({ a, t, dmg, extra });
+function finishPhase(label) {
+  const byT = new Map();
+  for (const e of state.events) if (e.t) { const r = byT.get(e.t.id) ?? { t: e.t, dmg: 0, hit: false }; r.dmg += e.dmg || 0; r.hit = r.hit || (e.dmg || 0) > 0; byT.set(e.t.id, r); }
+  state.fx = [...byT.values()].map((r) => ({ id: r.t.id, text: r.dmg > 0 ? `\u2212${r.dmg}` : "miss", hit: r.dmg > 0 }));
+  const parts = [];
+  const downs = state.figures.filter((f) => f.hp != null && (!alive(f) || GONE.includes(f.status)) && state.events.some((e) => e.t === f));
+  for (const f of downs) parts.push(`${tokenLabel(f)} ${GONE.includes(f.status) ? f.status : "down"}.`);
+  const byA = new Map();
+  for (const e of state.events) { if (!e.a) continue; const k = `${e.a.id}>${e.t?.id ?? e.extra}`; const r = byA.get(k) ?? { a: e.a, t: e.t, dmg: 0, extra: e.extra }; r.dmg += e.dmg || 0; byA.set(k, r); }
+  for (const r of byA.values()) parts.push(r.extra ? `${tokenLabel(r.a)} ${r.extra}.` : r.dmg > 0 ? `${tokenLabel(r.a)} hit ${tokenLabel(r.t)} for ${r.dmg}.` : `${tokenLabel(r.a)} missed.`);
+  const shown = parts.slice(0, 5); if (parts.length > 5) shown.push(`+${parts.length - 5} more`);
+  state.banner = { k: `ROUND ${state.round} · ${label.toUpperCase()}`, text: shown.join(" ") || "Nothing happened." };
+}
+
 /* ---------- missiles and spells (Dexterity order) ---------- */
 const distIn = (a, b) => { const ca = centre(a), cb = centre(b); return Math.round((Math.hypot(ca.x - cb.x, ca.y - cb.y) / 3) * 10) / 10; };
 function lineOfSight(a, b) {
@@ -685,7 +825,7 @@ function resolveMissiles() {
   const cards = []; const plans = [];
   const powers = monsterPowers(); if (powers) cards.push(powers);
   for (const f of state.figures) {
-    if (!active(f) || !f.action || f.action === "melee") continue;
+    if (!active(f) || !f.action || f.action === "melee" || f.action === "hold") continue;
     const selfSpell = f.action === "cast:protectionEvil";
     if (!selfSpell && f.target == null) { cards.push(`<div class="card note">${esc(f.name)} has no target for that action.</div>`); continue; }
     const t = selfSpell ? f : byId(f.target); if (!t || !present(t)) continue;
@@ -734,7 +874,7 @@ function resolveMissiles() {
           if (tg !== t && (!missileBand(dd, range) || !lineOfSight(f, tg) || inMelee(tg))) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: no clear shot, the arrow is lost.</div>`); return; }
           const fireBonus = missileMod(f.dex ?? 10) + pfePenalty(f, tg);
           const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots: 1, fireBonus }, target: { name: tg.name, ac: tg.ac, distance: dd, hitOnlyBy: tg.kind === "monster" ? MONSTERS.find((m) => m.key === tg.monsterKey)?.specialAbilities?.hitOnlyBy : undefined } }, state.rng);
-          dmg.set(tg.id, (dmg.get(tg.id) ?? 0) + res.damage);
+          dmg.set(tg.id, (dmg.get(tg.id) ?? 0) + res.damage); ev(f, tg, res.damage);
           if (res.hits > 0) shotAt.push(tg.id);
           if (res.cannotKill) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: ${esc(res.caption)}</div>`); return; }
           const x = res.dice[0];
@@ -745,8 +885,11 @@ function resolveMissiles() {
         const sp = p.spell;
         f.slotsLeft[sp.level - 1]--;
         const gate = castingGate({ moved: f.moved, hitFirst: attacked.has(f.id) });
-        if (!gate.ok) { cards.push(`<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line hit">Spoiled: ${gate.reason}. The spell is lost.</div></div>`); continue; }
+        if (!gate.ok) { ev(f, null, 0, `lost ${sp.name}`); cards.push(`<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line hit">Spoiled: ${gate.reason}. The spell is lost.</div></div>`); continue; }
+        const before = new Map(state.figures.map((x) => [x.id, x.status]));
         cards.push(castSpell(f, t, sp));
+        const changed = state.figures.filter((x) => x.status !== before.get(x.id) || (sp.id === "charmPerson" && x.charmed && x.side === f.side && x !== f && before.get(x.id) === x.status && x.id === t.id));
+        ev(f, null, 0, `cast ${sp.name}${changed.length ? `: ${changed.map((x) => `${tokenLabel(x)} ${x.charmed && x.side === f.side ? "charmed" : x.status}`).join(", ")}` : ""}`);
       }
     }
     for (const id of shotAt) attacked.add(id);
@@ -815,12 +958,23 @@ function nextStep() {
     const init = rollInitiative(state.rng);
     state.firstSide = init.winner; state.step = `move-${init.winner}`;
     logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${init.a}, B ${init.b}: side ${init.winner} moves first</span></div>`);
+    state.init = init; state.skipMissiles = false; state.fx = []; state.banner = null;
   } else if (state.step === `move-${state.firstSide}`) state.step = `move-${other(state.firstSide)}`;
-  else if (state.step.startsWith("move-")) state.step = "missiles";
-  else if (state.step === "missiles") { resolveMissiles(); state.step = "melee"; }
-  else if (state.step === "melee") { resolveMelee(); state.step = "init"; }
-  state.selected = null; render();
+  else if (state.step.startsWith("move-")) { state.skipMissiles = !missileStepNeeded(); state.step = state.skipMissiles ? "melee" : "missiles"; }
+  else if (state.step === "missiles") { state.events = []; resolveMissiles(); finishPhase("Missiles & spells"); state.step = "melee"; }
+  else if (state.step === "melee") { state.events = []; resolveMelee(); finishPhase("Melee"); state.step = "init"; }
+  if (state.step?.startsWith("move-")) {
+    const side = state.step.slice(5);
+    const sel = state.selected != null ? byId(state.selected) : null;
+    if (!sel || sel.side !== side || !active(sel)) { const first = state.figures.find((f) => f.side === side && active(f) && f.placed); state.selected = first?.id ?? null; state.group = new Set(first ? [first.id] : []); }
+  }
+  render();
   if (state.step?.startsWith("move-")) { const side = state.step.slice(5); if (!state.figures.some((f) => f.side === side && f.placed && present(f) && onScreen(f))) focusSide(side); }
+  if (state.phase === "fight" && state.step === "move-B" && $("#autoB").checked) setTimeout(() => { autopilot("B"); nextStep(); }, 250);
+}
+/** Is there anything for the missile-and-spell step to do this round? */
+function missileStepNeeded() {
+  return state.figures.some((f) => active(f) && (f.action === "fire" || f.action?.startsWith("cast:") || ["basilisk", "medusa", "gorgon", "chimera"].includes(f.monsterKey) || f.monsterKey?.startsWith("dragon-")));
 }
 function resetFight() {
   for (const s of state.saved ?? []) Object.assign(byId(s.id) ?? {}, { x: s.x, y: s.y, facing: s.facing });
@@ -872,6 +1026,12 @@ function renderMap() {
       ${f.hp != null ? `<g pointer-events="none"><rect x="${cx - 6 * S}" y="${cy + 5.2 * S}" width="${12 * S}" height="${1.8 * Math.min(S, 2)}" fill="#000" opacity=".45"/><rect x="${cx - 6 * S}" y="${cy + 5.2 * S}" width="${12 * S * hpFrac}" height="${1.8 * Math.min(S, 2)}" fill="${hpFrac > 0.5 ? "#4caf50" : hpFrac > 0.25 ? "#e0a100" : "#e0453a"}"/></g>` : ""}
       ${badge ? `<g pointer-events="none"><circle cx="${cx - 6.2 * S}" cy="${cy - 6.2 * S}" r="3.2" fill="var(--red)"/><text x="${cx - 6.2 * S}" y="${cy - 6.2 * S + 1.4}" text-anchor="middle" font-size="4.4" font-weight="700" fill="#fff">${badge}</text></g>` : ""}
       ${helpless(f) ? `<g pointer-events="none"><circle cx="${cx + 6.2 * S}" cy="${cy - 6.2 * S}" r="3.2" fill="#5b4fc4"/><text x="${cx + 6.2 * S}" y="${cy - 6.2 * S + 1.4}" text-anchor="middle" font-size="4.4" font-weight="700" fill="#fff">${f.status === "asleep" ? "z" : f.status === "paralyzed" ? "P" : "H"}</text></g>` : ""}</g>`);
+  }
+  for (const fx of state.fx ?? []) {
+    const f = byId(fx.id); if (!f || !f.placed) continue;
+    const S = sz(f), cx = (centre(f).x + 0.5) * PX + 5.5 * S, cy = (centre(f).y + 0.5) * PX - 6.5 * S;
+    const w = Math.max(9, fx.text.length * 3.4 + 4);
+    parts.push(`<g class="fx"><rect x="${cx - w / 2}" y="${cy - 4.2}" width="${w}" height="7.6" rx="2" fill="${fx.hit ? "var(--red)" : "#55606b"}" stroke="#fff" stroke-width=".7"/><text x="${cx}" y="${cy + 1.9}" text-anchor="middle" font-family="var(--serif)" font-size="5.6" font-weight="700" fill="#fff">${esc(fx.text)}</text></g>`);
   }
   parts.push(`<g id="overlay" pointer-events="none"></g>`);
   if (state.tokenDrag) { const f = byId(state.tokenDrag.fid); if (f) parts.push(`<g opacity=".35" pointer-events="none"><circle cx="${(centre(f).x + 0.5) * PX}" cy="${(centre(f).y + 0.5) * PX}" r="${7 * sz(f)}" fill="${f.side === "A" ? "var(--side-a)" : "var(--side-b)"}"/></g>`); }
@@ -1014,15 +1174,170 @@ function renderDetail() {
   $("#clearTarget")?.addEventListener("click", () => clearTarget(f));
   el.querySelectorAll("[data-search]").forEach((b) => b.addEventListener("click", () => { const sx = searchable(f).find((q) => q.id === b.dataset.search); if (sx) openLoot(f, sx); }));
 }
+/* ---------- phase strip, figure chips, action bar, drawer ---------- */
+const LAYOUT_NAME = { corridor: "10' corridor", room: "40' room with corridors", open: "Open floor" };
+function stepLabel() {
+  if (state.phase === "setup") return "Start fight";
+  if (state.phase === "over") return "Fight over";
+  if (state.step === "init") return state.round ? "Next round" : "Roll initiative";
+  if (state.step.startsWith("move-")) {
+    const side = state.step.slice(5);
+    if (side === state.firstSide) return `Done \u00b7 side ${other(side)} moves next`;
+    return missileStepNeeded() ? "Done \u00b7 missiles & spells next" : "Done \u00b7 melee next";
+  }
+  return state.step === "missiles" ? "Resolve missiles & spells" : "Resolve melee";
+}
+function renderStrip() {
+  $("#roundN").textContent = state.round;
+  $("#roundK").textContent = `ROUND ${state.round}`;
+  const f = state.firstSide, s2 = f ? other(f) : null, st = state.step, fight = state.phase === "fight";
+  const order = ["init", f && `move-${f}`, s2 && `move-${s2}`, "missiles", "melee"];
+  const between = st === "init" && state.round > 0;
+  const idx = fight && !between ? order.indexOf(st) : -1;
+  const label = (k) => k === "init" ? (state.init ? `Initiative \u00b7 A ${state.init.a}, B ${state.init.b}` : "Initiative") : k === "missiles" ? "Missiles &amp; spells" : k === "melee" ? "Melee" : `Side ${k.slice(5)} moves`;
+  const keys = f ? order : ["init", "move-A", "move-B", "missiles", "melee"];
+  $("#pills").innerHTML = keys.map((k, i) => {
+    const cls = !fight ? "" : between ? "past" : i === idx ? `now ${k === "move-B" ? "b" : ""}` : i < idx ? "past" : "";
+    const skip = k === "missiles" && state.skipMissiles && idx > 3 ? " skip" : "";
+    return `${i ? '<span class="sep">\u203a</span>' : ""}<span class="pill ${cls}${skip}">${label(k)}</span>`;
+  }).join("");
+  $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "missiles" ? "Missiles & spells" : "Melee";
+  const btn = $("#step"); btn.textContent = stepLabel(); btn.disabled = state.phase === "over";
+  $("#subline").textContent = `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
+}
+function actionText(f) {
+  const t = f.target != null ? byId(f.target) : null; const tn = t ? tokenLabel(t) : null;
+  if (!alive(f)) return { text: "down", warn: false };
+  if (helpless(f)) return { text: f.status, warn: false };
+  if (f.action === "hold") return { text: "Holding", warn: false };
+  if (f.action === "fire") return { text: tn ? `Fire \u2192 ${tn}` : "Fire: no target", warn: !tn };
+  if (f.action?.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: sp?.id === "protectionEvil" ? `Cast ${sp.name}` : tn ? `Cast ${sp?.name ?? "spell"} \u2192 ${tn}` : `Cast ${sp?.name ?? "spell"}: no target`, warn: sp?.id !== "protectionEvil" && !tn }; }
+  if (tn) return { text: `${f.stance === "parry" ? "Parry" : "Melee"} \u2192 ${tn}`, warn: false };
+  return { text: "No action yet", warn: true };
+}
+function moveText(f) {
+  if (state.phase !== "fight") return `move ${moveInches(f)}\u2033`;
+  const used = halfCellsToInches(f.moved ?? 0), left = halfCellsToInches(Math.max(0, moveBudget(moveInches(f)) - (f.moved ?? 0)));
+  if (!f.moved) return state.step === "missiles" || state.step === "melee" ? "stationary" : "not moved";
+  return left <= 0 ? `${used}\u2033 used \u00b7 done` : `${used}\u2033 used \u00b7 ${left}\u2033 left`;
+}
+function renderChips() {
+  const side = state.step?.startsWith("move-") && state.phase === "fight" ? state.step.slice(5) : (state.selected != null ? byId(state.selected)?.side : "A") ?? "A";
+  const figs = state.figures.filter((f) => f.side === side && f.placed && (f.hp == null || alive(f) || f.monsterKey === "troll"));
+  $("#chips").innerHTML = figs.map((f) => {
+    const a = actionText(f); const idle = state.phase === "fight" && a.warn && active(f);
+    const full = f.kind === "pc" ? (CLASSES.find((c) => c.id === f.cls)?.label ?? "") : (mon(f)?.name ?? "");
+    return `<button class="chip ${state.selected === f.id || state.group.has(f.id) ? "sel" : ""} ${idle ? "idle" : ""} ${alive(f) ? "" : "down"}" data-chip="${f.id}"><span class="cn ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</span><span class="cm">${moveText(f)}</span><span class="ca ${a.warn && state.phase === "fight" ? "warn" : ""}">${esc(a.text)}</span></button>`;
+  }).join("");
+}
+function needsAgainst(f, t) {
+  const p = combatProfile(f); if (!p.weaponId) return null;
+  const facing = adjacent(f, t) ? attackFacing(centre(t), t.facing, centre(f)) : "front";
+  return { needs: resolveAttackPool({ attacker: { name: f.name, weaponId: p.weaponId, dice: 0, profileAttack: p.profileAttack }, target: { name: t.name, ac: t.ac } }, () => 0.5).toHitNumber, facing };
+}
+function renderActionBar() {
+  const el = $("#actionbar"); const f = state.selected != null ? byId(state.selected) : null;
+  // On a phone the bar is a bottom sheet under the map; on a desktop it floats over the map's foot.
+  const phone = window.matchMedia("(max-width: 700px)").matches;
+  if (phone && el.parentElement === wrap) wrap.after(el); else if (!phone && el.parentElement !== wrap) wrap.appendChild(el);
+  if (!f || !f.placed) { el.hidden = true; return; }
+  el.hidden = false;
+  const p = combatProfile(f); const t = f.target != null ? byId(f.target) : null;
+  const full = f.kind === "pc" ? (CLASSES.find((c) => c.id === f.cls)?.label ?? "") : (mon(f)?.name ?? "");
+  const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx;
+  const total = moveInches(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
+  const pipN = Math.min(24, Math.ceil(total)), usedPips = Math.min(pipN, Math.round(usedIn));
+  const fight = state.phase === "fight" && active(f);
+  const btn = (id, text, on, cls = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}">${esc(text)}</button>`;
+  const acts = [];
+  if (fight) {
+    acts.push(btn("melee", t ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
+    if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
+    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`, "desk"));
+    if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
+    if (f.kind === "pc") acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
+    acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
+    acts.push(`<button data-act="more" class="phone">More\u2026</button>`);
+  } else if (state.phase === "over" && f.kind === "pc" && active(f)) {
+    acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
+  }
+  const tgt = t && present(t) ? (() => { const n = needsAgainst(f, t); return `<div class="ab-target"><span class="ab-k">Target</span><span class="tn">${esc(tokenLabel(t))} \u00b7 ${esc(t.kind === "pc" ? CLASSES.find((c) => c.id === t.cls)?.label ?? "" : mon(t)?.name ?? "")}</span><span class="mono" style="font-size:.82rem">${n ? `${FACING_LABEL[n.facing] ?? "front"} \u00b7 needs ${n.needs}` : ""}${t.hp != null ? ` \u00b7 ${Math.max(0, t.hp)}/${t.maxHp} hp` : ""}</span></div>` })() : "";
+  el.innerHTML = `
+    <div class="ab-row">
+      <div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</span>
+        <span class="ab-sub">${esc(p.fcLabel)} \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())} \u00b7 AC ${f.ac}</span>
+        ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div><span class="mono" style="font-size:.82rem">${hp}/${mx} hp</span></div>`}
+        <span class="ab-phone-line mono" style="font-size:.8rem">${hp == null ? "" : `${hp}/${mx} hp \u00b7 `}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
+        <a href="#" class="ab-more" id="abDetails">Details</a></div>
+      ${tgt}
+    </div>
+    <div class="ab-move"><span class="ab-k">Move</span><div class="pips">${Array.from({ length: pipN }, (_, i) => `<div class="pip ${i < usedPips ? "used" : ""}"></div>`).join("")}</div><span class="mono" style="font-size:.82rem">${leftIn}\u2033 of ${total}\u2033 left${state.phase === "fight" ? ` \u00b7 ${canJoinMelee(f.moved ?? 0, total) ? "can join" : "can't join a melee"}` : ""}</span></div>
+    <div class="ab-actions">${acts.join("")}${fight || acts.length ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}</div>`;
+  // desktop order: who | move | actions | target
+  if (window.matchMedia("(min-width: 701px)").matches) { const tEl = el.querySelector(".ab-target"); if (tEl) el.appendChild(tEl); }
+  el.querySelector("#abDetails").onclick = (e) => { e.preventDefault(); openDrawer("figure"); };
+  el.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
+    const a = b.dataset.act;
+    if (a === "melee") { f.action = "melee"; f.stance = "attack"; }
+    else if (a === "parry") { f.action = "melee"; f.stance = "parry"; }
+    else if (a === "hold") f.action = "hold";
+    else if (a === "fire") f.action = "fire";
+    else if (a.startsWith("cast:")) f.action = a;
+    else if (a === "search") { const list = searchable(f); if (list.length === 1) openLoot(f, list[0]); else if (list.length) openDrawer("figure"); else $("#dragInfo").textContent = "Nothing to search next to this figure."; return; }
+    else if (a === "more") { openDrawer("figure"); return; }
+    if (!f.target && a !== "hold" && a !== "cast:protectionEvil") $("#dragInfo").textContent = "Now tap an enemy to choose the target.";
+    render();
+  }));
+}
+function renderBanner() {
+  const b = $("#banner");
+  if (!state.banner || state.phase === "setup") { b.hidden = true; return; }
+  b.hidden = false; $("#bannerK").textContent = state.banner.k; $("#bannerText").textContent = state.banner.text;
+}
+function openDrawer(tab) {
+  $("#drawer").hidden = false;
+  document.querySelectorAll(".tabs [data-tab]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === tab)));
+  document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.dataset.pane === tab));
+  if (tab === "log") { const log = $("#log"); log.scrollTop = log.scrollHeight; }
+}
+document.querySelectorAll(".tabs [data-tab]").forEach((t) => t.addEventListener("click", () => openDrawer(t.dataset.tab)));
+$("#closeDrawer").addEventListener("click", () => { $("#drawer").hidden = true; });
+$("#openSetup").addEventListener("click", () => openDrawer("setup"));
+$("#bannerLog").addEventListener("click", (e) => { e.preventDefault(); openDrawer("log"); });
+$("#chips").addEventListener("click", (e) => { const c = e.target.closest("[data-chip]"); if (!c) return; const f = byId(Number(c.dataset.chip)); setGroup([f.id]); ensureVisible(f); });
+
+/* ---------- side B autopilot (placeholder until the monster behaviour design) ---------- */
+function autopilot(side) {
+  for (const f of state.figures.filter((x) => x.side === side && active(x) && x.placed)) {
+    const foes = state.figures.filter((e) => e.side !== side && present(e) && e.placed);
+    if (!foes.length) continue;
+    const onMe = foes.find((e) => e.target === f.id && adjacent(e, f));
+    const t = onMe ?? foes.slice().sort((a, b) => distIn(f, a) - distIn(f, b))[0];
+    if (!adjacent(f, t)) {
+      const reach = reachFor(f); let best = null;
+      for (const n of reach.values()) {
+        if (n.passOnly || n.cost === 0) continue;
+        const probe = { x: n.x, y: n.y, size: sz(f) };
+        const adj = adjacent(probe, t) ? 0 : 1;
+        const d = Math.hypot(centre({ ...probe }).x - centre(t).x, centre({ ...probe }).y - centre(t).y);
+        const score = adj * 1000 + d * 10 + n.cost / 100;
+        if (!best || score < best.score) best = { n, score };
+      }
+      if (best) moveTo(f, best.n.x, best.n.y);
+    }
+    f.action = "melee"; f.stance = "attack"; f.target = t.id;
+    f.facing = dir8(centre(t).x - centre(f).x, centre(t).y - centre(f).y) ?? f.facing;
+  }
+  logAppend(`<div class="card note">Side ${side} moved on autopilot (closest enemy, closing to melee).</div>`);
+}
+
 function render() {
   if (state.phase === "fight") refreshFacing();
-  renderMap(); renderSide("A"); renderSide("B"); renderDetail();
+  renderMap(); renderSide("A"); renderSide("B"); renderDetail(); renderStrip(); renderChips(); renderActionBar(); renderBanner();
   const fight = state.phase === "fight";
   $("#start").disabled = state.phase !== "setup"; $("#reset").disabled = state.phase === "setup";
   $("#seed").disabled = !( state.phase === "setup"); $("#layout").disabled = state.phase !== "setup";
-  const stepBtn = $("#step"); stepBtn.disabled = !fight;
-  const label = { init: "Roll initiative", missiles: "Resolve missiles and spells", melee: "Resolve melee" }[state.step] ?? `End side ${state.step.slice(5)}'s move`;
-  stepBtn.textContent = label;
+
   $("#stepText").innerHTML = state.phase === "over"
     ? `<b>${state.winner === "none" ? "Both sides are down." : `Side ${state.winner} wins after ${state.round} round${state.round === 1 ? "" : "s"}.`}</b>`
     : !fight ? "Setup: click a figure, then click any open floor cell to place it."
@@ -1081,7 +1396,7 @@ document.addEventListener("click", (e) => {
 });
 $("#layout").addEventListener("change", (e) => { state.chests = []; state.walls = buildWalls(e.target.value); deploy(); render(); initialView(); });
 $("#start").addEventListener("click", startFight);
-$("#step").addEventListener("click", nextStep);
+$("#step").addEventListener("click", () => { if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
 $("#reset").addEventListener("click", resetFight);
 $("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
 /* ---------- camera: pan, zoom, minimap, default view ---------- */
@@ -1288,7 +1603,7 @@ $("#mini").addEventListener("click", (e) => {
   const b = $("#miniSvg").getBoundingClientRect();
   cam.x = (e.clientX - b.left) / b.width * W * PX; cam.y = (e.clientY - b.top) / b.height * H * PX; applyView();
 });
-window.addEventListener("resize", applyView);
+window.addEventListener("resize", () => { applyView(); renderActionBar(); });
 
 state.walls = buildWalls("room");
 addCharacter("A", "fighter", 1, "chain+shield", "sword", 10, "shortbow");
