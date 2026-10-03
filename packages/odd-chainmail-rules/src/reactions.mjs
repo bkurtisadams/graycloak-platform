@@ -70,12 +70,15 @@ export function encounterReaction({ intelligence, surprisedParty = false, distan
 }
 
 /**
- * An obviously superior force (Kurt's ruling, Oct 2026): the other side
- * outnumbers the monsters 2 to 1, or has twice their total hit dice. Monsters
- * intelligent enough (Cunning, Intelligent) avoid it; others attack anyway.
+ * An obviously superior force (Kurt's ruling, Oct 2026, revised): the other
+ * side has at least three times the monsters' total hit dice (after Book II's
+ * orcs, who stand in their lair until outnumbered 3 to 1). Numbers alone don't
+ * count, so a dragon never avoids a handful of orcs. Monsters intelligent
+ * enough (Cunning, Intelligent) avoid it with no roll; others attack anyway.
  */
-export function superiorForce({ ownCount, ownHd, foeCount, foeHd }) {
-  return foeCount >= ownCount * 2 || foeHd >= ownHd * 2;
+export const SUPERIOR_FORCE_RATIO = 3;
+export function superiorForce({ ownHd, foeHd }) {
+  return foeHd >= ownHd * SUPERIOR_FORCE_RATIO;
 }
 export function avoidsForce(intelligence, force) {
   return talksAtAll(intelligence) && superiorForce(force);
@@ -275,9 +278,9 @@ function runSelfTests() {
   ok(encounterReaction({ intelligence: "cunning", surprisedParty: true, distanceFeet: 30 }, seq([d6(3), d6(3)])).rolled, "surprise beyond 20 ft: normal reaction");
   ok(encounterReaction({ intelligence: "cunning", surprisedParty: true, monsterSurprised: true }, seq([d6(3), d6(3)])).rolled, "both surprised: normal reaction");
   ok(!encounterReaction({ intelligence: "intelligent", pursuing: true }).rolled, "pursuing: no reaction roll");
-  ok(superiorForce({ ownCount: 5, ownHd: 5, foeCount: 10, foeHd: 4 }) && !superiorForce({ ownCount: 5, ownHd: 5, foeCount: 9, foeHd: 5 }), "outnumbered 2 to 1");
-  ok(superiorForce({ ownCount: 6, ownHd: 6, foeCount: 3, foeHd: 12 }) && !superiorForce({ ownCount: 6, ownHd: 6, foeCount: 3, foeHd: 11.5 }), "twice the total hit dice");
-  ok(avoidsForce("cunning", { ownCount: 2, ownHd: 2, foeCount: 4, foeHd: 4 }) && !avoidsForce("bestial", { ownCount: 2, ownHd: 2, foeCount: 4, foeHd: 4 }), "only Cunning and Intelligent avoid");
+  ok(superiorForce({ ownHd: 10, foeHd: 30 }) && !superiorForce({ ownHd: 10, foeHd: 29.5 }), "three times the hit dice");
+  ok(!superiorForce({ ownCount: 1, ownHd: 10, foeCount: 6, foeHd: 6 }), "a dragon doesn't avoid six orcs");
+  ok(avoidsForce("cunning", { ownHd: 2, foeHd: 6 }) && !avoidsForce("bestial", { ownHd: 2, foeHd: 6 }), "only Cunning and Intelligent avoid");
   ok(encounterBandFor(5) === "negative" && encounterBandFor(6) === "uncertain" && encounterBandFor(8) === "uncertain" && encounterBandFor(9) === "positive", "2-5 / 6-8 / 9-12");
   const r = encounterReaction({ intelligence: "cunning", modifiers: { bribe: 2, superiorForce: 1 } }, seq([d6(3), d6(3)]));
   ok(r.rolled && r.total === 9 && r.result === "positive", "6 + bribe 2 + force 1 = 9 positive");

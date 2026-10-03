@@ -1483,7 +1483,7 @@ function approach(f, t, { charge = false, maxCost = Infinity } = {}) {
   return best;
 }
 const hdOfFig = (e) => { if (e.kind === "pc") { const h = hitDiceFor(e.cls, e.level); return hdValue(h.dice, h.bonus); } const h = mon(e).hd; return hdValue(e.hdLeft ?? h.count, h.bonus); };
-/** Book III: monsters intelligent enough avoid an obviously superior force (outnumbered 2 to 1, or twice their total hit dice). */
+/** Book III: monsters intelligent enough avoid an obviously superior force: three times their total hit dice (Kurt, Oct 2026). */
 function forceOf(f) {
   const own = state.figures.filter((e) => e.side === f.side && present(e) && e.placed), foe = state.figures.filter((e) => e.side !== f.side && present(e) && e.placed);
   return { ownCount: own.length, ownHd: own.reduce((t, e) => t + hdOfFig(e), 0), foeCount: foe.length, foeHd: foe.reduce((t, e) => t + hdOfFig(e), 0) };
