@@ -163,6 +163,41 @@ export function sleepCapacity(count, bonus, rng) {
 }
 function rollDie8(rng) { return 1 + Math.floor(rng() * 8); }
 
+/**
+ * Sleep's area. OD&D gives Sleep a range (24") and numbers by hit dice but no
+ * area, so the template is a default for Kurt's ruling: a 2" radius circle
+ * (Fire Ball's size), every open cell reachable from the centre within it,
+ * not spreading round corners the way a Fire Ball fills a space.
+ */
+export const SLEEP_RADIUS = 2;
+export function sleepCells(center, isOpen, radiusInches = SLEEP_RADIUS) {
+  const r = radiusInches * CELLS_PER_INCH_C, key = (x, y) => `${x},${y}`;
+  if (!isOpen(center.x, center.y)) return [];
+  const seen = new Set([key(center.x, center.y)]), out = [], queue = [[center.x, center.y]];
+  while (queue.length) {
+    const [x, y] = queue.shift();
+    out.push([x, y]);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, k = key(nx, ny);
+      if (seen.has(k) || !isOpen(nx, ny) || Math.hypot(nx - center.x, ny - center.y) > r) continue;
+      seen.add(k); queue.push([nx, ny]);
+    }
+  }
+  return out;
+}
+/**
+ * Who a placed Sleep puts down. The number is rolled for the toughest creature
+ * caught (4+1 hit dice or less; tougher ones are unaffected), then that many
+ * of those caught are chosen at random (Book I). figures: [{ id, hd }].
+ */
+export function sleepInArea(figures, rng) {
+  const able = figures.filter((f) => f.hd <= 4.5);
+  if (!able.length) return { cap: { dice: "none", n: 0 }, toughest: null, asleep: [] };
+  const toughest = able.reduce((a, b) => (b.hd > a.hd ? b : a));
+  const cap = sleepCapacity(toughest.hd, 0, rng);
+  return { cap, toughest, asleep: pickRandom(able, cap.n, rng) };
+}
+
 /** Pick n of the eligible at random (Book I: random selection if more could be affected). */
 export function pickRandom(list, n, rng) {
   const pool = list.slice();
@@ -244,6 +279,12 @@ function runSelfTests() {
   ok(areaSpellDice("staff").dice === 8 && areaSpellDice("staff").save === "staves", "staff: 8 dice, Staves");
   ok(saveForHalf({ staves: 16 }, "staves", 21, seq([0.8])).damage === 10, "save halves");
   ok(saveForHalf({ staves: 16 }, "staves", 21, seq([0.1])).damage === 21, "fail: full");
+  { const open = () => true; const c = sleepCells({ x: 10, y: 10 }, open);
+    ok(c.length > 100 && c.every(([x, y]) => Math.hypot(x - 10, y - 10) <= 6), "sleep: 2\" circle");
+    const walled = (x, y) => x !== 12; ok(sleepCells({ x: 10, y: 10 }, walled).every(([x]) => x < 12), "sleep doesn't pass walls");
+    const r = sleepInArea([{ id: 1, hd: 1 }, { id: 2, hd: 1 }, { id: 3, hd: 6 }], seq([0.99, 0.99, 0, 0]));
+    ok(r.toughest.id <= 2 && r.asleep.length === 2 && !r.asleep.some((f) => f.id === 3), "6 HD immune; 1 HD band rolls 2d8");
+    ok(sleepInArea([{ id: 1, hd: 7 }], seq([0])).asleep.length === 0, "nothing sleepable"); }
   ok(lightningStartOk({ x: 0, y: 0 }, { x: 54, y: 0 }) && !lightningStartOk({ x: 0, y: 0 }, { x: 55, y: 0 }), "far end within 24\": start at most 18\" away");
   ok(saveVsSpells({ staves: 16 }, seq([0.75]), 0).roll === 16 && saveVsSpells({ staves: 16 }, seq([0.75]), 0).saved, "save roll 16 vs 16");
   ok(!saveVsSpells({ staves: 16 }, seq([0.75]), -2).saved, "Hold Person single target -2");

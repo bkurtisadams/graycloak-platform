@@ -137,7 +137,22 @@ button.done:disabled { opacity: .45; }
 .chip .ca { font-size: .82rem; color: var(--pencil); }
 .chip .ca.warn { color: var(--red); }
 .chip.down { opacity: .5; }
-.stage { margin: 12px 20px 20px; }
+.stage { margin: 12px 20px 20px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.stage.log-closed { grid-template-columns: minmax(0, 1fr) 44px; }
+.map-col { min-width: 0; }
+.logpanel { display: flex; flex-direction: column; height: max(520px, calc(100vh - 250px)); background: var(--card); border: 1px solid #9fb2c0; border-radius: 6px; overflow: hidden; }
+.logpanel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #c5d1d9; }
+.logpanel-head h2 { margin: 0; font-size: 1rem; }
+.logpanel #log { flex: 1 1 auto; max-height: none; overflow-y: auto; padding: 8px 10px; }
+.chatbar { display: flex; gap: 6px; padding: 8px; border-top: 1px solid #c5d1d9; background: #f4f7f9; }
+.chatbar select { max-width: 120px; }
+.chatbar input { flex: 1 1 auto; min-width: 0; font: inherit; padding: 6px 8px; border: 1px solid #9fb2c0; border-radius: 4px; }
+.chat { margin: 4px 0; font-family: var(--serif); font-size: .92rem; }
+.chat .who-a { color: var(--side-a); font-weight: 700; } .chat .who-b { color: var(--side-b); font-weight: 700; } .chat .who-r { color: var(--ink); font-weight: 700; }
+.chat .roll { font-family: var(--type); background: #eef2f5; padding: 0 4px; border-radius: 3px; }
+.stage.log-closed .logpanel #log, .stage.log-closed .logpanel .chatbar, .stage.log-closed .logpanel-head h2 { display: none; }
+.stage.log-closed .logpanel-head { flex-direction: column; padding: 8px 4px; border: none; }
+@media (max-width: 1000px) { .stage, .stage.log-closed { grid-template-columns: minmax(0, 1fr); } .logpanel { height: 45vh; } .stage.log-closed .logpanel { height: auto; } }
 .stage .map-wrap { height: max(520px, calc(100vh - 250px)); }
 .banner { position: absolute; left: 16px; top: 14px; max-width: calc(100% - 420px); display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.25); z-index: 3; font-size: .95rem; }
 .banner[hidden] { display: none; }
@@ -221,7 +236,8 @@ button.done:disabled { opacity: .45; }
   </div>
   <div class="chips" id="chips"></div>
 </section>
-<section class="stage">
+<section class="stage" id="stage">
+ <div class="map-col">
   <div class="map-wrap" id="wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg>
     <div class="banner" id="banner" hidden><span class="banner-k" id="bannerK"></span><span id="bannerText"></span><a href="#log" id="bannerLog">Full log</a></div>
     <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button></div>
@@ -230,13 +246,22 @@ button.done:disabled { opacity: .45; }
   </div>
   <p id="dragInfo" aria-live="polite"></p>
   <p class="step" id="stepText"></p>
+ </div>
+ <aside class="logpanel" id="logpanel" aria-label="Log and chat">
+  <div class="logpanel-head"><h2>Log &amp; chat</h2><button id="logToggle" title="Hide or show the log" aria-expanded="true">Hide</button></div>
+  <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
+  <form class="chatbar" id="chatForm" autocomplete="off">
+   <select id="chatAs" aria-label="Speak as"></select>
+   <input id="chatText" placeholder="Message, or /roll 2d6" aria-label="Chat message" maxlength="400">
+   <button type="submit">Send</button>
+  </form>
+ </aside>
 </section>
-<aside class="drawer" id="drawer" hidden aria-label="Setup, figure details and log">
+<aside class="drawer" id="drawer" hidden aria-label="Setup and figure details">
   <div class="drawer-head">
     <div class="tabs" role="tablist">
       <button role="tab" data-tab="setup" id="tabSetup">Setup</button>
       <button role="tab" data-tab="figure" id="tabFigure">Figure</button>
-      <button role="tab" data-tab="log" id="tabLog">Log</button>
     </div>
     <button id="closeDrawer" aria-label="Close panel">Close</button>
   </div>
@@ -263,7 +288,6 @@ button.done:disabled { opacity: .45; }
     <p class="hint">Drag a figure to move it (a ruler shows inches used); right-drag pans, wheel or pinch zooms. Drag a box on empty floor, or use Select group, to move several at once. Tap an enemy with your figure selected to target it. Red F or R: attacking a flank or rear.</p>
   </div>
   <div class="tabpane" data-pane="figure"><div class="detail" id="detail"></div></div>
-  <div class="tabpane" data-pane="log"><div id="log"><p class="empty">Place both sides, then start the fight.</p></div></div>
 </aside>
 <div id="ctx" role="menu"></div>
 <div id="loot" role="dialog" aria-modal="true" aria-label="Search and loot"><div class="box" id="lootBox"></div></div>
@@ -276,7 +300,7 @@ import {
   rollTreasure, LAIR_EXTRAS, carriedCoins, treasureValue, emptyInventory, inventoryFromTreasure, inventoryWeight, treasureXpValue, transferItem, transferCoins, displayName, isEmpty, coinCount,
   abilityOf, drainHit, regenAmount, TROLL_RISES_AT, breathOrBite, BREATH, inBreath, swallows, wyvernStings, hydraHeads, CLUMSY_BIG,
   resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
-  slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
+  sleepCells, sleepInArea, SLEEP_RADIUS, slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
   lossCheck, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond, fearRadius, troopLossLine, moraleDiceBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   fightRunner, movement as mv, behaviour as bh,
@@ -843,7 +867,7 @@ function resolveMissiles() {
   for (const f of state.figures) {
     if (!active(f) || !f.action || f.action === "melee" || f.action === "hold") continue;
     const selfSpell = f.action === "cast:protectionEvil";
-    const areaSpell = ["cast:fireBall", "cast:lightningBolt"].includes(f.action);
+    const areaSpell = ["cast:fireBall", "cast:lightningBolt", "cast:sleep"].includes(f.action);
     if (areaSpell) {
       const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
       if (!spell) { cards.push(`<div class="card note">${esc(f.name)} has no slot left for that spell.</div>`); continue; }
@@ -932,6 +956,7 @@ function areaOf(caster, spellId, x, y) {
   const open = (cx, cy) => !isWall(cx, cy);
   let cells, reachOk = true;
   if (spellId === "fireBall") cells = fireBallCells({ x, y }, open, 2);
+  else if (spellId === "sleep") cells = sleepCells({ x, y }, open, SLEEP_RADIUS);
   else { const r = lightningCells(centre(caster), { x, y }, open); cells = r.cells; reachOk = lightningStartOk(centre(caster), { x, y }); }
   const set = new Set(cells.map(([cx, cy]) => `${cx},${cy}`));
   const caught = state.figures.filter((e) => e.placed && present(e) && footCells(e.x, e.y, sz(e)).some(([cx, cy]) => set.has(`${cx},${cy}`)));
@@ -951,6 +976,16 @@ function castSpell(f, t, sp) {
     return `<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line note">${sp.id === "fireBall" ? "2\u2033 burst, filling the space it bursts in" : "6\u2033 bolt, doubling back off walls"}; ${dice} dice (caster level), save for half</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`;
   }
   const head = `<div class="who">${nameSpan(f)} casts ${esc(sp.name)}${sp.id === "protectionEvil" ? "" : ` at ${nameSpan(t)}`}</div>`;
+  if (sp.id === "sleep" && f.castAim) {
+    const { caught } = areaOf(f, "sleep", f.castAim.x, f.castAim.y);
+    const r = sleepInArea(caught.filter(active).map((e) => ({ id: e.id, hd: hdOf(e) })), state.rng);
+    f.castAim = null;
+    const head2 = `<div class="who">${nameSpan(f)} casts Sleep</div>`;
+    if (!r.toughest) return `<div class="card">${head2}<div class="line note">${caught.length ? "No one caught is weak enough to sleep (4+1 hit dice or less)." : "No one caught in it."}</div></div>`;
+    for (const x of r.asleep) { const e = byId(x.id); e.status = "asleep"; e.target = null; }
+    const names = r.asleep.map((x) => esc(byId(x.id).name)).join(", ");
+    return `<div class="card">${head2}<div class="line note">${SLEEP_RADIUS}\u2033 radius; rolled for the toughest caught (${esc(byId(r.toughest.id).name)}, ${r.toughest.hd} HD): ${r.cap.dice} = ${r.cap.n}</div><div class="line"><span class="hit">Asleep: ${names || "none"}</span></div></div>`;
+  }
   if (sp.id === "sleep") {
     const cap = sleepCapacity(...(() => { const h = t.kind === "pc" ? hitDiceFor(t.cls, t.level) : MONSTERS.find((m) => m.key === t.monsterKey).hd; return t.kind === "pc" ? [h.dice, h.bonus] : [h.count, h.bonus]; })(), state.rng);
     if (!cap.n) return `<div class="card">${head}<div class="line note">${esc(t.name)} is too powerful to sleep.</div></div>`;
@@ -1003,7 +1038,9 @@ function startFight() {
     if (!state.encounter.has(k)) state.encounter.set(k, { key: k, side: f.side, monsterKey: f.monsterKey, ...groupLanguages(mon(f).mind, state.erng), reaction: null, holdRound: null });
   }
   Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set(), fearChecked: new Set(), leaderLostDone: {}, moveSeq: 0 });
-  $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>` + encounterCard();
+  logAppend(`<div class="round-head">New fight</div>`);
+  $("#log").querySelector(".empty")?.remove();
+  logAppend(`<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>` + encounterCard());
   render();
 }
 function nextStep() {
@@ -1040,7 +1077,7 @@ function resetFight() {
   for (const s of state.saved ?? []) Object.assign(byId(s.id) ?? {}, { x: s.x, y: s.y, facing: s.facing });
   for (const f of state.figures) { if (f.origSide) f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; f.status = null; }
   Object.assign(state, { phase: "setup", round: 0, step: "init", contacts: new Map(), winner: null, selected: null });
-  $("#log").innerHTML = `<p class="empty">Same seed, same positions and same moves replay the same fight.</p>`;
+  logAppend(`<div class="card note">Reset. Same seed, same positions and same moves replay the same fight.</div>`);
   render();
 }
 
@@ -1298,6 +1335,7 @@ function actionText(f) {
   if (helpless(f)) return { text: f.status, warn: false };
   if (f.action === "hold") return { text: "Holding", warn: false };
   if (f.action === "fire") return { text: tn ? `Fire \u2192 ${tn}` : "Fire: no target", warn: !tn };
+  if (f.action?.startsWith("cast:") && AREA_SPELLS.includes(f.action.slice(5))) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: f.castAim ? `Cast ${sp?.name ?? "spell"}: placed` : `Cast ${sp?.name ?? "spell"}: place it`, warn: !f.castAim }; }
   if (f.action?.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: sp?.id === "protectionEvil" ? `Cast ${sp.name}` : tn ? `Cast ${sp?.name ?? "spell"} \u2192 ${tn}` : `Cast ${sp?.name ?? "spell"}: no target`, warn: sp?.id !== "protectionEvil" && !tn }; }
   if (tn) return { text: `${f.stance === "parry" ? "Parry" : "Melee"} \u2192 ${tn}`, warn: false };
   return { text: "No action yet", warn: true };
@@ -1360,7 +1398,7 @@ function renderActionBar() {
   if (state.cast && state.cast.fid === f.id) {
     const c = state.cast, sp = spellOf(f, c.id);
     const canConfirm = (c.picks && c.picks.length) || c.aim;
-    el.innerHTML = `<div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} casts ${esc(sp?.name ?? "")}</span><span class="ab-sub">Range ${sp?.range}\u2033${AREA_SPELLS.includes(c.id) ? ` \u00b7 ${spellDamageDice(f.level)} dice, save for half` : ""}</span></div>
+    el.innerHTML = `<div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} casts ${esc(sp?.name ?? "")}</span><span class="ab-sub">Range ${sp?.range}\u2033${c.id === "sleep" ? ` \u00b7 ${SLEEP_RADIUS}\u2033 radius, number rolled for the toughest caught` : AREA_SPELLS.includes(c.id) ? ` \u00b7 ${spellDamageDice(f.level)} dice, save for half` : ""}</span></div>
       <div class="ab-actions"><span class="ab-k" style="align-self:center">${AREA_SPELLS.includes(c.id) ? (coarse() ? "Tap the map to place it, then Confirm." : "Move the pointer to aim; click to place.") : c.picks ? `Pick up to 4 persons (${c.picks.length} picked).` : "Click a glowing target."}</span>
       ${canConfirm ? `<button data-cast="confirm" class="on">Confirm</button>` : ""}<button data-cast="cancel">Cancel</button></div>`;
     el.querySelectorAll("[data-cast]").forEach((b) => (b.onclick = () => (b.dataset.cast === "confirm" ? confirmCast() : exitCast("Casting cancelled."))));
@@ -1403,12 +1441,51 @@ function openDrawer(tab) {
   $("#drawer").hidden = false;
   document.querySelectorAll(".tabs [data-tab]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === tab)));
   document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.dataset.pane === tab));
-  if (tab === "log") { const log = $("#log"); log.scrollTop = log.scrollHeight; }
 }
 document.querySelectorAll(".tabs [data-tab]").forEach((t) => t.addEventListener("click", () => openDrawer(t.dataset.tab)));
 $("#closeDrawer").addEventListener("click", () => { $("#drawer").hidden = true; });
 $("#openSetup").addEventListener("click", () => openDrawer("setup"));
-$("#bannerLog").addEventListener("click", (e) => { e.preventDefault(); openDrawer("log"); });
+$("#bannerLog").addEventListener("click", (e) => { e.preventDefault(); setLogOpen(true); const log = $("#log"); log.scrollTop = log.scrollHeight; });
+
+/* ---------- log and chat panel (open by default, beside the map) ---------- */
+function setLogOpen(open) {
+  $("#stage").classList.toggle("log-closed", !open);
+  const t = $("#logToggle"); t.textContent = open ? "Hide" : "Log"; t.setAttribute("aria-expanded", String(open));
+  try { localStorage.setItem("odd.logOpen", open ? "1" : "0"); } catch {}
+  applyView(); renderActionBar();
+}
+$("#logToggle").addEventListener("click", () => setLogOpen($("#stage").classList.contains("log-closed")));
+/** Who can speak: the referee, either side, or any character on the board. */
+function chatSpeakers() {
+  return [["ref", "Referee"], ["A", "Side A"], ["B", "Side B"], ...state.figures.filter((f) => f.kind === "pc" && f.placed).map((f) => [`f${f.id}`, f.name])];
+}
+function refreshChatAs() {
+  const sel = $("#chatAs"), list = chatSpeakers(), key = list.map((x) => x.join(":")).join("|");
+  if (sel.dataset.key === key) return;
+  const was = sel.value; sel.dataset.key = key;
+  sel.innerHTML = list.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("");
+  if (list.some(([v]) => v === was)) sel.value = was;
+}
+/** /roll NdM+K: rolled apart from the fight's seeded dice, so replays don't change. */
+function chatRoll(expr) {
+  const m = /^(\d{0,2})d(\d{1,3})\s*([+-]\s*\d{1,3})?$/i.exec(expr.trim());
+  if (!m) return null;
+  const n = Math.min(Math.max(Number(m[1] || 1), 1), 50), sides = Math.max(Number(m[2]), 2), mod = m[3] ? Number(m[3].replace(/\s/g, "")) : 0;
+  const dice = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * sides));
+  return { expr: `${n}d${sides}${mod ? (mod > 0 ? `+${mod}` : mod) : ""}`, dice, total: dice.reduce((a, b) => a + b, 0) + mod };
+}
+$("#chatForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = $("#chatText").value.trim(); if (!text) return;
+  const as = $("#chatAs").value, f = as.startsWith("f") ? byId(Number(as.slice(1))) : null;
+  const name = f ? f.name : as === "ref" ? "Referee" : `Side ${as}`;
+  const cls = f ? (f.side === "A" ? "who-a" : "who-b") : as === "A" ? "who-a" : as === "B" ? "who-b" : "who-r";
+  const roll = /^\/(roll|r)\s+/i.test(text) ? chatRoll(text.replace(/^\/(roll|r)\s+/i, "")) : null;
+  const body = roll ? `rolls ${roll.expr}: <span class="roll">[${roll.dice.join(", ")}]</span> = <b>${roll.total}</b>` : /^\/(roll|r)\b/i.test(text) ? `<span class="note">Try /roll 2d6 or /roll 1d20+1.</span>` : esc(text);
+  $("#log").querySelector(".empty")?.remove();
+  logAppend(`<div class="chat"><span class="${cls}">${esc(name)}</span>${roll ? " " : ": "}${body}</div>`);
+  $("#chatText").value = "";
+});
 $("#chips").addEventListener("click", (e) => { const c = e.target.closest("[data-chip]"); if (!c) return; const f = byId(Number(c.dataset.chip)); setGroup([f.id]); ensureVisible(f); });
 
 /* ---------- monster behaviour: package behaviour.mjs, run through the runner ---------- */
@@ -1534,6 +1611,7 @@ function openService(pc, f) {
 }
 
 function render() {
+  refreshChatAs();
   if (state.phase === "fight") refreshFacing();
   renderMap(); renderSide("A"); renderSide("B"); renderDetail(); renderStrip(); renderChips(); renderActionBar(); renderBanner();
   const fight = state.phase === "fight";
@@ -1832,7 +1910,7 @@ wrap.addEventListener("contextmenu", (e) => { if (state.rightDragged) { e.preven
 
 /* ---------- casting cursor: templates, range lines, target picking ---------- */
 state.cast = null; state.castHover = null;
-const AREA_SPELLS = ["fireBall", "lightningBolt"];
+const AREA_SPELLS = ["fireBall", "lightningBolt", "sleep"];
 const coarse = () => window.matchMedia?.("(pointer: coarse)").matches;
 function spellOf(f, id) { return combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === id); }
 function enterCast(f, id) {
@@ -1879,7 +1957,7 @@ function confirmCast() {
 function renderCastOverlay(out) {
   const c = state.cast;
   // declared area spells stay visible as faint outlines until they go off
-  for (const f of state.figures) if (f.castAim && active(f) && ["cast:fireBall", "cast:lightningBolt"].includes(f.action) && !(c && c.fid === f.id)) {
+  for (const f of state.figures) if (f.castAim && active(f) && ["cast:fireBall", "cast:lightningBolt", "cast:sleep"].includes(f.action) && !(c && c.fid === f.id)) {
     for (const [x, y] of areaOf(f, f.action.slice(5), f.castAim.x, f.castAim.y).cells) out.push(`<rect x="${x * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="#d98a00" opacity=".14"/>`);
   }
   if (!c) return;
@@ -1898,7 +1976,9 @@ function renderCastOverlay(out) {
     const hx = (h.x + 0.5) * PX, hy = (h.y + 0.5) * PX;
     out.push(`<line x1="${fx}" y1="${fy}" x2="${hx}" y2="${hy}" stroke="${col}" stroke-width="1.6" stroke-dasharray="5 4"/>`);
     const friends = caught.filter((e) => e.side === f.side).length;
-    out.push(pill(hx, hy, `${distIn(f, p)}\u2033 / ${sp.range}\u2033 \u00b7 ${caught.length} caught${friends ? ` (${friends} friend${friends > 1 ? "s" : ""})` : ""}${ok ? "" : " \u00b7 out of range"}`, ok ? "var(--ink)" : "var(--red)"));
+    const able = caught.filter((e) => active(e) && hdOf(e) <= 4.5), worst = able.length ? Math.max(...able.map(hdOf)) : null;
+    const sleepNote = sp.id === "sleep" ? (worst == null ? " \u00b7 none can sleep" : ` \u00b7 ${worst <= 1.5 ? "2d8" : worst <= 2.5 ? "2d6" : worst <= 3.5 ? "1d6" : "1"} of them sleep`) : "";
+    out.push(pill(hx, hy, `${distIn(f, p)}\u2033 / ${sp.range}\u2033 \u00b7 ${caught.length} caught${friends ? ` (${friends} friend${friends > 1 ? "s" : ""})` : ""}${sleepNote}${ok ? "" : " \u00b7 out of range"}`, ok ? "var(--ink)" : "var(--red)"));
     return;
   }
   const hoverFig = state.hover != null ? byId(state.hover) : null;
@@ -2015,6 +2095,7 @@ $("#mini").addEventListener("click", (e) => {
   cam.x = (e.clientX - b.left) / b.width * W * PX; cam.y = (e.clientY - b.top) / b.height * H * PX; applyView();
 });
 window.addEventListener("resize", () => { applyView(); renderActionBar(); });
+{ let open = true; try { open = localStorage.getItem("odd.logOpen") !== "0"; } catch {} if (!open) setLogOpen(false); }
 
 state.walls = buildWalls("room");
 addCharacter("A", "fighter", 1, "chain+shield", "sword", 10, "shortbow");
