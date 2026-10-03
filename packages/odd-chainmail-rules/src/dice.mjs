@@ -19,6 +19,22 @@ export function mulberry32(seed) {
   };
 }
 
+/**
+ * A serializable mulberry32: the generator's whole state lives in holder.s, so
+ * a fight's state can be saved and resumed mid-sequence. Seeded with
+ * { s: seed | 0 } it yields exactly the same numbers as mulberry32(seed).
+ */
+export function serialRng(holder) {
+  return function () {
+    holder.s = (holder.s + 0x6d2b79f5) | 0;
+    const a = holder.s;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+export const rngHolder = (seed) => ({ s: (seed >>> 0) | 0 });
+
 /** A single d6. */
 export function rollDie(rng) {
   return 1 + Math.floor(rng() * 6);

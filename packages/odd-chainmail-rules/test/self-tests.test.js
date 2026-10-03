@@ -20,4 +20,6 @@ test("index.js loads and exposes the core API", async () => {
   for (const name of ["toHit", "resolveExchange", "hitDiceFor", "fightingCapabilityFor", "moraleReactionFor", "retainerReactionFor", "encounterReaction", "offerService", "drainLevels", "gazeCheck", "chargeCurve", "areaSpellDice"]) {
     assert.equal(typeof api[name], "function", name);
   }
+  assert.equal(typeof api.fightRunner.apply, "function", "fightRunner.apply");
+  assert.equal(typeof api.board.isWall, "function", "board.isWall");
 });

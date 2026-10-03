@@ -94,6 +94,13 @@ Changes made during extraction:
   monster data; `commanderLost` takes a unit's own bonus. New
   `charge-morale.mjs` (cavalry charge check and table) and
   `exploration.mjs` (underworld turn, Book III rest rule).
+- 0.9.0: combat runner, pass 1. New `runner.mjs` (exported as
+  `fightRunner`): `apply(state, action, rng)` returns data events and owns
+  the Chainmail turn sequence with the initiative winner's election, the
+  step order (artillery kept in place), the morale pass after fire and
+  melee, and the end of the fight. New `board.mjs` (exported as `board`):
+  pure geometry and figure status. `serialRng` / `rngHolder`: a seeded
+  generator whose state can be saved, matching `mulberry32`.
 
 ## Open items
 

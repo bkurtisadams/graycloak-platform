@@ -115,8 +115,10 @@ export function trollRound({ hp, maxHp, roundsSinceHit, burned = false, store = 
 }
 
 /**
- * Gaze (basilisk, medusa). Every round each figure with the creature in its
- * front arc saves vs Stone. A figure averting its eyes is safe but blind
+ * Gaze (basilisk, medusa). Every round each figure that can see the creature
+ * (it is in the figure's front arc, with line of sight) while the creature is
+ * looking its way (the figure is in the creature's front arc) saves vs Stone;
+ * no set range (Kurt, Oct 2026). A figure averting its eyes is safe but blind
  * (house rule from AD&D 1e: -4 to hit, missiles only at adjacent targets).
  * A figure holding a good reflector in sufficient light turns the gaze back
  * on the creature, which saves vs Stone against it (Kurt's ruling, Oct 2026).
@@ -128,8 +130,14 @@ export function seesGazer(viewer, gazer) {
   return attackFacing({ x: viewer.x, y: viewer.y }, viewer.facing, { x: gazer.x, y: gazer.y }) === "front";
 }
 
+/** The gazer is aware of the viewer: the viewer is in the gazer's front arc. A gazer with no facing looks every way. */
+export function gazerLooksAt(gazer, viewer) {
+  if (gazer.facing == null) return true;
+  return attackFacing({ x: gazer.x, y: gazer.y }, gazer.facing, { x: viewer.x, y: viewer.y }) === "front";
+}
+
 export function gazeCheck(viewer, gazer, saves, rng, { lit = true } = {}) {
-  if (!seesGazer(viewer, gazer)) return { exposed: false };
+  if (!seesGazer(viewer, gazer) || !gazerLooksAt(gazer, viewer)) return { exposed: false };
   if (viewer.reflector && lit) return { exposed: false, reflected: true };
   if (viewer.averted) return { exposed: false, averted: true };
   const roll = 1 + Math.floor(rng() * 20);
@@ -265,6 +273,9 @@ function runSelfTests() {
   ok(gazeCheck({ x: 0, y: 0, facing: 0, reflector: true }, gz, { stone: 14 }, seq([0])).reflected, "reflector turns it back in light");
   ok(gazeCheck({ x: 0, y: 0, facing: 0, reflector: true }, gz, { stone: 14 }, seq([0]), { lit: false }).petrified, "no light: reflector useless");
   ok(gazeCheck({ x: 0, y: 0, facing: 4 }, gz, { stone: 14 }, seq([0])).exposed === false, "back turned: safe");
+  ok(gazeCheck({ x: 0, y: 0, facing: 0 }, { x: 5, y: 0, facing: 0 }, { stone: 14 }, seq([0])).exposed === false, "gazer looking away: safe");
+  ok(gazeCheck({ x: 0, y: 0, facing: 0 }, { x: 5, y: 0, facing: 4 }, { stone: 14 }, seq([0])).petrified, "gazer looking his way: exposed");
+  ok(gazeCheck({ x: 0, y: 0, facing: 0 }, { x: 40, y: 0, facing: 4 }, { stone: 14 }, seq([0])).petrified, "no set range");
   ok(gazeCheck({ x: 0, y: 0, facing: 0 }, gz, { stone: 14 }, seq([0.7])).saved, "15 vs 14 saves");
   ok(BLIND.everyDieBonus === -4 && BLIND.missileAdjacentOnly, "averted = blind");
   ok(poisonBite({ deathPoison: 12 }, seq([0.5])).dies && !poisonBite({ deathPoison: 12 }, seq([0.55])).dies, "bite: save vs poison");
