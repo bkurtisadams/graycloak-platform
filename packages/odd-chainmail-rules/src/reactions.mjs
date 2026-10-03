@@ -54,16 +54,31 @@ export function reactionModifiers({ bribe = 0, superiorForce = 0, alignmentKnown
 }
 
 /**
- * Encounter reaction. Returns { rolled:false, result:NEGATIVE, why } with no
- * roll when the creature is Mindless or Bestial or surprised the party.
+ * Encounter reaction (Book III Random Actions by Monsters; Kurt's rulings,
+ * Oct 2026). No roll, and the creature attacks, when it is Mindless or
+ * Bestial, when it surprised the party within 20 feet (unless it was
+ * surprised too), or while it is pursuing ("other than in pursuit situations").
  */
-export function encounterReaction({ intelligence, surprisedParty = false, modifiers = {} } = {}, rng = Math.random) {
+export function encounterReaction({ intelligence, surprisedParty = false, distanceFeet = 0, monsterSurprised = false, pursuing = false, modifiers = {} } = {}, rng = Math.random) {
   if (!talksAtAll(intelligence)) return { rolled: false, result: EncounterReaction.NEGATIVE, why: "attacks on sight" };
-  if (surprisedParty) return { rolled: false, result: EncounterReaction.NEGATIVE, why: "surprised the party" };
+  if (!canAvoid({ monsterSurprisedParty: surprisedParty, distanceFeet, monsterSurprised })) return { rolled: false, result: EncounterReaction.NEGATIVE, why: "surprised the party within 20 feet: attacks" };
+  if (pursuing) return { rolled: false, result: EncounterReaction.NEGATIVE, why: "pursuing" };
   const dice = [rollDie(rng), rollDie(rng)];
   const mods = reactionModifiers(modifiers);
   const total = dice[0] + dice[1] + mods.total;
   return { rolled: true, dice, mods, total, result: encounterBandFor(total), why: null };
+}
+
+/**
+ * An obviously superior force (Kurt's ruling, Oct 2026): the other side
+ * outnumbers the monsters 2 to 1, or has twice their total hit dice. Monsters
+ * intelligent enough (Cunning, Intelligent) avoid it; others attack anyway.
+ */
+export function superiorForce({ ownCount, ownHd, foeCount, foeHd }) {
+  return foeCount >= ownCount * 2 || foeHd >= ownHd * 2;
+}
+export function avoidsForce(intelligence, force) {
+  return talksAtAll(intelligence) && superiorForce(force);
 }
 
 /* ---------------------------------------------------------- languages */
@@ -112,8 +127,8 @@ export function groupLanguages(mind, rng = Math.random) {
 
 /**
  * A divisional tongue the creature recognizes as hostile: Law and Chaos are
- * hostile to each other. Monsters don't speak these tongues (Kurt's ruling),
- * so they never open parley. OPEN: whether Neutral creatures react to either.
+ * hostile to each other; Neutral creatures react to neither. Monsters don't
+ * speak these tongues, so they never open parley (Kurt's rulings, Oct 2026).
  */
 export function isHostileTongue(language, monsterAlignment) {
   if (language === ALIGNMENT_TONGUE.law) return monsterAlignment === "chaos";
@@ -177,6 +192,23 @@ export function surrenderOnFailedMorale({ intelligence, isMan = false, surrounde
 
 /* ---------------------------------------------------------- pursuit */
 
+/**
+ * Avoiding monsters (Book III): no chance to avoid when the monster surprised
+ * the party and is within 20 feet, unless the monster was surprised too.
+ */
+export const SURPRISE_NO_AVOID_FEET = 20;
+export function canAvoid({ monsterSurprisedParty = false, distanceFeet = Infinity, monsterSurprised = false } = {}) {
+  return !(monsterSurprisedParty && !monsterSurprised && distanceFeet <= SURPRISE_NO_AVOID_FEET);
+}
+
+/** A character surprised by a monster has a 25% chance to drop one of the items he holds (Book III). */
+export const SURPRISE_DROP_PCT = 25;
+export function surpriseDrop(heldItems = [], rng = Math.random) {
+  const roll = 1 + Math.floor(rng() * 100);
+  if (roll > SURPRISE_DROP_PCT || !heldItems.length) return { roll, drops: false, item: null };
+  return { roll, drops: true, item: heldItems[Math.floor(rng() * heldItems.length)] };
+}
+
 /** Pursuit holds in a straight line while within 90 feet (9" indoors). */
 export const PURSUIT_SIGHT_FEET = 90;
 
@@ -199,10 +231,10 @@ export function droppedItemStops(item, intelligence, rng = Math.random) {
   return { chance, roll, stops: roll <= chance };
 }
 
-/** Burning oil deters unintelligent monsters from pursuing 75% of the time (DMG; Kurt's ruling, Oct 2026). */
+/** Burning oil deters unintelligent and semi-intelligent (Mindless and Bestial) pursuers 75% of the time (DMG; Kurt's ruling, Oct 2026). */
 export const OIL_DETERS_PCT = 75;
 export function oilDeters(intelligence, rng = Math.random) {
-  if (pursuitTier(intelligence) !== "non") return { chance: 0, roll: null, deters: false };
+  if (talksAtAll(intelligence)) return { chance: 0, roll: null, deters: false };
   const roll = 1 + Math.floor(rng() * 100);
   return { chance: OIL_DETERS_PCT, roll, deters: roll <= OIL_DETERS_PCT };
 }
@@ -239,7 +271,13 @@ function runSelfTests() {
 
   ok(pursuitTier("mindless") === "non" && pursuitTier("bestial") === "semi" && pursuitTier("cunning") === "intelligent", "pursuit tiers");
   ok(!encounterReaction({ intelligence: "bestial" }).rolled, "bestial: no roll");
-  ok(!encounterReaction({ intelligence: "cunning", surprisedParty: true }).rolled, "surprised the party: no roll");
+  ok(!encounterReaction({ intelligence: "cunning", surprisedParty: true }).rolled, "surprised the party within 20 ft: attacks, no roll");
+  ok(encounterReaction({ intelligence: "cunning", surprisedParty: true, distanceFeet: 30 }, seq([d6(3), d6(3)])).rolled, "surprise beyond 20 ft: normal reaction");
+  ok(encounterReaction({ intelligence: "cunning", surprisedParty: true, monsterSurprised: true }, seq([d6(3), d6(3)])).rolled, "both surprised: normal reaction");
+  ok(!encounterReaction({ intelligence: "intelligent", pursuing: true }).rolled, "pursuing: no reaction roll");
+  ok(superiorForce({ ownCount: 5, ownHd: 5, foeCount: 10, foeHd: 4 }) && !superiorForce({ ownCount: 5, ownHd: 5, foeCount: 9, foeHd: 5 }), "outnumbered 2 to 1");
+  ok(superiorForce({ ownCount: 6, ownHd: 6, foeCount: 3, foeHd: 12 }) && !superiorForce({ ownCount: 6, ownHd: 6, foeCount: 3, foeHd: 11.5 }), "twice the total hit dice");
+  ok(avoidsForce("cunning", { ownCount: 2, ownHd: 2, foeCount: 4, foeHd: 4 }) && !avoidsForce("bestial", { ownCount: 2, ownHd: 2, foeCount: 4, foeHd: 4 }), "only Cunning and Intelligent avoid");
   ok(encounterBandFor(5) === "negative" && encounterBandFor(6) === "uncertain" && encounterBandFor(8) === "uncertain" && encounterBandFor(9) === "positive", "2-5 / 6-8 / 9-12");
   const r = encounterReaction({ intelligence: "cunning", modifiers: { bribe: 2, superiorForce: 1 } }, seq([d6(3), d6(3)]));
   ok(r.rolled && r.total === 9 && r.result === "positive", "6 + bribe 2 + force 1 = 9 positive");
@@ -283,13 +321,17 @@ function runSelfTests() {
   ok(surrenderOnFailedMorale({ intelligence: "bestial", surrounded: true }).surrenders, "surrounded: surrenders");
   ok(surrenderOnFailedMorale({ intelligence: "cunning" }).may && !surrenderOnFailedMorale({ intelligence: "bestial" }).may, "intelligent may surrender, bestial not");
 
+  ok(!canAvoid({ monsterSurprisedParty: true, distanceFeet: 20 }) && canAvoid({ monsterSurprisedParty: true, distanceFeet: 30 }), "surprised within 20 ft: no avoiding");
+  ok(canAvoid({ monsterSurprisedParty: true, distanceFeet: 10, monsterSurprised: true }) && canAvoid({}), "unless the monster was surprised too");
+  ok(surpriseDrop(["sword", "shield"], seq([pct(25), 0.6])).item === "shield" && !surpriseDrop(["sword"], seq([pct(26)])).drops, "25% drop of a held item");
+  ok(!surpriseDrop([], seq([pct(1)])).drops, "nothing held: nothing dropped");
   ok(followsPast("corner", seq([d6(2)])).follows && !followsPast("corner", seq([d6(3)])).follows, "corner 1-2");
   ok(followsPast("secret", seq([d6(1)])).follows && !followsPast("secret", seq([d6(2)])).follows, "secret door 1");
   ok(droppedItemStops("food", "mindless", seq([pct(90)])).stops && !droppedItemStops("food", "cunning", seq([pct(11)])).stops, "food: non 90%, intelligent 10%");
   ok(droppedItemStops("treasure", "intelligent", seq([pct(90)])).stops && droppedItemStops("treasure", "bestial", seq([pct(50)])).chance === 50, "treasure: intelligent 90%, semi 50%");
 
   ok(oilDeters("mindless", seq([pct(75)])).deters && !oilDeters("mindless", seq([pct(76)])).deters, "oil deters unintelligent 75%");
-  ok(!oilDeters("bestial", seq([pct(1)])).deters && !oilDeters("cunning", seq([pct(1)])).deters, "oil: only unintelligent");
+  ok(oilDeters("bestial", seq([pct(75)])).deters && !oilDeters("cunning", seq([pct(1)])).deters && !oilDeters("intelligent", seq([pct(1)])).deters, "oil: Mindless and Bestial only");
   ok(foundAsleep(60, seq([pct(60)])).asleep && !foundAsleep(60, seq([pct(61)])).asleep && !foundAsleep(null).asleep, "dragon asleep chance");
   ok(orcLairMoraleExempt({ defenders: 10, attackers: 29 }) && !orcLairMoraleExempt({ defenders: 10, attackers: 30 }), "lair: morale at 3 to 1");
   ok(orcTribesFight({}).fight && !orcTribesFight({ sameTribe: true }).fight, "other tribes fight on sight");

@@ -213,7 +213,7 @@ button.done:disabled { opacity: .45; }
     <div class="round-phone"><span class="round-k" id="roundK">ROUND 0</span><span class="phase-now" id="phaseNow">Setup</span></div>
     <div class="pills" id="pills"></div>
     <div class="grow"></div>
-    <label class="auto"><input type="checkbox" id="autoB"> Side B on autopilot</label>
+    <label class="auto" title="Side B moves by each figure's behaviour profile"><input type="checkbox" id="autoB"> Side B by behaviour</label>
     <button id="step" class="done" disabled>Start fight</button>
   </div>
   <div class="chips" id="chips"></div>
@@ -274,7 +274,9 @@ import {
   abilityOf, drainHit, regenAmount, TROLL_RISES_AT, breathOrBite, BREATH, inBreath, swallows, wyvernStings, hydraHeads, CLUMSY_BIG,
   resolveVolley, missileShots, missileBand, missileRange, fireClassFor, classifyMove, overHalfFireGate,
   slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
-  lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX
+  lossCheck, troopLossLine, bookTwoMoraleBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
+  talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
+  drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk
 } from "../packages/odd-chainmail-rules/index.js";
 
 /* ---------- data ---------- */
@@ -308,7 +310,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const byId = (id) => state.figures.find((f) => f.id === id);
 const alive = (f) => f.hp == null || f.hp > 0;
-const GONE = ["fled", "surrendered", "petrified", "swallowed", "gaseous"];
+const GONE = ["fled", "surrendered", "petrified", "swallowed", "gaseous", "withdrew"];
 const present = (f) => alive(f) && !GONE.includes(f.status);
 const active = (f) => present(f) && !["asleep", "held"].includes(f.status);
 const helpless = (f) => present(f) && ["asleep", "held", "paralyzed"].includes(f.status);
@@ -316,7 +318,9 @@ const isEvil = (f) => f.kind === "monster" && MONSTERS.find((m) => m.key === f.m
 const MEN_KEYS = ["bandit", "berserker", "brigand", "caveman", "merman"];
 const isMan = (f) => f.kind === "pc" || MEN_KEYS.includes(f.monsterKey);
 // Book II: berserkers +2 against normal men; dwarves and gnomes take half damage from ogres, giants and the like.
-const pairMods = (atk, def) => ({ everyDieBonus: (atk.monsterKey === "berserker" && isMan(def) ? 2 : 0) + pfePenalty(atk, def) });
+const pairMods = (atk, def) => ({ everyDieBonus: (atk.monsterKey === "berserker" && isMan(def) ? 2 : 0) + pfePenalty(atk, def) + blindPenalty(atk) });
+const blindPenalty = (f) => (f.averted ? BLIND.everyDieBonus : 0);
+const ALIGN_LABEL = { law: "Law", neutral: "Neutrality", chaos: "Chaos" };
 const defMods = (atk, def) => ((["dwarf", "gnome"].includes(def.monsterKey) && CLUMSY_BIG.includes(atk.monsterKey)) ? { damageHalved: true } : {});
 const pfePenalty = (atk, def) => (def.pfe && isEvil(atk) ? -1 : 0);
 const dexOf = (f) => f.kind === "pc" ? f.dex : MONSTER_DEX;
@@ -369,10 +373,10 @@ function deploy() {
 }
 
 /* ---------- figures ---------- */
-function addCharacter(side, cls, level, armorId, weaponId, dex = 10, missile = "") {
+function addCharacter(side, cls, level, armorId, weaponId, dex = 10, missile = "", alignment = "law", int = 10, purse = 0, cha = 10) {
   const c = CLASSES.find((x) => x.id === cls);
   const n = state.figures.filter((f) => f.side === side && f.cls === cls).length + 1;
-  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, dex, missile, stance: "attack", target: null, action: "melee" });
+  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, dex, missile, alignment, int, purse, cha, stance: "attack", target: null, action: "melee" });
 }
 function addMonsters(side, key, count) {
   const m = MONSTERS.find((x) => x.key === key);
@@ -395,9 +399,15 @@ function combatProfile(f) {
   return { weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`, profileAttack: true, damageDice: p.damage.dice || 1, damageFlat: p.damage.bonus || 0 };
 }
 function rollHp(f, rng) {
-  if (f.kind === "pc") { const hd = hitDiceFor(f.cls, f.level); return Math.max(1, sumHitDice(hd.dice, rng).sum + hd.bonus); }
+  if (f.kind === "pc") {
+    const hd = hitDiceFor(f.cls, f.level); const r = sumHitDice(hd.dice, rng);
+    f.hpRolls = r.dice.length === f.level ? r.dice.slice() : null;
+    return Math.max(1, r.sum + hd.bonus);
+  }
   const hd = MONSTERS.find((x) => x.key === f.monsterKey).hd; const size = hd.dieSize || 6;
-  let sum = hd.bonus || 0; for (let i = 0; i < hd.count; i++) sum += 1 + Math.floor(rng() * size);
+  let sum = hd.bonus || 0; const rolls = [];
+  for (let i = 0; i < hd.count; i++) { const d = 1 + Math.floor(rng() * size); rolls.push(d); sum += d; }
+  f.hpRolls = rolls; f.hdLeft = hd.count;
   return Math.max(1, sum);
 }
 function combatant(f, facing, extra = {}) {
@@ -513,7 +523,7 @@ function placeHoard(monsterKey) {
   const inv = inventoryFromTreasure(t);
   for (let x = W - 6; x > 0; x--) for (const y of [14, 13, 15, 12, 16]) {
     if (isWall(x, y) || occupant(x, y) || state.chests.some((c) => c.x === x && c.y === y)) continue;
-    state.chests.push({ id: state.chests.length + 1, x, y, label: `${m.name} hoard (type ${type})`, original: JSON.parse(JSON.stringify(inv)), inv, value: treasureValue(t) });
+    state.chests.push({ id: state.chests.length + 1, x, y, monsterKey, label: `${m.name} hoard (type ${type})`, original: JSON.parse(JSON.stringify(inv)), inv, value: treasureValue(t) });
     return true;
   }
   return false;
@@ -585,29 +595,35 @@ function afterStrike(atk, tgt, res, add, start) {
   if (["troll", "vampire"].includes(tgt.monsterKey) && tgt.firstHitRound == null) tgt.firstHitRound = state.round;
   const m = mon(atk); if (!m) return "";
   const notes = [];
+  const svMod = tgt.pfe ? 1 : 0;
+  tgt.lastHitBy = m.key;
   const drain = abilityOf(m, "drain");
   if (drain) {
-    let lost = 0, levels = 0;
-    for (const d of hits) { const r = drainHit(drain.value, state.rng); lost += r.hpLost; levels += r.levels; add(tgt.id, r.hpLost - d.damage); }
-    if (tgt.kind === "pc") { tgt.level = Math.max(0, tgt.level - levels); tgt.maxHp = Math.max(0, tgt.maxHp - lost); }
-    notes.push(`Energy drain: ${levels} level${levels === 1 ? "" : "s"} lost${tgt.kind === "pc" ? ` (now level ${tgt.level})` : ""}; ${lost} hit points of hit dice drained instead of normal damage.${tgt.kind === "pc" && tgt.level < 1 ? " Drained of all life." : ""}`);
-    if (tgt.kind === "pc" && tgt.level < 1) add(tgt.id, 999);
+    const rec = { level: tgt.kind === "pc" ? tgt.level : (tgt.hdLeft ?? m.hd.count), hp: tgt.hp, maxHp: tgt.maxHp, hpRolls: tgt.hpRolls };
+    const lost = []; let r = { ...rec };
+    for (const d of hits) { add(tgt.id, -d.damage); r = drainLevels(r, drain.value, state.rng); lost.push(...r.lost); r = { ...r, hpRolls: r.hpRolls ?? null }; }
+    if (tgt.kind === "pc") tgt.level = r.level; else tgt.hdLeft = r.level;
+    tgt.maxHp = r.maxHp; tgt.hpRolls = r.hpRolls;
+    const detail = lost.map((x) => `level ${x.level}: ${x.amount}${x.stored ? " (its roll)" : " (1d6)"}`).join(", ");
+    notes.push(`Energy drain instead of damage: ${lost.length} level${lost.length === 1 ? "" : "s"} lost (${detail}); maximum now ${r.maxHp}${tgt.kind === "pc" ? `, level ${r.level}` : `, ${r.level} HD`}.`);
+    if (r.drained) { add(tgt.id, 999); const as = risesAs(m.key, { drained: true, manType: isMan(tgt) }); tgt.risesAs = as; notes.push(`Drained of all life${as ? `: will rise as a ${as}` : ""}.`); }
   }
-  if (abilityOf(m, "paralysis") && tgt.monsterKey !== "elf") {
-    tgt.pendingStatus = "paralyzed"; tgt.paralyzedUntil = state.round + 10;
-    notes.push(`${esc(tgt.name)} is paralyzed for one turn (10 rounds).`);
+  if (abilityOf(m, "paralysis") && tgt.status !== "held" && tgt.pendingStatus !== "held") {
+    const g = ghoulTouch(savesOf(tgt), state.rng, { elf: tgt.monsterKey === "elf", mod: svMod });
+    if (g.immune) notes.push(`${esc(tgt.name)} is an elf: immune to the ghoul's touch.`);
+    else { notes.push(`Ghoul's touch: save vs paralyzation d20 ${g.roll}${svMod ? " +1" : ""} vs ${g.need}: ${g.saved ? "saved" : `held for ${g.turns} turns`}.`); if (g.held) tgt.pendingStatus = "held"; }
   }
   if (abilityOf(m, "petrify") && ["cockatrice", "basilisk"].includes(m.key)) {
-    const sv = saveVsSpellsLike(tgt, "stone");
+    const sv = petrifySave(savesOf(tgt), state.rng, svMod);
     notes.push(`Petrifying touch: save vs stone d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "turned to stone"}.`);
     if (!sv.saved) tgt.pendingStatus = "petrified";
   }
   let poison = abilityOf(m, "poison") && ["medusa"].includes(m.key);
   if (m.key === "wyvern") { const w = wyvernStings(state.rng); poison = w.sting; notes.push(w.sting ? "The wyvern stings." : "The wyvern bites."); }
   if (poison) {
-    const sv = saveVsSpellsLike(tgt, "deathPoison");
-    notes.push(`Poison: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "dies"}.`);
-    if (!sv.saved) add(tgt.id, 999);
+    const sv = poisonBite(savesOf(tgt), state.rng, svMod);
+    notes.push(`${m.key === "medusa" ? "Snake bite" : "Poison"}: save vs poison d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "dies"}.`);
+    if (sv.dies) add(tgt.id, 999);
   }
   if (abilityOf(m, "swallow")) {
     const big = hits.find((d) => swallows(d.effective, res.toHitNumber, d.roll[0] + d.roll[1]));
@@ -620,11 +636,26 @@ function saveVsSpellsLike(f, kind) {
   const mod = f.pfe ? 1 : 0;
   return { roll, need: saves[kind], saved: roll + mod >= saves[kind] };
 }
+/** Fire or acid on a troll: a downed troll so struck is burned and won't rise. */
+function baneHit(e, kind) {
+  if (e.monsterKey !== "troll" || !stopsRegeneration([kind])) return;
+  if (e.firstHitRound == null) e.firstHitRound = state.round;
+  if (e.hp <= 0) e.burned = true;
+}
 function regenerate() {
   const out = [];
   for (const f of state.figures) {
     if (!["troll", "vampire"].includes(f.monsterKey) || f.firstHitRound == null || !f.placed || GONE.includes(f.status)) continue;
     if (f.monsterKey === "vampire" && f.hp <= 0) { f.status = "gaseous"; f.target = null; out.push(`${esc(f.name)} turns to gas and escapes to its coffin.`); continue; }
+    if (f.monsterKey === "troll") {
+      const tr = trollRound({ hp: f.hp, maxHp: f.maxHp, roundsSinceHit: state.round - f.firstHitRound, burned: f.burned, store: f.regenStore ?? 0 });
+      if (!tr.regen) continue;
+      const was = f.hp; f.hp = tr.hp; f.regenStore = tr.store;
+      if (tr.rises) out.push(`${esc(f.name)} rises again at ${f.hp} hit points!`);
+      else if (tr.down) out.push(`${esc(f.name)} regenerates on the ground (${f.regenStore}/${TROLL_RISES_AT}); burn it or put it in acid to stop it.`);
+      else if (f.hp > was) out.push(`${esc(f.name)} regenerates ${f.hp - was} hit points (${f.hp}/${f.maxHp}).`);
+      continue;
+    }
     const amt = regenAmount({ kind: f.monsterKey, roundsSinceHit: state.round - f.firstHitRound, burned: f.burned });
     if (!amt || f.hp >= f.maxHp) continue;
     const wasDown = f.hp <= 0;
@@ -652,7 +683,7 @@ function monsterPowers() {
       const spec = BREATH[colour];
       const dmgFull = spec.dice ? Array.from({ length: spec.dice }, () => 1 + Math.floor(state.rng() * 6)).reduce((a, b) => a + b, 0) : Math.max(1, d.hp);
       const hit = state.figures.filter((e) => e !== d && present(e) && e.placed && inBreath(inch(d), inch(t), inch(e), spec));
-      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; e.hp -= dmg; ev(d, e, dmg); return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
+      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; e.hp -= dmg; ev(d, e, dmg); baneHit(e, spec.kind); return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
       out.push(`<div class="card"><div class="who">${nameSpan(d)} breathes ${esc(spec.kind)} <span class="note">(2d6 [${bb.roll.join(",")}]; ${d.breathLeft} left; ${spec.shape} ${spec.length}" × ${spec.width}")</span></div><div class="line note">${dmgFull} damage${spec.dice ? "" : " (the dragon's hit points)"}, save vs dragon breath for half.</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`);
       continue;
     }
@@ -665,10 +696,23 @@ function monsterPowers() {
       continue;
     }
     if (["basilisk", "medusa"].includes(m.key)) {
-      const lookers = state.figures.filter((e) => e.side !== d.side && active(e) && distIn(d, e) <= 3 && lineOfSight(d, e) && attackFacing(centre(e), e.facing, centre(d)) === "front");
-      if (!lookers.length) continue;
-      const lines = lookers.map((e) => { const sv = saveVsSpellsLike(e, "stone"); if (!sv.saved) { e.status = "petrified"; e.target = null; } return `<div class="line">${esc(e.name)} meets its gaze: save vs stone d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : '<span class="hit">turned to stone</span>'}</div>`; }).join("");
-      out.push(`<div class="card"><div class="who">${nameSpan(d)}'s gaze <span class="note">(anyone within 3" facing it)</span></div>${lines}</div>`);
+      const near = state.figures.filter((e) => e.side !== d.side && active(e) && distIn(d, e) <= 3 && lineOfSight(d, e));
+      const lines = [];
+      for (const e of near) {
+        if (!active(d)) break;
+        const g = gazeCheck({ x: centre(e).x, y: centre(e).y, facing: e.facing, averted: e.averted, reflector: e.mirror, saveMod: e.pfe ? 1 : 0 }, centre(d), savesOf(e), state.rng);
+        if (!g.exposed && !g.reflected && !g.averted) continue;
+        if (g.averted) { lines.push(`<div class="line note">${esc(e.name)} averts his eyes: safe, but fights blind.</div>`); continue; }
+        if (g.reflected) {
+          const rg = reflectedGaze(savesOf(d), state.rng);
+          if (rg.petrified) { d.status = "petrified"; d.target = null; }
+          lines.push(`<div class="line">${esc(e.name)} holds up a mirror: the gaze turns back. ${esc(d.name)} saves vs stone d20 ${rg.roll} vs ${rg.need}: ${rg.petrified ? '<span class="hit">turned to stone</span>' : "saved"}</div>`);
+          continue;
+        }
+        if (g.petrified) { e.status = "petrified"; e.target = null; }
+        lines.push(`<div class="line">${esc(e.name)} meets its gaze: save vs stone d20 ${g.roll} vs ${g.need}: ${g.saved ? "saved" : '<span class="hit">turned to stone</span>'}</div>`);
+      }
+      if (lines.length) out.push(`<div class="card"><div class="who">${nameSpan(d)}'s gaze <span class="note">(anyone within 3" with it in their front arc)</span></div>${lines.join("")}</div>`);
     }
   }
   return out.join("");
@@ -712,6 +756,7 @@ function resolveMelee() {
     }
     legal.set(f.id, t.id);
   }
+  if (legal.size) state.meleeBegun = true;
   const slain = new Set();
   for (const [fid, tid] of [...legal]) {
     const f = byId(fid), t = byId(tid);
@@ -756,7 +801,7 @@ function resolveMelee() {
       const tLeft = start.get(t.id) - (dmg.get(t.id) ?? 0);
       if (!isHeld && spent(t) && active(t) && tLeft > 0 && t.returned !== state.round) {
         t.returned = state.round;
-        const back = combatant(t, "front", { everyDieBonus: pfePenalty(t, f) });
+        const back = combatant(t, "front", { everyDieBonus: pfePenalty(t, f) + blindPenalty(t) });
         const r2 = resolveAttackPool({ attacker: { ...back, dice: back.thrown || combatProfile(t).dice }, target: combatant(f, "front") }, state.rng);
         add(f.id, r2.damage);
         ev(t, f, r2.damage);
@@ -767,7 +812,8 @@ function resolveMelee() {
     }
   }
   const fell = [];
-  for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; f.hp -= dmg.get(f.id); if (f.hp <= 0) fell.push(f); }
+  for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; f.hp = Math.min(f.hp - dmg.get(f.id), f.maxHp); if (f.hp <= 0) fell.push(f); }
+  for (const f of fell) if (!f.risesAs && f.lastHitBy) { const as = risesAs(f.lastHitBy, { killed: true, manType: isMan(f) }); if (as) { f.risesAs = as; cards.push(`<div class="card note">${esc(f.name)} was slain by a ${esc(f.lastHitBy)} and will rise as a ${as}.</div>`); } }
   for (const f of state.figures) if (f.pendingStatus) { if (alive(f)) { f.status = f.pendingStatus; f.target = null; } f.pendingStatus = null; }
   cards.push(regenerate());
   const body = cards.length ? cards.join("") : `<div class="card note">No melee this round.</div>`;
@@ -803,6 +849,14 @@ function checkMorale() {
       if (killed / figs.length < line.threshold) continue;
       state.moraleChecked.add(unitKey);
       const trapped = figs.filter(active).every((f) => [[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]].every(([dx, dy]) => isWall(f.x + dx, f.y + dy) || occupant(f.x + dx, f.y + dy)));
+      if (key === "orc" && state.chests?.some((c) => c.monsterKey === "orc")) {
+        const foes = state.figures.filter((e) => e.side !== side && present(e)).length;
+        if (orcLairMoraleExempt({ defenders: figs.filter(active).length, attackers: foes })) {
+          state.moraleChecked.delete(unitKey);
+          if (!state.lairNoted.has(unitKey)) { state.lairNoted.add(unitKey); out.push(`<div class="card note">Orcs defending their lair: no morale check until outnumbered 3 to 1 (${foes} against ${figs.filter(active).length}).</div>`); }
+          continue;
+        }
+      }
       const bonus = bookTwoMoraleBonus(key);
       const res = lossCheck({ name: `${m.name}s (side ${side})`, original: figs.length, remaining: figs.length - killed, line, bonus, surrounded: trapped }, state.rng);
       if (!res.holds) for (const f of figs) if (active(f)) { f.status = res.outcome === "surrender" ? "surrendered" : "fled"; f.target = null; }
@@ -869,6 +923,7 @@ function resolveMissiles() {
       if (inMelee(f)) { cards.push(`<div class="card note">${esc(f.name)} is in melee and can't fire.</div>`); continue; }
       if (inMelee(t)) { cards.push(`<div class="card note">${esc(f.name)} holds fire: ${esc(t.name)} is in a melee.</div>`); continue; }
       if (!lineOfSight(f, t)) { cards.push(`<div class="card note">${esc(f.name)} has no line of sight to ${esc(t.name)}.</div>`); continue; }
+      if (f.averted && BLIND.missileAdjacentOnly && !adjacent(f, t)) { cards.push(`<div class="card note">${esc(f.name)} is averting his eyes: missiles only at an adjacent target.</div>`); continue; }
       if (!missileBand(d, missileRange(f.missile))) { cards.push(`<div class="card note">${esc(t.name)} is out of range (${d}" of ${missileRange(f.missile)}").</div>`); continue; }
       plans.push({ f, t, d, kind: "fire" });
     } else if (f.action.startsWith("cast:")) {
@@ -906,7 +961,7 @@ function resolveMissiles() {
           if (!present(tg) || left <= 0) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: already down, the arrow is lost.</div>`); return; }
           const dd = distIn(f, tg), range = missileRange(f.missile);
           if (tg !== t && (!missileBand(dd, range) || !lineOfSight(f, tg) || inMelee(tg))) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: no clear shot, the arrow is lost.</div>`); return; }
-          const fireBonus = missileMod(f.dex ?? 10) + pfePenalty(f, tg);
+          const fireBonus = missileMod(f.dex ?? 10) + pfePenalty(f, tg) + blindPenalty(f);
           const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots: 1, fireBonus }, target: { name: tg.name, ac: tg.ac, distance: dd, hitOnlyBy: tg.kind === "monster" ? MONSTERS.find((m) => m.key === tg.monsterKey)?.specialAbilities?.hitOnlyBy : undefined } }, state.rng);
           dmg.set(tg.id, (dmg.get(tg.id) ?? 0) + res.damage); ev(f, tg, res.damage);
           if (res.hits > 0) shotAt.push(tg.id);
@@ -939,7 +994,7 @@ function areaOf(caster, spellId, x, y) {
   const open = (cx, cy) => !isWall(cx, cy);
   let cells, reachOk = true;
   if (spellId === "fireBall") cells = fireBallCells({ x, y }, open, 2);
-  else { const r = lightningCells(centre(caster), { x, y }, open); cells = r.cells; reachOk = r.maxReach <= 24 * 3 + 0.5; }
+  else { const r = lightningCells(centre(caster), { x, y }, open); cells = r.cells; reachOk = lightningStartOk(centre(caster), { x, y }); }
   const set = new Set(cells.map(([cx, cy]) => `${cx},${cy}`));
   const caught = state.figures.filter((e) => e.placed && present(e) && footCells(e.x, e.y, sz(e)).some(([cx, cy]) => set.has(`${cx},${cy}`)));
   return { cells, caught, reachOk };
@@ -947,12 +1002,12 @@ function areaOf(caster, spellId, x, y) {
 function castSpell(f, t, sp) {
   if (sp.id === "fireBall" || sp.id === "lightningBolt") {
     const { caught } = areaOf(f, sp.id, f.castAim.x, f.castAim.y);
-    const dice = spellDamageDice(f.level);
+    const { dice, save } = areaSpellDice("cast", f.level);
     const lines = caught.map((e) => {
       let dmg = 0; for (let i = 0; i < dice; i++) dmg += 1 + Math.floor(state.rng() * 6);
-      const sv = saveVsSpellsLike(e, "staves"); const take = sv.saved ? Math.floor(dmg / 2) : dmg;
-      e.hp -= take; ev(f, e, take);
-      return `<div class="line">${esc(e.name)}: ${dice}d6 = ${dmg}; save vs spells d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${take} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`;
+      const sv = saveForHalf(savesOf(e), save, dmg, state.rng, e.pfe ? 1 : 0); const take = sv.damage;
+      e.hp -= take; ev(f, e, take); if (sp.id === "fireBall") baneHit(e, "fire");
+      return `<div class="line">${esc(e.name)}: ${dice}d6 = ${dmg}; save vs spells d20 ${sv.roll}${sv.mod ? " +1" : ""} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${take} damage</span>${e.hp <= 0 ? " — down" : ""}${e.burned && e.hp <= 0 ? " and burned" : ""}</div>`;
     }).join("");
     f.castAim = null;
     return `<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line note">${sp.id === "fireBall" ? "2\u2033 burst, filling the space it bursts in" : "6\u2033 bolt, doubling back off walls"}; ${dice} dice (caster level), save for half</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`;
@@ -1002,8 +1057,15 @@ function startFight() {
   for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
   for (const f of state.figures) { f.inv = emptyInventory(); f.remains = null; if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, state.rng)); }
   for (const c of state.chests ?? []) c.inv = JSON.parse(JSON.stringify(c.original));
+  state.erng = mulberry32(seed + 104729); state.encounter = new Map(); state.meleeBegun = false; state.lairNoted = new Set();
+  for (const f of state.figures) {
+    Object.assign(f, { averted: false, mirror: false, risesAs: null, lastHitBy: null, serviceClosed: false, serviceTries: 0, retainer: false });
+    if (f.kind === "pc") { f.inv.coins.gp += f.purse ?? 0; const l = characterLanguages({ alignment: f.alignment ?? "law", int: f.int ?? 10 }); f.languages = l.known.slice(); f.langSlots = l.unfilled; continue; }
+    const k = `${f.side}:${f.monsterKey}`;
+    if (!state.encounter.has(k)) state.encounter.set(k, { key: k, side: f.side, monsterKey: f.monsterKey, ...groupLanguages(mon(f).mind, state.erng), reaction: null, holdRound: null });
+  }
   Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set() }); moveSeq = 0;
-  $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>`;
+  $("#log").innerHTML = `<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>` + encounterCard();
   render();
 }
 function nextStep() {
@@ -1026,7 +1088,7 @@ function nextStep() {
   }
   render();
   if (state.step?.startsWith("move-")) { const side = state.step.slice(5); if (!state.figures.some((f) => f.side === side && f.placed && present(f) && onScreen(f))) focusSide(side); }
-  if (state.phase === "fight" && state.step === "move-B" && $("#autoB").checked) setTimeout(() => { autopilot("B"); nextStep(); }, 250);
+  if (state.phase === "fight" && state.step === "move-B" && $("#autoB").checked) setTimeout(() => { behave("B"); nextStep(); }, 250);
 }
 /** Is there anything for the missile-and-spell step to do this round? */
 function missileStepNeeded() {
@@ -1059,7 +1121,7 @@ function renderMap() {
     parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})" pointer-events="none"/>`);
   }
   for (const f of state.figures) {
-    if (!f.placed || (alive(f) && !present(f))) continue;
+    if (!f.placed || (alive(f) && !present(f) && f.status !== "surrendered")) continue;
     const cx = (centre(f).x + 0.5) * PX, cy = (centre(f).y + 0.5) * PX, col = f.side === "A" ? "var(--side-a)" : "var(--side-b)";
     const S = sz(f);
     if (!alive(f)) {
@@ -1084,7 +1146,7 @@ function renderMap() {
     const ang = (f.facing ?? 0) * Math.PI / 4, ux = Math.cos(ang), uy = Math.sin(ang), px2 = -uy, py2 = ux;
     const wedge = `${cx + ux * 7.8 * S},${cy + uy * 7.8 * S} ${cx + ux * 5 * S + px2 * 2.6 * S},${cy + uy * 5 * S + py2 * 2.6 * S} ${cx + ux * 5 * S - px2 * 2.6 * S},${cy + uy * 5 * S - py2 * 2.6 * S}`;
     const hpFrac = f.hp == null ? 1 : Math.max(0, f.hp) / f.maxHp;
-    parts.push(`<g data-fig="${f.id}" style="cursor:pointer"><title>${esc(f.name)}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}</title>
+    parts.push(`<g data-fig="${f.id}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}><title>${esc(f.name)}${f.status === "surrendered" ? " (surrendered)" : ""}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}</title>
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${8.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.6"/>` : ""}
       ${isTgt ? `<g pointer-events="none" stroke="var(--target)" stroke-width="1.6" fill="none"><circle cx="${cx}" cy="${cy}" r="${9.6 * S}"/><line x1="${cx - 13 * S}" y1="${cy}" x2="${cx - 8 * S}" y2="${cy}"/><line x1="${cx + 8 * S}" y1="${cy}" x2="${cx + 13 * S}" y2="${cy}"/><line x1="${cx}" y1="${cy - 13 * S}" x2="${cx}" y2="${cy - 8 * S}"/><line x1="${cx}" y1="${cy + 8 * S}" x2="${cx}" y2="${cy + 13 * S}"/></g>` : ""}
       <circle cx="${cx}" cy="${cy}" r="${7 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".8"/>
@@ -1128,7 +1190,7 @@ function renderSide(side) {
     const p = combatProfile(f); const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
     const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
     const st = f.status ? ` <span class="hit" style="font-size:.8rem">${esc(f.status)}</span>` : "";
-    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}` : ""}</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
+    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
   }).join("");
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const adders = setup ? `<div class="adders">
@@ -1138,6 +1200,10 @@ function renderSide(side) {
     <select id="wpn-${side}" aria-label="Weapon">${opts(weapons, "sword")}</select>
     <select id="msl-${side}" aria-label="Missile weapon">${opts(MISSILES, "")}</select>
     <label>Dex <input id="dex-${side}" type="number" min="3" max="18" value="10"></label>
+    <label>Int <input id="int-${side}" type="number" min="3" max="18" value="10"></label>
+    <label>Cha <input id="cha-${side}" type="number" min="3" max="18" value="10"></label>
+    <select id="aln-${side}" aria-label="Alignment">${opts([["law", "Law"], ["neutral", "Neutrality"], ["chaos", "Chaos"]], "law")}</select>
+    <label>Purse <input id="gp-${side}" type="number" min="0" value="50" style="width:5em"> gp</label>
     <button data-add-pc="${side}">Add character</button></div>
     <div class="adders"><input id="cnt-${side}" type="number" min="1" max="30" value="1" aria-label="How many">
     <select id="mon-${side}" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), "orc")}</select>
@@ -1219,8 +1285,12 @@ function renderDetail() {
     <dt>Engaged with</dt><dd>${engagedText(f)}</dd>
     ${f.kind === "pc" && f.inv ? `<dt>Carrying</dt><dd>${coinCount(f.inv.coins) ? `${f.inv.coins.gp} gp, ${f.inv.coins.sp} sp, ${f.inv.coins.cp} cp; ` : ""}${f.inv.items.length} item${f.inv.items.length === 1 ? "" : "s"}; load ${(baseLoad(f) + inventoryWeight(f.inv)).toLocaleString()}</dd>` : ""}
     ${mon(f) ? `<dt>Specials</dt><dd style="font-family:var(--serif)">${mon(f).specialAbilities.entries.filter((a) => a.kind !== "other" || a.tag === "heads").map((a) => esc(a.name)).join(", ") || "none"}${mon(f).specialAbilities.hitOnlyBy !== "any" ? `; hit only by ${mon(f).specialAbilities.hitOnlyBy === "silver" ? "silver or magic" : "magic"}` : ""}</dd>` : ""}
+    ${mon(f) ? `<dt>Mind</dt><dd style="font-family:var(--serif)">${PROFILE_LABEL[mon(f).mind.intelligence]}, ${ALIGN_LABEL[mon(f).alignment]}${encOf(f) ? `; ${encOf(f).languages.length ? `speaks ${encOf(f).languages.map(LANG_LABEL).join(" and ")}` : "doesn't speak"}${encOf(f).reaction ? `; reaction ${encOf(f).reaction}` : ""}` : ""}${f.retainer ? "; in service" : ""}${f.risesAs ? `; will rise as a ${f.risesAs}` : ""}</dd>` : ""}
+    ${f.kind === "pc" && f.languages ? `<dt>Languages</dt><dd style="font-family:var(--serif)">${f.languages.map(LANG_LABEL).join(", ")}${f.langSlots ? `; ${f.langSlots} more to learn` : ""}</dd>` : ""}
+    ${f.kind === "pc" && f.risesAs ? `<dt>Fate</dt><dd>will rise as a ${f.risesAs}</dd>` : ""}
     ${f.breathLeft != null ? `<dt>Breath left</dt><dd>${f.breathLeft}</dd>` : ""}
     ${f.pfe ? `<dt>Protected</dt><dd>from evil (−1 to evil attackers)</dd>` : ""}</dl>
+    ${state.phase === "fight" && f.kind === "pc" && active(f) && state.figures.some((e) => e.side !== f.side && present(e) && ["basilisk", "medusa"].includes(e.monsterKey)) ? `<div style="margin:6px 0"><label><input type="checkbox" id="avert" ${f.averted ? "checked" : ""}> Avert eyes (safe from the gaze, but blind: \u22124 to hit, missiles only at adjacent targets)</label><br><label><input type="checkbox" id="mirror" ${f.mirror ? "checked" : ""}> Hold up a mirror (turns the gaze back in good light)</label></div>` : ""}
     ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
     ${f.action === "cast:holdPerson" ? holdPicker(f) : ""}
     ${state.phase === "fight" && active(f) && f.action && f.action !== "melee" ? `<p class="step" style="font-size:.9rem">${actionPreview(f)}</p>` : ""}
@@ -1230,6 +1300,8 @@ function renderDetail() {
     ${f.kind === "pc" && active(f) && state.phase !== "setup" ? searchable(f).map((sx) => ` <button data-search="${sx.id}">Search ${esc(sx.label)}</button>`).join("") : ""}
     ${f.monsterKey === "troll" && !alive(f) && !f.burned && state.phase !== "setup" ? ` <button id="burn" class="primary">Burn it (fire or acid)</button>` : ""}`;
   $("#stance")?.addEventListener("change", (e) => { f.stance = e.target.value; render(); });
+  $("#avert")?.addEventListener("change", (e) => { f.averted = e.target.checked; render(); });
+  $("#mirror")?.addEventListener("change", (e) => { f.mirror = e.target.checked; render(); });
   $("#burn")?.addEventListener("click", () => { f.burned = true; logAppend(`<div class="card"><span class="hit">${esc(f.name)} is burned and will not rise again.</span></div>`); afterStep(); render(); });
   $("#action")?.addEventListener("change", (e) => { f.action = e.target.value; render(); });
   $("#secondShot")?.addEventListener("change", (e) => { f.secondTarget = e.target.value === "" ? null : Number(e.target.value); render(); });
@@ -1386,29 +1458,225 @@ $("#openSetup").addEventListener("click", () => openDrawer("setup"));
 $("#bannerLog").addEventListener("click", (e) => { e.preventDefault(); openDrawer("log"); });
 $("#chips").addEventListener("click", (e) => { const c = e.target.closest("[data-chip]"); if (!c) return; const f = byId(Number(c.dataset.chip)); setGroup([f.id]); ensureVisible(f); });
 
-/* ---------- side B autopilot (placeholder until the monster behaviour design) ---------- */
-function autopilot(side) {
-  for (const f of state.figures.filter((x) => x.side === side && active(x) && x.placed)) {
-    const foes = state.figures.filter((e) => e.side !== side && present(e) && e.placed);
-    if (!foes.length) continue;
-    const onMe = foes.find((e) => e.target === f.id && adjacent(e, f));
-    const t = onMe ?? foes.slice().sort((a, b) => distIn(f, a) - distIn(f, b))[0];
-    if (!adjacent(f, t)) {
-      const reach = reachFor(f); let best = null;
-      for (const n of reach.values()) {
-        if (n.passOnly || n.cost === 0) continue;
-        const probe = { x: n.x, y: n.y, size: sz(f) };
-        const adj = adjacent(probe, t) ? 0 : 1;
-        const d = Math.hypot(centre({ ...probe }).x - centre(t).x, centre({ ...probe }).y - centre(t).y);
-        const score = adj * 1000 + d * 10 + n.cost / 100;
-        if (!best || score < best.score) best = { n, score };
-      }
-      if (best) moveTo(f, best.n.x, best.n.y);
-    }
-    f.action = "melee"; f.stance = "attack"; f.target = t.id;
-    f.facing = dir8(centre(t).x - centre(f).x, centre(t).y - centre(f).y) ?? f.facing;
+/* ---------- monster behaviour (replaces the closest-enemy autopilot) ---------- */
+const LAIR_RADIUS = 6; // inches from the hoard that lair defenders will go; OPEN for Kurt
+const PROFILE_LABEL = { mindless: "Mindless", bestial: "Bestial", cunning: "Cunning", intelligent: "Intelligent" };
+const profileOf = (f) => (f.kind === "monster" ? mon(f).mind.behavior : "cunning");
+const encOf = (f) => (f.kind === "monster" ? state.encounter?.get(`${f.origSide ?? f.side}:${f.monsterKey}`) : null);
+const lairOf = (f) => (f.kind === "monster" ? (state.chests ?? []).find((c) => c.monsterKey === f.monsterKey) : null);
+const isCaster = (f) => f.kind === "pc" && ["magic-user", "cleric"].includes(f.cls);
+const woundFrac = (e) => (e.maxHp ? Math.max(0, e.hp) / e.maxHp : 1);
+const leaderOf = (side) => state.figures.filter((e) => e.side === side && present(e) && e.kind === "pc").sort((a, b) => b.level - a.level)[0] ?? null;
+const engagedByAlly = (f, t) => state.figures.some((a) => a !== f && a.side === f.side && active(a) && a.target === t.id && adjacent(a, t));
+/** Best reachable cell toward t. charge: only cells in contact. maxCost in half-cells. Lair defenders stay near the hoard. */
+function approach(f, t, { charge = false, maxCost = Infinity } = {}) {
+  const was = f.charging; f.charging = charge;
+  const reach = reachFor(f); f.charging = was;
+  const lair = lairOf(f); let best = null;
+  for (const n of reach.values()) {
+    if (n.passOnly || n.cost === 0 || n.cost > maxCost) continue;
+    if (lair && Math.hypot(n.x - lair.x, n.y - lair.y) / 3 > LAIR_RADIUS) continue;
+    const probe = { x: n.x, y: n.y, size: sz(f) }; const touch = adjacent(probe, t);
+    if (charge && !touch) continue;
+    const c = centre(probe), d = Math.hypot(c.x - centre(t).x, c.y - centre(t).y);
+    const score = (touch ? 0 : 1000) + d * 10 + n.cost / 100;
+    if (!best || score < best.score) best = { n, touch, score };
   }
-  logAppend(`<div class="card note">Side ${side} moved on autopilot (closest enemy, closing to melee).</div>`);
+  return best;
+}
+const hdOfFig = (e) => { if (e.kind === "pc") { const h = hitDiceFor(e.cls, e.level); return hdValue(h.dice, h.bonus); } const h = mon(e).hd; return hdValue(e.hdLeft ?? h.count, h.bonus); };
+/** Book III: monsters intelligent enough avoid an obviously superior force (outnumbered 2 to 1, or twice their total hit dice). */
+function forceOf(f) {
+  const own = state.figures.filter((e) => e.side === f.side && present(e) && e.placed), foe = state.figures.filter((e) => e.side !== f.side && present(e) && e.placed);
+  return { ownCount: own.length, ownHd: own.reduce((t, e) => t + hdOfFig(e), 0), foeCount: foe.length, foeHd: foe.reduce((t, e) => t + hdOfFig(e), 0) };
+}
+function retreat(f, foes) {
+  const reach = reachFor(f); let best = null;
+  for (const n of reach.values()) {
+    if (n.passOnly || n.cost === 0) continue;
+    const c = centre({ x: n.x, y: n.y, size: sz(f) });
+    const d = Math.min(...foes.map((e) => Math.hypot(c.x - centre(e).x, c.y - centre(e).y)));
+    if (!best || d > best.d) best = { n, d };
+  }
+  return best;
+}
+/** One figure's decision: hold check, special, target by profile, then charge, move, attack or hold. Returns the log line. */
+function decide(f) {
+  const n = esc(f.name), prof = profileOf(f), g = encOf(f), m = mon(f);
+  if (g?.holdRound === state.round) { f.action = "hold"; f.target = null; return `${n} holds: uncertain reaction to the parley`; }
+  let foes = state.figures.filter((e) => e.side !== f.side && present(e) && e.placed);
+  if (!foes.length) return null;
+  if (f.kind === "monster" && avoidsForce(m.mind.intelligence, forceOf(f)) && !foes.some((e) => adjacent(f, e))) {
+    const fc = forceOf(f), why = `${fc.foeCount} against ${fc.ownCount}, ${Math.round(fc.foeHd * 10) / 10} HD against ${Math.round(fc.ownHd * 10) / 10}`;
+    f.target = null; f.action = "hold";
+    if (lairOf(f)) return `${n} holds by the hoard: an obviously superior force (${why})`;
+    const back = retreat(f, foes);
+    if (back) { moveTo(f, back.n.x, back.n.y); return `${n} falls back from an obviously superior force (${why})`; }
+    return `${n} holds: an obviously superior force (${why}), nowhere to fall back`;
+  }
+  let special = "";
+  if (m?.key === "medusa") { const looking = foes.filter((e) => !e.averted); if (looking.length) { foes = looking; special = ", picking a victim who will meet her eyes"; } }
+  if (f.breathLeft !== 0 && (m?.key.startsWith("dragon-") || m?.key === "chimera")) special = `, breath ready (${f.breathLeft ?? 3} left)`;
+  const dist = (e) => distIn(f, e);
+  const half = Math.floor(moveBudget(moveInches(f)) / 2) - (f.moved ?? 0);
+  const canTouch = (e) => adjacent(f, e) || !!approach(f, e)?.touch;
+  const chargeTo = (e) => (prof !== "mindless" && !adjacent(f, e) && mayCharge(f) ? approach(f, e, { charge: true }) : null);
+  const onMe = foes.find((e) => e.target === f.id && adjacent(e, f) && active(e));
+  const byDist = foes.slice().sort((a, b) => dist(a) - dist(b));
+  let t = byDist[0], why = "nearest";
+  if (prof !== "mindless" && !canTouch(t)) {
+    const touchable = byDist.find(canTouch), chargeable = byDist.find((e) => chargeTo(e));
+    if (touchable) { t = touchable; why = "nearest he can reach"; }
+    else if (chargeable) { t = chargeable; why = "nearest in charge range"; }
+  }
+  if (prof === "bestial") {
+    const inReach = foes.filter(canTouch);
+    if (inReach.length) { t = inReach.sort((a, b) => woundFrac(a) - woundFrac(b) || dist(a) - dist(b))[0]; why = woundFrac(t) < 1 ? "most wounded in reach" : "nearest in reach"; }
+  } else if (prof === "cunning") {
+    if (onMe) { t = onMe; why = "it is attacking him"; }
+    else {
+      const gang = foes.filter((e) => engagedByAlly(f, e) && (adjacent(f, e) || approach(f, e, { maxCost: half })?.touch));
+      if (gang.length) { t = gang.sort((a, b) => dist(a) - dist(b))[0]; why = "ganging up with allies"; }
+    }
+  } else if (prof === "intelligent") {
+    const leader = leaderOf(other(f.side));
+    const prio = foes.filter((e) => (isCaster(e) || e === leader) && (canTouch(e) || chargeTo(e)));
+    if (prio.length) { t = prio.sort((a, b) => (isCaster(b) - isCaster(a)) || dist(a) - dist(b))[0]; why = isCaster(t) ? "goes for the caster" : "goes for the leader"; }
+    else if (onMe) { t = onMe; why = "it is attacking him"; }
+  }
+  why += special;
+  f.stance = "attack"; f.action = "melee"; f.target = t.id;
+  if (adjacent(f, t)) { f.facing = dir8(centre(t).x - centre(f).x, centre(t).y - centre(f).y) ?? f.facing; return `${n} fights ${esc(t.name)}: adjacent, ${why}`; }
+  const walk = approach(f, t);
+  if (walk?.touch) { moveTo(f, walk.n.x, walk.n.y); f.target = t.id; return `${n} closes on ${esc(t.name)}: ${why}`; }
+  const ch = chargeTo(t);
+  if (ch) { f.charging = true; moveTo(f, ch.n.x, ch.n.y); f.target = t.id; f.action = "melee"; return `${n} charges ${esc(t.name)}: ${why}${why.includes("charge range") ? "" : ", in charge range"}`; }
+  const step = approach(f, t, { maxCost: prof === "cunning" ? half : Infinity });
+  if (step) { moveTo(f, step.n.x, step.n.y); f.target = t.id; return `${n} advances on ${esc(t.name)}${prof === "cunning" ? " in good order (half move, so he can join a melee)" : ""}: ${why}`; }
+  return `${n} holds${lairOf(f) ? " by the hoard (lair defenders don't pursue)" : ""}: can't get closer to ${esc(t.name)}`;
+}
+function behave(side) {
+  const lines = [];
+  for (const f of state.figures.filter((x) => x.side === side && active(x) && x.placed)) { const why = decide(f); if (why) lines.push(why); }
+  logAppend(`<div class="card"><div class="who">Side ${side} by behaviour</div>${lines.map((l) => `<div class="line">${l}</div>`).join("") || '<div class="line note">Nothing to do.</div>'}</div>`);
+  render();
+}
+
+/* ---------- encounter: languages, parley, offer of service ---------- */
+const LANG_LABEL = (l) => ({ common: "Common", "tongue-law": "the Law tongue", "tongue-chaos": "the Chaos tongue", "tongue-neutral": "the Neutral tongue" }[l] ?? (MONSTERS.find((m) => m.key === l)?.name ?? l.charAt(0).toUpperCase() + l.slice(1)));
+function encounterCard() {
+  const rows = [...(state.encounter ?? new Map()).values()].map((g) => {
+    const m = MONSTERS.find((x) => x.key === g.monsterKey);
+    const mind = `${PROFILE_LABEL[m.mind.intelligence]}`;
+    const speech = !m.mind.language ? "doesn't speak" : !g.talks ? `doesn't speak (talk roll ${g.talkRoll} over ${m.mind.talks}%)` : `speaks ${g.languages.map(LANG_LABEL).join(" and ")}${g.commonRoll != null ? ` (common roll ${g.commonRoll})` : ""}`;
+    return `<div class="line">${esc(m.name)}s, side ${g.side}: ${mind}, ${ALIGN_LABEL[m.alignment]}; ${speech}</div>`;
+  }).join("");
+  return rows ? `<div class="card"><div class="who">Encounter</div>${rows}</div>` : "";
+}
+const groupFigs = (g) => state.figures.filter((e) => e.kind === "monster" && (e.origSide ?? e.side) === g.side && e.monsterKey === g.monsterKey);
+function holdRoundFor(side) {
+  if (state.step === "init") return state.round + 1;
+  if (state.step === `move-${side}`) return state.round;
+  if (state.step.startsWith("move-") && state.firstSide !== side) return state.round;
+  return state.round + 1;
+}
+/** Languages a PC can use with a group, with any extra-language slot that could pick up theirs. */
+function talkOptions(pc, f) {
+  const g = encOf(f), m = mon(f);
+  if (!g || !talksAtAll(m.mind.intelligence)) return null;
+  const opt = parleyOptions(pc.languages ?? [], g, m.alignment);
+  const viaSlot = !opt.usable.length && (pc.langSlots ?? 0) > 0 && g.languages.length ? g.languages[0] : null;
+  if (!opt.usable.length && !viaSlot) return null;
+  return { g, m, opt, viaSlot };
+}
+function canParleyNow(pc, f) {
+  if (state.phase !== "fight" || state.meleeBegun || pc.kind !== "pc" || !active(pc) || f.kind !== "monster" || !present(f) || f.side === pc.side) return null;
+  const o = talkOptions(pc, f);
+  return o && !["negative", "positive"].includes(o.g.reaction) ? o : null;
+}
+function langPicker(pc, o) {
+  const list = [...o.opt.usable.map((l) => [l, LANG_LABEL(l)]), ...(o.viaSlot ? [[o.viaSlot, `${LANG_LABEL(o.viaSlot)} (learn it as one of his extra languages)`]] : []), ...o.opt.hostile.map((l) => [l, `\u26a0 ${LANG_LABEL(l)}: they will know it as hostile and attack`])];
+  return `<label>Speak in <select id="pLang">${opts(list, list[0][0])}</select></label>`;
+}
+function useLanguage(pc, o, lang) { if (lang === o.viaSlot && !pc.languages.includes(lang)) { pc.languages.push(lang); pc.langSlots--; } }
+function closeDialog() { $("#loot").style.display = "none"; render(); }
+function openParley(pc, f) {
+  const o = canParleyNow(pc, f); if (!o) return;
+  const { g, m } = o; const n = groupFigs(g).filter(present).length;
+  $("#lootBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(pc.name)} parleys with the ${esc(m.name)}s</h2><button id="pClose">Close</button></div>
+    <p class="note" style="margin:4px 0 10px">${n} ${esc(m.name)}${n === 1 ? "" : "s"}, ${PROFILE_LABEL[m.mind.intelligence]}. Reaction 2d6: 2–5 negative, 6–8 uncertain, 9–12 positive. The referee grades the bribe and the show of force.${g.reaction === "uncertain" ? " <b>They are uncertain: raise the bribe or fall back.</b>" : ""}</p>
+    <div class="bar">${langPicker(pc, o)}</div>
+    <div class="bar"><label>Bribe <input id="pGp" type="number" min="0" max="${pc.inv.coins.gp}" value="0" style="width:6em"> gp (carries ${pc.inv.coins.gp})</label>
+    <label>worth <select id="pBribe">${opts([["0", "+0"], ["1", "+1"], ["2", "+2"]], "0")}</select></label></div>
+    <div class="bar"><label>Clearly superior force <select id="pForce">${opts([["0", "+0"], ["1", "+1"], ["2", "+2"]], "0")}</select></label>
+    <label><input type="checkbox" id="pAlign"> They know ${esc(pc.name)} is of ${ALIGN_LABEL[pc.alignment ?? "law"]} (−2 if it differs from their ${ALIGN_LABEL[m.alignment]})</label></div>
+    <div class="bar"><button id="pRoll" class="primary">Roll reaction</button></div>`;
+  $("#loot").style.display = "flex";
+  $("#pClose").onclick = closeDialog;
+  $("#pRoll").onclick = () => {
+    const lang = $("#pLang").value; useLanguage(pc, o, lang);
+    const head = `<div class="who">${nameSpan(pc)} parleys with the ${esc(m.name)}s in ${esc(LANG_LABEL(lang))}</div>`;
+    if (isHostileTongue(lang, m.alignment)) {
+      g.reaction = "negative"; g.holdRound = null;
+      logAppend(`<div class="card">${head}<div class="line hit">They know ${esc(LANG_LABEL(lang))} for an enemy's speech and attack.</div></div>`); closeDialog(); return;
+    }
+    const gp = Math.max(0, Math.min(pc.inv.coins.gp, Math.trunc(Number($("#pGp").value) || 0)));
+    const r = encounterReaction({ intelligence: m.mind.intelligence, modifiers: { bribe: gp > 0 ? Number($("#pBribe").value) : 0, superiorForce: Number($("#pForce").value), alignmentKnown: $("#pAlign").checked, pcAlignment: pc.alignment ?? "law", monsterAlignment: m.alignment } }, state.erng);
+    const mods = r.mods.parts.map((p) => `${p.why} ${p.mod > 0 ? "+" : ""}${p.mod}`).join(", ");
+    const roll = `<div class="line note">2d6 [${r.dice.join(",")}]${mods ? ` (${mods})` : ""} = ${r.total}: ${r.result}</div>`;
+    let out;
+    if (r.result === "negative") { g.reaction = "negative"; g.holdRound = null; out = `<div class="line hit">Talks fail. They fight as their nature dictates (${PROFILE_LABEL[m.mind.behavior]}).</div>`; }
+    else if (r.result === "uncertain") { g.reaction = "uncertain"; g.holdRound = holdRoundFor(g.side); out = `<div class="line">They hold for round ${g.holdRound}. ${esc(pc.name)} can raise the bribe or fall back.${$("#autoB").checked || g.side !== "B" ? "" : " (Side B is played by hand: hold them this round.)"}</div>`; }
+    else {
+      g.reaction = "positive"; g.holdRound = null;
+      if (gp) transferCoins(pc.inv, emptyInventory(), { gp });
+      for (const e of groupFigs(g)) if (present(e)) { e.status = "withdrew"; e.target = null; }
+      out = `<div class="line">They accept terms and withdraw${gp ? `, taking the ${gp} gp bribe` : ""}.</div>`;
+    }
+    logAppend(`<div class="card">${head}${roll}${out}</div>`);
+    afterStep(); closeDialog();
+  };
+}
+/** Offer of service: shared language, a reward, and the same alignment unless charmed. Surrendered monsters too. */
+function serviceState(pc, f) {
+  if (state.phase === "setup" || pc.kind !== "pc" || !active(pc) || f.kind !== "monster" || f.serviceClosed || f.retainer) return null;
+  if (!(present(f) && f.side !== pc.side) && f.status !== "surrendered") return null;
+  const o = talkOptions(pc, f); if (!o) return null;
+  const gate = serviceGate({ intelligence: o.m.mind.intelligence, pcAlignment: pc.alignment ?? "law", monsterAlignment: o.m.alignment, charmed: !!f.charmed, reward: 1 });
+  return { ...o, gate };
+}
+function openService(pc, f) {
+  const o = serviceState(pc, f); if (!o || !o.gate.ok) return;
+  $("#lootBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(pc.name)} offers ${esc(f.name)} service</h2><button id="sClose">Close</button></div>
+    <p class="note" style="margin:4px 0 10px">2d6 + Charisma ${pc.cha ?? 10}: 2 attacks, 3–5 hostile, 6–8 uncertain (a bigger offer may follow), 9–11 accepts, 12 enthusiast (loyalty +3). A reward is required; sparing its life doesn't count.</p>
+    <div class="bar">${langPicker(pc, o)}</div>
+    <div class="bar"><label>Reward <input id="sGp" type="number" min="1" max="${pc.inv.coins.gp}" value="${Math.min(10, pc.inv.coins.gp)}" style="width:6em"> gp (carries ${pc.inv.coins.gp})</label>
+    ${f.serviceTries ? `<label>Bigger offer <select id="sMore">${opts([["0", "+0"], ["1", "+1"], ["2", "+2"]], "1")}</select></label>` : ""}</div>
+    <div class="bar"><button id="sRoll" class="primary">Make the offer</button></div>`;
+  $("#loot").style.display = "flex";
+  $("#sClose").onclick = closeDialog;
+  $("#sRoll").onclick = () => {
+    const lang = $("#pLang").value; useLanguage(pc, o, lang);
+    const head = `<div class="who">${nameSpan(pc)} offers ${nameSpan(f)} service</div>`;
+    if (isHostileTongue(lang, o.m.alignment)) { f.serviceClosed = true; if (f.status === "surrendered") { f.status = null; f.target = pc.id; } logAppend(`<div class="card">${head}<div class="line hit">${esc(f.name)} knows ${esc(LANG_LABEL(lang))} for an enemy's speech and attacks.</div></div>`); afterStep(); closeDialog(); return; }
+    const gp = Math.max(0, Math.min(pc.inv.coins.gp, Math.trunc(Number($("#sGp").value) || 0)));
+    const r = offerService({ cha: pc.cha ?? 10, offerBonus: Number($("#sMore")?.value ?? 0), intelligence: o.m.mind.intelligence, pcAlignment: pc.alignment ?? "law", monsterAlignment: o.m.alignment, charmed: !!f.charmed, reward: gp }, state.erng);
+    if (!r.rolled) { logAppend(`<div class="card">${head}<div class="line note">No offer: ${esc(r.reason)}.</div></div>`); closeDialog(); return; }
+    const roll = `<div class="line note">2d6 [${r.dice.join(",")}] ${r.loyaltyBase >= 0 ? "+" : ""}${r.loyaltyBase} (Cha)${r.offerBonus ? ` +${r.offerBonus} (bigger offer)` : ""} = ${r.total}: ${r.key.toLowerCase()}</div>`;
+    let out;
+    if (r.accepts) {
+      transferCoins(pc.inv, emptyInventory(), { gp });
+      f.side = pc.side; f.status = null; f.target = null; f.retainer = true; f.loyaltyBonus = r.loyaltyBonus;
+      out = `<div class="line">${esc(f.name)} takes the ${gp} gp and joins side ${pc.side}${r.loyaltyBonus ? ` as an enthusiast (loyalty +${r.loyaltyBonus})` : ""}.</div>`;
+    } else if (r.canRaise) { f.serviceTries++; out = `<div class="line">${esc(f.name)} is uncertain: a bigger offer may sway it.</div>`; }
+    else {
+      f.serviceClosed = true;
+      if (r.attacks && f.status === "surrendered") { f.status = null; f.target = pc.id; }
+      out = `<div class="line hit">${r.attacks ? `${esc(f.name)} attacks!` : `${esc(f.name)} is hostile: talks end.`}</div>`;
+    }
+    logAppend(`<div class="card">${head}${roll}${out}</div>`);
+    afterStep(); closeDialog();
+  };
 }
 
 function render() {
@@ -1540,6 +1808,13 @@ $("#map").addEventListener("contextmenu", (e) => {
       else if (sp.id === "holdPerson") items.push([`Cast Hold Person\u2026 (pick up to 4)`, () => { setGroup([sel.id]); enterCast(sel, sp.id); if (castEligible(sel, spellOf(sel, sp.id), f, null)) castClick({ x: f.x, y: f.y }, f); }]);
       else if (castEligible(sel, sp, f, null)) items.push([`Cast ${sp.name} at ${tokenLabel(f)}`, () => { setTarget(sel, f); sel.action = `cast:${sp.id}`; render(); }]);
     }
+    if (canParleyNow(sel, f)) items.push([`Parley with the ${mon(f).name}s\u2026`, () => openParley(sel, f)]);
+    const svc = serviceState(sel, f);
+    if (svc) items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]);
+  }
+  if (sel && sel !== f && f.status === "surrendered") {
+    const svc = serviceState(sel, f);
+    if (svc) { heading(`${tokenLabel(sel)} \u2192 ${f.name} (surrendered)`); items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]); }
   }
   if (sel && sel.kind === "pc" && active(sel) && state.phase !== "setup" && !alive(f) && f !== sel && adjacent(sel, f) && hasLoot(f)) {
     items.push([`Search ${f.name}`, () => { const sx = searchable(sel).find((q) => q.id === `fig-${f.id}`); if (sx) openLoot(sel, sx); }]);
@@ -1569,7 +1844,7 @@ document.addEventListener("click", (e) => {
   if (!ctx.contains(e.target)) hideCtx();
   const row = e.target.closest?.("[data-row]"); if (row && !e.target.closest("button")) { state.selected = Number(row.dataset.row); render(); ensureVisible(byId(state.selected)); return; }
   const b = e.target.closest?.("button"); if (!b) return;
-  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value); deploy(); render(); }
+  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value, $(`#aln-${s}`).value, Math.min(18, Math.max(3, Number($(`#int-${s}`).value) || 10)), Math.max(0, Math.trunc(Number($(`#gp-${s}`).value) || 0)), Math.min(18, Math.max(3, Number($(`#cha-${s}`).value) || 10))); deploy(); render(); }
   else if (b.dataset.hoard) { const k = $(`#mon-${b.dataset.hoard}`).value; if (!placeHoard(k)) logAppend(`<div class="card note">${esc(MONSTERS.find((m) => m.key === k)?.name ?? k)} keep no lair treasure.</div>`); else logAppend(`<div class="card note">Placed ${esc(state.chests.at(-1).label)}: ${Math.round(state.chests.at(-1).value).toLocaleString()} gp in coins, gems and jewellery, plus ${state.chests.at(-1).inv.items.filter((i) => !["gem", "jewelry"].includes(i.kind)).length} other item(s).</div>`); render(); }
   else if (b.dataset.addMon) { const s = b.dataset.addMon; addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1))); deploy(); render(); }
   else if (b.dataset.remove) { state.figures = state.figures.filter((f) => f.id !== Number(b.dataset.remove)); if (state.selected === Number(b.dataset.remove)) state.selected = null; deploy(); render(); }
