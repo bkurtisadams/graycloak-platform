@@ -15,7 +15,7 @@ if errorlevel 1 (
 echo.
 echo Starting the Firestore emulator and running the rules suite...
 echo.
-call npx firebase emulators:exec --only firestore "node --test test/traveller-rules.test.mjs"
+call npx firebase emulators:exec --only firestore "node --test --test-concurrency=1 test/traveller-rules.test.mjs test/odd-rules.test.mjs"
 set RESULT=%errorlevel%
 
 echo.

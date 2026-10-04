@@ -665,6 +665,69 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // ── OD&D online: fights run by the server ──────────────────
+    // Slice 5 (Oct 2026). Every document here is written by the odd
+    // functions (admin SDK), never by a browser. The server keeps the whole
+    // fight and its dice in server/state and every accepted action in
+    // actions/; no client reads either. The referee reads the campaign, every
+    // fight header, every view and every feed. A player in a fight (listed in
+    // the header's players) reads that header, his own view and his own feed:
+    // the projection the server built for him, which has no enemy hit points,
+    // no dice and none of the other side's orders. Each access checks
+    // existence first and reads fields with a default, as the Traveller rules
+    // do, so a missing document denies rather than raises.
+    function oddCampaignPath(campaignId) {
+      return /databases/$(database)/documents/oddCampaigns/$(campaignId);
+    }
+
+    function isOddReferee(campaignId) {
+      return isAuthed()
+        && exists(oddCampaignPath(campaignId))
+        && get(oddCampaignPath(campaignId)).data.get('refereeUid', '') == request.auth.uid;
+    }
+
+    function isInOddFight(campaignId, fightId) {
+      return isAuthed()
+        && exists(/databases/$(database)/documents/oddCampaigns/$(campaignId)/fights/$(fightId))
+        && request.auth.uid in get(/databases/$(database)/documents/oddCampaigns/$(campaignId)/fights/$(fightId)).data.get('players', []);
+    }
+
+    function isOddViewer(campaignId, fightId, viewer) {
+      return isOddReferee(campaignId)
+        || (viewer != 'referee' && isAuthed() && viewer == request.auth.uid && isInOddFight(campaignId, fightId));
+    }
+
+    match /oddCampaigns/{campaignId} {
+      allow read: if isOddReferee(campaignId);
+      allow write: if false;
+
+      match /fights/{fightId} {
+        // A player lists his fights with where('players', 'array-contains', uid);
+        // the field is read directly so the query can be checked against it.
+        allow read: if isOddReferee(campaignId)
+          || (isAuthed() && request.auth.uid in resource.data.players);
+        allow write: if false;
+
+        match /views/{viewer} {
+          allow read: if isOddViewer(campaignId, fightId, viewer);
+          allow write: if false;
+        }
+
+        match /feeds/{viewer}/entries/{entryId} {
+          allow read: if isOddViewer(campaignId, fightId, viewer);
+          allow write: if false;
+        }
+
+        match /server/{docId} {
+          allow read, write: if false;
+        }
+
+        match /actions/{actionId} {
+          allow read, write: if false;
+        }
+      }
+    }
+
     // ── Deny everything else ───────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
