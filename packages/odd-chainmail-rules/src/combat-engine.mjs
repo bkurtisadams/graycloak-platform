@@ -255,6 +255,10 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
   const damageDice = Number.isInteger(attacker.damageDice) ? attacker.damageDice : 1;
   const damageFlat = Math.trunc(attacker.damageFlat) || 0;
   const damageHalved = !!target.damageHalved;
+  // A broken weapon (Kurt's house rule, Oct 2026; Chainmail 4c/4d say only
+  // when a parrying weapon breaks): -1 on every die (carried in everyDieBonus
+  // by the caller) and half damage, rounded down, at least 1 on a hit.
+  const brokenWeapon = !!attacker.brokenWeapon;
   // Rear attacks add +1 to EVERY blow (applied below, not via bonusDie), and
   // the mounted/afoot relationship rides the same per-die channel: +1 for a
   // horseman on a footman (+2 charging), -1 for a footman on a horseman.
@@ -308,6 +312,7 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
         dmg = damageBonus + damageFlat;              // pips: elf magic + a creature's innate +N
         for (let d = 0; d < damageDice; d++) dmg += rollDie(rng);  // 1d6 default; 2d6+ for big naturals
         if (damageHalved) dmg = Math.floor(dmg / 2); // clumsy giant scores half HP on a dwarf
+        if (brokenWeapon) dmg = Math.max(1, Math.floor(dmg / 2));
         if (damageDoubled) dmg *= 2;
         damage += dmg;
         hits++;
@@ -432,7 +437,7 @@ function poolArgs(atk, def, facing) {
     attacker: {
       name: atk.name, weaponId: atk.weaponId, dice: atk.thrown, bonus: atk.bonus, bonusDie: atk.bonusDie, magical: atk.magical, silver: atk.silver, facing,
       profileAttack: atk.profileAttack, damageDice: atk.damageDice, damageFlat: atk.damageFlat, damageBonus: atk.damageBonus,
-      everyDieBonus: atk.everyDieBonus
+      everyDieBonus: atk.everyDieBonus, brokenWeapon: atk.brokenWeapon
     },
     target: { name: def.name, ac: def.ac, held: def.held, parryWeaponId: def.parryWeaponId, hitOnlyBy: def.hitOnlyBy, damageHalved: def.damageHalved, damageDoubled: def.damageDoubled }
   };
@@ -1486,6 +1491,9 @@ function runSelfTests() {
     ok(lf2.striker === "first" && lf2.counter !== null, "T24 left flank round 2: normal initiative path");
   }
 
+  { const full = resolveAttackPool({ attacker: { weaponId: "sword", dice: 1 }, target: { ac: 9 } }, () => 0.999);
+    const broke = resolveAttackPool({ attacker: { weaponId: "sword", dice: 1, brokenWeapon: true }, target: { ac: 9 } }, () => 0.999);
+    ok(full.damage === 6 && broke.damage === 3, "a broken weapon does half damage"); }
   console.log(`combat-engine.mjs — all self-tests passed (${pass} assertions).`);
 }
 
