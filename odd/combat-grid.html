@@ -1152,7 +1152,8 @@ function renderMap() {
   const selId = state.selected;
   for (const f of state.figures) {
     if (!active(f) || f.target == null || !f.placed) continue; const t = byId(f.target); if (!t || !present(t)) continue;
-    if (!state.showTargets && f.id !== selId && t.id !== selId && !(f.charging || f.chargedRound === state.round)) continue;
+    if (adjacent(f, t) && !state.showTargets) continue;
+    if (!state.showTargets && f.id !== selId && t.id !== selId && !(f.charging && state.step?.startsWith("move-"))) continue;
     const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
     const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
     parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})" pointer-events="none"/>`);
@@ -1186,15 +1187,15 @@ function renderMap() {
     const selFig = state.selected != null ? byId(state.selected) : null;
     const isTgt = selFig && selFig.target === f.id;
     const ang = (f.facing ?? 0) * Math.PI / 4, ux = Math.cos(ang), uy = Math.sin(ang), px2 = -uy, py2 = ux;
-    const wedge = `${cx + ux * 7.8 * S},${cy + uy * 7.8 * S} ${cx + ux * 5 * S + px2 * 2.6 * S},${cy + uy * 5 * S + py2 * 2.6 * S} ${cx + ux * 5 * S - px2 * 2.6 * S},${cy + uy * 5 * S - py2 * 2.6 * S}`;
+    const wedge = `${cx + ux * 6.2 * S},${cy + uy * 6.2 * S} ${cx + ux * 4.1 * S + px2 * 1.9 * S},${cy + uy * 4.1 * S + py2 * 1.9 * S} ${cx + ux * 4.1 * S - px2 * 1.9 * S},${cy + uy * 4.1 * S - py2 * 1.9 * S}`;
     const hpFrac = f.hp == null ? 1 : Math.max(0, f.hp) / f.maxHp;
     parts.push(`<g data-fig="${f.id}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}><title>${esc(f.name)}${f.status === "surrendered" ? " (surrendered)" : ""}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}</title>
-      ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${8.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.6"/>` : ""}
-      ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.9 * S}" fill="none" stroke="var(--target)" stroke-width="1.2" pointer-events="none"/>` : ""}
-      <circle cx="${cx}" cy="${cy}" r="${7 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".8"/>
+      ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.1"/>` : ""}
+      ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--target)" stroke-width="1" stroke-dasharray="2.4 1.6" pointer-events="none"/>` : ""}
+      <circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".7"/>
       <polygon points="${wedge}" fill="#fff" pointer-events="none"/>
       <text x="${cx}" y="${cy + 1.9 * Math.min(S, 2)}" text-anchor="middle" font-size="${5.2 * Math.min(S, 2)}" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(tokenLabel(f))}</text>
-      ${f.hp != null ? `<g pointer-events="none"><rect x="${cx - 3.6 * S}" y="${cy + 5.2 * S}" width="${7.2 * S}" height="${1.6 * Math.min(S, 2)}" fill="#000" opacity=".45"/><rect x="${cx - 3.6 * S}" y="${cy + 5.2 * S}" width="${7.2 * S * hpFrac}" height="${1.8 * Math.min(S, 2)}" fill="${hpFrac > 0.5 ? "#4caf50" : hpFrac > 0.25 ? "#e0a100" : "#e0453a"}"/></g>` : ""}
+      ${f.hp != null && f.hp < f.maxHp ? `<g pointer-events="none"><rect x="${cx - 3.6 * S}" y="${cy + 5.2 * S}" width="${7.2 * S}" height="${1.6 * Math.min(S, 2)}" fill="#000" opacity=".45"/><rect x="${cx - 3.6 * S}" y="${cy + 5.2 * S}" width="${7.2 * S * hpFrac}" height="${1.8 * Math.min(S, 2)}" fill="${hpFrac > 0.5 ? "#4caf50" : hpFrac > 0.25 ? "#e0a100" : "#e0453a"}"/></g>` : ""}
       ${badge ? `<g pointer-events="none"><circle cx="${cx - 5.4 * S}" cy="${cy - 5.4 * S}" r="2.7" fill="var(--red)" stroke="#fff" stroke-width=".5"/><text x="${cx - 5.4 * S}" y="${cy - 5.4 * S + 1.25}" text-anchor="middle" font-size="3.6" font-weight="700" fill="#fff">${badge}</text></g>` : ""}
       ${f.invulnerable ? `<circle cx="${cx - 5.4 * S}" cy="${cy + 5.4 * S}" r="2" fill="#ef9f27" stroke="#fff" stroke-width=".5" pointer-events="none"><title>Invulnerable (GM)</title></circle>` : ""}
       ${holdsPassThrough(f) ? `<g pointer-events="none"><title>Holding pass-through fire</title><circle cx="${cx + 5.4 * S}" cy="${cy + 5.4 * S}" r="2.7" fill="var(--target)" stroke="#fff" stroke-width=".5"/><path d="M${cx + 5.4 * S - 1.3} ${cy + 5.4 * S + 1} L${cx + 5.4 * S + 1.2} ${cy + 5.4 * S - 1} M${cx + 5.4 * S} ${cy + 5.4 * S - 1.1} L${cx + 5.4 * S + 1.25} ${cy + 5.4 * S - 1.05} L${cx + 5.4 * S + 1.15} ${cy + 5.4 * S + 0.15}" stroke="#fff" stroke-width=".7" fill="none" stroke-linecap="round"/></g>` : ""}
@@ -2196,7 +2197,7 @@ function hoverTargetLines(out) {
   for (const f of state.figures) {
     if (!active(f) || !f.placed || f.target == null) continue;
     if (f !== h && f.target !== h.id) continue;
-    const t = byId(f.target); if (!t || !present(t)) continue;
+    const t = byId(f.target); if (!t || !present(t) || adjacent(f, t)) continue;
     const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
     const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
     out.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" opacity=".8" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})"/>`);
