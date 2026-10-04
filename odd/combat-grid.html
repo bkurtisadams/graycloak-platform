@@ -776,6 +776,35 @@ async function createOnline() {
 }
 $("#fid").value = newFightId();
 $("#copyLink").addEventListener("click", () => { $("#playerLink").select(); navigator.clipboard?.writeText($("#playerLink").value).catch(() => {}); $("#copyLink").textContent = "Copied"; setTimeout(() => ($("#copyLink").textContent = "Copy"), 1500); });
+/* ---------- sign-in dialog: email and password, or Google (as on GCC) ---------- */
+function openSignIn(after) {
+  const api = online.api; if (!api) return;
+  $("#lootBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Sign in</h2><button id="siClose">Close</button></div>
+    <p class="note" style="margin:4px 0 10px">Your Graycloak's Campaign Corner account works here.</p>
+    <form id="siForm" autocomplete="on">
+      <div class="bar"><label>Email <input id="siEmail" type="email" autocomplete="username" style="width:16em" required></label></div>
+      <div class="bar"><label>Password <input id="siPass" type="password" autocomplete="current-password" style="width:12em" required></label></div>
+      <div class="bar" id="siNameRow" hidden><label>Name <input id="siName" autocomplete="nickname" maxlength="40" style="width:12em"></label></div>
+      <div class="bar"><button class="primary" id="siGo" type="submit">Sign in</button> <a href="#" id="siMode">Create an account</a> · <a href="#" id="siForgot">Forgot password?</a></div>
+    </form>
+    <div class="bar"><button id="siGoogle">Sign in with Google</button></div>
+    <p class="note" id="siMsg" aria-live="polite"></p>`;
+  $("#loot").style.display = "flex";
+  let creating = false;
+  const msg = (t) => ($("#siMsg").textContent = t);
+  const done = () => { $("#loot").style.display = "none"; renderOnlineNote(); after?.(); };
+  $("#siClose").onclick = () => { $("#loot").style.display = "none"; };
+  $("#siMode").onclick = (e) => { e.preventDefault(); creating = !creating; $("#siNameRow").hidden = !creating; $("#siGo").textContent = creating ? "Create account" : "Sign in"; $("#siMode").textContent = creating ? "I have an account" : "Create an account"; $("#siPass").autocomplete = creating ? "new-password" : "current-password"; };
+  $("#siForgot").onclick = async (e) => { e.preventDefault(); const email = $("#siEmail").value.trim(); if (!email) return msg("Enter your email first."); try { await api.resetPassword(email); msg(`A reset link is on its way to ${email}.`); } catch (er) { msg(api.friendlyError(er)); } };
+  $("#siForm").onsubmit = async (e) => {
+    e.preventDefault(); msg(creating ? "Creating the account\u2026" : "Signing in\u2026");
+    try { if (creating) await api.register($("#siEmail").value.trim(), $("#siPass").value, $("#siName").value.trim()); else await api.signInEmail($("#siEmail").value.trim(), $("#siPass").value); done(); }
+    catch (er) { msg(api.friendlyError(er)); }
+  };
+  $("#siGoogle").onclick = async () => { try { await api.signInGoogle(); done(); } catch (er) { msg(api.friendlyError(er)); } };
+  $("#siEmail").focus();
+}
+
 /* ---------- the player's page (?player) ---------- */
 function playerSignedIn() {
   const u = online.api?.user;
@@ -804,9 +833,7 @@ $("#playMode").addEventListener("change", async (e) => {
 });
 $("#signIn").addEventListener("click", async () => {
   const api = await goOnline(); if (!api) return;
-  try { if (api.user) await api.signOut(); else await api.signIn(); }
-  catch (e) { $("#onlineNote").textContent = `Sign-in failed: ${e.message}`; }
-  renderOnlineNote();
+  if (api.user) { await api.signOut(); renderOnlineNote(); } else openSignIn();
 });
 $("#openFight").addEventListener("click", async () => {
   const api = await goOnline(); if (!api) return;
@@ -2060,8 +2087,7 @@ if (PLAYER) {
   state.figures = []; render(); openDrawer("setup");
   $("#pSignIn").addEventListener("click", async () => {
     const api = await goOnline(); if (!api) { $("#pNote").textContent = $("#onlineNote").textContent; return; }
-    try { if (api.user) await api.signOut(); else await api.signIn(); } catch (e) { $("#pNote").textContent = `Sign-in failed: ${e.message}`; }
-    playerSignedIn();
+    if (api.user) { await api.signOut(); playerSignedIn(); } else openSignIn(playerSignedIn);
   });
   $("#pFind").addEventListener("click", findFights);
   goOnline().then((api) => { if (api) playerSignedIn(); else $("#pNote").textContent = $("#onlineNote").textContent; });

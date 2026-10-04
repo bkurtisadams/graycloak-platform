@@ -53,10 +53,43 @@ export async function connectOnline({ emulators = false } = {}) {
     get user() { return auth.currentUser; },
     get fight() { return open ? { cid: open.cid, fid: open.fid, viewer: open.viewer, rev: open.rev } : null; },
     onUser(cb) { return authSdk.onAuthStateChanged(auth, cb); },
-    // Always show Google's account chooser, so a second account (a player, a tester) can be picked
-    // even where the browser is already signed in to Google as someone else.
-    signIn: () => { const provider = new authSdk.GoogleAuthProvider(); provider.setCustomParameters({ prompt: 'select_account' }); return authSdk.signInWithPopup(auth, provider); },
+    // Sign-in as GCC does it (gcc/gcc-auth.js): email and password first, Google as the other way in.
+    // Same Firebase project, so a GCC account works here unchanged.
+    signInEmail: (email, password) => authSdk.signInWithEmailAndPassword(auth, email, password),
+    async register(email, password, displayName) {
+      const cred = await authSdk.createUserWithEmailAndPassword(auth, email, password);
+      if (displayName) await authSdk.updateProfile(cred.user, { displayName });
+      return cred.user;
+    },
+    resetPassword: (email) => authSdk.sendPasswordResetEmail(auth, email),
+    // Google always shows its account chooser, so a second account can be picked in a browser
+    // already signed in to Google; a blocked popup falls back to a redirect, as on GCC.
+    async signInGoogle() {
+      const provider = new authSdk.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      try { return await authSdk.signInWithPopup(auth, provider); }
+      catch (e) {
+        if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/cancelled-popup-request'].includes(e.code)) return authSdk.signInWithRedirect(auth, provider);
+        throw e;
+      }
+    },
     signOut: () => { closeFight(); return authSdk.signOut(auth); },
+    /** GCC's wording for Firebase sign-in errors. */
+    friendlyError(e) {
+      const map = {
+        'auth/email-already-in-use': 'That email is already registered. Try signing in.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/user-disabled': 'This account has been disabled.',
+        'auth/user-not-found': 'No account found with that email.',
+        'auth/wrong-password': 'Incorrect password.',
+        'auth/weak-password': 'Password must be at least 6 characters.',
+        'auth/too-many-requests': 'Too many attempts. Please try again later.',
+        'auth/popup-closed-by-user': 'Sign-in popup was closed.',
+        'auth/network-request-failed': 'Network error. Check your connection.',
+        'auth/invalid-credential': 'Invalid email or password.'
+      };
+      return map[e?.code] ?? e?.message ?? 'Something went wrong. Please try again.';
+    },
     createFight: (data) => call(createCall, data),
     /** A player's fights in one campaign (the rules let him list only those naming him). */
     async listFights(cid) {
