@@ -24,6 +24,7 @@ Run one module's self-tests:
 - `src/fight-store.mjs` - a fight as a Firestore document (`toStored`, `fromStored`), schema and rules version stamps, the seeded RNG kept in `state.rngState`, token defaults (`elevation`, `movementAction`)
 - `src/view.mjs` - what each player sees (`viewFor`, `eventsFor`) and who may send which action (`mayAct`)
 - `src/orders.mjs` - orders, drawing a weapon and GM tools as runner actions
+- `src/session.mjs` - one action from one person (`applyAs`): the authority check, Done flags, and the steps that run without anyone's decision
 
 ## Provenance
 

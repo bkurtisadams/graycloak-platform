@@ -11,12 +11,24 @@
         "firebase-debug.*.log",
         "test",
         "docs",
-        "traveller-functions"
+        "traveller-functions",
+        "odd-functions"
       ]
     },
     {
       "codebase": "traveller",
       "source": "traveller-functions",
+      "runtime": "nodejs22",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ]
+    },
+    {
+      "codebase": "odd",
+      "source": "odd-functions",
       "runtime": "nodejs22",
       "ignore": [
         "node_modules",
@@ -75,6 +87,9 @@
     }
   ],
   "emulators": {
+    "functions": {
+      "port": 5001
+    },
     "firestore": {
       "port": 8080
     },

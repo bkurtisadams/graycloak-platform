@@ -86,6 +86,10 @@ export function mayAct(state, who, action) {
     return bad == null ? { ok: true } : no(`you don't control ${byId(bad)?.name ?? `figure ${bad}`}`);
   }
   if (t === "elect") return state.figures.some((f) => f.side === action.side && present(f) && controls(state, who, f)) ? { ok: true } : no("you have no figure on that side");
+  if (t === "done") {
+    const side = moverOf(state.step);
+    return side && state.figures.some((f) => f.side === side && present(f) && controls(state, who, f)) ? { ok: true } : no("you have no figure moving now");
+  }
   if (t === "end-move") {
     const side = moverOf(state.step);
     const movers = state.figures.filter((f) => f.side === side && present(f));
@@ -96,7 +100,7 @@ export function mayAct(state, who, action) {
 
 /* ------------------------------------------------------------------ events */
 
-export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon"]);
+export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "done"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
 export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);

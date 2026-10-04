@@ -42,6 +42,7 @@ export * as talk from "./src/talk.mjs";
 export * as orders from "./src/orders.mjs";
 export * as fightStore from "./src/fight-store.mjs";
 export * as fightView from "./src/view.mjs";
+export * as session from "./src/session.mjs";
 export { serialRng, rngHolder } from "./src/dice.mjs";
 export * from "./src/spell-progression.mjs";
 export * from "./src/specials.mjs";

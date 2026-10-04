@@ -25,6 +25,7 @@ test("index.js loads and exposes the core API", async () => {
   assert.equal(typeof api.fightStore.toStored, "function", "fightStore.toStored");
   assert.equal(typeof api.fightView.viewFor, "function", "fightView.viewFor");
   assert.equal(typeof api.orders.setOrders, "function", "orders.setOrders");
+  assert.equal(typeof api.session.applyAs, "function", "session.applyAs");
 });
 
 test("RULES_VERSION matches package.json", async () => {
