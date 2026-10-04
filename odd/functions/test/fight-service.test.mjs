@@ -136,6 +136,7 @@ test("players are named by email; the server finds their accounts", async () => 
   const base = { cid: "camp2", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control: { 3: "game", 4: "game" } };
   const r = await svc.create({ uid: "ref", data: { ...base, fid: "f1", players: { 1: " Bob@Example.com ", 2: "gm@example.com" } } });
   assert.equal(r.ok, true, r.error);
+  assert.deepEqual(r.players, ["uid-bob"], "the answer says who was added");
   const p = fightPaths("camp2", "f1");
   const st = fightStore.fromStored(store.docs.get(p.state));
   assert.equal(st.control[1], "uid-bob", "Bob's email finds his account");

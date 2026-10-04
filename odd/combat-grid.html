@@ -710,7 +710,7 @@ function renderOnlineNote(extra = "") {
   const u = online.api?.user, f = online.api?.fight, h = online.header;
   el.textContent = [u ? `Signed in as ${u.email ?? u.displayName ?? u.uid}.` : "Not signed in.",
     f ? `Fight ${f.fid} in ${f.cid}, rev ${f.rev}.` : "No fight open.",
-    h?.waitingOn?.length ? `Waiting on: ${h.waitingOn.join(", ")}.` : "", extra].filter(Boolean).join(" ");
+    h?.waitingOn?.length ? `Waiting on: ${h.waitingOn.join(", ")}.` : "", online.notice, extra].filter(Boolean).join(" ");
 }
 async function goOnline() {
   if (online.api) return online.api;
@@ -787,6 +787,9 @@ async function createOnline() {
   const res = await api.createFight({ cid, fid, title: `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control, players });
   if (!res.ok) { resetFight(); $("#onlineNote").textContent = `The fight didn't open: ${res.error ?? res.code}`; openDrawer("setup"); return; }
   openOnline(cid, fid);
+  const named = Object.keys(players).length;
+  online.notice = named && !Array.isArray(res.players) ? "WARNING: the server didn't add any players, so it is out of date. Run odd\\functions\\deploy.bat and start the fight again." : named ? `${res.players.length} player${res.players.length === 1 ? "" : "s"} added to the fight.` : "";
+  renderOnlineNote();
 }
 $("#fid").value = newFightId();
 $("#copyLink").addEventListener("click", () => { $("#playerLink").select(); navigator.clipboard?.writeText($("#playerLink").value).catch(() => {}); $("#copyLink").textContent = "Copied"; setTimeout(() => ($("#copyLink").textContent = "Copy"), 1500); });
@@ -956,7 +959,7 @@ function afterStepChange() {
 /** Is there anything for the missile-and-spell step to do this round? */
 function missileStepNeeded() { return fightRunner.missileStepNeeded(state); }
 function resetFight() {
-  if (online.on) { online.api?.closeFight(); online.header = null; online.lastStep = null; $("#fid").value = newFightId(); renderOnlineNote(); }
+  if (online.on) { online.api?.closeFight(); online.notice = ""; online.header = null; online.lastStep = null; $("#fid").value = newFightId(); renderOnlineNote(); }
   for (const s of state.saved ?? []) Object.assign(byId(s.id) ?? {}, { x: s.x, y: s.y, facing: s.facing });
   for (const f of state.figures) { if (f.startWeaponId !== undefined) f.weaponId = f.startWeaponId; f.weaponBroken = false; }
   for (const f of state.figures) { if (f.origSide) f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.hp = undefined; f.maxHp = undefined; f.target = null; f.moved = 0; f.status = null; }

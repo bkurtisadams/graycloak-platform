@@ -95,7 +95,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       if (existing) return refuse("exists", `fight ${fid} already exists`);
       if (!camp) tx.set(p.campaign, { refereeUid: uid, system: "odd", createdAt: now() });
       writeFight(tx, p, state, events, { rev: 1, uid, header: { title: String(title).slice(0, 120), createdBy: uid, createdAt: now() } });
-      return { ok: true, fid, rev: 1 };
+      // players: who was put in the fight, so the page can confirm the emails took.
+      return { ok: true, fid, rev: 1, players: playersOf(state) };
     });
   }
 
