@@ -34,7 +34,7 @@ import { troopLossLine, manToManMoraleDue, manToManLossCheck, commanderLost, Com
 import { orcLairMoraleExempt } from "./reactions.mjs";
 import { moveFigure, closeOn, planGroupMove, commitGroupMove, mayCharge, chargeInches } from "./movement.mjs";
 import { behave } from "./behaviour.mjs";
-import { passThroughFire, splitMoveFire } from "./missiles.mjs";
+import { passThroughFire, splitMoveFire, canShoot } from "./missiles.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -140,9 +140,10 @@ export function apply(state, action, rng) {
       if (state.step !== Step.INIT) return fail(`not at the start of a round (step ${state.step})`);
       state.round = (state.round ?? 0) + 1;
       for (const f of state.figures) {
-        f.moved = 0; f.action = "melee"; f.secondTarget = null; f.charging = false;
+        f.moved = 0; f.secondTarget = null; f.charging = false;
         if (f.status === "paralyzed" && state.round >= (f.paralyzedUntil ?? 0)) f.status = null;
       }
+      events.push(...standingOrders(state));
       const init = rollInitiative(rng);
       state.init = init; state.firstSide = null; state.step = Step.ELECT;
       events.push({ type: "round", round: state.round }, { type: "initiative", a: init.a, b: init.b, winner: init.winner });
@@ -184,6 +185,32 @@ export function apply(state, action, rng) {
     default:
       return fail(`unknown action ${action?.type}`);
   }
+}
+
+/* ------------------------------------------------------------------ standing orders */
+
+/**
+ * Orders stand from round to round until changed or impossible (Kurt, Oct
+ * 2026): melee and its target carry over; fire carries over unless the archer
+ * is caught in melee or the target is out of range or sight; pass-through fire
+ * carries over (the figure starts the round still); spells and Hold don't
+ * (a slot or template is spent, Hold is for one round). Returns an event for
+ * each order that lapsed.
+ */
+export function standingOrders(state) {
+  const out = [];
+  const lapse = (f, why) => { out.push({ type: "order-lapsed", id: f.id, name: f.name, from: f.action, why }); f.action = "melee"; };
+  for (const f of state.figures) {
+    if (!present(f)) continue;
+    const t = f.target != null ? state.figures.find((e) => e.id === f.target) : null;
+    if (f.action?.startsWith?.("cast:")) { f.castAim = null; lapse(f, "a spell is chosen afresh each round"); continue; }
+    if (f.action === "hold") { f.action = "melee"; continue; }
+    if (f.action === "fire" || f.action === "passthrough") {
+      if (!f.missile) { lapse(f, "no missile weapon"); continue; }
+      if (f.action === "fire" && t) { const c = canShoot(state, f, t); if (!c.ok) lapse(f, c.why); }
+    }
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ end of fight */
@@ -396,6 +423,18 @@ async function runSelfTests() {
     const v = r.events.find((e) => e.type === "volley");
     ok(r.ok && v && v.passThrough && v.id === 1 && archer.lastFired === st.round, "the archer shoots the orc at its half-move point");
     ok(orc5.hp <= 0 && orc5.x !== 16, "the orc falls where it was hit, not where it was going");
+  }
+  // Standing orders.
+  {
+    const archer = fig(1, "A", { x: 2, y: 5, missile: "shortbow", action: "fire", target: 2, facing: 0 });
+    const caster = fig(3, "A", { x: 2, y: 7, action: "cast:sleep", castAim: { x: 9, y: 9 } });
+    const st = fresh([archer, orc(2, "B", 20, { y: 5 }), caster]);
+    const r = apply(st, { type: "begin-round" }, seq([d6(3), d6(4)]));
+    ok(archer.action === "fire" && archer.target === 2, "fire and its target carry into the next round");
+    ok(caster.action === "melee" && caster.castAim === null && r.events.some((e) => e.type === "order-lapsed" && e.id === 3), "spells are chosen afresh");
+    st.step = "init"; st.figures[1].x = 59; st.width = 60; st.walls = open(60, 10);
+    const r2 = apply(st, { type: "begin-round" }, seq([d6(3), d6(4)]));
+    ok(archer.action === "melee" && r2.events.some((e) => e.id === 1 && /out of range/.test(e.why)), "fire lapses when the target is out of range");
   }
   console.log(`runner.mjs — all self-tests passed (${pass} assertions).`);
 }

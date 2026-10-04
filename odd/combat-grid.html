@@ -240,7 +240,7 @@ button.done:disabled { opacity: .45; }
  <div class="map-col">
   <div class="map-wrap" id="wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg>
     <div class="banner" id="banner" hidden><span class="banner-k" id="bannerK"></span><span id="bannerText"></span><a href="#log" id="bannerLog">Full log</a></div>
-    <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button></div>
+    <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button><button id="showTargets" aria-pressed="false" title="Show every figure's target line (otherwise: the selected figure, the one under the pointer, and chargers)">Show targets</button></div>
     <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div>
     <div class="actionbar" id="actionbar"></div>
   </div>
@@ -823,6 +823,7 @@ function renderEvents(events) {
     if (e.type === "initiative") logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${e.a}, B ${e.b}: side ${e.winner} chooses</span></div>`);
     else if (e.type === "election") logAppend(`<div class="card note">Side ${e.winner} elects to move ${e.choice === "counter" ? "last" : "first"}${e.ai ? " (by behaviour)" : ""}: side ${e.firstSide} moves first.</div>`);
     else if (e.type === "volley") logAppend(volleyCard(e));
+    else if (e.type === "order-lapsed") { const was = e.from === "fire" ? "fire" : e.from === "passthrough" ? "pass-through fire" : e.from.startsWith("cast:") ? "spell" : e.from; logAppend(`<div class="card note">${esc(e.name)}'s ${esc(was)} order lapses: ${esc(e.why)}.</div>`); }
     else if (e.type === "down") logAppend(`<div class="card note"><span class="hit">${esc(e.name)} is down</span> (${esc(e.by)}).</div>`);
     else if (e.type === "charge") logAppend(`<div class="card note">${esc(e.name)} charges ${esc(e.target)}.</div>`);
     else if (e.type === "behaviour") logAppend(`<div class="card"><div class="who">Side ${e.side} by behaviour</div>${e.lines.map((l) => `<div class="line">${esc(l.text)}</div>`).join("") || '<div class="line note">Nothing to do.</div>'}</div>`);
@@ -1076,6 +1077,13 @@ function resetFight() {
 
 /* ---------- rendering ---------- */
 const DV = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+/** Holding pass-through fire, not yet used this turn. */
+const holdsPassThrough = (f) => f.action === "passthrough" && !!f.missile && active(f) && f.placed && (f.moved ?? 0) === 0 && f.lastFired !== state.round;
+/** For the move pill of a side: enemies ready to give it pass-through fire, and those who already have this turn. */
+function passThroughCounts(side) {
+  const foes = state.figures.filter((f) => f.side !== side && f.action === "passthrough" && f.missile && f.placed);
+  return { ready: foes.filter(holdsPassThrough).length, fired: foes.filter((f) => f.lastFired === state.round).length };
+}
 function renderMap() {
   const svg = $("#map");
   const parts = [`<defs><marker id="arr-A" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-a)"/></marker><marker id="arr-B" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-b)"/></marker></defs>`];
@@ -1086,11 +1094,20 @@ function renderMap() {
   const sel = state.selected != null ? byId(state.selected) : null;
   if (sel && canMoveNow(sel) && state.phase === "fight") for (const [k, n] of reachFor(sel)) { if (n.cost === 0 || n.passOnly) continue; const off = Math.floor((sz(sel) - 1) / 2); const [x0, y0] = k.split(",").map(Number); const x = x0 + off, y = y0 + off; parts.push(`<rect data-cell="${x},${y}" x="${x * PX + 1}" y="${y * PX + 1}" width="${PX - 2}" height="${PX - 2}" fill="${sel.side === "A" ? "#2f5c8a" : "#8a5a17"}" opacity=".16"/>`); }
   for (const c of state.chests) parts.push(`<g pointer-events="none"><rect x="${c.x * PX + 2.5}" y="${c.y * PX + 4}" width="${PX - 5}" height="${PX - 7}" rx="1.5" fill="#8a5a17" stroke="#3a2608" stroke-width=".8"/><text x="${c.x * PX + PX / 2}" y="${c.y * PX + PX / 2 + 2.4}" text-anchor="middle" font-size="6.5" font-weight="700" fill="#ffd666">${isEmpty(c.inv) ? "\u2205" : "$"}</text><title>${esc(c.label)}</title></g>`);
+  const selId = state.selected;
   for (const f of state.figures) {
     if (!active(f) || f.target == null || !f.placed) continue; const t = byId(f.target); if (!t || !present(t)) continue;
+    if (!state.showTargets && f.id !== selId && t.id !== selId && !(f.charging || f.chargedRound === state.round)) continue;
     const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
     const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
     parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})" pointer-events="none"/>`);
+  }
+  const moving = state.phase === "fight" && state.step?.startsWith("move-") ? state.step.slice(5) : null;
+  if (moving) for (const f of state.figures) {
+    if (f.side === moving || !holdsPassThrough(f)) continue;
+    const cx = (centre(f).x + 0.5) * PX, cy = (centre(f).y + 0.5) * PX, r = missileRange(f.missile) * 3 * PX;
+    const a0 = ((f.facing ?? 0) * 45 - 45) * Math.PI / 180, a1 = ((f.facing ?? 0) * 45 + 45) * Math.PI / 180;
+    parts.push(`<path d="M${cx} ${cy} L${cx + r * Math.cos(a0)} ${cy + r * Math.sin(a0)} A${r} ${r} 0 0 1 ${cx + r * Math.cos(a1)} ${cy + r * Math.sin(a1)} Z" fill="var(--side-${f.side.toLowerCase()})" fill-opacity=".12" stroke="var(--side-${f.side.toLowerCase()})" stroke-opacity=".6" stroke-width="1" stroke-dasharray="4 4" pointer-events="none"><title>${esc(f.name)}: pass-through fire arc</title></path>`);
   }
   for (const f of state.figures) {
     if (!f.placed || (alive(f) && !present(f) && f.status !== "surrendered")) continue;
@@ -1126,6 +1143,7 @@ function renderMap() {
       <text x="${cx}" y="${cy + 1.9 * Math.min(S, 2)}" text-anchor="middle" font-size="${5.2 * Math.min(S, 2)}" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(tokenLabel(f))}</text>
       ${f.hp != null ? `<g pointer-events="none"><rect x="${cx - 6 * S}" y="${cy + 5.2 * S}" width="${12 * S}" height="${1.8 * Math.min(S, 2)}" fill="#000" opacity=".45"/><rect x="${cx - 6 * S}" y="${cy + 5.2 * S}" width="${12 * S * hpFrac}" height="${1.8 * Math.min(S, 2)}" fill="${hpFrac > 0.5 ? "#4caf50" : hpFrac > 0.25 ? "#e0a100" : "#e0453a"}"/></g>` : ""}
       ${badge ? `<g pointer-events="none"><circle cx="${cx - 6.2 * S}" cy="${cy - 6.2 * S}" r="3.2" fill="var(--red)"/><text x="${cx - 6.2 * S}" y="${cy - 6.2 * S + 1.4}" text-anchor="middle" font-size="4.4" font-weight="700" fill="#fff">${badge}</text></g>` : ""}
+      ${holdsPassThrough(f) ? `<g pointer-events="none"><title>Holding pass-through fire</title><circle cx="${cx + 7 * S}" cy="${cy + 5 * S}" r="3.4" fill="var(--target)" stroke="#fff" stroke-width=".7"/><path d="M${cx + 7 * S - 1.9} ${cy + 5 * S + 1.4} L${cx + 7 * S + 1.7} ${cy + 5 * S - 1.4} M${cx + 7 * S + 0.1} ${cy + 5 * S - 1.6} L${cx + 7 * S + 1.8} ${cy + 5 * S - 1.5} L${cx + 7 * S + 1.6} ${cy + 5 * S + 0.2}" stroke="#fff" stroke-width=".9" fill="none" stroke-linecap="round"/></g>` : ""}
       ${helpless(f) ? `<g pointer-events="none"><circle cx="${cx + 6.2 * S}" cy="${cy - 6.2 * S}" r="3.2" fill="#5b4fc4"/><text x="${cx + 6.2 * S}" y="${cy - 6.2 * S + 1.4}" text-anchor="middle" font-size="4.4" font-weight="700" fill="#fff">${f.status === "asleep" ? "z" : f.status === "paralyzed" ? "P" : "H"}</text></g>` : ""}</g>`);
   }
   for (const fx of state.fx ?? []) {
@@ -1310,7 +1328,8 @@ function renderStrip() {
   const between = st === "init" && state.round > 0;
   const idx = fight && !between ? order.indexOf(st === "elect" ? "init" : st) : -1;
   const electing = fight && st === "elect";
-  const label = (k) => k === "init" ? (state.init ? `Initiative \u00b7 A ${state.init.a}, B ${state.init.b}${electing ? ` \u00b7 side ${state.init.winner} chooses` : ""}` : "Initiative") : k === "missiles" ? "Missiles &amp; spells" : k === "melee" ? "Melee" : k === "move-first" ? "First move" : k === "move-last" ? "Last move" : `Side ${k.slice(5)} moves`;
+  const label = (k) => k === "init" ? (state.init ? `Initiative \u00b7 A ${state.init.a}, B ${state.init.b}${electing ? ` \u00b7 side ${state.init.winner} chooses` : ""}` : "Initiative") : k === "missiles" ? "Missiles &amp; spells" : k === "melee" ? "Melee" : k === "move-first" ? "First move" : k === "move-last" ? "Last move" : `Side ${k.slice(5)} moves${ptBadge(k.slice(5))}`;
+  function ptBadge(side) { if (!fight) return ""; const c = passThroughCounts(side); return c.ready ? ` \u00b7 \u21e2 ${c.ready} ready` : c.fired ? ` \u00b7 \u21e2 ${c.fired} fired` : ""; }
   const keys = f ? order : ["init", "move-first", "move-last", "missiles", "melee"];
   $("#pills").innerHTML = keys.map((k, i) => {
     const cls = !fight ? "" : between ? "past" : i === idx ? `now ${k === "move-B" ? "b" : ""}` : i < idx ? "past" : "";
@@ -1453,6 +1472,7 @@ function setLogOpen(open) {
   try { localStorage.setItem("odd.logOpen", open ? "1" : "0"); } catch {}
   applyView(); renderActionBar();
 }
+$("#showTargets").addEventListener("click", () => { state.showTargets = !state.showTargets; $("#showTargets").setAttribute("aria-pressed", String(!!state.showTargets)); $("#showTargets").classList.toggle("primary", !!state.showTargets); renderMap(); });
 $("#logToggle").addEventListener("click", () => setLogOpen($("#stage").classList.contains("log-closed")));
 /** Who can speak: the referee, either side, or any character on the board. */
 function chatSpeakers() {
@@ -2017,12 +2037,25 @@ function pill(x, y, text, colour) {
   let py = y - 20 * k; if (py < top + 30 * k) py = y + 12 * k;
   return `<g transform="translate(${px} ${py}) scale(${k})" pointer-events="none"><rect width="${w}" height="${h}" rx="2" fill="${colour}" opacity=".95"/><text x="${w / 2}" y="${h / 2 + fs * 0.36}" text-anchor="middle" font-size="${fs}" font-weight="700" font-family="var(--serif)" fill="#fff">${esc(text)}</text></g>`;
 }
+/** Target lines for the figure under the pointer: its own target, and anyone targeting it. */
+function hoverTargetLines(out) {
+  if (state.showTargets || state.hover == null || state.hover === state.selected || state.cast) return;
+  const h = byId(state.hover); if (!h) return;
+  for (const f of state.figures) {
+    if (!active(f) || !f.placed || f.target == null) continue;
+    if (f !== h && f.target !== h.id) continue;
+    const t = byId(f.target); if (!t || !present(t)) continue;
+    const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
+    out.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" opacity=".8" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})"/>`);
+  }
+}
 function renderOverlay() {
   const g = $("#overlay"); if (!g) return;
   const out = [];
   const td = state.tokenDrag;
   if (!td && !state.cast && !$("#dragInfo").dataset.keep) { /* keep messages */ }
-  renderCastOverlay(out); renderFireLine(out);
+  renderCastOverlay(out); renderFireLine(out); hoverTargetLines(out);
   if (state.box) { const { a, b } = state.box; out.push(`<rect x="${Math.min(a.x, b.x)}" y="${Math.min(a.y, b.y)}" width="${Math.abs(a.x - b.x)}" height="${Math.abs(a.y - b.y)}" fill="var(--side-a)" fill-opacity=".08" stroke="var(--side-a)" stroke-width="1" stroke-dasharray="4 3"/>`); }
   if (td && td.cell && groupOf(byId(td.fid)).length > 1) {
     const f = byId(td.fid), plan = planGroupMove(f, td.cell.x, td.cell.y);
