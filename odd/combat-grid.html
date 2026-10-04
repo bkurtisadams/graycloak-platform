@@ -301,6 +301,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
       <span id="playerLinkBox" hidden><label>Player's page <input id="playerLink" readonly style="width:20em"></label> <button id="copyLink">Copy</button></span>
     </div>
     <p class="note" id="onlineNote" style="margin:0 0 8px"></p>
+    <div class="panel" id="whoPlays" hidden></div>
     <div class="bar pkeep">
       <label style="white-space:nowrap"><input type="checkbox" id="tapTarget"> Tap enemy to target</label>
       <button id="saveView" title="Open the tester at this view next time">Save view</button>
@@ -691,11 +692,23 @@ function runAction(action) {
 }
 /* ---------- online play: the server runs the fight ---------- */
 const newFightId = () => `fight-${Date.now().toString(36)}`;
+/** Online setup: who plays each character, by the email he signs in with. Blank: the referee runs it. */
+function renderWhoPlays() {
+  const el = $("#whoPlays"); if (!el) return;
+  el.hidden = !online.on || PLAYER || state.phase !== "setup";
+  if (el.hidden) return;
+  const pcs = state.figures.filter((f) => f.kind === "pc");
+  if (el.dataset.ids === pcs.map((f) => `${f.id}:${f.name}`).join("|")) return; // don't redraw under the cursor
+  el.dataset.ids = pcs.map((f) => `${f.id}:${f.name}`).join("|");
+  el.innerHTML = `<h3 style="margin:0 0 4px">Players</h3><p class="note" style="margin:0 0 6px">Type the email each player signs in with. Leave it blank and you run that character.</p>`
+    + (pcs.length ? pcs.map((f) => `<div class="bar"><label style="min-width:11em">${esc(f.name)}</label><input type="email" data-plays="${f.id}" value="${esc(f.playerEmail ?? "")}" placeholder="you" style="width:16em" spellcheck="false" autocomplete="off"></div>`).join("") : `<p class="empty">No characters yet.</p>`);
+  el.querySelectorAll("[data-plays]").forEach((i) => i.addEventListener("input", () => { const f = byId(Number(i.dataset.plays)); if (f) f.playerEmail = i.value.trim() || null; }));
+}
 function renderOnlineNote(extra = "") {
   const el = $("#onlineNote"); if (!el) return;
   if (!online.on) { el.textContent = ""; return; }
   const u = online.api?.user, f = online.api?.fight, h = online.header;
-  el.textContent = [u ? `Signed in as ${u.displayName ?? u.email ?? u.uid}.` : "Not signed in.",
+  el.textContent = [u ? `Signed in as ${u.email ?? u.displayName ?? u.uid}.` : "Not signed in.",
     f ? `Fight ${f.fid} in ${f.cid}, rev ${f.rev}.` : "No fight open.",
     h?.waitingOn?.length ? `Waiting on: ${h.waitingOn.join(", ")}.` : "", extra].filter(Boolean).join(" ");
 }
@@ -768,10 +781,11 @@ function openOnline(cid, fid) {
 }
 async function createOnline() {
   const api = online.api, cid = $("#cid").value.trim(), fid = $("#fid").value.trim();
-  const control = Object.fromEntries(state.figures.map((f) => [f.id, f.playerUid || (f.side === "B" && $("#autoB").checked ? "game" : "referee")]));
+  const control = Object.fromEntries(state.figures.map((f) => [f.id, f.side === "B" && $("#autoB").checked ? "game" : "referee"]));
+  const players = Object.fromEntries(state.figures.filter((f) => f.playerEmail).map((f) => [f.id, f.playerEmail]));
   renderOnlineNote("Opening the fight on the server\u2026");
-  const res = await api.createFight({ cid, fid, title: `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control });
-  if (!res.ok) { $("#onlineNote").textContent = `The server refused the fight: ${res.error ?? res.code}`; resetFight(); return; }
+  const res = await api.createFight({ cid, fid, title: `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control, players });
+  if (!res.ok) { resetFight(); $("#onlineNote").textContent = `The fight didn't open: ${res.error ?? res.code}`; openDrawer("setup"); return; }
   openOnline(cid, fid);
 }
 $("#fid").value = newFightId();
@@ -809,8 +823,7 @@ function openSignIn(after) {
 function playerSignedIn() {
   const u = online.api?.user;
   $("#pSignIn").textContent = u ? "Sign out" : "Sign in";
-  $("#pWho").innerHTML = u ? `Signed in as ${esc(u.displayName ?? u.email ?? "you")}. Your player id: <code>${esc(u.uid)}</code> <button id="pCopyUid">Copy</button> <span class="note">(the referee puts it in "Played by" on your figures)</span>` : "Sign in to play.";
-  $("#pCopyUid")?.addEventListener("click", () => navigator.clipboard?.writeText(u.uid).catch(() => {}));
+  $("#pWho").innerHTML = u ? `Signed in as <b>${esc(u.email ?? u.displayName ?? "you")}</b>. <span class="note">The referee puts this email beside your character.</span>` : "Sign in to play.";
   const q = new URLSearchParams(location.search);
   if (u && q.get("cid") && q.get("fid") && !online.api.fight) { $("#pCid").value = q.get("cid"); openOnline(q.get("cid"), q.get("fid")); $("#drawer").hidden = true; }
   else if (u) findFights();
@@ -1057,8 +1070,7 @@ function editorRow(f) {
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const num = (k, v, min, max, w = "4em") => `<label>${k} <input data-ed="${k.toLowerCase()}" type="number" min="${min}" max="${max}" value="${v}" style="width:${w}"></label>`;
   const common = `<label>Name <input data-ed="name" value="${esc(f.name)}" maxlength="40" style="width:11em"></label>
-    <select data-ed="side" aria-label="Side">${opts([["A", "Side A"], ["B", "Side B"]], f.side)}</select>
-    <label title="Online play: the player id shown on that player's page. Blank: you (or the game, for side B by behaviour)">Played by <input data-ed="player" value="${esc(f.playerUid ?? "")}" placeholder="you" style="width:9em" spellcheck="false"></label>`;
+    <select data-ed="side" aria-label="Side">${opts([["A", "Side A"], ["B", "Side B"]], f.side)}</select>`;
   const body = f.kind === "pc" ? `${common}
     <select data-ed="cls" aria-label="Class">${opts(CLASSES.map((c) => [c.id, c.label]), f.cls)}</select>
     ${num("Level", f.level, 1, 14)}
@@ -1089,7 +1101,6 @@ function saveEdit(id) {
   const name = (v("name") ?? "").trim(); if (name) f.name = name;
   const oldSide = f.side, oldSize = f.size ?? 1, keyBefore = f.monsterKey;
   f.side = v("side") === "B" ? "B" : "A"; f.origSide = f.side;
-  f.playerUid = (v("player") ?? "").trim() || null;
   if (f.kind === "pc") {
     f.cls = v("cls"); f.level = clamp(v("level"), 1, 14, 1); f.armor = v("armor"); f.ac = ARMOR.find((a) => a.id === f.armor).ac;
     f.weaponId = v("weapon"); f.missile = v("missile") || ""; f.spare = v("spare") || ""; f.dex = clamp(v("dex"), 3, 18, 10); f.int = clamp(v("int"), 3, 18, 10); f.cha = clamp(v("cha"), 3, 18, 10);
@@ -1532,6 +1543,7 @@ const serviceState = (pc, f) => tk.serviceState(state, pc, f);function openServi
 }
 
 function render() {
+  renderWhoPlays();
   refreshChatAs();
   if (state.phase === "fight") refreshFacing();
   renderMap(); renderSide("A"); renderSide("B"); renderDetail(); renderStrip(); renderChips(); renderActionBar(); renderBanner();

@@ -128,3 +128,21 @@ test("a fight run by the game on both sides plays one round per action", async (
   assert.ok(header(store, p).round === r1 + 1 || header(store, p).phase === "over");
   assert.deepEqual(header(store, p).players, []);
 });
+
+test("players are named by email; the server finds their accounts", async () => {
+  const store = memoryStore();
+  const accounts = { "bob@example.com": "uid-bob", "gm@example.com": "ref" };
+  const svc = createFightService({ rules, store, now: () => 1, newSeed: () => 3, resolveUser: async (e) => accounts[e] ?? null });
+  const base = { cid: "camp2", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control: { 3: "game", 4: "game" } };
+  const r = await svc.create({ uid: "ref", data: { ...base, fid: "f1", players: { 1: " Bob@Example.com ", 2: "gm@example.com" } } });
+  assert.equal(r.ok, true, r.error);
+  const p = fightPaths("camp2", "f1");
+  const st = fightStore.fromStored(store.docs.get(p.state));
+  assert.equal(st.control[1], "uid-bob", "Bob's email finds his account");
+  assert.equal(st.control[2], "referee", "the referee's own email: he runs it");
+  assert.deepEqual(store.docs.get(p.fight).players, ["uid-bob"]);
+  const missing = await svc.create({ uid: "ref", data: { ...base, fid: "f2", players: { 1: "nobody@example.com" } } });
+  assert.equal(missing.code, "no-account");
+  assert.match(missing.error, /signs in once/);
+  assert.equal((await svc.create({ uid: "ref", data: { ...base, fid: "f3", players: { 1: "not-an-email" } } })).code, "bad-request");
+});

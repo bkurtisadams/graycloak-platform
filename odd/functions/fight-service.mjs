@@ -32,7 +32,7 @@ export function fightPaths(cid, fid) {
   };
 }
 
-export function createFightService({ rules, store, now = () => Date.now(), newSeed = () => Math.floor(Math.random() * 2 ** 31) }) {
+export function createFightService({ rules, store, now = () => Date.now(), newSeed = () => Math.floor(Math.random() * 2 ** 31), resolveUser = async () => null }) {
   const { fightStore, fightView, session } = rules;
   const RULES = fightStore.RULES_VERSION;
   const refuse = (code, error, extra = {}) => ({ ok: false, code, error, ...extra });
@@ -59,13 +59,15 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
 
   /**
    * The referee opens a fight: data { cid, fid, title, fight (a stored fight,
-   * fightStore.toStored), control { figureId: uid | "referee" | "game" } }.
-   * The server seeds the dice itself. A campaign that doesn't exist yet is
+   * fightStore.toStored), control { figureId: uid | "referee" | "game" },
+   * players { figureId: email } }. The server seeds the dice itself and looks
+   * each email up as the account that player signs in with (the referee's own
+   * email means he runs that figure). A campaign that doesn't exist yet is
    * made with the caller as its referee.
    */
   async function create({ uid, data }) {
     if (!uid) return refuse("auth", "sign in first");
-    const { cid, fid, title = "", fight, control = {} } = data ?? {};
+    const { cid, fid, title = "", fight, control = {}, players = {} } = data ?? {};
     if (!ID.test(cid ?? "") || !ID.test(fid ?? "")) return refuse("bad-request", "campaign and fight ids are letters, digits, - and _");
     if ((data?.rules ?? null) !== RULES) return refuse("rules", `the page runs rules ${data.rules ?? "unknown"}, the server ${RULES}: reload the page`);
     let state;
@@ -73,6 +75,15 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const ids = new Set((state.figures ?? []).map((f) => String(f.id)));
     for (const [k, v] of Object.entries(control)) if (!ids.has(String(k)) || typeof v !== "string" || !v || v.length > 128) return refuse("bad-request", `control for figure ${k} is not valid`);
     state.control = { ...control };
+    for (const [k, raw] of Object.entries(players ?? {})) {
+      const email = String(raw ?? "").trim().toLowerCase();
+      if (!email) continue;
+      if (!ids.has(String(k))) return refuse("bad-request", `there is no figure ${k}`);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return refuse("bad-request", `"${raw}" is not an email address`);
+      const who = await resolveUser(email);
+      if (!who) return refuse("no-account", `No one has signed in as ${email} yet. The player signs in once on the player's page, then open the fight again.`);
+      state.control[k] = who === uid ? "referee" : who;
+    }
     for (const k of ["done", "behaved"]) delete state[k];
     const rng = fightStore.seedFight(state, newSeed());
     const events = [{ type: "round", round: state.round ?? 0 }];

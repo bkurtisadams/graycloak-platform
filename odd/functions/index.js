@@ -15,6 +15,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { randomInt } from 'node:crypto';
 import * as rules from './app/rules/index.js';
 import { createFightService } from './fight-service.mjs';
@@ -31,7 +32,12 @@ const store = {
     set: (path, data) => { t.set(db.doc(path), data); }
   }))
 };
-const service = createFightService({ rules, store, newSeed: () => randomInt(2 ** 31) });
+// A player is named by the email he signs in with; the server finds his account.
+const resolveUser = async (email) => {
+  try { return (await getAuth().getUserByEmail(email)).uid; }
+  catch (error) { if (error?.code === 'auth/user-not-found') return null; throw error; }
+};
+const service = createFightService({ rules, store, newSeed: () => randomInt(2 ** 31), resolveUser });
 
 const signedIn = (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
