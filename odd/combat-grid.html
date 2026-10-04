@@ -309,7 +309,7 @@ import {
   sleepCells, sleepInArea, SLEEP_RADIUS, slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
   lossCheck, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond, fearRadius, troopLossLine, moraleDiceBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
-  parryCounterBlows, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
+  parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk
 } from "../packages/odd-chainmail-rules/index.js";
 
@@ -343,15 +343,14 @@ const GONE = ["fled", "surrendered", "petrified", "swallowed", "gaseous", "withd
 const present = (f) => alive(f) && !GONE.includes(f.status);
 const active = (f) => present(f) && !["asleep", "held"].includes(f.status);
 const helpless = (f) => present(f) && ["asleep", "held", "paralyzed"].includes(f.status);
-const isEvil = (f) => f.kind === "monster" && MONSTERS.find((m) => m.key === f.monsterKey)?.alignment === "chaos";
-const MEN_KEYS = ["bandit", "berserker", "brigand", "caveman", "merman"];
-const isMan = (f) => f.kind === "pc" || MEN_KEYS.includes(f.monsterKey);
+const isEvil = ml.isEvil;
+const isMan = ml.isMan;
 // Book II: berserkers +2 against normal men; dwarves and gnomes take half damage from ogres, giants and the like.
-const pairMods = (atk, def) => ({ everyDieBonus: (atk.monsterKey === "berserker" && isMan(def) ? 2 : 0) + pfePenalty(atk, def) + blindPenalty(atk) });
-const blindPenalty = (f) => (f.averted ? BLIND.everyDieBonus : 0);
+const pairMods = ml.pairMods;
+const blindPenalty = ml.blindPenalty;
 const ALIGN_LABEL = { law: "Law", neutral: "Neutrality", chaos: "Chaos" };
-const defMods = (atk, def) => ((["dwarf", "gnome"].includes(def.monsterKey) && CLUMSY_BIG.includes(atk.monsterKey)) ? { damageHalved: true } : {});
-const pfePenalty = (atk, def) => (def.pfe && isEvil(atk) ? -1 : 0);
+const defMods = ml.defMods;
+const pfePenalty = ml.pfePenalty;
 const dexOf = (f) => f.kind === "pc" ? f.dex : MONSTER_DEX;
 const other = (s) => (s === "A" ? "B" : "A");
 
@@ -410,16 +409,7 @@ function addMonsters(side, key, count) {
   for (let i = 1; i <= count; i++) state.figures.push({ id: state.nextId++, side, kind: "monster", monsterKey: key, name: `${m.name} ${have + i}`, ac: m.ac, size: m.size ?? 1, stance: "attack", target: null, action: "melee" });
 }
 const baseLoad = mv.baseLoad, moveInches = mv.moveInches;
-function combatProfile(f) {
-  if (f.kind === "pc") {
-    const fc = fightingCapabilityFor(f.cls, f.level);
-    return { weaponId: f.weaponId, parryWeaponId: f.weaponId, dice: fc.attacks, bonus: fc.bonus, fcLabel: fc.label, profileAttack: false };
-  }
-  const m = MONSTERS.find((x) => x.key === f.monsterKey);
-  const p = monsterAttackProfile(m); const dice = m.key === "hydra" && f.hp != null ? hydraHeads(Math.max(0, f.hp)) : monsterAttackDice(m);
-  if (p.method === "weapon") { const w = f.weaponId ?? weaponIdForClass(p.weaponClass); return { weaponId: w, parryWeaponId: w, dice, bonus: 0, fcLabel: `${dice} HD`, profileAttack: false }; }
-  return { weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`, profileAttack: true, damageDice: p.damage.dice || 1, damageFlat: p.damage.bonus || 0 };
-}
+const combatProfile = ml.combatProfile;
 function rollHp(f, rng) {
   if (f.kind === "pc") {
     const hd = hitDiceFor(f.cls, f.level); const r = sumHitDice(hd.dice, rng);
@@ -432,14 +422,7 @@ function rollHp(f, rng) {
   f.hpRolls = rolls; f.hdLeft = hd.count;
   return Math.max(1, sum);
 }
-function combatant(f, facing, extra = {}) {
-  const p = combatProfile(f); const parrying = f.stance === "parry" && !helpless(f);
-  const hitOnlyBy = f.kind === "monster" ? MONSTERS.find((m) => m.key === f.monsterKey)?.specialAbilities?.hitOnlyBy : undefined;
-  return { name: f.name, hitOnlyBy, weaponId: p.weaponId, ac: f.ac, parryWeaponId: helpless(f) ? null : p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.invulnerable ? Infinity : f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat, ...extra,
-    brokenWeapon: !!f.weaponBroken && !p.profileAttack, parryBroken: !!f.weaponBroken,
-    ...(f.weaponBroken && !p.profileAttack ? { thrown: 0, held: 0, parryWeaponId: null } : {}) };
-}
-
+const combatant = ml.combatant;
 /* ---------- movement and targeting ---------- */
 const canMoveNow = (f) => mv.canMoveNow(state, f);
 const chargeInches = mv.chargeInches, allowanceOf = mv.allowanceOf;
@@ -465,17 +448,7 @@ function setTarget(f, t) {
 function clearTarget(f) { if (f) { f.target = null; render(); } }
 
 /* ---------- melee ---------- */
-function inMeleeLastRound(t, exceptId) {
-  for (const [k, c] of state.contacts) {
-    if (c.lastRound !== state.round - 1) continue;
-    const [a, b] = k.split("-").map(Number);
-    if (a !== t.id && b !== t.id) continue;
-    const o = a === t.id ? b : a;
-    if (o !== exceptId && alive(byId(o))) return true;
-  }
-  return false;
-}
-function strikeCard(res, atk, def, facing) {
+const inMeleeLastRound = (t, exceptId) => ml.inMeleeLastRound(state, t, exceptId);function strikeCard(res, atk, def, facing) {
   if (res.immune) return `<div class="line note">${esc(res.caption)}</div>`;
   const prof = combatProfile(atk);
   const w = prof.profileAttack ? "natural attack" : (WEAPON_LABEL[prof.weaponId] ?? prof.weaponId).toLowerCase();
@@ -488,6 +461,14 @@ function strikeCard(res, atk, def, facing) {
     const out = d.hit ? `<span class="hit">hit, ${d.damage} damage</span>` : "miss";
     return `<div class="line">2d6 [${d.roll.join(",")}]${mods.length ? " " + mods.join(" ") : ""} = ${d.effective} vs ${res.toHitNumber}: ${out}${d.speed ? " (extra blow)" : ""}${d.broke ? ' <span class="hit">— parrying weapon breaks</span>' : ""}</div>`;
   }).join("");
+}
+/** Render a package log card ({ title, note, items }) as HTML. */
+function renderCard(card) {
+  const title = (card.title ?? []).map((g) => g.fig != null ? nameSpan(byId(g.fig)) : g.aside != null ? ` <span class="note">${esc(g.aside)}</span>` : esc(g.text ?? "")).join("");
+  if (card.note) return `<div class="card note">${title}</div>`;
+  if (card.volleyOnly) return volleyCard(card.items[0].volley);
+  const items = (card.items ?? []).map((it) => it.strike ? strikeCard(it.strike.res, byId(it.strike.atkId), byId(it.strike.defId), it.strike.facing) : `<div class="line${it.hit ? " hit" : ""}">${esc(it.text)}</div>`).join("");
+  return `<div class="card">${title ? `<div class="who">${title}</div>` : ""}${items}</div>`;
 }
 const nameSpan = (f) => `<span class="${f.side === "A" ? "a" : "b"}">${esc(f.name)}</span>`;
 
@@ -598,268 +579,18 @@ function commitGroupMove(plan) {
 }
 
 /* ---------- monster special abilities on a strike (Book II; specials.mjs) ---------- */
-function afterStrike(atk, tgt, res, add, start) {
-  if (!res || res.immune) return "";
-  let broke = "";
-  if (res.parryWeaponBroke && !tgt.weaponBroken) {
-    tgt.weaponBroken = true;
-    broke = `<div class="line hit">${esc(tgt.name)}'s ${esc((WEAPON_LABEL[combatProfile(tgt).weaponId] ?? "weapon").toLowerCase())} breaks on the parry (Chainmail 4c/4d): \u22121 to hit and half damage until he draws another.</div>`;
-  }
-  const rest = afterStrikeEffects(atk, tgt, res, add, start);
-  return broke + rest;
-}
-function afterStrikeEffects(atk, tgt, res, add, start) {
-  const hits = res.dice.filter((d) => d.hit);
-  if (!hits.length) return "";
-  if (["troll", "vampire"].includes(tgt.monsterKey) && tgt.firstHitRound == null) tgt.firstHitRound = state.round;
-  const m = mon(atk); if (!m) return "";
-  const notes = [];
-  const svMod = tgt.pfe ? 1 : 0;
-  tgt.lastHitBy = m.key;
-  const drain = abilityOf(m, "drain");
-  if (drain && tgt.invulnerable) { for (const d of hits) add(tgt.id, -d.damage); notes.push(`Energy drain: ${esc(tgt.name)} is invulnerable (GM) and loses no levels.`); }
-  else if (drain) {
-    const rec = { level: tgt.kind === "pc" ? tgt.level : (tgt.hdLeft ?? m.hd.count), hp: tgt.hp, maxHp: tgt.maxHp, hpRolls: tgt.hpRolls };
-    const lost = []; let r = { ...rec };
-    for (const d of hits) { add(tgt.id, -d.damage); r = drainLevels(r, drain.value, state.rng); lost.push(...r.lost); r = { ...r, hpRolls: r.hpRolls ?? null }; }
-    if (tgt.kind === "pc") tgt.level = r.level; else tgt.hdLeft = r.level;
-    tgt.maxHp = r.maxHp; tgt.hpRolls = r.hpRolls;
-    const detail = lost.map((x) => `level ${x.level}: ${x.amount}${x.stored ? " (its roll)" : " (1d6)"}`).join(", ");
-    notes.push(`Energy drain instead of damage: ${lost.length} level${lost.length === 1 ? "" : "s"} lost (${detail}); maximum now ${r.maxHp}${tgt.kind === "pc" ? `, level ${r.level}` : `, ${r.level} HD`}.`);
-    if (r.drained) { add(tgt.id, 999); const as = risesAs(m.key, { drained: true, manType: isMan(tgt) }); tgt.risesAs = as; notes.push(`Drained of all life${as ? `: will rise as a ${as}` : ""}.`); }
-  }
-  if (abilityOf(m, "paralysis") && tgt.status !== "held" && tgt.pendingStatus !== "held") {
-    const g = ghoulTouch(savesOf(tgt), state.rng, { elf: tgt.monsterKey === "elf" || tgt.race === "elf", mod: svMod });
-    if (g.immune) notes.push(`${esc(tgt.name)} is an elf: immune to the ghoul's touch.`);
-    else { notes.push(`Ghoul's touch: save vs paralyzation d20 ${g.roll}${svMod ? " +1" : ""} vs ${g.need}: ${g.saved ? "saved" : `held for ${g.turns} turns`}.`); if (g.held) tgt.pendingStatus = "held"; }
-  }
-  if (abilityOf(m, "petrify") && ["cockatrice", "basilisk"].includes(m.key)) {
-    const sv = petrifySave(savesOf(tgt), state.rng, svMod);
-    notes.push(`Petrifying touch: save vs stone d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "turned to stone"}.`);
-    if (!sv.saved) tgt.pendingStatus = "petrified";
-  }
-  let poison = abilityOf(m, "poison") && ["medusa"].includes(m.key);
-  if (m.key === "wyvern") { const w = wyvernStings(state.rng); poison = w.sting; notes.push(w.sting ? "The wyvern stings." : "The wyvern bites."); }
-  if (poison) {
-    const sv = poisonBite(savesOf(tgt), state.rng, svMod);
-    notes.push(`${m.key === "medusa" ? "Snake bite" : "Poison"}: save vs poison d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "dies"}.`);
-    if (sv.dies) add(tgt.id, 999);
-  }
-  if (abilityOf(m, "swallow")) {
-    const big = hits.find((d) => swallows(d.effective, res.toHitNumber, d.roll[0] + d.roll[1]));
-    if (big && sz(tgt) <= 2) { tgt.pendingStatus = "swallowed"; notes.push(`${esc(tgt.name)} is swallowed whole: dead in 6 turns unless cut free.`); }
-  }
-  return notes.length ? `<div class="line hit">${notes.join(" ")}</div>` : "";
-}
-function saveVsSpellsLike(f, kind) {
-  const saves = savesOf(f); const roll = 1 + Math.floor(state.rng() * 20);
-  const mod = f.pfe ? 1 : 0;
-  return { roll, need: saves[kind], saved: roll + mod >= saves[kind] };
-}
-/** Fire or acid on a troll: a downed troll so struck is burned and won't rise. */
-function baneHit(e, kind) {
-  if (e.monsterKey !== "troll" || !stopsRegeneration([kind])) return;
-  if (e.firstHitRound == null) e.firstHitRound = state.round;
-  if (e.hp <= 0) e.burned = true;
-}
-function regenerate() {
-  const out = [];
-  for (const f of state.figures) {
-    if (!["troll", "vampire"].includes(f.monsterKey) || f.firstHitRound == null || !f.placed || GONE.includes(f.status)) continue;
-    if (f.monsterKey === "vampire" && f.hp <= 0) { f.status = "gaseous"; f.target = null; out.push(`${esc(f.name)} turns to gas and escapes to its coffin.`); continue; }
-    if (f.monsterKey === "troll") {
-      const tr = trollRound({ hp: f.hp, maxHp: f.maxHp, roundsSinceHit: state.round - f.firstHitRound, burned: f.burned, store: f.regenStore ?? 0 });
-      if (!tr.regen) continue;
-      const was = f.hp; f.hp = tr.hp; f.regenStore = tr.store;
-      if (tr.rises) out.push(`${esc(f.name)} rises again at ${f.hp} hit points!`);
-      else if (tr.down) out.push(`${esc(f.name)} regenerates on the ground (${f.regenStore}/${TROLL_RISES_AT}); burn it or put it in acid to stop it.`);
-      else if (f.hp > was) out.push(`${esc(f.name)} regenerates ${f.hp - was} hit points (${f.hp}/${f.maxHp}).`);
-      continue;
-    }
-    const amt = regenAmount({ kind: f.monsterKey, roundsSinceHit: state.round - f.firstHitRound, burned: f.burned });
-    if (!amt || f.hp >= f.maxHp) continue;
-    const wasDown = f.hp <= 0;
-    f.hp = Math.min(f.maxHp, f.hp + amt);
-    if (wasDown && f.hp < TROLL_RISES_AT) { f.hp = Math.min(f.hp, 0); f.regenStore = (f.regenStore ?? 0) + amt; if (f.regenStore >= TROLL_RISES_AT) { f.hp = TROLL_RISES_AT; f.regenStore = 0; out.push(`${esc(f.name)} rises again at ${TROLL_RISES_AT} hit points!`); } else out.push(`${esc(f.name)} regenerates on the ground (${f.regenStore}/${TROLL_RISES_AT}); burn it to stop it.`); continue; }
-    out.push(`${esc(f.name)} regenerates ${amt} hit points (${f.hp}/${f.maxHp}).`);
-  }
-  return out.length ? `<div class="card"><div class="who">Regeneration</div>${out.map((t) => `<div class="line">${t}</div>`).join("")}</div>` : "";
-}
-
+const saveVsSpellsLike = (f, kind) => ml.saveVsSpellsLike(f, kind, state.rng);
+const baneHit = (e, kind) => ml.baneHit(state, e, kind);
 /* ---------- monster powers in the missile step: breath and gaze ---------- */
+/** Breath and gaze in the missile step (package melee.mjs); returns the log cards as HTML. */
 function monsterPowers() {
-  const out = [];
-  const inch = (f) => ({ x: centre(f).x / 3, y: centre(f).y / 3 });
-  for (const d of state.figures) {
-    if (!active(d)) continue;
-    const m = mon(d); if (!m) continue;
-    const t = d.target != null ? byId(d.target) : null;
-    const colour = m.key.startsWith("dragon-") ? m.key.slice(7) : m.key === "chimera" ? "chimera" : null;
-    if (colour && t && present(t)) {
-      d.breathLeft = d.breathLeft ?? 3;
-      const bb = breathOrBite(d.breathLeft, state.rng);
-      if (!bb.breathes) { out.push(`<div class="card note">${esc(d.name)}: 2d6 [${bb.roll.join(",")}] ${d.breathLeft ? "bites this round" : "has no breath left and bites"}.</div>`); continue; }
-      d.breathLeft--; d.acted = state.round;
-      const spec = BREATH[colour];
-      const dmgFull = spec.dice ? Array.from({ length: spec.dice }, () => 1 + Math.floor(state.rng() * 6)).reduce((a, b) => a + b, 0) : Math.max(1, d.hp);
-      const hit = state.figures.filter((e) => e !== d && present(e) && e.placed && inBreath(inch(d), inch(t), inch(e), spec));
-      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; bd.takeDamage(e, dmg); ev(d, e, dmg); baneHit(e, spec.kind); return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
-      out.push(`<div class="card"><div class="who">${nameSpan(d)} breathes ${esc(spec.kind)} <span class="note">(2d6 [${bb.roll.join(",")}]; ${d.breathLeft} left; ${spec.shape} ${spec.length}" × ${spec.width}")</span></div><div class="line note">${dmgFull} damage${spec.dice ? "" : " (the dragon's hit points)"}, save vs dragon breath for half.</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`);
-      continue;
-    }
-    if (m.key === "gorgon" && t && present(t)) {
-      const bb = breathOrBite(99, state.rng); if (!bb.breathes) continue;
-      d.acted = state.round;
-      const caught = state.figures.filter((e) => e.side !== d.side && present(e) && adjacent(d, e) && attackFacing(centre(d), d.facing, centre(e)) === "front");
-      const lines = caught.map((e) => { const sv = saveVsSpellsLike(e, "stone"); if (!sv.saved) { e.status = "petrified"; e.target = null; } return `<div class="line">${esc(e.name)}: save vs stone d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : '<span class="hit">turned to stone</span>'}</div>`; }).join("");
-      out.push(`<div class="card"><div class="who">${nameSpan(d)} breathes its petrifying breath (6')</div>${lines || '<div class="line note">No one in front of it.</div>'}</div>`);
-      continue;
-    }
-    if (["basilisk", "medusa"].includes(m.key)) {
-      const near = state.figures.filter((e) => e.side !== d.side && active(e) && e.placed && lineOfSight(d, e));
-      const lines = [];
-      for (const e of near) {
-        if (!active(d)) break;
-        const g = gazeCheck({ x: centre(e).x, y: centre(e).y, facing: e.facing, averted: e.averted, reflector: e.mirror, saveMod: e.pfe ? 1 : 0 }, { ...centre(d), facing: d.facing }, savesOf(e), state.rng);
-        if (!g.exposed && !g.reflected && !g.averted) continue;
-        if (g.averted) { lines.push(`<div class="line note">${esc(e.name)} averts his eyes: safe, but fights blind.</div>`); continue; }
-        if (g.reflected) {
-          const rg = reflectedGaze(savesOf(d), state.rng);
-          if (rg.petrified) { d.status = "petrified"; d.target = null; }
-          lines.push(`<div class="line">${esc(e.name)} holds up a mirror: the gaze turns back. ${esc(d.name)} saves vs stone d20 ${rg.roll} vs ${rg.need}: ${rg.petrified ? '<span class="hit">turned to stone</span>' : "saved"}</div>`);
-          continue;
-        }
-        if (g.petrified) { e.status = "petrified"; e.target = null; }
-        lines.push(`<div class="line">${esc(e.name)} meets its gaze: save vs stone d20 ${g.roll} vs ${g.need}: ${g.saved ? "saved" : '<span class="hit">turned to stone</span>'}</div>`);
-      }
-      if (lines.length) out.push(`<div class="card"><div class="who">${nameSpan(d)}'s gaze <span class="note">(anyone who can see it while it looks their way)</span></div>${lines.join("")}</div>`);
-    }
-  }
-  return out.join("");
+  const r = ml.monsterPowers(state, state.rng);
+  for (const h of r.hits) ev(byId(h.a), h.t != null ? byId(h.t) : null, h.dmg, h.extra);
+  return r.cards.map(renderCard).join("");
 }
 
 // A figure always faces its current target, wherever that target has moved.
-function refreshFacing() {
-  for (const f of state.figures) {
-    if (!active(f) || f.target == null) continue;
-    const t = byId(f.target); if (!t || !present(t)) continue;
-    const d = dir8(centre(t).x - centre(f).x, centre(t).y - centre(f).y); if (d != null) f.facing = d;
-  }
-}
-function resolveMelee() {
-  refreshFacing();
-  const start = new Map(state.figures.map((f) => [f.id, f.hp]));
-  const dmg = new Map(); const add = (id, n) => dmg.set(id, (dmg.get(id) ?? 0) + n);
-  const cards = []; const done = new Set();
-  const spent = (f) => f.acted === state.round;
-  for (const f of state.figures) {
-    if (!active(f) || spent(f)) continue;
-    const cur = f.target != null ? byId(f.target) : null;
-    if (cur && present(cur) && adjacent(f, cur)) continue;
-    const foes = state.figures.filter((e) => active(e) && !spent(e) && e.side !== f.side && e.target === f.id && adjacent(e, f));
-    if (!foes.length) continue;
-    const foe = foes.sort((a, b) => (a.moveSeq ?? 0) - (b.moveSeq ?? 0))[0];
-    f.target = foe.id; f.facing = dir8(centre(foe).x - centre(f).x, centre(foe).y - centre(f).y) ?? f.facing;
-    cards.push(`<div class="card note">${esc(f.name)} turns to fight ${esc(foe.name)}, who attacked him.</div>`);
-  }
-  const attackers = state.figures.filter((f) => active(f) && !spent(f) && f.target != null && f.action !== "hold");
-  const legal = new Map();
-  for (const f of attackers) {
-    const t = byId(f.target);
-    if (!t || !present(t)) continue;
-    if (!adjacent(f, t)) { cards.push(`<div class="card note">${esc(f.name)} targets ${esc(t.name)} but isn't adjacent: no attack.</div>`); continue; }
-    if (f.stance === "parry" && t.target !== f.id) continue;
-    const priorContact = state.contacts.get(pairKey(f.id, t.id))?.lastRound === state.round - 1;
-    if (!priorContact && t.target !== f.id && !helpless(t) && inMeleeLastRound(t, f.id) && !canJoinMelee(f.moved, moveInches(f))) {
-      cards.push(`<div class="card note">${esc(f.name)} can't join the melee around ${esc(t.name)}: moved ${halfCellsToInches(f.moved)}" of ${moveInches(f)}" (more than half).</div>`);
-      continue;
-    }
-    legal.set(f.id, t.id);
-  }
-  if (legal.size) state.meleeBegun = true;
-  // Parry dice are a per-round allowance: each held die stops one blow, whoever strikes it.
-  const parryLeft = new Map();
-  const budget = (fig, cmb) => { if (!parryLeft.has(fig.id)) parryLeft.set(fig.id, cmb.held ?? 0); cmb.held = Math.min(cmb.held ?? 0, parryLeft.get(fig.id)); return cmb; };
-  const spendParry = (fig, used) => { if (used) parryLeft.set(fig.id, Math.max(0, (parryLeft.get(fig.id) ?? 0) - used)); };
-  // Chainmail 4c (Kurt, Oct 2026: RAW): a successful parry with a weapon 4-7 classes lighter earns one counter blow.
-  const parryCounter = (def, att, res) => {
-    const n = parryCounterBlows(res); if (!n || !active(def) || def.weaponBroken) return "";
-    if (!def.invulnerable && start.get(def.id) - (dmg.get(def.id) ?? 0) <= 0) return "";
-    const c = combatant(def, "front", { everyDieBonus: pfePenalty(def, att) + blindPenalty(def) });
-    const r = resolveAttackPool({ attacker: { ...c, dice: n, counterBlow: true }, target: budget(att, combatant(att, "front")) }, state.rng);
-    spendParry(att, r.parries); add(att.id, r.damage); ev(def, att, r.damage);
-    const fx = afterStrike(def, att, r, add, start);
-    return `<div class="line note">${esc(def.name)}'s parry holds: ${n === 1 ? "a counter blow" : `${n} counter blows`} (Chainmail 4c).</div>` + strikeCard(r, def, att) + fx;
-  };
-  const slain = new Set();
-  for (const [fid, tid] of [...legal]) {
-    const f = byId(fid), t = byId(tid);
-    if (t.status !== "asleep") continue;
-    legal.delete(fid); done.add(fid);
-    if (slain.has(tid)) continue;
-    if (t.invulnerable) { cards.push(`<div class="card note">${esc(f.name)} strikes the sleeping ${esc(t.name)}, who is invulnerable (GM) and unharmed.</div>`); recordContact(state.contacts, fid, tid, state.round); continue; }
-    slain.add(tid); add(tid, start.get(tid));
-    recordContact(state.contacts, fid, tid, state.round);
-    ev(f, t, start.get(tid));
-    cards.push(`<div class="card"><div class="who">${nameSpan(f)} slays the sleeping ${nameSpan(t)}</div><div class="line note">A sleeping figure is killed outright, one per attacker per round (Kurt's ruling).</div></div>`);
-  }
-  for (const [fid, tid] of legal) {
-    if (done.has(fid)) continue;
-    const f = byId(fid), t = byId(tid);
-    if (legal.get(tid) === fid && !done.has(tid) && active(t)) {
-      done.add(fid); done.add(tid);
-      const closer = (f.moved > 0) !== (t.moved > 0) ? (f.moved > 0 ? f : t) : (f.side === state.firstSide ? f : t);
-      const c = recordContact(state.contacts, closer.id, closer === f ? tid : fid, state.round);
-      const A = byId(c.first), B = A === f ? t : f;
-      const ca = budget(A, combatant(A, "front", { ...pairMods(A, B), ...defMods(B, A) })), cb = budget(B, combatant(B, "front", { ...pairMods(B, A), ...defMods(A, B) }));
-      ca.hp = A.invulnerable ? Infinity : start.get(A.id); cb.hp = B.invulnerable ? Infinity : start.get(B.id);
-      const charge = A.chargedRound === state.round && c.rounds === 1;
-      const ex = resolveExchange({ first: ca, second: cb, round: c.rounds, prevFirst: c.prevFirst, charge }, state.rng);
-      c.prevFirst = ex.striker;
-      { const ld = ex.striker === "first" ? A : B, lg = ld === A ? B : A; spendParry(lg, ex.firstStrike?.parries); spendParry(ld, ex.counter?.parries); }
-      const lead = ex.striker === "first" ? A : B, lag = lead === A ? B : A;
-      add(lag.id, ex.firstStrike.damage); if (ex.counter) add(lead.id, ex.counter.damage);
-      const sp1 = afterStrike(lead, lag, ex.firstStrike, add, start) + parryCounter(lag, lead, ex.firstStrike), sp2 = ex.counter ? afterStrike(lag, lead, ex.counter, add, start) + parryCounter(lead, lag, ex.counter) : "";
-      ev(lead, lag, ex.firstStrike.damage); if (ex.counter) ev(lag, lead, ex.counter.damage);
-      const why = ex.killed ? `<div class="line note">${esc(lag.name)} falls before striking back.</div>` : ex.brokeOut ? `<div class="line note">${esc(lag.name)}'s weapon broke: no return blow.</div>` : "";
-      cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(melee round ${c.rounds}${charge ? `; ${esc(A.name)} charged` : ""})</span></div>${strikeCard(ex.firstStrike, lead, lag)}${sp1}${ex.counter ? strikeCard(ex.counter, lag, lead) + sp2 : ""}${why}</div>`);
-    } else {
-      done.add(fid);
-      if (f.stance === "parry") continue;
-      const c = recordContact(state.contacts, fid, tid, state.round);
-      const isHeld = t.status === "held" || t.status === "paralyzed";
-      const facing = isHeld ? "front" : attackFacing(centre(t), t.facing, centre(f));
-      const atk = combatant(f, facing, { everyDieBonus: (isHeld ? HELD_TARGET.everyDieBonus : 0) + pairMods(f, t).everyDieBonus });
-      const res = resolveAttackPool({ attacker: { ...atk, dice: atk.thrown }, target: budget(t, combatant(t, "front", { ...(isHeld ? { damageDoubled: true } : {}), ...defMods(f, t) })) }, state.rng);
-      spendParry(t, res.parries);
-      add(t.id, res.damage);
-      const sp = afterStrike(f, t, res, add, start) + parryCounter(t, f, res); ev(f, t, res.damage);
-      let ret = "";
-      const tLeft = start.get(t.id) - (dmg.get(t.id) ?? 0);
-      if (!isHeld && spent(t) && active(t) && tLeft > 0 && t.returned !== state.round) {
-        t.returned = state.round;
-        const back = combatant(t, "front", { everyDieBonus: pfePenalty(t, f) + blindPenalty(t) });
-        const r2 = resolveAttackPool({ attacker: { ...back, dice: back.thrown || combatProfile(t).dice }, target: budget(f, combatant(f, "front")) }, state.rng);
-        spendParry(f, r2.parries);
-        add(f.id, r2.damage);
-        ev(t, f, r2.damage);
-        ret = afterStrike(t, f, r2, add, start) + parryCounter(f, t, r2) + `<div class="line note">${esc(t.name)} fired or cast this round, so makes no attack of its own, but strikes back:</div>` + strikeCard(r2, t, f);
-      }
-      const why = isHeld ? `${esc(t.name)} is held: +4 to hit, double damage, no return blow` : spent(t) ? `${esc(t.name)} acted in the missile step` : `${esc(t.name)} is fighting someone else: no return blow`;
-      cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${why})</span></div>${strikeCard(res, f, t, facing)}${sp}${ret}</div>`);
-    }
-  }
-  const fell = [];
-  for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; if (f.invulnerable) { bd.takeDamage(f, dmg.get(f.id)); continue; } f.hp = Math.min(f.hp - dmg.get(f.id), f.maxHp); if (f.hp <= 0) fell.push(f); }
-  for (const f of fell) if (!f.risesAs && f.lastHitBy) { const as = risesAs(f.lastHitBy, { killed: true, manType: isMan(f) }); if (as) { f.risesAs = as; cards.push(`<div class="card note">${esc(f.name)} was slain by a ${esc(f.lastHitBy)} and will rise as a ${as}.</div>`); } }
-  for (const f of state.figures) if (f.pendingStatus) { if (alive(f)) { f.status = f.pendingStatus; f.target = null; } f.pendingStatus = null; }
-  cards.push(regenerate());
-  const body = cards.length ? cards.join("") : `<div class="card note">No melee this round.</div>`;
-  const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((f) => esc(f.name)).join(", ")}</span></div>` : "";
-  logAppend(`<div class="round-head">Round ${state.round}: melee</div>` + body + tail);
-  afterStep();
-}
-function afterStep() { fightRunner.checkOver(state); }
+const refreshFacing = () => ml.refreshFacing(state);function afterStep() { fightRunner.checkOver(state); }
 
 /* ---------- morale: runs in the package runner (fightRunner.moralePass) ---------- */
 state.leader = state.leader ?? { A: null, B: null };
@@ -885,6 +616,14 @@ function renderEvents(events) {
     if (e.type === "initiative") logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${e.a}, B ${e.b}: side ${e.winner} chooses</span></div>`);
     else if (e.type === "election") logAppend(`<div class="card note">Side ${e.winner} elects to move ${e.choice === "counter" ? "last" : "first"}${e.ai ? " (by behaviour)" : ""}: side ${e.firstSide} moves first.</div>`);
     else if (e.type === "volley") logAppend(volleyCard(e));
+    else if (e.type === "talk") logAppend(renderCard(e.card));
+    else if (e.type === "missiles" || e.type === "melee") {
+      for (const h of e.hits) state.events.push({ a: byId(h.a), t: h.t != null ? byId(h.t) : null, dmg: h.dmg, extra: h.extra });
+      const fell = e.fell.map(byId);
+      const label = e.type === "melee" ? "melee" : "missiles and spells";
+      logAppend(`<div class="round-head">Round ${e.round}: ${label}</div>` + (e.cards.length ? e.cards.map(renderCard).join("") : `<div class="card note">No ${e.type === "melee" ? "melee" : "missiles or spells"} this round.</div>`) + (fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((f) => esc(f.name)).join(", ")}</span></div>` : ""));
+      gmIgnoredNote();
+    }
     else if (e.type === "order-lapsed") { const was = e.from === "fire" ? "fire" : e.from === "passthrough" ? "pass-through fire" : e.from.startsWith("cast:") ? "spell" : e.from; logAppend(`<div class="card note">${esc(e.name)}'s ${esc(was)} order lapses: ${esc(e.why)}.</div>`); }
     else if (e.type === "down") logAppend(`<div class="card note"><span class="hit">${esc(e.name)} is down</span> (${esc(e.by)}).</div>`);
     else if (e.type === "charge") logAppend(`<div class="card note">${esc(e.name)} charges ${esc(e.target)}.</div>`);
@@ -946,145 +685,11 @@ function lineOfSight(a, b) {
   return true;
 }
 const inMelee = (f) => state.figures.some((e) => active(e) && e.side !== f.side && adjacent(e, f) && (e.target === f.id || f.target === e.id));
-const savesOf = (f) => f.kind === "pc" ? savesFor(f.cls, f.level, f.race) : monsterSaves(MONSTERS.find((m) => m.key === f.monsterKey).hd.count);
-const hdOf = (f) => { if (f.kind === "pc") { const h = hitDiceFor(f.cls, f.level); return hdValue(h.dice, h.bonus); } const h = MONSTERS.find((m) => m.key === f.monsterKey).hd; return hdValue(h.count, h.bonus); };
+const savesOf = ml.savesOf;
+const hdOf = ml.hdOf;
 
-function resolveMissiles() {
-  const cards = []; const plans = [];
-  const powers = monsterPowers(); if (powers) cards.push(powers);
-  for (const f of state.figures) {
-    if (!active(f) || !f.action || f.action === "melee" || f.action === "hold") continue;
-    const selfSpell = f.action === "cast:protectionEvil";
-    const areaSpell = ["cast:fireBall", "cast:lightningBolt", "cast:sleep"].includes(f.action);
-    if (areaSpell) {
-      const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
-      if (!spell) { cards.push(`<div class="card note">${esc(f.name)} has no slot left for that spell.</div>`); continue; }
-      if (!f.castAim) { cards.push(`<div class="card note">${esc(f.name)} hasn't placed ${esc(spell.name)}.</div>`); continue; }
-      const aimFig = { x: f.castAim.x, y: f.castAim.y, size: 1 };
-      if (distIn(f, aimFig) > spell.range || !lineOfSight(f, aimFig)) { cards.push(`<div class="card note">${esc(spell.name)}'s aim point is out of range or sight.</div>`); continue; }
-      plans.push({ f, t: aimFig, d: distIn(f, aimFig), kind: "cast", spell });
-      continue;
-    }
-    if (!selfSpell && f.target == null) { cards.push(`<div class="card note">${esc(f.name)} has no target for that action.</div>`); continue; }
-    const t = selfSpell ? f : byId(f.target); if (!t || !present(t)) continue;
-    const d = distIn(f, t);
-    if (f.action === "fire" || f.action === "passthrough") {
-      if (!f.missile) continue;
-      if (f.lastFired === state.round) { cards.push(`<div class="card note">${esc(f.name)} has already fired this turn.</div>`); continue; }
-      if (inMelee(f)) { cards.push(`<div class="card note">${esc(f.name)} is in melee and can't fire.</div>`); continue; }
-      if (inMelee(t)) { cards.push(`<div class="card note">${esc(f.name)} holds fire: ${esc(t.name)} is in a melee.</div>`); continue; }
-      if (!lineOfSight(f, t)) { cards.push(`<div class="card note">${esc(f.name)} has no line of sight to ${esc(t.name)}.</div>`); continue; }
-      if (f.averted && BLIND.missileAdjacentOnly && !adjacent(f, t)) { cards.push(`<div class="card note">${esc(f.name)} is averting his eyes: missiles only at an adjacent target.</div>`); continue; }
-      if (!missileBand(d, missileRange(f.missile))) { cards.push(`<div class="card note">${esc(t.name)} is out of range (${d}" of ${missileRange(f.missile)}").</div>`); continue; }
-      plans.push({ f, t, d, kind: "fire" });
-    } else if (f.action.startsWith("cast:")) {
-      const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
-      if (!spell) { cards.push(`<div class="card note">${esc(f.name)} has no slot left for that spell.</div>`); continue; }
-      if (spell.id !== "protectionEvil" && d > spell.range) { cards.push(`<div class="card note">${esc(t.name)} is beyond ${spell.name}'s ${spell.range}" range.</div>`); continue; }
-      if (spell.id !== "protectionEvil" && !lineOfSight(f, t)) { cards.push(`<div class="card note">${esc(f.name)} can't see ${esc(t.name)}.</div>`); continue; }
-      plans.push({ f, t, d, kind: "cast", spell });
-    }
-  }
-  const groups = [...new Set(plans.map((p) => dexOf(p.f)))].sort((a, b) => b - a);
-  const attacked = new Set(); const fell = [];
-  for (const dex of groups) {
-    const dmg = new Map(); const shotAt = [];
-    for (const p of plans.filter((q) => dexOf(q.f) === dex)) {
-      const { f, t } = p;
-      if (!active(f)) continue;
-      f.acted = state.round;
-      if (p.kind === "fire") {
-        const v = ms.fireVolley(state, f, t, state.rng, dmg);
-        for (const l of v.lines) if (l.damage) ev(f, byId(l.targetId), l.damage);
-        for (const l of v.lines) if (l.hits > 0) shotAt.push(l.targetId);
-        cards.push(volleyCard(v));
-      } else {
-        const sp = p.spell;
-        f.slotsLeft[sp.level - 1]--;
-        const gate = castingGate({ moved: f.moved, hitFirst: attacked.has(f.id) });
-        if (!gate.ok) { ev(f, null, 0, `lost ${sp.name}`); cards.push(`<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line hit">Spoiled: ${gate.reason}. The spell is lost.</div></div>`); continue; }
-        const before = new Map(state.figures.map((x) => [x.id, x.status]));
-        cards.push(castSpell(f, t, sp));
-        const changed = state.figures.filter((x) => x.status !== before.get(x.id) || (sp.id === "charmPerson" && x.charmed && x.side === f.side && x !== f && before.get(x.id) === x.status && x.id === t.id));
-        ev(f, null, 0, `cast ${sp.name}${changed.length ? `: ${changed.map((x) => `${tokenLabel(x)} ${x.charmed && x.side === f.side ? "charmed" : x.status}`).join(", ")}` : ""}`);
-      }
-    }
-    for (const id of shotAt) attacked.add(id);
-    for (const [id, n] of dmg) { const g = byId(id); if (!alive(g)) continue; bd.takeDamage(g, n); if (g.hp <= 0) fell.push(g); }
-  }
-  const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((g) => esc(g.name)).join(", ")}</span></div>` : "";
-  const body = cards.length ? cards.join("") : `<div class="card note">No missiles or spells this round.</div>`;
-  logAppend(`<div class="round-head">Round ${state.round}: missiles and spells</div>` + body + tail);
-  afterStep();
-}
-/** Cells and figures an area spell would catch, aimed at cell (x, y). */
-function areaOf(caster, spellId, x, y) {
-  const open = (cx, cy) => !isWall(cx, cy);
-  let cells, reachOk = true;
-  if (spellId === "fireBall") cells = fireBallCells({ x, y }, open, 2);
-  else if (spellId === "sleep") cells = sleepCells({ x, y }, open, SLEEP_RADIUS);
-  else { const r = lightningCells(centre(caster), { x, y }, open); cells = r.cells; reachOk = lightningStartOk(centre(caster), { x, y }); }
-  const set = new Set(cells.map(([cx, cy]) => `${cx},${cy}`));
-  const caught = state.figures.filter((e) => e.placed && present(e) && footCells(e.x, e.y, sz(e)).some(([cx, cy]) => set.has(`${cx},${cy}`)));
-  return { cells, caught, reachOk };
-}
-function castSpell(f, t, sp) {
-  if (sp.id === "fireBall" || sp.id === "lightningBolt") {
-    const { caught } = areaOf(f, sp.id, f.castAim.x, f.castAim.y);
-    const { dice, save } = areaSpellDice("cast", f.level);
-    const lines = caught.map((e) => {
-      let dmg = 0; for (let i = 0; i < dice; i++) dmg += 1 + Math.floor(state.rng() * 6);
-      const sv = saveForHalf(savesOf(e), save, dmg, state.rng, e.pfe ? 1 : 0); const take = sv.damage;
-      bd.takeDamage(e, take); ev(f, e, take); if (sp.id === "fireBall") baneHit(e, "fire");
-      return `<div class="line">${esc(e.name)}: ${dice}d6 = ${dmg}; save vs spells d20 ${sv.roll}${sv.mod ? " +1" : ""} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${take} damage</span>${e.hp <= 0 ? " — down" : ""}${e.burned && e.hp <= 0 ? " and burned" : ""}</div>`;
-    }).join("");
-    f.castAim = null;
-    return `<div class="card"><div class="who">${nameSpan(f)} casts ${esc(sp.name)}</div><div class="line note">${sp.id === "fireBall" ? "2\u2033 burst, filling the space it bursts in" : "6\u2033 bolt, doubling back off walls"}; ${dice} dice (caster level), save for half</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`;
-  }
-  const head = `<div class="who">${nameSpan(f)} casts ${esc(sp.name)}${sp.id === "protectionEvil" ? "" : ` at ${nameSpan(t)}`}</div>`;
-  if (sp.id === "sleep" && f.castAim) {
-    const { caught } = areaOf(f, "sleep", f.castAim.x, f.castAim.y);
-    const r = sleepInArea(caught.filter(active).map((e) => ({ id: e.id, hd: hdOf(e) })), state.rng);
-    f.castAim = null;
-    const head2 = `<div class="who">${nameSpan(f)} casts Sleep</div>`;
-    if (!r.toughest) return `<div class="card">${head2}<div class="line note">${caught.length ? "No one caught is weak enough to sleep (4+1 hit dice or less)." : "No one caught in it."}</div></div>`;
-    for (const x of r.asleep) { const e = byId(x.id); e.status = "asleep"; e.target = null; }
-    const names = r.asleep.map((x) => esc(byId(x.id).name)).join(", ");
-    return `<div class="card">${head2}<div class="line note">${SLEEP_RADIUS}\u2033 radius; rolled for the toughest caught (${esc(byId(r.toughest.id).name)}, ${r.toughest.hd} HD): ${r.cap.dice} = ${r.cap.n}</div><div class="line"><span class="hit">Asleep: ${names || "none"}</span></div></div>`;
-  }
-  if (sp.id === "sleep") {
-    const cap = sleepCapacity(...(() => { const h = t.kind === "pc" ? hitDiceFor(t.cls, t.level) : MONSTERS.find((m) => m.key === t.monsterKey).hd; return t.kind === "pc" ? [h.dice, h.bonus] : [h.count, h.bonus]; })(), state.rng);
-    if (!cap.n) return `<div class="card">${head}<div class="line note">${esc(t.name)} is too powerful to sleep.</div></div>`;
-    const band = hdOf(t);
-    const pool = state.figures.filter((e) => active(e) && e.side !== f.side && hdOf(e) <= Math.max(band, 1.5) && distIn(f, e) <= sp.range && lineOfSight(f, e));
-    const hit = pickRandom(pool, cap.n, state.rng);
-    for (const e of hit) { e.status = "asleep"; e.target = null; }
-    return `<div class="card">${head}<div class="line note">${cap.dice} = ${cap.n}; no saving throw</div><div class="line hit">Asleep: ${hit.map((e) => esc(e.name)).join(", ") || "none"}</div></div>`;
-  }
-  if (sp.id === "holdPerson") {
-    const ids = [...new Set([t.id, ...(f.holdTargets ?? [])])].slice(0, HOLD_PERSON_MAX);
-    const targets = ids.map(byId).filter((e) => e && present(e) && e.side !== f.side && distIn(f, e) <= sp.range);
-    const single = targets.length === 1;
-    const lines = targets.map((e) => {
-      if (!isPerson(e)) return `<div class="line note">${esc(e.name)} isn't a person; no effect.</div>`;
-      const sv = saveVsSpells(savesOf(e), state.rng, (single ? -2 : 0) + (e.pfe ? 1 : 0));
-      if (!sv.saved) { e.status = "held"; e.target = null; }
-      return `<div class="line">${esc(e.name)}: save d20 ${sv.roll}${sv.mod ? ` ${sv.mod > 0 ? "+" : ""}${sv.mod}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : `<span class="hit">held</span>`}</div>`;
-    }).join("");
-    f.holdTargets = [];
-    return `<div class="card"><div class="who">${nameSpan(f)} casts Hold Person on ${targets.length} target${single ? " (single: −2 on the save)" : "s"}</div>${lines}</div>`;
-  }
-  if (sp.id === "charmPerson") {
-    if (!isPerson(t)) return `<div class="card">${head}<div class="line note">${esc(t.name)} isn't a person; no effect.</div></div>`;
-    const sv = saveVsSpells(savesOf(t), state.rng, t.pfe ? 1 : 0);
-    const txt = `<div class="line">Save vs spells d20 ${sv.roll}${sv.mod ? ` ${sv.mod}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : `<span class="hit">fails</span>`}</div>`;
-    if (!sv.saved) { if (sp.id === "charmPerson") { t.side = f.side; t.charmed = true; } else t.status = "held"; t.target = null; }
-    const eff = sv.saved ? "" : `<div class="line hit">${esc(t.name)} ${sp.id === "charmPerson" ? `is charmed and fights for side ${f.side} from next round` : "is held"}.</div>`;
-    return `<div class="card">${head}${txt}${eff}</div>`;
-  }
-  f.pfe = true;
-  return `<div class="card">${head}<div class="line note">Evil attackers take −1 on every blow and shot against ${esc(f.name)}; +1 on his saves.</div></div>`;
-}
+/** Cells and figures an area spell would catch, aimed at cell (x, y) (package missile-step.mjs). */
+const areaOf = (caster, spellId, x, y) => mst.areaOf(state, caster, spellId, x, y);
 function logAppend(html) { const log = $("#log"); log.insertAdjacentHTML("beforeend", html); log.scrollTop = log.scrollHeight; }
 
 /* ---------- flow ---------- */
@@ -1115,8 +720,8 @@ function nextStep() {
   if (state.step === "init") { state.skipMissiles = false; state.fx = []; state.banner = null; runAction({ type: "begin-round" }); aiElect(); }
   else if (state.step === "elect") return;
   else if (state.step.startsWith("move-")) runAction({ type: "end-move", side: state.step.slice(5) });
-  else if (state.step === "missiles") { state.events = []; $("#dragInfo").textContent = ""; resolveMissiles(); gmIgnoredNote(); finishPhase("Missiles & spells"); runAction({ type: "missiles-resolved" }); }
-  else if (state.step === "melee") { state.events = []; resolveMelee(); gmIgnoredNote(); finishPhase("Melee"); runAction({ type: "melee-resolved" }); }
+  else if (state.step === "missiles") { state.events = []; $("#dragInfo").textContent = ""; runAction({ type: "missiles" }); finishPhase("Missiles & spells"); }
+  else if (state.step === "melee") { state.events = []; runAction({ type: "melee" }); finishPhase("Melee"); }
   afterStepChange();
 }
 /** Side B on behaviour elects for itself; a human winner chooses with the strip buttons. */
@@ -1659,7 +1264,7 @@ const encOf = (f) => bh.encOf(state, f);
 function behave(side) { runAction({ type: "behave", side }); render(); }
 
 /* ---------- encounter: languages, parley, offer of service ---------- */
-const LANG_LABEL = (l) => ({ common: "Common", "tongue-law": "the Law tongue", "tongue-chaos": "the Chaos tongue", "tongue-neutral": "the Neutral tongue" }[l] ?? (MONSTERS.find((m) => m.key === l)?.name ?? l.charAt(0).toUpperCase() + l.slice(1)));
+const LANG_LABEL = tk.languageLabel;
 function encounterCard() {
   const rows = [...(state.encounter ?? new Map()).values()].map((g) => {
     const m = MONSTERS.find((x) => x.key === g.monsterKey);
@@ -1669,32 +1274,12 @@ function encounterCard() {
   }).join("");
   return rows ? `<div class="card"><div class="who">Encounter</div>${rows}</div>` : "";
 }
-const groupFigs = (g) => state.figures.filter((e) => e.kind === "monster" && (e.origSide ?? e.side) === g.side && e.monsterKey === g.monsterKey);
-function holdRoundFor(side) {
-  if (state.step === "init") return state.round + 1;
-  if (state.step === `move-${side}`) return state.round;
-  if (state.step.startsWith("move-") && state.firstSide !== side) return state.round;
-  return state.round + 1;
-}
-/** Languages a PC can use with a group, with any extra-language slot that could pick up theirs. */
-function talkOptions(pc, f) {
-  const g = encOf(f), m = mon(f);
-  if (!g || !talksAtAll(m.mind.intelligence)) return null;
-  const opt = parleyOptions(pc.languages ?? [], g, m.alignment);
-  const viaSlot = !opt.usable.length && (pc.langSlots ?? 0) > 0 && g.languages.length ? g.languages[0] : null;
-  if (!opt.usable.length && !viaSlot) return null;
-  return { g, m, opt, viaSlot };
-}
-function canParleyNow(pc, f) {
-  if (state.phase !== "fight" || state.meleeBegun || pc.kind !== "pc" || !active(pc) || f.kind !== "monster" || !present(f) || f.side === pc.side) return null;
-  const o = talkOptions(pc, f);
-  return o && !["negative", "positive"].includes(o.g.reaction) ? o : null;
-}
-function langPicker(pc, o) {
+const groupFigs = (g) => tk.groupFigures(state, g);
+const holdRoundFor = (side) => tk.holdRoundFor(state, side);/** Languages a PC can use with a group, with any extra-language slot that could pick up theirs. */
+const talkOptions = (pc, f) => tk.talkOptions(state, pc, f);const canParleyNow = (pc, f) => tk.canParleyNow(state, pc, f);function langPicker(pc, o) {
   const list = [...o.opt.usable.map((l) => [l, LANG_LABEL(l)]), ...(o.viaSlot ? [[o.viaSlot, `${LANG_LABEL(o.viaSlot)} (learn it as one of his extra languages)`]] : []), ...o.opt.hostile.map((l) => [l, `\u26a0 ${LANG_LABEL(l)}: they will know it as hostile and attack`])];
   return `<label>Speak in <select id="pLang">${opts(list, list[0][0])}</select></label>`;
 }
-function useLanguage(pc, o, lang) { if (lang === o.viaSlot && !pc.languages.includes(lang)) { pc.languages.push(lang); pc.langSlots--; } }
 function closeDialog() { $("#loot").style.display = "none"; render(); }
 function openParley(pc, f) {
   const o = canParleyNow(pc, f); if (!o) return;
@@ -1710,38 +1295,13 @@ function openParley(pc, f) {
   $("#loot").style.display = "flex";
   $("#pClose").onclick = closeDialog;
   $("#pRoll").onclick = () => {
-    const lang = $("#pLang").value; useLanguage(pc, o, lang);
-    const head = `<div class="who">${nameSpan(pc)} parleys with the ${esc(m.name)}s in ${esc(LANG_LABEL(lang))}</div>`;
-    if (isHostileTongue(lang, m.alignment)) {
-      g.reaction = "negative"; g.holdRound = null;
-      logAppend(`<div class="card">${head}<div class="line hit">They know ${esc(LANG_LABEL(lang))} for an enemy's speech and attack.</div></div>`); closeDialog(); return;
-    }
-    const gp = Math.max(0, Math.min(pc.inv.coins.gp, Math.trunc(Number($("#pGp").value) || 0)));
-    const r = encounterReaction({ intelligence: m.mind.intelligence, modifiers: { bribe: gp > 0 ? Number($("#pBribe").value) : 0, superiorForce: Number($("#pForce").value), alignmentKnown: $("#pAlign").checked, pcAlignment: pc.alignment ?? "law", monsterAlignment: m.alignment } }, state.erng);
-    const mods = r.mods.parts.map((p) => `${p.why} ${p.mod > 0 ? "+" : ""}${p.mod}`).join(", ");
-    const roll = `<div class="line note">2d6 [${r.dice.join(",")}]${mods ? ` (${mods})` : ""} = ${r.total}: ${r.result}</div>`;
-    let out;
-    if (r.result === "negative") { g.reaction = "negative"; g.holdRound = null; out = `<div class="line hit">Talks fail. They fight as their nature dictates (${PROFILE_LABEL[m.mind.behavior]}).</div>`; }
-    else if (r.result === "uncertain") { g.reaction = "uncertain"; g.holdRound = holdRoundFor(g.side); out = `<div class="line">They hold for round ${g.holdRound}. ${esc(pc.name)} can raise the bribe or fall back.${$("#autoB").checked || g.side !== "B" ? "" : " (Side B is played by hand: hold them this round.)"}</div>`; }
-    else {
-      g.reaction = "positive"; g.holdRound = null;
-      if (gp) transferCoins(pc.inv, emptyInventory(), { gp });
-      for (const e of groupFigs(g)) if (present(e)) { e.status = "withdrew"; e.target = null; }
-      out = `<div class="line">They accept terms and withdraw${gp ? `, taking the ${gp} gp bribe` : ""}.</div>`;
-    }
-    logAppend(`<div class="card">${head}${roll}${out}</div>`);
-    afterStep(); closeDialog();
+    const r = runAction({ type: "parley", pcId: pc.id, figId: f.id, lang: $("#pLang").value, gp: Number($("#pGp").value) || 0, bribeMod: Number($("#pBribe").value) || 0, force: Number($("#pForce").value) || 0, alignmentKnown: $("#pAlign").checked });
+    if (!r.ok) $("#dragInfo").textContent = r.error;
+    closeDialog(); render();
   };
 }
 /** Offer of service: shared language, a reward, and the same alignment unless charmed. Surrendered monsters too. */
-function serviceState(pc, f) {
-  if (state.phase === "setup" || pc.kind !== "pc" || !active(pc) || f.kind !== "monster" || f.serviceClosed || f.retainer) return null;
-  if (!(present(f) && f.side !== pc.side) && f.status !== "surrendered") return null;
-  const o = talkOptions(pc, f); if (!o) return null;
-  const gate = serviceGate({ intelligence: o.m.mind.intelligence, pcAlignment: pc.alignment ?? "law", monsterAlignment: o.m.alignment, charmed: !!f.charmed, reward: 1 });
-  return { ...o, gate };
-}
-function openService(pc, f) {
+const serviceState = (pc, f) => tk.serviceState(state, pc, f);function openService(pc, f) {
   const o = serviceState(pc, f); if (!o || !o.gate.ok) return;
   $("#lootBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(pc.name)} offers ${esc(f.name)} service</h2><button id="sClose">Close</button></div>
     <p class="note" style="margin:4px 0 10px">2d6 + Charisma ${pc.cha ?? 10}: 2 attacks, 3–5 hostile, 6–8 uncertain (a bigger offer may follow), 9–11 accepts, 12 enthusiast (loyalty +3). A reward is required; sparing its life doesn't count.</p>
@@ -1752,26 +1312,9 @@ function openService(pc, f) {
   $("#loot").style.display = "flex";
   $("#sClose").onclick = closeDialog;
   $("#sRoll").onclick = () => {
-    const lang = $("#pLang").value; useLanguage(pc, o, lang);
-    const head = `<div class="who">${nameSpan(pc)} offers ${nameSpan(f)} service</div>`;
-    if (isHostileTongue(lang, o.m.alignment)) { f.serviceClosed = true; if (f.status === "surrendered") { f.status = null; f.target = pc.id; } logAppend(`<div class="card">${head}<div class="line hit">${esc(f.name)} knows ${esc(LANG_LABEL(lang))} for an enemy's speech and attacks.</div></div>`); afterStep(); closeDialog(); return; }
-    const gp = Math.max(0, Math.min(pc.inv.coins.gp, Math.trunc(Number($("#sGp").value) || 0)));
-    const r = offerService({ cha: pc.cha ?? 10, offerBonus: Number($("#sMore")?.value ?? 0), intelligence: o.m.mind.intelligence, pcAlignment: pc.alignment ?? "law", monsterAlignment: o.m.alignment, charmed: !!f.charmed, reward: gp }, state.erng);
-    if (!r.rolled) { logAppend(`<div class="card">${head}<div class="line note">No offer: ${esc(r.reason)}.</div></div>`); closeDialog(); return; }
-    const roll = `<div class="line note">2d6 [${r.dice.join(",")}] ${r.loyaltyBase >= 0 ? "+" : ""}${r.loyaltyBase} (Cha)${r.offerBonus ? ` +${r.offerBonus} (bigger offer)` : ""} = ${r.total}: ${r.key.toLowerCase()}</div>`;
-    let out;
-    if (r.accepts) {
-      transferCoins(pc.inv, emptyInventory(), { gp });
-      f.side = pc.side; f.status = null; f.target = null; f.retainer = true; f.loyaltyBonus = r.loyaltyBonus;
-      out = `<div class="line">${esc(f.name)} takes the ${gp} gp and joins side ${pc.side}${r.loyaltyBonus ? ` as an enthusiast (loyalty +${r.loyaltyBonus})` : ""}.</div>`;
-    } else if (r.canRaise) { f.serviceTries++; out = `<div class="line">${esc(f.name)} is uncertain: a bigger offer may sway it.</div>`; }
-    else {
-      f.serviceClosed = true;
-      if (r.attacks && f.status === "surrendered") { f.status = null; f.target = pc.id; }
-      out = `<div class="line hit">${r.attacks ? `${esc(f.name)} attacks!` : `${esc(f.name)} is hostile: talks end.`}</div>`;
-    }
-    logAppend(`<div class="card">${head}${roll}${out}</div>`);
-    afterStep(); closeDialog();
+    const r = runAction({ type: "offer-service", pcId: pc.id, figId: f.id, lang: $("#pLang").value, gp: Number($("#sGp").value) || 0, more: Number($("#sMore")?.value ?? 0) || 0 });
+    if (!r.ok) $("#dragInfo").textContent = r.error;
+    closeDialog(); render();
   };
 }
 

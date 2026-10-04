@@ -7,6 +7,12 @@
  * events for a client to show. It mutates the state it is given; a server
  * clones before calling and saves the result.
  *
+ * Pass 5 (Oct 2026) moves in the missile and spell step ("missiles",
+ * missile-step.mjs) and talking ("parley", "offer-service", talk.mjs).
+ *
+ * Pass 4 (Oct 2026) moves the melee step in: "melee" resolves the round
+ * (melee.mjs) and returns its log cards, then morale and the end check.
+ *
  * Pass 3 (Oct 2026) adds fire during movement: every move is followed by
  * pass-through fire at its half-move point, and "split-fire" lets horse
  * archers and elves shoot in mid-move.
@@ -35,6 +41,9 @@ import { orcLairMoraleExempt } from "./reactions.mjs";
 import { moveFigure, closeOn, planGroupMove, commitGroupMove, mayCharge, chargeInches } from "./movement.mjs";
 import { behave } from "./behaviour.mjs";
 import { passThroughFire, splitMoveFire, canShoot } from "./missiles.mjs";
+import { resolveMeleeRound } from "./melee.mjs";
+import { resolveMissileStep } from "./missile-step.mjs";
+import { parley, offerServiceTo } from "./talk.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -173,6 +182,34 @@ export function apply(state, action, rng) {
       events.push(...moralePass(state, rng));
       checkOver(state, events);
       if (state.phase === "fight") state.step = Step.MELEE;
+      return { ok: true, events };
+    }
+    case "missiles": {
+      if (state.step !== Step.MISSILES) return fail("not the missile step");
+      const r = resolveMissileStep(state, rng);
+      events.push({ type: "missiles", round: state.round, cards: r.cards, hits: r.hits, fell: r.fell });
+      events.push(...moralePass(state, rng));
+      checkOver(state, events);
+      if (state.phase === "fight") state.step = Step.MELEE;
+      return { ok: true, events };
+    }
+    case "parley":
+    case "offer-service": {
+      const pc = byId(action.pcId), f = byId(action.figId);
+      if (!pc || !f) return fail("no such figure");
+      const r = action.type === "parley" ? parley(state, pc, f, action, rng) : offerServiceTo(state, pc, f, action, rng);
+      if (!r.ok) return fail(r.error);
+      events.push({ type: "talk", card: r.card });
+      checkOver(state, events);
+      return { ok: true, events };
+    }
+    case "melee": {
+      if (state.step !== Step.MELEE) return fail("not the melee step");
+      const r = resolveMeleeRound(state, rng);
+      events.push({ type: "melee", round: state.round, cards: r.cards, hits: r.hits, fell: r.fell });
+      events.push(...moralePass(state, rng));
+      checkOver(state, events);
+      if (state.phase === "fight") state.step = Step.INIT;
       return { ok: true, events };
     }
     case "melee-resolved": {
@@ -435,6 +472,27 @@ async function runSelfTests() {
     st.step = "init"; st.figures[1].x = 59; st.width = 60; st.walls = open(60, 10);
     const r2 = apply(st, { type: "begin-round" }, seq([d6(3), d6(4)]));
     ok(archer.action === "melee" && r2.events.some((e) => e.id === 1 && /out of range/.test(e.why)), "fire lapses when the target is out of range");
+  }
+  // Pass 4: the melee step through apply.
+  {
+    const a = fig(1, "A", { x: 5, y: 5, cls: "fighter", level: 1, weaponId: "sword", ac: 4, target: 2, stance: "attack", action: "melee" });
+    const o = orc(2, "B", 6, { y: 5, ac: 6, target: 1, stance: "attack", action: "melee", hp: 1 });
+    const st = fresh([a, o]); st.step = "melee"; st.contacts = new Map(); st.firstSide = "A";
+    const r = apply(st, { type: "melee" }, () => 0.99);
+    const m = r.events.find((e) => e.type === "melee");
+    ok(r.ok && m && m.cards.length && m.fell.includes(2) && st.phase === "over", "melee resolves, the orc falls, the fight ends");
+  }
+  // Pass 5: the missile step and parley through apply.
+  {
+    const a = fig(1, "A", { x: 2, y: 5, missile: "shortbow", action: "fire", target: 2, dex: 10, ac: 7, facing: 0 });
+    const o = orc(2, "B", 12, { y: 5, ac: 6, hp: 1 });
+    const st = fresh([a, o]); st.step = "missiles"; st.contacts = new Map();
+    const r = apply(st, { type: "missiles" }, () => 0.99);
+    ok(r.ok && r.events.find((e) => e.type === "missiles")?.fell.includes(2) && st.phase === "over", "the archer kills the orc in the missile step");
+    const p = fig(5, "A", { alignment: "chaos", languages: ["orc"], langSlots: 0, inv: { coins: { gp: 0 } } });
+    const s2 = fresh([p, orc(6, "B", 20)]); s2.step = "move-A"; s2.encounter = new Map([["B:orc", { side: "B", monsterKey: "orc", languages: ["orc"], reaction: null }]]);
+    const t = apply(s2, { type: "parley", pcId: 5, figId: 6, lang: "orc" }, seq([d6(6), d6(6)]));
+    ok(t.ok && t.events[0].type === "talk" && s2.figures[1].status === "withdrew", "a parley through apply");
   }
   console.log(`runner.mjs — all self-tests passed (${pass} assertions).`);
 }

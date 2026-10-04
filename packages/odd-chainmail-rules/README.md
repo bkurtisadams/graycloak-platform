@@ -111,6 +111,15 @@ Changes made during extraction:
   point (taking effect at once), and split-move fire for elves and horse
   archers. Every move through the runner now reports its half-move point.
   Sleep's area is AD&D's 3" diameter (`sleepCells`, `sleepInArea`).
+- 0.12.0: combat runner, passes 4 and 5 (slice 4 complete). New
+  `melee.mjs` (exported as `melee`): the man-to-man melee step, strike
+  effects (drain, paralysis, petrification, poison, swallowing), the
+  per-round parry allowance and Chainmail 4c counter blows, broken weapons,
+  regeneration, breath and gaze. New `missile-step.mjs` (`missileStep`):
+  the missile and spell step in Dexterity order, area templates and spell
+  effects. New `talk.mjs` (`talk`): parley and offer of service. The runner
+  adds the actions "missiles", "melee", "parley" and "offer-service"; the
+  combat tester now only draws the board and takes input.
 
 ## Open items
 
