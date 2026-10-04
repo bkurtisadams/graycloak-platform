@@ -126,6 +126,8 @@ header.top button, .strip button, .drawer button { font: inherit; font-size: .9r
 .auto { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
 button.done { font-size: 1rem !important; font-weight: 600; padding: 10px 18px; border: none; background: var(--ink) !important; color: var(--card) !important; border-radius: 6px; }
 button.done:disabled { opacity: .45; }
+.gm { margin: 10px 0 4px; padding: 8px 10px; border: 1px dashed #d4a017; border-radius: 6px; background: #fffaf0; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.gm-k { width: 100%; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: #8a6a10; }
 tr.editor td { background: #f4f7f9; padding: 6px 8px; border-bottom: 1px solid #c5d1d9; }
 tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .elect-note { font-family: var(--serif); font-size: .95rem; padding: 6px 2px; color: var(--ink); }
@@ -305,7 +307,7 @@ import {
   sleepCells, sleepInArea, SLEEP_RADIUS, slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
   lossCheck, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond, fearRadius, troopLossLine, moraleDiceBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
-  fightRunner, movement as mv, behaviour as bh, missiles as ms,
+  fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk
 } from "../packages/odd-chainmail-rules/index.js";
 
@@ -413,7 +415,7 @@ function combatProfile(f) {
   }
   const m = MONSTERS.find((x) => x.key === f.monsterKey);
   const p = monsterAttackProfile(m); const dice = m.key === "hydra" && f.hp != null ? hydraHeads(Math.max(0, f.hp)) : monsterAttackDice(m);
-  if (p.method === "weapon") { const w = weaponIdForClass(p.weaponClass); return { weaponId: w, parryWeaponId: w, dice, bonus: 0, fcLabel: `${dice} HD`, profileAttack: false }; }
+  if (p.method === "weapon") { const w = f.weaponId ?? weaponIdForClass(p.weaponClass); return { weaponId: w, parryWeaponId: w, dice, bonus: 0, fcLabel: `${dice} HD`, profileAttack: false }; }
   return { weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`, profileAttack: true, damageDice: p.damage.dice || 1, damageFlat: p.damage.bonus || 0 };
 }
 function rollHp(f, rng) {
@@ -576,7 +578,8 @@ function afterStrike(atk, tgt, res, add, start) {
   const svMod = tgt.pfe ? 1 : 0;
   tgt.lastHitBy = m.key;
   const drain = abilityOf(m, "drain");
-  if (drain) {
+  if (drain && tgt.invulnerable) { for (const d of hits) add(tgt.id, -d.damage); notes.push(`Energy drain: ${esc(tgt.name)} is invulnerable (GM) and loses no levels.`); }
+  else if (drain) {
     const rec = { level: tgt.kind === "pc" ? tgt.level : (tgt.hdLeft ?? m.hd.count), hp: tgt.hp, maxHp: tgt.maxHp, hpRolls: tgt.hpRolls };
     const lost = []; let r = { ...rec };
     for (const d of hits) { add(tgt.id, -d.damage); r = drainLevels(r, drain.value, state.rng); lost.push(...r.lost); r = { ...r, hpRolls: r.hpRolls ?? null }; }
@@ -661,7 +664,7 @@ function monsterPowers() {
       const spec = BREATH[colour];
       const dmgFull = spec.dice ? Array.from({ length: spec.dice }, () => 1 + Math.floor(state.rng() * 6)).reduce((a, b) => a + b, 0) : Math.max(1, d.hp);
       const hit = state.figures.filter((e) => e !== d && present(e) && e.placed && inBreath(inch(d), inch(t), inch(e), spec));
-      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; e.hp -= dmg; ev(d, e, dmg); baneHit(e, spec.kind); return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
+      const lines = hit.map((e) => { const sv = saveVsSpellsLike(e, "dragon"); const dmg = sv.saved ? Math.floor(dmgFull / 2) : dmgFull; bd.takeDamage(e, dmg); ev(d, e, dmg); baneHit(e, spec.kind); return `<div class="line">${esc(e.name)}: save d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${dmg} damage</span>${e.hp <= 0 ? " — down" : ""}</div>`; }).join("");
       out.push(`<div class="card"><div class="who">${nameSpan(d)} breathes ${esc(spec.kind)} <span class="note">(2d6 [${bb.roll.join(",")}]; ${d.breathLeft} left; ${spec.shape} ${spec.length}" × ${spec.width}")</span></div><div class="line note">${dmgFull} damage${spec.dice ? "" : " (the dragon's hit points)"}, save vs dragon breath for half.</div>${lines || '<div class="line note">No one caught in it.</div>'}</div>`);
       continue;
     }
@@ -790,7 +793,7 @@ function resolveMelee() {
     }
   }
   const fell = [];
-  for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; f.hp = Math.min(f.hp - dmg.get(f.id), f.maxHp); if (f.hp <= 0) fell.push(f); }
+  for (const f of state.figures) { if (!dmg.has(f.id) || !alive(f)) continue; if (f.invulnerable) { bd.takeDamage(f, dmg.get(f.id)); continue; } f.hp = Math.min(f.hp - dmg.get(f.id), f.maxHp); if (f.hp <= 0) fell.push(f); }
   for (const f of fell) if (!f.risesAs && f.lastHitBy) { const as = risesAs(f.lastHitBy, { killed: true, manType: isMan(f) }); if (as) { f.risesAs = as; cards.push(`<div class="card note">${esc(f.name)} was slain by a ${esc(f.lastHitBy)} and will rise as a ${as}.</div>`); } }
   for (const f of state.figures) if (f.pendingStatus) { if (alive(f)) { f.status = f.pendingStatus; f.target = null; } f.pendingStatus = null; }
   cards.push(regenerate());
@@ -839,10 +842,14 @@ function renderEvents(events) {
     }
   }
 }
+/** GM: say how much damage invulnerable figures shrugged off. */
+function gmIgnoredNote() {
+  for (const f of state.figures) if (f.ignoredDamage) { logAppend(`<div class="card note">${esc(f.name)} is invulnerable (GM): ${f.ignoredDamage} damage ignored.</div>`); f.ignoredDamage = 0; }
+}
 function runAction(action) {
   const r = fightRunner.apply(state, action, state.rng);
   if (!r.ok) { console.warn(`runner: ${r.error}`); return r; }
-  renderEvents(r.events);
+  renderEvents(r.events); gmIgnoredNote();
   if (r.events.some((e) => e.type === "step-skipped" && e.step === "missiles")) state.skipMissiles = true;
   return r;
 }
@@ -940,7 +947,7 @@ function resolveMissiles() {
       }
     }
     for (const id of shotAt) attacked.add(id);
-    for (const [id, n] of dmg) { const g = byId(id); if (!alive(g)) continue; g.hp -= n; if (g.hp <= 0) fell.push(g); }
+    for (const [id, n] of dmg) { const g = byId(id); if (!alive(g)) continue; bd.takeDamage(g, n); if (g.hp <= 0) fell.push(g); }
   }
   const tail = fell.length ? `<div class="card"><span class="hit">Down: ${fell.map((g) => esc(g.name)).join(", ")}</span></div>` : "";
   const body = cards.length ? cards.join("") : `<div class="card note">No missiles or spells this round.</div>`;
@@ -965,7 +972,7 @@ function castSpell(f, t, sp) {
     const lines = caught.map((e) => {
       let dmg = 0; for (let i = 0; i < dice; i++) dmg += 1 + Math.floor(state.rng() * 6);
       const sv = saveForHalf(savesOf(e), save, dmg, state.rng, e.pfe ? 1 : 0); const take = sv.damage;
-      e.hp -= take; ev(f, e, take); if (sp.id === "fireBall") baneHit(e, "fire");
+      bd.takeDamage(e, take); ev(f, e, take); if (sp.id === "fireBall") baneHit(e, "fire");
       return `<div class="line">${esc(e.name)}: ${dice}d6 = ${dmg}; save vs spells d20 ${sv.roll}${sv.mod ? " +1" : ""} vs ${sv.need}: ${sv.saved ? "half" : "full"}, <span class="hit">${take} damage</span>${e.hp <= 0 ? " — down" : ""}${e.burned && e.hp <= 0 ? " and burned" : ""}</div>`;
     }).join("");
     f.castAim = null;
@@ -1044,8 +1051,8 @@ function nextStep() {
   if (state.step === "init") { state.skipMissiles = false; state.fx = []; state.banner = null; runAction({ type: "begin-round" }); aiElect(); }
   else if (state.step === "elect") return;
   else if (state.step.startsWith("move-")) runAction({ type: "end-move", side: state.step.slice(5) });
-  else if (state.step === "missiles") { state.events = []; $("#dragInfo").textContent = ""; resolveMissiles(); finishPhase("Missiles & spells"); runAction({ type: "missiles-resolved" }); }
-  else if (state.step === "melee") { state.events = []; resolveMelee(); finishPhase("Melee"); runAction({ type: "melee-resolved" }); }
+  else if (state.step === "missiles") { state.events = []; $("#dragInfo").textContent = ""; resolveMissiles(); gmIgnoredNote(); finishPhase("Missiles & spells"); runAction({ type: "missiles-resolved" }); }
+  else if (state.step === "melee") { state.events = []; resolveMelee(); gmIgnoredNote(); finishPhase("Melee"); runAction({ type: "melee-resolved" }); }
   afterStepChange();
 }
 /** Side B on behaviour elects for itself; a human winner chooses with the strip buttons. */
@@ -1140,6 +1147,7 @@ function renderMap() {
     parts.push(`<g data-fig="${f.id}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}><title>${esc(f.name)}${f.status === "surrendered" ? " (surrendered)" : ""}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}</title>
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${8.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.6"/>` : ""}
       ${isTgt ? `<g pointer-events="none" stroke="var(--target)" stroke-width="1.6" fill="none"><circle cx="${cx}" cy="${cy}" r="${9.6 * S}"/><line x1="${cx - 13 * S}" y1="${cy}" x2="${cx - 8 * S}" y2="${cy}"/><line x1="${cx + 8 * S}" y1="${cy}" x2="${cx + 13 * S}" y2="${cy}"/><line x1="${cx}" y1="${cy - 13 * S}" x2="${cx}" y2="${cy - 8 * S}"/><line x1="${cx}" y1="${cy + 8 * S}" x2="${cx}" y2="${cy + 13 * S}"/></g>` : ""}
+      ${f.invulnerable ? `<circle cx="${cx}" cy="${cy}" r="${7.9 * S + (S - 1) * 1.2}" fill="none" stroke="#d4a017" stroke-width="1.5" stroke-dasharray="2.2 1.4" pointer-events="none"><title>Invulnerable (GM)</title></circle>` : ""}
       <circle cx="${cx}" cy="${cy}" r="${7 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".8"/>
       <polygon points="${wedge}" fill="#fff" pointer-events="none"/>
       <text x="${cx}" y="${cy + 1.9 * Math.min(S, 2)}" text-anchor="middle" font-size="${5.2 * Math.min(S, 2)}" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(tokenLabel(f))}</text>
@@ -1192,8 +1200,15 @@ function editorRow(f) {
     <select data-ed="race" aria-label="Race">${opts([["human", "Human"], ["elf", "Elf"], ["dwarf", "Dwarf"], ["halfling", "Halfling"]], f.race ?? "human")}</select>
     <select data-ed="alignment" aria-label="Alignment">${opts([["law", "Law"], ["neutral", "Neutrality"], ["chaos", "Chaos"]], f.alignment ?? "law")}</select>
     ${num("Purse", f.purse ?? 0, 0, 100000, "6em")} gp`
-    : `${common}
-    <select data-ed="monster" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), f.monsterKey)}</select>`;
+    : (() => {
+      const m = MONSTERS.find((x) => x.key === f.monsterKey), armed = monsterAttackProfile(m).method === "weapon";
+      const wNow = f.weaponId ?? (armed ? weaponIdForClass(monsterAttackProfile(m).weaponClass) : "");
+      return `${common}
+    <select data-ed="monster" aria-label="Monster">${opts(MONSTERS.map((x) => [x.key, x.name]), f.monsterKey)}</select>
+    ${armed ? `<select data-ed="weapon" aria-label="Weapon">${opts(weapons, wNow)}</select>
+    <select data-ed="missile" aria-label="Missile weapon">${opts(MISSILES, f.missile ?? "")}</select>` : `<span class="note">Natural attacks (Book II)</span>`}
+    <select data-ed="armor" aria-label="Armour">${opts([["", `Book II AC ${m.ac}`], ...ARMOR.map((a) => [a.id, `${a.label} (AC ${a.ac})`])], f.armor ?? "")}</select>`;
+    })();
   return `<tr class="editor"><td colspan="3"><div class="adders" data-editor="${f.id}">${body}
     <button class="primary" data-save-edit="${f.id}">Save</button> <button data-cancel-edit="${f.id}">Cancel</button></div></td></tr>`;
 }
@@ -1202,7 +1217,7 @@ function saveEdit(id) {
   const v = (k) => box.querySelector(`[data-ed="${k}"]`)?.value;
   const clamp = (x, lo, hi, d) => Math.min(hi, Math.max(lo, Math.trunc(Number(x)) || d));
   const name = (v("name") ?? "").trim(); if (name) f.name = name;
-  const oldSide = f.side, oldSize = f.size ?? 1;
+  const oldSide = f.side, oldSize = f.size ?? 1, keyBefore = f.monsterKey;
   f.side = v("side") === "B" ? "B" : "A"; f.origSide = f.side;
   if (f.kind === "pc") {
     f.cls = v("cls"); f.level = clamp(v("level"), 1, 14, 1); f.armor = v("armor"); f.ac = ARMOR.find((a) => a.id === f.armor).ac;
@@ -1211,7 +1226,12 @@ function saveEdit(id) {
     if (f.action === "passthrough" && !f.missile) f.action = "melee";
   } else {
     const key = v("monster");
-    if (key && key !== f.monsterKey) { const m = MONSTERS.find((x) => x.key === key); f.monsterKey = key; f.ac = m.ac; f.size = m.size ?? 1; if (state.leader) for (const s2 of ["A", "B"]) if (state.leader[s2] === f.id && f.side !== s2) state.leader[s2] = null; }
+    if (key && key !== f.monsterKey) { const m = MONSTERS.find((x) => x.key === key); f.monsterKey = key; f.ac = m.ac; f.size = m.size ?? 1; f.weaponId = undefined; f.missile = ""; f.armor = undefined; if (state.leader) for (const s2 of ["A", "B"]) if (state.leader[s2] === f.id && f.side !== s2) state.leader[s2] = null; }
+  }
+  if (f.kind === "monster" && keyBefore === f.monsterKey) {
+    const m = MONSTERS.find((x) => x.key === f.monsterKey);
+    if (box.querySelector('[data-ed="weapon"]')) { f.weaponId = v("weapon"); f.missile = v("missile") || ""; }
+    const arm = v("armor"); f.armor = arm || undefined; f.ac = arm ? ARMOR.find((a) => a.id === arm).ac : m.ac;
   }
   if (state.leader && f.side !== oldSide && state.leader[oldSide] === f.id) state.leader[oldSide] = null;
   state.editing = null;
@@ -1327,6 +1347,13 @@ function renderDetail() {
     ${f.pfe ? `<dt>Protected</dt><dd>from evil (−1 to evil attackers)</dd>` : ""}</dl>
     ${state.phase === "fight" && f.kind === "pc" && active(f) && state.figures.some((e) => e.side !== f.side && present(e) && ["basilisk", "medusa"].includes(e.monsterKey)) ? `<div style="margin:6px 0"><label><input type="checkbox" id="avert" ${f.averted ? "checked" : ""}> Avert eyes (safe from the gaze, but blind: \u22124 to hit, missiles only at adjacent targets)</label><br><label><input type="checkbox" id="mirror" ${f.mirror ? "checked" : ""}> Hold up a mirror (turns the gaze back in good light)</label></div>` : ""}
     ${alive(f) ? `<div style="margin:6px 0"><label title="Chainmail p.20: his own unit +1 a die on morale, units within 12&quot; +1; if he falls, every unit checks at −2"><input type="checkbox" id="leader" ${state.leader?.[f.origSide ?? f.side] === f.id ? "checked" : ""}> Leader of side ${f.origSide ?? f.side}</label></div>` : ""}
+    <div class="gm"><div class="gm-k">GM tools</div>
+      <label title="Takes no hit-point damage and can't be killed or drained; other effects (sleep, hold, petrification) still apply"><input type="checkbox" id="gmInv" ${f.invulnerable ? "checked" : ""}> Invulnerable</label>
+      ${state.phase !== "setup" && f.hp != null ? `<button id="gmHeal">Heal to full</button>
+      <label>HP <input id="gmHp" type="number" value="${Math.max(f.hp, 0)}" style="width:4.5em"></label><button id="gmSetHp">Set</button>
+      <button id="gmClear" title="Wake, free, unpetrify, uncharm; bring back a figure that fled or surrendered">Clear conditions</button>
+      <button id="gmKill">Kill</button>` : ""}
+    </div>
     ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
     ${f.action === "cast:holdPerson" ? holdPicker(f) : ""}
     ${state.phase === "fight" && active(f) && f.action && f.action !== "melee" ? `<p class="step" style="font-size:.9rem">${actionPreview(f)}</p>` : ""}
@@ -1336,6 +1363,12 @@ function renderDetail() {
     ${f.kind === "pc" && active(f) && state.phase !== "setup" ? searchable(f).map((sx) => ` <button data-search="${sx.id}">Search ${esc(sx.label)}</button>`).join("") : ""}
     ${f.monsterKey === "troll" && !alive(f) && !f.burned && state.phase !== "setup" ? ` <button id="burn" class="primary">Burn it (fire or acid)</button>` : ""}`;
   $("#stance")?.addEventListener("change", (e) => { f.stance = e.target.value; render(); });
+  const gmDone = (msg) => { logAppend(`<div class="card note">GM: ${msg}</div>`); fightRunner.checkOver(state); render(); };
+  $("#gmInv")?.addEventListener("change", (e) => { f.invulnerable = e.target.checked; gmDone(`${esc(f.name)} is ${f.invulnerable ? "now invulnerable" : "no longer invulnerable"}.`); });
+  $("#gmHeal")?.addEventListener("click", () => { f.hp = f.maxHp; f.regenStore = 0; gmDone(`${esc(f.name)} healed to ${f.hp} hit points.`); });
+  $("#gmSetHp")?.addEventListener("click", () => { const n = Math.trunc(Number($("#gmHp").value)); if (!Number.isFinite(n)) return; f.hp = n; if (n > f.maxHp) f.maxHp = n; gmDone(`${esc(f.name)} set to ${n} hit points.`); });
+  $("#gmClear")?.addEventListener("click", () => { f.status = null; f.paralyzedUntil = null; if (f.charmed) { f.charmed = false; f.side = f.origSide ?? f.side; } f.target = null; gmDone(`${esc(f.name)}'s conditions cleared.`); });
+  $("#gmKill")?.addEventListener("click", () => { f.hp = 0; f.target = null; gmDone(`${esc(f.name)} killed.`); });
   $("#leader")?.addEventListener("change", (e) => { const sd = f.origSide ?? f.side; state.leader[sd] = e.target.checked ? f.id : (state.leader[sd] === f.id ? null : state.leader[sd]); render(); });
   $("#avert")?.addEventListener("change", (e) => { f.averted = e.target.checked; render(); });
   $("#mirror")?.addEventListener("change", (e) => { f.mirror = e.target.checked; render(); });

@@ -18,6 +18,18 @@ export const active = (f) => present(f) && !["asleep", "held"].includes(f.status
 export const helpless = (f) => present(f) && ["asleep", "held", "paralyzed"].includes(f.status);
 
 export const sz = (f) => f.size ?? 1;
+
+/**
+ * Take hit-point damage. A figure the referee has made invulnerable (a GM
+ * testing tool) loses nothing; what it would have lost is tallied in
+ * f.ignoredDamage so the log can say so. Returns the damage actually taken.
+ */
+export function takeDamage(f, n) {
+  if (!(n > 0)) return 0;
+  if (f.invulnerable) { f.ignoredDamage = (f.ignoredDamage ?? 0) + n; return 0; }
+  f.hp -= n;
+  return n;
+}
 export const covers = (f, x, y) => x >= f.x && x < f.x + sz(f) && y >= f.y && y < f.y + sz(f);
 export const centre = (f) => ({ x: f.x + (sz(f) - 1) / 2, y: f.y + (sz(f) - 1) / 2 });
 
@@ -71,6 +83,8 @@ function runSelfTests() {
   ok(adjacent(a, b) && !adjacent(a, { x: 3, y: 3 }), "adjacency by footprint");
   ok(distIn(a, { x: 4, y: 1 }) === 1, "3 cells = 1 inch");
   ok(centre(big).x === 1.5 && covers(big, 2, 3) && !alive(big), "large footprint; dead at 0");
+  { const inv = { hp: 5, invulnerable: true }, mortal = { hp: 5 };
+    ok(takeDamage(inv, 9) === 0 && inv.hp === 5 && inv.ignoredDamage === 9 && takeDamage(mortal, 3) === 3 && mortal.hp === 2, "invulnerable figures take no damage"); }
   ok(present({ hp: 3 }) && !present({ hp: 3, status: "fled" }) && !active({ hp: 3, status: "held" }) && helpless({ hp: 3, status: "asleep" }), "status predicates");
   ok(lineOfSight(st, a, { x: 3, y: 3 }) && !lineOfSight(st, a, { x: 3, y: 5 }), "line of sight stops at walls");
   ok(isTrapped(st, [a]) === false, "open cells: not trapped");

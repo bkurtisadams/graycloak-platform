@@ -18,7 +18,7 @@ import { missileBand, missileRange } from "./tables.mjs";
 import { missileMod } from "./derivations.mjs";
 import { BLIND } from "./specials.mjs";
 import { attackFacing, moveBudget, halfCellsToInches } from "./engagement.mjs";
-import { present, active, adjacent, distIn, lineOfSight, inMelee, sz } from "./board.mjs";
+import { present, active, adjacent, distIn, lineOfSight, inMelee, sz, takeDamage } from "./board.mjs";
 import { moveInches } from "./movement.mjs";
 
 /** OPEN: monsters have no Dexterity in Books I-III; they shoot and act as Dex 10. */
@@ -83,7 +83,7 @@ function applyNow(state, dmg) {
   for (const [id, d] of dmg) {
     const f = state.figures.find((e) => e.id === id);
     if (!f || !d) continue;
-    const was = f.hp > 0; f.hp -= d; if (f.firstHitRound == null) f.firstHitRound = state.round;
+    const was = f.hp > 0; takeDamage(f, d); if (f.firstHitRound == null) f.firstHitRound = state.round;
     if (was && f.hp <= 0) fell.push(f);
   }
   return fell;
