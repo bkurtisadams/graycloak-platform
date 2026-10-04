@@ -19,6 +19,12 @@ Run one module's self-tests:
 
     node src\combat-engine.mjs
 
+## Online play (slice 5)
+
+- `src/fight-store.mjs` - a fight as a Firestore document (`toStored`, `fromStored`), schema and rules version stamps, the seeded RNG kept in `state.rngState`, token defaults (`elevation`, `movementAction`)
+- `src/view.mjs` - what each player sees (`viewFor`, `eventsFor`) and who may send which action (`mayAct`)
+- `src/orders.mjs` - orders, drawing a weapon and GM tools as runner actions
+
 ## Provenance
 
 Extracted from the odd-chainmail Foundry system (`module/rules/`), Sep 2026.

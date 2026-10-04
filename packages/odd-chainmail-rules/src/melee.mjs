@@ -168,17 +168,17 @@ export function regenerate(state) {
       const tr = trollRound({ hp: f.hp, maxHp: f.maxHp, roundsSinceHit: state.round - f.firstHitRound, burned: f.burned, store: f.regenStore ?? 0 });
       if (!tr.regen) continue;
       const was = f.hp; f.hp = tr.hp; f.regenStore = tr.store;
-      if (tr.rises) out.push(`${f.name} rises again at ${f.hp} hit points!`);
-      else if (tr.down) out.push(`${f.name} regenerates on the ground (${f.regenStore}/${TROLL_RISES_AT}); burn it or put it in acid to stop it.`);
-      else if (f.hp > was) out.push(`${f.name} regenerates ${f.hp - was} hit points (${f.hp}/${f.maxHp}).`);
+      if (tr.rises) out.push({ text: `${f.name} rises again at ${f.hp} hit points!`, pub: `${f.name} rises again!` });
+      else if (tr.down) out.push({ text: `${f.name} regenerates on the ground (${f.regenStore}/${TROLL_RISES_AT}); burn it or put it in acid to stop it.`, pub: `${f.name} stirs on the ground; burn it or put it in acid to stop it.` });
+      else if (f.hp > was) out.push({ text: `${f.name} regenerates ${f.hp - was} hit points (${f.hp}/${f.maxHp}).`, pub: `${f.name}'s wounds close.` });
       continue;
     }
     const amt = regenAmount({ kind: f.monsterKey, roundsSinceHit: state.round - f.firstHitRound, burned: f.burned });
     if (!amt || f.hp >= f.maxHp) continue;
     f.hp = Math.min(f.maxHp, f.hp + amt);
-    out.push(`${f.name} regenerates ${amt} hit points (${f.hp}/${f.maxHp}).`);
+    out.push({ text: `${f.name} regenerates ${amt} hit points (${f.hp}/${f.maxHp}).`, pub: `${f.name}'s wounds close.` });
   }
-  return out.length ? { title: [{ text: "Regeneration" }], items: out.map((text) => ({ text })) } : null;
+  return out.length ? { title: [{ text: "Regeneration" }], items: out.map((x) => (typeof x === "string" ? { text: x } : x)) } : null;
 }
 
 /** Breath and gaze, which act in the missile step whatever the figure's orders. Returns { cards, hits }. */

@@ -22,4 +22,14 @@ test("index.js loads and exposes the core API", async () => {
   }
   assert.equal(typeof api.fightRunner.apply, "function", "fightRunner.apply");
   assert.equal(typeof api.board.isWall, "function", "board.isWall");
+  assert.equal(typeof api.fightStore.toStored, "function", "fightStore.toStored");
+  assert.equal(typeof api.fightView.viewFor, "function", "fightView.viewFor");
+  assert.equal(typeof api.orders.setOrders, "function", "orders.setOrders");
+});
+
+test("RULES_VERSION matches package.json", async () => {
+  const { readFileSync } = await import("node:fs");
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const { fightStore } = await import("../index.js");
+  assert.equal(fightStore.RULES_VERSION, pkg.version);
 });

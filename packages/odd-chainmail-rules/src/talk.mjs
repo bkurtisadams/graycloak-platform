@@ -66,7 +66,7 @@ export function parley(state, pc, f, opts, rng) {
   const gp = Math.max(0, Math.min(pc.inv?.coins?.gp ?? 0, Math.trunc(Number(opts.gp) || 0)));
   const r = encounterReaction({ intelligence: m.mind.intelligence, modifiers: { bribe: gp > 0 ? Number(opts.bribeMod) || 0 : 0, superiorForce: Number(opts.force) || 0, alignmentKnown: !!opts.alignmentKnown, pcAlignment: pc.alignment ?? "law", monsterAlignment: m.alignment } }, rng);
   const mods = r.mods.parts.map((p) => `${p.why} ${p.mod > 0 ? "+" : ""}${p.mod}`).join(", ");
-  const items = [{ text: `2d6 [${r.dice.join(",")}]${mods ? ` (${mods})` : ""} = ${r.total}: ${r.result}` }];
+  const items = [{ text: `2d6 [${r.dice.join(",")}]${mods ? ` (${mods})` : ""} = ${r.total}: ${r.result}`, aud: "referee" }];
   if (r.result === "negative") { g.reaction = "negative"; g.holdRound = null; items.push({ text: `Talks fail. They fight as their nature dictates (${PROFILE_LABEL[m.mind.behavior]}).`, hit: true }); }
   else if (r.result === "uncertain") { g.reaction = "uncertain"; g.holdRound = holdRoundFor(state, g.side); items.push({ text: `They hold for round ${g.holdRound}. ${pc.name} can raise the bribe or fall back.` }); }
   else {
@@ -91,7 +91,7 @@ export function offerServiceTo(state, pc, f, opts, rng) {
   const gp = Math.max(0, Math.min(pc.inv?.coins?.gp ?? 0, Math.trunc(Number(opts.gp) || 0)));
   const r = offerService({ cha: pc.cha ?? 10, offerBonus: Number(opts.more) || 0, intelligence: o.m.mind.intelligence, pcAlignment: pc.alignment ?? "law", monsterAlignment: o.m.alignment, charmed: !!f.charmed, reward: gp }, rng);
   if (!r.rolled) return { ok: true, card: { title, items: [{ text: `No offer: ${r.reason}.` }] } };
-  const items = [{ text: `2d6 [${r.dice.join(",")}] ${r.loyaltyBase >= 0 ? "+" : ""}${r.loyaltyBase} (Cha)${r.offerBonus ? ` +${r.offerBonus} (bigger offer)` : ""} = ${r.total}: ${r.key.toLowerCase()}` }];
+  const items = [{ text: `2d6 [${r.dice.join(",")}] ${r.loyaltyBase >= 0 ? "+" : ""}${r.loyaltyBase} (Cha)${r.offerBonus ? ` +${r.offerBonus} (bigger offer)` : ""} = ${r.total}: ${r.key.toLowerCase()}`, aud: "referee" }];
   if (r.accepts) {
     payGold(pc, gp);
     f.side = pc.side; f.status = null; f.target = null; f.retainer = true; f.loyaltyBonus = r.loyaltyBonus;

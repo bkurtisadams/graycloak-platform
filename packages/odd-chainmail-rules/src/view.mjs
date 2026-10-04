@@ -1,0 +1,241 @@
+/**
+ * OD&D — who sees what, and who may do what
+ * odd-chainmail-rules · src/view.mjs
+ *
+ * Slice 5, step 1 (Oct 2026). The server keeps the whole fight; each player
+ * gets a projection built here, so hidden facts never reach a browser.
+ *
+ *   who: { uid } a player · { referee: true } · { server: true }
+ *   state.control: { [figureId]: uid | "referee" | "game" }; a figure with no
+ *   entry is the referee's.
+ *
+ * What a player sees (Kurt, Oct 2026):
+ *   - every figure on the board: position, size, facing, elevation, side,
+ *     status, target line, weapon in hand, armour, movement spent, whether
+ *     it is casting, and an HP bar as a fraction (never hit points or HD);
+ *   - his allies' exact hit points, actions and stances;
+ *   - everything about his own figures;
+ *   - not the RNG, the leader, lair hoards, morale bookkeeping, encounter
+ *     reactions, melee contacts, or behaviour reasons.
+ * Events: parley and service dice, morale dice and behaviour lines are the
+ * referee's; a card item with aud "referee" is dropped for players and one
+ * with pub shows that text instead. An event type not listed here is the
+ * referee's until it is classified.
+ */
+import { present } from "./board.mjs";
+import { moverOf } from "./runner.mjs";
+import { FIGHT_SCHEMA, RULES_VERSION } from "./fight-store.mjs";
+
+const isStaff = (who) => !!(who?.referee || who?.server);
+export const controllerOf = (state, f) => state.control?.[f.id] ?? "referee";
+export const controls = (state, who, f) => !!f && (isStaff(who) || (who?.uid != null && controllerOf(state, f) === who.uid));
+export const figuresOf = (state, who) => state.figures.filter((f) => controls(state, who, f));
+
+/* ------------------------------------------------------------------ figures */
+
+export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "retainer"]);
+export const ALLY_FIGURE_KEYS = Object.freeze(["hp", "maxHp", "action", "stance"]);
+
+export const hpFraction = (f) => (f.hp == null || !f.maxHp ? null : Math.max(0, Math.min(1, f.hp / f.maxHp)));
+const pick = (f, keys) => { const o = {}; for (const k of keys) if (f[k] !== undefined) o[k] = f[k]; return o; };
+const copy = (v) => JSON.parse(JSON.stringify(v ?? null));
+
+/** One figure as this viewer sees it. */
+export function figureFor(state, who, f) {
+  if (controls(state, who, f)) return { ...copy(f), mine: true };
+  const out = { elevation: 0, movementAction: "walk", ...pick(f, PUBLIC_FIGURE_KEYS), hpFrac: hpFraction(f), casting: !!f.action?.startsWith?.("cast:") };
+  const mySides = new Set(figuresOf(state, who).map((g) => g.side));
+  if (mySides.has(f.side)) Object.assign(out, pick(f, ALLY_FIGURE_KEYS));
+  return copy(out);
+}
+
+/* ------------------------------------------------------------------ the fight */
+
+export const PUBLIC_STATE_KEYS = Object.freeze(["phase", "round", "step", "firstSide", "init", "winner", "width", "height", "scale", "meleeBegun", "rev"]);
+const wallsOut = (walls) => (walls ?? []).map((row) => (typeof row === "string" ? row : row.map((w) => (w ? "#" : ".")).join("")));
+
+/** The fight as this viewer sees it: plain JSON, Firestore-safe. */
+export function viewFor(state, who) {
+  const base = { schema: FIGHT_SCHEMA, rules: RULES_VERSION, walls: wallsOut(state.walls) };
+  if (isStaff(who)) {
+    const out = {};
+    for (const [k, v] of Object.entries(state)) if (k !== "rngState" && k !== "walls" && typeof v !== "function") out[k] = v instanceof Map ? Object.fromEntries(v) : v instanceof Set ? [...v] : v;
+    return { ...copy(out), ...base, referee: true };
+  }
+  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
+}
+
+/* ------------------------------------------------------------------ authority */
+
+const STAFF_ONLY = Object.freeze(["begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm"]);
+const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon"]);
+const actorIds = (a) => [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
+
+/** May this viewer send this action? { ok, why }. The runner still checks the rules. */
+export function mayAct(state, who, action) {
+  const no = (why) => ({ ok: false, why });
+  if (isStaff(who)) return { ok: true };
+  if (who?.uid == null) return no("not signed in");
+  const t = action?.type;
+  if (STAFF_ONLY.includes(t)) return no("only the referee does that");
+  if (FIGURE_ACTIONS.includes(t)) {
+    const ids = actorIds(action);
+    if (!ids.length) return no("no figure named");
+    const byId = (id) => state.figures.find((f) => f.id === id);
+    const bad = ids.find((id) => !controls(state, who, byId(id)));
+    return bad == null ? { ok: true } : no(`you don't control ${byId(bad)?.name ?? `figure ${bad}`}`);
+  }
+  if (t === "elect") return state.figures.some((f) => f.side === action.side && present(f) && controls(state, who, f)) ? { ok: true } : no("you have no figure on that side");
+  if (t === "end-move") {
+    const side = moverOf(state.step);
+    const movers = state.figures.filter((f) => f.side === side && present(f));
+    return movers.length && movers.every((f) => controls(state, who, f)) ? { ok: true } : no("other players are moving on this side");
+  }
+  return no(`unknown action ${t}`);
+}
+
+/* ------------------------------------------------------------------ events */
+
+export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon"]);
+export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
+export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm"]);
+export const REDACTED_EVENTS = Object.freeze(["morale"]);
+const MORALE_PUBLIC = Object.freeze(["type", "reason", "side", "monsterKey", "name", "leader", "source", "holds", "outcome"]);
+
+const cardFor = (card) => ({ ...card, items: (card.items ?? []).filter((i) => i.aud !== "referee").map((i) => (i.pub != null ? { ...i, text: i.pub, pub: undefined } : i)) });
+
+/** The events this viewer may see, with referee-only parts removed. */
+export function eventsFor(events, state, who) {
+  if (isStaff(who)) return events;
+  const out = [];
+  for (const e of events) {
+    if (PUBLIC_EVENTS.includes(e.type)) {
+      const c = { ...e };
+      if (Array.isArray(e.cards)) c.cards = e.cards.map(cardFor);
+      if (e.card) c.card = cardFor(e.card);
+      out.push(copy(c));
+    } else if (OWNER_EVENTS.includes(e.type)) {
+      if (controls(state, who, state.figures.find((f) => f.id === e.id))) out.push(copy(e));
+    } else if (e.type === "morale") out.push(pick(e, MORALE_PUBLIC));
+  }
+  return out;
+}
+export const classified = (type) => [...PUBLIC_EVENTS, ...OWNER_EVENTS, ...REFEREE_EVENTS, ...REDACTED_EVENTS].includes(type);
+
+/* ------------------------------------------------------------------ tests */
+async function runSelfTests() {
+  const { apply } = await import("./runner.mjs");
+  const store = await import("./fight-store.mjs");
+  let pass = 0;
+  const ok = (c, l) => { if (!c) throw new Error(`FAIL: ${l}`); pass++; };
+  const open = (w, h) => Array.from({ length: h }, () => Array(w).fill(false));
+  const pc = (id, x, extra) => ({ id, side: "A", origSide: "A", name: `Hero ${id}`, kind: "pc", cls: "fighter", level: 3, armor: "chain+shield", ac: 4, weaponId: "sword", dex: 10, x, y: 5, placed: true, hp: 14, maxHp: 14, stance: "attack", target: null, action: "melee", slotsLeft: [], inv: { coins: { gp: 30 }, items: [] }, ...extra });
+  const orc = (id, x, extra) => ({ id, side: "B", origSide: "B", name: `Orc ${id}`, kind: "monster", monsterKey: "orc", ac: 6, x, y: 5, placed: true, hp: 5, maxHp: 5, stance: "attack", target: null, action: "melee", ...extra });
+  const fight = () => {
+    const st = { phase: "fight", round: 0, step: "init", width: 30, height: 10, walls: open(30, 10), contacts: new Map(), chests: [], leader: { A: null, B: 4 },
+      encounter: new Map([["B:orc", { side: "B", monsterKey: "orc", languages: ["orc"], reaction: null }]]),
+      figures: [pc(1, 4, { languages: ["common", "orc"] }), pc(2, 4, { y: 6, cls: "magic-user", level: 1, slotsLeft: [1, 0, 0, 0, 0, 0], armor: "none", ac: 9, weaponId: "dagger" }), orc(3, 12), orc(4, 13, { y: 6 }), orc(5, 13, { y: 4 })],
+      control: { 1: "kurt", 2: "bob" } };
+    store.seedFight(st, 42);
+    return st;
+  };
+  const kurt = { uid: "kurt" }, bob = { uid: "bob" }, ref = { referee: true };
+
+  // A round-by-round script; the same script, saved and reloaded each step, must give the same fight.
+  const script = (st) => {
+    const out = [];
+    const a = (act) => { const r = apply(st, act, store.rngOf(st)); out.push(r); return r; };
+    for (let i = 0; i < 4 && st.phase === "fight"; i++) {
+      a({ type: "begin-round" });
+      a({ type: "elect", side: st.init.winner, choice: "move" });
+      for (const side of [st.firstSide, st.firstSide === "A" ? "B" : "A"]) {
+        if (side === "B") a({ type: "behave", side: "B" });
+        else { const t = st.figures.find((f) => f.side === "B" && present(f)); if (t && present(st.figures[0])) a({ type: "close-on", id: 1, targetId: t.id }); }
+        a({ type: "end-move", side });
+      }
+      if (st.step === "missiles") a({ type: "missiles" });
+      if (st.step === "melee") a({ type: "melee" });
+    }
+    return out;
+  };
+  {
+    const live = fight(); const evLive = script(live).flatMap((r) => r.events);
+    let saved = store.toStored(fight());
+    const evSaved = []; const a = (act) => { const s = store.fromStored(JSON.parse(JSON.stringify(saved))); const r = apply(s, act, store.rngOf(s)); saved = store.toStored(s); ok(store.nestedArrayPath(saved) === null, "stored fight stays Firestore-safe"); evSaved.push(...r.events); return s; };
+    // Replay the same decisions against a reload before every action.
+    let cur = store.fromStored(JSON.parse(JSON.stringify(saved)));
+    for (let i = 0; i < 4 && cur.phase === "fight"; i++) {
+      cur = a({ type: "begin-round" });
+      cur = a({ type: "elect", side: cur.init.winner, choice: "move" });
+      for (const side of [cur.firstSide, cur.firstSide === "A" ? "B" : "A"]) {
+        if (side === "B") cur = a({ type: "behave", side: "B" });
+        else { const t = cur.figures.find((f) => f.side === "B" && present(f)); if (t && present(cur.figures[0])) cur = a({ type: "close-on", id: 1, targetId: t.id }); }
+        cur = a({ type: "end-move", side });
+      }
+      if (cur.step === "missiles") cur = a({ type: "missiles" });
+      if (cur.step === "melee") cur = a({ type: "melee" });
+    }
+    ok(JSON.stringify(evSaved) === JSON.stringify(evLive), "a fight saved and reloaded before every action plays out exactly as one kept in memory");
+    ok(evLive.some((e) => e.type === "melee") && evLive.some((e) => e.type === "behaviour"), "the script reached melee and behaviour");
+    for (const e of evLive) ok(classified(e.type), `event type ${e.type} is classified for players`);
+  }
+  {
+    const st = fight(); script(st);
+    const v = viewFor(st, kurt), raw = JSON.stringify(v);
+    const enemy = v.figures.find((f) => f.side === "B");
+    ok(!("rngState" in v) && !("leader" in v) && !("encounter" in v) && !("contacts" in v) && !("chests" in v) && !("control" in v), "a player's view has no RNG, leader, encounter, contacts, hoards or control map");
+    ok(v.figures.filter((f) => f.side === "B").every((f) => f.hp === undefined && f.maxHp === undefined && f.hd === undefined && f.ac === undefined && typeof f.hpFrac === "number"), "enemies show an HP fraction, never hit points, HD or AC");
+    ok(v.mine.length === 1 && v.mine[0] === 1 && v.figures.find((f) => f.id === 1).mine && v.figures.find((f) => f.id === 1).inv, "his own figure in full");
+    const ally = v.figures.find((f) => f.id === 2);
+    ok(ally.hp === st.figures[1].hp && ally.action !== undefined && ally.slotsLeft === undefined && ally.inv === undefined, "an ally: exact hit points and action, not spells or pack");
+    ok(store.nestedArrayPath(v) === null && enemy.elevation === 0 && enemy.movementAction === "walk", "view is Firestore-safe and carries token fields");
+    const r = viewFor(st, ref);
+    ok(r.referee && !("rngState" in r) && r.figures.find((f) => f.id === 3).maxHp === 5 && typeof r.contacts === "object", "the referee sees everything but the dice");
+    ok(!raw.includes("\"rngState\""), "no RNG anywhere in a player's view");
+  }
+  {
+    const st = fight(); st.step = "move-A";
+    apply(st, { type: "orders", id: 2, action: "cast:sleep", castAim: { x: 12, y: 5 } }, store.rngOf(st));
+    const enemyView = viewFor({ ...st, control: { 3: "gary" } }, { uid: "gary" }).figures.find((f) => f.id === 2);
+    ok(enemyView.casting === true && enemyView.action === undefined && enemyView.castAim === undefined, "the other side sees a caster standing to cast, not the spell or where it will land");
+    ok(viewFor(st, kurt).figures.find((f) => f.id === 2).castAim === undefined, "an ally doesn't see the aim point either");
+  }
+  {
+    const st = fight(); st.step = "move-A";
+    ok(mayAct(st, kurt, { type: "move", id: 1, x: 5, y: 5 }).ok && !mayAct(st, kurt, { type: "move", id: 2, x: 5, y: 5 }).ok, "a player moves only his own figures");
+    ok(!mayAct(st, kurt, { type: "group-move", ids: [1, 2], leadId: 1, x: 6, y: 5 }).ok, "a group move needs every member");
+    ok(mayAct(st, kurt, { type: "orders", id: 1, target: 3 }).ok && !mayAct(st, bob, { type: "orders", id: 1, target: 3 }).ok, "orders for his own figures only");
+    ok(mayAct(st, kurt, { type: "parley", pcId: 1, figId: 3, lang: "orc" }).ok, "parley speaks for his own character");
+    ok(!mayAct(st, kurt, { type: "melee" }).ok && !mayAct(st, kurt, { type: "gm", id: 1, tool: "heal" }).ok && !mayAct(st, kurt, { type: "behave", side: "B" }).ok, "resolving steps, behaviour and GM tools are the referee's");
+    ok(!mayAct(st, kurt, { type: "end-move", side: "A" }).ok, "with two players on the side, one can't end its move");
+    ok(mayAct({ ...st, control: { 1: "kurt", 2: "kurt" } }, kurt, { type: "end-move", side: "A" }).ok, "a sole player ends his side's move");
+    st.step = "elect"; st.init = { winner: "A" };
+    ok(mayAct(st, bob, { type: "elect", side: "A", choice: "move" }).ok && !mayAct(st, bob, { type: "elect", side: "B", choice: "move" }).ok, "a player on the winning side may elect");
+    ok(mayAct(st, ref, { type: "gm", id: 3, tool: "kill" }).ok && mayAct(st, { server: true }, { type: "melee" }).ok, "referee and server may do anything");
+    ok(!mayAct(st, {}, { type: "move", id: 1 }).ok, "not signed in");
+  }
+  {
+    const st = fight();
+    const evs = [
+      { type: "behaviour", side: "B", lines: ["Orc 3 charges"] },
+      { type: "morale", reason: "casualties", side: "B", name: "Orc", roll: { dice: [2, 3] }, needed: 7, row: 3, holds: false, outcome: "flee" },
+      { type: "orders", id: 1, action: "melee" }, { type: "orders", id: 2, action: "cast:sleep" },
+      { type: "talk", card: { title: [], items: [{ text: "2d6 [3,4] = 7: uncertain", aud: "referee" }, { text: "They hold for round 2." }] } },
+      { type: "melee", cards: [{ title: [], items: [{ text: "Troll regenerates 3 hit points (9/30).", pub: "Troll's wounds close." }] }] },
+      { type: "gm", id: 3, tool: "kill" }, { type: "something-new" }
+    ];
+    const seen = eventsFor(evs, st, kurt), types = seen.map((e) => e.type);
+    ok(!types.includes("behaviour") && !types.includes("gm") && !types.includes("something-new"), "behaviour, GM tools and unclassified events stay with the referee");
+    const m = seen.find((e) => e.type === "morale");
+    ok(m && m.outcome === "flee" && m.roll === undefined && m.needed === undefined && m.row === undefined, "players see a morale result, not the dice");
+    ok(seen.filter((e) => e.type === "orders").length === 1 && seen.find((e) => e.type === "orders").id === 1, "orders go only to their owner");
+    ok(seen.find((e) => e.type === "talk").card.items.length === 1, "parley dice are the referee's");
+    ok(seen.find((e) => e.type === "melee").cards[0].items[0].text === "Troll's wounds close.", "regeneration shows without numbers");
+    ok(eventsFor(evs, st, ref).length === evs.length, "the referee gets every event");
+  }
+  console.log(`view.mjs — all self-tests passed (${pass} assertions).`);
+}
+if (typeof process !== "undefined" && process.argv?.[1]) {
+  const norm = (p) => decodeURIComponent(p).replace(/\\/g, "/").replace(/^\/(?=[A-Za-z]:)/, "").toLowerCase();
+  if (norm(new URL(import.meta.url).pathname) === norm(process.argv[1])) runSelfTests();
+}

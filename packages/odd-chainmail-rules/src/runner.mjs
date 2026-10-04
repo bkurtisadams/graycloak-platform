@@ -44,6 +44,7 @@ import { passThroughFire, splitMoveFire, canShoot } from "./missiles.mjs";
 import { resolveMeleeRound } from "./melee.mjs";
 import { resolveMissileStep } from "./missile-step.mjs";
 import { parley, offerServiceTo } from "./talk.mjs";
+import { setOrders, drawWeapon, gmTool } from "./orders.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -86,6 +87,9 @@ export const AI_ELECTION = "counter";
  *   { type: "group-move", ids, leadId, x, y }   setup or move step: move a group, all or nothing
  *   { type: "behave", side }                    move step: every figure on the moving side decides by its profile
  *   { type: "split-fire", id, targetId }        move step: an elf or horse archer shoots in mid-move
+ *   { type: "orders", id, ...orders }           any step: target, holdTargets, secondTarget, action, stance, castAim (orders.mjs)
+ *   { type: "draw-weapon", id, index }          own move step: draw a carried weapon for half a move
+ *   { type: "gm", id, tool, value }             referee: invulnerable, heal, set-hp, clear, kill
  */
 /** After any move in the fight, enemies who elected pass-through fire shoot at each mover's half-move point. */
 function withPassThrough(state, events, rng) {
@@ -200,6 +204,22 @@ export function apply(state, action, rng) {
       const r = action.type === "parley" ? parley(state, pc, f, action, rng) : offerServiceTo(state, pc, f, action, rng);
       if (!r.ok) return fail(r.error);
       events.push({ type: "talk", card: r.card });
+      checkOver(state, events);
+      return { ok: true, events };
+    }
+    case "orders": {
+      const { type, id, ...o } = action;
+      const r = setOrders(state, byId(id), o);
+      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+    }
+    case "draw-weapon": {
+      const r = drawWeapon(state, byId(action.id), action.index);
+      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+    }
+    case "gm": {
+      const r = gmTool(state, byId(action.id), action.tool, action.value);
+      if (!r.ok) return fail(r.error);
+      events.push(...r.events);
       checkOver(state, events);
       return { ok: true, events };
     }
@@ -493,6 +513,15 @@ async function runSelfTests() {
     const s2 = fresh([p, orc(6, "B", 20)]); s2.step = "move-A"; s2.encounter = new Map([["B:orc", { side: "B", monsterKey: "orc", languages: ["orc"], reaction: null }]]);
     const t = apply(s2, { type: "parley", pcId: 5, figId: 6, lang: "orc" }, seq([d6(6), d6(6)]));
     ok(t.ok && t.events[0].type === "talk" && s2.figures[1].status === "withdrew", "a parley through apply");
+  }
+  // Slice 5: orders and GM tools through apply.
+  {
+    const a = fig(1, "A", { x: 5, y: 5 }), o = orc(2, "B", 6, { y: 5 });
+    const st = fresh([a, o]); st.step = "move-A";
+    ok(apply(st, { type: "orders", id: 1, target: 2, stance: "parry" }).ok && a.target === 2 && a.stance === "parry", "orders through apply");
+    ok(!apply(st, { type: "orders", id: 1, action: "dance" }).ok, "a bad order is refused");
+    const r = apply(st, { type: "gm", id: 2, tool: "kill" });
+    ok(r.ok && st.phase === "over" && r.events.some((e) => e.type === "over"), "GM kill ends the fight");
   }
   console.log(`runner.mjs — all self-tests passed (${pass} assertions).`);
 }
