@@ -219,6 +219,10 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
   .ab-actions .desk { display: none; }
 }
 @media (min-width: 701px) { .ab-actions .phone { display: none; } .ab-phone-line { display: none; } .ab-row { display: contents; } }
+/* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
+body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
+body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #chatForm { display: none !important; }
+#pFights button { display: block; margin: 4px 0; text-align: left; }
 </style>
 </head>
 <body>
@@ -272,6 +276,12 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
     <button id="closeDrawer" aria-label="Close panel">Close</button>
   </div>
   <div class="tabpane" data-pane="setup">
+    <div id="playerPane" hidden>
+      <div class="bar"><button id="pSignIn">Sign in</button> <span class="note" id="pWho"></span></div>
+      <div class="bar"><label>Campaign <input id="pCid" value="tester" style="width:8em" spellcheck="false"></label> <button id="pFind">Find my fights</button></div>
+      <div id="pFights"></div>
+      <p class="note" id="pNote"></p>
+    </div>
     <div class="bar">
       <label for="layout">Map</label>
       <select id="layout"><option value="corridor">10' corridor</option><option value="room" selected>40' room with corridors</option><option value="open">Open floor</option></select>
@@ -288,15 +298,16 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
         <label>Fight <input id="fid" style="width:9em" spellcheck="false"></label>
         <button id="openFight" title="Open a fight already on the server, as its referee">Open</button>
       </span>
+      <span id="playerLinkBox" hidden><label>Player's page <input id="playerLink" readonly style="width:20em"></label> <button id="copyLink">Copy</button></span>
     </div>
     <p class="note" id="onlineNote" style="margin:0 0 8px"></p>
-    <div class="bar">
+    <div class="bar pkeep">
       <label style="white-space:nowrap"><input type="checkbox" id="tapTarget"> Tap enemy to target</label>
       <button id="saveView" title="Open the tester at this view next time">Save view</button>
       <button id="group" title="Jump to the next group of figures">Next group</button>
       <button id="selectSide" title="Select every figure of the side that is moving">Select side</button>
     </div>
-    <div class="bar">
+    <div class="bar pkeep">
       <label for="emptyClick">Left-click on empty floor</label>
       <select id="emptyClick"><option value="deselect">Deselect</option><option value="clear">Deselect and clear all targets</option><option value="nothing">Do nothing</option></select>
     </div>
@@ -350,6 +361,13 @@ const state = {
 };
 /** Online play (slice 5): the server runs the fight; this page draws the referee's view and sends actions. */
 const online = { on: false, api: null, header: null, lastStep: null, connecting: null };
+/** The player's page: the same tester, opened with ?player, drawing one player's view of a fight on the server. */
+const PLAYER = new URLSearchParams(location.search).has("player");
+if (PLAYER) online.on = true;
+/** On the player's page, only his own figures take orders and move. */
+const mineOk = (f) => !PLAYER || !!f?.mine;
+/** Hit points as text, or null where the page knows only the bar (an enemy on the player's page). */
+const hpText = (f) => (f.hp == null || f.hpScaled ? null : `${Math.max(f.hp, 0)}/${f.maxHp}`);
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const byId = (id) => state.figures.find((f) => f.id === id);
@@ -439,9 +457,9 @@ function rollHp(f, rng) {
 }
 const combatant = ml.combatant;
 /* ---------- movement and targeting ---------- */
-const canMoveNow = (f) => mv.canMoveNow(state, f);
+const canMoveNow = (f) => mineOk(f) && mv.canMoveNow(state, f);
 const chargeInches = mv.chargeInches, allowanceOf = mv.allowanceOf;
-const mayCharge = (f) => mv.mayCharge(state, f);
+const mayCharge = (f) => mineOk(f) && mv.mayCharge(state, f);
 const enemyAdjacentAt = (f, x, y) => mv.enemyAdjacentAt(state, f, x, y);
 const footCells = mv.footCells;
 const fits = (f, x, y) => mv.fits(state, f, x, y);
@@ -462,6 +480,7 @@ function order(f, patch) {
   return r;
 }
 function setTarget(f, t, extra = {}) {
+  if (!mineOk(f)) return;
   if (!f || !t || f.side === t.side || !active(f) || !present(t) || state.phase !== "fight") return;
   order(f, { target: t.id, ...extra });
 }
@@ -648,6 +667,7 @@ function renderEvents(events) {
     else if (e.type === "charge") logAppend(`<div class="card note">${esc(e.name)} charges ${esc(e.target)}.</div>`);
     else if (e.type === "behaviour") logAppend(`<div class="card"><div class="who">Side ${e.side} by behaviour</div>${e.lines.map((l) => `<div class="line">${esc(l.text)}</div>`).join("") || '<div class="line note">Nothing to do.</div>'}</div>`);
     else if (e.type === "morale-exempt") logAppend(`<div class="card note">${esc(e.name)}s defending their lair: no morale check until outnumbered 3 to 1 (${e.foes} against ${e.defenders}).</div>`);
+    else if (e.type === "morale" && !e.roll) logAppend(`<div class="card"><div class="who">Morale: ${esc(e.name)}s, side ${e.side}</div><div class="line">${outcomeText(e)}</div></div>`);
     else if (e.type === "morale") {
       const why = e.reason === "leader" ? `Their leader ${esc(e.leader)} has fallen: check at \u22122`
         : e.reason === "fear" ? `${esc(e.source)} is within ${e.radius}": they check as for excess casualties`
@@ -688,7 +708,7 @@ async function goOnline() {
     $("#onlineNote").textContent = `Can't reach Firebase (${e.message}). Online play needs the page served from your machine or graycloak.net; the hosted artifact blocks it.`;
     return null;
   }
-  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); });
+  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (PLAYER) playerSignedIn(); });
   return online.api;
 }
 /** Send an action to the server. The answer's events arrive through the feed; a refusal shows here. */
@@ -713,15 +733,24 @@ function adoptView(v) {
   state.contacts = new Map(Object.entries(v.contacts ?? {}));
   state.encounter = new Map(Object.entries(v.encounter ?? {}));
   for (const k of ["moraleChecked", "fearChecked", "lairNoted"]) state[k] = new Set(v[k] ?? []);
+  if (PLAYER) {
+    // A player's view has no hoards or leader, and only an HP fraction for figures not his own:
+    // a 0-100 stand-in keeps the bars and "down" working; hpText() prints no numbers for it.
+    state.chests = []; state.leader = { A: null, B: null };
+    for (const f of state.figures) if (!f.mine && f.hp == null && f.hpFrac != null) { f.hp = f.hpFrac > 0 ? Math.max(1, Math.round(f.hpFrac * 100)) : 0; f.maxHp = 100; f.hpScaled = true; }
+  }
   if (state.selected != null && !byId(state.selected)) state.selected = null;
   state.group = new Set([...state.group].filter((id) => byId(id)));
 }
 function openOnline(cid, fid) {
   const api = online.api; if (!api) return;
   $("#log").innerHTML = ""; online.header = null; online.lastStep = null;
+  const viewer = PLAYER ? api.user?.uid : "referee";
+  if (!viewer) { $("#onlineNote").textContent = "Sign in first."; return; }
+  if (!PLAYER) { $("#playerLink").value = `${location.origin}${location.pathname}?player&cid=${encodeURIComponent(cid)}&fid=${encodeURIComponent(fid)}`; $("#playerLinkBox").hidden = false; }
   api.openFight({
-    cid, fid, viewer: "referee",
-    onHeader: (h) => { online.header = h; renderOnlineNote(); },
+    cid, fid, viewer,
+    onHeader: (h) => { online.header = h; renderOnlineNote(); renderStrip(); },
     onView: (v) => {
       adoptView(v);
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();
@@ -733,19 +762,40 @@ function openOnline(cid, fid) {
       renderEvents(entry.events);
       if (phase) { finishPhase(phase.type === "melee" ? "Melee" : "Missiles & spells"); render(); }
     },
-    onError: (m) => { $("#onlineNote").textContent = `Online: ${m}`; }
+    onError: (m) => { $("#onlineNote").textContent = `Online: ${m}`; if (PLAYER) $("#pNote").textContent = m; }
   });
   renderOnlineNote();
 }
 async function createOnline() {
   const api = online.api, cid = $("#cid").value.trim(), fid = $("#fid").value.trim();
-  const control = Object.fromEntries(state.figures.map((f) => [f.id, f.side === "B" && $("#autoB").checked ? "game" : "referee"]));
+  const control = Object.fromEntries(state.figures.map((f) => [f.id, f.playerUid || (f.side === "B" && $("#autoB").checked ? "game" : "referee")]));
   renderOnlineNote("Opening the fight on the server\u2026");
   const res = await api.createFight({ cid, fid, title: `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control });
   if (!res.ok) { $("#onlineNote").textContent = `The server refused the fight: ${res.error ?? res.code}`; resetFight(); return; }
   openOnline(cid, fid);
 }
 $("#fid").value = newFightId();
+$("#copyLink").addEventListener("click", () => { $("#playerLink").select(); navigator.clipboard?.writeText($("#playerLink").value).catch(() => {}); $("#copyLink").textContent = "Copied"; setTimeout(() => ($("#copyLink").textContent = "Copy"), 1500); });
+/* ---------- the player's page (?player) ---------- */
+function playerSignedIn() {
+  const u = online.api?.user;
+  $("#pSignIn").textContent = u ? "Sign out" : "Sign in";
+  $("#pWho").innerHTML = u ? `Signed in as ${esc(u.displayName ?? u.email ?? "you")}. Your player id: <code>${esc(u.uid)}</code> <button id="pCopyUid">Copy</button> <span class="note">(the referee puts it in "Played by" on your figures)</span>` : "Sign in to play.";
+  $("#pCopyUid")?.addEventListener("click", () => navigator.clipboard?.writeText(u.uid).catch(() => {}));
+  const q = new URLSearchParams(location.search);
+  if (u && q.get("cid") && q.get("fid") && !online.api.fight) { $("#pCid").value = q.get("cid"); openOnline(q.get("cid"), q.get("fid")); $("#drawer").hidden = true; }
+  else if (u) findFights();
+}
+async function findFights() {
+  const api = online.api, cid = $("#pCid").value.trim(); if (!api?.user || !cid) return;
+  $("#pNote").textContent = "Looking\u2026";
+  try {
+    const list = await api.listFights(cid);
+    $("#pFights").innerHTML = list.map((f) => `<button data-pfight="${esc(f.fid)}">${esc(f.title || f.fid)} \u00b7 round ${f.round ?? 0}${f.phase === "over" ? " \u00b7 over" : f.waitingOn?.includes(api.user.uid) ? " \u00b7 your move" : ""}</button>`).join("");
+    $("#pNote").textContent = list.length ? "" : `No fights in ${cid} have you in them yet.`;
+    $("#pFights").querySelectorAll("[data-pfight]").forEach((b) => (b.onclick = () => { openOnline(cid, b.dataset.pfight); $("#drawer").hidden = true; }));
+  } catch (e) { $("#pNote").textContent = `Couldn't list fights: ${e.message}`; }
+}
 $("#playMode").addEventListener("change", async (e) => {
   online.on = e.target.value === "online";
   $("#onlineBits").hidden = !online.on;
@@ -834,6 +884,7 @@ function startFight() {
 }
 function nextStep() {
   if (state.phase !== "fight") return;
+  if (PLAYER) { if (state.step.startsWith("move-")) runAction({ type: "done" }); return; }
   if (online.on) { if (state.step.startsWith("move-")) runAction({ type: "end-move", side: state.step.slice(5) }); return; }
   if (state.step === "init") { state.skipMissiles = false; state.fx = []; state.banner = null; runAction({ type: "begin-round" }); aiElect(); }
   else if (state.step === "elect") return;
@@ -856,7 +907,7 @@ function afterStepChange() {
   if (state.step?.startsWith("move-")) {
     const side = state.step.slice(5);
     const sel = state.selected != null ? byId(state.selected) : null;
-    if (!sel || sel.side !== side || !active(sel)) { const first = state.figures.find((f) => f.side === side && active(f) && f.placed); state.selected = first?.id ?? null; state.group = new Set(first ? [first.id] : []); }
+    if (!sel || sel.side !== side || !active(sel) || !mineOk(sel)) { const first = state.figures.find((f) => f.side === side && active(f) && f.placed && mineOk(f)); state.selected = first?.id ?? null; state.group = new Set(first ? [first.id] : []); }
   }
   render();
   if (state.step?.startsWith("move-")) { const side = state.step.slice(5); if (!state.figures.some((f) => f.side === side && f.placed && present(f) && onScreen(f))) focusSide(side); }
@@ -933,7 +984,7 @@ function renderMap() {
     const ang = (f.facing ?? 0) * Math.PI / 4, ux = Math.cos(ang), uy = Math.sin(ang), px2 = -uy, py2 = ux;
     const wedge = `${cx + ux * 6.2 * S},${cy + uy * 6.2 * S} ${cx + ux * 4.1 * S + px2 * 1.9 * S},${cy + uy * 4.1 * S + py2 * 1.9 * S} ${cx + ux * 4.1 * S - px2 * 1.9 * S},${cy + uy * 4.1 * S - py2 * 1.9 * S}`;
     const hpFrac = f.hp == null ? 1 : Math.max(0, f.hp) / f.maxHp;
-    parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}>
+    parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}${hpText(f) ? `: ${hpText(f)} hp` : f.hpScaled ? (alive(f) ? "" : ": down") : ""}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}>
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.1"/>` : ""}
       ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--target)" stroke-width="1" stroke-dasharray="2.4 1.6" pointer-events="none"/>` : ""}
       <circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".7"/>
@@ -979,7 +1030,8 @@ function editorRow(f) {
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const num = (k, v, min, max, w = "4em") => `<label>${k} <input data-ed="${k.toLowerCase()}" type="number" min="${min}" max="${max}" value="${v}" style="width:${w}"></label>`;
   const common = `<label>Name <input data-ed="name" value="${esc(f.name)}" maxlength="40" style="width:11em"></label>
-    <select data-ed="side" aria-label="Side">${opts([["A", "Side A"], ["B", "Side B"]], f.side)}</select>`;
+    <select data-ed="side" aria-label="Side">${opts([["A", "Side A"], ["B", "Side B"]], f.side)}</select>
+    <label title="Online play: the player id shown on that player's page. Blank: you (or the game, for side B by behaviour)">Played by <input data-ed="player" value="${esc(f.playerUid ?? "")}" placeholder="you" style="width:9em" spellcheck="false"></label>`;
   const body = f.kind === "pc" ? `${common}
     <select data-ed="cls" aria-label="Class">${opts(CLASSES.map((c) => [c.id, c.label]), f.cls)}</select>
     ${num("Level", f.level, 1, 14)}
@@ -1010,6 +1062,7 @@ function saveEdit(id) {
   const name = (v("name") ?? "").trim(); if (name) f.name = name;
   const oldSide = f.side, oldSize = f.size ?? 1, keyBefore = f.monsterKey;
   f.side = v("side") === "B" ? "B" : "A"; f.origSide = f.side;
+  f.playerUid = (v("player") ?? "").trim() || null;
   if (f.kind === "pc") {
     f.cls = v("cls"); f.level = clamp(v("level"), 1, 14, 1); f.armor = v("armor"); f.ac = ARMOR.find((a) => a.id === f.armor).ac;
     f.weaponId = v("weapon"); f.missile = v("missile") || ""; f.spare = v("spare") || ""; f.dex = clamp(v("dex"), 3, 18, 10); f.int = clamp(v("int"), 3, 18, 10); f.cha = clamp(v("cha"), 3, 18, 10);
@@ -1032,7 +1085,7 @@ function saveEdit(id) {
 function renderSide(side) {
   const el = $(`#side-${side}`); const setup = state.phase === "setup";
   const rows = state.figures.filter((f) => f.side === side).map((f) => {
-    const p = combatProfile(f); const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
+    const p = combatProfile(f); const hp = hpText(f) ?? "—";
     const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
     const st = f.status ? ` <span class="hit" style="font-size:.8rem">${esc(f.status)}</span>` : "";
     return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.weaponBroken ? " (broken)" : ""}${f.kind === "pc" && f.spare ? `, spare ${esc(WEAPON_LABEL[f.spare].toLowerCase())}` : ""}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, ${f.race && f.race !== "human" ? `${f.race[0].toUpperCase()}${f.race.slice(1)}, ` : ""}Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td style="white-space:nowrap">${setup ? `<button data-edit="${f.id}" aria-label="Edit ${esc(f.name)}">Edit</button> <button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>${setup && state.editing === f.id ? editorRow(f) : ""}`;
@@ -1124,7 +1177,7 @@ function renderDetail() {
     <dt>Fights as</dt><dd>${esc(p.fcLabel)}</dd>
     <dt>Weapon</dt><dd>${p.profileAttack ? "natural attack" : esc(WEAPON_LABEL[p.weaponId])}${f.weaponBroken ? ' <span class="hit">(broken: useless until he draws another)</span>' : ""}${(f.inv?.items ?? []).some((it) => it.kind === "weapon" && it.weaponId) ? `; carrying ${(f.inv.items.filter((it) => it.kind === "weapon" && it.weaponId).map((it) => esc(it.name.toLowerCase())).join(", "))}` : ""}</dd>
     <dt>Armour</dt><dd>AC ${f.ac}</dd>
-    <dt>Hit points</dt><dd>${f.hp == null ? "rolled at start" : `${Math.max(f.hp, 0)} of ${f.maxHp}`}</dd>
+    <dt>Hit points</dt><dd>${f.hpScaled ? (alive(f) ? (f.hp < f.maxHp ? "wounded (see the bar)" : "unhurt") : "down") : f.hp == null ? "rolled at start" : `${Math.max(f.hp, 0)} of ${f.maxHp}`}</dd>
     <dt>Move</dt><dd>${mv}" · used ${halfCellsToInches(used)}" · left ${halfCellsToInches(Math.max(0, moveBudget(mv) - used))}"</dd>
     <dt>Can join a melee</dt><dd>${joinOk ? "yes" : "no (moved over half)"}</dd>
     <dt>Target</dt><dd>${t ? `${esc(t.name)}${adjacent(f, t) ? "" : " (not adjacent)"}` : "none"}</dd>
@@ -1137,23 +1190,23 @@ function renderDetail() {
     ${f.kind === "pc" && f.risesAs ? `<dt>Fate</dt><dd>will rise as a ${f.risesAs}</dd>` : ""}
     ${f.breathLeft != null ? `<dt>Breath left</dt><dd>${f.breathLeft}</dd>` : ""}
     ${f.pfe ? `<dt>Protected</dt><dd>from evil (−1 to evil attackers)</dd>` : ""}</dl>
-    ${state.phase === "fight" && f.kind === "pc" && active(f) && state.figures.some((e) => e.side !== f.side && present(e) && ["basilisk", "medusa"].includes(e.monsterKey)) ? `<div style="margin:6px 0"><label><input type="checkbox" id="avert" ${f.averted ? "checked" : ""}> Avert eyes (safe from the gaze, but blind: \u22124 to hit, missiles only at adjacent targets)</label><br><label><input type="checkbox" id="mirror" ${f.mirror ? "checked" : ""}> Hold up a mirror (turns the gaze back in good light)</label></div>` : ""}
-    ${alive(f) ? `<div style="margin:6px 0"><label title="Chainmail p.20: his own unit +1 a die on morale, units within 12&quot; +1; if he falls, every unit checks at −2"><input type="checkbox" id="leader" ${state.leader?.[f.origSide ?? f.side] === f.id ? "checked" : ""}> Leader of side ${f.origSide ?? f.side}</label></div>` : ""}
-    <div class="gm"><div class="gm-k">GM tools</div>
+    ${state.phase === "fight" && f.kind === "pc" && active(f) && mineOk(f) && state.figures.some((e) => e.side !== f.side && present(e) && ["basilisk", "medusa"].includes(e.monsterKey)) ? `<div style="margin:6px 0"><label><input type="checkbox" id="avert" ${f.averted ? "checked" : ""}> Avert eyes (safe from the gaze, but blind: \u22124 to hit, missiles only at adjacent targets)</label><br><label><input type="checkbox" id="mirror" ${f.mirror ? "checked" : ""}> Hold up a mirror (turns the gaze back in good light)</label></div>` : ""}
+    ${alive(f) && !PLAYER ? `<div style="margin:6px 0"><label title="Chainmail p.20: his own unit +1 a die on morale, units within 12&quot; +1; if he falls, every unit checks at −2"><input type="checkbox" id="leader" ${state.leader?.[f.origSide ?? f.side] === f.id ? "checked" : ""}> Leader of side ${f.origSide ?? f.side}</label></div>` : ""}
+    ${PLAYER ? "" : `<div class="gm"><div class="gm-k">GM tools</div>
       <label title="Takes no hit-point damage and can't be killed or drained; other effects (sleep, hold, petrification) still apply"><input type="checkbox" id="gmInv" ${f.invulnerable ? "checked" : ""}> Invulnerable</label>
       ${state.phase !== "setup" && f.hp != null ? `<button id="gmHeal">Heal to full</button>
       <label>HP <input id="gmHp" type="number" value="${Math.max(f.hp, 0)}" style="width:4.5em"></label><button id="gmSetHp">Set</button>
       <button id="gmClear" title="Wake, free, unpetrify, uncharm; bring back a figure that fled or surrendered">Clear conditions</button>
       <button id="gmKill">Kill</button>` : ""}
-    </div>
-    ${state.phase === "fight" && active(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
+    </div>`}
+    ${state.phase === "fight" && active(f) && mineOk(f) ? `<label>Action <select id="action">${opts(actionsFor(f), f.action)}</select></label> ` : ""}
     ${f.action === "cast:holdPerson" ? holdPicker(f) : ""}
-    ${state.phase === "fight" && active(f) && f.action && f.action !== "melee" ? `<p class="step" style="font-size:.9rem">${actionPreview(f)}</p>` : ""}
+    ${state.phase === "fight" && active(f) && mineOk(f) && f.action && f.action !== "melee" ? `<p class="step" style="font-size:.9rem">${actionPreview(f)}</p>` : ""}
     ${f.slotsLeft?.some((n) => n > 0) ? `<div class="note" style="font-size:.85rem">Spell slots left: ${f.slotsLeft.map((n, i) => n > 0 ? `level ${i + 1}: ${n}` : null).filter(Boolean).join(", ")}</div>` : ""}
-    ${p.profileAttack || !active(f) ? "" : `<label>Stance <select id="stance">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select></label>`}
-    ${t ? ` <button id="clearTarget">Clear target</button>` : ""}
+    ${p.profileAttack || !active(f) || !mineOk(f) ? "" : `<label>Stance <select id="stance">${opts([["attack", "Attack"], ["parry", "Parry"]], f.stance)}</select></label>`}
+    ${t && mineOk(f) ? ` <button id="clearTarget">Clear target</button>` : ""}
     ${f.kind === "pc" && active(f) && state.phase !== "setup" ? searchable(f).map((sx) => ` <button data-search="${sx.id}">Search ${esc(sx.label)}</button>`).join("") : ""}
-    ${f.monsterKey === "troll" && !alive(f) && !f.burned && state.phase !== "setup" ? ` <button id="burn" class="primary">Burn it (fire or acid)</button>` : ""}`;
+    ${!PLAYER && f.monsterKey === "troll" && !alive(f) && !f.burned && state.phase !== "setup" ? ` <button id="burn" class="primary">Burn it (fire or acid)</button>` : ""}`;
   $("#stance")?.addEventListener("change", (e) => order(f, { stance: e.target.value }));
   const gm = (tool, value) => { const r = runAction({ type: "gm", id: f.id, tool, value }); if (!r.ok && r.error) $("#dragInfo").textContent = r.error; render(); };
   $("#gmInv")?.addEventListener("change", (e) => gm("invulnerable", e.target.checked));
@@ -1178,6 +1231,14 @@ function renderDetail() {
 /* ---------- phase strip, figure chips, action bar, drawer ---------- */
 const LAYOUT_NAME = { corridor: "10' corridor", room: "40' room with corridors", open: "Open floor" };
 function stepLabel() {
+  if (PLAYER) {
+    if (state.phase === "setup") return "Open a fight";
+    if (state.phase === "over") return "Fight over";
+    const wait = online.header?.waitingOn ?? [], me = online.api?.user?.uid;
+    if (state.step.startsWith("move-")) return wait.includes(me) ? "Done moving" : wait.length ? `Waiting on ${wait.map((w) => w === "referee" ? "the referee" : w === me ? "you" : `player ${w.slice(0, 6)}`).join(", ")}` : `Side ${state.step.slice(5)} moves`;
+    if (state.step === "elect") return `Side ${state.init.winner} chooses`;
+    return "The server resolves this step";
+  }
   if (state.phase === "setup") return online.on ? "Start fight online" : "Start fight";
   if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect") return "The server resolves this step";
   if (state.phase === "over") return "Fight over";
@@ -1208,8 +1269,11 @@ function renderStrip() {
   }).join("");
   $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "missiles" ? "Missiles & spells" : "Melee";
   const btn = $("#step"); btn.textContent = stepLabel(); btn.hidden = electing;
-  btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-"));
-  $("#electFirst").hidden = !electing; $("#electLast").hidden = !electing;
+  btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-"))
+    || (PLAYER && state.phase === "fight" && !(online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
+  const mayElect = electing && (!PLAYER || state.figures.some((f) => f.mine && present(f) && f.side === state.init.winner));
+  btn.hidden = mayElect;
+  $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect;
   if (electing) { $("#electFirst").textContent = `Side ${state.init.winner}: move first`; $("#electLast").textContent = `Side ${state.init.winner}: move last`; }
   $("#subline").textContent = `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
 }
@@ -1261,10 +1325,10 @@ function renderActionBar() {
   el.hidden = false;
   const p = combatProfile(f); const t = f.target != null ? byId(f.target) : null;
   const full = f.kind === "pc" ? (CLASSES.find((c) => c.id === f.cls)?.label ?? "") : (mon(f)?.name ?? "");
-  const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx;
+  const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx, hpTxt = hpText(f);
   const total = allowanceOf(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
   const pipN = Math.min(24, Math.ceil(total)), usedPips = Math.min(pipN, Math.round(usedIn));
-  const fight = state.phase === "fight" && active(f);
+  const fight = state.phase === "fight" && active(f) && mineOk(f);
   const btn = (id, text, on, cls = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}">${esc(text)}</button>`;
   const acts = [];
   if (fight) {
@@ -1282,7 +1346,7 @@ function renderActionBar() {
   } else if (state.phase === "over" && f.kind === "pc" && active(f)) {
     acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
   }
-  const tgt = t && present(t) ? (() => { const n = needsAgainst(f, t); return `<div class="ab-target"><span class="ab-k">Target</span><span class="tn">${esc(tokenLabel(t))} \u00b7 ${esc(t.kind === "pc" ? CLASSES.find((c) => c.id === t.cls)?.label ?? "" : mon(t)?.name ?? "")}</span><span class="mono" style="font-size:.82rem">${n ? `${FACING_LABEL[n.facing] ?? "front"} \u00b7 needs ${n.needs}` : ""}${t.hp != null ? ` \u00b7 ${Math.max(0, t.hp)}/${t.maxHp} hp` : ""}</span></div>` })() : "";
+  const tgt = t && present(t) ? (() => { const n = needsAgainst(f, t); return `<div class="ab-target"><span class="ab-k">Target</span><span class="tn">${esc(tokenLabel(t))} \u00b7 ${esc(t.kind === "pc" ? CLASSES.find((c) => c.id === t.cls)?.label ?? "" : mon(t)?.name ?? "")}</span><span class="mono" style="font-size:.82rem">${n ? `${FACING_LABEL[n.facing] ?? "front"} \u00b7 needs ${n.needs}` : ""}${hpText(t) ? ` \u00b7 ${hpText(t)} hp` : ""}</span></div>` })() : "";
   if (state.cast && state.cast.fid === f.id) {
     const c = state.cast, sp = spellOf(f, c.id);
     const canConfirm = (c.picks && c.picks.length) || c.aim;
@@ -1296,8 +1360,8 @@ function renderActionBar() {
     <div class="ab-row">
       <div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</span>
         <span class="ab-sub">${esc(p.fcLabel)} \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())} \u00b7 AC ${f.ac}</span>
-        ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div><span class="mono" style="font-size:.82rem">${hp}/${mx} hp</span></div>`}
-        <span class="ab-phone-line mono" style="font-size:.8rem">${hp == null ? "" : `${hp}/${mx} hp \u00b7 `}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
+        ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span class="mono" style="font-size:.82rem">${hpTxt} hp</span>` : ""}</div>`}
+        <span class="ab-phone-line mono" style="font-size:.8rem">${hpTxt ? `${hpTxt} hp \u00b7 ` : ""}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
         <a href="#" class="ab-more" id="abDetails">Details</a></div>
       ${tgt}
     </div>
@@ -1545,7 +1609,7 @@ $("#map").addEventListener("contextmenu", (e) => {
   const fight = state.phase === "fight";
   const items = [];
   const heading = (t) => items.push([t, null]);
-  if (sel && sel !== f && sel.side !== f.side && active(sel) && fight && present(f)) {
+  if (sel && sel !== f && sel.side !== f.side && active(sel) && mineOk(sel) && fight && present(f)) {
     heading(`${tokenLabel(sel)} \u2192 ${f.name}`);
     if (sel.target === f.id) items.push([`Untarget ${tokenLabel(f)} (T)`, () => clearTarget(sel)]);
     else items.push([`Target ${tokenLabel(f)} (T)`, () => setTarget(sel, f)]);
@@ -1565,7 +1629,7 @@ $("#map").addEventListener("contextmenu", (e) => {
     const svc = serviceState(sel, f);
     if (svc) items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]);
   }
-  if (sel && sel !== f && f.status === "surrendered") {
+  if (sel && sel !== f && mineOk(sel) && f.status === "surrendered") {
     const svc = serviceState(sel, f);
     if (svc) { heading(`${tokenLabel(sel)} \u2192 ${f.name} (surrendered)`); items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]); }
   }
@@ -1575,13 +1639,13 @@ $("#map").addEventListener("contextmenu", (e) => {
   if (alive(f)) {
     heading(f.name);
     items.push([`Select`, () => { setGroup([f.id]); }]);
-    if (fight && active(f) && (f === sel || !sel || sel.side === f.side)) {
+    if (fight && active(f) && mineOk(f) && (f === sel || !sel || sel.side === f.side)) {
       items.push([`Hold this round`, () => order(f, { action: "hold" })]);
       if (mayCharge(f) || f.charging) items.push([f.charging ? "Stop charging" : `Charge mode (up to ${chargeInches(f)}\u2033)`, () => { runAction({ type: "charge-mode", id: f.id, on: !f.charging }); render(); }]);
     }
-    if (f.target != null) items.push([`Clear target`, () => clearTarget(f)]);
+    if (f.target != null && mineOk(f)) items.push([`Clear target`, () => clearTarget(f)]);
     items.push([`Details`, () => { setGroup([f.id]); openDrawer("figure"); }]);
-  } else if (f.monsterKey === "troll" && !f.burned && state.phase !== "setup") {
+  } else if (!PLAYER && f.monsterKey === "troll" && !f.burned && state.phase !== "setup") {
     heading(f.name); items.push([`Burn it (fire or acid)`, () => { runAction({ type: "gm", id: f.id, tool: "burn" }); render(); }]);
   }
   if (!items.some(([, fn]) => fn)) return;
@@ -1609,7 +1673,7 @@ $("#layout").addEventListener("change", (e) => { state.chests = []; state.walls 
 $("#start").addEventListener("click", startFight);
 $("#electFirst").addEventListener("click", () => elect("move"));
 $("#electLast").addEventListener("click", () => elect("counter"));
-$("#step").addEventListener("click", () => { if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
+$("#step").addEventListener("click", () => { if (PLAYER) { if (state.phase === "setup") openDrawer("setup"); else nextStep(); return; } if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
 $("#reset").addEventListener("click", resetFight);
 $("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
 try { const v = localStorage.getItem("odd-empty-click"); if (v) $("#emptyClick").value = v; } catch {}
@@ -1694,7 +1758,7 @@ wrap.addEventListener("pointerdown", (e) => {
   if (mouse && e.button === 2) { drag = { mode: "pan", x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false, right: true }; state.rightDragged = false; return; }
   if (state.measure.on) { drag = null; return; }
   if (state.cast) { drag = null; return; }
-  if (f && (e.button === 0 || !mouse) && f.placed && present(f)) {
+  if (f && (e.button === 0 || !mouse) && f.placed && present(f) && mineOk(f)) {
     drag = { mode: "token", fid: f.id, x: e.clientX, y: e.clientY, moved: false };
     state.dragged = false; return;
   }
@@ -1857,8 +1921,9 @@ function hoverCard(out) {
   const f = byId(state.hover); if (!f || !f.placed) return;
   const t = f.target != null ? byId(f.target) : null;
   const lines = [];
-  if (f.hp != null) lines.push(`${Math.max(f.hp, 0)} of ${f.maxHp} hp${!alive(f) ? ", down" : ""}`);
-  if (alive(f)) lines.push(t && present(t) ? `${f.action === "fire" ? "fire" : f.action === "passthrough" ? "pass-through" : f.action?.startsWith("cast:") ? "cast" : "melee"} \u2192 ${tokenLabel(t)}` : "no target");
+  if (hpText(f)) lines.push(`${Math.max(f.hp, 0)} of ${f.maxHp} hp${!alive(f) ? ", down" : ""}`);
+  else if (f.hpScaled) lines.push(!alive(f) ? "down" : f.hp < f.maxHp ? "wounded" : "unhurt");
+  if (alive(f)) lines.push(t && present(t) ? f.action == null ? `targets ${tokenLabel(t)}` : `${f.action === "fire" ? "fire" : f.action === "passthrough" ? "pass-through" : f.action?.startsWith("cast:") ? "cast" : "melee"} \u2192 ${tokenLabel(t)}` : "no target");
   if (f.lastResult) lines.push(f.lastResult);
   if (f.lastTaken) lines.push(f.lastTaken);
   const cond = [f.status, f.weaponBroken ? "weapon broken" : "", f.charging ? "charging" : "", f.invulnerable ? "invulnerable" : "", f.risesAs ? `rises as ${f.risesAs}` : ""].filter(Boolean);
@@ -1988,6 +2053,19 @@ addCharacter("A", "cleric", 1, "chain+shield", "mace", 9);
 addCharacter("A", "magic-user", 1, "none", "dagger", 13);
 addMonsters("B", "orc", 6);
 deploy(); render(); initialView();
+if (PLAYER) {
+  document.body.classList.add("player-mode");
+  document.querySelector("header.top h1").textContent = "OD\u0026D fight \u00b7 player";
+  $("#playerPane").hidden = false; $("#tabSetup").textContent = "Fight";
+  state.figures = []; render(); openDrawer("setup");
+  $("#pSignIn").addEventListener("click", async () => {
+    const api = await goOnline(); if (!api) { $("#pNote").textContent = $("#onlineNote").textContent; return; }
+    try { if (api.user) await api.signOut(); else await api.signIn(); } catch (e) { $("#pNote").textContent = `Sign-in failed: ${e.message}`; }
+    playerSignedIn();
+  });
+  $("#pFind").addEventListener("click", findFights);
+  goOnline().then((api) => { if (api) playerSignedIn(); else $("#pNote").textContent = $("#onlineNote").textContent; });
+}
 </script>
 </body>
 </html>

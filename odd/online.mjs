@@ -5,6 +5,7 @@
 // local play needs no network. One fight is open at a time:
 //   createFight(data)   oddCreateFight (the referee opens a fight)
 //   openFight(...)      listens to the header, this viewer's view and feed
+//   listFights(cid)     a player's fights in a campaign
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -52,9 +53,18 @@ export async function connectOnline({ emulators = false } = {}) {
     get user() { return auth.currentUser; },
     get fight() { return open ? { cid: open.cid, fid: open.fid, viewer: open.viewer, rev: open.rev } : null; },
     onUser(cb) { return authSdk.onAuthStateChanged(auth, cb); },
-    signIn: () => authSdk.signInWithPopup(auth, new authSdk.GoogleAuthProvider()),
+    // Always show Google's account chooser, so a second account (a player, a tester) can be picked
+    // even where the browser is already signed in to Google as someone else.
+    signIn: () => { const provider = new authSdk.GoogleAuthProvider(); provider.setCustomParameters({ prompt: 'select_account' }); return authSdk.signInWithPopup(auth, provider); },
     signOut: () => { closeFight(); return authSdk.signOut(auth); },
     createFight: (data) => call(createCall, data),
+    /** A player's fights in one campaign (the rules let him list only those naming him). */
+    async listFights(cid) {
+      const uid = auth.currentUser?.uid; if (!uid) return [];
+      const q = fsSdk.query(fsSdk.collection(db, `oddCampaigns/${cid}/fights`), fsSdk.where('players', 'array-contains', uid));
+      const snap = await fsSdk.getDocs(q);
+      return snap.docs.map((d) => ({ fid: d.id, ...d.data() })).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    },
     closeFight,
 
     /** Listen to one fight as viewer ("referee" or a player's uid). */

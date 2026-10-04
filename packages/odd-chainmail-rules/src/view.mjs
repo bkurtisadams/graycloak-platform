@@ -11,9 +11,14 @@
  *
  * What a player sees (Kurt, Oct 2026):
  *   - every figure on the board: position, size, facing, elevation, side,
- *     status, target line, weapon in hand, armour, movement spent, whether
- *     it is casting, and an HP bar as a fraction (never hit points or HD);
- *   - his allies' exact hit points, actions and stances;
+ *     status, target line, weapon in hand, armour and armour class (worn
+ *     armour is visible), class and race, movement spent, whether it is
+ *     casting, averted eyes or a mirror held up, and an HP bar as a fraction
+ *     (never hit points or HD);
+ *   - his allies' exact hit points, level, actions and stances;
+ *   - for each monster group: the languages it speaks and how it has
+ *     reacted to a parley so far, which the parley and service dialogs need
+ *     (never the talk and common-tongue rolls behind them);
  *   - everything about his own figures;
  *   - not the RNG, the leader, lair hoards, morale bookkeeping, encounter
  *     reactions, melee contacts, or behaviour reasons.
@@ -33,8 +38,10 @@ export const figuresOf = (state, who) => state.figures.filter((f) => controls(st
 
 /* ------------------------------------------------------------------ figures */
 
-export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "retainer"]);
-export const ALLY_FIGURE_KEYS = Object.freeze(["hp", "maxHp", "action", "stance"]);
+export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "origSide", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "ac", "cls", "race", "retainer", "averted", "mirror", "burned"]);
+export const ALLY_FIGURE_KEYS = Object.freeze(["hp", "maxHp", "level", "action", "stance"]);
+/** What a player knows of a monster group: its tongues and how talks have gone. */
+export const ENCOUNTER_PUBLIC_KEYS = Object.freeze(["key", "side", "monsterKey", "talks", "languages", "reaction", "holdRound"]);
 
 export const hpFraction = (f) => (f.hp == null || !f.maxHp ? null : Math.max(0, Math.min(1, f.hp / f.maxHp)));
 const pick = (f, keys) => { const o = {}; for (const k of keys) if (f[k] !== undefined) o[k] = f[k]; return o; };
@@ -62,7 +69,9 @@ export function viewFor(state, who) {
     for (const [k, v] of Object.entries(state)) if (k !== "rngState" && k !== "walls" && typeof v !== "function") out[k] = v instanceof Map ? Object.fromEntries(v) : v instanceof Set ? [...v] : v;
     return { ...copy(out), ...base, referee: true };
   }
-  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
+  const groups = state.encounter instanceof Map ? Object.fromEntries(state.encounter) : (state.encounter ?? {});
+  const encounter = Object.fromEntries(Object.entries(groups).map(([k, g]) => [k, pick(g, ENCOUNTER_PUBLIC_KEYS)]));
+  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
 }
 
 /* ------------------------------------------------------------------ authority */
@@ -187,11 +196,13 @@ async function runSelfTests() {
     const st = fight(); script(st);
     const v = viewFor(st, kurt), raw = JSON.stringify(v);
     const enemy = v.figures.find((f) => f.side === "B");
-    ok(!("rngState" in v) && !("leader" in v) && !("encounter" in v) && !("contacts" in v) && !("chests" in v) && !("control" in v), "a player's view has no RNG, leader, encounter, contacts, hoards or control map");
-    ok(v.figures.filter((f) => f.side === "B").every((f) => f.hp === undefined && f.maxHp === undefined && f.hd === undefined && f.ac === undefined && typeof f.hpFrac === "number"), "enemies show an HP fraction, never hit points, HD or AC");
+    ok(!("rngState" in v) && !("leader" in v) && !("contacts" in v) && !("chests" in v) && !("control" in v), "a player's view has no RNG, leader, contacts, hoards or control map");
+    ok(v.figures.filter((f) => f.side === "B").every((f) => f.hp === undefined && f.maxHp === undefined && f.hd === undefined && typeof f.ac === "number" && typeof f.hpFrac === "number"), "enemies show armour class and an HP fraction, never hit points or HD");
+    const g = v.encounter["B:orc"];
+    ok(g && g.languages[0] === "orc" && !("talkRoll" in g) && !("commonRoll" in g), "a monster group's tongues and reaction, not the rolls behind them");
     ok(v.mine.length === 1 && v.mine[0] === 1 && v.figures.find((f) => f.id === 1).mine && v.figures.find((f) => f.id === 1).inv, "his own figure in full");
     const ally = v.figures.find((f) => f.id === 2);
-    ok(ally.hp === st.figures[1].hp && ally.action !== undefined && ally.slotsLeft === undefined && ally.inv === undefined, "an ally: exact hit points and action, not spells or pack");
+    ok(ally.hp === st.figures[1].hp && ally.level === 1 && ally.action !== undefined && ally.slotsLeft === undefined && ally.inv === undefined, "an ally: exact hit points, level and action, not spells or pack");
     ok(store.nestedArrayPath(v) === null && enemy.elevation === 0 && enemy.movementAction === "walk", "view is Firestore-safe and carries token fields");
     const r = viewFor(st, ref);
     ok(r.referee && !("rngState" in r) && r.figures.find((f) => f.id === 3).maxHp === 5 && typeof r.contacts === "object", "the referee sees everything but the dice");
