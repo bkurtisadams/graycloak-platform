@@ -38,6 +38,21 @@ export function distIn(a, b) {
   const ca = centre(a), cb = centre(b);
   return Math.round((Math.hypot(ca.x - cb.x, ca.y - cb.y) / CELLS_PER_INCH) * 10) / 10;
 }
+/** Line of sight between footprint centres: no wall cell on the line between them. */
+export function lineOfSight(state, a, b) {
+  let x0 = Math.round(centre(a).x), y0 = Math.round(centre(a).y); const x1 = Math.round(centre(b).x), y1 = Math.round(centre(b).y);
+  const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx + dy;
+  while (!(x0 === x1 && y0 === y1)) {
+    const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; }
+    if (!(x0 === x1 && y0 === y1) && isWall(state, x0, y0)) return false;
+  }
+  return true;
+}
+/** Locked in melee: adjacent to an active enemy with either targeting the other. */
+export function inMelee(state, f) {
+  return state.figures.some((e) => active(e) && e.side !== f.side && adjacent(e, f) && (e.target === f.id || f.target === e.id));
+}
 const AROUND = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
 /** Every active figure in the group is boxed in by walls or figures on all eight sides. */
 export function isTrapped(state, figs) {
@@ -57,6 +72,7 @@ function runSelfTests() {
   ok(distIn(a, { x: 4, y: 1 }) === 1, "3 cells = 1 inch");
   ok(centre(big).x === 1.5 && covers(big, 2, 3) && !alive(big), "large footprint; dead at 0");
   ok(present({ hp: 3 }) && !present({ hp: 3, status: "fled" }) && !active({ hp: 3, status: "held" }) && helpless({ hp: 3, status: "asleep" }), "status predicates");
+  ok(lineOfSight(st, a, { x: 3, y: 3 }) && !lineOfSight(st, a, { x: 3, y: 5 }), "line of sight stops at walls");
   ok(isTrapped(st, [a]) === false, "open cells: not trapped");
   const tight = { width: 3, height: 3, walls: [[1, 1, 1], [1, 0, 1], [1, 1, 1]], figures: [] };
   ok(isTrapped(tight, [{ x: 1, y: 1, hp: 4 }]), "walled in: trapped");

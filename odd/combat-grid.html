@@ -303,7 +303,7 @@ import {
   sleepCells, sleepInArea, SLEEP_RADIUS, slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
   lossCheck, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond, fearRadius, troopLossLine, moraleDiceBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
-  fightRunner, movement as mv, behaviour as bh,
+  fightRunner, movement as mv, behaviour as bh, missiles as ms,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk
 } from "../packages/odd-chainmail-rules/index.js";
 
@@ -393,10 +393,10 @@ function deploy() {
 }
 
 /* ---------- figures ---------- */
-function addCharacter(side, cls, level, armorId, weaponId, dex = 10, missile = "", alignment = "law", int = 10, purse = 0, cha = 10) {
+function addCharacter(side, cls, level, armorId, weaponId, dex = 10, missile = "", alignment = "law", int = 10, purse = 0, cha = 10, race = "human") {
   const c = CLASSES.find((x) => x.id === cls);
   const n = state.figures.filter((f) => f.side === side && f.cls === cls).length + 1;
-  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, dex, missile, alignment, int, purse, cha, stance: "attack", target: null, action: "melee" });
+  state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, dex, missile, alignment, int, purse, cha, race, stance: "attack", target: null, action: "melee" });
 }
 function addMonsters(side, key, count) {
   const m = MONSTERS.find((x) => x.key === key);
@@ -585,7 +585,7 @@ function afterStrike(atk, tgt, res, add, start) {
     if (r.drained) { add(tgt.id, 999); const as = risesAs(m.key, { drained: true, manType: isMan(tgt) }); tgt.risesAs = as; notes.push(`Drained of all life${as ? `: will rise as a ${as}` : ""}.`); }
   }
   if (abilityOf(m, "paralysis") && tgt.status !== "held" && tgt.pendingStatus !== "held") {
-    const g = ghoulTouch(savesOf(tgt), state.rng, { elf: tgt.monsterKey === "elf", mod: svMod });
+    const g = ghoulTouch(savesOf(tgt), state.rng, { elf: tgt.monsterKey === "elf" || tgt.race === "elf", mod: svMod });
     if (g.immune) notes.push(`${esc(tgt.name)} is an elf: immune to the ghoul's touch.`);
     else { notes.push(`Ghoul's touch: save vs paralyzation d20 ${g.roll}${svMod ? " +1" : ""} vs ${g.need}: ${g.saved ? "saved" : `held for ${g.turns} turns`}.`); if (g.held) tgt.pendingStatus = "held"; }
   }
@@ -804,11 +804,26 @@ state.leader = state.leader ?? { A: null, B: null };
 const outcomeText = (e) => e.holds ? "they stand" : `<span class="hit">${e.outcome === "surrender" ? "they surrender" : "they break and flee"}</span>`;
 const rollText = (r) => `2d6 [${r.dice.join(",")}]${r.modified !== r.total ? ` ${r.modified - r.total > 0 ? "+" : ""}${r.modified - r.total}` : ""} = ${r.modified}`;
 /** Show the runner's events in the log. */
+/** Show a volley event as a log card. */
+function volleyCard(v) {
+  const who = `<div class="who">${nameSpan(byId(v.id))} shoots ${esc(MISSILE_LABEL[v.missile].toLowerCase())}${v.passThrough ? " (pass-through fire)" : v.split ? " (split-move fire)" : ""}${v.shots ? ` <span class="note">(Dex ${v.dex}, ${v.shots} shot${v.shots === 1 ? "" : "s"})</span>` : ""}</div>`;
+  if (v.gate) return `<div class="card note">${esc(v.name)} moved over half: fire die ${v.gate.fireDie} vs ${v.gate.foeDie}, no shot.</div>`;
+  if (v.reloading) return `<div class="card note">${esc(v.name)} is reloading.</div>`;
+  const lines = v.lines.map((l) => {
+    if (l.result === "down") return `<div class="line note">${l.label} at ${esc(l.target)}: already down, the arrow is lost.</div>`;
+    if (l.result === "no-shot") return `<div class="line note">${l.label} at ${esc(l.target)}: no clear shot, the arrow is lost.</div>`;
+    if (l.result === "cannot") return `<div class="line note">${l.label} at ${esc(l.target)}: ${esc(l.caption)}</div>`;
+    return `<div class="line note">${l.label} at ${esc(l.target)}, ${l.distance}" (${BAND_LABEL[l.band] ?? l.band} range), AC ${l.ac}: needs ${l.need}</div><div class="line">2d6 [${l.roll.join(",")}]${l.bonus ? ` ${l.bonus > 0 ? "+" : ""}${l.bonus}` : ""} = ${l.effective}: ${l.result === "hit" ? `<span class="hit">hit, ${l.damage} damage</span>` : "miss"}</div>`;
+  }).join("");
+  return `<div class="card">${who}${lines}</div>`;
+}
 function renderEvents(events) {
   for (const e of events) {
     if (e.type === "round") continue;
     if (e.type === "initiative") logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${e.a}, B ${e.b}: side ${e.winner} chooses</span></div>`);
     else if (e.type === "election") logAppend(`<div class="card note">Side ${e.winner} elects to move ${e.choice === "counter" ? "last" : "first"}${e.ai ? " (by behaviour)" : ""}: side ${e.firstSide} moves first.</div>`);
+    else if (e.type === "volley") logAppend(volleyCard(e));
+    else if (e.type === "down") logAppend(`<div class="card note"><span class="hit">${esc(e.name)} is down</span> (${esc(e.by)}).</div>`);
     else if (e.type === "charge") logAppend(`<div class="card note">${esc(e.name)} charges ${esc(e.target)}.</div>`);
     else if (e.type === "behaviour") logAppend(`<div class="card"><div class="who">Side ${e.side} by behaviour</div>${e.lines.map((l) => `<div class="line">${esc(l.text)}</div>`).join("") || '<div class="line note">Nothing to do.</div>'}</div>`);
     else if (e.type === "morale-exempt") logAppend(`<div class="card note">${esc(e.name)}s defending their lair: no morale check until outnumbered 3 to 1 (${e.foes} against ${e.defenders}).</div>`);
@@ -858,7 +873,7 @@ function lineOfSight(a, b) {
   return true;
 }
 const inMelee = (f) => state.figures.some((e) => active(e) && e.side !== f.side && adjacent(e, f) && (e.target === f.id || f.target === e.id));
-const savesOf = (f) => f.kind === "pc" ? savesFor(f.cls, f.level) : monsterSaves(MONSTERS.find((m) => m.key === f.monsterKey).hd.count);
+const savesOf = (f) => f.kind === "pc" ? savesFor(f.cls, f.level, f.race) : monsterSaves(MONSTERS.find((m) => m.key === f.monsterKey).hd.count);
 const hdOf = (f) => { if (f.kind === "pc") { const h = hitDiceFor(f.cls, f.level); return hdValue(h.dice, h.bonus); } const h = MONSTERS.find((m) => m.key === f.monsterKey).hd; return hdValue(h.count, h.bonus); };
 
 function resolveMissiles() {
@@ -880,8 +895,9 @@ function resolveMissiles() {
     if (!selfSpell && f.target == null) { cards.push(`<div class="card note">${esc(f.name)} has no target for that action.</div>`); continue; }
     const t = selfSpell ? f : byId(f.target); if (!t || !present(t)) continue;
     const d = distIn(f, t);
-    if (f.action === "fire") {
+    if (f.action === "fire" || f.action === "passthrough") {
       if (!f.missile) continue;
+      if (f.lastFired === state.round) { cards.push(`<div class="card note">${esc(f.name)} has already fired this turn.</div>`); continue; }
       if (inMelee(f)) { cards.push(`<div class="card note">${esc(f.name)} is in melee and can't fire.</div>`); continue; }
       if (inMelee(t)) { cards.push(`<div class="card note">${esc(f.name)} holds fire: ${esc(t.name)} is in a melee.</div>`); continue; }
       if (!lineOfSight(f, t)) { cards.push(`<div class="card note">${esc(f.name)} has no line of sight to ${esc(t.name)}.</div>`); continue; }
@@ -905,33 +921,10 @@ function resolveMissiles() {
       if (!active(f)) continue;
       f.acted = state.round;
       if (p.kind === "fire") {
-        const kind = fireClassFor(f.missile);
-        const moved = classifyMove(halfCellsToInches(f.moved), moveInches(f));
-        const gate = overHalfFireGate({ kind, moved }, state.rng);
-        if (gate && !gate.beat) { cards.push(`<div class="card note">${esc(f.name)} moved over half: fire die ${gate.fireDie} vs ${gate.foeDie}, no shot.</div>`); continue; }
-        const loaded = !(f.missile === "heavycrossbow" && f.lastFired === state.round - 1);
-        const shots = missileShots(1, { kind, moved, loaded });
-        if (!shots) { cards.push(`<div class="card note">${esc(f.name)} is reloading.</div>`); continue; }
-        f.lastFired = state.round;
-        // Kurt's ruling: a second shot may take its own target; default is the same target.
-        const second = shots === 2 && f.secondTarget != null ? byId(f.secondTarget) : null;
-        const plan = shots === 2 ? [t, second && second !== t ? second : t] : [t];
-        const shotCards = [];
-        plan.forEach((tg, i) => {
-          const label = plan.length === 2 ? `Shot ${i + 1}` : "Shot";
-          const left = tg.hp - (dmg.get(tg.id) ?? 0);
-          if (!present(tg) || left <= 0) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: already down, the arrow is lost.</div>`); return; }
-          const dd = distIn(f, tg), range = missileRange(f.missile);
-          if (tg !== t && (!missileBand(dd, range) || !lineOfSight(f, tg) || inMelee(tg))) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: no clear shot, the arrow is lost.</div>`); return; }
-          const fireBonus = missileMod(f.dex ?? 10) + pfePenalty(f, tg) + blindPenalty(f);
-          const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots: 1, fireBonus }, target: { name: tg.name, ac: tg.ac, distance: dd, hitOnlyBy: tg.kind === "monster" ? MONSTERS.find((m) => m.key === tg.monsterKey)?.specialAbilities?.hitOnlyBy : undefined } }, state.rng);
-          dmg.set(tg.id, (dmg.get(tg.id) ?? 0) + res.damage); ev(f, tg, res.damage);
-          if (res.hits > 0) shotAt.push(tg.id);
-          if (res.cannotKill) { shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}: ${esc(res.caption)}</div>`); return; }
-          const x = res.dice[0];
-          shotCards.push(`<div class="line note">${label} at ${esc(tg.name)}, ${dd}" (${BAND_LABEL[res.band] ?? res.band} range), AC ${tg.ac}: needs ${res.toKillNumber}</div><div class="line">2d6 [${x.roll.join(",")}]${x.bonus ? ` ${x.bonus > 0 ? "+" : ""}${x.bonus}` : ""} = ${x.effective}: ${x.hit ? `<span class="hit">hit, ${x.damage} damage</span>` : "miss"}</div>`);
-        });
-        cards.push(`<div class="card"><div class="who">${nameSpan(f)} shoots ${esc(MISSILE_LABEL[f.missile].toLowerCase())} <span class="note">(Dex ${dexOf(f)}, ${shots} shot${shots === 1 ? "" : "s"})</span></div>${shotCards.join("")}</div>`);
+        const v = ms.fireVolley(state, f, t, state.rng, dmg);
+        for (const l of v.lines) if (l.damage) ev(f, byId(l.targetId), l.damage);
+        for (const l of v.lines) if (l.hits > 0) shotAt.push(l.targetId);
+        cards.push(volleyCard(v));
       } else {
         const sp = p.spell;
         f.slotsLeft[sp.level - 1]--;
@@ -1169,7 +1162,7 @@ function renderSide(side) {
     const p = combatProfile(f); const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
     const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
     const st = f.status ? ` <span class="hit" style="font-size:.8rem">${esc(f.status)}</span>` : "";
-    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
+    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, ${f.race && f.race !== "human" ? `${f.race[0].toUpperCase()}${f.race.slice(1)}, ` : ""}Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
   }).join("");
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const adders = setup ? `<div class="adders">
@@ -1181,6 +1174,7 @@ function renderSide(side) {
     <label>Dex <input id="dex-${side}" type="number" min="3" max="18" value="10"></label>
     <label>Int <input id="int-${side}" type="number" min="3" max="18" value="10"></label>
     <label>Cha <input id="cha-${side}" type="number" min="3" max="18" value="10"></label>
+    <select id="race-${side}" aria-label="Race">${opts([["human", "Human"], ["elf", "Elf"], ["dwarf", "Dwarf"], ["halfling", "Halfling"]], "human")}</select>
     <select id="aln-${side}" aria-label="Alignment">${opts([["law", "Law"], ["neutral", "Neutrality"], ["chaos", "Chaos"]], "law")}</select>
     <label>Purse <input id="gp-${side}" type="number" min="0" value="50" style="width:5em"> gp</label>
     <button data-add-pc="${side}">Add character</button></div>
@@ -1227,7 +1221,7 @@ function holdPicker(f) {
 }
 function actionsFor(f) {
   const list = [["melee", "Melee"]];
-  if (f.missile) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`]);
+  if (f.missile) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`], ["passthrough", "Pass-through fire (stand and shoot movers)"]);
   if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft)) list.push([`cast:${sp.id}`, `Cast ${sp.name}${sp.id === "protectionEvil" ? " (self)" : ""}`]);
   return list;
 }
@@ -1335,6 +1329,7 @@ function actionText(f) {
   if (helpless(f)) return { text: f.status, warn: false };
   if (f.action === "hold") return { text: "Holding", warn: false };
   if (f.action === "fire") return { text: tn ? `Fire \u2192 ${tn}` : "Fire: no target", warn: !tn };
+  if (f.action === "passthrough") return { text: f.lastFired === state.round ? "Pass-through: fired" : `Pass-through fire${tn ? `, else \u2192 ${tn}` : ""}`, warn: false };
   if (f.action?.startsWith("cast:") && AREA_SPELLS.includes(f.action.slice(5))) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: f.castAim ? `Cast ${sp?.name ?? "spell"}: placed` : `Cast ${sp?.name ?? "spell"}: place it`, warn: !f.castAim }; }
   if (f.action?.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: sp?.id === "protectionEvil" ? `Cast ${sp.name}` : tn ? `Cast ${sp?.name ?? "spell"} \u2192 ${tn}` : `Cast ${sp?.name ?? "spell"}: no target`, warn: sp?.id !== "protectionEvil" && !tn }; }
   if (tn) return { text: `${f.stance === "parry" ? "Parry" : "Melee"} \u2192 ${tn}`, warn: false };
@@ -1389,6 +1384,8 @@ function renderActionBar() {
     if (mayCharge(f) || f.charging) acts.push(btn("charge", f.charging ? `Charging (${chargeInches(f)}\u2033)` : `Charge (${chargeInches(f)}\u2033)`, !!f.charging));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
     if (f.kind === "pc") acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
+    if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough"));
+    if (ms.canSplitMove(f) && state.step === `move-${f.side}` && f.target != null && f.splitFired !== state.round) acts.push(btn("splitfire", "Split-move fire"));
     acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
     acts.push(`<button data-act="more" class="phone">More\u2026</button>`);
   } else if (state.phase === "over" && f.kind === "pc" && active(f)) {
@@ -1423,6 +1420,8 @@ function renderActionBar() {
     if (a === "melee") { f.action = "melee"; f.stance = "attack"; }
     else if (a === "parry") { f.action = "melee"; f.stance = "parry"; }
     else if (a === "hold") f.action = "hold";
+    else if (a === "passthrough") f.action = "passthrough";
+    else if (a === "splitfire") { const r = runAction({ type: "split-fire", id: f.id, targetId: f.target }); if (!r.ok) $("#dragInfo").innerHTML = `<span class="bad">${esc(r.error)}</span>`; render(); return; }
     else if (a === "charge") { const r = runAction({ type: "charge-mode", id: f.id, on: !f.charging }); $("#dragInfo").textContent = !r.ok ? r.error : f.charging ? `Charging: up to ${chargeInches(f)}″, and the move must end in contact with an enemy.` : ""; render(); return; }
     else if (a === "fire") f.action = "fire";
     else if (a.startsWith("cast:")) { enterCast(f, a.slice(5)); return; }
@@ -1767,7 +1766,7 @@ document.addEventListener("click", (e) => {
   if (!ctx.contains(e.target)) hideCtx();
   const row = e.target.closest?.("[data-row]"); if (row && !e.target.closest("button")) { state.selected = Number(row.dataset.row); render(); ensureVisible(byId(state.selected)); return; }
   const b = e.target.closest?.("button"); if (!b) return;
-  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value, $(`#aln-${s}`).value, Math.min(18, Math.max(3, Number($(`#int-${s}`).value) || 10)), Math.max(0, Math.trunc(Number($(`#gp-${s}`).value) || 0)), Math.min(18, Math.max(3, Number($(`#cha-${s}`).value) || 10))); deploy(); render(); }
+  if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value, $(`#aln-${s}`).value, Math.min(18, Math.max(3, Number($(`#int-${s}`).value) || 10)), Math.max(0, Math.trunc(Number($(`#gp-${s}`).value) || 0)), Math.min(18, Math.max(3, Number($(`#cha-${s}`).value) || 10)), $(`#race-${s}`).value); deploy(); render(); }
   else if (b.dataset.hoard) { const k = $(`#mon-${b.dataset.hoard}`).value; if (!placeHoard(k)) logAppend(`<div class="card note">${esc(MONSTERS.find((m) => m.key === k)?.name ?? k)} keep no lair treasure.</div>`); else logAppend(`<div class="card note">Placed ${esc(state.chests.at(-1).label)}: ${Math.round(state.chests.at(-1).value).toLocaleString()} gp in coins, gems and jewellery, plus ${state.chests.at(-1).inv.items.filter((i) => !["gem", "jewelry"].includes(i.kind)).length} other item(s).</div>`); render(); }
   else if (b.dataset.addMon) { const s = b.dataset.addMon; addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1))); deploy(); render(); }
   else if (b.dataset.remove) { state.figures = state.figures.filter((f) => f.id !== Number(b.dataset.remove)); if (state.selected === Number(b.dataset.remove)) state.selected = null; deploy(); render(); }

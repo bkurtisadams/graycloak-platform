@@ -62,7 +62,8 @@ export function fits(state, f, x, y) {
 }
 /** Cells the figure can reach with what's left of its move. Friends can be passed through but not stopped on. */
 export function reachFor(state, f) {
-  const budget = moveBudget(allowanceOf(f)) - (f.moved ?? 0);
+  let budget = moveBudget(allowanceOf(f)) - (f.moved ?? 0);
+  if (f.splitFired != null && f.splitFired === state.round && f.splitCap != null) budget = Math.min(budget, f.splitCap - (f.moved ?? 0));
   const n = sz(f);
   const blocked = (x, y) => footCells(x, y, n).some(([cx, cy]) => { if (isWall(state, cx, cy)) return true; const o = occupant(state, cx, cy, f); return !!o && o.side !== f.side; });
   const r = reachable({ x: f.x, y: f.y }, budget, blocked);
@@ -97,6 +98,11 @@ export function moveFigure(state, f, x, y) {
     else f.charging = false;
   }
   const stepNode = r.get(node.prev) ?? { x: f.x, y: f.y };
+  // The half-move point of this move, for pass-through fire (Chainmail p.11).
+  let halfway = { x, y }, walk = node;
+  while (walk && walk.cost > node.cost / 2) { halfway = { x: walk.x, y: walk.y }; walk = r.get(walk.prev); }
+  if (walk) halfway = { x: walk.x, y: walk.y };
+  events.push({ type: "moved", id: f.id, from: { x: f.x, y: f.y }, to: { x, y }, halfway });
   f.facing = dir8(x - stepNode.x, y - stepNode.y) ?? f.facing;
   f.moved = (f.moved ?? 0) + node.cost; state.moveSeq = (state.moveSeq ?? 0) + 1; f.moveSeq = state.moveSeq;
   f.x = x; f.y = y;
@@ -148,13 +154,15 @@ export function planGroupMove(state, members, lead, cx, cy) {
 }
 export function commitGroupMove(state, plan) {
   if (!plan.ok) return { ok: false, events: [], error: "the group can't all make that move" };
+  const events = [];
   for (const r of plan.rows) {
     const m = state.figures.find((e) => e.id === r.id);
+    if (state.phase === "fight" && r.cost) events.push({ type: "moved", id: m.id, from: { x: m.x, y: m.y }, to: { x: r.tx, y: r.ty }, halfway: { x: Math.round((m.x + r.tx) / 2), y: Math.round((m.y + r.ty) / 2) } });
     if (state.phase === "fight" && r.cost) { m.moved = (m.moved ?? 0) + r.cost; state.moveSeq = (state.moveSeq ?? 0) + 1; m.moveSeq = state.moveSeq; }
     const d = dir8(r.tx - m.x, r.ty - m.y); if (d != null && state.phase === "fight") m.facing = d;
     m.x = r.tx; m.y = r.ty;
   }
-  return { ok: true, events: [] };
+  return { ok: true, events };
 }
 
 /* ---------------------------------------------------------------- tests */
@@ -171,7 +179,10 @@ function runSelfTests() {
   ok(chargeInches(a) === 12, "9\" foot charge +3\"");
   let s = st([a, b]);
   ok(canMoveNow(s, a) && !canMoveNow(s, b), "only the moving side moves");
-  ok(moveFigure(s, a, 5, 2).ok && a.x === 5 && a.moved > 0 && a.facing === 0, "a legal move, facing east");
+  const mv = moveFigure(s, a, 5, 2);
+  ok(mv.ok && a.x === 5 && a.moved > 0 && a.facing === 0, "a legal move, facing east");
+  const hw = mv.events.find((e) => e.type === "moved")?.halfway;
+  ok(hw && hw.x >= 3 && hw.x <= 4 && hw.y === 2, "the half-move point is reported");
   ok(!moveFigure(s, a, 39, 2).ok, "out of reach");
   ok(!moveFigure(s, b, 18, 2).ok, "side B can't move in A's step");
   // charge must end in contact

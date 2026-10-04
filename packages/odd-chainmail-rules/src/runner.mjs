@@ -7,6 +7,10 @@
  * events for a client to show. It mutates the state it is given; a server
  * clones before calling and saves the result.
  *
+ * Pass 3 (Oct 2026) adds fire during movement: every move is followed by
+ * pass-through fire at its half-move point, and "split-fire" lets horse
+ * archers and elves shoot in mid-move.
+ *
  * Pass 2 (Oct 2026) adds movement and the behaviour loop: "move",
  * "charge-mode", "close-on", "group-move" and "behave".
  *
@@ -30,6 +34,7 @@ import { troopLossLine, manToManMoraleDue, manToManLossCheck, commanderLost, Com
 import { orcLairMoraleExempt } from "./reactions.mjs";
 import { moveFigure, closeOn, planGroupMove, commitGroupMove, mayCharge, chargeInches } from "./movement.mjs";
 import { behave } from "./behaviour.mjs";
+import { passThroughFire, splitMoveFire } from "./missiles.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -46,7 +51,7 @@ const asSet = (v) => (v instanceof Set ? v : new Set(v ?? []));
 const MISSILE_STEP_MONSTERS = Object.freeze(["basilisk", "medusa", "gorgon", "chimera"]);
 /** Is there anything for the missile step to do this round? */
 export function missileStepNeeded(state) {
-  return state.figures.some((f) => active(f) && (f.action === "fire" || f.action?.startsWith?.("cast:")
+  return state.figures.some((f) => active(f) && (f.action === "fire" || (f.action === "passthrough" && f.lastFired !== state.round && f.target != null) || f.action?.startsWith?.("cast:")
     || MISSILE_STEP_MONSTERS.includes(f.monsterKey) || f.monsterKey?.startsWith?.("dragon-")));
 }
 /** Artillery engines on the board (none are built yet; the step keeps its place in the sequence). */
@@ -71,7 +76,21 @@ export const AI_ELECTION = "counter";
  *   { type: "close-on", id, targetId, charge }  move step: move toward a target by the best route
  *   { type: "group-move", ids, leadId, x, y }   setup or move step: move a group, all or nothing
  *   { type: "behave", side }                    move step: every figure on the moving side decides by its profile
+ *   { type: "split-fire", id, targetId }        move step: an elf or horse archer shoots in mid-move
  */
+/** After any move in the fight, enemies who elected pass-through fire shoot at each mover's half-move point. */
+function withPassThrough(state, events, rng) {
+  const out = [];
+  for (const e of events) {
+    out.push(e);
+    if (e.type !== "moved" || state.phase !== "fight") continue;
+    const mover = state.figures.find((f) => f.id === e.id);
+    const shots = passThroughFire(state, mover, e.halfway, rng);
+    if (shots.length && mover.hp <= 0) { mover.x = e.halfway.x; mover.y = e.halfway.y; }
+    out.push(...shots);
+  }
+  return out;
+}
 export function apply(state, action, rng) {
   const events = [];
   const fail = (error) => ({ ok: false, events: [], error });
@@ -81,6 +100,12 @@ export function apply(state, action, rng) {
   switch (action?.type) {
     case "move": {
       const r = moveFigure(state, byId(action.id), action.x, action.y);
+      return r.ok ? { ok: true, events: withPassThrough(state, r.events, rng) } : fail(r.error);
+    }
+    case "split-fire": {
+      const f = byId(action.id), t = byId(action.targetId);
+      if (!f || !t) return fail("no such figure");
+      const r = splitMoveFire(state, f, t, rng);
       return r.ok ? { ok: true, events: r.events } : fail(r.error);
     }
     case "charge-mode": {
@@ -96,7 +121,7 @@ export function apply(state, action, rng) {
       if (!f || !t) return fail("no such figure");
       if (action.charge && !mayCharge(state, f)) return fail(`${f.name} can't charge now`);
       const r = closeOn(state, f, t, { charge: !!action.charge });
-      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+      return r.ok ? { ok: true, events: withPassThrough(state, r.events, rng) } : fail(r.error);
     }
     case "group-move": {
       const members = (action.ids ?? []).map(byId).filter((g) => g && g.placed && present(g));
@@ -104,11 +129,12 @@ export function apply(state, action, rng) {
       if (!lead || !members.includes(lead)) return fail("the lead must be in the group");
       const plan = planGroupMove(state, members, lead, action.x, action.y);
       if (!plan.ok) return { ok: false, events: [], error: plan.bad.map((b) => `${byId(b.id).name}: ${b.why}`).join("; "), plan };
-      return commitGroupMove(state, plan);
+      const r = commitGroupMove(state, plan);
+      return { ok: true, events: withPassThrough(state, r.events, rng) };
     }
     case "behave": {
       if (moverOf(state.step) !== action.side) return fail(`side ${action.side} is not moving`);
-      return { ok: true, events: behave(state, action.side) };
+      return { ok: true, events: withPassThrough(state, behave(state, action.side), rng) };
     }
     case "begin-round": {
       if (state.step !== Step.INIT) return fail(`not at the start of a round (step ${state.step})`);
@@ -360,6 +386,16 @@ async function runSelfTests() {
     const setup = { ...fresh([fig(9, "A", { placed: false })]), phase: "setup" };
     ok(apply(setup, { type: "move", id: 9, x: 3, y: 3 }).ok, "placing in setup");
     ok(!apply(setup, { type: "behave", side: "A" }).ok, "nothing else in setup");
+  }
+  // Pass 3: pass-through fire on a move.
+  {
+    const archer = fig(1, "A", { x: 2, y: 5, missile: "shortbow", action: "passthrough", facing: 0, dex: 10, ac: 7, armor: "leather", weaponId: "sword" });
+    const orc5 = orc(2, "B", 28, { y: 5, facing: 4, ac: 7 });
+    const st = fresh([archer, orc5]); st.step = "move-B";
+    const r = apply(st, { type: "move", id: 2, x: 16, y: 5 }, () => 0.999);
+    const v = r.events.find((e) => e.type === "volley");
+    ok(r.ok && v && v.passThrough && v.id === 1 && archer.lastFired === st.round, "the archer shoots the orc at its half-move point");
+    ok(orc5.hp <= 0 && orc5.x !== 16, "the orc falls where it was hit, not where it was going");
   }
   console.log(`runner.mjs — all self-tests passed (${pass} assertions).`);
 }

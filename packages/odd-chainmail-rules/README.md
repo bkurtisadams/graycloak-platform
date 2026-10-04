@@ -106,6 +106,11 @@ Changes made during extraction:
   a target, group moves. New `behaviour.mjs` (exported as `behaviour`): the
   profile-driven decision loop. The runner adds the actions "move",
   "charge-mode", "close-on", "group-move" and "behave".
+- 0.11.0: combat runner, pass 3. New `missiles.mjs` (exported as
+  `missiles`): man-to-man volleys, pass-through fire at a mover's half-move
+  point (taking effect at once), and split-move fire for elves and horse
+  archers. Every move through the runner now reports its half-move point.
+  Sleep's area is AD&D's 3" diameter (`sleepCells`, `sleepInArea`).
 
 ## Open items
 
