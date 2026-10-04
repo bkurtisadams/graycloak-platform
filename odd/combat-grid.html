@@ -219,9 +219,50 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
   .ab-actions .desk { display: none; }
 }
 @media (min-width: 701px) { .ab-actions .phone { display: none; } .ab-phone-line { display: none; } .ab-row { display: contents; } }
+/* Online play: the "your move" banner, the Ready count, the Players panel and the character cards (mockup, Oct 2026). */
+.yourmove { display: flex; align-items: center; gap: 12px; padding: 10px 24px; background: #2f5c8a; color: #fbfdfe; font-family: var(--serif); }
+.yourmove[hidden] { display: none; }
+.yourmove b { font-size: 1.05rem; }
+.readybox { display: flex; align-items: center; gap: 10px; font-family: var(--type); font-size: .95rem; }
+.readybox[hidden] { display: none; }
+.readybox .count { font-weight: 700; border: 1px solid var(--ink); border-radius: 999px; padding: 4px 12px; }
+.readybox .why { color: var(--pencil); }
+.people { border-bottom: 1px solid #c9d8e2; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.people[hidden] { display: none; }
+.people h2 { margin: 0; font-size: 1rem; }
+.people .row { display: flex; align-items: flex-start; gap: 10px; min-height: 32px; }
+.people .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.people .dot.hollow { box-sizing: border-box; background: none !important; border: 2px solid var(--side-b); }
+.people .row.game { color: var(--pencil); }
+.people .figs { font-size: .9rem; }
+.st-ready { font-family: var(--type); color: #2f7d32; }
+.st-deciding { font-family: var(--type); color: var(--side-b); }
+.st-other { font-family: var(--type); color: var(--pencil); }
+.cards { position: absolute; left: 16px; bottom: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 4; max-height: calc(100% - 90px); overflow-y: auto; }
+.cards[hidden] { display: none; }
+.ccard { width: 420px; max-width: calc(100vw - 48px); box-sizing: border-box; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.25); display: flex; font-family: var(--serif); }
+.ccard .main { flex: 1 1 auto; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.ccard .head { display: flex; align-items: center; gap: 10px; }
+.ccard .disc { width: 36px; height: 36px; border-radius: 50%; color: #fbfdfe; display: flex; align-items: center; justify-content: center; font-family: var(--type); font-weight: 700; font-size: .75rem; flex-shrink: 0; }
+.ccard .nm { font-weight: 700; font-size: 1.05rem; }
+.ccard .sub { font-size: .85rem; color: var(--pencil); }
+.ccard .hpline { display: flex; justify-content: space-between; font-family: var(--type); font-size: .85rem; }
+.ccard .chp { height: 8px; width: 100%; background: #c9d8e2; border-radius: 3px; overflow: hidden; }
+.ccard .chp > div { height: 100%; }
+.ccard .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; font-family: var(--type); font-size: .85rem; }
+.ccard .orders { border-top: 1px solid #c9d8e2; padding-top: 8px; font-size: .9rem; display: flex; flex-direction: column; gap: 2px; }
+.ccard .btns { display: flex; gap: 8px; }
+.ccard .btns button { font: inherit; font-size: .9rem; min-height: 44px; padding: 6px 12px; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; }
+.ccard .status { flex: 0 0 112px; border-left: 1px solid #c9d8e2; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
+.ccard .status .k { font-size: .8rem; color: var(--pencil); text-transform: uppercase; letter-spacing: .06em; }
+.ccard .status .v { font-family: var(--type); font-weight: 700; font-size: 1rem; }
+.ccard .status button { font: inherit; min-height: 44px; width: 100%; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.ccard .status button.go { font-weight: 700; font-size: 1rem; border: none; }
+.ccard .status button.back { font-size: .85rem; border: 1px solid var(--ink); }
+@media (max-width: 700px) { .cards { position: static; padding: 8px; } .ccard { width: 100%; max-width: none; } }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
-body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #chatForm { display: none !important; }
+body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #chatForm, body.player-mode #chips { display: none !important; }
 #pFights button { display: block; margin: 4px 0; text-align: left; }
 </style>
 </head>
@@ -242,10 +283,12 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
     <label class="auto" title="Side B moves by each figure's behaviour profile"><input type="checkbox" id="autoB"> Side B by behaviour</label>
     <button id="electFirst" class="done" hidden title="Chainmail p.8: the initiative winner chooses">Move first</button>
     <button id="electLast" class="done" hidden title="Chainmail p.8: move last (counter-move) to see the enemy's move first">Move last</button>
+    <span class="readybox" id="readyBox" hidden><span id="readySide">Side A ready</span> <span class="count" id="readyCount">0 of 0</span> <span class="why">The step resolves when all are ready.</span></span>
     <button id="step" class="done" disabled>Start fight</button>
   </div>
   <div class="chips" id="chips"></div>
 </section>
+<div class="yourmove" id="yourMove" hidden role="status"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><b>Your move.</b> <span id="yourMoveText"></span></div>
 <section class="stage" id="stage">
  <div class="map-col">
   <div class="map-wrap" id="wrap"><svg class="map" id="map" role="img" aria-label="Dungeon map with figures"></svg>
@@ -253,11 +296,13 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
     <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button><button id="showTargets" aria-pressed="false" title="Show every figure's target line (otherwise: the selected figure, the one under the pointer, and chargers)">Show targets</button></div>
     <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div>
     <div class="actionbar" id="actionbar"></div>
+    <div class="cards" id="cards" hidden aria-label="Your characters"></div>
   </div>
   <p id="dragInfo" aria-live="polite"></p>
   <p class="step" id="stepText"></p>
  </div>
  <aside class="logpanel" id="logpanel" aria-label="Log and chat">
+  <section class="people" id="peoplePanel" hidden aria-label="Players"><h2>Players</h2><div id="peopleList"></div></section>
   <div class="logpanel-head"><h2>Log &amp; chat</h2><button id="logToggle" title="Hide or show the log" aria-expanded="true">Hide</button></div>
   <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
   <form class="chatbar" id="chatForm" autocomplete="off">
@@ -279,6 +324,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
     <div id="playerPane" hidden>
       <div class="bar"><button id="pSignIn">Sign in</button> <span class="note" id="pWho"></span></div>
       <div class="bar"><label>Campaign <input id="pCid" value="tester" style="width:8em" spellcheck="false"></label> <button id="pFind">Find my fights</button></div>
+      <div class="bar"><label><input type="checkbox" id="chimeOn" checked> Chime when it's my move</label></div>
       <div id="pFights"></div>
       <p class="note" id="pNote"></p>
     </div>
@@ -369,6 +415,16 @@ if (PLAYER) online.on = true;
 const mineOk = (f) => !PLAYER || !!f?.mine;
 /** Hit points as text, or null where the page knows only the bar (an enemy on the player's page). */
 const hpText = (f) => (f.hp == null || f.hpScaled ? null : `${Math.max(f.hp, 0)}/${f.maxHp}`);
+/** Online: who runs a figure (a uid, "referee" or "game"), and the colour drawn round it. */
+const controllerOfFig = (f) => state.control?.[f.id] ?? null;
+const personOf = (f) => { const c = controllerOfFig(f); return c && c !== "game" ? state.people?.[c] ?? null : null; };
+const ringOf = (f) => (online.on && state.phase !== "setup" ? personOf(f)?.color ?? null : null);
+/** Ready marks (per character, Kurt Oct 2026): who must mark, who has. */
+const movingSide = () => (state.phase === "fight" && state.step?.startsWith("move-") ? state.step.slice(5) : null);
+const needsReady = (f) => f.side === movingSide() && active(f) && controllerOfFig(f) !== "game";
+const isReadyFig = (f) => (state.readyIds ? state.readyIds.includes(f.id) : state.ready?.[f.id] === `${state.round}:${state.step}`);
+/** The figures this page marks Ready: the player's own, or on the referee's page the referee's. */
+const myFigs = () => state.figures.filter((f) => (PLAYER ? f.mine : controllerOfFig(f) === "referee"));
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const byId = (id) => state.figures.find((f) => f.id === id);
@@ -663,6 +719,8 @@ function renderEvents(events) {
     else if (e.type === "draw-weapon") { const w = (id) => esc((WEAPON_LABEL[id] ?? "weapon").toLowerCase()); logAppend(`<div class="card note">${esc(e.name)} ${e.wasBroken ? `drops his broken ${w(e.from)} and draws` : `puts away his ${w(e.from)} and draws`} his ${w(e.to)} (half his move).</div>`); }
     else if (e.type === "gm") logAppend(`<div class="card note">GM: ${esc(e.name)} ${e.tool === "invulnerable" ? (e.value ? "is now invulnerable" : "is no longer invulnerable") : e.tool === "heal" ? "healed to full" : e.tool === "set-hp" ? `set to ${e.value} hit points` : e.tool === "clear" ? "has his conditions cleared" : e.tool === "kill" ? "killed" : e.tool === "burn" ? "is burned and will not rise again" : e.tool}.</div>`);
     else if (e.type === "leader") logAppend(`<div class="card note">${e.id == null ? `Side ${e.side} has no leader.` : `${esc(e.name)} leads side ${e.side}.`}</div>`);
+    else if (e.type === "ready") logAppend(`<div class="card note">${e.names.map(esc).join(", ")} ${e.names.length > 1 ? "are" : "is"} ready (side ${e.side}: ${e.readyCount} of ${e.of}).</div>`);
+    else if (e.type === "unready") logAppend(`<div class="card note">${e.names.map(esc).join(", ")} ${e.changed ? "changed orders" : "took Ready back"} (side ${e.side}: ${e.readyCount} of ${e.of}).</div>`);
     else if (e.type === "done") logAppend(`<div class="card note">${e.who === "referee" ? "The referee" : esc(e.who)} is done moving side ${e.side}${e.waitingOn?.length ? `; waiting on ${e.waitingOn.map(esc).join(", ")}` : ""}.</div>`);
     else if (e.type === "down") logAppend(`<div class="card note"><span class="hit">${esc(e.name)} is down</span> (${esc(e.by)}).</div>`);
     else if (e.type === "charge") logAppend(`<div class="card note">${esc(e.name)} charges ${esc(e.target)}.</div>`);
@@ -793,6 +851,107 @@ async function createOnline() {
 }
 $("#fid").value = newFightId();
 $("#copyLink").addEventListener("click", () => { $("#playerLink").select(); navigator.clipboard?.writeText($("#playerLink").value).catch(() => {}); $("#copyLink").textContent = "Copied"; setTimeout(() => ($("#copyLink").textContent = "Copy"), 1500); });
+/* ---------- online: Players panel, character cards, Ready count, your-move signal ---------- */
+function statusOf(f) {
+  if (!alive(f)) return `<span class="st-other">down</span>`;
+  if (needsReady(f)) return isReadyFig(f) ? `<span class="st-ready">\u2713 ready</span>` : `<span class="st-deciding">deciding</span>`;
+  if (!active(f)) return `<span class="st-other">${esc(f.status ?? "out")}</span>`;
+  return "";
+}
+function figList(figs) { return figs.map((f) => `${esc(f.name)}${statusOf(f) ? ` ${statusOf(f)}` : ""}`).join(" \u00b7 "); }
+function renderPeople() {
+  const box = $("#peoplePanel"); if (!box) return;
+  box.hidden = !online.on || state.phase === "setup" || !state.people;
+  if (box.hidden) return;
+  const me = online.api?.user?.uid, rows = [];
+  const byCtl = (c) => state.figures.filter((f) => controllerOfFig(f) === c);
+  const ref = state.people.referee;
+  if (ref) rows.push(`<div class="row"><span class="dot" style="background:${ref.color}" aria-hidden="true"></span><span><b>${esc(ref.name)}</b>, referee${PLAYER ? "" : ` <span class="note">(you)</span>`}${byCtl("referee").length ? `<br><span class="figs">${figList(byCtl("referee"))}</span>` : ""}</span></div>`);
+  for (const [uid, p] of Object.entries(state.people)) {
+    if (uid === "referee") continue;
+    rows.push(`<div class="row"><span class="dot" style="background:${p.color}" aria-hidden="true"></span><span><b>${esc(p.name)}</b>${uid === me ? ` <span class="note">(you)</span>` : ""}<br><span class="figs">${figList(byCtl(uid))}</span></span></div>`);
+  }
+  for (const side of ["A", "B"]) if (state.figures.some((f) => f.side === side && controllerOfFig(f) === "game")) rows.push(`<div class="row game"><span class="dot hollow" style="border-color:var(--side-${side.toLowerCase()})" aria-hidden="true"></span><span>Side ${side}: run by the game</span></div>`);
+  $("#peopleList").innerHTML = rows.join("");
+}
+const CLASS_NAME = Object.fromEntries(CLASSES.map((c) => [c.id, c.label === "Fighting-Man" ? "Fighter" : c.label]));
+/** The card's Action line, as in the mockup ("fire the short bow"); the target has its own line. */
+function cardAction(f) {
+  const a = f.action ?? "melee";
+  if (a === "fire") return f.missile ? `fire the ${MISSILE_LABEL[f.missile].toLowerCase()}` : "fire";
+  if (a === "passthrough") return "hold pass-through fire";
+  if (a === "hold") return "hold";
+  if (a.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === a.slice(5)); return `cast ${sp?.name ?? a.slice(5)}${f.castAim ? " at the marked point" : ""}`; }
+  return "melee";
+}
+function cardHtml(f) {
+  const t = f.target != null ? byId(f.target) : null, p = personOf(f);
+  const frac = f.maxHp ? Math.max(0, f.hp) / f.maxHp : 1, hpCol = frac > 0.5 ? "#2f7d32" : frac > 0.25 ? "#a16207" : "#b3362b";
+  const armour = ARMOR.find((a) => a.id === f.armor)?.label?.toLowerCase();
+  const range = t && f.action === "fire" && f.missile ? missileBand(distIn(f, t), missileRange(f.missile)) : null;
+  const status = !needsReady(f)
+    ? `<span class="v st-other">${!alive(f) ? "Down" : !active(f) ? esc(f.status ?? "Out") : movingSide() ? "Not moving" : "Waiting"}</span>`
+    : isReadyFig(f)
+      ? `<span class="v st-ready">\u2713 Ready</span><button type="button" class="back" data-unready="${f.id}">Change orders</button>`
+      : `<span class="v st-deciding">Deciding</span><button type="button" class="go primary" data-ready="${f.id}">Ready</button>`;
+  return `<div class="ccard" data-card="${f.id}">
+    <div class="main">
+      <div class="head"><div class="disc" style="background:var(--side-${f.side.toLowerCase()});box-shadow:0 0 0 3px ${p?.color ?? "transparent"}">${esc(tokenLabel(f))}</div>
+        <div style="display:flex;flex-direction:column"><span class="nm">${esc(f.name)}</span><span class="sub">${esc(CLASS_NAME[f.cls] ?? "")}, level ${f.level ?? 1}${f.alignment ? ` \u00b7 ${esc(ALIGN_LABEL[f.alignment] === "Neutrality" ? "Neutral" : ALIGN_LABEL[f.alignment] === "Law" ? "Lawful" : "Chaotic")}` : ""}</span></div></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><div class="hpline"><span>Hit points</span><span style="font-weight:700">${Math.max(0, f.hp ?? 0)} / ${f.maxHp ?? "?"}</span></div><div class="chp"><div style="width:${Math.round(frac * 100)}%;background:${hpCol}"></div></div></div>
+      <div class="facts"><span>AC ${f.ac}${armour ? ` (${esc(armour)})` : ""}</span><span>Move ${moveInches(f)}"</span><span>${esc(WEAPON_LABEL[f.weaponId] ?? "No weapon")} ${f.weaponBroken ? "(broken)" : "in hand"}</span><span>${f.missile ? esc(MISSILE_LABEL[f.missile]) : "No missile"}</span></div>
+      <div class="orders"><span><b>Target</b> ${t ? `${esc(t.name)}, ${distIn(f, t)}"${range ? ` (${esc(range)} range)` : ""}` : "none"}</span><span><b>Action</b> ${esc(cardAction(f))} \u00b7 <b>Stance</b> ${esc(f.stance ?? "attack")}</span></div>
+      <div class="btns"><button type="button" data-centre="${f.id}">Centre on map</button><button type="button" data-sheet="${f.id}">Character sheet</button></div>
+    </div>
+    <div class="status"><span class="k">Status</span>${status}</div>
+  </div>`;
+}
+function renderCards() {
+  const box = $("#cards"); if (!box) return;
+  const figs = PLAYER && state.phase !== "setup" ? state.figures.filter((f) => f.mine) : [];
+  box.hidden = !figs.length; if (box.hidden) return;
+  box.innerHTML = figs.map(cardHtml).join("");
+  // sit above the action bar, once it has been drawn
+  requestAnimationFrame(() => { const bar = $("#actionbar"); box.style.bottom = `${bar && !bar.hidden && bar.offsetHeight ? bar.offsetHeight + 24 : 14}px`; });
+  box.querySelectorAll("[data-ready]").forEach((b) => (b.onclick = () => runAction({ type: "ready", ids: [Number(b.dataset.ready)] })));
+  box.querySelectorAll("[data-unready]").forEach((b) => (b.onclick = () => runAction({ type: "unready", ids: [Number(b.dataset.unready)] })));
+  box.querySelectorAll("[data-centre]").forEach((b) => (b.onclick = () => { const f = byId(Number(b.dataset.centre)); if (!f) return; state.selected = f.id; cam.x = (centre(f).x + 0.5) * PX; cam.y = (centre(f).y + 0.5) * PX; applyView(); render(); }));
+  box.querySelectorAll("[data-sheet]").forEach((b) => (b.onclick = () => { state.selected = Number(b.dataset.sheet); render(); openDrawer("figure"); }));
+}
+let chimeCtx = null;
+function chime() {
+  try {
+    chimeCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+    const t0 = chimeCtx.currentTime;
+    for (const [i, hz] of [[0, 659.25], [1, 880]]) {
+      const o = chimeCtx.createOscillator(), g = chimeCtx.createGain();
+      o.type = "sine"; o.frequency.value = hz; o.connect(g); g.connect(chimeCtx.destination);
+      const t = t0 + i * 0.16; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      o.start(t); o.stop(t + 0.55);
+    }
+  } catch {}
+}
+const BASE_TITLE = document.title;
+function renderOnlineTable() {
+  renderPeople(); renderCards();
+  const side = movingSide(), live = online.on && state.phase === "fight" && !!state.people;
+  // the side's Ready count, in the strip
+  const need = live && side ? state.figures.filter(needsReady) : [];
+  $("#readyBox").hidden = !need.length;
+  if (need.length) { $("#readySide").textContent = `Side ${side} ready`; $("#readyCount").textContent = `${need.filter(isReadyFig).length} of ${need.length}`; }
+  // your move: this page has figures still deciding
+  const mine = live ? myFigs().filter((f) => needsReady(f) && !isReadyFig(f)) : [];
+  const yours = PLAYER && mine.length > 0;
+  $("#yourMove").hidden = !yours;
+  if (yours) {
+    const names = mine.map((f) => f.name), list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+    $("#yourMoveText").textContent = `Move ${list} and set ${names.length > 1 ? "their" : "his"} orders, then mark ${names.length > 1 ? "them" : "him"} Ready.`;
+  }
+  if (yours && !online.yours && $("#chimeOn")?.checked) chime();
+  online.yours = yours;
+  document.title = yours ? `\u25cf Your move \u00b7 ${BASE_TITLE}` : BASE_TITLE;
+}
+
 /* ---------- sign-in dialog: email and password, or Google (as on GCC) ---------- */
 function openSignIn(after) {
   const api = online.api; if (!api) return;
@@ -927,8 +1086,11 @@ function startFight() {
 }
 function nextStep() {
   if (state.phase !== "fight") return;
-  if (PLAYER) { if (state.step.startsWith("move-")) runAction({ type: "done" }); return; }
-  if (online.on) { if (state.step.startsWith("move-")) runAction({ type: "end-move", side: state.step.slice(5) }); return; }
+  if (online.on) {
+    // Ready all of this page's figures still deciding (the referee's "Ready all mine")
+    if (state.step.startsWith("move-")) { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) runAction({ type: "ready", ids }); }
+    return;
+  }
   if (state.step === "init") { state.skipMissiles = false; state.fx = []; state.banner = null; runAction({ type: "begin-round" }); aiElect(); }
   else if (state.step === "elect") return;
   else if (state.step.startsWith("move-")) runAction({ type: "end-move", side: state.step.slice(5) });
@@ -994,7 +1156,7 @@ function renderMap() {
     if (!state.showTargets && f.id !== selId && t.id !== selId && !(f.charging && state.step?.startsWith("move-"))) continue;
     const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
     const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 6.6, ey = y2 - ((y2 - y1) / len) * 6.6;
-    parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-width="3.2" vector-effect="non-scaling-stroke" pointer-events="none"/><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--target)" stroke-width="1.3" vector-effect="non-scaling-stroke" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-T)" pointer-events="none"/>`);
+    parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-width="3.2" vector-effect="non-scaling-stroke" pointer-events="none"/><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="${ringOf(f) ?? "var(--target)"}" stroke-width="1.3" vector-effect="non-scaling-stroke" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-T)" pointer-events="none"/>`);
   }
   const moving = state.phase === "fight" && state.step?.startsWith("move-") ? state.step.slice(5) : null;
   if (moving) for (const f of state.figures) {
@@ -1030,6 +1192,7 @@ function renderMap() {
     parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}${hpText(f) ? `: ${hpText(f)} hp` : f.hpScaled ? (alive(f) ? "" : ": down") : ""}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}>
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.1"/>` : ""}
       ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--target)" stroke-width="1" stroke-dasharray="2.4 1.6" pointer-events="none"/>` : ""}
+      ${ringOf(f) ? `<circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2 + 1.1}" fill="none" stroke="${ringOf(f)}" stroke-width="1.6" pointer-events="none"/>${PLAYER && f.mine ? `<circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2 + 3}" fill="none" stroke="${ringOf(f)}" stroke-width="1" pointer-events="none"/><g pointer-events="none"><rect x="${cx - 4.4}" y="${cy - 6.4 * S - 6.6}" width="8.8" height="3.6" rx=".6" fill="${ringOf(f)}"/><text x="${cx}" y="${cy - 6.4 * S - 4}" text-anchor="middle" font-size="2.8" font-family="var(--type)" font-weight="700" fill="#fbfdfe">YOU</text></g>` : ""}` : ""}
       <circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".7"/>
       <polygon points="${wedge}" fill="#fff" pointer-events="none"/>
       <text x="${cx}" y="${cy + 1.9 * Math.min(S, 2)}" text-anchor="middle" font-size="${5.2 * Math.min(S, 2)}" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(tokenLabel(f))}</text>
@@ -1276,12 +1439,13 @@ function stepLabel() {
     if (state.phase === "setup") return "Open a fight";
     if (state.phase === "over") return "Fight over";
     const wait = online.header?.waitingOn ?? [], me = online.api?.user?.uid;
-    if (state.step.startsWith("move-")) return wait.includes(me) ? "Done moving" : wait.length ? `Waiting on ${wait.map((w) => w === "referee" ? "the referee" : w === me ? "you" : `player ${w.slice(0, 6)}`).join(", ")}` : `Side ${state.step.slice(5)} moves`;
+    if (state.step.startsWith("move-")) return wait.length ? `Waiting on ${wait.map((w) => w === "referee" ? (state.people?.referee?.name ?? "the referee") : w === me ? "you" : (state.people?.[w]?.name ?? "a player")).join(", ")}` : `Side ${state.step.slice(5)} moves`;
     if (state.step === "elect") return `Side ${state.init.winner} chooses`;
     return "The server resolves this step";
   }
   if (state.phase === "setup") return online.on ? "Start fight online" : "Start fight";
   if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect") return "The server resolves this step";
+  if (online.on && state.phase === "fight" && state.step.startsWith("move-")) return myFigs().some((f) => needsReady(f) && !isReadyFig(f)) ? "Ready all mine" : "Waiting on the players";
   if (state.phase === "over") return "Fight over";
   if (state.step === "init") return state.round ? "Next round" : "Roll initiative";
   if (state.step === "elect") return "Choose to move first or last";
@@ -1311,9 +1475,10 @@ function renderStrip() {
   $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "missiles" ? "Missiles & spells" : "Melee";
   const btn = $("#step"); btn.textContent = stepLabel(); btn.hidden = electing;
   btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-"))
-    || (PLAYER && state.phase === "fight" && !(online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
+    || (PLAYER && state.phase === "fight")
+    || (online.on && state.phase === "fight" && st.startsWith("move-") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
   const mayElect = electing && (!PLAYER || state.figures.some((f) => f.mine && present(f) && f.side === state.init.winner));
-  btn.hidden = mayElect;
+  btn.hidden = mayElect || (PLAYER && state.phase === "fight"); // the player's page shows the Ready count and the cards instead
   $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect;
   if (electing) { $("#electFirst").textContent = `Side ${state.init.winner}: move first`; $("#electLast").textContent = `Side ${state.init.winner}: move last`; }
   $("#subline").textContent = `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
@@ -1547,6 +1712,7 @@ const serviceState = (pc, f) => tk.serviceState(state, pc, f);function openServi
 
 function render() {
   renderWhoPlays();
+  renderOnlineTable();
   refreshChatAs();
   if (state.phase === "fight") refreshFacing();
   renderMap(); renderSide("A"); renderSide("B"); renderDetail(); renderStrip(); renderChips(); renderActionBar(); renderBanner();

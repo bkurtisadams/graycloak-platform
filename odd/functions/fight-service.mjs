@@ -17,6 +17,9 @@
 // ---------------------------------------------------------------------------
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** Player colours, given in the order players are named; the referee is ink (Kurt, Oct 2026). */
+export const PLAYER_COLOURS = Object.freeze(["#6d28d9", "#0f766e", "#c2410c", "#be185d", "#15803d", "#1d4ed8", "#a16207", "#475569"]);
+export const REFEREE_COLOUR = "#1f2b38";
 const pad = (n) => String(n).padStart(8, "0");
 const clean = (v) => JSON.parse(JSON.stringify(v));
 
@@ -46,7 +49,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     tx.set(p.state, clean(fightStore.toStored(state)));
     tx.set(p.fight, clean({
       ...(header ?? {}), rev, rules: RULES, phase: state.phase, round: state.round ?? 0, step: state.step ?? null,
-      firstSide: state.firstSide ?? null, winner: state.winner ?? null, waitingOn: session.waitingOn(state), players: playersOf(state), updatedAt: now()
+      firstSide: state.firstSide ?? null, winner: state.winner ?? null, waitingOn: session.waitingOn(state), unready: session.unreadyIds(state),
+      readyCount: session.readyCount(state), players: playersOf(state), updatedAt: now()
     }));
     const viewers = [["referee", { referee: true }], ...playersOf(state).map((u) => [u, { uid: u }])];
     for (const [key, who] of viewers) {
@@ -65,7 +69,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
    * email means he runs that figure). A campaign that doesn't exist yet is
    * made with the caller as its referee.
    */
-  async function create({ uid, data }) {
+  async function create({ uid, name, data }) {
     if (!uid) return refuse("auth", "sign in first");
     const { cid, fid, title = "", fight, control = {}, players = {} } = data ?? {};
     if (!ID.test(cid ?? "") || !ID.test(fid ?? "")) return refuse("bad-request", "campaign and fight ids are letters, digits, - and _");
@@ -75,16 +79,22 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const ids = new Set((state.figures ?? []).map((f) => String(f.id)));
     for (const [k, v] of Object.entries(control)) if (!ids.has(String(k)) || typeof v !== "string" || !v || v.length > 128) return refuse("bad-request", `control for figure ${k} is not valid`);
     state.control = { ...control };
+    // Names and colours for the Players panel and the token rings.
+    const people = { referee: { name: String(name || "Referee").slice(0, 60), color: REFEREE_COLOUR } };
     for (const [k, raw] of Object.entries(players ?? {})) {
       const email = String(raw ?? "").trim().toLowerCase();
       if (!email) continue;
       if (!ids.has(String(k))) return refuse("bad-request", `there is no figure ${k}`);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return refuse("bad-request", `"${raw}" is not an email address`);
-      const who = await resolveUser(email);
-      if (!who) return refuse("no-account", `No one has signed in as ${email} yet. The player signs in once on the player's page, then open the fight again.`);
-      state.control[k] = who === uid ? "referee" : who;
+      const found = await resolveUser(email);
+      const who = typeof found === "string" ? { uid: found, name: email } : found;
+      if (!who?.uid) return refuse("no-account", `No one has signed in as ${email} yet. The player signs in once on the player's page, then open the fight again.`);
+      if (who.uid === uid) { state.control[k] = "referee"; continue; }
+      state.control[k] = who.uid;
+      if (!people[who.uid]) people[who.uid] = { name: String(who.name || email).slice(0, 60), color: PLAYER_COLOURS[(Object.keys(people).length - 1) % PLAYER_COLOURS.length] };
     }
-    for (const k of ["done", "behaved"]) delete state[k];
+    state.people = people;
+    for (const k of ["done", "behaved", "ready"]) delete state[k];
     const rng = fightStore.seedFight(state, newSeed());
     const events = [{ type: "round", round: state.round ?? 0 }];
     if (state.phase === "fight") events.push(...session.advance(state, rng));

@@ -93,15 +93,17 @@ test("players move their own figures, Done ends the shared move, stale and forei
   assert.equal((await send("bob", { type: "move", id: 2, x: 7, y: 6 }, rev)).code, "stale", "Bob's page was a rev behind");
   assert.equal((await send("bob", { type: "move", id: 1, x: 8, y: 5 })).code, "refused", "not Bob's figure");
   assert.equal((await send("mallory", { type: "move", id: 1, x: 8, y: 5 })).code, "forbidden");
-  assert.equal((await svc.act({ uid: "kurt", data: { cid: "camp1", fid: "f1", rev: header(store, p).rev, rules: "0.1.0", action: { type: "done" } } })).code, "rules");
+  assert.equal((await svc.act({ uid: "kurt", data: { cid: "camp1", fid: "f1", rev: header(store, p).rev, rules: "0.1.0", action: { type: "ready", ids: [1] } } })).code, "rules");
   const revBefore = header(store, p).rev;
   assert.equal((await send("kurt", { type: "melee" })).ok, false);
   assert.equal(header(store, p).rev, revBefore, "a refusal writes nothing");
 
-  assert.equal((await send("kurt", { type: "done" })).ok, true);
+  assert.equal((await send("kurt", { type: "ready", ids: [1] })).ok, true);
   assert.deepEqual(header(store, p).waitingOn, ["bob"]);
+  assert.deepEqual(header(store, p).unready, [2]);
+  assert.deepEqual(header(store, p).readyCount, { ready: 1, of: 2 });
   const roundBefore = header(store, p).round;
-  const d = await send("bob", { type: "done" });
+  const d = await send("bob", { type: "ready", ids: [2] });
   assert.equal(d.ok, true, d.error);
   assert.ok(header(store, p).round > roundBefore || header(store, p).phase === "over" || header(store, p).step !== "move-A", "the round played on without anyone pressing a button");
 });
@@ -131,17 +133,21 @@ test("a fight run by the game on both sides plays one round per action", async (
 
 test("players are named by email; the server finds their accounts", async () => {
   const store = memoryStore();
-  const accounts = { "bob@example.com": "uid-bob", "gm@example.com": "ref" };
+  const accounts = { "bob@example.com": { uid: "uid-bob", name: "Bob" }, "ann@example.com": { uid: "uid-ann", name: "Ann" }, "gm@example.com": "ref" };
   const svc = createFightService({ rules, store, now: () => 1, newSeed: () => 3, resolveUser: async (e) => accounts[e] ?? null });
   const base = { cid: "camp2", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control: { 3: "game", 4: "game" } };
-  const r = await svc.create({ uid: "ref", data: { ...base, fid: "f1", players: { 1: " Bob@Example.com ", 2: "gm@example.com" } } });
+  const r = await svc.create({ uid: "ref", name: "Kurt", data: { ...base, fid: "f1", players: { 1: " Bob@Example.com ", 2: "gm@example.com", 3: "ann@example.com" }, control: { 4: "game" } } });
   assert.equal(r.ok, true, r.error);
-  assert.deepEqual(r.players, ["uid-bob"], "the answer says who was added");
+  assert.deepEqual(r.players, ["uid-ann", "uid-bob"], "the answer says who was added");
   const p = fightPaths("camp2", "f1");
   const st = fightStore.fromStored(store.docs.get(p.state));
   assert.equal(st.control[1], "uid-bob", "Bob's email finds his account");
   assert.equal(st.control[2], "referee", "the referee's own email: he runs it");
-  assert.deepEqual(store.docs.get(p.fight).players, ["uid-bob"]);
+  assert.deepEqual(store.docs.get(p.fight).players, ["uid-ann", "uid-bob"]);
+  assert.equal(st.people.referee.name, "Kurt");
+  assert.equal(st.people["uid-bob"].name, "Bob");
+  assert.notEqual(st.people["uid-bob"].color, st.people["uid-ann"].color, "each player gets his own colour");
+  assert.equal(store.docs.get(p.view("uid-bob")).people["uid-ann"].name, "Ann", "players see each other's names and colours");
   const missing = await svc.create({ uid: "ref", data: { ...base, fid: "f2", players: { 1: "nobody@example.com" } } });
   assert.equal(missing.code, "no-account");
   assert.match(missing.error, /signs in once/);

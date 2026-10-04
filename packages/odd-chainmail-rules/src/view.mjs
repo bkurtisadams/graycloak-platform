@@ -58,7 +58,7 @@ export function figureFor(state, who, f) {
 
 /* ------------------------------------------------------------------ the fight */
 
-export const PUBLIC_STATE_KEYS = Object.freeze(["phase", "round", "step", "firstSide", "init", "winner", "width", "height", "scale", "meleeBegun", "rev"]);
+export const PUBLIC_STATE_KEYS = Object.freeze(["phase", "round", "step", "firstSide", "init", "winner", "width", "height", "scale", "meleeBegun", "rev", "control", "people"]);
 const wallsOut = (walls) => (walls ?? []).map((row) => (typeof row === "string" ? row : row.map((w) => (w ? "#" : ".")).join("")));
 
 /** The fight as this viewer sees it: plain JSON, Firestore-safe. */
@@ -71,7 +71,9 @@ export function viewFor(state, who) {
   }
   const groups = state.encounter instanceof Map ? Object.fromEntries(state.encounter) : (state.encounter ?? {});
   const encounter = Object.fromEntries(Object.entries(groups).map(([k, g]) => [k, pick(g, ENCOUNTER_PUBLIC_KEYS)]));
-  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
+  const key = `${state.round}:${state.step}`;
+  const readyIds = Object.entries(state.ready ?? {}).filter(([, k]) => k === key).map(([id]) => Number(id));
+  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, readyIds, encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
 }
 
 /* ------------------------------------------------------------------ authority */
@@ -95,9 +97,11 @@ export function mayAct(state, who, action) {
     return bad == null ? { ok: true } : no(`you don't control ${byId(bad)?.name ?? `figure ${bad}`}`);
   }
   if (t === "elect") return state.figures.some((f) => f.side === action.side && present(f) && controls(state, who, f)) ? { ok: true } : no("you have no figure on that side");
-  if (t === "done") {
-    const side = moverOf(state.step);
-    return side && state.figures.some((f) => f.side === side && present(f) && controls(state, who, f)) ? { ok: true } : no("you have no figure moving now");
+  if (t === "ready" || t === "unready") {
+    const ids = action.ids ?? [];
+    if (!ids.length) return no("no figure named");
+    const bad = ids.find((id) => !controls(state, who, state.figures.find((f) => f.id === id)));
+    return bad == null ? { ok: true } : no(`you don't control ${state.figures.find((f) => f.id === bad)?.name ?? `figure ${bad}`}`);
   }
   if (t === "end-move") {
     const side = moverOf(state.step);
@@ -109,7 +113,7 @@ export function mayAct(state, who, action) {
 
 /* ------------------------------------------------------------------ events */
 
-export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "done"]);
+export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
 export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm", "leader"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);
@@ -196,7 +200,7 @@ async function runSelfTests() {
     const st = fight(); script(st);
     const v = viewFor(st, kurt), raw = JSON.stringify(v);
     const enemy = v.figures.find((f) => f.side === "B");
-    ok(!("rngState" in v) && !("leader" in v) && !("contacts" in v) && !("chests" in v) && !("control" in v), "a player's view has no RNG, leader, contacts, hoards or control map");
+    ok(!("rngState" in v) && !("leader" in v) && !("contacts" in v) && !("chests" in v) && v.control[1] === "kurt" && Array.isArray(v.readyIds), "a player's view has no RNG, leader, contacts or hoards; it shows who runs each figure and this step's Ready marks");
     ok(v.figures.filter((f) => f.side === "B").every((f) => f.hp === undefined && f.maxHp === undefined && f.hd === undefined && typeof f.ac === "number" && typeof f.hpFrac === "number"), "enemies show armour class and an HP fraction, never hit points or HD");
     const g = v.encounter["B:orc"];
     ok(g && g.languages[0] === "orc" && !("talkRoll" in g) && !("commonRoll" in g), "a monster group's tongues and reaction, not the rolls behind them");

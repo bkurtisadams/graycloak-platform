@@ -5,9 +5,13 @@
  * Slice 5, step 2 (Oct 2026). The server calls applyAs for every action; it
  * is pure, so the same code is tested here without Firebase.
  *   1. mayAct: may this person send this action?
- *   2. "done": a player (or the referee, for his own figures) has finished
- *      moving; the side's move ends when everyone controlling a figure on it
- *      is done. Figures run by the game wait for no one.
+ *   2. "ready" / "unready" { ids }: each figure on the moving side is marked
+ *      Ready by whoever controls it once it has moved and has its orders
+ *      (Kurt, Oct 2026: readiness is per character, not per player). The
+ *      side's move ends when every able figure on it is Ready; figures the
+ *      game runs, and asleep or held ones, need no mark. Moving a Ready
+ *      figure or changing its orders clears its mark. "Change orders"
+ *      (unready) works until the step advances.
  *   3. the runner applies the action;
  *   4. advance: steps that need no one's decision run at once — a side run
  *      entirely by the game elects, behaves and ends its move; the missile
@@ -15,18 +19,32 @@
  *      so a fight between two game sides can't run away in one request).
  */
 import { apply, Step, moverOf, AI_ELECTION } from "./runner.mjs";
-import { present } from "./board.mjs";
+import { present, active } from "./board.mjs";
 import { mayAct, controllerOf } from "./view.mjs";
 
 const doneKey = (state) => `${state.round}:${state.step}`;
 
-/** Who the moving side is waiting on: uids, and "referee" for figures the referee runs. */
-export function waitingOn(state) {
+/** Figures that need a Ready mark this step: able, on the moving side, not run by the game. */
+export function needsReady(state) {
   const side = moverOf(state.step);
   if (!side || state.phase !== "fight") return [];
-  const owners = new Set(state.figures.filter((f) => f.side === side && present(f)).map((f) => controllerOf(state, f)).filter((c) => c !== "game"));
-  return [...owners].filter((c) => state.done?.[c] !== doneKey(state)).sort();
+  return state.figures.filter((f) => f.side === side && active(f) && controllerOf(state, f) !== "game");
 }
+export const isReady = (state, f) => state.ready?.[f.id] === doneKey(state);
+/** Ids of the figures the moving side still waits on. */
+export const unreadyIds = (state) => needsReady(state).filter((f) => !isReady(state, f)).map((f) => f.id);
+/** Who the moving side is waiting on: uids, and "referee" for figures the referee runs. */
+export function waitingOn(state) {
+  return [...new Set(needsReady(state).filter((f) => !isReady(state, f)).map((f) => controllerOf(state, f)))].sort();
+}
+/** How many of the moving side's figures are Ready, of how many need it. */
+export function readyCount(state) {
+  const need = needsReady(state);
+  return { ready: need.filter((f) => isReady(state, f)).length, of: need.length };
+}
+/** Actions that change a figure's move or orders, and so clear its Ready mark. */
+const CLEARS_READY = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "orders", "draw-weapon"]);
+const idsOf = (a) => [a.id, ...(a.ids ?? [])].filter((x) => x != null);
 const gameRunsSide = (state, side) => {
   const figs = state.figures.filter((f) => f.side === side && present(f));
   return figs.length > 0 && figs.every((f) => controllerOf(state, f) === "game");
@@ -42,7 +60,7 @@ export function advance(state, rng, { autoResolve = true, roundsBegun = 0 } = {}
     if (state.step === Step.ELECT && gameRunsSide(state, state.init.winner)) { run({ type: "elect", side: state.init.winner, choice: AI_ELECTION, ai: true }); continue; }
     if (side) {
       if (gameRunsSide(state, side) && state.behaved !== doneKey(state)) { state.behaved = doneKey(state); run({ type: "behave", side }); continue; }
-      if (!waitingOn(state).length) { run({ type: "end-move", side }); continue; }
+      if (!unreadyIds(state).length) { run({ type: "end-move", side }); continue; }
       break;
     }
     if (state.step === Step.MISSILES && autoResolve) { run({ type: "missiles" }); continue; }
@@ -61,17 +79,25 @@ export function applyAs(state, who, action, rng, opts = {}) {
   const m = mayAct(state, who, action);
   if (!m.ok) return { ok: false, events: [], error: m.why };
   const events = [];
-  if (action.type === "done") {
+  if (action.type === "ready" || action.type === "unready") {
     const side = moverOf(state.step);
     if (!side) return { ok: false, events: [], error: "no side is moving" };
-    const me = who.uid ?? "referee";
-    if (!waitingOn(state).includes(me)) return { ok: false, events: [], error: "nothing of yours is waiting to move" };
-    state.done = { ...(state.done ?? {}), [me]: doneKey(state) };
-    events.push({ type: "done", who: me, side, waitingOn: waitingOn(state) });
+    const need = new Set(needsReady(state).map((f) => f.id));
+    const ids = [...new Set(action.ids ?? [])];
+    if (!ids.length || ids.some((id) => !need.has(id))) return { ok: false, events: [], error: "only figures moving this step can be marked" };
+    const marks = { ...(state.ready ?? {}) };
+    for (const id of ids) if (action.type === "ready") marks[id] = doneKey(state); else delete marks[id];
+    state.ready = marks;
+    const { ready, of } = readyCount(state);
+    events.push({ type: action.type, ids, names: ids.map((id) => state.figures.find((f) => f.id === id)?.name), side, readyCount: ready, of });
   } else {
     const r = apply(state, action, rng);
     if (!r.ok) return r;
     events.push(...r.events);
+    if (CLEARS_READY.includes(action.type) && state.ready) {
+      const cleared = idsOf(action).filter((id) => state.ready[id] != null);
+      if (cleared.length) { const marks = { ...state.ready }; for (const id of cleared) delete marks[id]; state.ready = marks; events.push({ type: "unready", ids: cleared, names: cleared.map((id) => state.figures.find((f) => f.id === id)?.name), side: moverOf(state.step), changed: true, ...((c) => ({ readyCount: c.ready, of: c.of }))(readyCount(state)) }); }
+    }
   }
   events.push(...advance(state, rng, { ...opts, roundsBegun: action.type === "begin-round" ? 1 : 0 }));
   return { ok: true, events };
@@ -101,15 +127,18 @@ async function runSelfTests() {
       ok(applyAs(st, bob, { type: "elect", side: "A", choice: "counter" }, rng).ok, "a player on the side elects");
     }
     ok(st.step === "move-A", "the game side moved itself first or the players' turn has come");
-    ok(waitingOn(st).join() === "bob,kurt", "waiting on both players");
+    ok(waitingOn(st).join() === "bob,kurt" && unreadyIds(st).join() === "1,2", "waiting on both players' characters");
     ok(!applyAs(st, kurt, { type: "end-move", side: "A" }, rng).ok, "one player can't end a shared move");
     ok(applyAs(st, kurt, { type: "move", id: 1, x: 7, y: 5 }, rng).ok && st.figures[0].x === 7, "Kurt moves his own figure");
     ok(!applyAs(st, kurt, { type: "move", id: 2, x: 7, y: 6 }, rng).ok, "not Bob's");
-    const d1 = applyAs(st, kurt, { type: "done" }, rng);
-    ok(d1.ok && d1.events[0].waitingOn.join() === "bob" && st.step === "move-A", "Kurt is done; still waiting on Bob");
-    ok(!applyAs(st, kurt, { type: "done" }, rng).ok, "done only once a step");
-    const d2 = applyAs(st, bob, { type: "done" }, rng);
-    ok(d2.ok && st.round >= 1 && d2.events.some((e) => e.type === "behaviour" || e.type === "melee" || e.type === "step-skipped"), "Bob done: the step ends and the game carries on");
+    ok(!applyAs(st, kurt, { type: "ready", ids: [2] }, rng).ok, "Kurt can't mark Bob's character");
+    const d1 = applyAs(st, kurt, { type: "ready", ids: [1] }, rng);
+    ok(d1.ok && d1.events[0].readyCount === 1 && d1.events[0].of === 2 && st.step === "move-A", "Kurt's character is Ready; 1 of 2");
+    ok(applyAs(st, kurt, { type: "orders", id: 1, stance: "parry" }, rng).ok && unreadyIds(st).join() === "1,2", "changing orders clears the mark");
+    ok(applyAs(st, kurt, { type: "ready", ids: [1] }, rng).ok && applyAs(st, kurt, { type: "unready", ids: [1] }, rng).ok && unreadyIds(st).includes(1), "change orders takes Ready back");
+    applyAs(st, kurt, { type: "ready", ids: [1] }, rng);
+    const d2 = applyAs(st, bob, { type: "ready", ids: [2] }, rng);
+    ok(d2.ok && st.round >= 1 && d2.events.some((e) => e.type === "behaviour" || e.type === "melee" || e.type === "step-skipped"), "the last mark ends the step and the game carries on");
     ok(st.step === "move-A" || st.step === "elect" || st.phase === "over", "the server runs on until a person must decide");
   }
   {
@@ -118,7 +147,7 @@ async function runSelfTests() {
     if (st.step === "elect") applyAs(st, st.init.winner === "A" ? kurt : ref, { type: "elect", side: st.init.winner, choice: "move" }, rng);
     const side = moverOf(st.step);
     ok(waitingOn(st).join() === (side === "A" ? "kurt" : "referee"), "the referee's monsters wait on the referee");
-    ok(applyAs(st, side === "A" ? kurt : ref, { type: "done" }, rng).ok && moverOf(st.step) !== side, "done moves play to the other side");
+    ok(applyAs(st, side === "A" ? kurt : ref, { type: "ready", ids: unreadyIds(st) }, rng).ok && moverOf(st.step) !== side, "readying all of them moves play to the other side");
   }
   {
     const { st, rng } = fight({ 1: "game", 2: "game", 3: "game", 4: "game" });

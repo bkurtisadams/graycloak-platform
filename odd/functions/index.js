@@ -34,7 +34,7 @@ const store = {
 };
 // A player is named by the email he signs in with; the server finds his account.
 const resolveUser = async (email) => {
-  try { return (await getAuth().getUserByEmail(email)).uid; }
+  try { const u = await getAuth().getUserByEmail(email); return { uid: u.uid, name: u.displayName || u.email }; }
   catch (error) { if (error?.code === 'auth/user-not-found') return null; throw error; }
 };
 const service = createFightService({ rules, store, newSeed: () => randomInt(2 ** 31), resolveUser });
@@ -44,5 +44,5 @@ const signedIn = (request) => {
   return request.auth.uid;
 };
 
-export const oddCreateFight = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.create({ uid: signedIn(request), data: request.data }));
+export const oddCreateFight = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.create({ uid: signedIn(request), name: request.auth.token.name || request.auth.token.email, data: request.data }));
 export const oddAction = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.act({ uid: signedIn(request), data: request.data }));
