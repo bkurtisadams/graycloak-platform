@@ -126,6 +126,8 @@ header.top button, .strip button, .drawer button { font: inherit; font-size: .9r
 .auto { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
 button.done { font-size: 1rem !important; font-weight: 600; padding: 10px 18px; border: none; background: var(--ink) !important; color: var(--card) !important; border-radius: 6px; }
 button.done:disabled { opacity: .45; }
+tr.editor td { background: #f4f7f9; padding: 6px 8px; border-bottom: 1px solid #c5d1d9; }
+tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .elect-note { font-family: var(--serif); font-size: .95rem; padding: 6px 2px; color: var(--ink); }
 .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
 .chip { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid #b7c7d2; background: var(--card); border-radius: 6px; min-width: 180px; flex-shrink: 0; cursor: pointer; }
@@ -1174,13 +1176,55 @@ function renderMini() {
   m.innerHTML = p.join("");
 }
 const opts = (list, sel) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(sel) ? " selected" : ""}>${esc(l)}</option>`).join("");
+/** Inline editor for one figure in setup: everything chosen when it was added, plus its name and side. */
+function editorRow(f) {
+  const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
+  const num = (k, v, min, max, w = "4em") => `<label>${k} <input data-ed="${k.toLowerCase()}" type="number" min="${min}" max="${max}" value="${v}" style="width:${w}"></label>`;
+  const common = `<label>Name <input data-ed="name" value="${esc(f.name)}" maxlength="40" style="width:11em"></label>
+    <select data-ed="side" aria-label="Side">${opts([["A", "Side A"], ["B", "Side B"]], f.side)}</select>`;
+  const body = f.kind === "pc" ? `${common}
+    <select data-ed="cls" aria-label="Class">${opts(CLASSES.map((c) => [c.id, c.label]), f.cls)}</select>
+    ${num("Level", f.level, 1, 14)}
+    <select data-ed="armor" aria-label="Armour">${opts(ARMOR.map((a) => [a.id, a.label]), f.armor)}</select>
+    <select data-ed="weapon" aria-label="Weapon">${opts(weapons, f.weaponId)}</select>
+    <select data-ed="missile" aria-label="Missile weapon">${opts(MISSILES, f.missile ?? "")}</select>
+    ${num("Dex", f.dex ?? 10, 3, 18)} ${num("Int", f.int ?? 10, 3, 18)} ${num("Cha", f.cha ?? 10, 3, 18)}
+    <select data-ed="race" aria-label="Race">${opts([["human", "Human"], ["elf", "Elf"], ["dwarf", "Dwarf"], ["halfling", "Halfling"]], f.race ?? "human")}</select>
+    <select data-ed="alignment" aria-label="Alignment">${opts([["law", "Law"], ["neutral", "Neutrality"], ["chaos", "Chaos"]], f.alignment ?? "law")}</select>
+    ${num("Purse", f.purse ?? 0, 0, 100000, "6em")} gp`
+    : `${common}
+    <select data-ed="monster" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), f.monsterKey)}</select>`;
+  return `<tr class="editor"><td colspan="3"><div class="adders" data-editor="${f.id}">${body}
+    <button class="primary" data-save-edit="${f.id}">Save</button> <button data-cancel-edit="${f.id}">Cancel</button></div></td></tr>`;
+}
+function saveEdit(id) {
+  const f = byId(id), box = document.querySelector(`[data-editor="${id}"]`); if (!f || !box) return;
+  const v = (k) => box.querySelector(`[data-ed="${k}"]`)?.value;
+  const clamp = (x, lo, hi, d) => Math.min(hi, Math.max(lo, Math.trunc(Number(x)) || d));
+  const name = (v("name") ?? "").trim(); if (name) f.name = name;
+  const oldSide = f.side, oldSize = f.size ?? 1;
+  f.side = v("side") === "B" ? "B" : "A"; f.origSide = f.side;
+  if (f.kind === "pc") {
+    f.cls = v("cls"); f.level = clamp(v("level"), 1, 14, 1); f.armor = v("armor"); f.ac = ARMOR.find((a) => a.id === f.armor).ac;
+    f.weaponId = v("weapon"); f.missile = v("missile") || ""; f.dex = clamp(v("dex"), 3, 18, 10); f.int = clamp(v("int"), 3, 18, 10); f.cha = clamp(v("cha"), 3, 18, 10);
+    f.race = v("race"); f.alignment = v("alignment"); f.purse = clamp(v("purse"), 0, 100000, 0);
+    if (f.action === "passthrough" && !f.missile) f.action = "melee";
+  } else {
+    const key = v("monster");
+    if (key && key !== f.monsterKey) { const m = MONSTERS.find((x) => x.key === key); f.monsterKey = key; f.ac = m.ac; f.size = m.size ?? 1; if (state.leader) for (const s2 of ["A", "B"]) if (state.leader[s2] === f.id && f.side !== s2) state.leader[s2] = null; }
+  }
+  if (state.leader && f.side !== oldSide && state.leader[oldSide] === f.id) state.leader[oldSide] = null;
+  state.editing = null;
+  if (f.side !== oldSide || (f.size ?? 1) !== oldSize) deploy();
+  render();
+}
 function renderSide(side) {
   const el = $(`#side-${side}`); const setup = state.phase === "setup";
   const rows = state.figures.filter((f) => f.side === side).map((f) => {
     const p = combatProfile(f); const hp = f.hp == null ? "—" : `${Math.max(f.hp, 0)}/${f.maxHp}`;
     const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
     const st = f.status ? ` <span class="hit" style="font-size:.8rem">${esc(f.status)}</span>` : "";
-    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, ${f.race && f.race !== "human" ? `${f.race[0].toUpperCase()}${f.race.slice(1)}, ` : ""}Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td>${setup ? `<button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>`;
+    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, ${f.race && f.race !== "human" ? `${f.race[0].toUpperCase()}${f.race.slice(1)}, ` : ""}Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td style="white-space:nowrap">${setup ? `<button data-edit="${f.id}" aria-label="Edit ${esc(f.name)}">Edit</button> <button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>${setup && state.editing === f.id ? editorRow(f) : ""}`;
   }).join("");
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const adders = setup ? `<div class="adders">
@@ -1789,6 +1833,9 @@ document.addEventListener("click", (e) => {
   if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value, $(`#aln-${s}`).value, Math.min(18, Math.max(3, Number($(`#int-${s}`).value) || 10)), Math.max(0, Math.trunc(Number($(`#gp-${s}`).value) || 0)), Math.min(18, Math.max(3, Number($(`#cha-${s}`).value) || 10)), $(`#race-${s}`).value); deploy(); render(); }
   else if (b.dataset.hoard) { const k = $(`#mon-${b.dataset.hoard}`).value; if (!placeHoard(k)) logAppend(`<div class="card note">${esc(MONSTERS.find((m) => m.key === k)?.name ?? k)} keep no lair treasure.</div>`); else logAppend(`<div class="card note">Placed ${esc(state.chests.at(-1).label)}: ${Math.round(state.chests.at(-1).value).toLocaleString()} gp in coins, gems and jewellery, plus ${state.chests.at(-1).inv.items.filter((i) => !["gem", "jewelry"].includes(i.kind)).length} other item(s).</div>`); render(); }
   else if (b.dataset.addMon) { const s = b.dataset.addMon; addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1))); deploy(); render(); }
+  else if (b.dataset.edit) { state.editing = state.editing === Number(b.dataset.edit) ? null : Number(b.dataset.edit); render(); return; }
+  else if (b.dataset.saveEdit) { saveEdit(Number(b.dataset.saveEdit)); return; }
+  else if (b.dataset.cancelEdit) { state.editing = null; render(); return; }
   else if (b.dataset.remove) { state.figures = state.figures.filter((f) => f.id !== Number(b.dataset.remove)); if (state.selected === Number(b.dataset.remove)) state.selected = null; deploy(); render(); }
 });
 $("#layout").addEventListener("change", (e) => { state.chests = []; state.walls = buildWalls(e.target.value); deploy(); render(); initialView(); });
