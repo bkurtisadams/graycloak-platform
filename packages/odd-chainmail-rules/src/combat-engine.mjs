@@ -137,6 +137,21 @@ export function parryPenalty(attackerClass, parryClass) {
   return 2;                                    // 4b / 4c — standard
 }
 
+/**
+ * Chainmail 4c: a defender whose weapon is 4 to 7 classes lighter than the
+ * attacker's may parry, and "if the parry is successful, the defender gets one
+ * counter blow" (Kurt, Oct 2026: follow RAW). Returns how many counter blows a
+ * pool's parries earned: one for each parried blow that missed.
+ */
+export function parryCounterBlows(res) {
+  if (!res || res.immune || res.attacker?.profileAttack) return 0;
+  const atkClass = WEAPON_CLASS[res.attacker?.weaponId], parryClass = WEAPON_CLASS[res.target?.parryWeaponId];
+  if (atkClass == null || parryClass == null) return 0;
+  const gap = atkClass - parryClass;
+  if (gap < BREAKAGE_CLASS_GAP || gap >= -LIGHT_PARRY_CLASS_GAP) return 0;
+  return res.dice.filter((d) => d.parried && !d.hit && !d.broke).length;
+}
+
 /** Class gaps (attacker LIGHTER than the defender's weapon) granting extra
  *  attack dice — the man-to-man multiple-blows rule (2 blows at 4 classes
  *  lower, 3 at 8) re-expressed in pool currency: +1 die, +2 dice. */
@@ -229,7 +244,8 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
   // A Monster Attack Profile borrows Pole Arm only for its armor-sensitive
   // to-hit row. It is not literally a class-9 weapon, so it neither shatters a
   // parrying weapon nor participates in weapon-speed multiple blows.
-  const breakageEligible = !profileAttack && parryClass != null && atkClass - parryClass >= BREAKAGE_CLASS_GAP;
+  // A weapon already broken can't break again (house rule, Oct 2026).
+  const breakageEligible = !profileAttack && parryClass != null && atkClass - parryClass >= BREAKAGE_CLASS_GAP && !target.parryBroken;
   // Profile attacks use a standard -2 parry whenever the defender has a melee
   // weapon. Ordinary weapons retain the full 4a/4d class-banded procedure.
   const parryMinus = profileAttack ? (parryClass == null ? 0 : 2) : parryPenalty(atkClass, parryClass);
@@ -237,7 +253,8 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
   const base = Math.max(0, Math.trunc(attacker.dice) || 0);
   // A lighter WEAPON strikes more blows. Creature attack profiles do not gain
   // extra dice from the hidden Pole Arm proxy.
-  const speed = profileAttack ? 0 : (base > 0 ? speedDice(atkClass, parryClass) : 0);
+  // A 4c counter blow is one blow: no extra blows for weapon speed.
+  const speed = profileAttack || attacker.counterBlow ? 0 : (base > 0 ? speedDice(atkClass, parryClass) : 0);
   const n = base + speed;
   // Flank/rear catch the defender turned, and 4a leaves the parry weapon too
   // heavy to catch the blow: in either case no parry dice apply.
@@ -255,9 +272,9 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
   const damageDice = Number.isInteger(attacker.damageDice) ? attacker.damageDice : 1;
   const damageFlat = Math.trunc(attacker.damageFlat) || 0;
   const damageHalved = !!target.damageHalved;
-  // A broken weapon (Kurt's house rule, Oct 2026; Chainmail 4c/4d say only
-  // when a parrying weapon breaks): -1 on every die (carried in everyDieBonus
-  // by the caller) and half damage, rounded down, at least 1 on a hit.
+  // A broken weapon is useless (Kurt's house rule, Oct 2026; Chainmail 4c/4d
+  // say only when a parrying weapon breaks): a hit with it does no damage, and
+  // the caller gives it no attack or parry dice at all.
   const brokenWeapon = !!attacker.brokenWeapon;
   // Rear attacks add +1 to EVERY blow (applied below, not via bonusDie), and
   // the mounted/afoot relationship rides the same per-die channel: +1 for a
@@ -312,7 +329,7 @@ export function resolveAttackPool({ attacker, target }, rng = Math.random) {
         dmg = damageBonus + damageFlat;              // pips: elf magic + a creature's innate +N
         for (let d = 0; d < damageDice; d++) dmg += rollDie(rng);  // 1d6 default; 2d6+ for big naturals
         if (damageHalved) dmg = Math.floor(dmg / 2); // clumsy giant scores half HP on a dwarf
-        if (brokenWeapon) dmg = Math.max(1, Math.floor(dmg / 2));
+        if (brokenWeapon) dmg = 0;
         if (damageDoubled) dmg *= 2;
         damage += dmg;
         hits++;
@@ -439,7 +456,7 @@ function poolArgs(atk, def, facing) {
       profileAttack: atk.profileAttack, damageDice: atk.damageDice, damageFlat: atk.damageFlat, damageBonus: atk.damageBonus,
       everyDieBonus: atk.everyDieBonus, brokenWeapon: atk.brokenWeapon
     },
-    target: { name: def.name, ac: def.ac, held: def.held, parryWeaponId: def.parryWeaponId, hitOnlyBy: def.hitOnlyBy, damageHalved: def.damageHalved, damageDoubled: def.damageDoubled }
+    target: { name: def.name, ac: def.ac, held: def.held, parryWeaponId: def.parryWeaponId, parryBroken: def.parryBroken, hitOnlyBy: def.hitOnlyBy, damageHalved: def.damageHalved, damageDoubled: def.damageDoubled }
   };
 }
 
@@ -1493,7 +1510,17 @@ function runSelfTests() {
 
   { const full = resolveAttackPool({ attacker: { weaponId: "sword", dice: 1 }, target: { ac: 9 } }, () => 0.999);
     const broke = resolveAttackPool({ attacker: { weaponId: "sword", dice: 1, brokenWeapon: true }, target: { ac: 9 } }, () => 0.999);
-    ok(full.damage === 6 && broke.damage === 3, "a broken weapon does half damage"); }
+    ok(full.damage === 6 && broke.damage === 0, "a broken weapon does no damage"); }
+  { const two3 = () => { let i = 0; return () => [0.25, 0.42][i++ % 2]; };
+    const fresh = resolveAttackPool({ attacker: { weaponId: "twohanded", dice: 1 }, target: { ac: 4, held: 1, parryWeaponId: "sword" } }, two3());
+    const again = resolveAttackPool({ attacker: { weaponId: "twohanded", dice: 1 }, target: { ac: 4, held: 1, parryWeaponId: "sword", parryBroken: true } }, two3());
+    ok(fresh.dice[0].raw === fresh.toHitNumber && fresh.parryWeaponBroke && !again.parryWeaponBroke, "a broken parrying weapon can't break again"); }
+  { const miss = resolveAttackPool({ attacker: { weaponId: "twohanded", dice: 1 }, target: { ac: 4, held: 1, parryWeaponId: "sword" } }, () => 0.2);
+    ok(miss.dice[0].parried && !miss.dice[0].hit && parryCounterBlows(miss) === 1, "4c: a successful parry earns a counter blow");
+    const near = resolveAttackPool({ attacker: { weaponId: "battleaxe", dice: 1 }, target: { ac: 4, held: 1, parryWeaponId: "sword" } }, () => 0.2);
+    ok(parryCounterBlows(near) === 0, "4b: no counter blow");
+    const far = resolveAttackPool({ attacker: { weaponId: "pike", dice: 1 }, target: { ac: 4, held: 1, parryWeaponId: "dagger" } }, () => 0.2);
+    ok(parryCounterBlows(far) === 0, "4d is a different rule"); }
   console.log(`combat-engine.mjs — all self-tests passed (${pass} assertions).`);
 }
 

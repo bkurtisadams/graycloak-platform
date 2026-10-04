@@ -11,7 +11,7 @@
 :root {
   --paper: #edf2f4; --grid: #c9d8e2; --ink: #1f2b38; --pencil: #66717d; --red: #b3362b;
   --side-a: #2f5c8a; --side-b: #8a5a17; --card: #fbfdfe; --rock: #3a4552; --floor: #f7fafb;
-  --target: #d98a00;
+  --target: #d6249f;
   --serif: "Source Serif 4", Georgia, serif; --type: "Courier Prime", "Courier New", monospace;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -309,7 +309,7 @@ import {
   sleepCells, sleepInArea, SLEEP_RADIUS, slotsFor, combatSpellsFor, castingGate, spellDamageDice, fireBallCells, lightningCells, sleepCapacity, pickRandom, isPerson, monsterSaves, saveVsSpells, savesFor, hdValue,
   lossCheck, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond, fearRadius, troopLossLine, moraleDiceBonus, missileMod, HELD_TARGET, HOLD_PERSON_MAX,
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
-  fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
+  parryCounterBlows, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk
 } from "../packages/odd-chainmail-rules/index.js";
 
@@ -436,7 +436,8 @@ function combatant(f, facing, extra = {}) {
   const p = combatProfile(f); const parrying = f.stance === "parry" && !helpless(f);
   const hitOnlyBy = f.kind === "monster" ? MONSTERS.find((m) => m.key === f.monsterKey)?.specialAbilities?.hitOnlyBy : undefined;
   return { name: f.name, hitOnlyBy, weaponId: p.weaponId, ac: f.ac, parryWeaponId: helpless(f) ? null : p.parryWeaponId, thrown: parrying ? 0 : p.dice, held: parrying ? p.dice : 0, bonus: p.bonus, bonusDie: 0, hp: f.invulnerable ? Infinity : f.hp, facing, profileAttack: p.profileAttack, damageDice: p.damageDice, damageFlat: p.damageFlat, ...extra,
-    everyDieBonus: (extra.everyDieBonus ?? 0) + (f.weaponBroken && !p.profileAttack ? -1 : 0), brokenWeapon: !!f.weaponBroken && !p.profileAttack };
+    brokenWeapon: !!f.weaponBroken && !p.profileAttack, parryBroken: !!f.weaponBroken,
+    ...(f.weaponBroken && !p.profileAttack ? { thrown: 0, held: 0, parryWeaponId: null } : {}) };
 }
 
 /* ---------- movement and targeting ---------- */
@@ -479,8 +480,9 @@ function strikeCard(res, atk, def, facing) {
   const prof = combatProfile(atk);
   const w = prof.profileAttack ? "natural attack" : (WEAPON_LABEL[prof.weaponId] ?? prof.weaponId).toLowerCase();
   const where = facing && facing !== "front" ? `, from the ${FACING_LABEL[facing]}` : "";
-  const head = `<div class="line note">${esc(atk.name)} (${w}) → ${esc(def.name)}, AC ${def.ac}${where}: needs ${res.toHitNumber}</div>`;
-  if (!res.dice.length) return head + `<div class="line note">no blows thrown (parrying)</div>`;
+  const wl = `${w}${atk.weaponBroken && !combatProfile(atk).profileAttack ? ", broken" : ""}`;
+  const head = `<div class="line note">${esc(atk.name)} (${wl}) → ${esc(def.name)}, AC ${def.ac}${where}: needs ${res.toHitNumber}</div>`;
+  if (!res.dice.length) return head + `<div class="line note">${atk.weaponBroken && !combatProfile(atk).profileAttack ? "no blows: his weapon is broken" : "no blows thrown (parrying)"}</div>`;
   return head + res.dice.map((d) => {
     const mods = []; if (d.bonus) mods.push(d.bonus > 0 ? `+${d.bonus}` : `${d.bonus}`); if (d.parried) { const pm = (d.roll ?? []).reduce((x, y) => x + y, 0) + (d.bonus ?? 0) - d.effective; mods.push(`\u2212${pm > 0 ? pm : 2} parry`); }
     const out = d.hit ? `<span class="hit">hit, ${d.damage} damage</span>` : "miss";
@@ -775,6 +777,20 @@ function resolveMelee() {
     legal.set(f.id, t.id);
   }
   if (legal.size) state.meleeBegun = true;
+  // Parry dice are a per-round allowance: each held die stops one blow, whoever strikes it.
+  const parryLeft = new Map();
+  const budget = (fig, cmb) => { if (!parryLeft.has(fig.id)) parryLeft.set(fig.id, cmb.held ?? 0); cmb.held = Math.min(cmb.held ?? 0, parryLeft.get(fig.id)); return cmb; };
+  const spendParry = (fig, used) => { if (used) parryLeft.set(fig.id, Math.max(0, (parryLeft.get(fig.id) ?? 0) - used)); };
+  // Chainmail 4c (Kurt, Oct 2026: RAW): a successful parry with a weapon 4-7 classes lighter earns one counter blow.
+  const parryCounter = (def, att, res) => {
+    const n = parryCounterBlows(res); if (!n || !active(def) || def.weaponBroken) return "";
+    if (!def.invulnerable && start.get(def.id) - (dmg.get(def.id) ?? 0) <= 0) return "";
+    const c = combatant(def, "front", { everyDieBonus: pfePenalty(def, att) + blindPenalty(def) });
+    const r = resolveAttackPool({ attacker: { ...c, dice: n, counterBlow: true }, target: budget(att, combatant(att, "front")) }, state.rng);
+    spendParry(att, r.parries); add(att.id, r.damage); ev(def, att, r.damage);
+    const fx = afterStrike(def, att, r, add, start);
+    return `<div class="line note">${esc(def.name)}'s parry holds: ${n === 1 ? "a counter blow" : `${n} counter blows`} (Chainmail 4c).</div>` + strikeCard(r, def, att) + fx;
+  };
   const slain = new Set();
   for (const [fid, tid] of [...legal]) {
     const f = byId(fid), t = byId(tid);
@@ -795,14 +811,15 @@ function resolveMelee() {
       const closer = (f.moved > 0) !== (t.moved > 0) ? (f.moved > 0 ? f : t) : (f.side === state.firstSide ? f : t);
       const c = recordContact(state.contacts, closer.id, closer === f ? tid : fid, state.round);
       const A = byId(c.first), B = A === f ? t : f;
-      const ca = combatant(A, "front", { ...pairMods(A, B), ...defMods(B, A) }), cb = combatant(B, "front", { ...pairMods(B, A), ...defMods(A, B) });
+      const ca = budget(A, combatant(A, "front", { ...pairMods(A, B), ...defMods(B, A) })), cb = budget(B, combatant(B, "front", { ...pairMods(B, A), ...defMods(A, B) }));
       ca.hp = A.invulnerable ? Infinity : start.get(A.id); cb.hp = B.invulnerable ? Infinity : start.get(B.id);
       const charge = A.chargedRound === state.round && c.rounds === 1;
       const ex = resolveExchange({ first: ca, second: cb, round: c.rounds, prevFirst: c.prevFirst, charge }, state.rng);
       c.prevFirst = ex.striker;
+      { const ld = ex.striker === "first" ? A : B, lg = ld === A ? B : A; spendParry(lg, ex.firstStrike?.parries); spendParry(ld, ex.counter?.parries); }
       const lead = ex.striker === "first" ? A : B, lag = lead === A ? B : A;
       add(lag.id, ex.firstStrike.damage); if (ex.counter) add(lead.id, ex.counter.damage);
-      const sp1 = afterStrike(lead, lag, ex.firstStrike, add, start), sp2 = ex.counter ? afterStrike(lag, lead, ex.counter, add, start) : "";
+      const sp1 = afterStrike(lead, lag, ex.firstStrike, add, start) + parryCounter(lag, lead, ex.firstStrike), sp2 = ex.counter ? afterStrike(lag, lead, ex.counter, add, start) + parryCounter(lead, lag, ex.counter) : "";
       ev(lead, lag, ex.firstStrike.damage); if (ex.counter) ev(lag, lead, ex.counter.damage);
       const why = ex.killed ? `<div class="line note">${esc(lag.name)} falls before striking back.</div>` : ex.brokeOut ? `<div class="line note">${esc(lag.name)}'s weapon broke: no return blow.</div>` : "";
       cards.push(`<div class="card"><div class="who">${nameSpan(lead)} strikes first on ${nameSpan(lag)} <span class="note">(melee round ${c.rounds}${charge ? `; ${esc(A.name)} charged` : ""})</span></div>${strikeCard(ex.firstStrike, lead, lag)}${sp1}${ex.counter ? strikeCard(ex.counter, lag, lead) + sp2 : ""}${why}</div>`);
@@ -813,18 +830,20 @@ function resolveMelee() {
       const isHeld = t.status === "held" || t.status === "paralyzed";
       const facing = isHeld ? "front" : attackFacing(centre(t), t.facing, centre(f));
       const atk = combatant(f, facing, { everyDieBonus: (isHeld ? HELD_TARGET.everyDieBonus : 0) + pairMods(f, t).everyDieBonus });
-      const res = resolveAttackPool({ attacker: { ...atk, dice: atk.thrown }, target: combatant(t, "front", { ...(isHeld ? { damageDoubled: true } : {}), ...defMods(f, t) }) }, state.rng);
+      const res = resolveAttackPool({ attacker: { ...atk, dice: atk.thrown }, target: budget(t, combatant(t, "front", { ...(isHeld ? { damageDoubled: true } : {}), ...defMods(f, t) })) }, state.rng);
+      spendParry(t, res.parries);
       add(t.id, res.damage);
-      const sp = afterStrike(f, t, res, add, start); ev(f, t, res.damage);
+      const sp = afterStrike(f, t, res, add, start) + parryCounter(t, f, res); ev(f, t, res.damage);
       let ret = "";
       const tLeft = start.get(t.id) - (dmg.get(t.id) ?? 0);
       if (!isHeld && spent(t) && active(t) && tLeft > 0 && t.returned !== state.round) {
         t.returned = state.round;
         const back = combatant(t, "front", { everyDieBonus: pfePenalty(t, f) + blindPenalty(t) });
-        const r2 = resolveAttackPool({ attacker: { ...back, dice: back.thrown || combatProfile(t).dice }, target: combatant(f, "front") }, state.rng);
+        const r2 = resolveAttackPool({ attacker: { ...back, dice: back.thrown || combatProfile(t).dice }, target: budget(f, combatant(f, "front")) }, state.rng);
+        spendParry(f, r2.parries);
         add(f.id, r2.damage);
         ev(t, f, r2.damage);
-        ret = afterStrike(t, f, r2, add, start) + `<div class="line note">${esc(t.name)} fired or cast this round, so makes no attack of its own, but strikes back:</div>` + strikeCard(r2, t, f);
+        ret = afterStrike(t, f, r2, add, start) + parryCounter(f, t, r2) + `<div class="line note">${esc(t.name)} fired or cast this round, so makes no attack of its own, but strikes back:</div>` + strikeCard(r2, t, f);
       }
       const why = isHeld ? `${esc(t.name)} is held: +4 to hit, double damage, no return blow` : spent(t) ? `${esc(t.name)} acted in the missile step` : `${esc(t.name)} is fighting someone else: no return blow`;
       cards.push(`<div class="card"><div class="who">${nameSpan(f)} attacks ${nameSpan(t)} <span class="note">(melee round ${c.rounds}; ${why})</span></div>${strikeCard(res, f, t, facing)}${sp}${ret}</div>`);
@@ -1141,7 +1160,7 @@ function passThroughCounts(side) {
 }
 function renderMap() {
   const svg = $("#map");
-  const parts = [`<defs><marker id="arr-A" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-a)"/></marker><marker id="arr-B" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-b)"/></marker></defs>`];
+  const parts = [`<defs><marker id="arr-T" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="2.8" markerHeight="2.8" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--target)"/></marker><marker id="arr-A" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-a)"/></marker><marker id="arr-B" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="4" markerHeight="4" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--side-b)"/></marker></defs>`];
   parts.push(`<rect width="${W * PX}" height="${H * PX}" fill="var(--rock)"/>`);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (!state.walls[y][x]) parts.push(`<rect data-cell="${x},${y}" x="${x * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="var(--floor)" stroke="#dde6ec" stroke-width="0.5"/>`);
   for (let x = 0; x <= W; x += 3) parts.push(`<line x1="${x * PX}" y1="0" x2="${x * PX}" y2="${H * PX}" stroke="#9fb4c4" stroke-width="0.8" pointer-events="none" opacity=".55"/>`);
@@ -1155,8 +1174,8 @@ function renderMap() {
     if (adjacent(f, t) && !state.showTargets) continue;
     if (!state.showTargets && f.id !== selId && t.id !== selId && !(f.charging && state.step?.startsWith("move-"))) continue;
     const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
-    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
-    parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})" pointer-events="none"/>`);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 6.6, ey = y2 - ((y2 - y1) / len) * 6.6;
+    parts.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-width="3.2" vector-effect="non-scaling-stroke" pointer-events="none"/><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--target)" stroke-width="1.3" vector-effect="non-scaling-stroke" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-T)" pointer-events="none"/>`);
   }
   const moving = state.phase === "fight" && state.step?.startsWith("move-") ? state.step.slice(5) : null;
   if (moving) for (const f of state.figures) {
@@ -1169,7 +1188,7 @@ function renderMap() {
     if (!f.placed || alive(f)) continue;
     const cx = (centre(f).x + 0.5) * PX, cy = (centre(f).y + 0.5) * PX, S0 = sz(f), r0 = 4.6 * S0, xr = 2.4 * S0;
     const rising = f.monsterKey === "troll" && !f.burned && f.firstHitRound != null;
-    parts.push(`<g data-fig="${f.id}" style="cursor:context-menu"><title>${esc(f.name)}: ${rising ? "down, regenerating" : "dead"}${f.hp != null && hasLoot(f) ? " (carrying something)" : ""}</title>
+    parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}: dead" style="cursor:context-menu">
       <circle cx="${cx}" cy="${cy}" r="${r0}" fill="#9aa3ab" opacity=".55"/>
       <path d="M${cx - xr} ${cy - xr}L${cx + xr} ${cy + xr}M${cx + xr} ${cy - xr}L${cx - xr} ${cy + xr}" stroke="${rising ? "var(--target)" : "#a32d2d"}" stroke-width="1.1" stroke-linecap="round"/>
       ${f.hp != null && hasLoot(f) ? `<circle cx="${cx + r0 * .75}" cy="${cy + r0 * .75}" r="1.6" fill="#ba7517" stroke="#fff" stroke-width=".4"/>` : ""}</g>`);
@@ -1189,7 +1208,7 @@ function renderMap() {
     const ang = (f.facing ?? 0) * Math.PI / 4, ux = Math.cos(ang), uy = Math.sin(ang), px2 = -uy, py2 = ux;
     const wedge = `${cx + ux * 6.2 * S},${cy + uy * 6.2 * S} ${cx + ux * 4.1 * S + px2 * 1.9 * S},${cy + uy * 4.1 * S + py2 * 1.9 * S} ${cx + ux * 4.1 * S - px2 * 1.9 * S},${cy + uy * 4.1 * S - py2 * 1.9 * S}`;
     const hpFrac = f.hp == null ? 1 : Math.max(0, f.hp) / f.maxHp;
-    parts.push(`<g data-fig="${f.id}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}><title>${esc(f.name)}${f.status === "surrendered" ? " (surrendered)" : ""}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}</title>
+    parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}${f.hp != null ? `: ${Math.max(f.hp, 0)}/${f.maxHp} hp` : ""}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}>
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.1"/>` : ""}
       ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--target)" stroke-width="1" stroke-dasharray="2.4 1.6" pointer-events="none"/>` : ""}
       <circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".7"/>
@@ -1579,7 +1598,7 @@ function renderActionBar() {
 }
 function renderBanner() {
   const b = $("#banner");
-  if (!state.banner || state.phase === "setup") { b.hidden = true; return; }
+  b.hidden = true; return;
   b.hidden = false; $("#bannerK").textContent = state.banner.k; $("#bannerText").textContent = state.banner.text;
 }
 function openDrawer(tab) {
@@ -2153,15 +2172,16 @@ function renderFireLine(out) {
   const d = distIn(f, t), band = missileBand(d, missileRange(f.missile)), clear = lineOfSight(f, t) && !inMelee(t);
   const col = !band || !clear ? "#d0281e" : band === "close" ? "#2e8b57" : band === "medium" ? "#d98a00" : "#b8641a";
   const fc = centre(f), tc = centre(t);
-  out.push(`<line x1="${(fc.x + 0.5) * PX}" y1="${(fc.y + 0.5) * PX}" x2="${(tc.x + 0.5) * PX}" y2="${(tc.y + 0.5) * PX}" stroke="${col}" stroke-width="1.8" stroke-dasharray="5 4"/>`);
-  out.push(pill((tc.x + 0.5) * PX, (tc.y + 0.5) * PX, `${d}\u2033 \u00b7 ${band ? `${BAND_LABEL[band]} range` : `beyond ${missileRange(f.missile)}\u2033`}${band && !clear ? " \u00b7 no clear shot" : ""}`, col === "#d0281e" ? "var(--red)" : "var(--ink)"));
+  out.push(`<line x1="${(fc.x + 0.5) * PX}" y1="${(fc.y + 0.5) * PX}" x2="${(tc.x + 0.5) * PX}" y2="${(tc.y + 0.5) * PX}" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-dasharray="5 4"/>`);
 }
 
 /* ---------- drag ruler and measure tool (borrowed from chainmail-board's pill) ---------- */
 state.measure = { on: false, a: null, b: null, locked: false };
+/** Map units per screen pixel, so labels and cards keep one size on screen at any zoom. */
+function screenK() { const el = $("#map"), w = el.clientWidth || el.getBoundingClientRect().width; return w ? viewSize().vw / w : 1 / cam.z; }
 function pill(x, y, text, colour) {
   const fs = 9, w = Math.max(40, text.length * fs * 0.55) + 12, h = 14;
-  const k = Math.max(1, 1 / cam.z);
+  const k = screenK();
   const { vw, vh } = viewSize(); const right = cam.x + vw / 2, top = cam.y - vh / 2;
   let px = x + 9 * k; if (px + w * k > right - 4 * k) px = x - 9 * k - w * k;
   let py = y - 20 * k; if (py < top + 30 * k) py = y + 12 * k;
@@ -2179,16 +2199,32 @@ function hoverCard(out) {
   if (f.lastTaken) lines.push(f.lastTaken);
   const cond = [f.status, f.weaponBroken ? "weapon broken" : "", f.charging ? "charging" : "", f.invulnerable ? "invulnerable" : "", f.risesAs ? `rises as ${f.risesAs}` : ""].filter(Boolean);
   if (cond.length) lines.push(cond.join(", "));
-  const w = 78, lh = 7.2, h = 10 + (lines.length + 1) * lh;
-  const fx = (centre(f).x + 0.5) * PX, fy = (centre(f).y + 0.5) * PX, S = sz(f);
-  let x = fx + 2.6 * PX * Math.max(1, S * 0.8);
-  if (x + w > W * PX - 4) x = fx - 2.6 * PX * Math.max(1, S * 0.8) - w;
-  const y = Math.min(Math.max(fy - h / 2, 4), H * PX - h - 4);
+  const sel = state.selected != null ? byId(state.selected) : null;
+  if (sel && sel !== f && sel.side !== f.side && state.phase === "fight" && sel.missile && ["fire", "passthrough"].includes(sel.action) && present(f)) {
+    const can = ms.canShoot(state, sel, f);
+    lines.push(can.ok ? `${tokenLabel(sel)} can shoot: ${can.d}\u2033, ${BAND_LABEL[missileBand(can.d, missileRange(sel.missile))]} range` : `can't shoot: ${can.why}`);
+  }
+  const k = screenK(), fs = 12, lh = 16, pad = 8;
+  const w = Math.max(150, ...[f.name, ...lines].map((l) => l.length * fs * 0.52)) + pad * 2, h = pad * 2 + (lines.length + 1) * lh;
+  const fx = (centre(f).x + 0.5) * PX, fy = (centre(f).y + 0.5) * PX, half = (sz(f) * PX) / 2;
+  const { vw, vh } = viewSize(), left = cam.x - vw / 2, right = cam.x + vw / 2, top = cam.y - vh / 2, bottom = cam.y + vh / 2;
+  // Try spots around the token, nearest first, and take the first that covers no figure and stays in view.
+  const cw = w * k, ch = h * k, gap = 10 * k;
+  const boxes = state.figures.filter((g) => g.placed).map((g) => ({ x0: g.x * PX - 2, y0: g.y * PX - 2, x1: (g.x + sz(g)) * PX + 2, y1: (g.y + sz(g)) * PX + 2 }));
+  const clearAt = (x, y) => x >= left + 4 * k && y >= top + 56 * k && x + cw <= right - 4 * k && y + ch <= bottom - 4 * k && !boxes.some((b) => x < b.x1 && x + cw > b.x0 && y < b.y1 && y + ch > b.y0);
+  let x = fx + half + gap, y = fy - ch / 2, found = false;
+  for (let step = 0; step <= 8 && !found; step++) {
+    const d = step * PX;
+    for (const [cx2, cy2] of [[fx + half + gap + d, fy - ch / 2], [fx - half - gap - cw - d, fy - ch / 2], [fx - cw / 2, fy - half - gap - ch - d], [fx - cw / 2, fy + half + gap + d]]) {
+      if (clearAt(cx2, cy2)) { x = cx2; y = cy2; found = true; break; }
+    }
+  }
+  if (!found) { x = Math.min(Math.max(x, left + 4 * k), right - cw - 4 * k); y = Math.min(Math.max(y, top + 56 * k), bottom - ch - 4 * k); }
   const col = f.side === "A" ? "var(--side-a)" : "var(--side-b)";
-  out.push(`<g pointer-events="none"><line x1="${fx}" y1="${fy}" x2="${x < fx ? x + w : x}" y2="${y + h / 2}" stroke="#7d8a95" stroke-width=".6" stroke-dasharray="1.6 1.6"/>
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2.5" fill="#fff" stroke="#7d8a95" stroke-width=".6"/>
-    <text x="${x + 5}" y="${y + 8.5}" font-family="var(--serif)" font-size="5.6" font-weight="700" fill="${col}">${esc(f.name)}</text>
-    ${lines.map((l, i) => `<text x="${x + 5}" y="${y + 8.5 + (i + 1) * lh}" font-family="var(--serif)" font-size="5" fill="#2b3742">${esc(l)}</text>`).join("")}</g>`);
+  out.push(`<g pointer-events="none" transform="translate(${x} ${y}) scale(${k})">
+    <rect width="${w}" height="${h}" rx="5" fill="#fff" stroke="#7d8a95" stroke-width="1"/>
+    <text x="${pad}" y="${pad + 11}" font-family="var(--serif)" font-size="${fs + 1}" font-weight="700" fill="${col}">${esc(f.name)}</text>
+    ${lines.map((l, i) => `<text x="${pad}" y="${pad + 11 + (i + 1) * lh}" font-family="var(--serif)" font-size="${fs}" fill="${/can't shoot/.test(l) ? "#a32d2d" : "#2b3742"}">${esc(l)}</text>`).join("")}</g>`);
 }
 /** Target lines for the figure under the pointer: its own target, and anyone targeting it. */
 function hoverTargetLines(out) {
@@ -2199,8 +2235,8 @@ function hoverTargetLines(out) {
     if (f !== h && f.target !== h.id) continue;
     const t = byId(f.target); if (!t || !present(t) || adjacent(f, t)) continue;
     const x1 = (centre(f).x + 0.5) * PX, y1 = (centre(f).y + 0.5) * PX, x2 = (centre(t).x + 0.5) * PX, y2 = (centre(t).y + 0.5) * PX;
-    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 7, ey = y2 - ((y2 - y1) / len) * 7;
-    out.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--side-${f.side.toLowerCase()})" stroke-width="1.6" opacity=".8" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-${f.side})"/>`);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1, ex = x2 - ((x2 - x1) / len) * 6.6, ey = y2 - ((y2 - y1) / len) * 6.6;
+    out.push(`<line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="#fff" stroke-width="3.2" vector-effect="non-scaling-stroke" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'}/><line x1="${x1}" y1="${y1}" x2="${ex}" y2="${ey}" stroke="var(--target)" stroke-width="1.3" vector-effect="non-scaling-stroke" ${adjacent(f, t) ? "" : 'stroke-dasharray="3 3"'} marker-end="url(#arr-T)"/>`);
   }
 }
 function renderOverlay() {
@@ -2241,7 +2277,7 @@ function renderOverlay() {
       let colour = "var(--ink)", text;
       if (node && !node.passOnly && node.cost > 0) {
         const pts = []; let n = node; while (n) { pts.push(`${(n.x + half) * PX},${(n.y + half) * PX}`); n = n.prev ? td.reach.get(n.prev) : null; }
-        out.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="4 3"/>`);
+        out.push(`<polyline points="${pts.join(" ")}" fill="none" stroke="var(--ink)" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-dasharray="4 3"/>`);
         out.push(`<circle cx="${cx0}" cy="${cy0}" r="2.4" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${7 * sz(f)}" fill="none" stroke="var(--ink)" stroke-width="1.4"/>`);
         const thisIn = halfCellsToInches(node.cost), total = Math.round((before + thisIn) * 10) / 10;
         const atCap = allow - total <= 0.05;
