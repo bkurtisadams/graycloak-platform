@@ -10,7 +10,9 @@
  *              an area spell's aim point
  *   drawWeapon swap to a carried weapon for half a move, in the figure's own
  *              move step, before it has used half its move (Kurt, Oct 2026)
- *   gmTool     invulnerable, heal, set HP, clear conditions, kill
+ *   gmTool     invulnerable, heal, set HP, clear conditions, kill, burn (a
+ *              troll burned or put in acid will not rise)
+ *   A gaze defence (averting the eyes, holding up a mirror) is an order too.
  */
 import { present, active, adjacent, centre, isWall, distIn } from "./board.mjs";
 import { dir8, moveBudget } from "./engagement.mjs";
@@ -21,7 +23,7 @@ import { EQUIPMENT_BY_KEY } from "./equipment.mjs";
 
 export const STANCES = Object.freeze(["attack", "parry"]);
 export const PLAIN_ACTIONS = Object.freeze(["melee", "hold", "fire", "passthrough"]);
-export const GM_TOOLS = Object.freeze(["invulnerable", "heal", "set-hp", "clear", "kill"]);
+export const GM_TOOLS = Object.freeze(["invulnerable", "heal", "set-hp", "clear", "kill", "burn"]);
 export const WEAPON_LABEL = Object.freeze({ dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe", morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd", twohanded: "Two-handed sword", lance: "Lance", pike: "Pike" });
 export const weaponItem = (id) => ({ kind: "weapon", weaponId: id, name: WEAPON_LABEL[id] ?? id, unidName: WEAPON_LABEL[id] ?? "a weapon", identified: true, weight: EQUIPMENT_BY_KEY[id]?.system?.weight ?? 50 });
 
@@ -34,7 +36,7 @@ export const spellsFor = (f) => (f.kind === "pc" ? combatSpellsFor(f.cls, f.slot
 
 /**
  * Set any of a figure's orders. o: { target, holdTargets, secondTarget,
- * action, stance, castAim }; a field left out is unchanged. Choosing a target
+ * action, stance, castAim, averted, mirror }; a field left out is unchanged. Choosing a target
  * without an action picks one as the tester did: melee if adjacent, fire if
  * in bow range, a held figure fights again. Returns { ok, events, error }.
  */
@@ -52,6 +54,7 @@ export function setOrders(state, f, o = {}) {
     else if ((a === "fire" || a === "passthrough") && !f.missile) return fail(`${f.name} has no missile weapon`);
   }
   if (has("stance") && !STANCES.includes(o.stance)) return fail(`unknown stance ${o.stance}`);
+  for (const k of ["averted", "mirror"]) if (has(k) && typeof o[k] !== "boolean") return fail(`${k} is yes or no`);
   if (has("holdTargets")) {
     if (!Array.isArray(o.holdTargets) || o.holdTargets.length > HOLD_PERSON_MAX - 1) return fail("too many Hold Person targets");
     if (!o.holdTargets.every((id) => enemyOk(state, f, id))) return fail("a Hold Person target is not an enemy on the board");
@@ -77,8 +80,10 @@ export function setOrders(state, f, o = {}) {
   if (has("stance")) f.stance = o.stance;
   if (has("holdTargets")) f.holdTargets = [...o.holdTargets];
   if (has("secondTarget")) f.secondTarget = o.secondTarget;
+  if (has("averted")) f.averted = o.averted;
+  if (has("mirror")) f.mirror = o.mirror;
   if (has("castAim")) { f.castAim = o.castAim ? { x: o.castAim.x, y: o.castAim.y } : null; if (f.castAim) f.target = null; }
-  return { ok: true, events: [{ type: "orders", id: f.id, name: f.name, target: f.target ?? null, action: f.action, stance: f.stance ?? "attack", holdTargets: f.holdTargets ?? [], secondTarget: f.secondTarget ?? null, castAim: f.castAim ?? null }] };
+  return { ok: true, events: [{ type: "orders", id: f.id, name: f.name, target: f.target ?? null, action: f.action, stance: f.stance ?? "attack", holdTargets: f.holdTargets ?? [], secondTarget: f.secondTarget ?? null, castAim: f.castAim ?? null, averted: !!f.averted, mirror: !!f.mirror }] };
 }
 
 /** Carried weapons the figure could draw now. */
@@ -107,6 +112,7 @@ export function gmTool(state, f, tool, value) {
   else if (tool === "set-hp") { const n = Math.trunc(Number(value)); if (!Number.isFinite(n)) return { ok: false, events: [], error: "no hit points given" }; f.hp = n; if (n > (f.maxHp ?? 0)) f.maxHp = n; }
   else if (tool === "clear") { f.status = null; f.paralyzedUntil = null; if (f.charmed) { f.charmed = false; f.side = f.origSide ?? f.side; } f.target = null; }
   else if (tool === "kill") { f.hp = 0; f.target = null; }
+  else if (tool === "burn") { if (f.monsterKey !== "troll") return { ok: false, events: [], error: "only a troll needs burning" }; f.burned = true; }
   return { ok: true, events: [{ type: "gm", id: f.id, name: f.name, tool, value: tool === "invulnerable" ? !!value : tool === "set-hp" ? f.hp : null }] };
 }
 
@@ -152,6 +158,10 @@ function runSelfTests() {
     ok(gmTool(s, f, "invulnerable", true).ok && f.invulnerable, "invulnerable");
     ok(gmTool(s, f, "kill").ok && f.hp === 0, "kill");
     ok(!gmTool(s, f, "smite").ok, "unknown tool refused");
+    const troll = { id: 9, name: "Troll", kind: "monster", monsterKey: "troll", hp: 0, maxHp: 30 }; s.figures.push(troll);
+    ok(gmTool(s, troll, "burn").ok && troll.burned && !gmTool(s, f, "burn").ok, "burn a troll; nobody else");
+    const g = fig(3, "A", 9); s.figures.push(g); s.phase = "fight";
+    ok(setOrders(s, g, { averted: true }).ok && g.averted && !setOrders(s, g, { mirror: "yes" }).ok, "avert the eyes; a mirror is yes or no");
   }
   console.log(`orders.mjs — all self-tests passed (${pass} assertions).`);
 }

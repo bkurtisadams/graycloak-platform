@@ -89,7 +89,9 @@ export const AI_ELECTION = "counter";
  *   { type: "split-fire", id, targetId }        move step: an elf or horse archer shoots in mid-move
  *   { type: "orders", id, ...orders }           any step: target, holdTargets, secondTarget, action, stance, castAim (orders.mjs)
  *   { type: "draw-weapon", id, index }          own move step: draw a carried weapon for half a move
- *   { type: "gm", id, tool, value }             referee: invulnerable, heal, set-hp, clear, kill
+ *   { type: "gm", id, tool, value }             referee: invulnerable, heal, set-hp, clear, kill, burn
+ *   { type: "leader", side, id }                referee: the side's leader (Chainmail p.20); id null for none
+ * Orders, GM tools and the leader may also be set during setup.
  */
 /** After any move in the fight, enemies who elected pass-through fire shoot at each mover's half-move point. */
 function withPassThrough(state, events, rng) {
@@ -108,7 +110,7 @@ export function apply(state, action, rng) {
   const events = [];
   const fail = (error) => ({ ok: false, events: [], error });
   const byId = (id) => state.figures.find((f) => f.id === id);
-  const setupOk = ["move", "group-move"].includes(action?.type) && state.phase === "setup";
+  const setupOk = ["move", "group-move", "orders", "gm", "leader"].includes(action?.type) && state.phase === "setup";
   if (state.phase !== "fight" && !setupOk) return fail("the fight is not running");
   switch (action?.type) {
     case "move": {
@@ -221,6 +223,14 @@ export function apply(state, action, rng) {
       if (!r.ok) return fail(r.error);
       events.push(...r.events);
       checkOver(state, events);
+      return { ok: true, events };
+    }
+    case "leader": {
+      if (!["A", "B"].includes(action.side)) return fail("no such side");
+      const f = action.id == null ? null : byId(action.id);
+      if (action.id != null && (!f || (f.origSide ?? f.side) !== action.side || !alive(f))) return fail("the leader must be a living figure of that side");
+      state.leader = { ...(state.leader ?? { A: null, B: null }), [action.side]: f ? f.id : null };
+      events.push({ type: "leader", side: action.side, id: f ? f.id : null, name: f?.name ?? null });
       return { ok: true, events };
     }
     case "melee": {
@@ -520,6 +530,9 @@ async function runSelfTests() {
     const st = fresh([a, o]); st.step = "move-A";
     ok(apply(st, { type: "orders", id: 1, target: 2, stance: "parry" }).ok && a.target === 2 && a.stance === "parry", "orders through apply");
     ok(!apply(st, { type: "orders", id: 1, action: "dance" }).ok, "a bad order is refused");
+    ok(apply(st, { type: "leader", side: "B", id: 2 }).ok && st.leader.B === 2 && !apply(st, { type: "leader", side: "A", id: 2 }).ok, "the leader is one of his own side");
+    const setup = { ...fresh([fig(7, "A")]), phase: "setup" };
+    ok(apply(setup, { type: "orders", id: 7, stance: "parry" }).ok && apply(setup, { type: "gm", id: 7, tool: "invulnerable", value: true }).ok, "orders and GM tools during setup");
     const r = apply(st, { type: "gm", id: 2, tool: "kill" });
     ok(r.ok && st.phase === "over" && r.events.some((e) => e.type === "over"), "GM kill ends the fight");
   }

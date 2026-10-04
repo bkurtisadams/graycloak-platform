@@ -67,7 +67,7 @@ export function viewFor(state, who) {
 
 /* ------------------------------------------------------------------ authority */
 
-const STAFF_ONLY = Object.freeze(["begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm"]);
+const STAFF_ONLY = Object.freeze(["begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader"]);
 const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon"]);
 const actorIds = (a) => [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
 
@@ -102,7 +102,7 @@ export function mayAct(state, who, action) {
 
 export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "done"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
-export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm"]);
+export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm", "leader"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);
 const MORALE_PUBLIC = Object.freeze(["type", "reason", "side", "monsterKey", "name", "leader", "source", "holds", "outcome"]);
 
