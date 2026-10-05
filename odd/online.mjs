@@ -5,7 +5,8 @@
 // local play needs no network. One fight is open at a time:
 //   createFight(data)   oddCreateFight (the referee opens a fight)
 //   openFight(...)      listens to the header, this viewer's view and feed
-//   listFights(cid)     a player's fights in a campaign
+//   listFights(cid)     a player's fights in a campaign; listAllFights(cid) the referee's
+//   deleteFight(...)    oddDeleteFight (the referee removes a fight)
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -35,6 +36,7 @@ export async function connectOnline({ emulators = false } = {}) {
   }
   const createCall = fnSdk.httpsCallable(fns, 'oddCreateFight');
   const actionCall = fnSdk.httpsCallable(fns, 'oddAction');
+  const deleteCall = fnSdk.httpsCallable(fns, 'oddDeleteFight');
 
   let open = null;      // { cid, fid, viewer, rev, unsubs, seen }
   let queue = Promise.resolve();
@@ -96,8 +98,14 @@ export async function connectOnline({ emulators = false } = {}) {
       const uid = auth.currentUser?.uid; if (!uid) return [];
       const q = fsSdk.query(fsSdk.collection(db, `oddCampaigns/${cid}/fights`), fsSdk.where('players', 'array-contains', uid));
       const snap = await fsSdk.getDocs(q);
-      return snap.docs.map((d) => ({ fid: d.id, ...d.data() })).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+      return snap.docs.map((d) => ({ fid: d.id, ...d.data() })).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
     },
+    /** Every fight in a campaign: the referee's list (the rules let only him list them all). */
+    async listAllFights(cid) {
+      const snap = await fsSdk.getDocs(fsSdk.collection(db, `oddCampaigns/${cid}/fights`));
+      return snap.docs.map((d) => ({ fid: d.id, ...d.data() })).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    },
+    deleteFight: (cid, fid) => call(deleteCall, { cid, fid }),
     closeFight,
 
     /** Listen to one fight as viewer ("referee" or a player's uid). */

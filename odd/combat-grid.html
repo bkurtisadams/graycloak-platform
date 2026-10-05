@@ -252,7 +252,13 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
 body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #chatForm, body.player-mode #chips { display: none !important; }
-#pFights button { display: block; margin: 4px 0; text-align: left; }
+.flist { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+.frow { display: flex; align-items: center; gap: 8px; }
+.frow .fopen { flex: 1 1 auto; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 6px 10px; }
+.frow .fopen .ft { font-weight: 700; }
+.frow .fopen .fs { font-size: .85rem; color: var(--pencil); }
+.frow .fopen .fs b { color: #2f5c8a; }
+.flist details summary { cursor: pointer; color: var(--pencil); margin: 4px 0; }
 </style>
 </head>
 <body>
@@ -329,13 +335,16 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
       <span id="onlineBits" hidden>
         <button id="signIn">Sign in</button>
         <label>Campaign <input id="cid" value="tester" style="width:7em" spellcheck="false"></label>
-        <label>Fight <input id="fid" style="width:9em" spellcheck="false"></label>
+        <label>Name <input id="ftitle" style="width:14em" spellcheck="false" placeholder="map and figures"></label>
+        <label>Fight id <input id="fid" style="width:9em" spellcheck="false"></label>
         <button id="openFight" title="Open a fight already on the server, as its referee">Open</button>
       </span>
       <span id="playerLinkBox" hidden><label>Player's page <input id="playerLink" readonly style="width:20em"></label> <button id="copyLink">Copy</button></span>
     </div>
     <p class="note" id="onlineNote" style="margin:0 0 8px"></p>
     <div class="panel" id="whoPlays" hidden></div>
+    <div class="panel" id="refFights" hidden></div>
+    <h3 class="pkeep" style="margin:14px 0 4px">Map settings</h3>
     <div class="bar pkeep">
       <label style="white-space:nowrap"><input type="checkbox" id="tapTarget"> Tap enemy to target</label>
       <button id="saveView" title="Open the tester at this view next time">Save view</button>
@@ -767,7 +776,7 @@ async function goOnline() {
     $("#onlineNote").textContent = `Can't reach Firebase (${e.message}). Online play needs the page served from your machine or graycloak.net; the hosted artifact blocks it.`;
     return null;
   }
-  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (PLAYER) playerSignedIn(); });
+  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (PLAYER) playerSignedIn(); else refreshRefFights(); });
   return online.api;
 }
 /** Send an action to the server. The answer's events arrive through the feed; a refusal shows here. */
@@ -832,9 +841,9 @@ async function createOnline() {
   const control = Object.fromEntries(state.figures.map((f) => [f.id, f.side === "B" && $("#autoB").checked ? "game" : "referee"]));
   const players = Object.fromEntries(state.figures.filter((f) => f.playerEmail).map((f) => [f.id, f.playerEmail]));
   renderOnlineNote("Opening the fight on the server\u2026");
-  const res = await api.createFight({ cid, fid, title: `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control, players });
+  const res = await api.createFight({ cid, fid, title: $("#ftitle").value.trim() || `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control, players });
   if (!res.ok) { resetFight(); $("#onlineNote").textContent = `The fight didn't open: ${res.error ?? res.code}`; openDrawer("setup"); return; }
-  openOnline(cid, fid);
+  openOnline(cid, fid); refreshRefFights();
   const named = Object.keys(players).length;
   online.notice = named && !Array.isArray(res.players) ? "WARNING: the server didn't add any players, so it is out of date. Run odd\\functions\\deploy.bat and start the fight again." : named ? `${res.players.length} player${res.players.length === 1 ? "" : "s"} added to the fight.` : "";
   renderOnlineNote();
@@ -976,22 +985,59 @@ function playerSignedIn() {
   if (u && q.get("cid") && q.get("fid") && !online.api.fight) { $("#pCid").value = q.get("cid"); openOnline(q.get("cid"), q.get("fid")); $("#drawer").hidden = true; }
   else if (u) findFights();
 }
+/** One fight in a list: its name, when it opened, and where it stands. */
+function fightRow(f, { me, deletable }) {
+  const when = f.createdAt ? new Date(f.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const who = (w) => (w === me ? "you" : w === "referee" ? (f.people?.referee?.name ?? "the referee") : (f.people?.[w]?.name ?? "a player"));
+  const wait = f.waitingOn ?? [];
+  const where = f.phase === "over" ? "over" : `round ${f.round ?? 0}${wait.includes(me) || (me === "referee" && wait.includes("referee")) ? " \u00b7 <b>your move</b>" : wait.length ? ` \u00b7 waiting on ${wait.map((w) => esc(who(w))).join(", ")}` : ""}`;
+  return `<div class="frow"><button type="button" class="fopen" data-ofight="${esc(f.fid)}"><span class="ft">${esc(f.title || f.fid)}</span><span class="fs">${when ? `opened ${esc(when)} \u00b7 ` : ""}${where}</span></button>${deletable ? `<button type="button" data-dfight="${esc(f.fid)}" aria-label="Delete ${esc(f.title || f.fid)}">Delete</button>` : ""}</div>`;
+}
+/** Live fights first; finished ones folded away. */
+function fightListHtml(list, opts) {
+  const live = list.filter((f) => f.phase !== "over"), done = list.filter((f) => f.phase === "over");
+  return `<div class="flist">${live.map((f) => fightRow(f, opts)).join("") || `<p class="empty" style="margin:0">No fights in play.</p>`}${done.length ? `<details><summary>Finished (${done.length})</summary><div class="flist">${done.map((f) => fightRow(f, opts)).join("")}</div></details>` : ""}</div>`;
+}
 async function findFights() {
   const api = online.api, cid = $("#pCid").value.trim(); if (!api?.user || !cid) return;
   $("#pNote").textContent = "Looking\u2026";
   try {
     const list = await api.listFights(cid);
-    $("#pFights").innerHTML = list.map((f) => `<button data-pfight="${esc(f.fid)}">${esc(f.title || f.fid)} \u00b7 round ${f.round ?? 0}${f.phase === "over" ? " \u00b7 over" : f.waitingOn?.includes(api.user.uid) ? " \u00b7 your move" : ""}</button>`).join("");
-    $("#pNote").textContent = list.length ? "" : `No fights in ${cid} have you in them yet.`;
-    $("#pFights").querySelectorAll("[data-pfight]").forEach((b) => (b.onclick = () => { openOnline(cid, b.dataset.pfight); $("#drawer").hidden = true; }));
+    $("#pFights").innerHTML = `<h3 style="margin:8px 0 4px">Your fights in campaign <i>${esc(cid)}</i></h3>` + (list.length ? fightListHtml(list, { me: api.user.uid }) : `<p class="empty" style="margin:0 0 8px">No fights yet.</p>`);
+    $("#pNote").textContent = "";
+    $("#pFights").querySelectorAll("[data-ofight]").forEach((b) => (b.onclick = () => { openOnline(cid, b.dataset.ofight); $("#drawer").hidden = true; }));
   } catch (e) { $("#pNote").textContent = `Couldn't list fights: ${e.message}`; }
+}
+/** The referee's page: every fight in the campaign, to open or delete. */
+async function refreshRefFights() {
+  const box = $("#refFights"), api = online.api;
+  if (!box) return;
+  box.hidden = PLAYER || !online.on || !api?.user;
+  if (box.hidden) return;
+  const cid = $("#cid").value.trim(); if (!cid) { box.hidden = true; return; }
+  let list = [];
+  try { list = await api.listAllFights(cid); }
+  catch (e) { box.innerHTML = `<p class="note">Couldn't list fights in ${esc(cid)}: ${esc(e.message)}</p>`; return; }
+  box.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><h3 style="margin:0;flex:1">Fights in campaign <i>${esc(cid)}</i></h3><button type="button" id="refFightsReload">Refresh</button></div>` + (list.length ? fightListHtml(list, { me: "referee", deletable: true }) : `<p class="empty" style="margin:6px 0">No fights yet.</p>`);
+  $("#refFightsReload").onclick = refreshRefFights;
+  box.querySelectorAll("[data-ofight]").forEach((b) => (b.onclick = () => { $("#fid").value = b.dataset.ofight; openOnline(cid, b.dataset.ofight); $("#drawer").hidden = true; }));
+  box.querySelectorAll("[data-dfight]").forEach((b) => (b.onclick = async () => {
+    const f = list.find((x) => x.fid === b.dataset.dfight);
+    if (!confirm(`Delete "${f?.title || b.dataset.dfight}"? It goes from the server and from every player's list. This can't be undone.`)) return;
+    b.disabled = true; b.textContent = "Deleting\u2026";
+    const res = await api.deleteFight(cid, b.dataset.dfight);
+    if (!res.ok) { $("#onlineNote").textContent = `Couldn't delete it: ${res.error ?? res.code}`; b.disabled = false; b.textContent = "Delete"; return; }
+    if (api.fight?.fid === b.dataset.dfight) resetFight();
+    refreshRefFights();
+  }));
 }
 $("#playMode").addEventListener("change", async (e) => {
   online.on = e.target.value === "online";
   $("#onlineBits").hidden = !online.on;
   if (online.on && !(await goOnline())) { online.on = false; e.target.value = "local"; $("#onlineBits").hidden = true; }
-  renderOnlineNote(); render();
+  renderOnlineNote(); render(); refreshRefFights();
 });
+$("#cid").addEventListener("change", refreshRefFights);
 $("#signIn").addEventListener("click", async () => {
   const api = await goOnline(); if (!api) return;
   if (api.user) { await api.signOut(); renderOnlineNote(); } else openSignIn();

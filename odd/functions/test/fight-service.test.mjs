@@ -34,7 +34,8 @@ function memoryStore() {
       const out = await fn(tx);
       for (const [p, d] of staged) docs.set(p, d);
       return out;
-    }
+    },
+    async deleteTree(path) { for (const k of [...docs.keys()]) if (k === path || k.startsWith(`${path}/`)) docs.delete(k); }
   };
 }
 
@@ -152,4 +153,14 @@ test("players are named by email; the server finds their accounts", async () => 
   assert.equal(missing.code, "no-account");
   assert.match(missing.error, /signs in once/);
   assert.equal((await svc.create({ uid: "ref", data: { ...base, fid: "f3", players: { 1: "not-an-email" } } })).code, "bad-request");
+});
+
+test("the referee deletes a fight and everything under it; nobody else can", async () => {
+  const { store, svc, p } = await opened();
+  assert.equal((await svc.remove({ uid: "kurt", data: { cid: "camp1", fid: "f1" } })).code, "forbidden");
+  assert.ok(store.docs.has(p.fight));
+  assert.equal((await svc.remove({ uid: "ref", data: { cid: "camp1", fid: "f1" } })).ok, true);
+  assert.equal([...store.docs.keys()].filter((k) => k.startsWith(p.fight)).length, 0, "header, state, views, feeds and actions all gone");
+  assert.ok(store.docs.has(p.campaign), "the campaign stays");
+  assert.equal((await svc.remove({ uid: "ref", data: { cid: "camp1", fid: "f1" } })).code, "not-found");
 });

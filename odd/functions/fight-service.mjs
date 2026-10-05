@@ -50,7 +50,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     tx.set(p.fight, clean({
       ...(header ?? {}), rev, rules: RULES, phase: state.phase, round: state.round ?? 0, step: state.step ?? null,
       firstSide: state.firstSide ?? null, winner: state.winner ?? null, waitingOn: session.waitingOn(state), unready: session.unreadyIds(state),
-      readyCount: session.readyCount(state), players: playersOf(state), updatedAt: now()
+      readyCount: session.readyCount(state), players: playersOf(state), people: state.people ?? {}, updatedAt: now()
     }));
     const viewers = [["referee", { referee: true }], ...playersOf(state).map((u) => [u, { uid: u }])];
     for (const [key, who] of viewers) {
@@ -133,5 +133,27 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     });
   }
 
-  return { create, act, playersOf };
+  /**
+   * The referee deletes a fight (old test fights): data { cid, fid }. The
+   * header, state, views, feeds and action record all go, so it leaves every
+   * player's list too. store.deleteTree removes a document and everything
+   * under it.
+   */
+  async function remove({ uid, data }) {
+    if (!uid) return refuse("auth", "sign in first");
+    const { cid, fid } = data ?? {};
+    if (!ID.test(cid ?? "") || !ID.test(fid ?? "")) return refuse("bad-request", "no such fight");
+    const p = fightPaths(cid, fid);
+    const check = await store.run(async (tx) => {
+      const camp = await tx.get(p.campaign), header = await tx.get(p.fight);
+      if (!header) return refuse("not-found", "no such fight");
+      if (camp?.refereeUid !== uid) return refuse("forbidden", "only the campaign's referee deletes fights");
+      return { ok: true };
+    });
+    if (!check.ok) return check;
+    await store.deleteTree(p.fight);
+    return { ok: true, fid };
+  }
+
+  return { create, act, remove, playersOf };
 }

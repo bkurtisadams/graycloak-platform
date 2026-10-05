@@ -4,6 +4,7 @@
 // Two callable functions over fight-service.mjs:
 //   oddCreateFight  the referee opens a fight; the server seeds the dice
 //   oddAction       one action from a player or the referee
+//   oddDeleteFight  the referee deletes a fight (old test fights)
 // Both return { ok, rev, ... } or { ok: false, code, error }; only a call
 // with no signed-in user is thrown back as an error.
 //
@@ -30,7 +31,9 @@ const store = {
   run: (fn) => db.runTransaction((t) => fn({
     get: async (path) => { const snap = await t.get(db.doc(path)); return snap.exists ? snap.data() : null; },
     set: (path, data) => { t.set(db.doc(path), data); }
-  }))
+  })),
+  // A fight and everything under it (state, views, feeds, actions).
+  deleteTree: (path) => db.recursiveDelete(db.doc(path))
 };
 // A player is named by the email he signs in with; the server finds his account.
 const resolveUser = async (email) => {
@@ -45,4 +48,5 @@ const signedIn = (request) => {
 };
 
 export const oddCreateFight = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.create({ uid: signedIn(request), name: request.auth.token.name || request.auth.token.email, data: request.data }));
+export const oddDeleteFight = onCall({ timeoutSeconds: 120, memory: '512MiB' }, (request) => service.remove({ uid: signedIn(request), data: request.data }));
 export const oddAction = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.act({ uid: signedIn(request), data: request.data }));
