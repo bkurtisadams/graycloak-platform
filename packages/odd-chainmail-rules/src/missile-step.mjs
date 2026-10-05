@@ -17,7 +17,7 @@ import { MONSTERS } from "./monsters.mjs";
 import { missileBand, missileRange } from "./tables.mjs";
 import { fireVolley, dexOf } from "./missiles.mjs";
 import { savesOf, hdOf, baneHit, monsterPowers } from "./melee.mjs";
-import { alive, present, active, adjacent, distIn, lineOfSight, inMelee, isWall, sz, takeDamage } from "./board.mjs";
+import { alive, present, active, adjacent, distIn, lineOfSight, inMelee, isWall, sz, takeDamage, wonOver } from "./board.mjs";
 import { footCells } from "./movement.mjs";
 import { BLIND } from "./specials.mjs";
 
@@ -43,12 +43,13 @@ export function castSpell(state, f, t, sp, rng) {
   if (sp.id === "fireBall" || sp.id === "lightningBolt") {
     const { caught } = areaOf(state, f, sp.id, f.castAim.x, f.castAim.y);
     const { dice, save } = areaSpellDice("cast", f.level);
-    const items = [{ text: `${sp.id === "fireBall" ? "2\u2033 burst, filling the space it bursts in" : "6\u2033 bolt, doubling back off walls"}; ${dice} dice, save vs spells for half.` }];
+    // One damage roll for the whole area, each figure caught saving for half (Kurt, Oct 2026).
+    let dmg = 0; for (let i = 0; i < dice; i++) dmg += 1 + Math.floor(rng() * 6);
+    const items = [{ text: `${sp.id === "fireBall" ? "2\u2033 burst, filling the space it bursts in" : "6\u2033 bolt, doubling back off walls"}; ${dice}d6 = ${dmg} to everyone caught, save vs spells for half.` }];
     for (const e of caught) {
-      let dmg = 0; for (let i = 0; i < dice; i++) dmg += 1 + Math.floor(rng() * 6);
       const sv = saveForHalf(savesOf(e), save, dmg, rng, e.pfe ? 1 : 0);
       takeDamage(e, sv.damage); hits.push({ a: f.id, t: e.id, dmg: sv.damage }); if (sp.id === "fireBall") baneHit(state, e, "fire");
-      items.push({ text: `${e.name}: ${dice}d6 = ${dmg}; save vs spells d20 ${sv.roll}${sv.mod ? " +1" : ""} vs ${sv.need}: ${sv.saved ? "half" : "full"}, ${sv.damage} damage${e.hp <= 0 ? " — down" : ""}${e.burned && e.hp <= 0 ? " and burned" : ""}`, hit: true });
+      items.push({ text: `${e.name}: save vs spells d20 ${sv.roll}${sv.mod ? " +1" : ""} vs ${sv.need}: ${sv.saved ? "half" : "full"}, ${sv.damage} damage${e.hp <= 0 ? " — down" : ""}${e.burned && e.hp <= 0 ? " and burned" : ""}`, hit: true });
     }
     if (!caught.length) items.push({ text: "No one caught in it." });
     f.castAim = null;
@@ -90,7 +91,7 @@ export function castSpell(state, f, t, sp, rng) {
     if (!isPerson(t)) return { card: { title: title([{ text: " at " }, { fig: t.id }]), items: [{ text: `${t.name} isn't a person; no effect.` }] }, hits };
     const sv = saveVsSpells(savesOf(t), rng, t.pfe ? 1 : 0);
     const items = [{ text: `Save vs spells d20 ${sv.roll}${sv.mod ? ` ${sv.mod}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : "fails"}`, hit: !sv.saved }];
-    if (!sv.saved) { t.side = f.side; t.charmed = true; t.target = null; items.push({ text: `${t.name} is charmed and fights for side ${f.side} from next round.`, hit: true }); }
+    if (!sv.saved) { t.side = f.side; t.charmed = true; t.target = null; wonOver(state, t, f); items.push({ text: `${t.name} is charmed and fights for side ${f.side} from next round, run by whoever runs ${f.name}.`, hit: true }); }
     return { card: { title: title([{ text: " at " }, { fig: t.id }]), items }, hits };
   }
   f.pfe = true;
@@ -199,6 +200,21 @@ function runSelfTests() {
     const a = pc(1, "A", 2, 5, { missile: "shortbow", action: "fire", target: 2 }), o = orc(2, 10, 5, { target: 3 }), f = pc(3, "A", 11, 5, { target: 2 });
     const r = resolveMissileStep(st([a, o, f]), () => 0.99);
     ok(r.cards.some((c) => c.note && /in a melee/.test(c.title[0].text)), "holds fire at a figure in melee");
+  }
+  // Fire Ball: one damage roll for everyone caught; each saves for half on his own.
+  {
+    const mu = pc(1, "A", 2, 5, { cls: "magic-user", level: 6, action: "cast:fireBall", castAim: { x: 20, y: 5 }, slotsLeft: [4, 2, 2, 0, 0, 0] });
+    const a = orc(2, 20, 5, { hp: 40, maxHp: 40 }), b = orc(3, 21, 5, { hp: 40, maxHp: 40 });
+    const vals = [0.99, 0.99, 0.99, 0.99, 0.99, 0.99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]; let i = 0;
+    resolveMissileStep(st([mu, a, b]), () => vals[i++] ?? 0);
+    ok(a.hp === 4 && b.hp === 4, "both orcs take the same 36 from one 6d6 roll");
+  }
+  // Charm Person: the charmed figure goes to the side, and to the player, of the caster.
+  {
+    const mu = pc(1, "A", 2, 5, { cls: "magic-user", level: 1, action: "cast:charmPerson", target: 2, slotsLeft: [1, 0, 0, 0, 0, 0] });
+    const o = orc(2, 10, 5); const s = st([mu, o]); s.control = { 1: "bob", 2: "game" };
+    resolveMissileStep(s, () => 0.0);
+    ok(o.charmed && o.side === "A" && s.control[2] === "bob", "the charmed orc fights for side A, run by Bob");
   }
   console.log(`missile-step.mjs — all self-tests passed (${pass} assertions).`);
 }

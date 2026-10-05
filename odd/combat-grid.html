@@ -1628,7 +1628,8 @@ function renderStrip() {
   }
   $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect;
   if (electing) { $("#electFirst").textContent = `Side ${state.init.winner}: move first`; $("#electLast").textContent = `Side ${state.init.winner}: move last`; }
-  $("#subline").textContent = `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
+  // online, the fight's own name (the server seeds the dice, and the Setup boxes may not match the fight open)
+  $("#subline").textContent = online.on && online.header ? (online.header.title || "Online fight") : `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
 }
 function actionText(f) {
   const t = f.target != null ? byId(f.target) : null; const tn = t ? tokenLabel(t) : null;
@@ -2009,9 +2010,10 @@ $("#map").addEventListener("contextmenu", (e) => {
     const svc = serviceState(sel, f);
     if (svc) items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]);
   }
-  if (sel && sel !== f && mineOk(sel) && f.status === "surrendered") {
+  // a surrendered monster, or one charmed onto his side, can be offered service (Book I)
+  if (sel && sel !== f && mineOk(sel) && (f.status === "surrendered" || (f.charmed && f.side === sel.side))) {
     const svc = serviceState(sel, f);
-    if (svc) { heading(`${tokenLabel(sel)} \u2192 ${f.name} (surrendered)`); items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]); }
+    if (svc) { heading(`${tokenLabel(sel)} \u2192 ${f.name} (${f.status === "surrendered" ? "surrendered" : "charmed"})`); items.push(svc.gate.ok ? [`Offer ${tokenLabel(f)} service\u2026`, () => openService(sel, f)] : [`Offer service: ${svc.gate.reason}${svc.gate.reason === "alignment differs" ? " (needs a Charm)" : ""}`, null]); }
   }
   if (sel && sel.kind === "pc" && active(sel) && state.phase !== "setup" && !alive(f) && f !== sel && adjacent(sel, f) && hasLoot(f)) {
     items.push([`Search ${f.name}`, () => { const sx = searchable(sel).find((q) => q.id === `fig-${f.id}`); if (sx) openLoot(sel, sx); }]);

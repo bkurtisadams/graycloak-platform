@@ -24,6 +24,24 @@ export const sz = (f) => f.size ?? 1;
  * testing tool) loses nothing; what it would have lost is tallied in
  * f.ignoredDamage so the log can say so. Returns the damage actually taken.
  */
+/**
+ * A monster won over (charmed, or taking service) is run by whoever runs the
+ * character who won it (Kurt, Oct 2026). The controller it had before is kept
+ * on the figure, so ending a charm hands it back. A fight with no control map
+ * (local play) is left alone.
+ */
+export function wonOver(state, f, by) {
+  if (!state?.control || !f || !by) return;
+  if (!("origControl" in f)) f.origControl = state.control[f.id] ?? null;
+  const c = state.control[by.id];
+  if (c == null) delete state.control[f.id]; else state.control[f.id] = c;
+}
+/** Hand a won-over monster back to whoever ran it before. */
+export function released(state, f) {
+  if (!state?.control || !f || !("origControl" in f)) return;
+  if (f.origControl == null) delete state.control[f.id]; else state.control[f.id] = f.origControl;
+  delete f.origControl;
+}
 export function takeDamage(f, n) {
   if (!(n > 0)) return 0;
   if (f.invulnerable) { f.ignoredDamage = (f.ignoredDamage ?? 0) + n; return 0; }
@@ -90,6 +108,16 @@ function runSelfTests() {
   ok(isTrapped(st, [a]) === false, "open cells: not trapped");
   const tight = { width: 3, height: 3, walls: [[1, 1, 1], [1, 0, 1], [1, 1, 1]], figures: [] };
   ok(isTrapped(tight, [{ x: 1, y: 1, hp: 4 }]), "walled in: trapped");
+  {
+    const st = { control: { 1: "bob", 2: "game" } }, orc = { id: 2 }, pc = { id: 1 };
+    wonOver(st, orc, pc);
+    ok(st.control[2] === "bob" && orc.origControl === "game", "a won-over monster goes to the player who won it");
+    released(st, orc);
+    ok(st.control[2] === "game" && !("origControl" in orc), "released, it goes back to whoever ran it");
+    const st2 = { control: { 2: "game" } }; wonOver(st2, orc, { id: 9 });
+    ok(!(2 in st2.control), "won by the referee's character: the referee runs it");
+    const local = {}; wonOver(local, { id: 3 }, pc); ok(!("control" in local), "local play has no control map to change");
+  }
   console.log(`board.mjs — all self-tests passed (${pass} assertions).`);
 }
 if (typeof process !== "undefined" && process.argv?.[1]) {

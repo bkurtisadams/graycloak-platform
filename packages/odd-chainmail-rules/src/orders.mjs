@@ -14,7 +14,7 @@
  *              troll burned or put in acid will not rise)
  *   A gaze defence (averting the eyes, holding up a mirror) is an order too.
  */
-import { present, active, adjacent, centre, isWall, distIn } from "./board.mjs";
+import { present, active, adjacent, centre, isWall, distIn, released } from "./board.mjs";
 import { dir8, moveBudget } from "./engagement.mjs";
 import { moveInches, allowanceOf } from "./movement.mjs";
 import { combatSpellsFor, HOLD_PERSON_MAX } from "./casting.mjs";
@@ -110,7 +110,7 @@ export function gmTool(state, f, tool, value) {
   if (tool === "invulnerable") f.invulnerable = !!value;
   else if (tool === "heal") { f.hp = f.maxHp; f.regenStore = 0; }
   else if (tool === "set-hp") { const n = Math.trunc(Number(value)); if (!Number.isFinite(n)) return { ok: false, events: [], error: "no hit points given" }; f.hp = n; if (n > (f.maxHp ?? 0)) f.maxHp = n; }
-  else if (tool === "clear") { f.status = null; f.paralyzedUntil = null; if (f.charmed) { f.charmed = false; f.side = f.origSide ?? f.side; } f.target = null; }
+  else if (tool === "clear") { f.status = null; f.paralyzedUntil = null; if (f.charmed) { f.charmed = false; if (!f.retainer) { f.side = f.origSide ?? f.side; released(state, f); } } f.target = null; }
   else if (tool === "kill") { f.hp = 0; f.target = null; }
   else if (tool === "burn") { if (f.monsterKey !== "troll") return { ok: false, events: [], error: "only a troll needs burning" }; f.burned = true; }
   return { ok: true, events: [{ type: "gm", id: f.id, name: f.name, tool, value: tool === "invulnerable" ? !!value : tool === "set-hp" ? f.hp : null }] };

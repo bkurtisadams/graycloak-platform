@@ -10,7 +10,7 @@
 import { MONSTERS } from "./monsters.mjs";
 import { encounterReaction, offerService, parleyOptions, isHostileTongue, serviceGate, talksAtAll } from "./reactions.mjs";
 import { PROFILE_LABEL } from "./behaviour.mjs";
-import { present, active } from "./board.mjs";
+import { present, active, wonOver } from "./board.mjs";
 
 const LANG_NAMES = Object.freeze({ common: "Common", "tongue-law": "the Law tongue", "tongue-chaos": "the Chaos tongue", "tongue-neutral": "the Neutral tongue" });
 export const languageLabel = (l) => LANG_NAMES[l] ?? MONSTERS.find((m) => m.key === l)?.name ?? (l.charAt(0).toUpperCase() + l.slice(1));
@@ -41,7 +41,9 @@ export function canParleyNow(state, pc, f) {
 }
 export function serviceState(state, pc, f) {
   if (state.phase === "setup" || pc.kind !== "pc" || !active(pc) || f.kind !== "monster" || f.serviceClosed || f.retainer) return null;
-  if (!(present(f) && f.side !== pc.side) && f.status !== "surrendered") return null;
+  // An enemy, a surrendered monster, or one charmed onto the character's side (a Charm moves it across, Kurt Oct 2026,
+  // and Book I lets a charmed monster be offered service whatever its alignment).
+  if (!(present(f) && (f.side !== pc.side || f.charmed)) && f.status !== "surrendered") return null;
   const o = talkOptions(state, pc, f); if (!o) return null;
   const gate = serviceGate({ intelligence: o.m.mind.intelligence, pcAlignment: pc.alignment ?? "law", monsterAlignment: o.m.alignment, charmed: !!f.charmed, reward: 1 });
   return { ...o, gate };
@@ -95,6 +97,8 @@ export function offerServiceTo(state, pc, f, opts, rng) {
   if (r.accepts) {
     payGold(pc, gp);
     f.side = pc.side; f.status = null; f.target = null; f.retainer = true; f.loyaltyBonus = r.loyaltyBonus;
+    // a retainer is run by whoever runs the character who hired it (Kurt, Oct 2026); it stays his after a charm ends
+    wonOver(state, f, pc); delete f.origControl;
     items.push({ text: `${f.name} takes the ${gp} gp and joins side ${pc.side}${r.loyaltyBonus ? ` as an enthusiast (loyalty +${r.loyaltyBonus})` : ""}.` });
   } else if (r.canRaise) { f.serviceTries = (f.serviceTries ?? 0) + 1; items.push({ text: `${f.name} is uncertain: a bigger offer may sway it.` }); }
   else {
@@ -123,6 +127,14 @@ function runSelfTests() {
   { const s = st(); const r = offerServiceTo(s, s.figures[0], s.figures[1], { lang: "orc", gp: 10 }, seq([d6(6), d6(5)]));
     ok(r.ok && s.figures[1].side === "A" && s.figures[1].retainer && s.figures[0].inv.coins.gp === 40, "11: the orc joins for 10 gp"); }
   { const s = st(); s.figures[0].alignment = "law"; ok(!offerServiceTo(s, s.figures[0], s.figures[1], { lang: "orc", gp: 10 }, Math.random).ok, "alignment differs: no offer"); }
+  { const s = st(); s.figures[0].alignment = "law"; Object.assign(s.figures[1], { charmed: true, side: "A" });
+    const o = serviceState(s, s.figures[0], s.figures[1]);
+    ok(o && o.gate.ok, "a monster charmed onto his side can be offered service, alignment aside");
+    const r = offerServiceTo(s, s.figures[0], s.figures[1], { lang: "orc", gp: 10 }, seq([d6(6), d6(5)]));
+    ok(r.ok && s.figures[1].retainer && s.figures[1].side === "A", "the charmed orc takes service"); }
+  { const s = st(); s.control = { 1: "bob", 2: "referee" }; offerServiceTo(s, s.figures[0], s.figures[1], { lang: "orc", gp: 10 }, seq([d6(6), d6(5)]));
+    ok(s.control[2] === "bob" && !("origControl" in s.figures[1]), "a hired orc is run by the player who hired it, for good"); }
+  { const s = st(); s.figures[1].side = "A"; ok(serviceState(s, s.figures[0], s.figures[1]) === null, "a monster already on his side and not charmed is not offered service"); }
   console.log(`talk.mjs — all self-tests passed (${pass} assertions).`);
 }
 

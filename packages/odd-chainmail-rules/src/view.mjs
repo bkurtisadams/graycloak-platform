@@ -18,7 +18,9 @@
  *   - his allies' exact hit points, level, actions and stances;
  *   - for each monster group: the languages it speaks and how it has
  *     reacted to a parley so far, which the parley and service dialogs need
- *     (never the talk and common-tongue rolls behind them);
+ *     (never the talk and common-tongue rolls behind them); likewise whether
+ *     a monster is charmed and how offers of service to it have gone
+ *     (uncertain so far, or talks ended), never the dice;
  *   - everything about his own figures;
  *   - not the RNG, the leader, lair hoards, morale bookkeeping, encounter
  *     reactions, melee contacts, or behaviour reasons.
@@ -39,7 +41,7 @@ export const figuresOf = (state, who) => state.figures.filter((f) => controls(st
 
 /* ------------------------------------------------------------------ figures */
 
-export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "origSide", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "ac", "cls", "race", "retainer", "averted", "mirror", "burned"]);
+export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "origSide", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "ac", "cls", "race", "retainer", "charmed", "serviceTries", "serviceClosed", "averted", "mirror", "burned"]);
 export const ALLY_FIGURE_KEYS = Object.freeze(["hp", "maxHp", "level", "action", "stance"]);
 /** What a player knows of a monster group: its tongues and how talks have gone. */
 export const ENCOUNTER_PUBLIC_KEYS = Object.freeze(["key", "side", "monsterKey", "talks", "languages", "reaction", "holdRound"]);
@@ -214,6 +216,11 @@ async function runSelfTests() {
     const r = viewFor(st, ref);
     ok(r.referee && !("rngState" in r) && r.figures.find((f) => f.id === 3).maxHp === 5 && typeof r.contacts === "object", "the referee sees everything but the dice");
     ok(!raw.includes("\"rngState\""), "no RNG anywhere in a player's view");
+  }
+  {
+    const st = fight(); Object.assign(st.figures[2], { charmed: true, side: "A", serviceTries: 1 }); st.figures[3].serviceClosed = true;
+    const v = viewFor(st, kurt), o3 = v.figures.find((f) => f.id === 3), o4 = v.figures.find((f) => f.id === 4);
+    ok(o3.charmed === true && o3.serviceTries === 1 && o4.serviceClosed === true, "a player sees a charmed monster and how his offers of service have gone (the service dialog needs them)");
   }
   {
     const st = fight(); st.step = "move-A";
