@@ -257,3 +257,13 @@ test("a player picks his colour; the header and the other views show it", async 
   assert.equal(header(store, p).people.bob.color, colours[4]);
   assert.equal(store.docs.get(p.view("kurt")).people.bob.color, colours[4]);
 });
+
+test("the server refuses a fight where a cleric carries an edged weapon or a bow", async () => {
+  const sent = tester(); const c = sent.figures.find((f) => f.kind === "pc"); Object.assign(c, { cls: "cleric", weaponId: "sword", missile: "longbow" });
+  const store = memoryStore(), svc = createFightService({ rules, store, now: () => 1, newSeed: () => 3 });
+  const r = await svc.create({ uid: "ref", data: { cid: "c6", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(sent), control: {} } });
+  assert.equal(r.ok, false); assert.match(r.error, /cleric/);
+  Object.assign(c, { weaponId: "mace", missile: "sling" });
+  const r2 = await svc.create({ uid: "ref", data: { cid: "c6", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(sent), control: {} } });
+  assert.equal(r2.ok, true, r2.error);
+});

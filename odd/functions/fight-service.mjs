@@ -96,6 +96,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       if (!people[who.uid]) people[who.uid] = { name: String(who.name || email).slice(0, 60), color: PLAYER_COLOURS[(Object.keys(people).length - 1) % PLAYER_COLOURS.length] };
     }
     state.people = people;
+    const wrong = fightStart.setupProblems(state);
+    if (wrong.length) return refuse("bad-request", wrong.join("; "));
     // The server rolls every opening die (hit points, coins, languages) from its own seed: whatever the page rolled is discarded.
     const { rng, event: opened } = fightStart.openFight(state, newSeed());
     const events = [opened, { type: "round", round: state.round ?? 0 }];

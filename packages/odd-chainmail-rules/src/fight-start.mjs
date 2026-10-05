@@ -15,7 +15,7 @@ import { slotsFor } from "./spell-progression.mjs";
 import { emptyInventory, inventoryFromTreasure } from "./inventory.mjs";
 import { carriedCoins, rollTreasure, LAIR_EXTRAS, treasureValue } from "./treasure.mjs";
 import { characterLanguages, groupLanguages } from "./reactions.mjs";
-import { weaponItem } from "./orders.mjs";
+import { weaponItem, weaponProblems } from "./orders.mjs";
 import { seedFight } from "./fight-store.mjs";
 import { AMMO_TYPE, STARTING_AMMO, ammoItem } from "./missiles.mjs";
 
@@ -48,6 +48,9 @@ export function rollHp(f, rng) {
   f.hpRolls = rolls; f.hdLeft = hd.count;
   return Math.max(1, sum);
 }
+
+/** What stops a fight set up on the board from opening (a class using weapons it may not): [] when none. */
+export const setupProblems = (state) => state.figures.flatMap(weaponProblems);
 
 /**
  * Open a fight set up on the board: seed its dice, roll hit points, carried

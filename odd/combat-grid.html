@@ -402,7 +402,7 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 
@@ -512,8 +512,16 @@ function deploy() {
 }
 
 /* ---------- figures ---------- */
+/** Book I: a cleric takes no edged weapon and no bow or crossbow; anything else is swapped (a mace) or dropped, with a note. */
+function clericArms(cls, weaponId, missile, spare) {
+  if (cls !== "cleric") return { weaponId, missile, spare };
+  const p = { cls }, out = { weaponId: od.weaponOk(p, weaponId) ? weaponId : "mace", missile: od.missileOk(p, missile) ? missile : "", spare: od.weaponOk(p, spare) ? spare : "" };
+  if (out.weaponId !== weaponId || out.missile !== missile || out.spare !== spare) $("#dragInfo").textContent = "Clerics use no edged weapons and no bows or crossbows (Book I): given a mace, and a sling is allowed.";
+  return out;
+}
 function addCharacter(side, cls, level, armorId, weaponId, dex = 10, missile = "", alignment = "law", int = 10, purse = 0, cha = 10, race = "human", spare = "") {
   const c = CLASSES.find((x) => x.id === cls);
+  ({ weaponId, missile, spare } = clericArms(cls, weaponId, missile, spare));
   const n = state.figures.filter((f) => f.side === side && f.cls === cls).length + 1;
   state.figures.push({ id: state.nextId++, side, kind: "pc", name: `${c.label} ${n}`, cls, level, armor: armorId, ac: ARMOR.find((a) => a.id === armorId).ac, weaponId, dex, missile, alignment, int, purse, cha, race, spare, stance: "attack", target: null, action: "melee" });
 }
@@ -1229,6 +1237,8 @@ function logAppend(html) { const log = $("#log"); log.insertAdjacentHTML("before
 function startFight() {
   if (!state.figures.some((f) => f.side === "A") || !state.figures.some((f) => f.side === "B")) return;
   if (online.on && !online.api?.user) { $("#onlineNote").textContent = "Sign in first (Setup), or switch Play to this page."; openDrawer("setup"); return; }
+  const wrong = fightStart.setupProblems(state);
+  if (wrong.length) { $("#dragInfo").innerHTML = `<span class="bad">${esc(wrong.join("; "))}.</span>`; return; }
   const seed = Math.trunc(Number($("#seed").value)) || 1;
   localUndo.length = 0;
   state.saved = state.figures.map((f) => ({ id: f.id, x: f.x, y: f.y, facing: f.facing }));
@@ -1395,7 +1405,8 @@ function renderMini() {
 const opts = (list, sel) => list.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(sel) ? " selected" : ""}>${esc(l)}</option>`).join("");
 /** Inline editor for one figure in setup: everything chosen when it was added, plus its name and side. */
 function editorRow(f) {
-  const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
+  const weapons = Object.keys(WEAPON_CLASS).filter((w) => od.weaponOk(f, w)).map((w) => [w, WEAPON_LABEL[w]]);
+  const missiles = MISSILES.filter(([m]) => od.missileOk(f, m));
   const num = (k, v, min, max, w = "4em") => `<label>${k} <input data-ed="${k.toLowerCase()}" type="number" min="${min}" max="${max}" value="${v}" style="width:${w}"></label>`;
   const common = `<label>Name <input data-ed="name" value="${esc(f.name)}" maxlength="40" style="width:11em"></label>
     <select data-ed="side" aria-label="Side">${opts([["A", "Side A"], ["B", "Side B"]], f.side)}</select>`;
@@ -1404,7 +1415,7 @@ function editorRow(f) {
     ${num("Level", f.level, 1, 14)}
     <select data-ed="armor" aria-label="Armour">${opts(ARMOR.map((a) => [a.id, a.label]), f.armor)}</select>
     <select data-ed="weapon" aria-label="Weapon">${opts(weapons, f.weaponId)}</select>
-    <select data-ed="missile" aria-label="Missile weapon">${opts(MISSILES, f.missile ?? "")}</select>
+    <select data-ed="missile" aria-label="Missile weapon">${opts(missiles, f.missile ?? "")}</select>
     <select data-ed="spare" aria-label="Spare weapon">${opts([["", "No spare"], ...weapons.map(([w, l]) => [w, `Spare: ${l}`])], f.spare ?? "")}</select>
     ${num("Dex", f.dex ?? 10, 3, 18)} ${num("Int", f.int ?? 10, 3, 18)} ${num("Cha", f.cha ?? 10, 3, 18)}
     <select data-ed="race" aria-label="Race">${opts([["human", "Human"], ["elf", "Elf"], ["dwarf", "Dwarf"], ["halfling", "Halfling"]], f.race ?? "human")}</select>
@@ -1433,6 +1444,7 @@ function saveEdit(id) {
     f.cls = v("cls"); f.level = clamp(v("level"), 1, 14, 1); f.armor = v("armor"); f.ac = ARMOR.find((a) => a.id === f.armor).ac;
     f.weaponId = v("weapon"); f.missile = v("missile") || ""; f.spare = v("spare") || ""; f.dex = clamp(v("dex"), 3, 18, 10); f.int = clamp(v("int"), 3, 18, 10); f.cha = clamp(v("cha"), 3, 18, 10);
     f.race = v("race"); f.alignment = v("alignment"); f.purse = clamp(v("purse"), 0, 100000, 0);
+    Object.assign(f, clericArms(f.cls, f.weaponId, f.missile, f.spare));
     if (f.action === "passthrough" && !f.missile) f.action = "melee";
   } else {
     const key = v("monster");

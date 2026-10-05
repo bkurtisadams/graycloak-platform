@@ -56,6 +56,24 @@ export function setTreasure(state, holder, value, isChest) {
   return { ok: true };
 }
 export const WEAPON_LABEL = Object.freeze({ dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe", morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd", twohanded: "Two-handed sword", lance: "Lance", pike: "Pike" });
+/**
+ * Book I: clerics use no edged weapons, and no arrows. Read as the blunt
+ * weapons (mace, morning star, flail) and, of missiles, the sling only
+ * (Kurt, Oct 2026: slings allowed). Bows and crossbows are out.
+ */
+export const CLERIC_WEAPONS = Object.freeze(["mace", "morningstar", "flail"]);
+export const CLERIC_MISSILES = Object.freeze(["sling"]);
+export const weaponOk = (f, id) => !id || f?.cls !== "cleric" || CLERIC_WEAPONS.includes(id);
+export const missileOk = (f, id) => !id || f?.cls !== "cleric" || CLERIC_MISSILES.includes(id);
+/** What a character carries into a fight that his class may not use: [] when all is well. */
+export function weaponProblems(f) {
+  if (f?.kind !== "pc" || f.cls !== "cleric") return [];
+  const out = [];
+  if (!weaponOk(f, f.weaponId)) out.push(`${f.name} is a cleric: no ${(WEAPON_LABEL[f.weaponId] ?? f.weaponId).toLowerCase()} (no edged weapons)`);
+  if (!weaponOk(f, f.spare)) out.push(`${f.name} is a cleric: no spare ${(WEAPON_LABEL[f.spare] ?? f.spare).toLowerCase()} (no edged weapons)`);
+  if (!missileOk(f, f.missile)) out.push(`${f.name} is a cleric: no bows or crossbows (a sling is allowed)`);
+  return out;
+}
 export const weaponItem = (id) => ({ kind: "weapon", weaponId: id, name: WEAPON_LABEL[id] ?? id, unidName: WEAPON_LABEL[id] ?? "a weapon", identified: true, weight: EQUIPMENT_BY_KEY[id]?.system?.weight ?? 50 });
 
 const byId = (state, id) => state.figures.find((f) => f.id === id);
@@ -121,7 +139,7 @@ export function setOrders(state, f, o = {}) {
 export function drawable(state, f) {
   if (state.phase !== "fight" || f.kind !== "pc" || !active(f) || state.step !== `move-${f.side}`) return [];
   if ((f.moved ?? 0) > Math.floor(moveBudget(moveInches(f)) / 2)) return [];
-  return (f.inv?.items ?? []).map((item, index) => ({ item, index })).filter((x) => x.item.kind === "weapon" && x.item.weaponId && x.item.weaponId !== f.weaponId && WEAPON_CLASS[x.item.weaponId] != null);
+  return (f.inv?.items ?? []).map((item, index) => ({ item, index })).filter((x) => x.item.kind === "weapon" && x.item.weaponId && x.item.weaponId !== f.weaponId && WEAPON_CLASS[x.item.weaponId] != null && weaponOk(f, x.item.weaponId));
 }
 export function drawWeapon(state, f, index) {
   if (!f) return { ok: false, events: [], error: "no such figure" };
@@ -204,6 +222,15 @@ function runSelfTests() {
     const c = { id: 1, monsterKey: "orc", original: { coins: { cp: 0, sp: 0, gp: 5 }, items: [] }, inv: null };
     const s2 = { phase: "setup", figures: [], chests: [c] };
     ok(setTreasure(s2, c, { coins: { gp: 500 } }, true).ok && c.set && c.original.coins.gp === 500 && c.value === 500, "in Setup a hoard the referee sets is what the fight opens with");
+  }
+  {
+    const c = { kind: "pc", cls: "cleric", name: "Cleric 1", weaponId: "mace", spare: "flail", missile: "sling" };
+    ok(weaponProblems(c).length === 0, "a cleric with mace, flail and sling is fine");
+    ok(weaponProblems({ ...c, weaponId: "sword", missile: "longbow" }).length === 2 && weaponProblems({ ...c, spare: "dagger" }).length === 1, "no sword, no bow, no spare dagger");
+    ok(weaponProblems({ ...c, cls: "fighter", weaponId: "sword", missile: "longbow" }).length === 0, "fighters use anything");
+    const f = { id: 1, side: "A", kind: "pc", cls: "cleric", name: "C", x: 1, y: 1, placed: true, hp: 5, maxHp: 5, weaponId: "mace", moved: 0, inv: { coins: {}, items: [weaponItem("sword"), weaponItem("flail")] } };
+    const s = { phase: "fight", step: "move-A", figures: [f] };
+    ok(drawable(s, f).map((x) => x.item.weaponId).join() === "flail", "a cleric who picked up a sword can't draw it, only the flail");
   }
   console.log(`orders.mjs — all self-tests passed (${pass} assertions).`);
 }
