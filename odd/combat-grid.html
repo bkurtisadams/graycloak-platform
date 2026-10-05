@@ -415,7 +415,8 @@ const hpText = (f) => (f.hp == null || f.hpScaled ? null : `${Math.max(f.hp, 0)}
 /** Online: who runs a figure (a uid, "referee" or "game"), and the colour drawn round it. */
 const controllerOfFig = (f) => state.control?.[f.id] ?? null;
 const personOf = (f) => { const c = controllerOfFig(f); return c && c !== "game" ? state.people?.[c] ?? null : null; };
-const ringOf = (f) => (online.on && state.phase !== "setup" ? personOf(f)?.color ?? null : null);
+/** A player's colour round the figures he plays; the referee's and the game's figures stay as they always were. */
+const ringOf = (f) => { const c = controllerOfFig(f); return online.on && state.phase !== "setup" && c && c !== "referee" && c !== "game" ? state.people?.[c]?.color ?? null : null; };
 /** Ready marks (per character, Kurt Oct 2026): who must mark, who has. */
 const movingSide = () => (state.phase === "fight" && state.step?.startsWith("move-") ? state.step.slice(5) : null);
 const needsReady = (f) => f.side === movingSide() && active(f) && controllerOfFig(f) !== "game";
@@ -1222,9 +1223,9 @@ function renderMap() {
     const wedge = `${cx + ux * 6.2 * S},${cy + uy * 6.2 * S} ${cx + ux * 4.1 * S + px2 * 1.9 * S},${cy + uy * 4.1 * S + py2 * 1.9 * S} ${cx + ux * 4.1 * S - px2 * 1.9 * S},${cy + uy * 4.1 * S - py2 * 1.9 * S}`;
     const hpFrac = f.hp == null ? 1 : Math.max(0, f.hp) / f.maxHp;
     parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}${hpText(f) ? `: ${hpText(f)} hp` : f.hpScaled ? (alive(f) ? "" : ": down") : ""}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}>
+      ${ringOf(f) ? `<circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2 + 0.6}" fill="none" stroke="${ringOf(f)}" stroke-width="1.2" pointer-events="none"/>${PLAYER && f.mine ? `<g pointer-events="none"><rect x="${cx - 4.4}" y="${cy - 7.4 * S - 4.4}" width="8.8" height="3.6" rx=".6" fill="${ringOf(f)}"/><text x="${cx}" y="${cy - 7.4 * S - 1.8}" text-anchor="middle" font-size="2.8" font-family="var(--type)" font-weight="700" fill="#fbfdfe">YOU</text></g>` : ""}` : ""}
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.1"/>` : ""}
       ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--target)" stroke-width="1" stroke-dasharray="2.4 1.6" pointer-events="none"/>` : ""}
-      ${ringOf(f) ? `<circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2 + 1.1}" fill="none" stroke="${ringOf(f)}" stroke-width="1.6" pointer-events="none"/>${PLAYER && f.mine ? `<circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2 + 3}" fill="none" stroke="${ringOf(f)}" stroke-width="1" pointer-events="none"/><g pointer-events="none"><rect x="${cx - 4.4}" y="${cy - 6.4 * S - 6.6}" width="8.8" height="3.6" rx=".6" fill="${ringOf(f)}"/><text x="${cx}" y="${cy - 6.4 * S - 4}" text-anchor="middle" font-size="2.8" font-family="var(--type)" font-weight="700" fill="#fbfdfe">YOU</text></g>` : ""}` : ""}
       <circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".7"/>
       <polygon points="${wedge}" fill="#fff" pointer-events="none"/>
       <text x="${cx}" y="${cy + 1.9 * Math.min(S, 2)}" text-anchor="middle" font-size="${5.2 * Math.min(S, 2)}" font-family="var(--serif)" font-weight="700" fill="#fff" pointer-events="none">${esc(tokenLabel(f))}</text>
