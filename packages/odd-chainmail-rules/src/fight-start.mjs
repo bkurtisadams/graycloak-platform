@@ -2,8 +2,8 @@
  * OD&D — opening a fight: every die rolled before the first round
  * odd-chainmail-rules · src/fight-start.mjs
  *
- * Slice 5, pass 2 (Oct 2026). Hit points, the coins monsters carry and each
- * monster group's languages are rolled here, from the fight's seed, so the
+ * Slice 5, pass 2 (Oct 2026). Hit points, the coins monsters carry, each
+ * monster group's languages and lair hoards are rolled here, from the fight's seed, so the
  * server rolls them for an online fight (clients never roll dice that change
  * state) and local play rolls them the same way it always has: the same seed
  * gives the same fight.
@@ -12,13 +12,27 @@ import { MONSTERS } from "./monsters.mjs";
 import { hitDiceFor } from "./hit-dice.mjs";
 import { sumHitDice, mulberry32 } from "./dice.mjs";
 import { slotsFor } from "./spell-progression.mjs";
-import { emptyInventory } from "./inventory.mjs";
-import { carriedCoins } from "./treasure.mjs";
+import { emptyInventory, inventoryFromTreasure } from "./inventory.mjs";
+import { carriedCoins, rollTreasure, LAIR_EXTRAS, treasureValue } from "./treasure.mjs";
 import { characterLanguages, groupLanguages } from "./reactions.mjs";
 import { weaponItem } from "./orders.mjs";
 import { seedFight } from "./fight-store.mjs";
 
 const mon = (f) => (f.kind === "monster" ? MONSTERS.find((m) => m.key === f.monsterKey) : null);
+
+/**
+ * A lair hoard: the monster's treasure type rolled with the fight's seed (the
+ * nth hoard on the board gets its own stream), plus any lair extras. Null if
+ * the monster keeps no lair treasure. Lair data lives with the fight on the
+ * server; the referee can change it (GM tool "treasure", Kurt Oct 2026).
+ */
+export function rollLairHoard(monsterKey, seed, n) {
+  const m = MONSTERS.find((x) => x.key === monsterKey); const type = m?.reference?.treasureType;
+  if (!type) return null;
+  const t = rollTreasure(type === "A" ? "A-land" : type, mulberry32(seed + 7919 * n));
+  const extra = LAIR_EXTRAS[monsterKey]; if (extra) t.coins.gp += extra.gp;
+  return { type, label: `${m.name} hoard (type ${type})`, inv: inventoryFromTreasure(t), value: treasureValue(t) };
+}
 
 /** One figure's hit points: a character's hit dice by class and level, a monster's by its book entry. */
 export function rollHp(f, rng) {
@@ -43,13 +57,18 @@ export function rollHp(f, rng) {
 export function openFight(state, seed) {
   const rng = seedFight(state, seed);
   for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; f.hp = rollHp(f, rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
-  for (const f of state.figures) { f.inv = emptyInventory(); f.remains = null; if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, rng)); }
-  for (const f of state.figures) { f.lastResult = null; f.lastTaken = null; f.startWeaponId = f.weaponId; f.weaponBroken = false; if (f.kind === "pc" && f.spare) f.inv.items.push(weaponItem(f.spare)); }
-  for (const c of state.chests ?? []) c.inv = JSON.parse(JSON.stringify(c.original));
+  // a figure whose treasure the referee set in Setup keeps it; everyone else's is rolled
+  for (const f of state.figures) { f.remains = null; if (f.invSet && f.inv) continue; f.inv = emptyInventory(); if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, rng)); }
+  for (const f of state.figures) { f.lastResult = null; f.lastTaken = null; f.startWeaponId = f.weaponId; f.weaponBroken = false; if (f.kind === "pc" && f.spare && !f.invSet) f.inv.items.push(weaponItem(f.spare)); }
+  // hoards: rolled here from the fight's seed unless the referee set what's in them
+  for (const c of state.chests ?? []) {
+    if (c.monsterKey && !c.set) { const h = rollLairHoard(c.monsterKey, seed, c.id); if (h) Object.assign(c, { label: h.label, original: h.inv, value: h.value }); }
+    c.inv = JSON.parse(JSON.stringify(c.original));
+  }
   const erng = mulberry32(seed + 104729); state.encounter = new Map(); state.meleeBegun = false; state.lairNoted = new Set();
   for (const f of state.figures) {
     Object.assign(f, { averted: false, mirror: false, risesAs: null, lastHitBy: null, serviceClosed: false, serviceTries: 0, retainer: false });
-    if (f.kind === "pc") { f.inv.coins.gp += f.purse ?? 0; const l = characterLanguages({ alignment: f.alignment ?? "law", int: f.int ?? 10 }); f.languages = l.known.slice(); f.langSlots = l.unfilled; continue; }
+    if (f.kind === "pc") { if (!f.invSet) f.inv.coins.gp += f.purse ?? 0; const l = characterLanguages({ alignment: f.alignment ?? "law", int: f.int ?? 10 }); f.languages = l.known.slice(); f.langSlots = l.unfilled; continue; }
     const k = `${f.side}:${f.monsterKey}`;
     if (!state.encounter.has(k)) state.encounter.set(k, { key: k, side: f.side, monsterKey: f.monsterKey, ...groupLanguages(mon(f).mind, erng), reaction: null, holdRound: null });
   }
@@ -77,6 +96,17 @@ function runSelfTests() {
   ok(a.phase === "fight" && a.step === "init" && a.round === 0 && a.encounter.has("B:orc") && a.rngState, "stands at round 0 with its dice seeded and the orcs' group");
   ok(ra.event.type === "opened" && ra.event.hp.length === 3 && !("seed" in ra.event) && ra.event.encounter[0].monsterKey === "orc", "the opened event lists hit points and groups, not the seed");
   ok(typeof ra.rng === "function" && rb.rng() === ra.rng(), "returns the fight's RNG, carrying on from the opening rolls");
+  {
+    const withHoard = (seed) => { const st = board(); st.chests = [{ id: 1, x: 18, y: 5, monsterKey: "orc", label: "x", original: { coins: { cp: 0, sp: 0, gp: 0 }, items: [] }, inv: null, value: 0 }]; openFight(st, seed); return st.chests[0]; };
+    const h1 = withHoard(1974), h2 = withHoard(1974), h3 = withHoard(2001), r = rollLairHoard("orc", 1974, 1);
+    ok(JSON.stringify(h1.inv) === JSON.stringify(h2.inv) && JSON.stringify(h1.inv) === JSON.stringify(r.inv) && h1.label === r.label, "a hoard is rolled from the fight's seed, the same way placing it does");
+    ok(JSON.stringify(h1.original) !== JSON.stringify(h3.original) || h1.value !== h3.value, "the server's own seed rolls its own hoard");
+    const st = board(); st.chests = [{ id: 1, x: 18, y: 5, monsterKey: "orc", set: true, label: "Orc hoard", original: { coins: { cp: 0, sp: 0, gp: 7 }, items: [] }, value: 7 }];
+    openFight(st, 1974); ok(st.chests[0].inv.coins.gp === 7, "a hoard the referee set is kept as he set it");
+    const st2 = board(); Object.assign(st2.figures[1], { invSet: true, inv: { coins: { cp: 0, sp: 0, gp: 99 }, items: [] } });
+    openFight(st2, 1974); ok(st2.figures[1].inv.coins.gp === 99, "so is a monster's own treasure");
+    ok(rollLairHoard("skeleton", 1, 1) === null || rollLairHoard("skeleton", 1, 1).inv, "a monster with no treasure type has no hoard");
+  }
   console.log(`fight-start.mjs — all self-tests passed (${pass} assertions).`);
 }
 

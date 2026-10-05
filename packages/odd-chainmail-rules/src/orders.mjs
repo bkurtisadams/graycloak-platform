@@ -20,10 +20,41 @@ import { moveInches, allowanceOf } from "./movement.mjs";
 import { combatSpellsFor, HOLD_PERSON_MAX } from "./casting.mjs";
 import { missileBand, missileRange, WEAPON_CLASS } from "./tables.mjs";
 import { EQUIPMENT_BY_KEY } from "./equipment.mjs";
+import { treasureXpValue } from "./inventory.mjs";
 
 export const STANCES = Object.freeze(["attack", "parry"]);
 export const PLAIN_ACTIONS = Object.freeze(["melee", "hold", "fire", "passthrough"]);
-export const GM_TOOLS = Object.freeze(["invulnerable", "heal", "set-hp", "clear", "kill", "burn"]);
+export const GM_TOOLS = Object.freeze(["invulnerable", "heal", "set-hp", "clear", "kill", "burn", "treasure"]);
+
+/**
+ * The referee sets what a figure or a hoard holds (Kurt, Oct 2026): value
+ * { coins: { cp, sp, gp }, remove: [item indexes], add: [{ name, weight, valueGp }] }. In Setup
+ * it also becomes what the fight opens with (the server then keeps it rather
+ * than rolling); during a fight it changes what is there now.
+ */
+export function setTreasure(state, holder, value, isChest) {
+  if (!holder) return { ok: false, error: isChest ? "no such hoard" : "no such figure" };
+  const v = value ?? {};
+  const inv = isChest ? (holder.inv ?? JSON.parse(JSON.stringify(holder.original ?? { coins: {}, items: [] }))) : (holder.inv ?? { coins: { cp: 0, sp: 0, gp: 0 }, items: [] });
+  if (v.coins != null) {
+    for (const k of ["cp", "sp", "gp"]) if (k in v.coins) {
+      const n = Math.trunc(Number(v.coins[k]));
+      if (!Number.isFinite(n) || n < 0) return { ok: false, error: `coins must be whole numbers, 0 or more (${k})` };
+      inv.coins[k] = n;
+    }
+  }
+  const remove = new Set((v.remove ?? []).map(Number));
+  if ([...remove].some((i) => !Number.isInteger(i) || i < 0 || i >= inv.items.length)) return { ok: false, error: "no such item to remove" };
+  inv.items = inv.items.filter((_, i) => !remove.has(i));
+  for (const it of v.add ?? []) {
+    if (!it || typeof it.name !== "string" || !it.name.trim()) return { ok: false, error: "an added item needs a name" };
+    inv.items.push({ kind: String(it.kind ?? "gear"), name: it.name.trim().slice(0, 80), unidName: it.name.trim().slice(0, 80), identified: true, weight: Math.max(0, Math.trunc(Number(it.weight) || 0)), ...(it.valueGp != null ? { valueGp: Math.max(0, Number(it.valueGp) || 0) } : {}) });
+  }
+  holder.inv = inv;
+  if (isChest) holder.value = treasureXpValue(inv);
+  if (state.phase === "setup") { if (isChest) { holder.original = JSON.parse(JSON.stringify(inv)); holder.set = true; } else holder.invSet = true; }
+  return { ok: true };
+}
 export const WEAPON_LABEL = Object.freeze({ dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe", morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd", twohanded: "Two-handed sword", lance: "Lance", pike: "Pike" });
 export const weaponItem = (id) => ({ kind: "weapon", weaponId: id, name: WEAPON_LABEL[id] ?? id, unidName: WEAPON_LABEL[id] ?? "a weapon", identified: true, weight: EQUIPMENT_BY_KEY[id]?.system?.weight ?? 50 });
 
@@ -112,6 +143,7 @@ export function gmTool(state, f, tool, value) {
   else if (tool === "set-hp") { const n = Math.trunc(Number(value)); if (!Number.isFinite(n)) return { ok: false, events: [], error: "no hit points given" }; f.hp = n; if (n > (f.maxHp ?? 0)) f.maxHp = n; }
   else if (tool === "clear") { f.status = null; f.paralyzedUntil = null; if (f.charmed) { f.charmed = false; if (!f.retainer) { f.side = f.origSide ?? f.side; released(state, f); } } f.target = null; }
   else if (tool === "kill") { f.hp = 0; f.target = null; }
+  else if (tool === "treasure") { const r = setTreasure(state, f, value, false); if (!r.ok) return { ok: false, events: [], error: r.error }; }
   else if (tool === "burn") { if (f.monsterKey !== "troll") return { ok: false, events: [], error: "only a troll needs burning" }; f.burned = true; }
   return { ok: true, events: [{ type: "gm", id: f.id, name: f.name, tool, value: tool === "invulnerable" ? !!value : tool === "set-hp" ? f.hp : null }] };
 }
@@ -162,6 +194,16 @@ function runSelfTests() {
     ok(gmTool(s, troll, "burn").ok && troll.burned && !gmTool(s, f, "burn").ok, "burn a troll; nobody else");
     const g = fig(3, "A", 9); s.figures.push(g); s.phase = "fight";
     ok(setOrders(s, g, { averted: true }).ok && g.averted && !setOrders(s, g, { mirror: "yes" }).ok, "avert the eyes; a mirror is yes or no");
+  }
+  {
+    const o = { id: 9, side: "B", kind: "monster", monsterKey: "orc", name: "Orc 9", hp: 3, inv: { coins: { cp: 0, sp: 5, gp: 2 }, items: [{ kind: "gem", name: "Gem", value: 10 }, { kind: "weapon", name: "Axe" }] } };
+    const s = { phase: "fight", figures: [o] };
+    ok(gmTool(s, o, "treasure", { coins: { gp: 40 }, remove: [0], add: [{ name: "Silver idol", kind: "gear", weight: 20, valueGp: 300 }] }).ok, "the referee sets a figure's treasure");
+    ok(o.inv.coins.gp === 40 && o.inv.coins.sp === 5 && o.inv.items.length === 2 && o.inv.items[0].name === "Axe" && o.inv.items[1].valueGp === 300 && !o.invSet, "coins set, the gem gone, the idol added; mid-fight it's not a Setup choice");
+    ok(!gmTool(s, o, "treasure", { coins: { gp: -1 } }).ok && !gmTool(s, o, "treasure", { remove: [7] }).ok && !gmTool(s, o, "treasure", { add: [{ name: " " }] }).ok, "bad coins, items or names are refused");
+    const c = { id: 1, monsterKey: "orc", original: { coins: { cp: 0, sp: 0, gp: 5 }, items: [] }, inv: null };
+    const s2 = { phase: "setup", figures: [], chests: [c] };
+    ok(setTreasure(s2, c, { coins: { gp: 500 } }, true).ok && c.set && c.original.coins.gp === 500 && c.value === 500, "in Setup a hoard the referee sets is what the fight opens with");
   }
   console.log(`orders.mjs — all self-tests passed (${pass} assertions).`);
 }

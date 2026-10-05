@@ -618,18 +618,42 @@ const searchable = (pc) => {
   return out;
 };
 function placeHoard(monsterKey) {
-  const m = MONSTERS.find((x) => x.key === monsterKey); const type = m?.reference?.treasureType;
-  if (!type) return false;
-  const seed = (Math.trunc(Number($("#seed").value)) || 1) + 7919 * (state.chests.length + 1);
-  const t = rollTreasure(type === "A" ? "A-land" : type, mulberry32(seed));
-  const extra = LAIR_EXTRAS[monsterKey]; if (extra) t.coins.gp += extra.gp;
-  const inv = inventoryFromTreasure(t);
+  // rolled by the rules package from the Setup seed; online the server rolls it again from its own seed unless the referee sets it
+  const n = state.chests.length + 1;
+  const h = fightStart.rollLairHoard(monsterKey, Math.trunc(Number($("#seed").value)) || 1, n);
+  if (!h) return false;
   for (let x = W - 6; x > 0; x--) for (const y of [14, 13, 15, 12, 16]) {
     if (isWall(x, y) || occupant(x, y) || state.chests.some((c) => c.x === x && c.y === y)) continue;
-    state.chests.push({ id: state.chests.length + 1, x, y, monsterKey, label: `${m.name} hoard (type ${type})`, original: JSON.parse(JSON.stringify(inv)), inv, value: treasureValue(t) });
+    state.chests.push({ id: n, x, y, monsterKey, label: h.label, original: JSON.parse(JSON.stringify(h.inv)), inv: h.inv, value: h.value });
     return true;
   }
   return false;
+}
+/** Referee: set what a figure or a hoard holds (coins, take items out, put items in). Sent as GM tool "treasure". */
+function openTreasureEditor(target) {
+  const holder = target.chest != null ? state.chests.find((c) => c.id === target.chest) : byId(target.id);
+  if (!holder) return;
+  const inv = holder.inv ?? holder.original ?? { coins: { cp: 0, sp: 0, gp: 0 }, items: [] };
+  const name = target.chest != null ? holder.label : holder.name;
+  const coin = (k, l) => `<label>${l} <input id="tc-${k}" type="number" min="0" step="1" value="${inv.coins?.[k] ?? 0}" style="width:6.5em"></label>`;
+  const items = (inv.items ?? []).map((it, i) => `<label class="line"><input type="checkbox" data-trm="${i}"> remove ${esc(it.identified === false ? it.unidName ?? it.name : it.name)}${it.valueGp ? ` (${Number(it.valueGp).toLocaleString()} gp)` : ""}</label>`).join("") || `<div class="note">No items.</div>`;
+  $("#lootBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">Treasure: ${esc(name)}</h2><button id="tClose">Close</button></div>
+    <p class="note" style="font-size:.85rem">${state.phase === "setup" ? "Set in Setup, this is what the fight opens with; it isn't rolled again." : "Changes what is there now."} Only you see this.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin:8px 0">${coin("cp", "Copper")}${coin("sp", "Silver")}${coin("gp", "Gold")}</div>
+    <div style="margin:8px 0">${items}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:8px 0"><label>Add item <input id="tAddName" placeholder="Name" style="width:12em"></label><label>Weight <input id="tAddWt" type="number" min="0" value="0" style="width:5em"></label><label>Worth (gp) <input id="tAddVal" type="number" min="0" value="" style="width:6em"></label></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><button id="tSave" class="primary">Save</button></div><div id="tErr" class="bad"></div>`;
+  $("#loot").style.display = "flex";
+  const close = () => { $("#loot").style.display = "none"; render(); };
+  $("#tClose").onclick = close;
+  $("#tSave").onclick = async () => {
+    const value = { coins: Object.fromEntries(["cp", "sp", "gp"].map((k) => [k, Math.trunc(Number($(`#tc-${k}`).value) || 0)])), remove: [...$("#lootBox").querySelectorAll("[data-trm]:checked")].map((b) => Number(b.dataset.trm)) };
+    const nm = $("#tAddName").value.trim();
+    if (nm) value.add = [{ name: nm, weight: Math.trunc(Number($("#tAddWt").value) || 0), ...($("#tAddVal").value !== "" ? { valueGp: Number($("#tAddVal").value) } : {}) }];
+    const r = await runAction({ type: "gm", ...(target.chest != null ? { chest: target.chest } : { id: target.id }), tool: "treasure", value });
+    if (r && r.ok === false) { $("#tErr").textContent = r.error ?? "Not saved."; return; }
+    close();
+  };
 }
 function openLoot(pc, src) {
   if (online.on && state.phase !== "setup") { $("#dragInfo").textContent = "Searching works only when playing in this page for now; it moves to the server with the campaign's treasure."; return; }
@@ -724,7 +748,7 @@ function renderEvents(events) {
     }
     else if (e.type === "order-lapsed") { const was = e.from === "fire" ? "fire" : e.from === "passthrough" ? "pass-through fire" : e.from.startsWith("cast:") ? "spell" : e.from; logAppend(`<div class="card note">${esc(e.name)}'s ${esc(was)} order lapses: ${esc(e.why)}.</div>`); }
     else if (e.type === "draw-weapon") { const w = (id) => esc((WEAPON_LABEL[id] ?? "weapon").toLowerCase()); logAppend(`<div class="card note">${esc(e.name)} ${e.wasBroken ? `drops his broken ${w(e.from)} and draws` : `puts away his ${w(e.from)} and draws`} his ${w(e.to)} (half his move).</div>`); }
-    else if (e.type === "gm") logAppend(`<div class="card note">GM: ${esc(e.name)} ${e.tool === "invulnerable" ? (e.value ? "is now invulnerable" : "is no longer invulnerable") : e.tool === "heal" ? "healed to full" : e.tool === "set-hp" ? `set to ${e.value} hit points` : e.tool === "clear" ? "has his conditions cleared" : e.tool === "kill" ? "killed" : e.tool === "burn" ? "is burned and will not rise again" : e.tool}.</div>`);
+    else if (e.type === "gm") logAppend(`<div class="card note">GM: ${esc(e.name)} ${e.tool === "invulnerable" ? (e.value ? "is now invulnerable" : "is no longer invulnerable") : e.tool === "heal" ? "healed to full" : e.tool === "set-hp" ? `set to ${e.value} hit points` : e.tool === "clear" ? "has his conditions cleared" : e.tool === "kill" ? "killed" : e.tool === "burn" ? "is burned and will not rise again" : e.tool === "treasure" ? "has his treasure set" : e.tool}.</div>`);
     else if (e.type === "leader") logAppend(`<div class="card note">${e.id == null ? `Side ${e.side} has no leader.` : `${esc(e.name)} leads side ${e.side}.`}</div>`);
     else if (e.type === "orders-open") logAppend(`<div class="card note"><b>Round ${e.round}: orders.</b> Declare fire, spells and stance.</div>`);
     else if (e.type === "step-back") logAppend(`<div class="card note">${online.on ? "The referee went back" : "Back"} to ${e.to === "orders" ? "Orders" : `side ${e.to.slice(5)}'s move`}; nothing is reverted.</div>`);
@@ -1513,6 +1537,7 @@ function renderDetail() {
     ${alive(f) && !PLAYER ? `<div style="margin:6px 0"><label title="Chainmail p.20: his own unit +1 a die on morale, units within 12&quot; +1; if he falls, every unit checks at −2"><input type="checkbox" id="leader" ${state.leader?.[f.origSide ?? f.side] === f.id ? "checked" : ""}> Leader of side ${f.origSide ?? f.side}</label></div>` : ""}
     ${PLAYER ? "" : `<div class="gm"><div class="gm-k">GM tools</div>
       <label title="Takes no hit-point damage and can't be killed or drained; other effects (sleep, hold, petrification) still apply"><input type="checkbox" id="gmInv" ${f.invulnerable ? "checked" : ""}> Invulnerable</label>
+      <button id="gmTreasure" title="Set the coins and items this figure carries">Treasure…</button>
       ${state.phase !== "setup" && f.hp != null ? `<button id="gmHeal">Heal to full</button>
       <label>HP <input id="gmHp" type="number" value="${Math.max(f.hp, 0)}" style="width:4.5em"></label><button id="gmSetHp">Set</button>
       <button id="gmClear" title="Wake, free, unpetrify, uncharm; bring back a figure that fled or surrendered">Clear conditions</button>
@@ -1533,6 +1558,7 @@ function renderDetail() {
   $("#gmSetHp")?.addEventListener("click", () => { const n = Math.trunc(Number($("#gmHp").value)); if (Number.isFinite(n)) gm("set-hp", n); });
   $("#gmClear")?.addEventListener("click", () => gm("clear"));
   $("#gmKill")?.addEventListener("click", () => gm("kill"));
+  $("#gmTreasure")?.addEventListener("click", () => openTreasureEditor({ id: f.id }));
   $("#leader")?.addEventListener("change", (e) => { const sd = f.origSide ?? f.side; runAction({ type: "leader", side: sd, id: e.target.checked ? f.id : (state.leader?.[sd] === f.id ? null : state.leader?.[sd] ?? null) }); render(); });
   $("#avert")?.addEventListener("change", (e) => order(f, { averted: e.target.checked }));
   $("#mirror")?.addEventListener("change", (e) => order(f, { mirror: e.target.checked }));
@@ -1959,6 +1985,7 @@ $("#map").addEventListener("contextmenu", (e) => {
     e.preventDefault();
     const side = state.step?.startsWith("move-") ? state.step.slice(5) : null;
     const items = [["Map", null], ["Clear selection", () => { state.selected = null; state.group = new Set(); render(); }]];
+    if (!PLAYER) { const c0 = cellAt(e.clientX, e.clientY), ch = state.chests.find((c) => c.x === c0.x && c.y === c0.y); if (ch) items.push([ch.label, null], ["Treasure…", () => openTreasureEditor({ chest: ch.id })]); }
     if (state.phase === "fight") { if (side) items.push([`Clear side ${side}'s targets`, () => { clearAllTargets(side); render(); }]); items.push(["Clear all targets", () => { clearAllTargets(); render(); }]); }
     ctx.innerHTML = items.map(([l, fn], i) => fn ? `<button role="menuitem" data-i="${i}">${esc(l)}</button>` : `<div class="ctx-h">${esc(l)}</div>`).join("");
     ctx.onclick = (ev) => { const b = ev.target.closest("button"); if (!b) return; hideCtx(); items[Number(b.dataset.i)][1](); };

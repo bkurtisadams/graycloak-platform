@@ -44,7 +44,7 @@ import { passThroughFire, splitMoveFire, canShoot } from "./missiles.mjs";
 import { resolveMeleeRound } from "./melee.mjs";
 import { resolveMissileStep } from "./missile-step.mjs";
 import { parley, offerServiceTo } from "./talk.mjs";
-import { setOrders, drawWeapon, gmTool } from "./orders.mjs";
+import { setOrders, drawWeapon, gmTool, setTreasure } from "./orders.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ORDERS: "orders", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -95,7 +95,8 @@ export const AI_ELECTION = "counter";
  *   { type: "split-fire", id, targetId }        move step: an elf or horse archer shoots in mid-move
  *   { type: "orders", id, ...orders }           any step: target, holdTargets, secondTarget, action, stance, castAim (orders.mjs)
  *   { type: "draw-weapon", id, index }          own move step: draw a carried weapon for half a move
- *   { type: "gm", id, tool, value }             referee: invulnerable, heal, set-hp, clear, kill, burn
+ *   { type: "gm", id, tool, value }             referee: invulnerable, heal, set-hp, clear, kill, burn, treasure
+ *   { type: "gm", chest, tool: "treasure", value } referee: what a hoard holds
  *   { type: "leader", side, id }                referee: the side's leader (Chainmail p.20); id null for none
  * Orders, GM tools and the leader may also be set during setup.
  */
@@ -275,6 +276,14 @@ function applyStep(state, action, rng) {
       return r.ok ? { ok: true, events: r.events } : fail(r.error);
     }
     case "gm": {
+      if (action.chest != null) { // the referee sets what a hoard holds
+        if (action.tool !== "treasure") return fail("only treasure can be set on a hoard");
+        const c = (state.chests ?? []).find((x) => x.id === action.chest);
+        const r = setTreasure(state, c, action.value, true);
+        if (!r.ok) return fail(r.error);
+        events.push({ type: "gm", chest: c.id, name: c.label, tool: "treasure", value: null });
+        return { ok: true, events };
+      }
       const r = gmTool(state, byId(action.id), action.tool, action.value);
       if (!r.ok) return fail(r.error);
       events.push(...r.events);

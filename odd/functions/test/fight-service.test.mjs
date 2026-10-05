@@ -151,6 +151,22 @@ test("the server rolls the opening dice: hit points from its own seed, not the p
   assert.deepEqual(fightStore.fromStored(again.docs.get(p.initial)).figures.map((f) => f.hp), init.figures.map((f) => f.hp), "the same server seed gives the same hit points, whatever the page sent");
 });
 
+test("the server rolls lair hoards too, unless the referee set them in Setup", async () => {
+  const sent = tester();
+  sent.chests = [
+    { id: 1, x: 25, y: 2, monsterKey: "orc", label: "Orc hoard (type D)", original: { coins: { cp: 0, sp: 0, gp: 1 }, items: [] }, value: 1 },
+    { id: 2, x: 25, y: 3, monsterKey: "orc", set: true, label: "Orc hoard (type D)", original: { coins: { cp: 0, sp: 0, gp: 777 }, items: [] }, value: 777 }];
+  const store = memoryStore();
+  const svc = createFightService({ rules, store, now: () => 1, newSeed: () => 11 });
+  const r = await svc.create({ uid: "ref", data: { cid: "c8", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(sent), control: { 3: "game", 4: "game" } } });
+  assert.equal(r.ok, true, r.error);
+  const st = fightStore.fromStored(store.docs.get(fightPaths("c8", "f1").state));
+  assert.deepEqual(st.chests[0].inv, rules.fightStart.rollLairHoard("orc", 11, 1).inv, "an unset hoard is rolled from the server's seed");
+  assert.equal(st.chests[1].inv.coins.gp, 777, "a hoard the referee set is kept");
+  const bob = store.docs.get(fightPaths("c8", "f1").view("bob"));
+  assert.ok(!bob || !("chests" in bob), "players never see the hoards");
+});
+
 test("players are named by email; the server finds their accounts", async () => {
   const store = memoryStore();
   const accounts = { "bob@example.com": { uid: "uid-bob", name: "Bob" }, "ann@example.com": { uid: "uid-ann", name: "Ann" }, "gm@example.com": "ref" };
