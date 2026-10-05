@@ -118,7 +118,7 @@ export function mayAct(state, who, action) {
 
 export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready", "orders-open", "step-back", "forced", "undo", "undo-move"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
-export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm", "leader"]);
+export const REFEREE_EVENTS = Object.freeze(["opened", "behaviour", "morale-exempt", "gm", "leader"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);
 const MORALE_PUBLIC = Object.freeze(["type", "reason", "side", "monsterKey", "name", "leader", "source", "holds", "outcome"]);
 

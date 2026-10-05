@@ -395,7 +395,7 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore
+  fightStore, fightStart
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 
@@ -517,18 +517,6 @@ function addMonsters(side, key, count) {
 }
 const baseLoad = mv.baseLoad, moveInches = mv.moveInches;
 const combatProfile = ml.combatProfile;
-function rollHp(f, rng) {
-  if (f.kind === "pc") {
-    const hd = hitDiceFor(f.cls, f.level); const r = sumHitDice(hd.dice, rng);
-    f.hpRolls = r.dice.length === f.level ? r.dice.slice() : null;
-    return Math.max(1, r.sum + hd.bonus);
-  }
-  const hd = MONSTERS.find((x) => x.key === f.monsterKey).hd; const size = hd.dieSize || 6;
-  let sum = hd.bonus || 0; const rolls = [];
-  for (let i = 0; i < hd.count; i++) { const d = 1 + Math.floor(rng() * size); rolls.push(d); sum += d; }
-  f.hpRolls = rolls; f.hdLeft = hd.count;
-  return Math.max(1, sum);
-}
 const combatant = ml.combatant;
 /* ---------- movement and targeting ---------- */
 const canMoveNow = (f) => mineOk(f) && mv.canMoveNow(state, f);
@@ -721,6 +709,8 @@ function volleyCard(v) {
 function renderEvents(events) {
   for (const e of events) {
     if (e.type === "round") continue;
+    // the server opened the fight (referee only): its rolls, not the ones this page made before sending it
+    if (e.type === "opened") { logAppend(`<div class="card note">Hit points: ${e.hp.map((x) => `${esc(x.name)} ${x.hp}`).join(", ")}.</div>` + encounterCard(e.encounter ?? [])); continue; }
     if (e.type === "initiative") logAppend(`<div class="round-head">Round ${state.round} <span>initiative A ${e.a}, B ${e.b}: side ${e.winner} chooses</span></div>`);
     else if (e.type === "election") logAppend(`<div class="card note">Side ${e.winner} elects to move ${e.choice === "counter" ? "last" : "first"}${e.ai ? " (by behaviour)" : ""}: side ${e.firstSide} moves first.</div>`);
     else if (e.type === "volley") logAppend(volleyCard(e));
@@ -1193,23 +1183,14 @@ function startFight() {
   if (!state.figures.some((f) => f.side === "A") || !state.figures.some((f) => f.side === "B")) return;
   if (online.on && !online.api?.user) { $("#onlineNote").textContent = "Sign in first (Setup), or switch Play to this page."; openDrawer("setup"); return; }
   const seed = Math.trunc(Number($("#seed").value)) || 1;
-  state.rng = fightStore.seedFight(state, seed); localUndo.length = 0;
+  localUndo.length = 0;
   state.saved = state.figures.map((f) => ({ id: f.id, x: f.x, y: f.y, facing: f.facing }));
-  for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
-  for (const f of state.figures) { f.inv = emptyInventory(); f.remains = null; if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, state.rng)); }
-  for (const f of state.figures) { f.lastResult = null; f.lastTaken = null; f.startWeaponId = f.weaponId; f.weaponBroken = false; if (f.kind === "pc" && f.spare) f.inv.items.push(weaponItem(f.spare)); }
-  for (const c of state.chests ?? []) c.inv = JSON.parse(JSON.stringify(c.original));
-  state.erng = mulberry32(seed + 104729); state.encounter = new Map(); state.meleeBegun = false; state.lairNoted = new Set();
-  for (const f of state.figures) {
-    Object.assign(f, { averted: false, mirror: false, risesAs: null, lastHitBy: null, serviceClosed: false, serviceTries: 0, retainer: false });
-    if (f.kind === "pc") { f.inv.coins.gp += f.purse ?? 0; const l = characterLanguages({ alignment: f.alignment ?? "law", int: f.int ?? 10 }); f.languages = l.known.slice(); f.langSlots = l.unfilled; continue; }
-    const k = `${f.side}:${f.monsterKey}`;
-    if (!state.encounter.has(k)) state.encounter.set(k, { key: k, side: f.side, monsterKey: f.monsterKey, ...groupLanguages(mon(f).mind, state.erng), reaction: null, holdRound: null });
-  }
-  Object.assign(state, { phase: "fight", round: 0, step: "init", contacts: new Map(), winner: null, moraleChecked: new Set(), fearChecked: new Set(), leaderLostDone: {}, moveSeq: 0 });
+  // the opening rolls (hit points, carried coins, languages) live in the rules package; online, the server rolls them again
+  const opened = fightStart.openFight(state, seed); state.rng = opened.rng;
   logAppend(`<div class="round-head">New fight</div>`);
   $("#log").querySelector(".empty")?.remove();
-  logAppend(`<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>` + encounterCard());
+  if (online.on) logAppend(`<div class="card note">Opening the fight on the server; it rolls hit points, coins and languages.</div>`);
+  else logAppend(`<div class="card note">Seed ${seed}. Hit points: ${state.figures.map((f) => `${esc(f.name)} ${f.hp}`).join(", ")}.</div>` + encounterCard());
   render();
   if (online.on) createOnline();
 }
@@ -1829,8 +1810,8 @@ function behave(side) { runAction({ type: "behave", side }); render(); }
 
 /* ---------- encounter: languages, parley, offer of service ---------- */
 const LANG_LABEL = tk.languageLabel;
-function encounterCard() {
-  const rows = [...(state.encounter ?? new Map()).values()].map((g) => {
+function encounterCard(groups = [...(state.encounter ?? new Map()).values()]) {
+  const rows = groups.map((g) => {
     const m = MONSTERS.find((x) => x.key === g.monsterKey);
     const mind = `${PROFILE_LABEL[m.mind.intelligence]}`;
     const speech = !m.mind.language ? "doesn't speak" : !g.talks ? `doesn't speak (talk roll ${g.talkRoll} over ${m.mind.talks}%)` : `speaks ${g.languages.map(LANG_LABEL).join(" and ")}${g.commonRoll != null ? ` (common roll ${g.commonRoll})` : ""}`;

@@ -45,9 +45,9 @@ const pc = (id, x, y) => ({ id, side: "A", origSide: "A", name: `Hero ${id}`, ki
 const orc = (id, x, y) => ({ id, side: "B", origSide: "B", name: `Orc ${id}`, kind: "monster", monsterKey: "orc", ac: 6, x, y, placed: true, hp: 5, maxHp: 5, stance: "attack", target: null, action: "melee" });
 const tester = () => ({ phase: "fight", round: 0, step: "init", width: 30, height: 10, walls: open(30, 10), contacts: new Map(), chests: [], leader: { A: null, B: null }, encounter: new Map(), figures: [pc(1, 4, 5), pc(2, 4, 6), orc(3, 20, 5), orc(4, 20, 6)], selected: 1 });
 
-async function opened(control = { 1: "kurt", 2: "bob", 3: "game", 4: "game" }) {
+async function opened(control = { 1: "kurt", 2: "bob", 3: "game", 4: "game" }, seed = 5) {
   const store = memoryStore();
-  const svc = createFightService({ rules, store, now: () => 1000, newSeed: () => 5 });
+  const svc = createFightService({ rules, store, now: () => 1000, newSeed: () => seed });
   const r = await svc.create({ uid: "ref", data: { cid: "camp1", fid: "f1", title: "Orc ambush", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control } });
   assert.equal(r.ok, true, r.error);
   return { store, svc, p: fightPaths("camp1", "f1") };
@@ -125,12 +125,30 @@ test("each viewer's feed gets only what that viewer may see", async () => {
 });
 
 test("a fight run by the game on both sides plays one round per action", async () => {
-  const { store, svc, p } = await opened({ 1: "game", 2: "game", 3: "game", 4: "game" });
+  // the server rolls hit points, so pick a seed whose fight is still running once it opens
+  let o; for (let seed = 1; seed < 60; seed++) { o = await opened({ 1: "game", 2: "game", 3: "game", 4: "game" }, seed); if (header(o.store, o.p).phase === "fight") break; }
+  const { store, svc, p } = o;
+  assert.equal(header(store, p).phase, "fight", "found a seed that leaves the fight running");
   const r1 = header(store, p).round;
   const r = await svc.act({ uid: "ref", data: { cid: "camp1", fid: "f1", rev: header(store, p).rev, rules: fightStore.RULES_VERSION, action: { type: "gm", id: 1, tool: "invulnerable", value: true } } });
   assert.equal(r.ok, true, r.error);
   assert.ok(header(store, p).round === r1 + 1 || header(store, p).phase === "over");
   assert.deepEqual(header(store, p).players, []);
+});
+
+test("the server rolls the opening dice: hit points from its own seed, not the page's", async () => {
+  const sent = tester(); for (const f of sent.figures) { f.hp = 999; f.maxHp = 999; }
+  const store = memoryStore();
+  const svc = createFightService({ rules, store, now: () => 1, newSeed: () => 7 });
+  const r = await svc.create({ uid: "ref", data: { cid: "c9", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(sent), control: { 3: "game", 4: "game" } } });
+  assert.equal(r.ok, true, r.error);
+  const p = fightPaths("c9", "f1"), init = fightStore.fromStored(store.docs.get(p.initial));
+  assert.ok(init.figures.every((f) => f.hp !== 999 && f.hp === f.maxHp && f.hp >= 1), "every figure's hit points rolled on the server");
+  const refFeed = store.docs.get(p.feed("referee", 1));
+  assert.ok(refFeed.events.some((e) => e.type === "opened" && e.hp.length === 4), "the referee's log gets the opening rolls");
+  const again = memoryStore(), svc2 = createFightService({ rules, store: again, now: () => 1, newSeed: () => 7 });
+  await svc2.create({ uid: "ref", data: { cid: "c9", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control: { 3: "game", 4: "game" } } });
+  assert.deepEqual(fightStore.fromStored(again.docs.get(p.initial)).figures.map((f) => f.hp), init.figures.map((f) => f.hp), "the same server seed gives the same hit points, whatever the page sent");
 });
 
 test("players are named by email; the server finds their accounts", async () => {

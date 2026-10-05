@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// odd/functions/fight-service.mjs — slice 5, step 2 (Oct 2026)
+// odd/functions/fight-service.mjs — slice 5, step 2 (Oct 2026); opening rolls on the server, pass 2
 //
 // The server side of an online fight, with no Firebase in it: the rules
 // package and the store are handed in, so tests run it on a memory store and
@@ -38,7 +38,7 @@ export function fightPaths(cid, fid) {
 }
 
 export function createFightService({ rules, store, now = () => Date.now(), newSeed = () => Math.floor(Math.random() * 2 ** 31), resolveUser = async () => null }) {
-  const { fightStore, fightView, session } = rules;
+  const { fightStore, fightStart, fightView, session } = rules;
   const RULES = fightStore.RULES_VERSION;
   const refuse = (code, error, extra = {}) => ({ ok: false, code, error, ...extra });
 
@@ -96,9 +96,9 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       if (!people[who.uid]) people[who.uid] = { name: String(who.name || email).slice(0, 60), color: PLAYER_COLOURS[(Object.keys(people).length - 1) % PLAYER_COLOURS.length] };
     }
     state.people = people;
-    for (const k of ["done", "behaved", "ready"]) delete state[k];
-    const rng = fightStore.seedFight(state, newSeed());
-    const events = [{ type: "round", round: state.round ?? 0 }];
+    // The server rolls every opening die (hit points, coins, languages) from its own seed: whatever the page rolled is discarded.
+    const { rng, event: opened } = fightStart.openFight(state, newSeed());
+    const events = [opened, { type: "round", round: state.round ?? 0 }];
     if (state.phase === "fight") events.push(...session.advance(state, rng));
     const p = fightPaths(cid, fid);
     return store.run(async (tx) => {
