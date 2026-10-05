@@ -265,7 +265,13 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 @media (max-width: 700px) { .ab-status { flex-direction: row; border-left: none; border-top: 1px solid #c9d8e2; padding: 8px 0 0; } .ab-status button { width: auto; } }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
-body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #chatForm, body.player-mode #chips { display: none !important; }
+body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:not(.online-fight) #chatForm, body.player-mode #chips { display: none !important; }
+/* online: speaker and listener on one row, the message on the next */
+.chatbar:has(#chatTo:not([hidden])) { flex-wrap: wrap; }
+.chatbar:has(#chatTo:not([hidden])) select { flex: 1 1 40%; max-width: none; }
+.chatbar:has(#chatTo:not([hidden])) input { flex: 1 1 65%; }
+.chat.private { background: #f6f1fb; border-left: 3px solid #b9a3d6; padding-left: 6px; }
+#peoplePanel .linkish { border: 0; background: none; padding: 0 2px; color: var(--side-a); text-decoration: underline; cursor: pointer; font: inherit; font-size: .8rem; }
 .flist { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
 .frow { display: flex; align-items: center; gap: 8px; }
 .frow .fopen { flex: 1 1 auto; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 44px; padding: 6px 10px; }
@@ -319,6 +325,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
   <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
   <form class="chatbar" id="chatForm" autocomplete="off">
    <select id="chatAs" aria-label="Speak as"></select>
+   <select id="chatTo" aria-label="Say it to" hidden></select>
    <input id="chatText" placeholder="Message, or /roll 2d6" aria-label="Chat message" maxlength="400">
    <button type="submit">Send</button>
   </form>
@@ -395,7 +402,7 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 
@@ -733,6 +740,8 @@ function renderEvents(events) {
     else if (e.type === "volley") logAppend(volleyCard(e));
     else if (e.type === "talk") logAppend(renderCard(e.card));
     else if (e.type === "loot") logAppend(`<div class="card note">${esc(e.text)}</div>`);
+    else if (e.type === "caller") logAppend(`<div class="card note">${e.who ? `${esc(e.name)} calls initiative for side ${e.side}.` : `Side ${e.side}'s caller is back to the default.`}</div>`);
+    else if (e.type === "colour") { /* the Players panel and token rings redraw from the view */ }
     else if (e.type === "missiles" || e.type === "melee") {
       for (const h of e.hits) state.events.push({ a: byId(h.a), t: h.t != null ? byId(h.t) : null, dmg: h.dmg, extra: h.extra });
       const fell = e.fell.map(byId);
@@ -854,6 +863,7 @@ function openOnline(cid, fid) {
   api.openFight({
     cid, fid, viewer,
     onHeader: (h) => { online.header = h; renderOnlineNote(); renderStrip(); },
+    onChat: (e) => chatLine(e),
     onView: (v) => {
       adoptView(v); refreshLoot();
       // the player's page always shows one of his own characters in the bar, unless he clicked another figure
@@ -913,12 +923,31 @@ function renderPeople() {
   const byCtl = (c) => state.figures.filter((f) => controllerOfFig(f) === c);
   const ref = state.people.referee;
   if (ref) rows.push(`<div class="row"><span class="dot" style="background:${ref.color}" aria-hidden="true"></span><span><b>${esc(ref.name)}</b>, referee${PLAYER ? "" : ` <span class="note">(you)</span>`}${byCtl("referee").length ? `<br><span class="figs">${figList(byCtl("referee"))}</span>` : ""}</span></div>`);
+  const electing = state.phase === "fight" && state.step === "elect" && state.init?.winner;
+  const calls = (c) => (electing && (online.header?.waitingOn ?? []).includes(c) ? ` <span class="note">calls for side ${state.init.winner}</span>` : "");
   for (const [uid, p] of Object.entries(state.people)) {
     if (uid === "referee") continue;
-    rows.push(`<div class="row"><span class="dot" style="background:${p.color}" aria-hidden="true"></span><span><b>${esc(p.name)}</b>${uid === me ? ` <span class="note">(you)</span>` : ""}<br><span class="figs">${figList(byCtl(uid))}</span></span></div>`);
+    const picker = uid === me && PLAYER ? ` <button class="linkish" id="pickColour" title="Choose your colour">colour</button>` : "";
+    rows.push(`<div class="row"><span class="dot" style="background:${p.color}" aria-hidden="true"></span><span><b>${esc(p.name)}</b>${uid === me ? ` <span class="note">(you)</span>` : ""}${picker}${calls(uid)}<br><span class="figs">${figList(byCtl(uid))}</span>${uid === me && online.pickingColour ? colourChoices(uid) : ""}</span></div>`);
+  }
+  // the referee names who calls each side's choice to move first or last (default: leader's player, else most figures)
+  if (!PLAYER && state.phase === "fight") for (const side of ["A", "B"]) {
+    const runs = [...new Set(state.figures.filter((f) => f.side === side && present(f)).map((f) => controllerOfFig(f) ?? "referee"))].filter((c) => c !== "game");
+    if (runs.length < 2 && !state.callers?.[side]) continue;
+    const def = rd.callerOf({ ...state, callers: { ...(state.callers ?? {}), [side]: null } }, side), nm = (c) => (c === "referee" ? "referee" : state.people?.[c]?.name ?? c);
+    rows.push(`<div class="row"><span></span><label style="font-size:.85rem">Calls initiative for side ${side} <select data-caller="${side}"><option value="">${esc(`Default (${nm(def)})`)}</option>${runs.map((c) => `<option value="${esc(c)}" ${state.callers?.[side] === c ? "selected" : ""}>${esc(nm(c))}</option>`).join("")}</select></label>${calls(rd.callerOf(state, side)) && side === state.init?.winner ? ` <span class="note">waiting on ${esc(nm(rd.callerOf(state, side)))}</span>` : ""}</div>`);
   }
   for (const side of ["A", "B"]) if (state.figures.some((f) => f.side === side && controllerOfFig(f) === "game")) rows.push(`<div class="row game"><span class="dot hollow" style="border-color:var(--side-${side.toLowerCase()})" aria-hidden="true"></span><span>Side ${side}: run by the game</span></div>`);
+  if (ref && electing && (online.header?.waitingOn ?? []).includes("referee")) rows[0] = rows[0].replace("</span></div>", `${calls("referee")}</span></div>`);
   $("#peopleList").innerHTML = rows.join("");
+  $("#pickColour")?.addEventListener("click", () => { online.pickingColour = !online.pickingColour; renderPeople(); });
+  $("#peopleList").querySelectorAll("[data-colour]").forEach((b) => b.addEventListener("click", () => { online.pickingColour = false; runAction({ type: "colour", color: b.dataset.colour }); renderPeople(); }));
+  $("#peopleList").querySelectorAll("[data-caller]").forEach((sel) => sel.addEventListener("change", () => runAction({ type: "caller", side: sel.dataset.caller, who: sel.value || null })));
+}
+/** The palette a player picks his colour from; colours other players have are left out. */
+function colourChoices(uid) {
+  const taken = new Set(Object.entries(state.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
+  return `<div class="swatches" style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-colour="${c}" aria-label="Colour ${c}" style="width:22px;height:22px;border-radius:50%;padding:0;background:${c};border:${state.people?.[uid]?.color === c ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"}"></button>`).join("")}</div>`;
 }
 const CLASS_NAME = Object.fromEntries(CLASSES.map((c) => [c.id, c.label === "Fighting-Man" ? "Fighter" : c.label]));
 /** The card's Action line, as in the mockup ("fire the short bow"); the target has its own line. */
@@ -1612,7 +1641,7 @@ function renderStrip() {
   btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-") && st !== "orders")
     || (PLAYER && state.phase === "fight")
     || (online.on && state.phase === "fight" && (st.startsWith("move-") || st === "orders") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
-  const mayElect = electing && (!PLAYER || state.figures.some((f) => f.mine && present(f) && f.side === state.init.winner));
+  const mayElect = electing && (!PLAYER || (online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
   btn.hidden = mayElect || (PLAYER && state.phase === "fight") || (!online.on && state.phase === "fight"); // the player's page shows the Ready count; local play steps with Next
   document.body.classList.toggle("online-fight", online.on && state.phase !== "setup");
   // ◀ Previous / Next ▶ / Undo: the referee's (and local play's), as on the Chainmail board
@@ -1790,9 +1819,28 @@ function setLogOpen(open) {
 }
 $("#showTargets").addEventListener("click", () => { state.showTargets = !state.showTargets; $("#showTargets").setAttribute("aria-pressed", String(!!state.showTargets)); $("#showTargets").classList.toggle("primary", !!state.showTargets); renderMap(); });
 $("#logToggle").addEventListener("click", () => setLogOpen($("#stage").classList.contains("log-closed")));
-/** Who can speak: the referee, either side, or any character on the board. */
+/** Who can speak: the referee, either side, or any character on the board; online, a player as himself or one of his own. */
 function chatSpeakers() {
-  return [["ref", "Referee"], ["A", "Side A"], ["B", "Side B"], ...state.figures.filter((f) => f.kind === "pc" && f.placed).map((f) => [`f${f.id}`, f.name])];
+  if (online.on && PLAYER) return [["me", state.people?.[online.api?.user?.uid]?.name ?? "Me"], ...state.figures.filter((f) => f.mine && f.placed).map((f) => [`f${f.id}`, f.name])];
+  return [["ref", "Referee"], ["A", "Side A"], ["B", "Side B"], ...state.figures.filter((f) => (online.on ? true : f.kind === "pc") && f.placed).map((f) => [`f${f.id}`, f.name])];
+}
+/** Online: who hears it. A player speaks to everyone or the referee alone; the referee to everyone or one player. */
+function refreshChatTo() {
+  const sel = $("#chatTo"); if (!sel) return;
+  sel.hidden = !(online.on && state.phase !== "setup");
+  if (sel.hidden) return;
+  const list = PLAYER ? [["all", "Everyone"], ["referee", "Referee only"]] : [["all", "Everyone"], ...Object.entries(state.people ?? {}).filter(([u]) => u !== "referee").map(([u, p]) => [u, `${p.name} only`])];
+  const key = list.map((x) => x.join(":")).join("|"); if (sel.dataset.key === key) return;
+  const was = sel.value; sel.dataset.key = key;
+  sel.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
+  if (list.some(([v]) => v === was)) sel.value = was;
+}
+/** A chat line from the server. */
+function chatLine(e) {
+  const to = e.to && e.to !== "all" ? ` <span class="note">to ${esc(e.toName ?? "")}</span>` : "";
+  const body = e.roll ? `rolls ${esc(e.roll.expr)}: <span class="roll">[${e.roll.dice.join(", ")}]</span> = <b>${e.roll.total}</b>` : esc(e.text ?? "");
+  $("#log").querySelector(".empty")?.remove();
+  logAppend(`<div class="chat${e.to && e.to !== "all" ? " private" : ""}"><span style="color:${esc(e.color ?? "var(--ink)")};font-weight:700">${e.as ? esc(e.as) : esc(e.person)}</span>${e.as && e.as !== e.person ? ` <span class="note">(${esc(e.person)})</span>` : ""}${to}${e.roll ? " " : ": "}${body}</div>`);
 }
 function refreshChatAs() {
   const sel = $("#chatAs"), list = chatSpeakers(), key = list.map((x) => x.join(":")).join("|");
@@ -1809,9 +1857,16 @@ function chatRoll(expr) {
   const dice = Array.from({ length: n }, () => 1 + Math.floor(Math.random() * sides));
   return { expr: `${n}d${sides}${mod ? (mod > 0 ? `+${mod}` : mod) : ""}`, dice, total: dice.reduce((a, b) => a + b, 0) + mod };
 }
-$("#chatForm").addEventListener("submit", (e) => {
+$("#chatForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("#chatText").value.trim(); if (!text) return;
+  if (online.on && state.phase !== "setup" && online.api?.fight) {
+    const as = $("#chatAs").value, data = { text, to: $("#chatTo").value || "all", as: as.startsWith("f") ? Number(as.slice(1)) : as === "A" || as === "B" ? as : null };
+    $("#chatText").value = "";
+    const r = await online.api.chat(data);
+    if (!r.ok) { $("#chatText").value = text; logAppend(`<div class="card note"><span class="bad">${esc(r.error ?? "Not sent.")}</span></div>`); }
+    return; // the line comes back through the chat listener
+  }
   const as = $("#chatAs").value, f = as.startsWith("f") ? byId(Number(as.slice(1))) : null;
   const name = f ? f.name : as === "ref" ? "Referee" : `Side ${as}`;
   const cls = f ? (f.side === "A" ? "who-a" : "who-b") : as === "A" ? "who-a" : as === "B" ? "who-b" : "who-r";
@@ -1886,7 +1941,7 @@ const serviceState = (pc, f) => tk.serviceState(state, pc, f);function openServi
 function render() {
   renderWhoPlays();
   renderOnlineTable();
-  refreshChatAs();
+  refreshChatAs(); refreshChatTo();
   if (state.phase === "fight") refreshFacing();
   renderMap(); renderSide("A"); renderSide("B"); renderDetail(); renderStrip(); renderChips(); renderActionBar(); renderBanner();
   const fight = state.phase === "fight";

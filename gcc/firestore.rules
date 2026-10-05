@@ -718,6 +718,12 @@ service cloud.firestore {
           allow write: if false;
         }
 
+        // Chat: each reader's own copy, written by oddChat, read like feeds.
+        match /chat/{viewer}/entries/{entryId} {
+          allow read: if isOddViewer(campaignId, fightId, viewer);
+          allow write: if false;
+        }
+
         match /server/{docId} {
           allow read, write: if false;
         }

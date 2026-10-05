@@ -20,7 +20,7 @@
  */
 import { apply, Step, moverOf, AI_ELECTION } from "./runner.mjs";
 import { present } from "./board.mjs";
-import { mayAct, controllerOf } from "./view.mjs";
+import { mayAct, controllerOf, PLAYER_COLOURS } from "./view.mjs";
 
 import { needsReady, isReady, unreadyIds, readyCount, waitingOn, stepKey } from "./readiness.mjs";
 export { needsReady, isReady, unreadyIds, readyCount, waitingOn };
@@ -76,6 +76,21 @@ export function applyAs(state, who, action, rng, opts = {}) {
     const r = apply(state, next, rng);
     if (!r.ok) return r;
     events.push({ type: "forced", step, notReady: pending }, ...r.events);
+  } else if (action.type === "caller") {
+    // the referee names who calls a side's election (null: back to the default)
+    if (!["A", "B"].includes(action.side)) return { ok: false, events: [], error: "no such side" };
+    const ok = action.who == null || action.who === "referee" || state.figures.some((f) => f.side === action.side && present(f) && controllerOf(state, f) === action.who);
+    if (!ok) return { ok: false, events: [], error: "he runs no figure on that side" };
+    state.callers = { ...(state.callers ?? {}), [action.side]: action.who ?? null };
+    return { ok: true, events: [{ type: "caller", side: action.side, who: action.who ?? null, name: action.who ? state.people?.[action.who]?.name ?? (action.who === "referee" ? "the referee" : action.who) : null }] };
+  } else if (action.type === "colour") {
+    // a player picks his own colour from the palette, one nobody else has
+    const c = String(action.color ?? "").toLowerCase();
+    if (!PLAYER_COLOURS.includes(c)) return { ok: false, events: [], error: "pick one of the colours offered" };
+    const uid = who.uid;
+    if (Object.entries(state.people ?? {}).some(([u, p]) => u !== uid && p.color === c)) return { ok: false, events: [], error: "another player has that colour" };
+    state.people = { ...(state.people ?? {}), [uid]: { name: "Player", ...(state.people?.[uid] ?? {}), color: c } };
+    return { ok: true, events: [{ type: "colour", uid, name: state.people[uid].name, color: c }] };
   } else if (action.type === "step-back") {
     const r = apply(state, action, rng);
     if (!r.ok) return r;
@@ -127,7 +142,7 @@ async function runSelfTests() {
     if (st.step === "elect") {
       ok(st.init.winner === "A", "the players' side won and must elect");
       ok(!applyAs(st, kurt, { type: "elect", side: "B", choice: "move" }, rng).ok, "can't elect for the other side");
-      ok(applyAs(st, bob, { type: "elect", side: "A", choice: "counter" }, rng).ok, "a player on the side elects");
+      ok(!applyAs(st, bob, { type: "elect", side: "A", choice: "counter" }, rng).ok && applyAs(st, kurt, { type: "elect", side: "A", choice: "counter" }, rng).ok, "the side's caller elects; another player on it can't");
     }
     ok(st.step === "move-A", "the game side moved itself first or the players' turn has come");
     ok(waitingOn(st).join() === "bob,kurt" && unreadyIds(st).join() === "1,2", "waiting on both players' characters");
@@ -181,6 +196,14 @@ async function runSelfTests() {
     ok(st.step === "orders" && unreadyIds(st).join() === "4", "three of four ready: still Orders");
     const r = applyAs(st, ref, { type: "force-next" }, rng);
     ok(r.ok && r.events[0].type === "forced" && r.events[0].notReady.join() === "Orc 4" && st.step !== "orders", "Next resolves now, naming who wasn't Ready");
+  }
+  {
+    const { st } = fight({ 1: "kurt", 2: "bob", 3: "game", 4: "game" }); st.people = { referee: { name: "Ref", color: "#1f2b38" }, kurt: { name: "Kurt", color: PLAYER_COLOURS[0] }, bob: { name: "Bob", color: PLAYER_COLOURS[1] } };
+    ok(applyAs(st, { uid: "kurt" }, { type: "colour", color: PLAYER_COLOURS[3] }, () => 0.5).ok && st.people.kurt.color === PLAYER_COLOURS[3], "a player picks his own colour");
+    ok(!applyAs(st, { uid: "kurt" }, { type: "colour", color: PLAYER_COLOURS[1] }, () => 0.5).ok && !applyAs(st, { uid: "kurt" }, { type: "colour", color: "#ff0000" }, () => 0.5).ok, "not one another player has, nor one off the palette");
+    ok(!applyAs(st, { uid: "carl" }, { type: "colour", color: PLAYER_COLOURS[5] }, () => 0.5).ok, "only people in the fight");
+    ok(applyAs(st, { referee: true }, { type: "caller", side: "A", who: "bob" }, () => 0.5).ok && st.callers.A === "bob", "the referee names Bob to call for side A");
+    ok(!applyAs(st, { referee: true }, { type: "caller", side: "A", who: "carl" }, () => 0.5).ok && !applyAs(st, { uid: "kurt" }, { type: "caller", side: "A", who: "kurt" }, () => 0.5).ok, "not someone with no figure there, and never a player");
   }
   console.log(`session.mjs — all self-tests passed (${pass} assertions).`);
 }

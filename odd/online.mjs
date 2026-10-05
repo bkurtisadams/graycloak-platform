@@ -4,9 +4,10 @@
 // Loads the Firebase SDK from the CDN only when online play is chosen, so
 // local play needs no network. One fight is open at a time:
 //   createFight(data)   oddCreateFight (the referee opens a fight)
-//   openFight(...)      listens to the header, this viewer's view and feed
+//   openFight(...)      listens to the header, this viewer's view, feed and chat
 //   listFights(cid)     a player's fights in a campaign; listAllFights(cid) the referee's
 //   deleteFight(...)    oddDeleteFight (the referee removes a fight)
+//   chat(data)          oddChat: a line or a /roll, to everyone or privately
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -37,6 +38,7 @@ export async function connectOnline({ emulators = false } = {}) {
   const createCall = fnSdk.httpsCallable(fns, 'oddCreateFight');
   const actionCall = fnSdk.httpsCallable(fns, 'oddAction');
   const deleteCall = fnSdk.httpsCallable(fns, 'oddDeleteFight');
+  const chatCall = fnSdk.httpsCallable(fns, 'oddChat');
 
   let open = null;      // { cid, fid, viewer, rev, unsubs, seen }
   let queue = Promise.resolve();
@@ -109,7 +111,7 @@ export async function connectOnline({ emulators = false } = {}) {
     closeFight,
 
     /** Listen to one fight as viewer ("referee" or a player's uid). */
-    openFight({ cid, fid, viewer, onHeader, onView, onEntry, onError }) {
+    openFight({ cid, fid, viewer, onHeader, onView, onEntry, onChat, onError }) {
       closeFight();
       const base = `oddCampaigns/${cid}/fights/${fid}`;
       const me = { cid, fid, viewer, rev: 0, unsubs: [], seen: new Set() };
@@ -123,6 +125,17 @@ export async function connectOnline({ emulators = false } = {}) {
         const fresh = snap.docChanges().filter((c) => c.type === 'added').map((c) => c.doc.data()).filter((e) => !me.seen.has(e.rev)).sort((a, b) => a.rev - b.rev);
         for (const e of fresh) { me.seen.add(e.rev); onEntry?.(e); }
       }, fail('the log')));
+      const said = new Set();
+      me.unsubs.push(fsSdk.onSnapshot(fsSdk.query(fsSdk.collection(db, `${base}/chat/${viewer}/entries`), fsSdk.orderBy('at')), (snap) => {
+        for (const c of snap.docChanges()) { const e = c.doc.data(); if (c.type !== 'added' || said.has(e.id)) continue; said.add(e.id); onChat?.(e); }
+      }, fail('the chat')));
+    },
+
+    /** A chat line { text, to, as } in the open fight. */
+    chat(data) {
+      const me = open;
+      if (!me) return Promise.resolve({ ok: false, code: 'closed', error: 'no fight is open' });
+      return call(chatCall, { cid: me.cid, fid: me.fid, ...data });
     },
 
     /** One action, after any still on its way. Resolves to the server's answer. */

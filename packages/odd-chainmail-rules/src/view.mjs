@@ -35,7 +35,7 @@ import { moverOf } from "./runner.mjs";
 import { FIGHT_SCHEMA, RULES_VERSION } from "./fight-store.mjs";
 
 const isStaff = (who) => !!(who?.referee || who?.server);
-import { controllerOf, needsReady } from "./readiness.mjs";
+import { controllerOf, needsReady, callerOf } from "./readiness.mjs";
 export { controllerOf };
 export const controls = (state, who, f) => !!f && (isStaff(who) || (who?.uid != null && controllerOf(state, f) === who.uid));
 export const figuresOf = (state, who) => state.figures.filter((f) => controls(state, who, f));
@@ -67,7 +67,11 @@ export function figureFor(state, who, f) {
 
 /* ------------------------------------------------------------------ the fight */
 
-export const PUBLIC_STATE_KEYS = Object.freeze(["phase", "round", "step", "firstSide", "init", "winner", "width", "height", "scale", "meleeBegun", "rev", "control", "people"]);
+/** Player colours to choose from; the referee is ink (Kurt, Oct 2026). */
+export const PLAYER_COLOURS = Object.freeze(["#6d28d9", "#0f766e", "#c2410c", "#be185d", "#15803d", "#1d4ed8", "#a16207", "#475569"]);
+export const REFEREE_COLOUR = "#1f2b38";
+
+export const PUBLIC_STATE_KEYS = Object.freeze(["phase", "round", "step", "firstSide", "init", "winner", "width", "height", "scale", "meleeBegun", "rev", "control", "people", "callers"]);
 const wallsOut = (walls) => (walls ?? []).map((row) => (typeof row === "string" ? row : row.map((w) => (w ? "#" : ".")).join("")));
 
 /** The fight as this viewer sees it: plain JSON, Firestore-safe. */
@@ -87,7 +91,7 @@ export function viewFor(state, who) {
 
 /* ------------------------------------------------------------------ authority */
 
-const STAFF_ONLY = Object.freeze(["reveal", "begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader", "orders-end", "force-next", "step-back", "undo"]);
+const STAFF_ONLY = Object.freeze(["caller", "reveal", "begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader", "orders-end", "force-next", "step-back", "undo"]);
 const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon", "undo-move", "loot"]);
 const actorIds = (a) => [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
 
@@ -105,7 +109,8 @@ export function mayAct(state, who, action) {
     const bad = ids.find((id) => !controls(state, who, byId(id)));
     return bad == null ? { ok: true } : no(`you don't control ${byId(bad)?.name ?? `figure ${bad}`}`);
   }
-  if (t === "elect") return state.figures.some((f) => f.side === action.side && present(f) && controls(state, who, f)) ? { ok: true } : no("you have no figure on that side");
+  if (t === "elect") return callerOf(state, action.side) === who.uid ? { ok: true } : no(state.figures.some((f) => f.side === action.side && present(f) && controls(state, who, f)) ? "another player calls for your side" : "you have no figure on that side");
+  if (t === "colour") return state.people?.[who.uid] || figuresOf(state, who).length ? { ok: true } : no("you aren't in this fight");
   if (t === "ready" || t === "unready") {
     const ids = action.ids ?? [];
     if (!ids.length) return no("no figure named");
@@ -122,7 +127,7 @@ export function mayAct(state, who, action) {
 
 /* ------------------------------------------------------------------ events */
 
-export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready", "orders-open", "step-back", "forced", "undo", "undo-move", "loot"]);
+export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready", "orders-open", "step-back", "forced", "undo", "undo-move", "loot", "caller", "colour"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
 export const REFEREE_EVENTS = Object.freeze(["opened", "behaviour", "morale-exempt", "gm", "leader"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);
@@ -254,7 +259,8 @@ async function runSelfTests() {
     ok(!mayAct(st, kurt, { type: "end-move", side: "A" }).ok, "with two players on the side, one can't end its move");
     ok(mayAct({ ...st, control: { 1: "kurt", 2: "kurt" } }, kurt, { type: "end-move", side: "A" }).ok, "a sole player ends his side's move");
     st.step = "elect"; st.init = { winner: "A" };
-    ok(mayAct(st, bob, { type: "elect", side: "A", choice: "move" }).ok && !mayAct(st, bob, { type: "elect", side: "B", choice: "move" }).ok, "a player on the winning side may elect");
+    ok(mayAct(st, kurt, { type: "elect", side: "A", choice: "move" }).ok && !mayAct(st, kurt, { type: "elect", side: "B", choice: "move" }).ok, "the side's caller (Kurt: a tie, his figure is lowest-numbered) may elect");
+    ok(!mayAct(st, bob, { type: "elect", side: "A", choice: "move" }).ok && /another player calls/.test(mayAct(st, bob, { type: "elect", side: "A", choice: "move" }).why), "Bob, on the same side, may not: first click no longer wins");
     ok(mayAct(st, ref, { type: "gm", id: 3, tool: "kill" }).ok && mayAct(st, { server: true }, { type: "melee" }).ok, "referee and server may do anything");
     ok(!mayAct(st, {}, { type: "move", id: 1 }).ok, "not signed in");
   }

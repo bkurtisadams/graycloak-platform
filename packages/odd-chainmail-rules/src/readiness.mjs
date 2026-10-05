@@ -47,7 +47,30 @@ export function readyCount(state) {
 }
 /** Who the step is waiting on: uids, and "referee" for figures the referee runs. */
 export function waitingOn(state) {
+  if (state.phase === "fight" && state.step === Step.ELECT && state.init?.winner) { const c = callerOf(state, state.init.winner); return c && c !== "game" ? [c] : []; }
   return [...new Set(needsReady(state).filter((f) => !isReady(state, f)).map((f) => controllerOf(state, f)))].sort();
+}
+
+/**
+ * Who calls a side's choice to move first or last when it wins initiative
+ * (slice 5 pass 2, Oct 2026): the one the referee named for the side, while he
+ * still runs a figure on it; else whoever runs the side's leader; else whoever
+ * runs the most of its figures (a tie goes to the one with the lowest-numbered
+ * figure). "game" only when the game runs the whole side; null if the side is gone.
+ */
+export function callerOf(state, side) {
+  const figs = state.figures.filter((f) => f.side === side && present(f));
+  if (!figs.length) return null;
+  const ctl = (f) => controllerOf(state, f);
+  const named = state.callers?.[side];
+  if (named && (named === "referee" || figs.some((f) => ctl(f) === named))) return named;
+  const lead = state.leader?.[side] != null ? figs.find((f) => f.id === state.leader[side]) : null;
+  if (lead && ctl(lead) !== "game") return ctl(lead);
+  const count = new Map();
+  for (const f of [...figs].sort((a, b) => a.id - b.id)) if (ctl(f) !== "game") count.set(ctl(f), (count.get(ctl(f)) ?? 0) + 1);
+  if (!count.size) return "game";
+  let best = null; for (const [c, n] of count) if (best == null || n > count.get(best)) best = c;
+  return best;
 }
 
 /* ------------------------------------------------------------------ tests */
@@ -66,6 +89,17 @@ function runSelfTests() {
   st.figures[0].x = 30; st.figures[4].x = 58;
   ok(!hasChoice(st, st.figures[0]) && hasChoice(st, st.figures[1]), "nothing in reach and no bow: ready on its own");
   ok(!isReady(st, st.figures[0]), "an old step's mark doesn't count in a new step");
+  {
+    const f = (id, side, extra) => ({ id, side, name: `F${id}`, kind: "pc", cls: "fighter", level: 1, x: id, y: 5, placed: true, hp: 6, maxHp: 6, ...extra });
+    const s = { phase: "fight", round: 1, step: "elect", init: { winner: "A" }, figures: [f(1, "A"), f(2, "A"), f(3, "A"), f(4, "B")], control: { 1: "bob", 2: "ann", 3: "ann", 4: "game" } };
+    ok(callerOf(s, "A") === "ann" && waitingOn(s).join() === "ann", "most figures on the side: Ann calls, and the fight waits on her");
+    s.control[1] = "bob"; s.control[3] = "bob"; ok(callerOf(s, "A") === "bob", "a tie goes to whoever runs the lowest-numbered figure");
+    s.leader = { A: 2 }; ok(callerOf(s, "A") === "ann", "the side's leader's player calls");
+    s.callers = { A: "bob" }; ok(callerOf(s, "A") === "bob", "the referee's choice comes first");
+    s.callers = { A: "carl" }; ok(callerOf(s, "A") === "ann", "unless he runs nothing on the side");
+    ok(callerOf(s, "B") === "game", "a side the game runs: the game calls");
+    delete s.control[2]; delete s.control[3]; s.leader = {}; s.callers = {}; ok(callerOf(s, "A") === "referee", "figures with no player are the referee's");
+  }
   console.log(`readiness.mjs — all self-tests passed (${pass} assertions).`);
 }
 if (typeof process !== "undefined" && process.argv?.[1]) {

@@ -5,6 +5,7 @@
 //   oddCreateFight  the referee opens a fight; the server seeds the dice
 //   oddAction       one action from a player or the referee
 //   oddDeleteFight  the referee deletes a fight (old test fights)
+//   oddChat         a chat line or a /roll, to everyone or privately
 // Both return { ok, rev, ... } or { ok: false, code, error }; only a call
 // with no signed-in user is thrown back as an error.
 //
@@ -41,7 +42,7 @@ const resolveUser = async (email) => {
   try { const u = await getAuth().getUserByEmail(email); return { uid: u.uid, name: u.displayName || u.email }; }
   catch (error) { if (error?.code === 'auth/user-not-found') return null; throw error; }
 };
-const service = createFightService({ rules, store, newSeed: () => randomInt(2 ** 31), resolveUser });
+const service = createFightService({ rules, store, newSeed: () => randomInt(2 ** 31), resolveUser, rollDie: (n) => randomInt(1, n + 1) });
 
 const signedIn = (request) => {
   if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Sign in first.');
@@ -51,3 +52,4 @@ const signedIn = (request) => {
 export const oddCreateFight = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.create({ uid: signedIn(request), name: request.auth.token.name || request.auth.token.email, data: request.data }));
 export const oddDeleteFight = onCall({ timeoutSeconds: 120, memory: '512MiB' }, (request) => service.remove({ uid: signedIn(request), data: request.data }));
 export const oddAction = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.act({ uid: signedIn(request), data: request.data }));
+export const oddChat = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => service.chat({ uid: signedIn(request), data: request.data }));

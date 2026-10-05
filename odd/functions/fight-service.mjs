@@ -17,9 +17,7 @@
 // ---------------------------------------------------------------------------
 
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
-/** Player colours, given in the order players are named; the referee is ink (Kurt, Oct 2026). */
-export const PLAYER_COLOURS = Object.freeze(["#6d28d9", "#0f766e", "#c2410c", "#be185d", "#15803d", "#1d4ed8", "#a16207", "#475569"]);
-export const REFEREE_COLOUR = "#1f2b38";
+// Player colours live in the rules package (fightView.PLAYER_COLOURS), so a player's page offers the same palette.
 const pad = (n) => String(n).padStart(8, "0");
 const clean = (v) => JSON.parse(JSON.stringify(v));
 
@@ -33,12 +31,14 @@ export function fightPaths(cid, fid) {
     actions: `${fight}/actions`,
     view: (who) => `${fight}/views/${who}`,
     feed: (who, rev) => `${fight}/feeds/${who}/entries/${pad(rev)}`,
+    chat: (who, id) => `${fight}/chat/${who}/entries/${id}`,
     action: (rev) => `${fight}/actions/${pad(rev)}`
   };
 }
 
-export function createFightService({ rules, store, now = () => Date.now(), newSeed = () => Math.floor(Math.random() * 2 ** 31), resolveUser = async () => null }) {
+export function createFightService({ rules, store, now = () => Date.now(), newSeed = () => Math.floor(Math.random() * 2 ** 31), resolveUser = async () => null, rollDie = (n) => 1 + Math.floor(Math.random() * n) }) {
   const { fightStore, fightStart, fightView, session } = rules;
+  const { PLAYER_COLOURS, REFEREE_COLOUR } = fightView;
   const RULES = fightStore.RULES_VERSION;
   const refuse = (code, error, extra = {}) => ({ ok: false, code, error, ...extra });
 
@@ -192,5 +192,55 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     return { ok: true, fid };
   }
 
-  return { create, act, remove, playersOf };
+  /**
+   * Chat (slice 5 pass 2, Oct 2026): data { cid, fid, text, to, as }.
+   * to: "all", "referee" (a player to the referee alone) or a player's uid
+   * (the referee to him alone). as: one of the speaker's own figures, or
+   * (referee) "A"/"B" for a side; else he speaks as himself. "/roll 2d6+1"
+   * is rolled here, apart from the fight's seeded dice, so nobody can fake
+   * a roll and replays don't change. Each reader gets his own copy under
+   * chat/{viewer}/entries, as with feeds; the fight's rev doesn't move, so
+   * chatting never makes anyone's move stale.
+   */
+  async function chat({ uid, data }) {
+    if (!uid) return refuse("auth", "sign in first");
+    const { cid, fid, to = "all", as = null } = data ?? {};
+    if (!ID.test(cid ?? "") || !ID.test(fid ?? "")) return refuse("bad-request", "no such fight");
+    const text = String(data?.text ?? "").trim().slice(0, 400);
+    if (!text) return refuse("bad-request", "nothing to say");
+    const p = fightPaths(cid, fid);
+    return store.run(async (tx) => {
+      const camp = await tx.get(p.campaign), header = await tx.get(p.fight), stored = await tx.get(p.state);
+      if (!header || !stored) return refuse("not-found", "no such fight");
+      const state = fightStore.fromStored(stored);
+      const who = whoIs(state, camp, uid);
+      if (!who) return refuse("forbidden", "you are not in this fight");
+      const me = who.referee ? "referee" : uid, people = state.people ?? {};
+      let speaker = null, side = null;
+      if (as === "A" || as === "B") { if (!who.referee) return refuse("forbidden", "only the referee speaks for a side"); speaker = `Side ${as}`; side = as; }
+      else if (as != null) {
+        const f = state.figures.find((x) => x.id === Number(as));
+        if (!f || !(who.referee || fightView.controls(state, who, f))) return refuse("forbidden", "you can speak only as your own characters");
+        speaker = f.name; side = f.side;
+      }
+      const players = playersOf(state);
+      const readers = to === "all" ? ["referee", ...players] : to === "referee" ? ["referee", me] : who.referee && players.includes(to) ? ["referee", to] : null;
+      if (!readers) return refuse("bad-request", "no one to say it to");
+      let roll = null;
+      const m = /^\/(roll|r)\s+(\d{0,2})d(\d{1,3})\s*([+-]\s*\d{1,3})?$/i.exec(text);
+      if (/^\/(roll|r)\b/i.test(text)) {
+        if (!m) return refuse("bad-request", "try /roll 2d6 or /roll 1d20+1");
+        const n = Math.min(Math.max(Number(m[2] || 1), 1), 50), sides = Math.max(Number(m[3]), 2), mod = m[4] ? Number(m[4].replace(/\s/g, "")) : 0;
+        const dice = Array.from({ length: n }, () => rollDie(sides));
+        roll = { expr: `${n}d${sides}${mod ? (mod > 0 ? `+${mod}` : mod) : ""}`, dice, total: dice.reduce((a, b) => a + b, 0) + mod };
+      }
+      const at = now(), id = `${String(at).padStart(14, "0")}-${me.slice(0, 12)}-${Math.floor(Math.random() * 1e6)}`;
+      const entry = clean({ id, at, uid: me, person: people[me]?.name ?? (who.referee ? "Referee" : "Player"), color: people[me]?.color ?? (who.referee ? REFEREE_COLOUR : null),
+        as: speaker, side, to, toName: to === "all" ? null : to === "referee" ? "the referee" : people[to]?.name ?? "a player", ...(roll ? { roll } : { text }) });
+      for (const r of [...new Set(readers)]) tx.set(p.chat(r, id), entry);
+      return { ok: true, id };
+    });
+  }
+
+  return { create, act, remove, chat, playersOf };
 }

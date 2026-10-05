@@ -52,6 +52,7 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
     for (const who of ['referee', KURT, BOB]) {
       await db.doc(`${F}/views/${who}`).set({ rev: 3 });
       await db.doc(`${F}/feeds/${who}/entries/00000003`).set({ rev: 3, events: [] });
+      await db.doc(`${F}/chat/${who}/entries/c1`).set({ id: 'c1', text: 'hello' });
     }
     await db.doc(`oddCampaigns/${CAMP}/fights/fight-2`).set({ rev: 1, players: [BOB] });
   });
@@ -99,6 +100,10 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
     await assertFails(kurt.doc(`${F}/views/referee`).get());
     await assertFails(kurt.collection(`${F}/feeds/${BOB}/entries`).get());
     await assertFails(kurt.collection(`${F}/feeds/referee/entries`).get());
+    await assertSucceeds(kurt.collection(`${F}/chat/${KURT}/entries`).get());
+    await assertFails(kurt.collection(`${F}/chat/${BOB}/entries`).get());
+    await assertFails(kurt.collection(`${F}/chat/referee/entries`).get());
+    await assertSucceeds(referee.collection(`${F}/chat/${BOB}/entries`).get());
     await assertFails(outsider.doc(`${F}/views/${OUTSIDER}`).get());
   });
 
@@ -112,6 +117,7 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
   await t.test('a player taken out of the fight loses his view', async () => {
     await env.withSecurityRulesDisabled((context) => context.firestore().doc(F).update({ players: [KURT] }));
     await assertFails(bob.doc(`${F}/views/${BOB}`).get());
+    await assertFails(bob.collection(`${F}/chat/${BOB}/entries`).get());
     await assertFails(bob.doc(F).get());
   });
 
@@ -121,6 +127,7 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
       await assertFails(db.doc(F).update({ rev: 99 }));
       await assertFails(db.doc(`${F}/views/${KURT}`).set({ rev: 99 }));
       await assertFails(db.doc(`${F}/feeds/${KURT}/entries/00000099`).set({ rev: 99 }));
+      await assertFails(db.doc(`${F}/chat/${KURT}/entries/forged`).set({ text: 'forged' }));
       await assertFails(db.doc(`${F}/server/state`).set({ rngState: { s: 1 } }));
       await assertFails(db.doc(`${F}/actions/00000099`).set({ rev: 99 }));
     }

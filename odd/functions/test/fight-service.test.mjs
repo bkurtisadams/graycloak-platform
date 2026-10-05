@@ -225,3 +225,35 @@ test("Undo takes back the last action, rebuilt from the opening state with the s
   const u2 = await send("ref", { type: "undo" });
   assert.ok(u2.ok || u2.code === "nothing");
 });
+
+test("chat: everyone, the referee alone, or one player; /roll is rolled on the server; the rev doesn't move", async () => {
+  const store = memoryStore();
+  const svc = createFightService({ rules, store, now: () => 1234, newSeed: () => 5, rollDie: (n) => n });
+  await svc.create({ uid: "ref", name: "Kurt", data: { cid: "c7", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control: { 1: "kurt", 2: "bob", 3: "game", 4: "game" } } });
+  const p = fightPaths("c7", "f1"), rev0 = store.docs.get(p.fight).rev;
+  const lines = (who) => [...store.docs.keys()].filter((k) => k.startsWith(`${p.fight}/chat/${who}/entries/`)).map((k) => store.docs.get(k));
+  let r = await svc.chat({ uid: "kurt", data: { cid: "c7", fid: "f1", text: "  Charge!  ", as: 1 } });
+  assert.equal(r.ok, true, r.error);
+  assert.ok(["referee", "kurt", "bob"].every((w) => lines(w).some((e) => e.text === "Charge!" && e.as === store.docs.get(p.state).figures.find((f) => f.id === 1).name)), "everyone reads it, spoken as Kurt's character");
+  r = await svc.chat({ uid: "bob", data: { cid: "c7", fid: "f1", text: "/roll 2d6+1", to: "referee" } });
+  assert.equal(r.ok, true, r.error);
+  const roll = lines("referee").find((e) => e.roll);
+  assert.deepEqual([roll.roll.expr, roll.roll.dice, roll.roll.total], ["2d6+1", [6, 6], 13], "the server rolls");
+  assert.ok(lines("bob").some((e) => e.roll) && !lines("kurt").some((e) => e.roll), "a private line: Bob and the referee only");
+  r = await svc.chat({ uid: "ref", data: { cid: "c7", fid: "f1", text: "You hear a click.", to: "kurt" } });
+  assert.ok(r.ok && lines("kurt").some((e) => e.text === "You hear a click.") && !lines("bob").some((e) => e.text === "You hear a click."), "the referee to one player");
+  assert.equal((await svc.chat({ uid: "bob", data: { cid: "c7", fid: "f1", text: "hi", as: 1 } })).code, "forbidden", "not as another player's character");
+  assert.equal((await svc.chat({ uid: "bob", data: { cid: "c7", fid: "f1", text: "hi", to: "kurt" } })).code, "bad-request", "players don't whisper each other");
+  assert.equal((await svc.chat({ uid: "carl", data: { cid: "c7", fid: "f1", text: "hi" } })).code, "forbidden", "outsiders can't chat");
+  assert.equal((await svc.chat({ uid: "bob", data: { cid: "c7", fid: "f1", text: "/roll lots" } })).code, "bad-request");
+  assert.equal(store.docs.get(p.fight).rev, rev0, "chat never moves the fight's rev");
+});
+
+test("a player picks his colour; the header and the other views show it", async () => {
+  const { store, svc, p } = await opened();
+  const colours = rules.fightView.PLAYER_COLOURS;
+  const r = await svc.act({ uid: "bob", data: { cid: "camp1", fid: "f1", rev: header(store, p).rev, rules: fightStore.RULES_VERSION, action: { type: "colour", color: colours[4] } } });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(header(store, p).people.bob.color, colours[4]);
+  assert.equal(store.docs.get(p.view("kurt")).people.bob.color, colours[4]);
+});
