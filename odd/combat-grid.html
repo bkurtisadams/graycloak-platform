@@ -1119,7 +1119,7 @@ function startFight() {
 function nextStep() {
   if (state.phase !== "fight") return;
   if (online.on) {
-    // Ready all of this page's figures still deciding (the referee's "Ready all mine")
+    // mark all of this page's figures still deciding Ready (the referee's "Mark my N figures Ready")
     if (state.step.startsWith("move-")) { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) runAction({ type: "ready", ids }); }
     return;
   }
@@ -1477,7 +1477,7 @@ function stepLabel() {
   }
   if (state.phase === "setup") return online.on ? "Start fight online" : "Start fight";
   if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect") return "The server resolves this step";
-  if (online.on && state.phase === "fight" && state.step.startsWith("move-")) return myFigs().some((f) => needsReady(f) && !isReadyFig(f)) ? "Ready all mine" : "Waiting on the players";
+  if (online.on && state.phase === "fight" && state.step.startsWith("move-")) { const n = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length; return n ? `Mark my ${n === 1 ? "figure" : `${n} figures`} Ready` : "Waiting on the players"; }
   if (state.phase === "over") return "Fight over";
   if (state.step === "init") return state.round ? "Next round" : "Roll initiative";
   if (state.step === "elect") return "Choose to move first or last";
