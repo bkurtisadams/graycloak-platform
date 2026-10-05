@@ -168,13 +168,13 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .stage #mini { right: 16px; bottom: 14px; z-index: 3; }
 .actionbar { position: absolute; left: 16px; right: 236px; bottom: 14px; display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; padding: 12px 14px; box-shadow: 0 4px 14px rgba(0,0,0,.3); z-index: 3; }
 .actionbar[hidden] { display: none; }
-.ab-who { display: flex; flex-direction: column; gap: 4px; min-width: 170px; }
+.ab-who { display: flex; flex-direction: column; gap: 4px; min-width: 170px; max-width: 280px; }
 .ab-name { font-size: 1.05rem; font-weight: 700; }
 .ab-name.a { color: var(--side-a); } .ab-name.b { color: var(--side-b); }
 .ab-sub { font-size: .82rem; color: var(--pencil); }
 .hpbar { width: 110px; height: 8px; background: #d9e2e8; border-radius: 4px; overflow: hidden; }
 .hpbar > div { height: 8px; }
-.ab-move { display: flex; flex-direction: column; gap: 4px; min-width: 150px; }
+.ab-move { display: block; max-width: 260px; }
 .pips { display: flex; gap: 3px; flex-wrap: wrap; max-width: 260px; }
 .pip { width: 14px; height: 14px; border-radius: 2px; box-sizing: border-box; border: 1px solid var(--ink); }
 .pip.used { background: var(--ink); }
@@ -238,28 +238,17 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .st-ready { font-family: var(--type); color: #2f7d32; }
 .st-deciding { font-family: var(--type); color: var(--side-b); }
 .st-other { font-family: var(--type); color: var(--pencil); }
-.cards { position: absolute; left: 16px; bottom: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 4; max-height: calc(100% - 90px); overflow-y: auto; }
-.cards[hidden] { display: none; }
-.ccard { width: 420px; max-width: calc(100vw - 48px); box-sizing: border-box; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.25); display: flex; font-family: var(--serif); }
-.ccard .main { flex: 1 1 auto; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-.ccard .head { display: flex; align-items: center; gap: 10px; }
-.ccard .disc { width: 36px; height: 36px; border-radius: 50%; color: #fbfdfe; display: flex; align-items: center; justify-content: center; font-family: var(--type); font-weight: 700; font-size: .75rem; flex-shrink: 0; }
-.ccard .nm { font-weight: 700; font-size: 1.05rem; }
-.ccard .sub { font-size: .85rem; color: var(--pencil); }
-.ccard .hpline { display: flex; justify-content: space-between; font-family: var(--type); font-size: .85rem; }
-.ccard .chp { height: 8px; width: 100%; background: #c9d8e2; border-radius: 3px; overflow: hidden; }
-.ccard .chp > div { height: 100%; }
-.ccard .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; font-family: var(--type); font-size: .85rem; }
-.ccard .orders { border-top: 1px solid #c9d8e2; padding-top: 8px; font-size: .9rem; display: flex; flex-direction: column; gap: 2px; }
-.ccard .btns { display: flex; gap: 8px; }
-.ccard .btns button { font: inherit; font-size: .9rem; min-height: 44px; padding: 6px 12px; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; }
-.ccard .status { flex: 0 0 112px; border-left: 1px solid #c9d8e2; padding: 12px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; }
-.ccard .status .k { font-size: .8rem; color: var(--pencil); text-transform: uppercase; letter-spacing: .06em; }
-.ccard .status .v { font-family: var(--type); font-weight: 700; font-size: 1rem; }
-.ccard .status button { font: inherit; min-height: 44px; width: 100%; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
-.ccard .status button.go { font-weight: 700; font-size: 1rem; border: none; }
-.ccard .status button.back { font-size: .85rem; border: 1px solid var(--ink); }
-@media (max-width: 700px) { .cards { position: static; padding: 8px; } .ccard { width: 100%; max-width: none; } }
+.ab-status { flex: 0 0 112px; align-self: stretch; border-left: 1px solid #c9d8e2; padding-left: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; font-family: var(--serif); }
+.ab-status .k { font-size: .8rem; color: var(--pencil); text-transform: uppercase; letter-spacing: .06em; }
+.ab-status .v { font-family: var(--type); font-weight: 700; font-size: 1rem; }
+.ab-status button { font: inherit; min-height: 44px; width: 100%; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.ab-status button.go { font-weight: 700; font-size: 1rem; border: none; }
+.ab-status button.back { font-size: .85rem; border: 1px solid var(--ink); }
+.ab-switch { display: flex; gap: 4px; flex-wrap: wrap; }
+.ab-switch button { font-family: var(--type); font-size: .8rem; min-height: 32px; padding: 2px 8px; }
+.ab-switch button.on { background: var(--ink); color: var(--card); }
+.ab-orders { font-size: .85rem; }
+@media (max-width: 700px) { .ab-status { flex-direction: row; border-left: none; border-top: 1px solid #c9d8e2; padding: 8px 0 0; } .ab-status button { width: auto; } }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
 body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #chatForm, body.player-mode #chips { display: none !important; }
@@ -296,7 +285,6 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
     <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button><button id="showTargets" aria-pressed="false" title="Show every figure's target line (otherwise: the selected figure, the one under the pointer, and chargers)">Show targets</button></div>
     <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div>
     <div class="actionbar" id="actionbar"></div>
-    <div class="cards" id="cards" hidden aria-label="Your characters"></div>
   </div>
   <p id="dragInfo" aria-live="polite"></p>
   <p class="step" id="stepText"></p>
@@ -824,6 +812,8 @@ function openOnline(cid, fid) {
     onHeader: (h) => { online.header = h; renderOnlineNote(); renderStrip(); },
     onView: (v) => {
       adoptView(v);
+      // the player's page always shows one of his own characters in the bar, unless he clicked another figure
+      if (PLAYER && (state.selected == null || !byId(state.selected))) { const own = state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();
       renderOnlineNote();
     },
@@ -858,7 +848,19 @@ function statusOf(f) {
   if (!active(f)) return `<span class="st-other">${esc(f.status ?? "out")}</span>`;
   return "";
 }
-function figList(figs) { return figs.map((f) => `${esc(f.name)}${statusOf(f) ? ` ${statusOf(f)}` : ""}`).join(" \u00b7 "); }
+function figList(figs) {
+  const out = [], kinds = new Map();
+  for (const f of figs) {
+    if (f.kind === "pc") { out.push(`${esc(f.name)}${statusOf(f) ? ` ${statusOf(f)}` : ""}`); continue; }
+    const k = mon(f)?.name ?? f.monsterKey; if (!kinds.has(k)) kinds.set(k, []); kinds.get(k).push(f);
+  }
+  for (const [k, list] of kinds) {
+    const up = list.filter(alive), need = list.filter(needsReady);
+    const plural = list.length > 1 ? `${k}s` : k;
+    out.push(need.length ? `${esc(plural)}: ${need.filter(isReadyFig).length} of ${need.length} ready` : `${esc(plural)} (${up.length}${up.length < list.length ? ` of ${list.length}` : ""})`);
+  }
+  return out.join(" \u00b7 ");
+}
 function renderPeople() {
   const box = $("#peoplePanel"); if (!box) return;
   box.hidden = !online.on || state.phase === "setup" || !state.people;
@@ -884,39 +886,23 @@ function cardAction(f) {
   if (a.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === a.slice(5)); return `cast ${sp?.name ?? a.slice(5)}${f.castAim ? " at the marked point" : ""}`; }
   return "melee";
 }
-function cardHtml(f) {
-  const t = f.target != null ? byId(f.target) : null, p = personOf(f);
-  const frac = f.maxHp ? Math.max(0, f.hp) / f.maxHp : 1, hpCol = frac > 0.5 ? "#2f7d32" : frac > 0.25 ? "#a16207" : "#b3362b";
-  const armour = ARMOR.find((a) => a.id === f.armor)?.label?.toLowerCase();
-  const range = t && f.action === "fire" && f.missile ? missileBand(distIn(f, t), missileRange(f.missile)) : null;
-  const status = !needsReady(f)
+/** The Status block at the bar's right end (online): Deciding / Ready, as in the approved mockup's card. */
+function statusBlock(f) {
+  if (!online.on || state.phase !== "fight" || !state.people) return "";
+  if (PLAYER ? !f.mine : controllerOfFig(f) !== "referee") return "";
+  const body = !needsReady(f)
     ? `<span class="v st-other">${!alive(f) ? "Down" : !active(f) ? esc(f.status ?? "Out") : movingSide() ? "Not moving" : "Waiting"}</span>`
     : isReadyFig(f)
       ? `<span class="v st-ready">\u2713 Ready</span><button type="button" class="back" data-unready="${f.id}">Change orders</button>`
       : `<span class="v st-deciding">Deciding</span><button type="button" class="go primary" data-ready="${f.id}">Ready</button>`;
-  return `<div class="ccard" data-card="${f.id}">
-    <div class="main">
-      <div class="head"><div class="disc" style="background:var(--side-${f.side.toLowerCase()});box-shadow:0 0 0 3px ${p?.color ?? "transparent"}">${esc(tokenLabel(f))}</div>
-        <div style="display:flex;flex-direction:column"><span class="nm">${esc(f.name)}</span><span class="sub">${esc(CLASS_NAME[f.cls] ?? "")}, level ${f.level ?? 1}${f.alignment ? ` \u00b7 ${esc(ALIGN_LABEL[f.alignment] === "Neutrality" ? "Neutral" : ALIGN_LABEL[f.alignment] === "Law" ? "Lawful" : "Chaotic")}` : ""}</span></div></div>
-      <div style="display:flex;flex-direction:column;gap:3px"><div class="hpline"><span>Hit points</span><span style="font-weight:700">${Math.max(0, f.hp ?? 0)} / ${f.maxHp ?? "?"}</span></div><div class="chp"><div style="width:${Math.round(frac * 100)}%;background:${hpCol}"></div></div></div>
-      <div class="facts"><span>AC ${f.ac}${armour ? ` (${esc(armour)})` : ""}</span><span>Move ${moveInches(f)}"</span><span>${esc(WEAPON_LABEL[f.weaponId] ?? "No weapon")} ${f.weaponBroken ? "(broken)" : "in hand"}</span><span>${f.missile ? esc(MISSILE_LABEL[f.missile]) : "No missile"}</span></div>
-      <div class="orders"><span><b>Target</b> ${t ? `${esc(t.name)}, ${distIn(f, t)}"${range ? ` (${esc(range)} range)` : ""}` : "none"}</span><span><b>Action</b> ${esc(cardAction(f))} \u00b7 <b>Stance</b> ${esc(f.stance ?? "attack")}</span></div>
-      <div class="btns"><button type="button" data-centre="${f.id}">Centre on map</button><button type="button" data-sheet="${f.id}">Character sheet</button></div>
-    </div>
-    <div class="status"><span class="k">Status</span>${status}</div>
-  </div>`;
+  return `<div class="ab-status"><span class="k">Status</span>${body}</div>`;
 }
-function renderCards() {
-  const box = $("#cards"); if (!box) return;
-  const figs = PLAYER && state.phase !== "setup" ? state.figures.filter((f) => f.mine) : [];
-  box.hidden = !figs.length; if (box.hidden) return;
-  box.innerHTML = figs.map(cardHtml).join("");
-  // sit above the action bar, once it has been drawn
-  requestAnimationFrame(() => { const bar = $("#actionbar"); box.style.bottom = `${bar && !bar.hidden && bar.offsetHeight ? bar.offsetHeight + 24 : 14}px`; });
-  box.querySelectorAll("[data-ready]").forEach((b) => (b.onclick = () => runAction({ type: "ready", ids: [Number(b.dataset.ready)] })));
-  box.querySelectorAll("[data-unready]").forEach((b) => (b.onclick = () => runAction({ type: "unready", ids: [Number(b.dataset.unready)] })));
-  box.querySelectorAll("[data-centre]").forEach((b) => (b.onclick = () => { const f = byId(Number(b.dataset.centre)); if (!f) return; state.selected = f.id; cam.x = (centre(f).x + 0.5) * PX; cam.y = (centre(f).y + 0.5) * PX; applyView(); render(); }));
-  box.querySelectorAll("[data-sheet]").forEach((b) => (b.onclick = () => { state.selected = Number(b.dataset.sheet); render(); openDrawer("figure"); }));
+/** A player with more than one character switches between them in the bar's header. */
+function switcher(f) {
+  if (!PLAYER || state.phase === "setup") return "";
+  const mine = state.figures.filter((g) => g.mine && g.placed);
+  if (mine.length < 2) return "";
+  return `<span class="ab-switch">${mine.map((g) => `<button type="button" data-pick="${g.id}" class="${g.id === f.id ? "on" : ""}" title="${esc(g.name)}">${esc(tokenLabel(g))}${needsReady(g) && !isReadyFig(g) ? " \u2022" : ""}</button>`).join("")}</span>`;
 }
 let chimeCtx = null;
 function chime() {
@@ -933,7 +919,7 @@ function chime() {
 }
 const BASE_TITLE = document.title;
 function renderOnlineTable() {
-  renderPeople(); renderCards();
+  renderPeople();
   const side = movingSide(), live = online.on && state.phase === "fight" && !!state.people;
   // the side's Ready count, in the strip
   const need = live && side ? state.figures.filter(needsReady) : [];
@@ -1112,7 +1098,7 @@ function afterStepChange() {
   if (state.step?.startsWith("move-")) {
     const side = state.step.slice(5);
     const sel = state.selected != null ? byId(state.selected) : null;
-    if (!sel || sel.side !== side || !active(sel) || !mineOk(sel)) { const first = state.figures.find((f) => f.side === side && active(f) && f.placed && mineOk(f)); state.selected = first?.id ?? null; state.group = new Set(first ? [first.id] : []); }
+    if (!sel || sel.side !== side || !active(sel) || !mineOk(sel)) { const first = state.figures.find((f) => f.side === side && active(f) && f.placed && mineOk(f) && (!PLAYER || !isReadyFig(f))) ?? state.figures.find((f) => f.side === side && active(f) && f.placed && mineOk(f)); state.selected = first?.id ?? null; state.group = new Set(first ? [first.id] : []); }
   }
   render();
   if (state.step?.startsWith("move-")) { const side = state.step.slice(5); if (!state.figures.some((f) => f.side === side && f.placed && present(f) && onScreen(f))) focusSide(side); }
@@ -1495,6 +1481,15 @@ function actionText(f) {
   if (tn) return { text: `${f.stance === "parry" ? "Parry" : "Melee"} \u2192 ${tn}`, warn: false };
   return { text: "No action yet", warn: true };
 }
+/** The bar's Move line (Kurt, Oct 2026: text, no squares), with Chainmail's half-move rule for joining a melee. */
+function moveLine(f, total, usedIn, leftIn) {
+  if (state.phase !== "fight") return `${total}\u2033`;
+  if (f.chargedRound === state.round) return `charged ${usedIn}\u2033`;
+  if (f.charging) return `charging \u00b7 up to ${chargeInches(f)}\u2033`;
+  if (!f.moved) return `${total}\u2033 \u00b7 not moved`;
+  if (leftIn <= 0) return `${usedIn}\u2033 of ${total}\u2033 used`;
+  return `${usedIn}\u2033 of ${total}\u2033 used \u00b7 ${leftIn}\u2033 left \u00b7 ${canJoinMelee(f.moved ?? 0, total) ? "can still join a melee" : "too far to join a melee"}`;
+}
 function moveText(f) {
   if (state.phase !== "fight") return `move ${moveInches(f)}\u2033`;
   const used = halfCellsToInches(f.moved ?? 0), left = halfCellsToInches(Math.max(0, moveBudget(moveInches(f)) - (f.moved ?? 0)));
@@ -1533,7 +1528,6 @@ function renderActionBar() {
   const full = f.kind === "pc" ? (CLASSES.find((c) => c.id === f.cls)?.label ?? "") : (mon(f)?.name ?? "");
   const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx, hpTxt = hpText(f);
   const total = allowanceOf(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
-  const pipN = Math.min(24, Math.ceil(total)), usedPips = Math.min(pipN, Math.round(usedIn));
   const fight = state.phase === "fight" && active(f) && mineOk(f);
   const btn = (id, text, on, cls = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}">${esc(text)}</button>`;
   const acts = [];
@@ -1564,15 +1558,21 @@ function renderActionBar() {
   }
   el.innerHTML = `
     <div class="ab-row">
-      <div class="ab-who"><span class="ab-name ${f.side === "A" ? "a" : "b"}">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</span>
+      <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
         <span class="ab-sub">${esc(p.fcLabel)} \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())} \u00b7 AC ${f.ac}</span>
         ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span class="mono" style="font-size:.82rem">${hpTxt} hp</span>` : ""}</div>`}
         <span class="ab-phone-line mono" style="font-size:.8rem">${hpTxt ? `${hpTxt} hp \u00b7 ` : ""}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
+        ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${esc(cardAction(f))}${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"} \u00b7 stance ${esc(f.stance ?? "attack")}</span>` : ""}
+        <span class="ab-move mono" style="font-size:.82rem">Move ${esc(moveLine(f, total, usedIn, leftIn))}</span>
         <a href="#" class="ab-more" id="abDetails">Details</a></div>
       ${tgt}
     </div>
-    <div class="ab-move"><span class="ab-k">Move</span><div class="pips">${Array.from({ length: pipN }, (_, i) => `<div class="pip ${i < usedPips ? "used" : ""}"></div>`).join("")}</div><span class="mono" style="font-size:.82rem">${leftIn}\u2033 of ${total}\u2033 left${state.phase === "fight" ? ` \u00b7 ${canJoinMelee(f.moved ?? 0, total) ? "can join" : "can't join a melee"}` : ""}</span></div>
-    <div class="ab-actions">${acts.join("")}${fight || acts.length ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}</div>`;
+    <div class="ab-actions">${acts.join("")}${fight || acts.length ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}</div>
+    ${statusBlock(f)}`;
+  el.querySelector("#abCentre")?.addEventListener("click", (e) => { e.preventDefault(); cam.x = (centre(f).x + 0.5) * PX; cam.y = (centre(f).y + 0.5) * PX; applyView(); });
+  el.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => { state.selected = Number(b.dataset.pick); ensureVisible(byId(state.selected)); render(); }));
+  el.querySelectorAll("[data-ready]").forEach((b) => (b.onclick = () => runAction({ type: "ready", ids: [Number(b.dataset.ready)] })));
+  el.querySelectorAll("[data-unready]").forEach((b) => (b.onclick = () => runAction({ type: "unready", ids: [Number(b.dataset.unready)] })));
   // desktop order: who | move | actions | target
   if (window.matchMedia("(min-width: 701px)").matches) { const tEl = el.querySelector(".ab-target"); if (tEl) el.appendChild(tEl); }
   el.querySelector("#abDetails").onclick = (e) => { e.preventDefault(); openDrawer("figure"); };
@@ -2222,8 +2222,8 @@ function renderOverlay() {
         text = (f.charging ? "charge " : "") + (before > 0.05 ? `${thisIn}″ · round ${total}/${allow}″` : `${thisIn}″ / ${allow}″`);
         if (f.charging && total > moveInches(f) && !enemyAdjacentAt(f, c.x, c.y)) { colour = "var(--red)"; text += " · must end in contact"; }
         if (atCap) text += " · MAX";
-        const half = canJoinMelee((f.moved ?? 0) + node.cost, allow) ? "" : " · can't join a melee";
-        text += half;
+        const joinNote = canJoinMelee((f.moved ?? 0) + node.cost, allow) ? "" : " · can't join a melee";
+        text += joinNote;
       } else if (node?.passOnly || footCells(c.x, c.y, sz(f)).some(([x, y]) => occupant(x, y, f))) { colour = "var(--red)"; text = "occupied"; }
       else if (footCells(c.x, c.y, sz(f)).some(([x, y]) => isWall(x, y))) { colour = "var(--red)"; text = sz(f) > 1 ? "doesn't fit" : "wall"; }
       else { colour = "var(--red)"; const straight = Math.round(Math.hypot(c.x - f.x, c.y - f.y) / 3 * 10) / 10; text = `OVER · about ${straight}″, ${Math.max(0, Math.round((allow - before) * 10) / 10)}″ left`; }
