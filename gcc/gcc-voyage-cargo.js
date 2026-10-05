@@ -1,4 +1,7 @@
-// gcc-voyage-cargo.js v0.2.1 - Port Markets + Cargo Manifest for GCC Voyage
+// gcc-voyage-cargo.js v0.2.2 - Port Markets + Cargo Manifest for GCC Voyage
+// v0.2.2: per-sale customs uses the port call's rolled 2d10% rate
+//   (GCCVoyage.customsRatePct) when one is active at this port; the
+//   per-port customsPct is the fallback outside a voyage port call.
 // v0.2.1: customsGp consults GCCVoyage.customsStatus(port) — a successful
 //   Smuggling check in the port-call flow waives per-sale customs here.
 // v0.2.0: replace the wide market/manifest tables (min-width 720/820px)
@@ -22,7 +25,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.1';
+  const VERSION = '0.2.2';
   const STORAGE_KEY = 'gcc.voyage.cargo.v1';
   const LOAD_CN = 10000;
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -232,8 +235,13 @@
   function customsGp(port, gross){
     // v0.2.1: the voyage port-call customs step can waive per-sale customs
     // at this port (successful Smuggling check per the Seafaring rules).
-    try { if (window.GCCVoyage?.customsStatus?.(port) === 'waived') return 0; } catch (err){ /* voyage absent */ }
-    return Math.max(0, Math.round(Number(gross || 0) * Number(marketFor(port).customsPct || 0) / 100));
+    let rate = Number(marketFor(port).customsPct || 0);
+    try {
+      if (window.GCCVoyage?.customsStatus?.(port) === 'waived') return 0;
+      const rolled = window.GCCVoyage?.customsRatePct?.(port);
+      if (rolled != null && Number.isFinite(Number(rolled))) rate = Number(rolled);
+    } catch (err){ /* voyage absent */ }
+    return Math.max(0, Math.round(Number(gross || 0) * rate / 100));
   }
 
   function availableLoads(port, cargoId){

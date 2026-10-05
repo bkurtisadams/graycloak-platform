@@ -1,4 +1,17 @@
-// gcc-voyage.js v0.14.0 — 2026-07-10
+// gcc-voyage.js v0.14.1 — 2026-10-05
+// v0.14.1: Seafaring audit bug fixes.
+//   - Port-call customs: the rolled 2d10% rate is what sales are charged
+//     (exposed as customsRatePct for gcc-voyage-cargo v0.2.2).
+//   - Squalls no longer always count as storm hazards; the hazard tier
+//     keys on wind speed (weather hazardLevel), matching gcc-weather v0.2.1.
+//   - Sailing speed in non-hazard wind uses the Seafaring optional wind
+//     rule (no sail under 5 mph, −4 mi/day per 10 mph under 20, +8 per 10
+//     over 30) times the weather's precipitation multiplier, plus wet
+//     sails. Gale/storm/hurricane keep the weather force multipliers.
+//   - Small Sailing Ship 50 mi/day (was 30); Cog 35 (was 36).
+//   - Lake (fresh water) gets three encounter checks a day, like rivers.
+//   - Wind Damage Table comment corrected: the ÷4 is a house reduction,
+//     not one watch of RAW exposure.
 // v0.14.0: port call flow + HUD + newest-first feed.
 //   - Feed is newest-first: today's card renders directly under the HUD,
 //     no scrolling to see the day's results. Pill/auto-scroll machinery
@@ -249,16 +262,16 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.14.0 loaded');
+  LOG('gcc-voyage.js v0.14.1 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
   // dailyOar: miles-per-day rowed (Seafaring ship table, rowed column).
   // 0 = no meaningful oar power; ship is dead in the water when becalmed.
   const SHIP_TEMPLATES = [
-    { id:'cog',           name:'Cog',                   dailySail:36, dailyOar:15, hull:21 },
+    { id:'cog',           name:'Cog',                   dailySail:35, dailyOar:15, hull:21 },
     { id:'caravel',       name:'Caravel',               dailySail:48, dailyOar:0,  hull:18 },
-    { id:'sailing_ship',  name:'Sailing Ship',          dailySail:30, dailyOar:20, hull:25 },
+    { id:'sailing_ship',  name:'Sailing Ship, Small',   dailySail:50, dailyOar:20, hull:25 },
     { id:'galley_large',  name:'Large Galley',          dailySail:50, dailyOar:30, hull:10 },
     { id:'galley_war',    name:'War Galley',            dailySail:36, dailyOar:12, hull:18 },
     { id:'sailing_boat',  name:'Sailing Boat (Fishing)',dailySail:60, dailyOar:10, hull:14 },
@@ -293,10 +306,9 @@
   };
 
   // Seafaring/DMG Wind Damage Table (base %, before quality modifiers).
-  // RAW checks every 6 hours; the doc itself flags that as extraordinarily
-  // lethal. Here one set of rolls fires only on the watch where the captain
-  // loses control (the failed Ship Sailing check), at RAW ÷ 4 — one
-  // six-hour watch of exposure.
+  // RAW checks every 6 hours. House rule: one set of rolls fires only on
+  // the day the captain loses control (failed Ship Sailing check), at
+  // RAW ÷ 4 — a quarter of one watch's exposure, not a full RAW watch.
   const WIND_DAMAGE_TABLE = {
     gale:      { capsize:1,  mast:5,  beams:10, sail:20, overboard:10 },
     storm:     { capsize:20, mast:25, beams:35, sail:45, overboard:50 },
@@ -381,7 +393,7 @@
   // Seafaring: 1 hull point permanently repaired in port for 100 gp/day by
   // trained workers. (Self-repair by crew is ~50 gp materials + a week.)
   const REPAIR_GP_PER_HULL = 100;
-  const VOYAGE_VERSION = '0.14.0';
+  const VOYAGE_VERSION = '0.14.1';
   const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
   // Completed/discarded voyages: summary + condensed log + settlement.
   // Written by archiveVoyage() before state.voyage is nulled or replaced.
@@ -720,10 +732,14 @@
     }
   }
 
+  // Seafaring optional wind rule (non-hazard wind): no sail under 5 mph,
+  // −1" (4 mi/day) per 10 mph under 20, +2" (8 mi/day) per 10 mph over 30.
+  // Gale/storm/hurricane days keep the weather module's force multipliers.
   function calculateSailingSpeed(baseSpeed, weather){
     const w = Number(weather?.wind?.speed || 0);
     const fx = weather?.voyageEffects;
-    if (fx && Number.isFinite(fx.movementMultiplier)){
+    const hasPrecipMult = fx && Number.isFinite(fx.precipMultiplier);
+    if (fx && Number.isFinite(fx.movementMultiplier) && (fx.hazardLevel || !hasPrecipMult)){
       const mult = fx.movementMultiplier;
       const bonus = Number(fx.bonusMiles || 0);
       const speed = Math.max(0, Math.round((baseSpeed * mult) + bonus));
@@ -736,34 +752,41 @@
       return { speed, note:bits.join(' '), becalmed:mult === 0 };
     }
 
+    const precipKey = String(weather?.precipitation?.key || '').toLowerCase();
+    const precipType = weather?.precipitation?.type || '';
+    if (w < 5 || precipKey === 'becalmed') return { speed:0, note:`Becalmed — wind too light (${w} mph).`, becalmed:true };
     let speed = baseSpeed, note = '';
-    if (w<5) return { speed:0, note:'Becalmed — wind too light.', becalmed:true };
-    if (w<20){
+    if (w < 20){
       const penalty = Math.floor((20-w)/10)*4;
       speed = Math.max(1, baseSpeed-penalty);
-      note = `Light winds (${w} mph). −${penalty} mi/day.`;
-    } else if (w<=30){
+      note = penalty ? `Light winds (${w} mph). −${penalty} mi/day.` : `Moderate winds (${w} mph).`;
+    } else if (w <= 30){
       note = `Good sailing winds (${w} mph).`;
     } else {
       const bonus = Math.floor((w-30)/10)*8;
       speed += bonus;
       note = `Strong winds (${w} mph). +${bonus} mi/day.`;
     }
-    const wet = ['drizzle','rainstorm-light','rainstorm-heavy','hailstorm','Rain','Rain Storm'];
-    if (wet.includes(weather.precipitation.type)){
+    const pm = hasPrecipMult ? fx.precipMultiplier : 1;
+    if (pm !== 1){
+      speed = Math.max(1, Math.round(speed * pm));
+      note += ` ${precipType} — ${Math.round(pm * 100)}% speed.`;
+    }
+    const wet = ['rain','rain-storm','squall','drizzle','rainstorm-light','rainstorm-heavy','hailstorm'];
+    if (wet.includes(precipKey) || ['Rain','Rain Storm'].includes(precipType)){
       const pct = Math.floor(Math.random()*6)+5;
       const bonus = Math.floor(speed*pct/100);
       speed += bonus;
-      note += ` Wet sails +${bonus} mi.`;
+      if (bonus) note += ` Wet sails +${bonus} mi.`;
     }
     return { speed, note, becalmed:false };
   }
   // DMG p.47/Seafaring: encounters occur 1-in-20 per check. Salt water gets
   // two checks/day in coastal/shallow water, one in deep water; fresh water
-  // gets three checks/day. Approximated as a single d20 per day against a
+  // (lake, river) gets three checks/day. Approximated as a single d20 per day against a
   // per-check-count threshold.
   function checkEncounter(waterType, weather){
-    const thresholds = { coastal:2, openWater:1, lake:2, river:3 };
+    const thresholds = { coastal:2, openWater:1, lake:3, river:3 };
     const threshold = thresholds[waterType] || 2;
     if (rollD(20) > threshold) return null;
     const ENC = {
@@ -888,7 +911,7 @@
     const p = weather?.precipitation?.key || weather?.precipitation?.type || '';
     const hz = weather?.voyageEffects?.hazardLevel;
     if (hz === 'hurricane' || p === 'hurricane' || w>=73) return { type:'Critical', mod:10, desc:'Hurricane Force Weather' };
-    if (hz === 'storm' || p === 'waterspout' || p === 'squall' || w>=55) return { type:'Major', mod:6, desc:p === 'waterspout' ? 'Waterspout / Tornado' : 'Storm' };
+    if (hz === 'storm' || p === 'waterspout' || w>=55) return { type:'Major', mod:6, desc:p === 'waterspout' ? 'Waterspout / Tornado' : p === 'squall' ? 'Squall' : 'Storm' };
     if (hz === 'gale' || p === 'gale' || w>=32) return { type:'Major', mod:4, desc:'Gale Force Winds' };
     const sky = String(weather?.sky || '').toLowerCase();
     if (sky.includes('fog') || p === 'fog' || p === 'heavy-fog')
@@ -1096,6 +1119,12 @@
     const pc = state.voyage?.portCall;
     if (!pc || pc.departed || pc.port !== port) return 'none';
     return pc.customs.state;
+  }
+  function customsRatePct(port){
+    const pc = state.voyage?.portCall;
+    if (!pc || pc.departed || pc.port !== port) return null;
+    const r = Number(pc.customs?.ratePct);
+    return Number.isFinite(r) ? r : null;
   }
   function queuePortFees(){
     const v = state.voyage, pc = v?.portCall;
@@ -3395,6 +3424,7 @@
     endVoyage,
     getArchivedVoyages,
     customsStatus,
+    customsRatePct,
     archiveVoyage: (reason='ended') => archiveVoyage(state.voyage, reason)
   };
 })();

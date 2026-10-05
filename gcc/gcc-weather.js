@@ -1,4 +1,8 @@
-// gcc-weather.js v0.2.1 — AD&D / World of Greyhawk campaign weather for GCC
+// gcc-weather.js v0.2.2 — AD&D / World of Greyhawk campaign weather for GCC
+// v0.2.2: voyageEffects.precipMultiplier — the precipitation-only share of
+//   the speed multiplier (fog, rain storm, squall, snow, becalmed), so the
+//   voyage sim can apply the Seafaring wind rule separately (gcc-voyage
+//   v0.14.1). movementMultiplier is unchanged.
 // v0.2.1: rain-storms and squalls no longer unconditionally count as
 //   hazardLevel 'storm'. Hazard tier now keys on actual wind speed
 //   (>=55 storm, >=32 gale, else none) — common 4d10-wind rain days were
@@ -19,7 +23,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.1';
+  const VERSION = '0.2.2';
 
   const MONTHS = [
     'Needfest', 'Fireseek', 'Readying', 'Coldeven', 'Growfest',
@@ -231,11 +235,13 @@
     const force = weather.wind.forceKey;
     const precipKey = weather.precipitation.key;
     let movementMultiplier = 1;
+    let precipMultiplier = 1;
     let bonusMiles = 0;
     let navigationPenalty = 0;
     let hazardLevel = null;
     const notes = [];
 
+    if (precipKey === 'becalmed') precipMultiplier = 0;
     if (force === 'calm' || precipKey === 'becalmed'){
       movementMultiplier = 0;
       notes.push('Becalmed; sailing ships make no progress.');
@@ -267,12 +273,14 @@
 
     if (['fog', 'heavy-fog'].includes(precipKey)){
       movementMultiplier = Math.min(movementMultiplier, precipKey === 'heavy-fog' ? 0.5 : 0.75);
+      precipMultiplier = Math.min(precipMultiplier, precipKey === 'heavy-fog' ? 0.5 : 0.75);
       navigationPenalty += precipKey === 'heavy-fog' ? 4 : 2;
       notes.push(precipKey === 'heavy-fog' ? 'Heavy fog halves speed and hides hazards.' : 'Fog reduces speed and visibility.');
     }
 
     if (['rain-storm', 'squall'].includes(precipKey)){
       movementMultiplier = Math.min(movementMultiplier, 0.75);
+      precipMultiplier = Math.min(precipMultiplier, 0.75);
       navigationPenalty += 2;
       // A rain storm or squall is only a structural hazard when the wind
       // says so (Seafaring: hazard tiers key on Wind Force, and common
@@ -286,6 +294,7 @@
 
     if (['blizzard', 'snowstorm', 'sleet-hail'].includes(precipKey)){
       movementMultiplier = Math.min(movementMultiplier, precipKey === 'blizzard' ? 0.25 : 0.5);
+      precipMultiplier = Math.min(precipMultiplier, precipKey === 'blizzard' ? 0.25 : 0.5);
       navigationPenalty += precipKey === 'blizzard' ? 5 : 3;
       if (!hazardLevel && weather.wind.speed >= 32) hazardLevel = 'gale';
       notes.push(`${weather.precipitation.type} cuts visibility and makes decks treacherous.`);
@@ -300,6 +309,7 @@
     const speedNote = notes.join(' ');
     return {
       movementMultiplier,
+      precipMultiplier,
       bonusMiles,
       navigationPenalty,
       hazardLevel,
