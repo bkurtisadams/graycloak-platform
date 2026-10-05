@@ -30,7 +30,8 @@ const db = getFirestore();
 const store = {
   run: (fn) => db.runTransaction((t) => fn({
     get: async (path) => { const snap = await t.get(db.doc(path)); return snap.exists ? snap.data() : null; },
-    set: (path, data) => { t.set(db.doc(path), data); }
+    set: (path, data) => { t.set(db.doc(path), data); },
+    list: async (path) => (await t.get(db.collection(path))).docs.map((d) => d.data())
   })),
   // A fight and everything under it (state, views, feeds, actions).
   deleteTree: (path) => db.recursiveDelete(db.doc(path))

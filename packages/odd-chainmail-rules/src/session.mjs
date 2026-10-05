@@ -19,31 +19,15 @@
  *      so a fight between two game sides can't run away in one request).
  */
 import { apply, Step, moverOf, AI_ELECTION } from "./runner.mjs";
-import { present, active } from "./board.mjs";
+import { present } from "./board.mjs";
 import { mayAct, controllerOf } from "./view.mjs";
 
-const doneKey = (state) => `${state.round}:${state.step}`;
+import { needsReady, isReady, unreadyIds, readyCount, waitingOn, stepKey } from "./readiness.mjs";
+export { needsReady, isReady, unreadyIds, readyCount, waitingOn };
+const doneKey = stepKey;
 
-/** Figures that need a Ready mark this step: able, on the moving side, not run by the game. */
-export function needsReady(state) {
-  const side = moverOf(state.step);
-  if (!side || state.phase !== "fight") return [];
-  return state.figures.filter((f) => f.side === side && active(f) && controllerOf(state, f) !== "game");
-}
-export const isReady = (state, f) => state.ready?.[f.id] === doneKey(state);
-/** Ids of the figures the moving side still waits on. */
-export const unreadyIds = (state) => needsReady(state).filter((f) => !isReady(state, f)).map((f) => f.id);
-/** Who the moving side is waiting on: uids, and "referee" for figures the referee runs. */
-export function waitingOn(state) {
-  return [...new Set(needsReady(state).filter((f) => !isReady(state, f)).map((f) => controllerOf(state, f)))].sort();
-}
-/** How many of the moving side's figures are Ready, of how many need it. */
-export function readyCount(state) {
-  const need = needsReady(state);
-  return { ready: need.filter((f) => isReady(state, f)).length, of: need.length };
-}
 /** Actions that change a figure's move or orders, and so clear its Ready mark. */
-const CLEARS_READY = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "orders", "draw-weapon"]);
+const CLEARS_READY = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "orders", "draw-weapon", "undo-move"]);
 const idsOf = (a) => [a.id, ...(a.ids ?? [])].filter((x) => x != null);
 const gameRunsSide = (state, side) => {
   const figs = state.figures.filter((f) => f.side === side && present(f));
@@ -63,6 +47,7 @@ export function advance(state, rng, { autoResolve = true, roundsBegun = 0 } = {}
       if (!unreadyIds(state).length) { run({ type: "end-move", side }); continue; }
       break;
     }
+    if (state.step === Step.ORDERS) { if (!unreadyIds(state).length) { run({ type: "orders-end" }); continue; } break; }
     if (state.step === Step.MISSILES && autoResolve) { run({ type: "missiles" }); continue; }
     if (state.step === Step.MELEE && autoResolve) { run({ type: "melee" }); continue; }
     break;
@@ -79,24 +64,42 @@ export function applyAs(state, who, action, rng, opts = {}) {
   const m = mayAct(state, who, action);
   if (!m.ok) return { ok: false, events: [], error: m.why };
   const events = [];
-  if (action.type === "ready" || action.type === "unready") {
+  if (action.type === "force-next") {
+    // Next ▶ (the referee): advance whether or not everyone is Ready; anyone not Ready
+    // goes in with his standing orders (Kurt, Oct 2026, as on the Chainmail board).
     const side = moverOf(state.step);
-    if (!side) return { ok: false, events: [], error: "no side is moving" };
+    const step = state.step;
+    const next = side ? { type: "end-move", side } : step === Step.ORDERS ? { type: "orders-end" } : step === Step.INIT ? { type: "begin-round" }
+      : step === Step.ELECT ? { type: "elect", side: state.init.winner, choice: AI_ELECTION, ai: true } : step === Step.MISSILES ? { type: "missiles" } : step === Step.MELEE ? { type: "melee" } : null;
+    if (!next) return { ok: false, events: [], error: "nothing to advance" };
+    const pending = unreadyIds(state).map((id) => state.figures.find((f) => f.id === id)?.name);
+    const r = apply(state, next, rng);
+    if (!r.ok) return r;
+    events.push({ type: "forced", step, notReady: pending }, ...r.events);
+  } else if (action.type === "step-back") {
+    const r = apply(state, action, rng);
+    if (!r.ok) return r;
+    // the re-opened step's Ready marks are cleared, so its figures can act again
+    if (state.ready) { const key = doneKey(state); const marks = { ...state.ready }; for (const [id, k] of Object.entries(marks)) if (k === key) delete marks[id]; state.ready = marks; }
+    return { ok: true, events: r.events };   // no advance: the referee re-opened it on purpose
+  } else if (action.type === "ready" || action.type === "unready") {
+    const side = moverOf(state.step);
+    if (!side && state.step !== Step.ORDERS) return { ok: false, events: [], error: "nothing to mark Ready in this step" };
     const need = new Set(needsReady(state).map((f) => f.id));
     const ids = [...new Set(action.ids ?? [])];
-    if (!ids.length || ids.some((id) => !need.has(id))) return { ok: false, events: [], error: "only figures moving this step can be marked" };
+    if (!ids.length || ids.some((id) => !need.has(id))) return { ok: false, events: [], error: side ? "only figures moving this step can be marked" : "only figures with a choice to make can be marked" };
     const marks = { ...(state.ready ?? {}) };
     for (const id of ids) if (action.type === "ready") marks[id] = doneKey(state); else delete marks[id];
     state.ready = marks;
     const { ready, of } = readyCount(state);
-    events.push({ type: action.type, ids, names: ids.map((id) => state.figures.find((f) => f.id === id)?.name), side, readyCount: ready, of });
+    events.push({ type: action.type, ids, names: ids.map((id) => state.figures.find((f) => f.id === id)?.name), side: side ?? null, step: state.step, readyCount: ready, of });
   } else {
     const r = apply(state, action, rng);
     if (!r.ok) return r;
     events.push(...r.events);
     if (CLEARS_READY.includes(action.type) && state.ready) {
       const cleared = idsOf(action).filter((id) => state.ready[id] != null);
-      if (cleared.length) { const marks = { ...state.ready }; for (const id of cleared) delete marks[id]; state.ready = marks; events.push({ type: "unready", ids: cleared, names: cleared.map((id) => state.figures.find((f) => f.id === id)?.name), side: moverOf(state.step), changed: true, ...((c) => ({ readyCount: c.ready, of: c.of }))(readyCount(state)) }); }
+      if (cleared.length) { const marks = { ...state.ready }; for (const id of cleared) delete marks[id]; state.ready = marks; events.push({ type: "unready", ids: cleared, names: cleared.map((id) => state.figures.find((f) => f.id === id)?.name), side: moverOf(state.step), step: state.step, changed: true, ...((c) => ({ readyCount: c.ready, of: c.of }))(readyCount(state)) }); }
     }
   }
   events.push(...advance(state, rng, { ...opts, roundsBegun: action.type === "begin-round" ? 1 : 0 }));
@@ -161,6 +164,23 @@ async function runSelfTests() {
     const before = JSON.stringify(st.figures);
     ok(!applyAs(st, kurt, { type: "melee" }, rng).ok && JSON.stringify(st.figures) === before, "a refused action changes nothing");
     ok(rngOf(st)() >= 0, "the dice live in the state");
+  }
+  // Orders: both sides' figures with a choice mark Ready; Next and Previous for the referee
+  {
+    const { st, rng } = fight({ 1: "kurt", 2: "bob", 3: "referee", 4: "referee" });
+    st.figures[2].x = 5; st.figures[3].x = 5; // orcs in contact with the party
+    applyAs(st, server, { type: "begin-round" }, rng);
+    if (st.step === "elect") applyAs(st, ref, { type: "elect", side: st.init.winner, choice: "move" }, rng);
+    applyAs(st, ref, { type: "force-next" }, rng); applyAs(st, ref, { type: "force-next" }, rng);
+    ok(st.step === "orders" && unreadyIds(st).length === 4, "after both moves: Orders, waiting on both sides' figures in contact");
+    ok(!applyAs(st, kurt, { type: "force-next" }, rng).ok && !applyAs(st, kurt, { type: "step-back" }, rng).ok, "Next and Previous are the referee's");
+    ok(applyAs(st, kurt, { type: "ready", ids: [1] }, rng).ok && applyAs(st, ref, { type: "step-back" }, rng).ok && st.step.startsWith("move-"), "Previous re-opens the last move");
+    applyAs(st, ref, { type: "force-next" }, rng);
+    ok(st.step === "orders", "Next brings it back to Orders");
+    for (const [who, id] of [[kurt, 1], [bob, 2], [ref, 3]]) applyAs(st, who, { type: "ready", ids: [id] }, rng);
+    ok(st.step === "orders" && unreadyIds(st).join() === "4", "three of four ready: still Orders");
+    const r = applyAs(st, ref, { type: "force-next" }, rng);
+    ok(r.ok && r.events[0].type === "forced" && r.events[0].notReady.join() === "Orc 4" && st.step !== "orders", "Next resolves now, naming who wasn't Ready");
   }
   console.log(`session.mjs — all self-tests passed (${pass} assertions).`);
 }

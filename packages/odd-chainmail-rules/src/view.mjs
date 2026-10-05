@@ -32,7 +32,8 @@ import { moverOf } from "./runner.mjs";
 import { FIGHT_SCHEMA, RULES_VERSION } from "./fight-store.mjs";
 
 const isStaff = (who) => !!(who?.referee || who?.server);
-export const controllerOf = (state, f) => state.control?.[f.id] ?? "referee";
+import { controllerOf, needsReady } from "./readiness.mjs";
+export { controllerOf };
 export const controls = (state, who, f) => !!f && (isStaff(who) || (who?.uid != null && controllerOf(state, f) === who.uid));
 export const figuresOf = (state, who) => state.figures.filter((f) => controls(state, who, f));
 
@@ -67,19 +68,19 @@ export function viewFor(state, who) {
   if (isStaff(who)) {
     const out = {};
     for (const [k, v] of Object.entries(state)) if (k !== "rngState" && k !== "walls" && typeof v !== "function") out[k] = v instanceof Map ? Object.fromEntries(v) : v instanceof Set ? [...v] : v;
-    return { ...copy(out), ...base, referee: true };
+    return { ...copy(out), ...base, referee: true, needIds: needsReady(state).map((f) => f.id) };
   }
   const groups = state.encounter instanceof Map ? Object.fromEntries(state.encounter) : (state.encounter ?? {});
   const encounter = Object.fromEntries(Object.entries(groups).map(([k, g]) => [k, pick(g, ENCOUNTER_PUBLIC_KEYS)]));
   const key = `${state.round}:${state.step}`;
   const readyIds = Object.entries(state.ready ?? {}).filter(([, k]) => k === key).map(([id]) => Number(id));
-  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, readyIds, encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
+  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, readyIds, needIds: needsReady(state).map((f) => f.id), encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
 }
 
 /* ------------------------------------------------------------------ authority */
 
-const STAFF_ONLY = Object.freeze(["begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader"]);
-const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon"]);
+const STAFF_ONLY = Object.freeze(["begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader", "orders-end", "force-next", "step-back", "undo"]);
+const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon", "undo-move"]);
 const actorIds = (a) => [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
 
 /** May this viewer send this action? { ok, why }. The runner still checks the rules. */
@@ -113,7 +114,7 @@ export function mayAct(state, who, action) {
 
 /* ------------------------------------------------------------------ events */
 
-export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready"]);
+export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready", "orders-open", "step-back", "forced", "undo", "undo-move"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
 export const REFEREE_EVENTS = Object.freeze(["behaviour", "morale-exempt", "gm", "leader"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);
@@ -170,6 +171,7 @@ async function runSelfTests() {
         else { const t = st.figures.find((f) => f.side === "B" && present(f)); if (t && present(st.figures[0])) a({ type: "close-on", id: 1, targetId: t.id }); }
         a({ type: "end-move", side });
       }
+      if (st.step === "orders") a({ type: "orders-end" });
       if (st.step === "missiles") a({ type: "missiles" });
       if (st.step === "melee") a({ type: "melee" });
     }
@@ -189,6 +191,7 @@ async function runSelfTests() {
         else { const t = cur.figures.find((f) => f.side === "B" && present(f)); if (t && present(cur.figures[0])) cur = a({ type: "close-on", id: 1, targetId: t.id }); }
         cur = a({ type: "end-move", side });
       }
+      if (cur.step === "orders") cur = a({ type: "orders-end" });
       if (cur.step === "missiles") cur = a({ type: "missiles" });
       if (cur.step === "melee") cur = a({ type: "melee" });
     }

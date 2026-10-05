@@ -23,6 +23,7 @@ function memoryStore() {
       let wrote = false;
       const tx = {
         get: async (p) => { assert.equal(wrote, false, "Firestore: every read before any write"); return docs.has(p) ? copy(docs.get(p)) : null; },
+        list: async (path) => { assert.equal(wrote, false, "Firestore: every read before any write"); return [...docs.entries()].filter(([k]) => k.startsWith(`${path}/`) && !k.slice(path.length + 1).includes("/")).map(([, d]) => copy(d)); },
         set: (p, d) => {
           wrote = true;
           assert.equal(fightStore.nestedArrayPath(d), null, `Firestore: no array inside an array (${p})`);
@@ -163,4 +164,30 @@ test("the referee deletes a fight and everything under it; nobody else can", asy
   assert.equal([...store.docs.keys()].filter((k) => k.startsWith(p.fight)).length, 0, "header, state, views, feeds and actions all gone");
   assert.ok(store.docs.has(p.campaign), "the campaign stays");
   assert.equal((await svc.remove({ uid: "ref", data: { cid: "camp1", fid: "f1" } })).code, "not-found");
+});
+
+test("Undo takes back the last action, rebuilt from the opening state with the same dice", async () => {
+  const { store, svc, p } = await opened({ 1: "kurt", 2: "bob", 3: "referee", 4: "referee" });
+  const send = (uid, action) => svc.act({ uid, data: { cid: "camp1", fid: "f1", rev: header(store, p).rev, rules: fightStore.RULES_VERSION, action } });
+  for (let i = 0; i < 4 && header(store, p).step !== "move-A"; i++) {
+    const h = header(store, p), st = store.docs.get(p.state);
+    if (h.step === "elect") await send(st.init.winner === "A" ? "kurt" : "ref", { type: "elect", side: st.init.winner, choice: st.init.winner === "A" ? "move" : "counter" });
+    else await send("ref", { type: "force-next" });
+  }
+  assert.equal(header(store, p).step, "move-A");
+  const before = store.docs.get(p.state).figures.find((f) => f.id === 1);
+  assert.equal((await send("kurt", { type: "move", id: 1, x: before.x + 3, y: before.y })).ok, true);
+  assert.equal(store.docs.get(p.state).figures.find((f) => f.id === 1).x, before.x + 3);
+  assert.equal((await send("kurt", { type: "undo" })).code, "forbidden", "a player can't undo");
+  const u = await send("ref", { type: "undo" });
+  assert.equal(u.ok, true, u.error);
+  assert.match(u.events[0].what, /Fighting-Man|Hero 1|moved/);
+  const after = store.docs.get(p.state).figures.find((f) => f.id === 1);
+  assert.equal(after.x, before.x, "he's back where he was");
+  assert.equal(after.moved ?? 0, before.moved ?? 0, "with his move");
+  const recs = [...store.docs.entries()].filter(([k]) => k.startsWith(`${p.fight}/actions/`)).map(([, d]) => d);
+  assert.ok(recs.some((r) => r.undone && r.action.type === "move"), "the undone move is kept, marked undone");
+  // a second Undo walks further back (the election, if there was one, or says there's nothing)
+  const u2 = await send("ref", { type: "undo" });
+  assert.ok(u2.ok || u2.code === "nothing");
 });

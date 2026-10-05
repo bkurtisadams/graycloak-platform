@@ -13,7 +13,7 @@
  * Results come back as data events for the runner and clients.
  */
 import { MONSTERS } from "./monsters.mjs";
-import { resolveVolley, missileShots, overHalfFireGate, classifyMove, fireClassFor } from "./combat-engine.mjs";
+import { resolveVolley, missileShots, overHalfFireGate, classifyMove, fireClassFor, Move } from "./combat-engine.mjs";
 import { missileBand, missileRange } from "./tables.mjs";
 import { missileMod } from "./derivations.mjs";
 import { BLIND } from "./specials.mjs";
@@ -75,6 +75,26 @@ export function fireVolley(state, f, t, rng, dmg = new Map(), { at = t, passThro
     ev.lines.push({ label, target: tg.name, targetId: tg.id, result: x.hit ? "hit" : "miss", distance: dd, band: res.band, ac: tg.ac, need: res.toKillNumber, roll: x.roll, bonus: x.bonus, effective: x.effective, damage: x.damage, hits: res.hits });
   });
   return ev;
+}
+
+/**
+ * What a figure's fire would be, without rolling: for the Orders step's preview
+ * (Kurt, Oct 2026). { ok, why, shots, need, band, d, bonus, overHalf }. need is
+ * the 2d6 number to hit (Appendix B); overHalf means a move of more than half
+ * puts the volley to a fire-die contest first.
+ */
+export function firePreview(state, f, t) {
+  const can = canShoot(state, f, t);
+  if (!can.ok) return { ok: false, why: can.why };
+  const kind = fireClassFor(f.missile);
+  const moved = classifyMove(halfCellsToInches(f.moved ?? 0), moveInches(f));
+  const loaded = !(f.missile === "heavycrossbow" && f.lastFired === state.round - 1);
+  const shots = missileShots(1, { kind, moved, loaded });
+  if (!shots) return { ok: false, why: `${f.name} is reloading` };
+  const bonus = missileMod(f.dex ?? 10) + pfePenalty(f, t) + blindPenalty(f);
+  const res = resolveVolley({ attacker: { name: f.name, weaponId: f.missile, shots: 1, fireBonus: bonus }, target: { name: t.name, ac: t.ac, distance: can.d, hitOnlyBy: t.kind === "monster" ? MONSTERS.find((m) => m.key === t.monsterKey)?.specialAbilities?.hitOnlyBy : undefined } }, () => 0.5);
+  if (res.cannotKill) return { ok: false, why: res.caption ?? `${t.name} can't be hurt by ${f.missile}` };
+  return { ok: true, shots, need: res.toKillNumber, band: res.band, d: can.d, bonus, overHalf: moved === Move.OVER };
 }
 
 /** Apply a volley's damage at once (fire during movement); returns the figures that fell. */
@@ -189,6 +209,16 @@ function runSelfTests() {
     ok(!splitMoveFire(s, elf, orc, always).ok, "once a turn");
     const late = pc(4, "A", 2, 8, { missile: "shortbow", race: "elf", moved: 60 });
     ok(!splitMoveFire({ ...s, figures: [...s.figures, late] }, late, orc, always).ok, "not after more than half a move"); }
+  {
+    const open = (w, h) => Array.from({ length: h }, () => Array(w).fill(false));
+    const st = { phase: "fight", round: 1, step: "orders", width: 60, height: 10, walls: open(60, 10), contacts: new Map(), figures: [
+      { id: 1, side: "A", name: "Bob", kind: "pc", cls: "fighter", level: 1, missile: "shortbow", dex: 13, x: 5, y: 5, placed: true, hp: 6, maxHp: 6, moved: 0 },
+      { id: 2, side: "B", name: "Orc 1", kind: "monster", monsterKey: "orc", ac: 6, x: 30, y: 5, placed: true, hp: 5, maxHp: 5 }] };
+    const pv = firePreview(st, st.figures[0], st.figures[1]);
+    ok(pv.ok && pv.shots === 2 && pv.need === 8 && pv.band === "medium" && pv.bonus === 1, "preview: two arrows, medium range, needs 8, +1 Dex");
+    st.figures[1].x = 59;
+    ok(!firePreview(st, st.figures[0], st.figures[1]).ok && /out of range/.test(firePreview(st, st.figures[0], st.figures[1]).why), "preview: out of range, with the reason");
+  }
   console.log(`missiles.mjs — all self-tests passed (${pass} assertions).`);
 }
 

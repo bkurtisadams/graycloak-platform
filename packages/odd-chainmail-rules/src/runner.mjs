@@ -47,8 +47,14 @@ import { parley, offerServiceTo } from "./talk.mjs";
 import { setOrders, drawWeapon, gmTool } from "./orders.mjs";
 
 export const Step = Object.freeze({
-  INIT: "init", ELECT: "elect", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
+  INIT: "init", ELECT: "elect", ORDERS: "orders", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
 });
+/**
+ * The round (Chainmail p.9, Kurt Oct 2026): initiative, election, first move,
+ * last move, then ORDERS — both sides declare fire, spells and stance at once,
+ * after all movement, since that fire "takes effect simultaneously just prior
+ * to melee" — then artillery, missiles and melee resolve.
+ */
 export const moveStep = (side) => `move-${side}`;
 export const isMoveStep = (step) => typeof step === "string" && step.startsWith("move-");
 export const moverOf = (step) => (isMoveStep(step) ? step.slice(5) : null);
@@ -106,7 +112,24 @@ function withPassThrough(state, events, rng) {
   }
   return out;
 }
+/** Where each figure of the moving side stood when its move step opened (for Undo move). */
+function snapMoveStart(state) {
+  const side = moverOf(state.step); if (!side) return;
+  const figs = {};
+  for (const f of state.figures) if (f.side === side) figs[f.id] = { x: f.x, y: f.y, facing: f.facing ?? 0, moved: f.moved ?? 0, charging: f.charging ?? false, chargedRound: f.chargedRound ?? null };
+  state.moveStart = { [`${state.round}:${state.step}`]: { figs, blocked: [] } };
+}
+const MOVE_ACTIONS = Object.freeze(["move", "close-on", "group-move", "split-fire"]);
 export function apply(state, action, rng) {
+  const r = applyStep(state, action, rng);
+  // Dice rolled during a figure's move (its own split-move fire, or pass-through fire it walked into) fix it in place.
+  if (r.ok && MOVE_ACTIONS.includes(action?.type) && (action.type === "split-fire" || r.events.some((e) => e.type === "volley"))) {
+    const snap = state.moveStart?.[`${state.round}:${state.step}`];
+    if (snap) snap.blocked = [...new Set([...(snap.blocked ?? []), ...[action.id, ...(action.ids ?? [])].filter((x) => x != null)])];
+  }
+  return r;
+}
+function applyStep(state, action, rng) {
   const events = [];
   const fail = (error) => ({ ok: false, events: [], error });
   const byId = (id) => state.figures.find((f) => f.id === id);
@@ -169,7 +192,7 @@ export function apply(state, action, rng) {
       if (action.side !== state.init.winner) return fail(`side ${action.side} did not win initiative`);
       const choice = action.choice === "counter" ? "counter" : "move";
       state.firstSide = electFirstMover(state.init.winner, choice);
-      state.step = moveStep(state.firstSide);
+      state.step = moveStep(state.firstSide); snapMoveStart(state);
       events.push({ type: "election", winner: state.init.winner, choice, firstSide: state.firstSide, ai: !!action.ai });
       return { ok: true, events };
     }
@@ -177,10 +200,43 @@ export function apply(state, action, rng) {
       const side = moverOf(state.step);
       if (!side) return fail("no side is moving");
       if (action.side && action.side !== side) return fail(`side ${side} is moving, not ${action.side}`);
-      if (side === state.firstSide) { state.step = moveStep(opponent(side)); return { ok: true, events }; }
+      if (side === state.firstSide) { state.step = moveStep(opponent(side)); snapMoveStart(state); return { ok: true, events }; }
+      state.step = Step.ORDERS;
+      events.push({ type: "orders-open", round: state.round });
+      return { ok: true, events };
+    }
+    case "orders-end": {
+      if (state.step !== Step.ORDERS) return fail("not the orders step");
       if (!artilleryStepNeeded(state)) events.push({ type: "step-skipped", step: Step.ARTILLERY, why: "no artillery on the board" });
       if (missileStepNeeded(state)) state.step = Step.MISSILES;
       else { state.step = Step.MELEE; events.push({ type: "step-skipped", step: Step.MISSILES, why: "nothing to fire or cast" }); }
+      return { ok: true, events };
+    }
+    case "step-back": {
+      // Previous (the referee's ◀, as on the Chainmail board): re-open the step before
+      // within the round; nothing is reverted. It can't cross a step whose dice have landed.
+      const second = state.firstSide ? opponent(state.firstSide) : null;
+      let to = null;
+      if (state.step === Step.ORDERS && second) to = moveStep(second);
+      else if (second && state.step === moveStep(second)) to = moveStep(state.firstSide);
+      if (!to) return fail("nothing to go back to in this round");
+      const from = state.step;
+      state.step = to;
+      events.push({ type: "step-back", from, to });
+      return { ok: true, events };
+    }
+    case "undo-move": {
+      // Undo move: put a figure back where its side's move step began, full move restored,
+      // unless dice were rolled during its move (split-move or pass-through fire).
+      const f = byId(action.id);
+      if (!f) return fail("no such figure");
+      if (moverOf(state.step) !== f.side) return fail(`${f.name} isn't moving now`);
+      const snap = state.moveStart?.[`${state.round}:${state.step}`];
+      const was = snap?.figs?.[f.id];
+      if (!was) return fail(`nothing to undo for ${f.name}`);
+      if (snap.blocked?.includes(f.id)) return fail(`dice were rolled during ${f.name}'s move, so it stands`);
+      Object.assign(f, was);
+      events.push({ type: "undo-move", id: f.id, name: f.name, to: { x: f.x, y: f.y } });
       return { ok: true, events };
     }
     case "missiles-resolved": {
@@ -410,6 +466,8 @@ async function runSelfTests() {
     apply(st, { type: "end-move", side: "B" });
     ok(st.step === "move-A", "then A moves");
     r = apply(st, { type: "end-move", side: "A" });
+    ok(st.step === "orders", "after both moves: Orders");
+    r = apply(st, { type: "orders-end" });
     ok(st.step === "melee" && r.events.some((e) => e.type === "step-skipped" && e.step === "artillery") && r.events.some((e) => e.step === "missiles"), "no artillery, nothing to fire: straight to melee");
     r = apply(st, { type: "melee-resolved" });
     ok(r.ok && st.step === "init", "melee resolved: next round");
@@ -417,7 +475,7 @@ async function runSelfTests() {
     st.figures[0].action = "fire";
     apply(st, { type: "elect", side: "B", choice: "move" });
     ok(st.firstSide === "B", "B wins and moves first");
-    apply(st, { type: "end-move" }); apply(st, { type: "end-move" });
+    apply(st, { type: "end-move" }); apply(st, { type: "end-move" }); apply(st, { type: "orders-end" });
     ok(st.step === "missiles", "a figure firing: missile step");
     ok(!apply(st, { type: "melee-resolved" }).ok, "cannot skip to melee");
     apply(st, { type: "missiles-resolved" }, Math.random);
@@ -523,6 +581,23 @@ async function runSelfTests() {
     const s2 = fresh([p, orc(6, "B", 20)]); s2.step = "move-A"; s2.encounter = new Map([["B:orc", { side: "B", monsterKey: "orc", languages: ["orc"], reaction: null }]]);
     const t = apply(s2, { type: "parley", pcId: 5, figId: 6, lang: "orc" }, seq([d6(6), d6(6)]));
     ok(t.ok && t.events[0].type === "talk" && s2.figures[1].status === "withdrew", "a parley through apply");
+  }
+  // Slice 5: Orders step, Previous, Undo move.
+  {
+    const a = fig(1, "A", { x: 5, y: 5 }), o = orc(2, "B", 20, { y: 5 });
+    const st = fresh([a, o]); st.step = "elect"; st.init = { winner: "A" }; st.round = 1;
+    ok(apply(st, { type: "elect", side: "A", choice: "move" }).ok && st.step === "move-A" && st.moveStart["1:move-A"].figs[1].x === 5, "the first move step remembers where its figures stood");
+    ok(apply(st, { type: "move", id: 1, x: 8, y: 5 }).ok && a.x === 8 && a.moved > 0, "moved");
+    ok(apply(st, { type: "undo-move", id: 1 }).ok && a.x === 5 && a.moved === 0, "Undo move puts him back with his full move");
+    ok(!apply(st, { type: "undo-move", id: 2 }).ok, "only a figure whose side is moving");
+    apply(st, { type: "end-move", side: "A" });
+    ok(st.step === "move-B", "the last mover");
+    const r = apply(st, { type: "end-move", side: "B" });
+    ok(r.ok && st.step === "orders" && r.events.some((e) => e.type === "orders-open"), "after the last move: Orders, not missiles");
+    ok(apply(st, { type: "step-back" }).ok && st.step === "move-B", "Previous: back to the last move");
+    ok(apply(st, { type: "step-back" }).ok && st.step === "move-A" && !apply(st, { type: "step-back" }).ok, "and to the first; no further");
+    apply(st, { type: "end-move", side: "A" }); apply(st, { type: "end-move", side: "B" });
+    ok(apply(st, { type: "orders-end" }).ok && (st.step === "missiles" || st.step === "melee"), "Orders closes into resolution");
   }
   // Slice 5: orders and GM tools through apply.
   {

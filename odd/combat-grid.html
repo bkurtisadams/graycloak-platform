@@ -220,6 +220,20 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 }
 @media (min-width: 701px) { .ab-actions .phone { display: none; } .ab-phone-line { display: none; } .ab-row { display: contents; } }
 /* Online play: the "your move" banner, the Ready count, the Players panel and the character cards (mockup, Oct 2026). */
+.refbanner { display: flex; align-items: center; gap: 12px; padding: 10px 24px; background: #e9eef2; color: var(--ink); border-top: 1px solid #c9d8e2; border-bottom: 1px solid #c9d8e2; font-family: var(--serif); }
+.refbanner[hidden] { display: none; }
+/* ◀ Previous, Next ▶ and Undo: outlined, as in the mockup; only Ready is filled */
+.stepnav { min-height: 44px; padding: 6px 12px; border: 1px solid var(--ink); border-radius: 6px; background: var(--card); color: var(--ink); font: inherit; font-size: .95rem; cursor: pointer; }
+.stepnav:disabled { opacity: .45; cursor: default; }
+.stepnav[hidden] { display: none; }
+/* online, the bar and the banner do the chips' job; "Side B by behaviour" only matters before the fight */
+body.online-fight #chips, body.online-fight .strip label.auto { display: none !important; }
+.ab-preview { font-size: .9rem; display: flex; flex-direction: column; gap: 2px; font-family: var(--serif); }
+.ab-preview .warn { color: #8a5a17; }
+.ab-undomove { font: inherit; font-size: .85rem; min-height: 32px; padding: 2px 10px; align-self: flex-start; }
+.lastready { position: absolute; right: 250px; width: 300px; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.3); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; z-index: 6; font-family: var(--serif); }
+.lastready .btns { display: flex; gap: 8px; }
+.lastready button { min-height: 44px; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
 .yourmove { display: flex; align-items: center; gap: 12px; padding: 10px 24px; background: #2f5c8a; color: #fbfdfe; font-family: var(--serif); }
 .yourmove[hidden] { display: none; }
 .yourmove b { font-size: 1.05rem; }
@@ -273,16 +287,20 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode #c
   <div class="strip-row">
     <div class="round"><span class="round-k">ROUND</span><span class="round-n" id="roundN">0</span></div>
     <div class="round-phone"><span class="round-k" id="roundK">ROUND 0</span><span class="phase-now" id="phaseNow">Setup</span></div>
+    <button id="prevStep" class="stepnav" hidden>◀ Previous</button>
     <div class="pills" id="pills"></div>
+    <button id="nextStepBtn" class="stepnav" hidden>Next ▶</button>
     <div class="grow"></div>
     <label class="auto" title="Side B moves by each figure's behaviour profile"><input type="checkbox" id="autoB"> Side B by behaviour</label>
     <button id="electFirst" class="done" hidden title="Chainmail p.8: the initiative winner chooses">Move first</button>
     <button id="electLast" class="done" hidden title="Chainmail p.8: move last (counter-move) to see the enemy's move first">Move last</button>
     <span class="readybox" id="readyBox" hidden><span id="readySide">Side A ready</span> <span class="count" id="readyCount">0 of 0</span> <span class="why">The step resolves when all are ready.</span></span>
     <button id="step" class="done" disabled>Start fight</button>
+    <button id="undoBtn" class="stepnav" hidden>Undo</button>
   </div>
   <div class="chips" id="chips"></div>
 </section>
+<div class="refbanner" id="refBanner" hidden role="status"></div>
 <div class="yourmove" id="yourMove" hidden role="status"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg><b>Your move.</b> <span id="yourMoveText"></span></div>
 <section class="stage" id="stage">
  <div class="map-col">
@@ -419,7 +437,8 @@ const personOf = (f) => { const c = controllerOfFig(f); return c && c !== "game"
 const ringOf = (f) => { const c = controllerOfFig(f); return online.on && state.phase !== "setup" && c && c !== "referee" && c !== "game" ? state.people?.[c]?.color ?? null : null; };
 /** Ready marks (per character, Kurt Oct 2026): who must mark, who has. */
 const movingSide = () => (state.phase === "fight" && state.step?.startsWith("move-") ? state.step.slice(5) : null);
-const needsReady = (f) => f.side === movingSide() && active(f) && controllerOfFig(f) !== "game";
+const needsReady = (f) => (state.needIds ? state.needIds.includes(f.id) : f.side === movingSide() && active(f) && controllerOfFig(f) !== "game");
+const isOrders = () => state.phase === "fight" && state.step === "orders";
 const isReadyFig = (f) => (state.readyIds ? state.readyIds.includes(f.id) : state.ready?.[f.id] === `${state.round}:${state.step}`);
 /** The figures this page marks Ready: the player's own, or on the referee's page the referee's. */
 const myFigs = () => state.figures.filter((f) => (PLAYER ? f.mine : controllerOfFig(f) === "referee"));
@@ -717,8 +736,13 @@ function renderEvents(events) {
     else if (e.type === "draw-weapon") { const w = (id) => esc((WEAPON_LABEL[id] ?? "weapon").toLowerCase()); logAppend(`<div class="card note">${esc(e.name)} ${e.wasBroken ? `drops his broken ${w(e.from)} and draws` : `puts away his ${w(e.from)} and draws`} his ${w(e.to)} (half his move).</div>`); }
     else if (e.type === "gm") logAppend(`<div class="card note">GM: ${esc(e.name)} ${e.tool === "invulnerable" ? (e.value ? "is now invulnerable" : "is no longer invulnerable") : e.tool === "heal" ? "healed to full" : e.tool === "set-hp" ? `set to ${e.value} hit points` : e.tool === "clear" ? "has his conditions cleared" : e.tool === "kill" ? "killed" : e.tool === "burn" ? "is burned and will not rise again" : e.tool}.</div>`);
     else if (e.type === "leader") logAppend(`<div class="card note">${e.id == null ? `Side ${e.side} has no leader.` : `${esc(e.name)} leads side ${e.side}.`}</div>`);
-    else if (e.type === "ready") logAppend(`<div class="card note">${e.names.map(esc).join(", ")} ${e.names.length > 1 ? "are" : "is"} ready (side ${e.side}: ${e.readyCount} of ${e.of}).</div>`);
-    else if (e.type === "unready") logAppend(`<div class="card note">${e.names.map(esc).join(", ")} ${e.changed ? "changed orders" : "took Ready back"} (side ${e.side}: ${e.readyCount} of ${e.of}).</div>`);
+    else if (e.type === "orders-open") logAppend(`<div class="card note"><b>Round ${e.round}: orders.</b> Declare fire, spells and stance.</div>`);
+    else if (e.type === "step-back") logAppend(`<div class="card note">${online.on ? "The referee went back" : "Back"} to ${e.to === "orders" ? "Orders" : `side ${e.to.slice(5)}'s move`}; nothing is reverted.</div>`);
+    else if (e.type === "forced") logAppend(`<div class="card note">The referee moved on${e.notReady?.length ? `; not Ready, going in as they stood: ${e.notReady.map(esc).join(", ")}` : ""}.</div>`);
+    else if (e.type === "undo") logAppend(`<div class="card note">The referee undid: ${esc(e.what)}.</div>`);
+    else if (e.type === "undo-move") logAppend(`<div class="card note">${esc(e.name)}'s move is undone.</div>`);
+    else if (e.type === "ready") logAppend(`<div class="card note">${e.names.map(esc).join(", ")} ${e.names.length > 1 ? "are" : "is"} ready (${e.side ? `side ${e.side}: ` : ""}${e.readyCount} of ${e.of}).</div>`);
+    else if (e.type === "unready") logAppend(`<div class="card note">${e.names.map(esc).join(", ")} ${e.changed ? "changed orders" : "took Ready back"} (${e.side ? `side ${e.side}: ` : ""}${e.readyCount} of ${e.of}).</div>`);
     else if (e.type === "done") logAppend(`<div class="card note">${e.who === "referee" ? "The referee" : esc(e.who)} is done moving side ${e.side}${e.waitingOn?.length ? `; waiting on ${e.waitingOn.map(esc).join(", ")}` : ""}.</div>`);
     else if (e.type === "down") logAppend(`<div class="card note"><span class="hit">${esc(e.name)} is down</span> (${esc(e.by)}).</div>`);
     else if (e.type === "charge") logAppend(`<div class="card note">${esc(e.name)} charges ${esc(e.target)}.</div>`);
@@ -740,7 +764,9 @@ function gmIgnoredNote() {
 }
 function runAction(action) {
   if (online.on && state.phase !== "setup") return sendOnline(action);
+  localUndoPush();
   const r = fightRunner.apply(state, action, state.rng);
+  if (!r.ok) localUndo.pop();
   if (!r.ok) { console.warn(`runner: ${r.error}`); return r; }
   renderEvents(r.events); gmIgnoredNote();
   if (r.events.some((e) => e.type === "step-skipped" && e.step === "missiles")) state.skipMissiles = true;
@@ -896,6 +922,62 @@ function cardAction(f) {
   if (a.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === a.slice(5)); return `cast ${sp?.name ?? a.slice(5)}${f.castAim ? " at the marked point" : ""}`; }
   return "melee";
 }
+/** The Orders step's plain preview under the buttons (mockup): what will happen, and anything that wastes the turn. */
+function orderPreview(f, t) {
+  const he = f.kind === "pc" ? "he" : "it", lines = [], warn = (w) => lines.push(`<span class="warn">${esc(w)}</span>`);
+  const a = f.action ?? "melee";
+  if (a === "fire") {
+    if (!t || !present(t)) warn(`${f.name} has no target to shoot at.`);
+    else { const pv = ms.firePreview(state, f, t); if (!pv.ok) warn(`${pv.why}.`); else {
+      const ammo = /crossbow/.test(f.missile) ? (pv.shots > 1 ? "bolts" : "a bolt") : f.missile === "sling" ? (pv.shots > 1 ? "stones" : "a stone") : (pv.shots > 1 ? "arrows" : "an arrow");
+      const dexB = missileMod(f.dex ?? 10);
+      lines.push(`<span><b>Fires ${pv.shots > 1 ? `${pv.shots} ${ammo}` : ammo} at ${esc(t.name)}</b> \u00b7 ${pv.d}\u2033, ${esc(pv.band)} range \u00b7 needs ${pv.need} on 2d6${dexB ? ` (${dexB > 0 ? "+" : ""}${dexB} Dex)` : ""}${pv.overHalf ? " \u00b7 moved over half: a fire-die contest first" : ""}</span>`);
+    } }
+  } else if (a.startsWith("cast:")) {
+    const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === a.slice(5));
+    if (f.castAim) lines.push(`<span><b>Casts ${esc(sp?.name ?? a.slice(5))}</b> at the marked point</span>`);
+    else if (t && present(t)) lines.push(`<span><b>Casts ${esc(sp?.name ?? a.slice(5))}</b> at ${esc(t.name)}</span>`);
+    else if (sp?.id === "protectionEvil") lines.push(`<span><b>Casts ${esc(sp.name)}</b></span>`);
+    else warn(`${sp?.name ?? "The spell"} has no target or aim point yet.`);
+  } else if (a === "hold") lines.push(`<span><b>Holds:</b> does nothing this round</span>`);
+  else if (a === "passthrough") lines.push(`<span><b>Holds pass-through fire</b> for the next moves${t ? `, else fires at ${esc(t.name)}` : ""}</span>`);
+  else {
+    const foe = t && present(t) && adjacent(f, t) ? t : null;
+    if (!foe) warn(`${f.name} has no one in reach: ${he} will stand.`);
+    else { const n = needsAgainst(f, foe); lines.push(`<span><b>${f.stance === "parry" ? "Parries" : "Melee"} ${esc(foe.name)}</b> \u00b7 in contact${n ? ` \u00b7 needs ${n.needs} on 2d6` : ""}</span>`); }
+  }
+  return `<div class="ab-preview" style="flex-basis:100%">${lines.join("")}</div>`;
+}
+/** Mark figures Ready; if that would close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). */
+function markReady(ids, anchor) {
+  const left = state.figures.filter((g) => needsReady(g) && !isReadyFig(g)).map((g) => g.id);
+  const last = left.length > 0 && left.every((id) => ids.includes(id));
+  if (!last) { runAction({ type: "ready", ids }); return; }
+  document.querySelector(".lastready")?.remove();
+  const box = document.createElement("div");
+  box.className = "lastready"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Resolve now?");
+  const names = ids.map((id) => byId(id)?.name).filter(Boolean), list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
+  box.innerHTML = `<b>Everyone else is ready.</b><span>Marking ${esc(list)} ${isOrders() ? "resolves the round now: fire, spells, then melee." : "ends this move now."}</span><div class="btns"><button type="button" class="primary" data-go>Resolve</button><button type="button" data-no>Not yet</button></div>`;
+  const wrapBox = $("#wrap"); wrapBox.appendChild(box);
+  const bar = $("#actionbar"); box.style.bottom = `${(bar && !bar.hidden ? bar.offsetHeight : 0) + 24}px`;
+  if (anchor === $("#step")) { box.style.top = "12px"; box.style.bottom = ""; }
+  box.querySelector("[data-go]").onclick = () => { box.remove(); runAction({ type: "ready", ids }); render(); };
+  box.querySelector("[data-no]").onclick = () => box.remove();
+  box.querySelector("[data-go]").focus();
+}
+/** Local play's Undo (online, the server keeps the record): the fight as it stood before each action. */
+const localUndo = [];
+function localUndoPush() { if (state.phase === "setup") return; localUndo.push(fightStore.toStored(state)); if (localUndo.length > 60) localUndo.shift(); }
+function localUndoPop() {
+  const snap = localUndo.pop(); if (!snap) return;
+  const back = fightStore.fromStored(snap);
+  for (const k of Object.keys(state)) if (!fightStore.CLIENT_KEYS.includes(k) && !(k in back) && typeof state[k] !== "function") delete state[k];
+  Object.assign(state, back);
+  state.rng = fightStore.rngOf(state);
+  logAppend(`<div class="card note">Undone: the last action.</div>`);
+  if (state.selected != null && !byId(state.selected)) state.selected = null;
+  render();
+}
 /** The Status block at the bar's right end (online): Deciding / Ready, as in the approved mockup's card. */
 function statusBlock(f) {
   if (!online.on || state.phase !== "fight" || !state.people) return "";
@@ -932,16 +1014,30 @@ function renderOnlineTable() {
   renderPeople();
   const side = movingSide(), live = online.on && state.phase === "fight" && !!state.people;
   // the side's Ready count, in the strip
-  const need = live && side ? state.figures.filter(needsReady) : [];
+  const need = live && (side || isOrders()) ? state.figures.filter(needsReady) : [];
   $("#readyBox").hidden = !need.length;
-  if (need.length) { $("#readySide").textContent = `Side ${side} ready`; $("#readyCount").textContent = `${need.filter(isReadyFig).length} of ${need.length}`; }
+  if (need.length) { $("#readySide").textContent = side ? `Side ${side} ready` : "Ready"; $("#readyBox .why").textContent = side ? "The step resolves when all are ready." : "The round resolves when all are ready."; $("#readyCount").textContent = `${need.filter(isReadyFig).length} of ${need.length}`; }
   // your move: this page has figures still deciding
   const mine = live ? myFigs().filter((f) => needsReady(f) && !isReadyFig(f)) : [];
   const yours = PLAYER && mine.length > 0;
   $("#yourMove").hidden = !yours;
   if (yours) {
     const names = mine.map((f) => f.name), list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
-    $("#yourMoveText").textContent = `Move ${list} and set ${names.length > 1 ? "their" : "his"} orders, then mark ${names.length > 1 ? "them" : "him"} Ready.`;
+    $("#yourMove b").textContent = isOrders() ? "Orders." : "Your move.";
+    $("#yourMoveText").textContent = isOrders()
+      ? `Declare ${list}'s fire, spell or melee, then mark ${names.length > 1 ? "them" : "him"} Ready. Your foes are choosing too; you'll see their choices when the round resolves.`
+      : `Move ${list} and set ${names.length > 1 ? "their" : "his"} orders, then mark ${names.length > 1 ? "them" : "him"} Ready.`;
+  }
+  // the referee's grey banner: who the step waits on, and what Next does
+  const rb = $("#refBanner"), waitFigs = live && !PLAYER ? state.figures.filter((g) => needsReady(g) && !isReadyFig(g)) : [];
+  rb.hidden = !waitFigs.length;
+  if (waitFigs.length) {
+    const byWho = new Map();
+    for (const g of waitFigs) { const c = controllerOfFig(g); const k = c === "referee" ? "you" : (state.people?.[c]?.name ?? "a player"); if (!byWho.has(k)) byWho.set(k, []); byWho.get(k).push(g.name); }
+    const parts = [...byWho].map(([k, n]) => `${esc(k)} (${n.map(esc).join(", ")})`);
+    const who = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+    rb.innerHTML = isOrders() ? `<b>Orders.</b><span>Waiting on ${who}. <b>Next \u25b6</b> resolves now; anyone not Ready goes in with his standing orders.</span>`
+      : `<b>Side ${side} moves.</b><span>Waiting on ${who}. <b>Next \u25b6</b> ends the move now; anyone not Ready stays where he is.</span>`;
   }
   if (yours && !online.yours && $("#chimeOn")?.checked) chime();
   online.yours = yours;
@@ -1097,7 +1193,7 @@ function startFight() {
   if (!state.figures.some((f) => f.side === "A") || !state.figures.some((f) => f.side === "B")) return;
   if (online.on && !online.api?.user) { $("#onlineNote").textContent = "Sign in first (Setup), or switch Play to this page."; openDrawer("setup"); return; }
   const seed = Math.trunc(Number($("#seed").value)) || 1;
-  state.rng = fightStore.seedFight(state, seed);
+  state.rng = fightStore.seedFight(state, seed); localUndo.length = 0;
   state.saved = state.figures.map((f) => ({ id: f.id, x: f.x, y: f.y, facing: f.facing }));
   for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; f.hp = rollHp(f, state.rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
   for (const f of state.figures) { f.inv = emptyInventory(); f.remains = null; if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, state.rng)); }
@@ -1121,12 +1217,13 @@ function nextStep() {
   if (state.phase !== "fight") return;
   if (online.on) {
     // mark all of this page's figures still deciding Ready (the referee's "Mark my N figures Ready")
-    if (state.step.startsWith("move-")) { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) runAction({ type: "ready", ids }); }
+    if (state.step.startsWith("move-") || state.step === "orders") { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) markReady(ids, $("#step")); }
     return;
   }
   if (state.step === "init") { state.skipMissiles = false; state.fx = []; state.banner = null; runAction({ type: "begin-round" }); aiElect(); }
   else if (state.step === "elect") return;
   else if (state.step.startsWith("move-")) runAction({ type: "end-move", side: state.step.slice(5) });
+  else if (state.step === "orders") runAction({ type: "orders-end" });
   else if (state.step === "missiles") { state.events = []; $("#dragInfo").textContent = ""; runAction({ type: "missiles" }); finishPhase("Missiles & spells"); }
   else if (state.step === "melee") { state.events = []; runAction({ type: "melee" }); finishPhase("Melee"); }
   afterStepChange();
@@ -1142,6 +1239,10 @@ function elect(choice) {
   afterStepChange();
 }
 function afterStepChange() {
+  if (state.step === "orders") {
+    const sel = state.selected != null ? byId(state.selected) : null;
+    if (!sel || !mineOk(sel) || !active(sel)) { const first = state.figures.find((f) => mineOk(f) && needsReady(f) && !isReadyFig(f)) ?? state.figures.find((f) => mineOk(f) && active(f) && f.placed); if (first) state.selected = first.id; }
+  }
   if (state.step?.startsWith("move-")) {
     const side = state.step.slice(5);
     const sel = state.selected != null ? byId(state.selected) : null;
@@ -1477,8 +1578,8 @@ function stepLabel() {
     return "The server resolves this step";
   }
   if (state.phase === "setup") return online.on ? "Start fight online" : "Start fight";
-  if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect") return "The server resolves this step";
-  if (online.on && state.phase === "fight" && state.step.startsWith("move-")) { const n = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length; return n ? `Mark my ${n === 1 ? "figure" : `${n} figures`} Ready` : "Waiting on the players"; }
+  if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect" && state.step !== "orders") return "The server resolves this step";
+  if (online.on && state.phase === "fight" && (state.step.startsWith("move-") || state.step === "orders")) { const n = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length; return n ? `Mark my ${n === 1 ? "figure" : `${n} figures`} Ready` : "Waiting on the players"; }
   if (state.phase === "over") return "Fight over";
   if (state.step === "init") return state.round ? "Next round" : "Roll initiative";
   if (state.step === "elect") return "Choose to move first or last";
@@ -1493,25 +1594,38 @@ function renderStrip() {
   $("#roundN").textContent = state.round;
   $("#roundK").textContent = `ROUND ${state.round}`;
   const f = state.firstSide, s2 = f ? other(f) : null, st = state.step, fight = state.phase === "fight";
-  const order = ["init", f && `move-${f}`, s2 && `move-${s2}`, "missiles", "melee"];
+  const order = ["init", f && `move-${f}`, s2 && `move-${s2}`, "orders", "resolve"];
   const between = st === "init" && state.round > 0;
-  const idx = fight && !between ? order.indexOf(st === "elect" ? "init" : st) : -1;
+  const idx = fight && !between ? order.indexOf(st === "elect" ? "init" : st === "missiles" || st === "melee" ? "resolve" : st) : -1;
   const electing = fight && st === "elect";
-  const label = (k) => k === "init" ? (state.init ? `Initiative \u00b7 A ${state.init.a}, B ${state.init.b}${electing ? ` \u00b7 side ${state.init.winner} chooses` : ""}` : "Initiative") : k === "missiles" ? "Missiles &amp; spells" : k === "melee" ? "Melee" : k === "move-first" ? "First move" : k === "move-last" ? "Last move" : `Side ${k.slice(5)} moves${ptBadge(k.slice(5))}`;
+  const label = (k) => k === "init" ? (state.init ? `Initiative \u00b7 A ${state.init.a}, B ${state.init.b}${electing ? ` \u00b7 side ${state.init.winner} chooses` : ""}` : "Initiative") : k === "orders" ? "Orders" : k === "resolve" ? (st === "missiles" ? "Resolve \u00b7 missiles &amp; spells" : st === "melee" ? "Resolve \u00b7 melee" : "Resolve") : k === "move-first" ? "First move" : k === "move-last" ? "Last move" : `${k.slice(5) === f ? "First" : "Last"} move \u00b7 side ${k.slice(5)}${ptBadge(k.slice(5))}`;
   function ptBadge(side) { if (!fight) return ""; const c = passThroughCounts(side); return c.ready ? ` \u00b7 \u21e2 ${c.ready} ready` : c.fired ? ` \u00b7 \u21e2 ${c.fired} fired` : ""; }
-  const keys = f ? order : ["init", "move-first", "move-last", "missiles", "melee"];
+  const keys = f ? order : ["init", "move-first", "move-last", "orders", "resolve"];
   $("#pills").innerHTML = keys.map((k, i) => {
     const cls = !fight ? "" : between ? "past" : i === idx ? `now ${k === "move-B" ? "b" : ""}` : i < idx ? "past" : "";
-    const skip = k === "missiles" && state.skipMissiles && idx > 3 ? " skip" : "";
+    const skip = "";
     return `${i ? '<span class="sep">\u203a</span>' : ""}<span class="pill ${cls}${skip}">${label(k)}</span>`;
   }).join("");
-  $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "missiles" ? "Missiles & spells" : "Melee";
+  $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "orders" ? "Orders" : st === "missiles" ? "Missiles & spells" : "Melee";
   const btn = $("#step"); btn.textContent = stepLabel(); btn.hidden = electing;
-  btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-"))
+  btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-") && st !== "orders")
     || (PLAYER && state.phase === "fight")
-    || (online.on && state.phase === "fight" && st.startsWith("move-") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
+    || (online.on && state.phase === "fight" && (st.startsWith("move-") || st === "orders") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
   const mayElect = electing && (!PLAYER || state.figures.some((f) => f.mine && present(f) && f.side === state.init.winner));
-  btn.hidden = mayElect || (PLAYER && state.phase === "fight"); // the player's page shows the Ready count and the cards instead
+  btn.hidden = mayElect || (PLAYER && state.phase === "fight") || (!online.on && state.phase === "fight"); // the player's page shows the Ready count; local play steps with Next
+  document.body.classList.toggle("online-fight", online.on && state.phase !== "setup");
+  // ◀ Previous / Next ▶ / Undo: the referee's (and local play's), as on the Chainmail board
+  const ref = !PLAYER && fight;
+  for (const id of ["prevStep", "nextStepBtn", "undoBtn"]) $(`#${id}`).hidden = !ref;
+  if (ref) {
+    const second = state.firstSide ? other(state.firstSide) : null;
+    $("#prevStep").disabled = !(st === "orders" || (second && st === `move-${second}`));
+    $("#prevStep").title = st === "orders" ? `Back to Last move (side ${second}): re-opens it; nothing is reverted` : $("#prevStep").disabled ? "Nothing to go back to in this round" : `Back to First move (side ${state.firstSide}): re-opens it; nothing is reverted`;
+    $("#nextStepBtn").disabled = state.phase === "over" || (!online.on && electing);
+    $("#nextStepBtn").title = online.on ? (st === "orders" ? "Resolve now: anyone not Ready goes in with standing orders" : st.startsWith("move-") ? "End this move now: anyone not Ready stays where he is" : st === "elect" ? "Elect for the winner (move last)" : "Advance") : stepLabel();
+    $("#undoBtn").disabled = !online.on && !localUndo.length;
+    $("#undoBtn").title = online.on ? "Undo the last action, for everyone" : localUndo.length ? "Undo the last action" : "Nothing to undo";
+  }
   $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect;
   if (electing) { $("#electFirst").textContent = `Side ${state.init.winner}: move first`; $("#electLast").textContent = `Side ${state.init.winner}: move last`; }
   $("#subline").textContent = `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
@@ -1578,7 +1692,15 @@ function renderActionBar() {
   const fight = state.phase === "fight" && active(f) && mineOk(f);
   const btn = (id, text, on, cls = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}">${esc(text)}</button>`;
   const acts = [];
-  if (fight) {
+  if (fight && state.step === "orders") {
+    // Orders (Kurt, Oct 2026): only what is declared here; the movement buttons belong to the move steps
+    if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
+    acts.push(btn("melee", t && f.action === "melee" && f.stance !== "parry" ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
+    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
+    if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
+    if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough"));
+    acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
+  } else if (fight) {
     acts.push(btn("melee", t ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
     if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
     if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
@@ -1611,14 +1733,16 @@ function renderActionBar() {
         <span class="ab-phone-line mono" style="font-size:.8rem">${hpTxt ? `${hpTxt} hp \u00b7 ` : ""}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
         ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${esc(cardAction(f))}${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"} \u00b7 stance ${esc(f.stance ?? "attack")}</span>` : ""}
         <span class="ab-move mono" style="font-size:.82rem">Move ${esc(moveLine(f, total, usedIn, leftIn))}</span>
+        ${fight && state.step === `move-${f.side}` && (f.moved ?? 0) > 0 && !isReadyFig(f) && !f.chargedRound ? `<button type="button" class="ab-undomove" data-undomove title="Put ${esc(f.name)} back where this move began, with his full move">Undo move</button>` : ""}
         <a href="#" class="ab-more" id="abDetails">Details</a></div>
-      ${tgt}
+      ${state.step === "orders" && state.phase === "fight" ? "" : tgt}
     </div>
-    <div class="ab-actions">${acts.join("")}${fight || acts.length ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}</div>
+    <div class="ab-actions">${acts.join("")}${fight || acts.length ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}${fight && state.step === "orders" ? orderPreview(f, t) : ""}</div>
     ${statusBlock(f)}`;
+  el.querySelector("[data-undomove]")?.addEventListener("click", () => { const r = runAction({ type: "undo-move", id: f.id }); if (!r.ok && r.error) $("#dragInfo").innerHTML = `<span class="bad">${esc(r.error)}</span>`; render(); });
   el.querySelector("#abCentre")?.addEventListener("click", (e) => { e.preventDefault(); cam.x = (centre(f).x + 0.5) * PX; cam.y = (centre(f).y + 0.5) * PX; applyView(); });
   el.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => { state.selected = Number(b.dataset.pick); ensureVisible(byId(state.selected)); render(); }));
-  el.querySelectorAll("[data-ready]").forEach((b) => (b.onclick = () => runAction({ type: "ready", ids: [Number(b.dataset.ready)] })));
+  el.querySelectorAll("[data-ready]").forEach((b) => (b.onclick = () => markReady([Number(b.dataset.ready)], b)));
   el.querySelectorAll("[data-unready]").forEach((b) => (b.onclick = () => runAction({ type: "unready", ids: [Number(b.dataset.unready)] })));
   // desktop order: who | move | actions | target
   if (window.matchMedia("(min-width: 701px)").matches) { const tEl = el.querySelector(".ab-target"); if (tEl) el.appendChild(tEl); }
@@ -1774,6 +1898,7 @@ function render() {
     : state.step === "elect" ? `Round ${state.round}: <b>side ${state.init.winner}</b> won initiative and chooses to move first or last.`
     : state.step === "missiles" ? `Round ${state.round}: set actions and targets (fire, cast, melee), then resolve missiles and spells in Dexterity order.`
     : state.step === "melee" ? `Round ${state.round}: set or change targets, then resolve melee.`
+    : state.step === "orders" ? `Round ${state.round}: <b>orders</b>. Both sides declare fire, spells and stance; the round resolves when everyone is ready.`
     : `Round ${state.round}: <b>side ${state.step.slice(5)}</b> moves. Targets can be set at any time.`;
 }
 
@@ -1928,6 +2053,9 @@ $("#layout").addEventListener("change", (e) => { state.chests = []; state.walls 
 $("#start").addEventListener("click", startFight);
 $("#electFirst").addEventListener("click", () => elect("move"));
 $("#electLast").addEventListener("click", () => elect("counter"));
+$("#prevStep").addEventListener("click", () => { const r = runAction({ type: "step-back" }); if (!r.ok && r.error) $("#dragInfo").textContent = r.error; afterStepChange(); });
+$("#nextStepBtn").addEventListener("click", () => { if (online.on) runAction({ type: "force-next" }); else nextStep(); });
+$("#undoBtn").addEventListener("click", () => { if (online.on) runAction({ type: "undo" }); else localUndoPop(); });
 $("#step").addEventListener("click", () => { if (PLAYER) { if (state.phase === "setup") openDrawer("setup"); else nextStep(); return; } if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
 $("#reset").addEventListener("click", resetFight);
 $("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;

@@ -29,6 +29,8 @@ export function fightPaths(cid, fid) {
     campaign: `oddCampaigns/${cid}`,
     fight,
     state: `${fight}/server/state`,
+    initial: `${fight}/server/initial`,
+    actions: `${fight}/actions`,
     view: (who) => `${fight}/views/${who}`,
     feed: (who, rev) => `${fight}/feeds/${who}/entries/${pad(rev)}`,
     action: (rev) => `${fight}/actions/${pad(rev)}`
@@ -105,9 +107,43 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       if (existing) return refuse("exists", `fight ${fid} already exists`);
       if (!camp) tx.set(p.campaign, { refereeUid: uid, system: "odd", createdAt: now() });
       writeFight(tx, p, state, events, { rev: 1, uid, header: { title: String(title).slice(0, 120), createdBy: uid, createdAt: now() } });
+      // the fight as it opened: Undo replays the accepted actions from here
+      tx.set(p.initial, clean(fightStore.toStored(state)));
       // players: who was put in the fight, so the page can confirm the emails took.
       return { ok: true, fid, rev: 1, players: playersOf(state) };
     });
+  }
+
+  const VERB = { move: "moved", "close-on": "closed in", "group-move": "moved as a group", "split-fire": "fired in mid-move", "charge-mode": "changed charge", orders: "changed orders", "draw-weapon": "drew a weapon", ready: "marked Ready", unready: "took Ready back", "undo-move": "undid a move", gm: "GM tool", leader: "set a leader", parley: "parleyed", "offer-service": "offered service", elect: "elected", "force-next": "advanced the step", "step-back": "went back a step" };
+  const describe = (state, rec) => {
+    const a = rec.action ?? {}, ids = [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
+    const names = ids.map((id) => state.figures.find((f) => f.id === id)?.name).filter(Boolean);
+    return `${names.length ? `${names.join(", ")}: ` : ""}${VERB[a.type] ?? a.type}`;
+  };
+
+  /**
+   * Undo (the referee): take back the last action not already undone. The
+   * fight is rebuilt from the state it opened with by replaying every other
+   * accepted action in order, with the same dice; the undone record is kept,
+   * marked undone, so it never replays.
+   */
+  async function undo(tx, p, uid, camp, header) {
+    const initial = await tx.get(p.initial);
+    if (!initial) return refuse("no-undo", "this fight was opened before Undo existed; open a new fight to use it");
+    const recs = (await tx.list(p.actions)).sort((a, b) => a.rev - b.rev);
+    const live = recs.filter((r) => !r.undone && r.action?.type !== "undo");
+    const last = live.at(-1);
+    if (!last) return refuse("nothing", "nothing to undo");
+    const state = fightStore.fromStored(initial);
+    for (const r of live.slice(0, -1)) {
+      const who = r.uid === camp?.refereeUid ? { referee: true } : { uid: r.uid };
+      const res = session.applyAs(state, who, r.action, fightStore.rngOf(state));
+      if (!res.ok) return refuse("replay", `the fight couldn't be rebuilt (rev ${r.rev}: ${res.error})`);
+    }
+    const next = header.rev + 1, what = describe(state, last);
+    writeFight(tx, p, state, [{ type: "undo", rev: last.rev, what }], { rev: next, uid, action: { type: "undo", undoes: last.rev }, header });
+    tx.set(p.action(last.rev), clean({ ...last, undone: true, undoneAt: now() }));
+    return { ok: true, rev: next, events: [{ type: "undo", rev: last.rev, what }] };
   }
 
   /** One action: data { cid, fid, rev, rules, action }. */
@@ -125,6 +161,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       const state = fightStore.fromStored(stored);
       const who = whoIs(state, camp, uid);
       if (!who) return refuse("forbidden", "you are not in this fight");
+      if (action.type === "undo") return who.referee ? undo(tx, p, uid, camp, header) : refuse("forbidden", "only the referee undoes");
       const r = session.applyAs(state, who, action, fightStore.rngOf(state));
       if (!r.ok) return refuse("refused", r.error, { rev: header.rev });
       const next = header.rev + 1;
