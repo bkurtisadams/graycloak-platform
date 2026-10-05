@@ -395,7 +395,7 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart
+  fightStore, fightStart, looting as lt
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 
@@ -575,8 +575,6 @@ const nameSpan = (f) => `<span class="${f.side === "A" ? "a" : "b"}">${esc(f.nam
 
 /* ---------- treasure and loot (Book II; treasure.mjs, inventory.mjs) ---------- */
 state.chests = [];
-const AC_GEAR = { 7: ["Leather armour"], 8: ["Shield"], 6: ["Leather armour", "Shield"], 5: ["Chain mail"], 4: ["Chain mail", "Shield"], 3: ["Plate mail"], 2: ["Plate mail", "Shield"] };
-const GEAR_WT = { "Leather armour": 250, "Chain mail": 500, "Plate mail": 750, "Shield": 150 };
 /**
  * Drawing a carried weapon (house rule, Oct 2026: Chainmail gives no time; like
  * remounting, it takes half a move). Only in the figure's own move step and
@@ -596,27 +594,12 @@ function drawWeapon(f, index) {
 }
 /** A weapon as an inventory item, so it can be carried, dropped, looted and drawn. */
 const weaponItem = (id) => ({ kind: "weapon", weaponId: id, name: WEAPON_LABEL[id] ?? id, unidName: WEAPON_LABEL[id] ?? "a weapon", identified: true, weight: EQUIPMENT_BY_KEY[id]?.system?.weight ?? 50 });
-function gearOf(f) {
-  const out = [];
-  const p = combatProfile(f);
-  if (!p.profileAttack && p.weaponId && !f.weaponBroken) out.push({ kind: "weapon", weaponId: p.weaponId, name: WEAPON_LABEL[p.weaponId] ?? p.weaponId, unidName: WEAPON_LABEL[p.weaponId] ?? "a weapon", identified: true, weight: EQUIPMENT_BY_KEY[p.weaponId]?.system?.weight ?? 50 });
-  if (f.kind === "pc" && f.missile) out.push({ kind: "weapon", name: MISSILE_LABEL[f.missile], unidName: MISSILE_LABEL[f.missile], identified: true, weight: 50 });
-  const wears = f.kind === "pc" || isPerson(f) || ["gnoll", "hobgoblin", "bandit", "brigand", "dwarf", "gnome", "elf", "berserker"].includes(f.monsterKey);
-  if (wears) for (const g of AC_GEAR[f.ac] ?? []) out.push({ kind: "armor", name: g, unidName: g, identified: true, weight: GEAR_WT[g] });
-  return out;
-}
-/** A fallen figure's remains: what it carried plus its gear. */
-function remainsOf(f) {
-  if (!f.remains) { const inv = f.inv ?? emptyInventory(); f.remains = { coins: { ...inv.coins }, items: [...inv.items, ...gearOf(f)] }; f.inv = emptyInventory(); }
-  return f.remains;
-}
-const hasLoot = (f) => (f.remains ? !isEmpty(f.remains) : coinCount(f.inv?.coins) > 0 || (f.inv?.items.length ?? 0) > 0 || gearOf(f).length > 0);
-const searchable = (pc) => {
-  const out = [];
-  for (const f of state.figures) if (f !== pc && f.placed && !alive(f) && f.hp != null && adjacent(pc, f) && !(f.monsterKey === "troll" && !f.burned)) out.push({ id: `fig-${f.id}`, label: `${f.name} (fallen)`, inv: () => remainsOf(f) });
-  for (const c of state.chests) if (adjacent(pc, { x: c.x, y: c.y, size: 1 })) out.push({ id: `chest-${c.id}`, label: c.label, inv: () => c.inv });
-  return out;
-};
+// bodies and hoards: the rules package's loot.mjs (online the server applies every take and put-back)
+const gearOf = (f) => lt.gearOf(f), hasLoot = (f) => lt.hasLoot(f);
+/** Bodies and hoards a character can reach: { id, label, inv() }. A player's page takes them from his view. */
+const searchable = (pc) => PLAYER
+  ? (state.searchables ?? []).filter((s) => s.pcId === pc.id).map((s) => ({ id: s.id, label: s.label, inv: () => s.inv }))
+  : lt.searchable(state, pc).map((s) => ({ ...s, inv: () => lt.peek(state, s.id) }));
 function placeHoard(monsterKey) {
   // rolled by the rules package from the Setup seed; online the server rolls it again from its own seed unless the referee sets it
   const n = state.chests.length + 1;
@@ -655,11 +638,19 @@ function openTreasureEditor(target) {
     close();
   };
 }
+/** The search dialog that's open, so it can redraw when the fight changes (online: when the server's answer arrives). */
+let lootOpen = null;
+function refreshLoot() {
+  if (!lootOpen || $("#loot").style.display === "none") return;
+  const pc = byId(lootOpen.pcId), src = pc && searchable(pc).find((q) => q.id === lootOpen.srcId);
+  if (!src) { lootOpen = null; $("#loot").style.display = "none"; return; }
+  openLoot(pc, src);
+}
 function openLoot(pc, src) {
-  if (online.on && state.phase !== "setup") { $("#dragInfo").textContent = "Searching works only when playing in this page for now; it moves to the server with the campaign's treasure."; return; }
+  lootOpen = { pcId: pc.id, srcId: src.id };
   const inv = src.inv();
   const coinRow = (k, label) => inv.coins[k] ? `<tr><td>${inv.coins[k].toLocaleString()} ${label}</td><td>${inv.coins[k].toLocaleString()} wt</td><td><button data-takecoin="${k}">Take all</button> <button data-takecoin100="${k}">Take 100</button></td></tr>` : "";
-  const rows = inv.items.map((it, i) => `<tr><td>${esc(displayName(it))}${it.identified ? "" : ' <span class="note">(unidentified)</span>'}</td><td>${it.weight ?? 0} wt</td><td><button data-take="${i}">Take</button>${it.identified ? "" : ` <button data-ident="${i}" title="Referee: reveal what it is">Reveal</button>`}</td></tr>`).join("");
+  const rows = inv.items.map((it, i) => `<tr><td>${esc(displayName(it))}${it.identified ? "" : ' <span class="note">(unidentified)</span>'}</td><td>${it.weight ?? 0} wt</td><td><button data-take="${i}">Take</button>${it.identified ? "" : ` ${PLAYER ? "" : `<button data-ident="${i}" title="Referee: reveal what it is">Reveal</button>`}`}</td></tr>`).join("");
   const mine = pc.inv;
   const mineRows = mine.items.map((it, i) => `<tr><td>${esc(displayName(it))}</td><td>${it.weight ?? 0} wt</td><td><button data-drop="${i}">Put back</button></td></tr>`).join("");
   const load = baseLoad(pc) + inventoryWeight(mine);
@@ -670,13 +661,14 @@ function openLoot(pc, src) {
     <p class="mono" style="margin-top:8px">Load ${load.toLocaleString()} (gear ${baseLoad(pc)}) · ${moveInches(pc) > 0 ? `move ${moveInches(pc)}\u2033` : `<b class="hit">too heavy to move (over 3,000)</b>`} · treasure value ${Math.round(treasureXpValue(mine)).toLocaleString()} gp (counts for XP once carried out)</p></div></div>`;
   $("#loot").style.display = "flex";
   const box = $("#lootBox");
-  box.querySelector("#lootClose").onclick = () => { $("#loot").style.display = "none"; render(); };
-  box.querySelectorAll("[data-take]").forEach((b) => (b.onclick = () => { const it = transferItem(inv, mine, Number(b.dataset.take)); logAppend(`<div class="card note">${esc(pc.name)} takes ${esc(displayName(it))}.</div>`); openLoot(pc, src); }));
-  box.querySelectorAll("[data-takecoin]").forEach((b) => (b.onclick = () => { const k = b.dataset.takecoin, n = inv.coins[k]; transferCoins(inv, mine, { [k]: n }); logAppend(`<div class="card note">${esc(pc.name)} takes ${n} ${k}.</div>`); openLoot(pc, src); }));
-  box.querySelectorAll("[data-takecoin100]").forEach((b) => (b.onclick = () => { const k = b.dataset.takecoin100; transferCoins(inv, mine, { [k]: 100 }); openLoot(pc, src); }));
-  box.querySelectorAll("[data-drop]").forEach((b) => (b.onclick = () => { transferItem(mine, inv, Number(b.dataset.drop)); openLoot(pc, src); }));
-  box.querySelectorAll("[data-dropcoins]").forEach((b) => (b.onclick = () => { transferCoins(mine, inv, { ...mine.coins }); openLoot(pc, src); }));
-  box.querySelectorAll("[data-ident]").forEach((b) => (b.onclick = () => { inv.items[Number(b.dataset.ident)].identified = true; openLoot(pc, src); }));
+  box.querySelector("#lootClose").onclick = () => { lootOpen = null; $("#loot").style.display = "none"; render(); };
+  const act = async (a) => { box.querySelectorAll("button").forEach((x) => (x.disabled = x.id !== "lootClose")); const r = await runAction({ ...a, source: src.id }); if (r && r.ok === false) $("#dragInfo").textContent = r.error ?? "Not done."; if (!online.on || r?.ok === false) refreshLoot(); };
+  box.querySelectorAll("[data-take]").forEach((b) => (b.onclick = () => act({ type: "loot", id: pc.id, op: "take-item", index: Number(b.dataset.take) })));
+  box.querySelectorAll("[data-takecoin]").forEach((b) => (b.onclick = () => act({ type: "loot", id: pc.id, op: "take-coins", coin: b.dataset.takecoin })));
+  box.querySelectorAll("[data-takecoin100]").forEach((b) => (b.onclick = () => act({ type: "loot", id: pc.id, op: "take-coins", coin: b.dataset.takecoin100, n: 100 })));
+  box.querySelectorAll("[data-drop]").forEach((b) => (b.onclick = () => act({ type: "loot", id: pc.id, op: "put-item", index: Number(b.dataset.drop) })));
+  box.querySelectorAll("[data-dropcoins]").forEach((b) => (b.onclick = () => act({ type: "loot", id: pc.id, op: "put-coins" })));
+  box.querySelectorAll("[data-ident]").forEach((b) => (b.onclick = () => act({ type: "reveal", index: Number(b.dataset.ident) })));
 }
 
 /* ---------- group selection and group moves (all or nothing; Kurt's ruling) ---------- */
@@ -739,6 +731,7 @@ function renderEvents(events) {
     else if (e.type === "election") logAppend(`<div class="card note">Side ${e.winner} elects to move ${e.choice === "counter" ? "last" : "first"}${e.ai ? " (by behaviour)" : ""}: side ${e.firstSide} moves first.</div>`);
     else if (e.type === "volley") logAppend(volleyCard(e));
     else if (e.type === "talk") logAppend(renderCard(e.card));
+    else if (e.type === "loot") logAppend(`<div class="card note">${esc(e.text)}</div>`);
     else if (e.type === "missiles" || e.type === "melee") {
       for (const h of e.hits) state.events.push({ a: byId(h.a), t: h.t != null ? byId(h.t) : null, dmg: h.dmg, extra: h.extra });
       const fell = e.fell.map(byId);
@@ -861,7 +854,7 @@ function openOnline(cid, fid) {
     cid, fid, viewer,
     onHeader: (h) => { online.header = h; renderOnlineNote(); renderStrip(); },
     onView: (v) => {
-      adoptView(v);
+      adoptView(v); refreshLoot();
       // the player's page always shows one of his own characters in the bar, unless he clicked another figure
       if (PLAYER && (state.selected == null || !byId(state.selected))) { const own = state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();

@@ -30,6 +30,7 @@
  * referee's until it is classified.
  */
 import { present } from "./board.mjs";
+import { seenInv, searchablesFor } from "./loot.mjs";
 import { moverOf } from "./runner.mjs";
 import { FIGHT_SCHEMA, RULES_VERSION } from "./fight-store.mjs";
 
@@ -52,7 +53,12 @@ const copy = (v) => JSON.parse(JSON.stringify(v ?? null));
 
 /** One figure as this viewer sees it. */
 export function figureFor(state, who, f) {
-  if (controls(state, who, f)) return { ...copy(f), mine: true };
+  if (controls(state, who, f)) { // his own: everything, but unidentified items only as he sees them
+    const out = { ...copy(f), mine: true };
+    if (out.inv) out.inv = seenInv(out.inv);
+    if (out.remains) out.remains = seenInv(out.remains);
+    return out;
+  }
   const out = { elevation: 0, movementAction: "walk", ...pick(f, PUBLIC_FIGURE_KEYS), hpFrac: hpFraction(f), casting: !!f.action?.startsWith?.("cast:") };
   const mySides = new Set(figuresOf(state, who).map((g) => g.side));
   if (mySides.has(f.side)) Object.assign(out, pick(f, ALLY_FIGURE_KEYS));
@@ -76,13 +82,13 @@ export function viewFor(state, who) {
   const encounter = Object.fromEntries(Object.entries(groups).map(([k, g]) => [k, pick(g, ENCOUNTER_PUBLIC_KEYS)]));
   const key = `${state.round}:${state.step}`;
   const readyIds = Object.entries(state.ready ?? {}).filter(([, k]) => k === key).map(([id]) => Number(id));
-  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, readyIds, needIds: needsReady(state).map((f) => f.id), encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)) };
+  return { ...copy(pick(state, PUBLIC_STATE_KEYS)), ...base, readyIds, needIds: needsReady(state).map((f) => f.id), encounter: copy(encounter), mine: figuresOf(state, who).map((f) => f.id), figures: state.figures.map((f) => figureFor(state, who, f)), searchables: searchablesFor(state, figuresOf(state, who).map((f) => f.id)) };
 }
 
 /* ------------------------------------------------------------------ authority */
 
-const STAFF_ONLY = Object.freeze(["begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader", "orders-end", "force-next", "step-back", "undo"]);
-const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon", "undo-move"]);
+const STAFF_ONLY = Object.freeze(["reveal", "begin-round", "missiles", "melee", "missiles-resolved", "melee-resolved", "behave", "gm", "leader", "orders-end", "force-next", "step-back", "undo"]);
+const FIGURE_ACTIONS = Object.freeze(["move", "split-fire", "charge-mode", "close-on", "group-move", "parley", "offer-service", "orders", "draw-weapon", "undo-move", "loot"]);
 const actorIds = (a) => [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
 
 /** May this viewer send this action? { ok, why }. The runner still checks the rules. */
@@ -116,7 +122,7 @@ export function mayAct(state, who, action) {
 
 /* ------------------------------------------------------------------ events */
 
-export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready", "orders-open", "step-back", "forced", "undo", "undo-move"]);
+export const PUBLIC_EVENTS = Object.freeze(["round", "initiative", "election", "step-skipped", "moved", "charge", "volley", "down", "over", "missiles", "melee", "talk", "draw-weapon", "ready", "unready", "orders-open", "step-back", "forced", "undo", "undo-move", "loot"]);
 export const OWNER_EVENTS = Object.freeze(["charge-mode", "orders", "order-lapsed"]);
 export const REFEREE_EVENTS = Object.freeze(["opened", "behaviour", "morale-exempt", "gm", "leader"]);
 export const REDACTED_EVENTS = Object.freeze(["morale"]);
@@ -216,6 +222,15 @@ async function runSelfTests() {
     const r = viewFor(st, ref);
     ok(r.referee && !("rngState" in r) && r.figures.find((f) => f.id === 3).maxHp === 5 && typeof r.contacts === "object", "the referee sees everything but the dice");
     ok(!raw.includes("\"rngState\""), "no RNG anywhere in a player's view");
+  }
+  {
+    const st = fight(); const me = st.figures.find((f) => controls(st, kurt, f)), foe = st.figures.find((f) => f.side !== me.side);
+    me.inv = { coins: { cp: 0, sp: 0, gp: 3 }, items: [{ kind: "ring", name: "Ring of Invisibility", unidName: "a ring", identified: false, weight: 1 }] };
+    Object.assign(foe, { x: me.x + 1, y: me.y, hp: 0, inv: { coins: { cp: 0, sp: 0, gp: 7 }, items: [] } });
+    const v = viewFor(st, kurt), mv = v.figures.find((f) => f.id === me.id);
+    ok(mv.inv.items[0].name === "a ring" && !JSON.stringify(v).includes("Invisibility"), "his own unidentified ring shows only as 'a ring'");
+    ok(v.searchables.some((s) => s.pcId === me.id && s.id === `fig-${foe.id}` && s.inv.coins.gp === 7), "he sees what the fallen foe beside him holds");
+    ok(!("inv" in v.figures.find((f) => f.id === foe.id)), "but not an enemy's purse otherwise");
   }
   {
     const st = fight(); Object.assign(st.figures[2], { charmed: true, side: "A", serviceTries: 1 }); st.figures[3].serviceClosed = true;

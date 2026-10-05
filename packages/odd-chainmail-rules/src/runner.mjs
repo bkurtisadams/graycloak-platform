@@ -45,6 +45,7 @@ import { resolveMeleeRound } from "./melee.mjs";
 import { resolveMissileStep } from "./missile-step.mjs";
 import { parley, offerServiceTo } from "./talk.mjs";
 import { setOrders, drawWeapon, gmTool, setTreasure } from "./orders.mjs";
+import { loot, reveal } from "./loot.mjs";
 
 export const Step = Object.freeze({
   INIT: "init", ELECT: "elect", ORDERS: "orders", ARTILLERY: "artillery", MISSILES: "missiles", MELEE: "melee"
@@ -97,6 +98,8 @@ export const AI_ELECTION = "counter";
  *   { type: "draw-weapon", id, index }          own move step: draw a carried weapon for half a move
  *   { type: "gm", id, tool, value }             referee: invulnerable, heal, set-hp, clear, kill, burn, treasure
  *   { type: "gm", chest, tool: "treasure", value } referee: what a hoard holds
+ *   { type: "loot", id, source, op, index | coin, n } a character takes or puts back (loot.mjs)
+ *   { type: "reveal", source, index }           referee: what an unidentified item is
  *   { type: "leader", side, id }                referee: the side's leader (Chainmail p.20); id null for none
  * Orders, GM tools and the leader may also be set during setup.
  */
@@ -135,7 +138,8 @@ function applyStep(state, action, rng) {
   const fail = (error) => ({ ok: false, events: [], error });
   const byId = (id) => state.figures.find((f) => f.id === id);
   const setupOk = ["move", "group-move", "orders", "gm", "leader"].includes(action?.type) && state.phase === "setup";
-  if (state.phase !== "fight" && !setupOk) return fail("the fight is not running");
+  const afterOk = ["loot", "reveal"].includes(action?.type) && state.phase === "over"; // searching goes on once the fight is won
+  if (state.phase !== "fight" && !setupOk && !afterOk) return fail("the fight is not running");
   switch (action?.type) {
     case "move": {
       const r = moveFigure(state, byId(action.id), action.x, action.y);
@@ -269,6 +273,15 @@ function applyStep(state, action, rng) {
     case "orders": {
       const { type, id, ...o } = action;
       const r = setOrders(state, byId(id), o);
+      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+    }
+    case "loot": {
+      const { type, id, ...o } = action;
+      const r = loot(state, byId(id), o);
+      return r.ok ? { ok: true, events: r.events } : fail(r.error);
+    }
+    case "reveal": {
+      const r = reveal(state, action);
       return r.ok ? { ok: true, events: r.events } : fail(r.error);
     }
     case "draw-weapon": {
