@@ -1,4 +1,19 @@
-// gcc-voyage.js v0.14.1 — 2026-10-05
+// gcc-voyage.js v0.15.0 — 2026-10-05
+// v0.15.0: storm-day pipeline to Seafaring RAW.
+//   - Ship Sailing is its own Setup skill (was the Nav Skill roll).
+//   - Storm/hurricane days: d6 storm Force, Ship Sailing at −1 (Force 5)
+//     or −2 (Force 6); a failure costs 1 hull (2 in a hurricane). Gales
+//     carry no Ship Sailing check or hull loss.
+//   - Storm drift d10×10 mi every storm/hurricane day, not only on a
+//     failed check (gcc-weather v0.2.3 drops the 2d10×10 hurricane drift
+//     and drives the ship at double movement in a hurricane).
+//   - Wind Damage Table rolls every gale/storm/hurricane day at the Setup
+//     exposure: RAW (every 6-hour watch), one watch, or reduced (house,
+//     ¼ watch — the default). Resolved even when engaged or dead in the
+//     water.
+//   - Waterspout: 5% strike; a strike is four Ship Sailing checks at
+//     double severity (2 hull each failure) and 3d6 to those on deck.
+//   Not yet: −2 per 1,000 mi without maintenance (no maintenance model).
 // v0.14.1: Seafaring audit bug fixes.
 //   - Port-call customs: the rolled 2d10% rate is what sales are charged
 //     (exposed as customsRatePct for gcc-voyage-cargo v0.2.2).
@@ -262,7 +277,7 @@
 (function(){
   if (typeof window === 'undefined') return;
   const LOG = (...a) => console.log('[voyage]', ...a);
-  LOG('gcc-voyage.js v0.14.1 loaded');
+  LOG('gcc-voyage.js v0.15.0 loaded');
 
   // ── DATA ──────────────────────────────────────────────────────────────────
   // Ship templates: dailySail in miles-per-10-hour-sailing-day, hull in HP.
@@ -306,13 +321,17 @@
   };
 
   // Seafaring/DMG Wind Damage Table (base %, before quality modifiers).
-  // RAW checks every 6 hours. House rule: one set of rolls fires only on
-  // the day the captain loses control (failed Ship Sailing check), at
-  // RAW ÷ 4 — a quarter of one watch's exposure, not a full RAW watch.
+  // RAW checks every 6 hours of gale or worse. WIND_EXPOSURE sets how many
+  // rolls a hazard day gets and at what fraction of the table.
   const WIND_DAMAGE_TABLE = {
     gale:      { capsize:1,  mast:5,  beams:10, sail:20, overboard:10 },
     storm:     { capsize:20, mast:25, beams:35, sail:45, overboard:50 },
     hurricane: { capsize:40, mast:45, beams:50, sail:65, overboard:70 },
+  };
+  const WIND_EXPOSURE = {
+    raw:     { label:'RAW — every 6-hour watch', rolls:4, scale:1 },
+    watch:   { label:'One watch per day',        rolls:1, scale:1 },
+    reduced: { label:'Reduced (house, ¼ watch)', rolls:1, scale:0.25 },
   };
 
   // ── PORT RESOLUTION ───────────────────────────────────────────────────────
@@ -393,7 +412,7 @@
   // Seafaring: 1 hull point permanently repaired in port for 100 gp/day by
   // trained workers. (Self-repair by crew is ~50 gp materials + a week.)
   const REPAIR_GP_PER_HULL = 100;
-  const VOYAGE_VERSION = '0.14.1';
+  const VOYAGE_VERSION = '0.15.0';
   const VOYAGE_STORAGE_KEY = 'gcc.voyage.state.v1';
   // Completed/discarded voyages: summary + condensed log + settlement.
   // Written by archiveVoyage() before state.voyage is nulled or replaced.
@@ -650,7 +669,7 @@
       sky,
       precipitation:{ key:precip.toLowerCase().replace(/\s+/g,'-'), type:precip, duration:precip!=='None' ? rollD(12) : 0, durationUnit:'hours' },
       temperature:{ high:65+rollD(20)-10, low:45+rollD(10), current:55 },
-      voyageEffects:{ movementMultiplier: windSpeed<=1 ? 0 : windSpeed<=7 ? 0.75 : windSpeed>=55 ? 0.5 : windSpeed>=32 ? 0.75 : 1, navigationPenalty: windSpeed>=55 ? 4 : windSpeed>=32 ? 2 : 0, hazardLevel: windSpeed>=73 ? 'hurricane' : windSpeed>=55 ? 'storm' : windSpeed>=32 ? 'gale' : null, speedNote:'' }
+      voyageEffects:{ movementMultiplier: windSpeed<=1 ? 0 : windSpeed<=7 ? 0.75 : windSpeed>=73 ? 2 : windSpeed>=55 ? 0.5 : windSpeed>=32 ? 0.75 : 1, navigationPenalty: windSpeed>=55 ? 4 : windSpeed>=32 ? 2 : 0, hazardLevel: windSpeed>=73 ? 'hurricane' : windSpeed>=55 ? 'storm' : windSpeed>=32 ? 'gale' : null, speedNote:'' }
     };
   }
   // RAW: each full 10% of hull damage slows the ship 10%; at 75% damage
@@ -678,6 +697,10 @@
   // set persistent flags cleared by posting their Voyage Ledger repair
   // item; torn rigging is d6 hull with spares bent on by morning.
   function rollWindDamage(v, hazardLevel, dateStr, events){
+    const exp = WIND_EXPOSURE[v.windExposure] || WIND_EXPOSURE.reduced;
+    for (let i = 0; i < exp.rolls && !v.shipSank; i++) rollWindDamageOnce(v, hazardLevel, dateStr, events, exp.scale);
+  }
+  function rollWindDamageOnce(v, hazardLevel, dateStr, events, scale){
     const row = WIND_DAMAGE_TABLE[hazardLevel];
     if (!row) return;
     const q = SHIP_QUALITY[v.quality] || SHIP_QUALITY.average;
@@ -685,7 +708,7 @@
       let base = row[key];
       if (key === 'capsize' && q.capsizeOverride && q.capsizeOverride[hazardLevel] != null) base = q.capsizeOverride[hazardLevel];
       else base = Math.max(0, base + q.windDmgMod);
-      return base / 4;
+      return base * scale;
     };
     const hit = key => (Math.random() * 100) < pct(key);
     if (hit('capsize')){
@@ -906,17 +929,83 @@
     const lostPct = Math.min(50, (roll-target)*5);
     return { failed:true, roll, target, lostPct, hazardMod };
   }
-  function assessWeatherHazard(weather){
-    const w = Number(weather?.wind?.speed || 0);
+  function assessFogHazard(weather){
     const p = weather?.precipitation?.key || weather?.precipitation?.type || '';
-    const hz = weather?.voyageEffects?.hazardLevel;
-    if (hz === 'hurricane' || p === 'hurricane' || w>=73) return { type:'Critical', mod:10, desc:'Hurricane Force Weather' };
-    if (hz === 'storm' || p === 'waterspout' || w>=55) return { type:'Major', mod:6, desc:p === 'waterspout' ? 'Waterspout / Tornado' : p === 'squall' ? 'Squall' : 'Storm' };
-    if (hz === 'gale' || p === 'gale' || w>=32) return { type:'Major', mod:4, desc:'Gale Force Winds' };
     const sky = String(weather?.sky || '').toLowerCase();
     if (sky.includes('fog') || p === 'fog' || p === 'heavy-fog')
       return { type:'Minor', mod:p === 'heavy-fog' ? 4 : 3, desc:p === 'heavy-fog' ? 'Heavy Fog' : 'Fog' };
     return null;
+  }
+
+  function sailSkillOf(v){
+    const n = Number(v.sailSkill);
+    return Number.isFinite(n) && n > 0 ? n : Number(v.navSkill || 12);
+  }
+  function applyStormHull(v, dmg, desc, dateStr, weather, waterType){
+    v.hullCurrent -= dmg;
+    v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
+    const repairGp = estimateRepairCost(dmg, v);
+    addPendingFinanceAction({
+      category:'repair', direction:'expense', amountGp:repairGp, hullDamage:dmg,
+      eventType:'weather_damage',
+      memo:`Repair ${dmg} hull HP after ${desc} on ${dateStr}.`,
+      day:v.dayNumber, date:dateStr, port:voyageCurrentLocationLabel(v),
+      meta:{ weatherHazard:desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
+    }, v);
+    return repairGp;
+  }
+
+  // Seafaring Storm: d6 Force; Ship Sailing −1 at Force 5, −2 at Force 6;
+  // failure costs 1 hull (hurricane: storm damage doubled). Drift d10×10 mi
+  // every storm day. Gales: Wind Damage Table only. Waterspout: 5% strike.
+  function resolveHazardDay(v, weather, dateStr, events, waterType){
+    const lvl = weather?.voyageEffects?.hazardLevel;
+    const p = String(weather?.precipitation?.key || '');
+    const skill = sailSkillOf(v);
+
+    if (p === 'waterspout'){
+      if (rollD(100) <= 5){
+        let total = 0;
+        const rolls = [];
+        for (let i = 0; i < 4; i++){
+          const r = rollD(20);
+          rolls.push(r);
+          if (r > skill) total += 2;
+        }
+        events.push({ type:'damage', text:`A waterspout strikes the ship! Ship Sailing ${rolls.join(', ')} vs ${skill}. Everyone on deck takes 3d6 damage and is flung 1d10" away.` });
+        if (total > 0){
+          const gp = applyStormHull(v, total, 'Waterspout', dateStr, weather, waterType);
+          events.push({ type:'damage', text:`Waterspout damage: hull −${total} HP (${v.hullCurrent}/${v.hullMax}). Pending repair estimate: ${gp} gp.` });
+        }
+      } else {
+        events.push({ type:'weather', text:'A waterspout dances across the water but misses the ship.' });
+      }
+    }
+
+    if (!lvl) return null;
+    if (lvl === 'storm' || lvl === 'hurricane'){
+      const force = rollD(6);
+      const pen = force === 6 ? 2 : force === 5 ? 1 : 0;
+      const target = skill - pen;
+      const roll = rollD(20);
+      const desc = lvl === 'hurricane' ? 'Hurricane' : 'Storm';
+      if (roll > target){
+        const dmg = lvl === 'hurricane' ? 2 : 1;
+        const gp = applyStormHull(v, dmg, desc, dateStr, weather, waterType);
+        events.push({ type:'damage', text:`${desc} (Force ${force})! Ship Sailing failed (${roll} > ${target}). Hull −${dmg} HP (${v.hullCurrent}/${v.hullMax}). Pending repair estimate: ${gp} gp.` });
+      } else {
+        events.push({ type:'weather', text:`${desc} (Force ${force}): the captain sails her through (${roll} ≤ ${target}).` });
+      }
+      const drift = Number(weather?.voyageEffects?.stormDriftMiles || 0);
+      if (drift > 0){
+        v.milesOnLeg = Math.max(0, Number(v.milesOnLeg || 0) - drift);
+        events.push({ type:'navigation', text:`Blown ${drift} mi off course by the ${desc.toLowerCase()}.` });
+      }
+    } else if (lvl === 'gale'){
+      events.push({ type:'weather', text:'Gale force winds — all hands to the rigging.' });
+    }
+    rollWindDamage(v, lvl, dateStr, events);
+    return lvl;
   }
   function calendarAdvance(cal, days=1){
     const DPM = (window.GCCWeather && window.GCCWeather.MONTH_LENGTHS)
@@ -1591,6 +1680,12 @@
       speedInfo = { ...speedInfo, speed: Math.max(0, Math.round(speedInfo.speed * cond.multiplier)), note: `${speedInfo.note} ${cond.note}`.trim() };
     }
 
+    resolveHazardDay(v, weather, dateStr, events, waterType);
+    if (v.shipSank){
+      speedInfo = { speed:0, note:'Lost at sea.', becalmed:false, held:true };
+      v._forceUnderwayLocation = false;
+    }
+
     if (speedInfo.becalmed){
       events.push({ type:'becalmed', text:'Becalmed — no progress.' });
     } else if (speedInfo.held){
@@ -1604,50 +1699,14 @@
         navMiles = Math.max(0, navMiles-lost);
         events.push({ type:'navigation', text:`Navigation error — lost ${lost} mi (rolled ${nav.roll}, needed ≤${nav.target}).` });
       }
-      // Weather hazard
-      const hz = assessWeatherHazard(weather);
+      // Fog: piloting hazard; losing the check gropes away a quarter of the day.
+      const hz = assessFogHazard(weather);
       if (hz){
         const pilot = rollD(20), target = v.navSkill + v.crewMod - hz.mod;
         if (pilot > target){
-          if (hz.type === 'Minor'){
-            // Fog is a piloting hazard, not a hull hazard (RAW): losing the
-            // check gropes away a quarter of the day's progress.
-            const lost = Math.floor(navMiles * 0.25);
-            navMiles = Math.max(0, navMiles - lost);
-            events.push({ type:'navigation', text:`${hz.desc}: the ship gropes through it (${pilot} > ${target}) — ${lost} mi lost.` });
-          } else {
-            // RAW: an average ship takes one hull damage for each day in a
-            // storm the captain fails to sail through; hurricane doubles it.
-            const dmg = hz.type === 'Critical' ? 2 : 1;
-            v.hullCurrent -= dmg;
-            v.hullDamageTaken = Number(v.hullDamageTaken || 0) + dmg;
-            const repairGp = estimateRepairCost(dmg, v);
-            addPendingFinanceAction({
-              category:'repair',
-              direction:'expense',
-              amountGp:repairGp,
-              hullDamage:dmg,
-              eventType:'weather_damage',
-              memo:`Repair ${dmg} hull HP after ${hz.desc} on ${dateStr}.`,
-              day:v.dayNumber,
-              date:dateStr,
-              port:voyageCurrentLocationLabel(v),
-              meta:{ weatherHazard:hz.desc, windForce:weather.wind?.force || '', windSpeed:weather.wind?.speed || 0, waterType }
-            }, v);
-            events.push({ type:'damage', text:`${hz.desc}! Ship Sailing failed (${pilot} > ${target}). Hull −${dmg} HP. (${v.hullCurrent}/${v.hullMax} remaining). Pending repair estimate: ${repairGp} gp.` });
-            // Seafaring/RC: each storm day the ship is blown d10×10 mi off
-            // course. GCCWeather pre-rolls this as stormDriftMiles; apply it
-            // as lost leg progress when the captain loses control.
-            const drift = Number(weather?.voyageEffects?.stormDriftMiles || 0);
-            if (drift > 0){
-              v.milesOnLeg = Math.max(0, Number(v.milesOnLeg || 0) - drift);
-              events.push({ type:'navigation', text:`Blown ${drift} mi off course by the ${hz.desc.toLowerCase()}.` });
-            }
-            // Wind Damage Table fires on the watch where control was lost
-            // (gale/storm/hurricane only; fog hazards carry no hazardLevel).
-            const hzLvl = weather?.voyageEffects?.hazardLevel;
-            if (hzLvl) rollWindDamage(v, hzLvl, dateStr, events);
-          }
+          const lost = Math.floor(navMiles * 0.25);
+          navMiles = Math.max(0, navMiles - lost);
+          events.push({ type:'navigation', text:`${hz.desc}: the ship gropes through it (${pilot} > ${target}) — ${lost} mi lost.` });
         } else {
           events.push({ type:'weather', text:`${hz.desc}: captain holds course (${pilot} ≤ ${target}).` });
         }
@@ -2199,6 +2258,10 @@
           <input class="ve-input" id="ve-nav" type="number" min="1" max="20" value="12">
         </div>
         <div>
+          <label class="ve-lbl">Ship Sailing</label>
+          <input class="ve-input" id="ve-sail" type="number" min="1" max="20" value="12" title="Ship (Sailing) proficiency target on d20 — storm and waterspout checks.">
+        </div>
+        <div>
           <label class="ve-lbl">Smuggling</label>
           <input class="ve-input" id="ve-smuggle" type="number" min="1" max="20" value="4" title="Smuggling proficiency target on d20, minus port size. 4 = no proficiency.">
         </div>
@@ -2218,6 +2281,9 @@
           <input class="ve-input" id="ve-syear" type="number" min="1" max="999" value="576">
         </div>
       </div>
+
+      <label class="ve-lbl">Wind Damage Exposure</label>
+      <select class="ve-select" id="ve-windexp" title="Wind Damage Table rolls per gale/storm/hurricane day">${Object.entries(WIND_EXPOSURE).map(([k,e]) => `<option value="${k}"${k==='reduced'?' selected':''}>${esc(e.label)}</option>`).join('')}</select>
 
       <div class="ve-status">Configure captain, ship, crew, and departure date here. Plan the itinerary on the Route tab.</div>
     `;
@@ -2502,7 +2568,7 @@
     const routePane = p?.querySelector('#ve-pane-route');
     if (!setupPane || !routePane) return;
     const keep = {};
-    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-quality','ve-nav','ve-smuggle',
+    ['ve-capt','ve-ship','ve-speed','ve-hull','ve-crew','ve-quality','ve-nav','ve-sail','ve-windexp','ve-smuggle',
      've-sday','ve-smonth','ve-syear','ve-from','ve-to','ve-water','ve-newport-name']
       .forEach(id => { const el = p.querySelector('#'+id); if (el) keep[id] = el.value; });
     setupPane.innerHTML = setupPaneHTML();
@@ -2747,6 +2813,8 @@
     const quality   = SHIP_QUALITY[p.querySelector('#ve-quality')?.value] ? p.querySelector('#ve-quality').value : 'average';
     const navSkill  = parseInt(p.querySelector('#ve-nav').value,10)   || 12;
     const smuggleSkill = parseInt(p.querySelector('#ve-smuggle')?.value,10) || 4;
+    const sailSkill = parseInt(p.querySelector('#ve-sail')?.value,10) || 12;
+    const windExposure = WIND_EXPOSURE[p.querySelector('#ve-windexp')?.value] ? p.querySelector('#ve-windexp').value : 'reduced';
     const sd = parseInt(p.querySelector('#ve-sday').value,10)    || 1;
     const sm = parseInt(p.querySelector('#ve-smonth').value,10)  || 0;
     const sy = parseInt(p.querySelector('#ve-syear').value,10)   || 576;
@@ -2787,6 +2855,8 @@
       leaking: false,
       alerts: [],
       navSkill,
+      sailSkill,
+      windExposure,
       smuggleSkill,
       calendar: { ...startCalendar },
       startCalendar,

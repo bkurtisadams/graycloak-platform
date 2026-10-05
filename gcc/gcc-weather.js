@@ -1,4 +1,8 @@
-// gcc-weather.js v0.2.2 — AD&D / World of Greyhawk campaign weather for GCC
+// gcc-weather.js v0.2.3 — AD&D / World of Greyhawk campaign weather for GCC
+// v0.2.3: Seafaring hurricane doubles the ship's movement (was ×0.25);
+//   storm drift d10×10 mi for storms and hurricanes alike (was 2d10×10
+//   for hurricanes); a waterspout is no longer a storm hazard day — the
+//   voyage sim rolls its 5% strike (gcc-voyage v0.15.0).
 // v0.2.2: voyageEffects.precipMultiplier — the precipitation-only share of
 //   the speed multiplier (fog, rain storm, squall, snow, becalmed), so the
 //   voyage sim can apply the Seafaring wind rule separately (gcc-voyage
@@ -23,7 +27,7 @@
 (function(){
   if (typeof window === 'undefined') return;
 
-  const VERSION = '0.2.2';
+  const VERSION = '0.2.3';
 
   const MONTHS = [
     'Needfest', 'Fireseek', 'Readying', 'Coldeven', 'Growfest',
@@ -265,10 +269,10 @@
       hazardLevel = 'storm';
       notes.push('Storm winds; planned-course progress is poor and hull risk is high.');
     } else if (force === 'hurricane'){
-      movementMultiplier = 0.25;
+      movementMultiplier = 2;
       navigationPenalty += 8;
       hazardLevel = 'hurricane';
-      notes.push('Hurricane force winds; survival matters more than course progress.');
+      notes.push('Hurricane force winds drive the ship at double speed.');
     }
 
     if (['fog', 'heavy-fog'].includes(precipKey)){
@@ -300,9 +304,9 @@
       notes.push(`${weather.precipitation.type} cuts visibility and makes decks treacherous.`);
     }
 
-    if (['gale', 'tropical-storm', 'hurricane', 'waterspout'].includes(precipKey)){
+    if (['gale', 'tropical-storm', 'hurricane'].includes(precipKey)){
       if (precipKey === 'gale') hazardLevel = hazardLevel || 'gale';
-      if (precipKey === 'tropical-storm' || precipKey === 'waterspout') hazardLevel = 'storm';
+      if (precipKey === 'tropical-storm') hazardLevel = 'storm';
       if (precipKey === 'hurricane') hazardLevel = 'hurricane';
     }
 
@@ -315,9 +319,7 @@
       hazardLevel,
       speedNote,
       damageRisk: !!hazardLevel,
-      stormDriftMiles: hazardLevel === 'storm' ? rollDice(1, 10) * 10
-        : hazardLevel === 'hurricane' ? rollDice(2, 10) * 10
-        : 0,
+      stormDriftMiles: (hazardLevel === 'storm' || hazardLevel === 'hurricane') ? rollDice(1, 10) * 10 : 0,
       source: 'Dragon #68 / World of Greyhawk + seafaring voyage layer',
     };
   }
