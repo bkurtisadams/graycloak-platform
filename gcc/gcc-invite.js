@@ -1,4 +1,5 @@
-// gcc-invite.js v1.0.0 — 2026-04-08
+// gcc-invite.js v1.1.0 — 2026-10-05
+// v1.1.0: share gameCalendar, calendarToday and calendarEvents with players
 // Campaign invite system for Graycloak's Campaign Corner
 // Requires: gcc-data.js, gcc-auth.js, gcc-sync.js (for Firestore access)
 //
@@ -225,6 +226,7 @@ const GCCInvite = (function() {
     'nextSession', 'startDate', 'xpMethod', 'rulebooks', 'houseRules',
     'sharedNotes', 'sessions', 'deletedSessions', 'lore', 'campaignImage', 'hqImage', 'hqNotes',
     'characters', 'promotedPlayers', 'playerReserve', 'teamName',
+    'gameCalendar', 'calendarToday', 'calendarEvents',
   ];
 
   // Helper: resolve IDB image key to data URL

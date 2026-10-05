@@ -403,6 +403,36 @@ a.ses-row-title:hover{color:var(--accent)}
 .lore-card[data-gm-only]{border-color:rgba(208,72,72,0.45);background:linear-gradient(90deg,rgba(208,72,72,0.06),transparent 60%)}
 .lore-card[data-gm-only]:hover{border-color:rgba(208,72,72,0.6)}
 .lore-gm-badge{display:inline-block;font-family:var(--fsc);font-size:8px;font-weight:700;letter-spacing:1px;color:#fff;background:var(--red);border-radius:2px;padding:1px 5px;margin-left:6px;vertical-align:middle}
+.lore-card.flash{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
+/* Calendar */
+.cal-today{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg-card);border:1px solid var(--brd);border-left:3px solid var(--amber);border-radius:4px;padding:8px 12px;margin-bottom:12px}
+.cal-today-label{font-family:var(--fsc);font-size:9px;font-weight:700;letter-spacing:1px;color:var(--tx3)}
+.cal-today-date,.cal-wd{font-family:var(--fm);font-size:12px;color:var(--amber)}
+.cal-today-date{font-size:13px}
+.cal-date-row,.cal-link-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cal-link-row{margin-top:6px}.cal-link-row select{flex:1;min-width:0}
+input.cal-year{width:84px;flex:0 0 84px}select.cal-month{width:auto;min-width:130px;flex:0 0 auto}select.cal-day{width:auto;min-width:64px;flex:0 0 auto}
+.cal-month-hdr{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--brd)}
+.cal-event{display:flex;gap:10px;align-items:flex-start;background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;padding:8px 10px;margin-bottom:6px;box-shadow:var(--card-shadow)}
+.cal-event.past{opacity:.6}.cal-event.is-today{border-color:var(--amber)}.cal-event.gm{border-left:2px solid var(--red)}
+.cal-ev-date{flex:0 0 64px;display:flex;flex-direction:column;align-items:center;text-align:center}
+.cal-ev-day{font-family:var(--fd);font-size:20px;font-weight:700;color:var(--tx);line-height:1}
+.cal-ev-date .cal-wd{font-size:9px;margin-top:3px}
+.cal-ev-body{flex:1;min-width:0}
+.cal-ev-title{font-size:13px;font-weight:700;color:var(--tx)}
+.cal-ev-notes{font-size:12px;color:var(--tx2);line-height:1.5;white-space:pre-line;margin-top:3px}
+.cal-ev-links{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.cal-ev-actions{display:flex;gap:6px;flex-shrink:0}
+.cal-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:10px;font-family:var(--fb);border:1px solid var(--brd);border-radius:10px;background:none;color:var(--tx2);cursor:pointer;text-decoration:none}
+.cal-chip:hover{color:var(--accent);border-color:var(--accent-dim)}
+.cal-chip .tag-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.cal-chip.removed{color:var(--tx3);font-style:italic;cursor:default}
+.cal-chip-x{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:10px;padding:0 0 0 2px}
+.cal-chip-x:hover{color:var(--red)}
+.cal-today-marker{display:flex;align-items:center;gap:8px;margin:8px 0;font-family:var(--fsc);font-size:9px;font-weight:700;letter-spacing:1px;color:var(--amber)}
+.cal-today-marker::before,.cal-today-marker::after{content:'';flex:1;height:1px;background:var(--amber);opacity:.5}
+.cal-none{font-size:11px;color:var(--tx3);font-style:italic}
+@media(max-width:600px){.cal-ev-date{flex-basis:48px}.cal-ev-actions{flex-direction:column}}
 .lore-gm-notes{margin-top:8px;padding:8px 10px;border:1px solid rgba(208,72,72,0.4);border-radius:4px;background:rgba(208,72,72,0.06);font-size:11px;color:var(--tx2);line-height:1.4;white-space:pre-wrap}
 .lore-gm-notes-hdr{display:block;font-family:var(--fsc);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--red);margin-bottom:3px}
 .gcc-dlg-gmnotes{margin-top:12px;padding:10px;border:1px solid rgba(208,72,72,0.35);border-radius:4px;background:rgba(208,72,72,0.05)}
@@ -503,6 +533,12 @@ a.ses-row-title:hover{color:var(--accent)}
   <div class="gcc-dlg-header"><div class="gcc-dlg-title" id="lore-modal-title">New entry</div><button class="gcc-dlg-close" id="lore-modal-close">✕</button></div>
   <div class="gcc-dlg-body" id="lore-modal-body"></div>
   <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="lm-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="lm-save">Save</button></div>
+</div></div>
+
+<div class="gcc-dlg-overlay cd-modal" id="cal-modal"><div class="gcc-dlg">
+  <div class="gcc-dlg-header"><div class="gcc-dlg-title" id="cal-modal-title">New event</div><button class="gcc-dlg-close" id="cal-modal-close">✕</button></div>
+  <div class="gcc-dlg-body" id="cal-modal-body"></div>
+  <div class="gcc-dlg-footer"><button class="gcc-dlg-btn" id="cmm-cancel">Cancel</button><button class="gcc-dlg-btn primary" id="cmm-save">Save</button></div>
 </div></div>
 
 <div class="gcc-dlg-overlay cd-modal" id="veh-modal"><div class="gcc-dlg">
@@ -666,7 +702,7 @@ function resolveChar(savedChar,systemId,storageKey){
 }
 
 const campId=new URLSearchParams(window.location.search).get('id');
-const VALID_TABS=['overview','party','vehicles','sessions','lore','hq','players','notes'];
+const VALID_TABS=['overview','party','vehicles','sessions','lore','calendar','hq','players','notes'];
 const _tabParam=new URLSearchParams(window.location.search).get('tab');
 let currentTab=VALID_TABS.includes(_tabParam)?_tabParam:'overview',sessionFilter='all',loreFilter='all';
 let sessionScope='all',sessionQuery='',sessionView='cards',sessionOrder='newest',lastImgMap={};
@@ -694,6 +730,11 @@ function pushSharedSanitized(cid,camp){
       if(!l.gmNotes)return l;
       const c=Object.assign({},l);delete c.gmNotes;return c;
     });
+  }
+  if(Array.isArray(camp.calendarEvents)){
+    const hiddenLore=new Set((camp.lore||[]).filter(l=>l&&l.gmOnly).map(l=>l._id));
+    const hiddenSes=new Set((camp.sessions||[]).filter(s=>s&&s.visible===false).map(s=>s._id));
+    safe.calendarEvents=camp.calendarEvents.filter(e=>e&&!e.gmOnly).map(e=>Object.assign({},e,{links:(e.links||[]).filter(l=>!(l.kind==='lore'&&hiddenLore.has(l.id))&&!(l.kind==='ses'&&hiddenSes.has(l.id)))}));
   }
   GCCInvite.pushSharedData(cid,safe);
 }
@@ -1122,6 +1163,7 @@ async function render(){
     const refsChanged=reconcileCharRefs(camp);
     await migrateImagesToIDB(camp);
     const layoutChanged=migrateSessionLayouts(camp);
+    if(ensureLoreIds(camp))GCC.updateCampaign(camp.id,{lore:camp.lore});
     if(cleaned||refsChanged||layoutChanged)GCC.updateCampaign(camp.id,{characters:camp.characters||[],sessions:camp.sessions||[],session:countRealSessions(camp.sessions||[])});
   }
   // Bulk load images from IndexedDB (GM mode); player mode uses Storage URLs directly
@@ -1282,8 +1324,12 @@ async function render(){
     const loreImgHtml=loreSrc?`<img class="lore-thumb${sizeClass}" src="${loreSrc}" alt="">`:'';
     const gmBadge=(!pm_&&l.gmOnly)?'<span class="lore-gm-badge">🔒 GM ONLY</span>':'';
     const gmNotesHtml=(!pm_&&l.gmNotes)?`<div class="lore-gm-notes"><span class="lore-gm-notes-hdr">🔒 GM ONLY</span>${ESC(l.gmNotes)}</div>`:'';
-    loreHtml+=`<div class="lore-card" data-lore-type="${ESC(l.type)}"${l.gmOnly?' data-gm-only="1"':''}>${pm_?'':`<div class="lore-actions"><button class="session-action-btn" data-lore-edit="${origIdx}">Edit</button><button class="session-action-btn danger" data-lore-del="${origIdx}">Del</button></div>`}${loreImgHtml}<div class="lore-type-label">${ESC(typeLabel)}</div><div class="lore-name">${ESC(l.name)}${gmBadge}</div>${l.desc?`<div class="lore-desc">${ESC(l.desc)}</div>`:''}${gmNotesHtml}${refsText?`<div class="lore-refs">${ESC(refsText)}</div>`:''}</div>`;
+    loreHtml+=`<div class="lore-card" data-lore-id="${ESC(l._id||'')}" data-lore-type="${ESC(l.type)}"${l.gmOnly?' data-gm-only="1"':''}>${pm_?'':`<div class="lore-actions"><button class="session-action-btn" data-lore-edit="${origIdx}">Edit</button><button class="session-action-btn danger" data-lore-del="${origIdx}">Del</button></div>`}${loreImgHtml}<div class="lore-type-label">${ESC(typeLabel)}</div><div class="lore-name">${ESC(l.name)}${gmBadge}</div>${l.desc?`<div class="lore-desc">${ESC(l.desc)}</div>`:''}${gmNotesHtml}${refsText?`<div class="lore-refs">${ESC(refsText)}</div>`:''}</div>`;
   });loreHtml+='</div>'}
+
+  const calVisible=(Array.isArray(camp.calendarEvents)?camp.calendarEvents:[]).filter(e=>calValid(e)&&!(pm_&&e.gmOnly));
+  const calCount=calVisible.length?` (${calVisible.length})`:'';
+  const calHtml=buildCalendarTab(camp,pm_);
 
   // Notes tab
   const notesHtml=pm_
@@ -1309,6 +1355,7 @@ async function render(){
      '<button class="tab'+(currentTab==='party'?' active':'')+'" data-tab="party">PARTY'+charCount+'</button>'+
      '<button class="tab'+(currentTab==='sessions'?' active':'')+'" data-tab="sessions">'+ESC(GCC.sessionLabel(camp.system).toUpperCase())+'S'+sesCount+'</button>'+
      '<button class="tab'+(currentTab==='lore'?' active':'')+'" data-tab="lore">Wiki'+loreCount+'</button>'+
+     '<button class="tab'+(currentTab==='calendar'?' active':'')+'" data-tab="calendar">Calendar'+calCount+'</button>'+
      '<button class="tab'+(currentTab==='hq'?' active':'')+'" data-tab="hq">HQ</button>'+
      '<button class="tab'+(currentTab==='players'?' active':'')+'" data-tab="players">Players</button>'+
      '<button class="tab'+(currentTab==='notes'?' active':'')+'" data-tab="notes">Notes</button>'
@@ -1317,6 +1364,7 @@ async function render(){
      '<button class="tab'+(currentTab==='vehicles'?' active':'')+'" data-tab="vehicles">Vehicles'+vehCount+'</button>'+
      '<button class="tab'+(currentTab==='sessions'?' active':'')+'" data-tab="sessions">'+ESC(GCC.sessionLabel(camp.system).toUpperCase())+'S'+sesCount+'</button>'+
      '<button class="tab'+(currentTab==='lore'?' active':'')+'" data-tab="lore">Wiki'+loreCount+'</button>'+
+     '<button class="tab'+(currentTab==='calendar'?' active':'')+'" data-tab="calendar">Calendar'+calCount+'</button>'+
      '<button class="tab'+(currentTab==='hq'?' active':'')+'" data-tab="hq">HQ</button>'+
      '<button class="tab'+(currentTab==='players'?' active':'')+'" data-tab="players">Invite Players</button>'+
      '<button class="tab'+(currentTab==='notes'?' active':'')+'" data-tab="notes">Notes</button>';
@@ -1330,6 +1378,7 @@ async function render(){
     ${pm_?'':`<div class="tab-panel${currentTab==='vehicles'?' active':''}" data-panel="vehicles">${vehHtml}</div>`}
     <div class="tab-panel${currentTab==='sessions'?' active':''}" data-panel="sessions">${sessHtml}</div>
     <div class="tab-panel${currentTab==='lore'?' active':''}" data-panel="lore">${loreHtml}</div>
+    <div class="tab-panel${currentTab==='calendar'?' active':''}" data-panel="calendar">${calHtml}</div>
     <div class="tab-panel${currentTab==='hq'?' active':''}" data-panel="hq">${hqHtml}</div>
     <div class="tab-panel${currentTab==='players'?' active':''}" data-panel="players">${playersTabHtml}</div>
     <div class="tab-panel${currentTab==='notes'?' active':''}" data-panel="notes">${notesHtml}</div>
@@ -1377,6 +1426,7 @@ function wireSessionList(){
   document.querySelectorAll('[data-ses-del]').forEach(btn=>{btn.addEventListener('click',async()=>{closeSesMenus();const ok=await GCCDialog.confirm('Delete '+GCC.sessionLabel(getCamp()?.system).toLowerCase(),'Delete this entry? This cannot be undone.',{okText:'Delete',danger:true});if(!ok)return;const camp=getCamp();if(!camp)return;const sessions=camp.sessions||[];const s=sessions[parseInt(btn.dataset.sesDel)];if(s){const deadKeys=[];if(s.image&&GCCImages.isKey(s.image))deadKeys.push(s.image);(s.sections||[]).forEach(sec=>(sec.images||[]).forEach(img=>{if(img.src&&GCCImages.isKey(img.src))deadKeys.push(img.src)}));if(deadKeys.length)GCCImages.removeBulk(deadKeys);appendSessionTombstones(camp,[s])}sessions.splice(parseInt(btn.dataset.sesDel),1);GCC.updateCampaign(campId,{sessions,session:countRealSessions(sessions),deletedSessions:camp.deletedSessions||[]});render()})});
 }
 function wireEvents(){
+  wireCalendarEvents();
   document.getElementById('tabs')?.addEventListener('click',e=>{const tab=e.target.closest('.tab');if(!tab)return;currentTab=tab.dataset.tab;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===currentTab));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===currentTab));const u=new URL(window.location);u.searchParams.set('tab',currentTab);history.replaceState(null,'',u)});
   document.getElementById('camp-desc')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{description:e.target.value})});
   document.getElementById('camp-notes')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{notes:e.target.value})});
@@ -2341,6 +2391,190 @@ document.getElementById('lm-save').addEventListener('click',async()=>{const camp
 document.getElementById('lm-cancel').addEventListener('click',closeLoreModal);
 document.getElementById('lore-modal-close').addEventListener('click',closeLoreModal);
 loreModal.addEventListener('click',e=>{if(e.target===loreModal)closeLoreModal()});
+
+// ═══ CALENDAR ═══
+// camp.calendarToday: {year, month(0-11), day} · camp.calendarEvents: [{_id, year, month, day, title, notes, gmOnly, links:[{kind:'lore'|'ses', id}]}]
+// Names come from camp.gameCalendar when set; weekdays are computed on the Gregorian calendar.
+const CAL_REAL_MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CAL_REAL_WEEKDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function calNames(camp){
+  const c=camp&&camp.gameCalendar;
+  const months=(c&&Array.isArray(c.months)&&c.months.length===12)?c.months.map((m,i)=>m||CAL_REAL_MONTHS[i]):CAL_REAL_MONTHS;
+  const weekdays=(c&&Array.isArray(c.weekdays)&&c.weekdays.length===7)?c.weekdays.map((w,i)=>w||CAL_REAL_WEEKDAYS[i]):CAL_REAL_WEEKDAYS;
+  return{months,weekdays};
+}
+function calDaysInMonth(y,m){const d=new Date(2000,0,1);d.setFullYear(y,m+1,0);return d.getDate()}
+function calWeekday(y,m,d){const dt=new Date(2000,0,1);dt.setFullYear(y,m,d);return dt.getDay()}
+function calValid(e){return!!e&&Number.isInteger(e.year)&&Number.isInteger(e.month)&&e.month>=0&&e.month<12&&Number.isInteger(e.day)&&e.day>=1&&e.day<=calDaysInMonth(e.year,e.month)}
+function calNum(e){return e.year*10000+e.month*100+e.day}
+function calWdName(camp,e){return calNames(camp).weekdays[calWeekday(e.year,e.month,e.day)]}
+function calFmt(camp,e){return calWdName(camp,e)+', '+e.day+' '+calNames(camp).months[e.month]+' '+e.year}
+function calDefaultDate(camp){
+  if(calValid(camp&&camp.calendarToday))return Object.assign({},camp.calendarToday);
+  const now=new Date();return{year:now.getFullYear()+(parseInt(camp&&camp.gameCalendar&&camp.gameCalendar.yearOffset)||0),month:now.getMonth(),day:now.getDate()};
+}
+function calSesLabel(camp,all,idx){const s=all[idx];return GCC.sessionLabel(camp.system)+' #'+realSessionNum(all,idx)+(s.title?': '+s.title:'')}
+function calLinkTarget(camp,lk,pm_){
+  if(!lk)return null;
+  if(lk.kind==='lore'){
+    const l=(camp.lore||[]).find(x=>x&&x._id===lk.id);
+    if(!l||(pm_&&l.gmOnly))return null;
+    return{kind:'lore',id:l._id,label:l.name||'Unnamed',color:LORE_COLORS[l.type]||'var(--tx3)',gmOnly:!!l.gmOnly};
+  }
+  if(lk.kind==='ses'){
+    const all=camp.sessions||[];const idx=all.findIndex(s=>s&&s._id===lk.id);
+    if(idx<0)return null;const s=all[idx];
+    if(pm_&&s.visible===false)return null;
+    return{kind:'ses',href:recapUrlFor(s,idx),label:calSesLabel(camp,all,idx),gmOnly:s.visible===false};
+  }
+  return null;
+}
+function calChipHtml(t,pm_,removeIdx){
+  const x=removeIdx!=null?`<button class="cal-chip-x" data-cm-unlink="${removeIdx}" title="Remove link">✕</button>`:'';
+  if(!t)return`<span class="cal-chip removed" title="The linked entry no longer exists">(removed)${x}</span>`;
+  const lock=(!pm_&&t.gmOnly)?' 🔒':'';
+  if(removeIdx!=null)return`<span class="cal-chip ${t.kind}">${t.kind==='lore'?`<span class="tag-dot" style="background:${t.color}"></span>`:'→ '}${ESC(t.label)}${lock}${x}</span>`;
+  return t.kind==='lore'
+    ?`<button class="cal-chip lore" data-cal-lore="${ESC(t.id)}" title="Open in the wiki"><span class="tag-dot" style="background:${t.color}"></span>${ESC(t.label)}${lock}</button>`
+    :`<a class="cal-chip ses" href="${t.href}" title="Read the recap">→ ${ESC(t.label)}${lock}</a>`;
+}
+function calDateInputs(p,camp,d){
+  const n=calNames(camp),dim=calDaysInMonth(d.year,d.month);
+  const mo=n.months.map((m,i)=>`<option value="${i}"${i===d.month?' selected':''}>${ESC(m)}</option>`).join('');
+  let dy='';for(let i=1;i<=dim;i++)dy+=`<option value="${i}"${i===d.day?' selected':''}>${i}</option>`;
+  return`<select class="gcc-dlg-select cal-day" id="${p}-day">${dy}</select><select class="gcc-dlg-select cal-month" id="${p}-month">${mo}</select><input class="gcc-dlg-input cal-year" id="${p}-year" type="number" step="1" value="${d.year}">`;
+}
+function readCalDate(p){
+  const y=parseInt(document.getElementById(p+'-year')?.value),m=parseInt(document.getElementById(p+'-month')?.value),d=parseInt(document.getElementById(p+'-day')?.value);
+  const r={year:y,month:m,day:d};return calValid(r)?r:null;
+}
+function wireCalDateInputs(p,camp,onChange){
+  const yEl=document.getElementById(p+'-year'),mEl=document.getElementById(p+'-month'),dEl=document.getElementById(p+'-day'),wEl=document.getElementById(p+'-wd');
+  if(!yEl||!mEl||!dEl)return;
+  const refresh=()=>{
+    const y=parseInt(yEl.value),m=parseInt(mEl.value);
+    if(Number.isInteger(y)){
+      const dim=calDaysInMonth(y,m),cur=Math.min(parseInt(dEl.value)||1,dim);
+      let dy='';for(let i=1;i<=dim;i++)dy+=`<option value="${i}"${i===cur?' selected':''}>${i}</option>`;
+      dEl.innerHTML=dy;
+    }
+    const r=readCalDate(p);if(wEl)wEl.textContent=r?calWdName(camp,r):'—';
+    if(onChange)onChange(r);
+  };
+  yEl.addEventListener('change',refresh);mEl.addEventListener('change',refresh);dEl.addEventListener('change',refresh);
+}
+function buildCalendarTab(camp,pm_){
+  const n=calNames(camp);
+  const today=calValid(camp.calendarToday)?camp.calendarToday:null;
+  const events=(Array.isArray(camp.calendarEvents)?camp.calendarEvents:[]).filter(e=>calValid(e)&&!(pm_&&e.gmOnly))
+    .slice().sort((a,b)=>calNum(a)-calNum(b)||String(a.title||'').localeCompare(String(b.title||'')));
+  let html;
+  if(pm_){
+    html=today?`<div class="cal-today"><span class="cal-today-label">TODAY</span><span class="cal-today-date">${ESC(calFmt(camp,today))}</span></div>`:'';
+  }else{
+    const d=today||calDefaultDate(camp);
+    html=`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-cal">+ New Event</button></div></div>`+
+      `<div class="cal-today"><span class="cal-today-label">TODAY</span>${calDateInputs('ct',camp,d)}<span class="cal-wd" id="ct-wd">${today?ESC(calWdName(camp,today)):'Not set'}</span>${today?'<button class="session-action-btn" id="ct-clear">Clear</button>':'<button class="btn-add" id="ct-set">Set</button>'}</div>`;
+  }
+  if(!events.length)return html+`<div class="entity-empty">${pm_?'No calendar events yet.':'No events yet. Add sightings, deadlines, festivals, and what happened when.'}</div>`;
+  const tNum=today?calNum(today):0,marker=today?`<div class="cal-today-marker">TODAY · ${ESC(calFmt(camp,today))}</div>`:'';
+  let lastKey='',markerDone=!today;
+  events.forEach(e=>{
+    const key=e.year+'-'+e.month,newGroup=key!==lastKey,num=calNum(e);
+    if(!markerDone&&num>=tNum&&newGroup&&!(today.year===e.year&&today.month===e.month)){html+=marker;markerDone=true}
+    if(newGroup){html+=`<div class="cal-month-hdr">${ESC(n.months[e.month]+' '+e.year)}</div>`;lastKey=key}
+    if(!markerDone&&num>=tNum){html+=marker;markerDone=true}
+    const cls=(today&&num<tNum?' past':'')+(today&&num===tNum?' is-today':'')+(!pm_&&e.gmOnly?' gm':'');
+    const chips=(e.links||[]).map(lk=>{const t=calLinkTarget(camp,lk,pm_);return(!t&&pm_)?'':calChipHtml(t,pm_)}).join('');
+    const gmBadge=(!pm_&&e.gmOnly)?'<span class="lore-gm-badge">🔒 GM ONLY</span>':'';
+    const actions=pm_?'':`<div class="cal-ev-actions"><button class="session-action-btn" data-cal-edit="${ESC(e._id)}">Edit</button><button class="session-action-btn danger" data-cal-del="${ESC(e._id)}">Del</button></div>`;
+    html+=`<div class="cal-event${cls}"><div class="cal-ev-date"><span class="cal-ev-day">${e.day}</span><span class="cal-wd">${ESC(calWdName(camp,e))}</span></div><div class="cal-ev-body"><div class="cal-ev-title">${ESC(e.title||'Untitled')}${gmBadge}</div>${e.notes?`<div class="cal-ev-notes">${ESC(e.notes)}</div>`:''}${chips?`<div class="cal-ev-links">${chips}</div>`:''}</div>${actions}</div>`;
+  });
+  if(!markerDone)html+=marker;
+  return html;
+}
+function saveCalToday(){const d=readCalDate('ct');if(!d)return;GCC.updateCampaign(campId,{calendarToday:d});render()}
+function wireCalendarEvents(){
+  document.querySelectorAll('[data-cal-lore]').forEach(b=>b.addEventListener('click',()=>openLoreFromCalendar(b.dataset.calLore)));
+  if(_isPlayerMode)return;
+  document.getElementById('btn-add-cal')?.addEventListener('click',()=>openCalModal(''));
+  document.querySelectorAll('[data-cal-edit]').forEach(b=>b.addEventListener('click',()=>openCalModal(b.dataset.calEdit)));
+  document.querySelectorAll('[data-cal-del]').forEach(b=>b.addEventListener('click',async()=>{
+    const camp=getCamp();if(!camp)return;const list=camp.calendarEvents||[];const e=list.find(x=>x&&x._id===b.dataset.calDel);if(!e)return;
+    const ok=await GCCDialog.confirm('Delete event','Delete "'+(e.title||'Untitled')+'"? This cannot be undone.',{okText:'Delete',danger:true});if(!ok)return;
+    GCC.updateCampaign(campId,{calendarEvents:list.filter(x=>x!==e)});render();
+  }));
+  const camp=getCamp();
+  const isSet=calValid(camp&&camp.calendarToday);
+  wireCalDateInputs('ct',camp,r=>{if(r&&isSet)saveCalToday()});
+  document.getElementById('ct-set')?.addEventListener('click',saveCalToday);
+  document.getElementById('ct-clear')?.addEventListener('click',()=>{GCC.updateCampaign(campId,{calendarToday:null});render()});
+}
+async function openLoreFromCalendar(id){
+  currentTab='lore';loreFilter='all';
+  const u=new URL(window.location);u.searchParams.set('tab','lore');history.replaceState(null,'',u);
+  await render();
+  const card=document.querySelector(`.lore-card[data-lore-id="${CSS.escape(id)}"]`);if(!card)return;
+  card.scrollIntoView({behavior:'smooth',block:'center'});card.classList.add('flash');setTimeout(()=>card.classList.remove('flash'),1800);
+}
+function ensureLoreIds(camp){
+  let changed=false;
+  (Array.isArray(camp.lore)?camp.lore:[]).forEach(l=>{if(l&&typeof l==='object'&&!l._id){l._id=GCC.genId('lore');changed=true}});
+  return changed;
+}
+const calModal=document.getElementById('cal-modal');let calEditId='',calEditLinks=[];
+function renderCalModalLinks(){
+  const camp=getCamp(),wrap=document.getElementById('cm-links');if(!camp||!wrap)return;
+  wrap.innerHTML=calEditLinks.length?calEditLinks.map((lk,i)=>calChipHtml(calLinkTarget(camp,lk,false),false,i)).join(''):'<span class="cal-none">No links</span>';
+  wrap.querySelectorAll('[data-cm-unlink]').forEach(b=>b.addEventListener('click',()=>{calEditLinks.splice(parseInt(b.dataset.cmUnlink),1);renderCalModalLinks()}));
+}
+function addCalLink(kind,selId){
+  const sel=document.getElementById(selId);const id=sel&&sel.value;if(!id)return;
+  if(!calEditLinks.some(l=>l.kind===kind&&l.id===id))calEditLinks.push({kind,id});
+  sel.value='';renderCalModalLinks();
+}
+function openCalModal(id){
+  const camp=getCamp();if(!camp)return;
+  const e=id?(camp.calendarEvents||[]).find(x=>x&&x._id===id):null;
+  calEditId=e?e._id:'';calEditLinks=e?(e.links||[]).filter(Boolean).map(l=>({kind:l.kind,id:l.id})):[];
+  document.getElementById('cal-modal-title').textContent=e?'Edit event':'New event';
+  const d=(e&&calValid(e))?{year:e.year,month:e.month,day:e.day}:calDefaultDate(camp);
+  const loreOpts=(camp.lore||[]).filter(l=>l&&l._id).slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')))
+    .map(l=>`<option value="${ESC(l._id)}">${ESC(l.name||'Unnamed')}${l.gmOnly?' 🔒':''}</option>`).join('');
+  const all=camp.sessions||[];
+  const sesOpts=all.map((s,i)=>({s,i})).filter(x=>x.s&&x.s.type!=='timeline'&&x.s._id).sort((a,b)=>realSessionNum(all,a.i)-realSessionNum(all,b.i))
+    .map(x=>`<option value="${ESC(x.s._id)}">${ESC(calSesLabel(camp,all,x.i))}${x.s.visible===false?' 🔒':''}</option>`).join('');
+  const sesLbl=GCC.sessionLabel(camp.system);
+  document.getElementById('cal-modal-body').innerHTML=
+    `<label class="gcc-dlg-label">TITLE</label><input class="gcc-dlg-input" id="cm-title" placeholder="e.g. Ironhold patrol ambush" value="${e?ESC(e.title||''):''}">`+
+    `<label class="gcc-dlg-label">DATE</label><div class="cal-date-row">${calDateInputs('cm',camp,d)}<span class="cal-wd" id="cm-wd">${ESC(calWdName(camp,d))}</span></div>`+
+    `<label class="gcc-dlg-label">NOTES</label><textarea class="gcc-dlg-ta" id="cm-notes" rows="3" placeholder="What happens or happened...">${e?ESC(e.notes||''):''}</textarea>`+
+    `<label class="gcc-dlg-check" style="margin-top:8px"><input type="checkbox" id="cm-gmonly"${e&&e.gmOnly?' checked':''}> GM only (hidden from players)</label>`+
+    `<label class="gcc-dlg-label">LINKS</label><div class="cal-ev-links" id="cm-links"></div>`+
+    `<div class="cal-link-row"><select class="gcc-dlg-select" id="cm-lore-pick"><option value="">${loreOpts?'Wiki entry…':'No wiki entries'}</option>${loreOpts}</select><button class="gcc-dlg-img-btn" id="cm-lore-add">Add</button></div>`+
+    `<div class="cal-link-row"><select class="gcc-dlg-select" id="cm-ses-pick"><option value="">${sesOpts?ESC(sesLbl)+'…':'No '+ESC(pluralLabel(sesLbl).toLowerCase())}</option>${sesOpts}</select><button class="gcc-dlg-img-btn" id="cm-ses-add">Add</button></div>`;
+  wireCalDateInputs('cm',camp);
+  document.getElementById('cm-lore-add').addEventListener('click',()=>addCalLink('lore','cm-lore-pick'));
+  document.getElementById('cm-ses-add').addEventListener('click',()=>addCalLink('ses','cm-ses-pick'));
+  renderCalModalLinks();
+  calModal.classList.add('open');
+  document.getElementById('cm-title').focus();
+}
+function closeCalModal(){calModal.classList.remove('open');calEditId='';calEditLinks=[]}
+document.getElementById('cmm-save').addEventListener('click',()=>{
+  const camp=getCamp();if(!camp)return;
+  const d=readCalDate('cm');if(!d){document.getElementById('cm-year')?.focus();return}
+  const list=Array.isArray(camp.calendarEvents)?camp.calendarEvents.slice():[];
+  const prev=calEditId?list.find(x=>x&&x._id===calEditId):null,now=new Date().toISOString();
+  const entry={_id:prev?prev._id:GCC.genId('cal'),year:d.year,month:d.month,day:d.day,
+    title:document.getElementById('cm-title').value.trim()||'Untitled',notes:document.getElementById('cm-notes').value.trim(),
+    gmOnly:!!document.getElementById('cm-gmonly').checked,links:calEditLinks.slice(),_created:(prev&&prev._created)||now,_updated:now};
+  if(prev)list[list.indexOf(prev)]=entry;else list.push(entry);
+  GCC.updateCampaign(campId,{calendarEvents:list});closeCalModal();render();
+});
+document.getElementById('cmm-cancel').addEventListener('click',closeCalModal);
+document.getElementById('cal-modal-close').addEventListener('click',closeCalModal);
+calModal.addEventListener('click',e=>{if(e.target===calModal)closeCalModal()});
 
 // ═══ LORE EXPORT ═══
 // GM-only. Exports the full wiki (including gmNotes and gmOnly) in the same
