@@ -711,9 +711,10 @@ const rollText = (r) => `2d6 [${r.dice.join(",")}]${r.modified !== r.total ? ` $
 /** Show the runner's events in the log. */
 /** Show a volley event as a log card. */
 function volleyCard(v) {
-  const who = `<div class="who">${nameSpan(byId(v.id))} shoots ${esc(MISSILE_LABEL[v.missile].toLowerCase())}${v.passThrough ? " (pass-through fire)" : v.split ? " (split-move fire)" : ""}${v.shots ? ` <span class="note">(Dex ${v.dex}, ${v.shots} shot${v.shots === 1 ? "" : "s"})</span>` : ""}</div>`;
+  const who = `<div class="who">${nameSpan(byId(v.id))} shoots ${esc(MISSILE_LABEL[v.missile].toLowerCase())}${v.passThrough ? " (pass-through fire)" : v.split ? " (split-move fire)" : ""}${v.shots ? ` <span class="note">(Dex ${v.dex}, ${v.shots} shot${v.shots === 1 ? "" : "s"}${v.ammoLeft != null ? `, ${v.ammoLeft} left` : ""})</span>` : ""}</div>`;
   if (v.gate) return `<div class="card note">${esc(v.name)} moved over half: fire die ${v.gate.fireDie} vs ${v.gate.foeDie}, no shot.</div>`;
   if (v.reloading) return `<div class="card note">${esc(v.name)} is reloading.</div>`;
+  if (v.noAmmo) return `<div class="card note">${esc(v.noAmmo)}: no shot.</div>`;
   const lines = v.lines.map((l) => {
     if (l.result === "down") return `<div class="line note">${l.label} at ${esc(l.target)}: already down, the arrow is lost.</div>`;
     if (l.result === "no-shot") return `<div class="line note">${l.label} at ${esc(l.target)}: no clear shot, the arrow is lost.</div>`;
@@ -1424,7 +1425,7 @@ function renderSide(side) {
     const p = combatProfile(f); const hp = hpText(f) ?? "—";
     const w = p.profileAttack ? "natural" : WEAPON_LABEL[p.weaponId];
     const st = f.status ? ` <span class="hit" style="font-size:.8rem">${esc(f.status)}</span>` : "";
-    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.weaponBroken ? " (broken)" : ""}${f.kind === "pc" && f.spare ? `, spare ${esc(WEAPON_LABEL[f.spare].toLowerCase())}` : ""}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, ${f.race && f.race !== "human" ? `${f.race[0].toUpperCase()}${f.race.slice(1)}, ` : ""}Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td style="white-space:nowrap">${setup ? `<button data-edit="${f.id}" aria-label="Edit ${esc(f.name)}">Edit</button> <button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>${setup && state.editing === f.id ? editorRow(f) : ""}`;
+    return `<tr data-row="${f.id}" class="${present(f) ? "" : "down"} ${state.selected === f.id ? "sel" : ""}"><td>${esc(f.name)}${st}<div class="note" style="font-size:.8rem">${esc(p.fcLabel)}, ${esc(w)}${f.weaponBroken ? " (broken)" : ""}${f.kind === "pc" && f.spare ? `, spare ${esc(WEAPON_LABEL[f.spare].toLowerCase())}` : ""}${f.missile ? `, ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? ` (${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][1]})` : ""}` : ""}, AC ${f.ac}, move ${moveInches(f)}"${f.kind === "pc" ? `, Dex ${f.dex}, ${f.race && f.race !== "human" ? `${f.race[0].toUpperCase()}${f.race.slice(1)}, ` : ""}Int ${f.int ?? 10}, Cha ${f.cha ?? 10}, ${ALIGN_LABEL[f.alignment ?? "law"]}` : ""}</div></td><td class="hp">${hp}</td><td style="white-space:nowrap">${setup ? `<button data-edit="${f.id}" aria-label="Edit ${esc(f.name)}">Edit</button> <button class="x" data-remove="${f.id}" aria-label="Remove ${esc(f.name)}">✕</button>` : ""}</td></tr>${setup && state.editing === f.id ? editorRow(f) : ""}`;
   }).join("");
   const weapons = Object.keys(WEAPON_CLASS).map((w) => [w, WEAPON_LABEL[w]]);
   const adders = setup ? `<div class="adders">
@@ -1484,7 +1485,7 @@ function holdPicker(f) {
 }
 function actionsFor(f) {
   const list = [["melee", "Melee"]];
-  if (f.missile) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`], ["passthrough", "Pass-through fire (stand and shoot movers)"]);
+  if (f.missile && ms.ammoLeft(f) !== 0) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`], ["passthrough", "Pass-through fire (stand and shoot movers)"]);
   if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft)) list.push([`cast:${sp.id}`, `Cast ${sp.name}${sp.id === "protectionEvil" ? " (self)" : ""}`]);
   return list;
 }
@@ -1695,7 +1696,7 @@ function renderActionBar() {
   const acts = [];
   if (fight && state.step === "orders") {
     // Orders (Kurt, Oct 2026): only what is declared here; the movement buttons belong to the move steps
-    if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
+    if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
     acts.push(btn("melee", t && f.action === "melee" && f.stance !== "parry" ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
     if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
@@ -1703,7 +1704,7 @@ function renderActionBar() {
     acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
   } else if (fight) {
     acts.push(btn("melee", t ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
-    if (f.missile) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
+    if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
     if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
     if (mayCharge(f) || f.charging) acts.push(btn("charge", f.charging ? `Charging (${chargeInches(f)}\u2033)` : `Charge (${chargeInches(f)}\u2033)`, !!f.charging));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
@@ -1729,7 +1730,7 @@ function renderActionBar() {
   el.innerHTML = `
     <div class="ab-row">
       <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
-        <span class="ab-sub">${esc(p.fcLabel)} \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())} \u00b7 AC ${f.ac}</span>
+        <span class="ab-sub">${esc(p.fcLabel)} \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>
         ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span class="mono" style="font-size:.82rem">${hpTxt} hp</span>` : ""}</div>`}
         <span class="ab-phone-line mono" style="font-size:.8rem">${hpTxt ? `${hpTxt} hp \u00b7 ` : ""}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
         ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${esc(cardAction(f))}${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"} \u00b7 stance ${esc(f.stance ?? "attack")}</span>` : ""}

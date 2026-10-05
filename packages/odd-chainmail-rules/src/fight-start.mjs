@@ -17,6 +17,7 @@ import { carriedCoins, rollTreasure, LAIR_EXTRAS, treasureValue } from "./treasu
 import { characterLanguages, groupLanguages } from "./reactions.mjs";
 import { weaponItem } from "./orders.mjs";
 import { seedFight } from "./fight-store.mjs";
+import { AMMO_TYPE, STARTING_AMMO, ammoItem } from "./missiles.mjs";
 
 const mon = (f) => (f.kind === "monster" ? MONSTERS.find((m) => m.key === f.monsterKey) : null);
 
@@ -59,7 +60,7 @@ export function openFight(state, seed) {
   for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; f.hp = rollHp(f, rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
   // a figure whose treasure the referee set in Setup keeps it; everyone else's is rolled
   for (const f of state.figures) { f.remains = null; if (f.invSet && f.inv) continue; f.inv = emptyInventory(); if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, rng)); }
-  for (const f of state.figures) { f.lastResult = null; f.lastTaken = null; f.startWeaponId = f.weaponId; f.weaponBroken = false; if (f.kind === "pc" && f.spare && !f.invSet) f.inv.items.push(weaponItem(f.spare)); }
+  for (const f of state.figures) { f.lastResult = null; f.lastTaken = null; f.startWeaponId = f.weaponId; f.weaponBroken = false; if (f.kind === "pc" && f.spare && !f.invSet) f.inv.items.push(weaponItem(f.spare)); if (f.kind === "pc" && AMMO_TYPE[f.missile] && !f.invSet) f.inv.items.push(ammoItem(AMMO_TYPE[f.missile], STARTING_AMMO[AMMO_TYPE[f.missile]])); }
   // hoards: rolled here from the fight's seed unless the referee set what's in them
   for (const c of state.chests ?? []) {
     if (c.monsterKey && !c.set) { const h = rollLairHoard(c.monsterKey, seed, c.id); if (h) Object.assign(c, { label: h.label, original: h.inv, value: h.value }); }
@@ -107,6 +108,7 @@ function runSelfTests() {
     openFight(st2, 1974); ok(st2.figures[1].inv.coins.gp === 99, "so is a monster's own treasure");
     ok(rollLairHoard("skeleton", 1, 1) === null || rollLairHoard("skeleton", 1, 1).inv, "a monster with no treasure type has no hoard");
   }
+  { const st = board(); Object.assign(st.figures[0], { missile: "longbow" }); openFight(st, 3); ok(st.figures[0].inv.items.some((i) => i.kind === "ammo" && i.qty === 20), "an archer opens the fight with a quiver of 20 arrows"); }
   console.log(`fight-start.mjs — all self-tests passed (${pass} assertions).`);
 }
 

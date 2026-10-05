@@ -29,9 +29,35 @@ export const pfePenalty = (atk, def) => (def.pfe && isEvil(atk) ? -1 : 0);
 export const blindPenalty = (f) => (f.averted ? BLIND.everyDieBonus : 0);
 
 /** Can this figure shoot at that one now? Returns { ok, why }. at: an optional stand-in position for the target. */
+/**
+ * Ammunition (slice 5 pass 2, Oct 2026): a character's arrows and quarrels
+ * are counted, as "ammo" items in his inventory, one spent per shot loosed.
+ * Monsters and slings are not counted. Spent shots are gone for now; whether
+ * any can be picked up after the fight is Kurt's call.
+ */
+export const AMMO_TYPE = Object.freeze({ shortbow: "arrow", longbow: "arrow", compositebow: "arrow", lightcrossbow: "bolt", heavycrossbow: "bolt" });
+export const AMMO_NAME = Object.freeze({ arrow: ["arrow", "arrows", "Arrows"], bolt: ["quarrel", "quarrels", "Quarrels"] });
+/** What a character starts a fight with for his missile weapon (Book I: a quiver of 20 arrows, a case of 30 quarrels). */
+export const STARTING_AMMO = Object.freeze({ arrow: 20, bolt: 30 });
+/** Shots left for his missile weapon; null when not counted. */
+export function ammoLeft(f) {
+  const t = AMMO_TYPE[f.missile];
+  if (!t || f.kind !== "pc" || !f.inv) return null; // a figure with no inventory yet (a bare test figure) isn't counted
+  return (f.inv.items ?? []).filter((i) => i.kind === "ammo" && i.ammoType === t).reduce((a, i) => a + (i.qty ?? 0), 0);
+}
+/** A stack of ammunition as an inventory item (the bow's Book I weight already covers its arrows). */
+export const ammoItem = (type, qty) => ({ kind: "ammo", ammoType: type, name: AMMO_NAME[type][2], unidName: AMMO_NAME[type][2], identified: true, qty, weight: 0 });
+function spendAmmo(f, n) {
+  const t = AMMO_TYPE[f.missile]; let left = n;
+  for (const it of f.inv?.items ?? []) { if (!left) break; if (it.kind !== "ammo" || it.ammoType !== t) continue; const k = Math.min(left, it.qty ?? 0); it.qty -= k; left -= k; }
+  if (f.inv) f.inv.items = f.inv.items.filter((i) => !(i.kind === "ammo" && (i.qty ?? 0) <= 0));
+}
+const outOf = (f) => `${f.name} is out of ${AMMO_NAME[AMMO_TYPE[f.missile]][1]}`;
+
 export function canShoot(state, f, t, at = t) {
   if (!f.missile) return { ok: false, why: `${f.name} has no missile weapon` };
   if (!active(f)) return { ok: false, why: `${f.name} can't act` };
+  if (ammoLeft(f) === 0) return { ok: false, why: outOf(f) };
   if (inMelee(state, f)) return { ok: false, why: `${f.name} is in melee and can't fire` };
   if (inMelee(state, t)) return { ok: false, why: `${t.name} is in a melee` };
   if (!lineOfSight(state, f, at)) return { ok: false, why: `${f.name} has no line of sight to ${t.name}` };
@@ -54,8 +80,12 @@ export function fireVolley(state, f, t, rng, dmg = new Map(), { at = t, passThro
   const gate = passThrough ? null : overHalfFireGate({ kind, moved }, rng);
   if (gate && !gate.beat) { ev.gate = { fireDie: gate.fireDie, foeDie: gate.foeDie }; return ev; }
   const loaded = !(f.missile === "heavycrossbow" && f.lastFired === state.round - 1);
-  const shots = passThrough || split ? Math.min(1, missileShots(1, { kind, moved, loaded })) || 0 : missileShots(1, { kind, moved, loaded });
-  if (!shots) { ev.reloading = true; return ev; }
+  const have = ammoLeft(f);
+  if (have === 0) { ev.noAmmo = outOf(f); return ev; }
+  const may = passThrough || split ? Math.min(1, missileShots(1, { kind, moved, loaded })) || 0 : missileShots(1, { kind, moved, loaded });
+  if (!may) { ev.reloading = true; return ev; }
+  const shots = have == null ? may : Math.min(may, have);
+  if (have != null) { spendAmmo(f, shots); ev.ammoLeft = have - shots; }
   f.lastFired = state.round; f.acted = state.round;
   ev.shots = shots;
   const second = shots === 2 && f.secondTarget != null ? state.figures.find((e) => e.id === f.secondTarget) : null;
@@ -184,6 +214,15 @@ function runSelfTests() {
   { const a = pc(1, "A", 2, 5, { missile: "shortbow" }), b = pc(2, "B", 8, 5, { hp: 3 });
     const ev = fireVolley(st([a, b]), a, b, always, new Map());
     ok(ev.lines[1].result === "down", "second arrow at a target already down is lost"); }
+  { const a = { id: 1, side: "A", kind: "pc", name: "Archer", cls: "fighter", level: 1, missile: "shortbow", x: 2, y: 5, placed: true, hp: 6, maxHp: 6, dex: 10, moved: 0, inv: { coins: { cp: 0, sp: 0, gp: 0 }, items: [ammoItem("arrow", 1)] } };
+    const b = { id: 2, side: "B", kind: "monster", monsterKey: "orc", name: "Orc", x: 10, y: 5, placed: true, hp: 99, maxHp: 99, ac: 6 };
+    const s = { phase: "fight", round: 1, width: 30, height: 10, walls: Array.from({ length: 10 }, () => Array(30).fill(false)), figures: [a, b], contacts: new Map() };
+    ok(ammoLeft(a) === 1 && canShoot(s, a, b).ok, "one arrow left: he can shoot");
+    const ev = fireVolley(s, a, b, () => 0.5, new Map());
+    ok(ev.shots === 1 && ev.ammoLeft === 0 && ammoLeft(a) === 0 && !a.inv.items.length, "two shots allowed, one arrow: one loosed, the quiver gone");
+    ok(!canShoot(s, a, b).ok && /out of arrows/.test(canShoot(s, a, b).why), "then he is out of arrows");
+    ok(fireVolley(s, a, b, () => 0.5, new Map()).noAmmo, "a volley with no arrows looses nothing");
+    ok(ammoLeft({ ...a, missile: "sling" }) === null && ammoLeft({ ...b, missile: "shortbow" }) === null, "slings and monsters aren't counted"); }
   // pass-through fire: a charger is shot at its half-move point, at once
   { const archer = pc(1, "A", 2, 5, { missile: "shortbow", action: "passthrough" }), orc = pc(2, "B", 30, 5, { hp: 2, maxHp: 2 });
     const s = st([archer, orc]);

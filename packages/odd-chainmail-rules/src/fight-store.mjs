@@ -18,7 +18,7 @@ import { MONSTERS } from "./monsters.mjs";
 import { moveInches } from "./movement.mjs";
 
 export const FIGHT_SCHEMA = 1;
-export const RULES_VERSION = "0.22.0";
+export const RULES_VERSION = "0.23.0";
 export const MOVEMENT_ACTIONS = Object.freeze(["walk", "fly", "swim"]);
 
 /** Page-only fields the tester keeps on its state; never stored. */

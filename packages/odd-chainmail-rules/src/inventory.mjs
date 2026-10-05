@@ -45,7 +45,8 @@ export function transferCoins(from, to, coins) {
     from.coins[k] -= n; to.coins[k] = (to.coins[k] ?? 0) + n;
   }
 }
-export const displayName = (it) => (it.identified ? it.name : it.unidName);
+/** An item's name as shown; a stack (arrows, quarrels) with its count. */
+export const displayName = (it) => `${it.identified ? it.name : it.unidName}${it.qty != null ? ` (${it.qty})` : ""}`;
 export const isEmpty = (inv) => coinCount(inv.coins) === 0 && inv.items.length === 0;
 
 /* ---------------------------------------------------------------- tests */
