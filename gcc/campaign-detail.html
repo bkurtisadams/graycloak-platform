@@ -405,14 +405,9 @@ a.ses-row-title:hover{color:var(--accent)}
 .lore-gm-badge{display:inline-block;font-family:var(--fsc);font-size:8px;font-weight:700;letter-spacing:1px;color:#fff;background:var(--red);border-radius:2px;padding:1px 5px;margin-left:6px;vertical-align:middle}
 .lore-card.flash{border-color:var(--amber);box-shadow:0 0 0 2px var(--amber)}
 /* Calendar */
-.cal-today{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg-card);border:1px solid var(--brd);border-left:3px solid var(--amber);border-radius:4px;padding:8px 12px;margin-bottom:12px}
-.cal-today-label{font-family:var(--fsc);font-size:9px;font-weight:700;letter-spacing:1px;color:var(--tx3)}
-.cal-today-date,.cal-wd{font-family:var(--fm);font-size:12px;color:var(--amber)}
-.cal-today-date{font-size:13px}
 .cal-date-row,.cal-link-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .cal-link-row{margin-top:6px}.cal-link-row select{flex:1;min-width:0}
 input.cal-year{width:84px;flex:0 0 84px}select.cal-month{width:auto;min-width:130px;flex:0 0 auto}select.cal-day{width:auto;min-width:64px;flex:0 0 auto}
-.cal-month-hdr{font-family:var(--fd);font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.5px;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid var(--brd)}
 .cal-event{display:flex;gap:10px;align-items:flex-start;background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;padding:8px 10px;margin-bottom:6px;box-shadow:var(--card-shadow)}
 .cal-event.past{opacity:.6}.cal-event.is-today{border-color:var(--amber)}.cal-event.gm{border-left:2px solid var(--red)}
 .cal-ev-date{flex:0 0 64px;display:flex;flex-direction:column;align-items:center;text-align:center}
@@ -429,10 +424,32 @@ input.cal-year{width:84px;flex:0 0 84px}select.cal-month{width:auto;min-width:13
 .cal-chip.removed{color:var(--tx3);font-style:italic;cursor:default}
 .cal-chip-x{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:10px;padding:0 0 0 2px}
 .cal-chip-x:hover{color:var(--red)}
-.cal-today-marker{display:flex;align-items:center;gap:8px;margin:8px 0;font-family:var(--fsc);font-size:9px;font-weight:700;letter-spacing:1px;color:var(--amber)}
-.cal-today-marker::before,.cal-today-marker::after{content:'';flex:1;height:1px;background:var(--amber);opacity:.5}
 .cal-none{font-size:11px;color:var(--tx3);font-style:italic}
-@media(max-width:600px){.cal-ev-date{flex-basis:48px}.cal-ev-actions{flex-direction:column}}
+.cal-wd{font-family:var(--fm);font-size:12px;color:var(--amber)}
+.cal-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.cal-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.cal-nav-btn{background:none;border:1px solid var(--brd);border-radius:3px;color:var(--tx2);cursor:pointer;padding:6px 10px;font-size:11px;line-height:1}
+.cal-nav-btn:hover{color:var(--accent);border-color:var(--accent-dim)}
+.cal-today-line{font-family:var(--fsc);font-size:10px;font-weight:700;letter-spacing:1px;color:var(--tx3);margin:6px 0 10px}
+.cal-today-date{font-family:var(--fm);font-size:12px;font-weight:400;letter-spacing:0;color:var(--amber)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-top:1px solid var(--brd);border-left:1px solid var(--brd);background:var(--bg-card);border-radius:4px;overflow:hidden;box-shadow:var(--card-shadow)}
+.cal-wh{padding:6px 4px;text-align:center;font-family:var(--fsc);font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--tx3);border-right:1px solid var(--brd);border-bottom:1px solid var(--brd);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-wh .short{display:none}
+.cal-cell{min-height:86px;padding:4px;border-right:1px solid var(--brd);border-bottom:1px solid var(--brd);cursor:pointer;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cal-cell:hover{background:rgba(128,128,128,.07)}
+.cal-cell.empty{cursor:default;background:rgba(128,128,128,.05)}
+.cal-cell.past .cal-dnum{opacity:.45}
+.cal-cell.today{box-shadow:inset 0 0 0 2px var(--amber)}
+.cal-cell.today .cal-dnum{color:var(--amber);font-weight:700}
+.cal-cell.sel{background:rgba(96,160,208,.14)}
+.cal-dnum{font-family:var(--fm);font-size:11px;color:var(--tx2)}
+.cal-pill{font-size:10px;line-height:1.35;padding:1px 5px;border-radius:2px;background:rgba(96,160,208,.2);color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-pill.gm{border-left:2px solid var(--red)}
+.cal-pill[data-cal-pill]:hover{background:rgba(96,160,208,.35)}
+.cal-more{font-size:9px;color:var(--tx3);padding-left:4px}
+.cal-detail-hdr{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--brd);font-family:var(--fd);font-size:13px;font-weight:700;color:var(--accent)}
+.cal-detail-actions{display:flex;gap:6px;flex-wrap:wrap}
+@media(max-width:600px){.cal-ev-date{flex-basis:48px}.cal-ev-actions{flex-direction:column}.cal-wh .full{display:none}.cal-wh .short{display:inline}.cal-cell{min-height:52px;flex-direction:row;flex-wrap:wrap;align-content:flex-start}.cal-dnum{width:100%}.cal-pill{font-size:0;padding:0;width:7px;height:7px;border-radius:50%;flex:0 0 7px;background:var(--blue)}.cal-pill.gm{border-left:none;background:var(--red)}.cal-more{display:none}}
 .lore-gm-notes{margin-top:8px;padding:8px 10px;border:1px solid rgba(208,72,72,0.4);border-radius:4px;background:rgba(208,72,72,0.06);font-size:11px;color:var(--tx2);line-height:1.4;white-space:pre-wrap}
 .lore-gm-notes-hdr{display:block;font-family:var(--fsc);font-size:8px;font-weight:700;letter-spacing:1px;color:var(--red);margin-bottom:3px}
 .gcc-dlg-gmnotes{margin-top:12px;padding:10px;border:1px solid rgba(208,72,72,0.35);border-radius:4px;background:rgba(208,72,72,0.05)}
@@ -2409,9 +2426,18 @@ function calValid(e){return!!e&&Number.isInteger(e.year)&&Number.isInteger(e.mon
 function calNum(e){return e.year*10000+e.month*100+e.day}
 function calWdName(camp,e){return calNames(camp).weekdays[calWeekday(e.year,e.month,e.day)]}
 function calFmt(camp,e){return calWdName(camp,e)+', '+e.day+' '+calNames(camp).months[e.month]+' '+e.year}
+let calView=null,calSel=null;
+function calInitView(camp){
+  if(calView)return;
+  if(calValid(camp.calendarToday)){calView={year:camp.calendarToday.year,month:camp.calendarToday.month};return}
+  const ev=(Array.isArray(camp.calendarEvents)?camp.calendarEvents:[]).filter(calValid).sort((a,b)=>calNum(a)-calNum(b));
+  if(ev.length){calView={year:ev[0].year,month:ev[0].month};return}
+  calView={year:new Date().getFullYear()+(parseInt(camp.gameCalendar&&camp.gameCalendar.yearOffset)||0),month:0};
+}
 function calDefaultDate(camp){
+  if(calSel)return Object.assign({},calSel);
   if(calValid(camp&&camp.calendarToday))return Object.assign({},camp.calendarToday);
-  const now=new Date();return{year:now.getFullYear()+(parseInt(camp&&camp.gameCalendar&&camp.gameCalendar.yearOffset)||0),month:now.getMonth(),day:now.getDate()};
+  calInitView(camp);return{year:calView.year,month:calView.month,day:1};
 }
 function calSesLabel(camp,all,idx){const s=all[idx];return GCC.sessionLabel(camp.system)+' #'+realSessionNum(all,idx)+(s.title?': '+s.title:'')}
 function calLinkTarget(camp,lk,pm_){
@@ -2463,52 +2489,78 @@ function wireCalDateInputs(p,camp,onChange){
   };
   yEl.addEventListener('change',refresh);mEl.addEventListener('change',refresh);dEl.addEventListener('change',refresh);
 }
+function calEventRow(camp,e,pm_,today){
+  const num=calNum(e),tNum=today?calNum(today):0;
+  const cls=(today&&num<tNum?' past':'')+(today&&num===tNum?' is-today':'')+(!pm_&&e.gmOnly?' gm':'');
+  const chips=(e.links||[]).map(lk=>{const t=calLinkTarget(camp,lk,pm_);return(!t&&pm_)?'':calChipHtml(t,pm_)}).join('');
+  const gmBadge=(!pm_&&e.gmOnly)?'<span class="lore-gm-badge">🔒 GM ONLY</span>':'';
+  const actions=pm_?'':`<div class="cal-ev-actions"><button class="session-action-btn" data-cal-edit="${ESC(e._id)}">Edit</button><button class="session-action-btn danger" data-cal-del="${ESC(e._id)}">Del</button></div>`;
+  return`<div class="cal-event${cls}"><div class="cal-ev-date"><span class="cal-ev-day">${e.day}</span><span class="cal-wd">${ESC(calWdName(camp,e))}</span></div><div class="cal-ev-body"><div class="cal-ev-title">${ESC(e.title||'Untitled')}${gmBadge}</div>${e.notes?`<div class="cal-ev-notes">${ESC(e.notes)}</div>`:''}${chips?`<div class="cal-ev-links">${chips}</div>`:''}</div>${actions}</div>`;
+}
 function buildCalendarTab(camp,pm_){
-  const n=calNames(camp);
-  const today=calValid(camp.calendarToday)?camp.calendarToday:null;
-  const events=(Array.isArray(camp.calendarEvents)?camp.calendarEvents:[]).filter(e=>calValid(e)&&!(pm_&&e.gmOnly))
-    .slice().sort((a,b)=>calNum(a)-calNum(b)||String(a.title||'').localeCompare(String(b.title||'')));
-  let html;
-  if(pm_){
-    html=today?`<div class="cal-today"><span class="cal-today-label">TODAY</span><span class="cal-today-date">${ESC(calFmt(camp,today))}</span></div>`:'';
-  }else{
-    const d=today||calDefaultDate(camp);
-    html=`<div class="session-toolbar"><div class="session-toolbar-left"><button class="btn-add" id="btn-add-cal">+ New Event</button></div></div>`+
-      `<div class="cal-today"><span class="cal-today-label">TODAY</span>${calDateInputs('ct',camp,d)}<span class="cal-wd" id="ct-wd">${today?ESC(calWdName(camp,today)):'Not set'}</span>${today?'<button class="session-action-btn" id="ct-clear">Clear</button>':'<button class="btn-add" id="ct-set">Set</button>'}</div>`;
+  calInitView(camp);
+  const n=calNames(camp),today=calValid(camp.calendarToday)?camp.calendarToday:null,tNum=today?calNum(today):0;
+  const {year:y,month:m}=calView,dim=calDaysInMonth(y,m),lead=calWeekday(y,m,1);
+  const monthEvents=(Array.isArray(camp.calendarEvents)?camp.calendarEvents:[])
+    .filter(e=>calValid(e)&&!(pm_&&e.gmOnly)&&e.year===y&&e.month===m)
+    .sort((a,b)=>a.day-b.day||String(a.title||'').localeCompare(String(b.title||'')));
+  const byDay={};monthEvents.forEach(e=>{(byDay[e.day]=byDay[e.day]||[]).push(e)});
+  const mo=n.months.map((name,i)=>`<option value="${i}"${i===m?' selected':''}>${ESC(name)}</option>`).join('');
+  let html=`<div class="cal-bar"><div class="cal-nav"><button class="cal-nav-btn" id="cal-prev" title="Previous month">◀</button><select class="gcc-dlg-select cal-month" id="cal-view-month">${mo}</select><input class="gcc-dlg-input cal-year" id="cal-view-year" type="number" step="1" value="${y}"><button class="cal-nav-btn" id="cal-next" title="Next month">▶</button>${today?'<button class="session-action-btn" id="cal-goto-today">Go to Today</button>':''}</div>${pm_?'':'<button class="btn-add" id="btn-add-cal">+ New Event</button>'}</div>`;
+  if(today)html+=`<div class="cal-today-line">TODAY · <span class="cal-today-date">${ESC(calFmt(camp,today))}</span></div>`;
+  else if(!pm_)html+=`<div class="cal-today-line">Today isn't set. Click a day, then Set as Today.</div>`;
+  html+='<div class="cal-grid">'+n.weekdays.map(w=>`<div class="cal-wh" title="${ESC(w)}"><span class="full">${ESC(w)}</span><span class="short">${ESC(w.slice(0,3))}</span></div>`).join('');
+  for(let i=0;i<lead;i++)html+='<div class="cal-cell empty"></div>';
+  const selHere=calSel&&calSel.year===y&&calSel.month===m?calSel:null;
+  for(let d=1;d<=dim;d++){
+    const num=y*10000+m*100+d,evs=byDay[d]||[];
+    const cls=(today&&num===tNum?' today':'')+(today&&num<tNum?' past':'')+(selHere&&selHere.day===d?' sel':'');
+    const pills=evs.slice(0,3).map(e=>`<div class="cal-pill${!pm_&&e.gmOnly?' gm':''}"${pm_?'':` data-cal-pill="${ESC(e._id)}"`} title="${ESC(e.title||'Untitled')}">${ESC(e.title||'Untitled')}</div>`).join('')+(evs.length>3?`<div class="cal-more">+${evs.length-3} more</div>`:'');
+    html+=`<div class="cal-cell${cls}" data-cal-day="${d}"><div class="cal-dnum">${d}</div>${pills}</div>`;
   }
-  if(!events.length)return html+`<div class="entity-empty">${pm_?'No calendar events yet.':'No events yet. Add sightings, deadlines, festivals, and what happened when.'}</div>`;
-  const tNum=today?calNum(today):0,marker=today?`<div class="cal-today-marker">TODAY · ${ESC(calFmt(camp,today))}</div>`:'';
-  let lastKey='',markerDone=!today;
-  events.forEach(e=>{
-    const key=e.year+'-'+e.month,newGroup=key!==lastKey,num=calNum(e);
-    if(!markerDone&&num>=tNum&&newGroup&&!(today.year===e.year&&today.month===e.month)){html+=marker;markerDone=true}
-    if(newGroup){html+=`<div class="cal-month-hdr">${ESC(n.months[e.month]+' '+e.year)}</div>`;lastKey=key}
-    if(!markerDone&&num>=tNum){html+=marker;markerDone=true}
-    const cls=(today&&num<tNum?' past':'')+(today&&num===tNum?' is-today':'')+(!pm_&&e.gmOnly?' gm':'');
-    const chips=(e.links||[]).map(lk=>{const t=calLinkTarget(camp,lk,pm_);return(!t&&pm_)?'':calChipHtml(t,pm_)}).join('');
-    const gmBadge=(!pm_&&e.gmOnly)?'<span class="lore-gm-badge">🔒 GM ONLY</span>':'';
-    const actions=pm_?'':`<div class="cal-ev-actions"><button class="session-action-btn" data-cal-edit="${ESC(e._id)}">Edit</button><button class="session-action-btn danger" data-cal-del="${ESC(e._id)}">Del</button></div>`;
-    html+=`<div class="cal-event${cls}"><div class="cal-ev-date"><span class="cal-ev-day">${e.day}</span><span class="cal-wd">${ESC(calWdName(camp,e))}</span></div><div class="cal-ev-body"><div class="cal-ev-title">${ESC(e.title||'Untitled')}${gmBadge}</div>${e.notes?`<div class="cal-ev-notes">${ESC(e.notes)}</div>`:''}${chips?`<div class="cal-ev-links">${chips}</div>`:''}</div>${actions}</div>`;
-  });
-  if(!markerDone)html+=marker;
+  const trail=(7-((lead+dim)%7))%7;for(let i=0;i<trail;i++)html+='<div class="cal-cell empty"></div>';
+  html+='</div>';
+  const list=selHere?(byDay[selHere.day]||[]):monthEvents;
+  let acts='';
+  if(selHere){
+    const isToday=today&&calNum(selHere)===tNum;
+    if(!pm_)acts+=`<button class="session-action-btn" id="cal-sel-add">+ Event</button>`+(isToday?'<button class="session-action-btn" id="cal-clear-today">Clear Today</button>':'<button class="session-action-btn" id="cal-sel-today">Set as Today</button>');
+    acts+='<button class="session-action-btn" id="cal-sel-clear">Whole Month</button>';
+  }
+  html+=`<div class="cal-detail-hdr"><span>${ESC(selHere?calFmt(camp,selHere):n.months[m]+' '+y)}</span>${acts?`<span class="cal-detail-actions">${acts}</span>`:''}</div>`;
+  html+=list.length?list.map(e=>calEventRow(camp,e,pm_,today)).join(''):`<div class="entity-empty">${selHere?'Nothing on this day.':'No events this month.'}</div>`;
   return html;
 }
-function saveCalToday(){const d=readCalDate('ct');if(!d)return;GCC.updateCampaign(campId,{calendarToday:d});render()}
+function calShowMonth(y,m){
+  while(m<0){m+=12;y--}while(m>11){m-=12;y++}
+  calView={year:y,month:m};render();
+}
 function wireCalendarEvents(){
   document.querySelectorAll('[data-cal-lore]').forEach(b=>b.addEventListener('click',()=>openLoreFromCalendar(b.dataset.calLore)));
+  if(!calView)return;
+  document.getElementById('cal-prev')?.addEventListener('click',()=>calShowMonth(calView.year,calView.month-1));
+  document.getElementById('cal-next')?.addEventListener('click',()=>calShowMonth(calView.year,calView.month+1));
+  document.getElementById('cal-view-month')?.addEventListener('change',e=>calShowMonth(calView.year,parseInt(e.target.value)));
+  document.getElementById('cal-view-year')?.addEventListener('change',e=>{const y=parseInt(e.target.value);if(Number.isInteger(y))calShowMonth(y,calView.month)});
+  document.getElementById('cal-goto-today')?.addEventListener('click',()=>{const t=getCamp()?.calendarToday;if(!calValid(t))return;calSel=null;calShowMonth(t.year,t.month)});
+  document.querySelectorAll('[data-cal-day]').forEach(c=>c.addEventListener('click',()=>{
+    const d=parseInt(c.dataset.calDay);
+    calSel=(calSel&&calSel.year===calView.year&&calSel.month===calView.month&&calSel.day===d)?null:{year:calView.year,month:calView.month,day:d};
+    render();
+  }));
+  document.getElementById('cal-sel-clear')?.addEventListener('click',()=>{calSel=null;render()});
   if(_isPlayerMode)return;
+  document.querySelectorAll('[data-cal-pill]').forEach(p=>p.addEventListener('click',e=>{e.stopPropagation();openCalModal(p.dataset.calPill)}));
   document.getElementById('btn-add-cal')?.addEventListener('click',()=>openCalModal(''));
+  document.getElementById('cal-sel-add')?.addEventListener('click',()=>openCalModal(''));
+  document.getElementById('cal-sel-today')?.addEventListener('click',()=>{if(!calSel)return;GCC.updateCampaign(campId,{calendarToday:Object.assign({},calSel)});render()});
+  document.getElementById('cal-clear-today')?.addEventListener('click',()=>{GCC.updateCampaign(campId,{calendarToday:null});render()});
   document.querySelectorAll('[data-cal-edit]').forEach(b=>b.addEventListener('click',()=>openCalModal(b.dataset.calEdit)));
   document.querySelectorAll('[data-cal-del]').forEach(b=>b.addEventListener('click',async()=>{
     const camp=getCamp();if(!camp)return;const list=camp.calendarEvents||[];const e=list.find(x=>x&&x._id===b.dataset.calDel);if(!e)return;
     const ok=await GCCDialog.confirm('Delete event','Delete "'+(e.title||'Untitled')+'"? This cannot be undone.',{okText:'Delete',danger:true});if(!ok)return;
     GCC.updateCampaign(campId,{calendarEvents:list.filter(x=>x!==e)});render();
   }));
-  const camp=getCamp();
-  const isSet=calValid(camp&&camp.calendarToday);
-  wireCalDateInputs('ct',camp,r=>{if(r&&isSet)saveCalToday()});
-  document.getElementById('ct-set')?.addEventListener('click',saveCalToday);
-  document.getElementById('ct-clear')?.addEventListener('click',()=>{GCC.updateCampaign(campId,{calendarToday:null});render()});
 }
 async function openLoreFromCalendar(id){
   currentTab='lore';loreFilter='all';
@@ -2570,7 +2622,7 @@ document.getElementById('cmm-save').addEventListener('click',()=>{
     title:document.getElementById('cm-title').value.trim()||'Untitled',notes:document.getElementById('cm-notes').value.trim(),
     gmOnly:!!document.getElementById('cm-gmonly').checked,links:calEditLinks.slice(),_created:(prev&&prev._created)||now,_updated:now};
   if(prev)list[list.indexOf(prev)]=entry;else list.push(entry);
-  GCC.updateCampaign(campId,{calendarEvents:list});closeCalModal();render();
+  GCC.updateCampaign(campId,{calendarEvents:list});calView={year:entry.year,month:entry.month};closeCalModal();render();
 });
 document.getElementById('cmm-cancel').addEventListener('click',closeCalModal);
 document.getElementById('cal-modal-close').addEventListener('click',closeCalModal);
