@@ -1,0 +1,15 @@
+{
+  "name": "@graycloak/boothill-rules",
+  "version": "0.2.0",
+  "description": "BOOT HILL 2nd edition rules engine - pure JS, no host dependencies",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "license": "MIT",
+  "private": true
+}
