@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Compact portraits — Graycloak's Campaign Corner</title>
+<!-- compact-portraits.html v1.0.0 — 2026-10-07
+     Maintenance: character portraits are stored inline in localStorage
+     (gcc-faserip-chars, mp-char-list, gcc-add1e-chars), and oversized ones
+     fill the browser's ~5 MB quota, after which nothing more can be saved
+     (campaign creation fails with QuotaExceededError). This page downscales
+     every portrait above a size cap in place and tells the cloud sync, so
+     every device gets the smaller copies. Moving portraits into IndexedDB
+     (as campaign and session images already are) is the lasting fix; this
+     is the quick one. -->
+<link rel="icon" href="favicon.ico">
+<style>
+  body{font-family:Georgia,'Times New Roman',serif;color:#1f2b38;background:#f3f5f8;margin:0;padding:24px}
+  main{max-width:860px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 6px}
+  p.note{color:#4a5565;font-size:14px;margin:0 0 14px}
+  table{border-collapse:collapse;width:100%;font-size:14px;background:#fff;border:1px solid #d5dbe3;border-radius:8px}
+  th,td{text-align:left;padding:6px 10px;border-top:1px solid #e5e9ef}
+  th{font-weight:400;color:#4a5565;border-top:0}
+  td.n,th.n{text-align:right;font-family:'Courier New',monospace}
+  .big{color:#b91c1c}
+  button{font:inherit;padding:10px 14px;border:1px solid #1f2b38;border-radius:6px;background:#fff;cursor:pointer}
+  button.primary{background:#1f2b38;color:#fff}
+  button:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  #log{font-family:'Courier New',monospace;font-size:13px;white-space:pre-wrap;background:#fff;border:1px solid #d5dbe3;border-radius:8px;padding:10px;min-height:60px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Compact character portraits</h1>
+  <p class="note">Portraits are kept inside the character records in this browser's storage, which holds about 5 MB in all. Ones above the cap below get downscaled in place (longest edge <span id="px">320</span> px, about <span id="kb">40</span> KB), on every device once the cloud sync has run. Close any open character sheets first, so they don't save the old copies back.</p>
+  <div class="row">
+    <span id="usage">Storage in use: …</span>
+    <button id="scan">Scan</button>
+    <label>Cap <select id="cap"><option value="60">60 KB</option><option value="40">40 KB</option><option value="100">100 KB</option></select></label>
+    <button id="go" class="primary" disabled>Compact portraits over the cap</button>
+  </div>
+  <table id="tbl"><thead><tr><th>List</th><th>Character</th><th class="n">Portrait</th><th class="n">Record</th></tr></thead><tbody></tbody></table>
+  <div class="row"><a href="index.html">← Back to campaigns</a></div>
+  <div id="log"></div>
+</main>
+<script src="gcc-images.js?v=d771a7c0"></script>
+<script src="gcc-firebase-config.js?v=ed16c91d"></script>
+<script src="gcc-auth.js?v=dc620d93"></script>
+<script src="gcc-sync.js?v=1e5a9f39"></script>
+<script>
+(function(){
+  const LISTS = [['gcc-faserip-chars','FASERIP'],['mp-char-list','Mighty Protectors'],['gcc-add1e-chars','AD&D']];
+  const FIELDS = ['portraitData','_image','portrait'];
+  const MAX_PX = 320, TARGET_BYTES = 40 * 1024;
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const kb = (n) => Math.round(n / 1024);
+  const nameOf = (c) => c.heroName || c.characterName || c.name || '(unnamed)';
+  const log = (t) => { $('#log').textContent += t + '\n'; };
+  let rows = [];
+  function usage() { let t = 0; for (const k of Object.keys(localStorage)) t += (localStorage.getItem(k) || '').length; return t; }
+  function portraitOf(c) { for (const f of FIELDS) if (typeof c[f] === 'string' && c[f].startsWith('data:')) return [f, c[f]]; return [null, '']; }
+  function scan() {
+    rows = [];
+    const cap = Number($('#cap').value) * 1024;
+    for (const [key, label] of LISTS) {
+      let list; try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { continue; }
+      if (!Array.isArray(list)) continue;
+      list.forEach((c, i) => { const [f, d] = portraitOf(c); if (f) rows.push({ key, label, i, name: nameOf(c), field: f, size: d.length, record: JSON.stringify(c).length, over: d.length > cap }); });
+    }
+    rows.sort((a, b) => b.size - a.size);
+    $('#tbl tbody').innerHTML = rows.map((r) => `<tr><td>${esc(r.label)}</td><td>${esc(r.name)}</td><td class="n ${r.over ? 'big' : ''}">${kb(r.size)} KB</td><td class="n">${kb(r.record)} KB</td></tr>`).join('') || '<tr><td colspan="4">No inline portraits found.</td></tr>';
+    const over = rows.filter((r) => r.over);
+    $('#usage').textContent = `Storage in use: ${kb(usage())} KB of about 5,120 KB · ${over.length} portrait${over.length === 1 ? '' : 's'} over the cap (${kb(over.reduce((a, r) => a + r.size, 0))} KB)`;
+    $('#go').disabled = !over.length;
+  }
+  async function compact() {
+    $('#go').disabled = true; $('#scan').disabled = true;
+    const cap = Number($('#cap').value) * 1024;
+    let freed = 0;
+    for (const [key, label] of LISTS) {
+      let list; try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { continue; }
+      if (!Array.isArray(list)) continue;
+      let changed = 0;
+      for (const c of list) {
+        const [f, d] = portraitOf(c); if (!f || d.length <= cap) continue;
+        try {
+          const small = await GCCImages.downscale(d, MAX_PX, TARGET_BYTES);
+          if (small && small.length < d.length) {
+            c[f] = small; changed++; freed += d.length - small.length;
+            // a newer timestamp, so the cloud sync keeps this copy over the one it holds
+            if (typeof c._saved === 'number') c._saved = Date.now(); else c._saved = new Date().toISOString();
+            log(`${label}: ${nameOf(c)} ${kb(d.length)} KB → ${kb(small.length)} KB`);
+          }
+        } catch (e) { log(`${label}: ${nameOf(c)} could not be downscaled (${e.message || e})`); }
+      }
+      if (changed) {
+        try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { log(`${label}: save failed (${e.message || e})`); continue; }
+        try { if (typeof GCCSync !== 'undefined' && GCCSync.notifySync) GCCSync.notifySync(key); } catch (e) {}
+        log(`${label}: ${changed} portrait${changed === 1 ? '' : 's'} compacted and saved${typeof GCCSync !== 'undefined' && GCCSync.isActive && GCCSync.isActive() ? ', cloud sync told' : ''}.`);
+      }
+    }
+    log(`Freed ${kb(freed)} KB.`);
+    $('#scan').disabled = false; scan();
+  }
+  $('#px').textContent = MAX_PX; $('#kb').textContent = kb(TARGET_BYTES);
+  $('#scan').addEventListener('click', scan);
+  $('#cap').addEventListener('change', scan);
+  $('#go').addEventListener('click', compact);
+  scan();
+})();
+</script>
+</body>
+</html>
