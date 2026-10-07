@@ -27,6 +27,8 @@ Run one module's self-tests:
 - 0.2.0 - gunfight: First Shot Determination Chart and firing order, Hit Determination
   Chart, Wound Chart, hard cover, wound bands and effects, shotgun/scatter field of fire.
   Pending: Shotgun/Scatter Gun Effects Table (needs scan).
+- 0.3.0 - brawl: Punching and Grappling Tables, holds and maintaining them, striking
+  weapons, carried modifiers (and ×10% onto a shot), first blow. Cert: Juan vs Sam.
 
 ## Conventions
 
