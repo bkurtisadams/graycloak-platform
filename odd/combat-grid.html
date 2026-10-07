@@ -1984,12 +1984,16 @@ $("#map").addEventListener("click", (e) => {
   }
   let f = figAt(e.target);
   const cur = state.selected != null ? byId(state.selected) : null;
-  if (f && !alive(f) && cur && canMoveNow(cur) && !e.shiftKey && !state.groupMode) {
-    const c = cellAt(e.clientX, e.clientY); const off = state.phase === "setup" ? 0 : Math.floor((sz(cur) - 1) / 2);
-    moveTo(cur, c.x - off, c.y - off); return;
+  // a fallen figure: search it if the selected character stands beside it; otherwise just look at it
+  // (it no longer walks him onto the body; drag the token to step onto that square)
+  if (f && !alive(f) && cur && cur !== f && !e.shiftKey && !state.groupMode) {
+    const s = cur.kind === "pc" && state.phase !== "setup" ? searchable(cur).find((q) => q.id === `fig-${f.id}`) : null;
+    if (s) { openLoot(cur, s); return; }
+    if (cur.kind === "pc" && state.phase !== "setup" && hasLoot(f)) $("#dragInfo").textContent = `Move ${cur.name} next to ${f.name} to search the body.`;
+    setGroup([f.id]); return;
   }
   if (f && (e.shiftKey || state.groupMode)) { toggleInGroup(f); return; }
-  if (f && $("#tapTarget").checked && cur && state.phase === "fight" && f.side !== cur.side) { setTarget(cur, f); return; }
+  if (f && alive(f) && $("#tapTarget").checked && cur && state.phase === "fight" && f.side !== cur.side) { setTarget(cur, f); return; }
   if (f) { setGroup([f.id]); return; }
   const cell = e.target.closest?.("[data-cell]"); const sel = state.selected != null ? byId(state.selected) : null;
   if (state.measure.on) return;
