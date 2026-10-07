@@ -29,6 +29,10 @@ Run one module's self-tests:
   Pending: Shotgun/Scatter Gun Effects Table (needs scan).
 - 0.3.0 - brawl: Punching and Grappling Tables, holds and maintaining them, striking
   weapons, carried modifiers (and ×10% onto a shot), first blow. Cert: Juan vs Sam.
+- 0.4.0 - turn: movement order, fire declarations (shot cap, rate of fire, rounds
+  loaded, range), firing resolution with simultaneous groups, net speed recomputed
+  after wounds, lost shots, cover, ammo spent. Shotgun hits wait on the effects table.
+- 0.4.1 - firingQueue and fireNextGroup: the firing phase one group at a time.
 
 ## Conventions
 

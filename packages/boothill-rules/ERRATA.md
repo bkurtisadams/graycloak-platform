@@ -17,3 +17,4 @@ Each entry: number, date, kind (RAW, consistency, house, implementation), ruling
 | 11 | 2026-10 | Interpretation | The Two-Shot Derringer counts as double-barreled (Weapons Chart footnote), so its rate of fire is 2. The Repeating Shotgun is not double-barreled and stays at 1. |
 | 12 | 2026-10 | Interpretation | Punching Table Left/Right columns: punching with the dominant arm uses the higher (Right) column, the off arm the Left; reversed for left-handers. An arm lock forces the free arm. "Miss" and "No hold" pluses (+2, +1) go to the opponent's next roll. Pending a scan of both brawling tables. |
 | 13 | 2026-10 | RAW (from example) | A carried "next round" modifier is spent on the character's very next roll, even later in the same round (Juan's −2 after being thrown). |
+| 14 | 2026-10 | Implementation | Movement order: equal d100 rolls move together (the rules give no tie-break for movement). |
