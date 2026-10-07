@@ -1,4 +1,8 @@
-// gcc-data.js v1.5.1 — 2026-08-16
+// gcc-data.js v1.6.0 — 2026-10-07
+// v1.6.0: New system 'odd' (Original D&D, 1974): the online fight page in
+//         odd/ and Chainmail Battles. An OD&D campaign is an ordinary GCC
+//         campaign; its id is the oddCampaigns/{cid} the fight server uses
+//         (OD&D online, slice 5 pass 3).
 // v1.5.1: add1e tools gain 'Chainmail Battles' → chainmail-board.html
 //         (campaign-detail appends ?camp=<cid> so the board opens net-live;
 //         chainmail multiplayer Slice 2A, board v0.11.177).
@@ -104,6 +108,16 @@ const GCC = (function() {
         { id: 'add1-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
       ]
     },
+    {
+      id: 'odd',
+      name: 'Original D&D (1974)',
+      icon: '⚔',
+      color: '#8a5a30',
+      tools: [
+        { id: 'odd-fight', name: 'Fights (online)', href: 'odd/combat-grid.html' },
+        { id: 'odd-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
+      ]
+    },
 
 
 
@@ -114,15 +128,16 @@ const GCC = (function() {
     faserip: 'Team',
     mp: 'Team',
     add1e: 'Party',
+    odd: 'Party',
   };
   function teamLabel(systemId) {
     return TEAM_LABELS[systemId] || 'Party';
   }
 
-  const SESSION_LABELS = { faserip: 'Issue', mp: 'Episode', add1e: 'Session' };
+  const SESSION_LABELS = { faserip: 'Issue', mp: 'Episode', add1e: 'Session', odd: 'Session' };
   function sessionLabel(systemId) { return SESSION_LABELS[systemId] || 'Session'; }
 
-  const XP_LABELS = { faserip: 'Karma', mp: 'XP', add1e: 'XP' };
+  const XP_LABELS = { faserip: 'Karma', mp: 'XP', add1e: 'XP', odd: 'XP' };
   function xpLabel(systemId) { return XP_LABELS[systemId] || 'XP'; }
 
   const LORE_TYPES = ['npc', 'location', 'faction', 'item', 'other'];

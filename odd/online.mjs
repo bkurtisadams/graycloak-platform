@@ -8,6 +8,7 @@
 //   listFights(cid)     a player's fights in a campaign; listAllFights(cid) the referee's
 //   deleteFight(...)    oddDeleteFight (the referee removes a fight)
 //   chat(data)          oddChat: a line or a /roll, to everyone or privately
+//   roster(cid)         the GCC campaign's players (campaigns/{cid}/players)
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -129,6 +130,16 @@ export async function connectOnline({ emulators = false } = {}) {
       me.unsubs.push(fsSdk.onSnapshot(fsSdk.query(fsSdk.collection(db, `${base}/chat/${viewer}/entries`), fsSdk.orderBy('at')), (snap) => {
         for (const c of snap.docChanges()) { const e = c.doc.data(); if (c.type !== 'added' || said.has(e.id)) continue; said.add(e.id); onChat?.(e); }
       }, fail('the chat')));
+    },
+
+    /** The GCC campaign's roster (campaigns/{cid}/players): [{ uid, name, email, role }], the owner first. Empty if there is none. */
+    async roster(cid) {
+      try {
+        const [camp, snap] = await Promise.all([fsSdk.getDoc(fsSdk.doc(db, 'campaigns', cid)), fsSdk.getDocs(fsSdk.collection(db, `campaigns/${cid}/players`))]);
+        const owner = camp.exists() ? camp.data().ownerUid : null;
+        const list = snap.docs.map((d) => ({ uid: d.id, name: d.data().displayName || d.data().email || d.id, email: (d.data().email || '').toLowerCase(), role: d.data().role || 'player' }));
+        return { name: camp.exists() ? camp.data().name : null, owner, players: list.sort((a, b) => (a.uid === owner ? -1 : b.uid === owner ? 1 : a.name.localeCompare(b.name))) };
+      } catch (e) { return { name: null, owner: null, players: [], error: e.message }; }
     },
 
     /** A chat line { text, to, as } in the open fight. */

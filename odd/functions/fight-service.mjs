@@ -25,6 +25,8 @@ export function fightPaths(cid, fid) {
   const fight = `oddCampaigns/${cid}/fights/${fid}`;
   return {
     campaign: `oddCampaigns/${cid}`,
+    gcc: `campaigns/${cid}`, // the GCC campaign of the same id (pass 3): its owner is the referee, its players the roster
+    gccPlayers: `campaigns/${cid}/players`,
     fight,
     state: `${fight}/server/state`,
     initial: `${fight}/server/initial`,
@@ -68,8 +70,10 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
    * fightStore.toStored), control { figureId: uid | "referee" | "game" },
    * players { figureId: email } }. The server seeds the dice itself and looks
    * each email up as the account that player signs in with (the referee's own
-   * email means he runs that figure). A campaign that doesn't exist yet is
-   * made with the caller as its referee.
+   * email means he runs that figure). An OD&D campaign is a GCC campaign of
+   * the same id (pass 3): only its owner opens fights, and a player named by
+   * email takes his name from the GCC roster when he is on it. An odd campaign
+   * that doesn't exist yet is made with the caller as its referee.
    */
   async function create({ uid, name, data }) {
     if (!uid) return refuse("auth", "sign in first");
@@ -104,10 +108,16 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     if (state.phase === "fight") events.push(...session.advance(state, rng));
     const p = fightPaths(cid, fid);
     return store.run(async (tx) => {
-      const camp = await tx.get(p.campaign), existing = await tx.get(p.fight);
+      const camp = await tx.get(p.campaign), gcc = await tx.get(p.gcc), existing = await tx.get(p.fight);
       if (camp && camp.refereeUid !== uid) return refuse("forbidden", "only the campaign's referee opens fights");
+      if (!camp && gcc && gcc.ownerUid !== uid) return refuse("forbidden", "only the campaign's owner on GCC opens its fights");
       if (existing) return refuse("exists", `fight ${fid} already exists`);
-      if (!camp) tx.set(p.campaign, { refereeUid: uid, system: "odd", createdAt: now() });
+      // names as the GCC roster has them, where it has them (read before any write)
+      if (gcc) for (const r of await tx.list(p.gccPlayers)) {
+        const email = String(r.email ?? "").toLowerCase();
+        for (const [k, raw] of Object.entries(players ?? {})) if (email && String(raw ?? "").trim().toLowerCase() === email) { const who = state.control[k]; if (people[who] && r.displayName) people[who].name = String(r.displayName).slice(0, 60); }
+      }
+      if (!camp) tx.set(p.campaign, { refereeUid: uid, system: "odd", createdAt: now(), ...(gcc ? { name: String(gcc.name ?? "").slice(0, 120) } : {}) });
       writeFight(tx, p, state, events, { rev: 1, uid, header: { title: String(title).slice(0, 120), createdBy: uid, createdAt: now() } });
       // the fight as it opened: Undo replays the accepted actions from here
       tx.set(p.initial, clean(fightStore.toStored(state)));

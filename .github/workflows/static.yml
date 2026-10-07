@@ -67,6 +67,19 @@ jobs:
           done
           echo "stamped assets with v$VERSION"
           grep -o 'app\.js?v=[^"]*' gcc/traveller/client/index.html || true
+      # OD&D online (slice 5 pass 3): the fight page lives in odd/ and imports
+      # the rules package from ../packages/, so both go under gcc/ at the same
+      # relative paths: gcc/odd/ and gcc/packages/odd-chainmail-rules/.
+      - name: Assemble OD&D
+        run: |
+          set -euo pipefail
+          rm -rf gcc/odd gcc/packages
+          mkdir -p gcc/packages
+          cp -r odd gcc/odd
+          rm -rf gcc/odd/functions
+          cp -r packages/odd-chainmail-rules gcc/packages/odd-chainmail-rules
+          rm -rf gcc/packages/odd-chainmail-rules/node_modules gcc/packages/odd-chainmail-rules/test
+          echo "assembled gcc/odd and gcc/packages/odd-chainmail-rules"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

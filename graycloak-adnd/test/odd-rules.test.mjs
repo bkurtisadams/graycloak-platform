@@ -70,6 +70,17 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
     await assertFails(anonymous.doc(`oddCampaigns/${CAMP}`).get());
   });
 
+  await t.test('before any fight opens it, the GCC campaign\'s owner is the referee (pass 3)', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc('campaigns/gcc-only').set({ ownerUid: KURT, name: 'Kurt\'s OD&D', system: 'odd' });
+      await db.doc('oddCampaigns/gcc-only/fights/f1').set({ rev: 1, players: [] });
+    });
+    await assertSucceeds(kurt.collection('oddCampaigns/gcc-only/fights').get());
+    await assertFails(bob.collection('oddCampaigns/gcc-only/fights').get());
+    await assertFails(outsider.doc('oddCampaigns/gcc-only/fights/f1').get());
+  });
+
   await t.test('a fight header is read by the referee and the players in it', async () => {
     await assertSucceeds(referee.doc(F).get());
     await assertSucceeds(kurt.doc(F).get());

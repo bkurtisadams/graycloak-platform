@@ -680,10 +680,15 @@ service cloud.firestore {
       return /databases/$(database)/documents/oddCampaigns/$(campaignId);
     }
 
+    // The referee: named on the odd campaign once a fight has opened it, or
+    // the owner of the GCC campaign of the same id before then (pass 3: an
+    // OD&D campaign is a GCC campaign; the owner lists its fights from day one).
     function isOddReferee(campaignId) {
       return isAuthed()
-        && exists(oddCampaignPath(campaignId))
-        && get(oddCampaignPath(campaignId)).data.get('refereeUid', '') == request.auth.uid;
+        && ((exists(oddCampaignPath(campaignId))
+             && get(oddCampaignPath(campaignId)).data.get('refereeUid', '') == request.auth.uid)
+            || (exists(/databases/$(database)/documents/campaigns/$(campaignId))
+                && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.get('ownerUid', '') == request.auth.uid));
     }
 
     function isInOddFight(campaignId, fightId) {

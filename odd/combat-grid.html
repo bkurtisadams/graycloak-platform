@@ -800,6 +800,17 @@ function runAction(action) {
 /* ---------- online play: the server runs the fight ---------- */
 const newFightId = () => `fight-${Date.now().toString(36)}`;
 /** Online setup: who plays each character, by the email he signs in with. Blank: the referee runs it. */
+/** The GCC campaign's roster, loaded for the Players list (slice 5 pass 3). */
+const roster = { cid: null, name: null, players: [] };
+async function loadRoster() {
+  const api = online.api, cid = $("#cid").value.trim();
+  if (!api?.user || !cid || roster.cid === cid) return;
+  roster.cid = cid; roster.players = []; roster.name = null;
+  const r = await api.roster(cid);
+  if ($("#cid").value.trim() !== cid) return;
+  Object.assign(roster, { name: r.name, players: r.players.filter((p) => p.uid !== api.user.uid) });
+  $("#whoPlays").dataset.ids = ""; renderWhoPlays();
+}
 function renderWhoPlays() {
   const el = $("#whoPlays"); if (!el) return;
   el.hidden = !online.on || PLAYER || state.phase !== "setup";
@@ -807,7 +818,20 @@ function renderWhoPlays() {
   const pcs = state.figures.filter((f) => f.kind === "pc");
   if (el.dataset.ids === pcs.map((f) => `${f.id}:${f.name}`).join("|")) return; // don't redraw under the cursor
   el.dataset.ids = pcs.map((f) => `${f.id}:${f.name}`).join("|");
-  el.innerHTML = `<h3 style="margin:0 0 4px">Players</h3><p class="note" style="margin:0 0 6px">Type the email each player signs in with. Leave it blank and you run that character.</p>`
+  if (roster.players.length) {
+    // the campaign has players on GCC: pick each character's player from them
+    const opts = (f) => [`<option value="">You (referee)</option>`, ...roster.players.map((p) => `<option value="${esc(p.email)}" ${f.playerEmail === p.email ? "selected" : ""}>${esc(p.name)}</option>`), `<option value="*" ${f.playerEmail && !roster.players.some((p) => p.email === f.playerEmail) ? "selected" : ""}>Someone else, by email…</option>`].join("");
+    el.innerHTML = `<h3 style="margin:0 0 4px">Players</h3><p class="note" style="margin:0 0 6px">The players of ${esc(roster.name ?? "this campaign")} on GCC. Pick who runs each character; leave it as you and you run it.</p>`
+      + pcs.map((f) => `<div class="bar"><label style="min-width:11em">${esc(f.name)}</label><select data-plays-sel="${f.id}">${opts(f)}</select><input type="email" data-plays="${f.id}" value="${esc(f.playerEmail ?? "")}" placeholder="email" style="width:14em" spellcheck="false" ${f.playerEmail && !roster.players.some((p) => p.email === f.playerEmail) ? "" : "hidden"}></div>`).join("");
+    el.querySelectorAll("[data-plays-sel]").forEach((sel) => sel.addEventListener("change", () => {
+      const f = byId(Number(sel.dataset.playsSel)), inp = el.querySelector(`[data-plays="${sel.dataset.playsSel}"]`); if (!f) return;
+      if (sel.value === "*") { inp.hidden = false; inp.focus(); f.playerEmail = inp.value.trim() || null; }
+      else { inp.hidden = true; inp.value = sel.value; f.playerEmail = sel.value || null; }
+    }));
+    el.querySelectorAll("[data-plays]").forEach((i) => i.addEventListener("input", () => { const f = byId(Number(i.dataset.plays)); if (f) f.playerEmail = i.value.trim() || null; }));
+    return;
+  }
+  el.innerHTML = `<h3 style="margin:0 0 4px">Players</h3><p class="note" style="margin:0 0 6px">Type the email each player signs in with. Leave it blank and you run that character.${roster.cid ? " (No players have joined this campaign on GCC yet.)" : ""}</p>`
     + (pcs.length ? pcs.map((f) => `<div class="bar"><label style="min-width:11em">${esc(f.name)}</label><input type="email" data-plays="${f.id}" value="${esc(f.playerEmail ?? "")}" placeholder="you" style="width:16em" spellcheck="false" autocomplete="off"></div>`).join("") : `<p class="empty">No characters yet.</p>`);
   el.querySelectorAll("[data-plays]").forEach((i) => i.addEventListener("input", () => { const f = byId(Number(i.dataset.plays)); if (f) f.playerEmail = i.value.trim() || null; }));
 }
@@ -828,7 +852,7 @@ async function goOnline() {
     $("#onlineNote").textContent = `Can't reach Firebase (${e.message}). Online play needs the page served from your machine or graycloak.net; the hosted artifact blocks it.`;
     return null;
   }
-  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (PLAYER) playerSignedIn(); else refreshRefFights(); });
+  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (PLAYER) playerSignedIn(); else { refreshRefFights(); loadRoster(); refereeFromGcc(); } });
   return online.api;
 }
 /** Send an action to the server. The answer's events arrive through the feed; a refusal shows here. */
@@ -1118,6 +1142,14 @@ function openSignIn(after) {
   $("#siEmail").focus();
 }
 
+/** The referee arriving from a GCC campaign page: ?cid= names the campaign, ?fid= a fight to open (slice 5 pass 3). */
+function refereeFromGcc() {
+  const q = new URLSearchParams(location.search), u = online.api?.user;
+  if (!u || !q.get("cid") || !q.get("fid") || online.api.fight || refereeFromGcc.done) return;
+  refereeFromGcc.done = true;
+  $("#cid").value = q.get("cid"); openOnline(q.get("cid"), q.get("fid"));
+}
+
 /* ---------- the player's page (?player) ---------- */
 function playerSignedIn() {
   const u = online.api?.user;
@@ -1179,7 +1211,9 @@ $("#playMode").addEventListener("change", async (e) => {
   if (online.on && !(await goOnline())) { online.on = false; e.target.value = "local"; $("#onlineBits").hidden = true; }
   renderOnlineNote(); render(); refreshRefFights();
 });
-$("#cid").addEventListener("change", refreshRefFights);
+$("#cid").addEventListener("change", () => { refreshRefFights(); loadRoster(); });
+// arriving from a GCC campaign page (?cid=): that campaign, online, with its roster
+{ const q = new URLSearchParams(location.search); if (!PLAYER && q.get("cid")) { $("#cid").value = q.get("cid"); $("#playMode").value = "online"; $("#playMode").dispatchEvent(new Event("change")); } }
 $("#signIn").addEventListener("click", async () => {
   const api = await goOnline(); if (!api) return;
   if (api.user) { await api.signOut(); renderOnlineNote(); } else openSignIn();

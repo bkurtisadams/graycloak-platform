@@ -267,3 +267,20 @@ test("the server refuses a fight where a cleric carries an edged weapon or a bow
   const r2 = await svc.create({ uid: "ref", data: { cid: "c6", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(sent), control: {} } });
   assert.equal(r2.ok, true, r2.error);
 });
+
+test("pass 3: an OD&D campaign is a GCC campaign - only its owner opens fights, and roster names are used", async () => {
+  const store = memoryStore();
+  store.docs.set("campaigns/camp9", { ownerUid: "ref", name: "Castle Blackrock", system: "odd" });
+  store.docs.set("campaigns/camp9/players/ref", { displayName: "Kurt", email: "ref@x.test", role: "gm" });
+  store.docs.set("campaigns/camp9/players/uid-bob", { displayName: "Bob the Bold", email: "bob@x.test", role: "player" });
+  const svc = createFightService({ rules, store, now: () => 1, newSeed: () => 5, resolveUser: async (email) => (email === "bob@x.test" ? { uid: "uid-bob", name: "bob@x.test" } : null) });
+  const open = (uid) => svc.create({ uid, name: "Someone", data: { cid: "camp9", fid: "f1", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(tester()), control: {}, players: { 1: "bob@x.test" } } });
+  const r0 = await open("stranger");
+  assert.equal(r0.code, "forbidden", "not the GCC owner: refused");
+  const r = await open("ref");
+  assert.equal(r.ok, true, r.error);
+  const p = fightPaths("camp9", "f1"), st = fightStore.fromStored(store.docs.get(p.state));
+  assert.equal(store.docs.get(p.campaign).refereeUid, "ref", "the odd campaign is made with the owner as referee");
+  assert.equal(store.docs.get(p.campaign).name, "Castle Blackrock");
+  assert.equal(st.people["uid-bob"].name, "Bob the Bold", "the player's name comes from the GCC roster");
+});
