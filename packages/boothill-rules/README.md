@@ -33,6 +33,7 @@ Run one module's self-tests:
   loaded, range), firing resolution with simultaneous groups, net speed recomputed
   after wounds, lost shots, cover, ammo spent. Shotgun hits wait on the effects table.
 - 0.4.1 - firingQueue and fireNextGroup: the firing phase one group at a time.
+- 0.4.2 - a brawl carryover (shooter.brawlCarry) applies ×10% to the next shot.
 
 ## Conventions
 

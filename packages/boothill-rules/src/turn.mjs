@@ -124,7 +124,8 @@ export function fireNextGroup(input, declarations, done = [], rng = Math.random)
         gunArm,
         twoPistols: f.shooter?.twoPistols,
         hipshooting: f.shooter?.hipshooting,
-        obscured: s.obscured
+        obscured: s.obscured,
+        brawlCarry: f.shooter?.brawlCarry
       });
       const roll = d100(rng);
       const ev = { type: "shot", shooterId: id, targetId: s.targetId, shotNumber: i + 1, netSpeed: ns, speedParts, chance: c.chance, parts: c.parts, roll, hit: roll <= c.chance };
@@ -272,6 +273,14 @@ export function runSelfTests() {
       [{ shooterId: "a", weaponKey: "DAR6", loaded: 6, shots: [{ targetId: "h", distance: 5 }] }], [], forceRolls([0, 0.15, 0.9, 0.15, 0.6, 0.05]));
     const s = r.events.find((e) => e.type === "shot");
     ok(s.wound.location === "head" && s.wound.severityRoll === 60 && s.wound.severity === "serious", "horse head 60 serious");
+  }
+
+  // A ± left over from a brawl rides the next shot at ×10%.
+  {
+    const r = fireNextGroup({ a: kid({ firstShotBase: 25, shooter: { brawlCarry: -2 } }), b: kid({}) },
+      [{ shooterId: "a", weaponKey: "DAR6", loaded: 6, shots: [{ targetId: "b", distance: 5 }] }], [], forceRolls([0.9, 0.95]));
+    const s = r.events.find((e) => e.type === "shot");
+    ok(s.parts.some((p) => p.key === "brawlCarry" && p.value === -20) && s.chance === 28, "brawl carry -2 = -20%: 48 → 28");
   }
 
   console.log(`turn.mjs — all self-tests passed (${count()} assertions).`);
