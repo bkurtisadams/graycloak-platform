@@ -35,6 +35,8 @@ Run one module's self-tests:
 - 0.4.1 - firingQueue and fireNextGroup: the firing phase one group at a time.
 - 0.4.2 - a brawl carryover (shooter.brawlCarry) applies ×10% to the next shot.
 - 0.5.0 - Shotgun/Scatter Gun Effects Table from the scan; a shotgun hit rolls d10 for the number of wounds, each on the Wound Chart and checked against cover.
+- 0.6.0 - Minor Character Morale: checks with companion and reputation bonuses, when to keep
+  checking, cavalry and war-party rules.
 
 ## Conventions
 

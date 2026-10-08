@@ -2,7 +2,7 @@
  * @graycloak/boothill-rules — BOOT HILL 2nd edition rules engine.
  * Pure JS, no host dependencies. Re-exports every rules module.
  */
-export const RULES_VERSION = "0.5.0";
+export const RULES_VERSION = "0.6.0";
 export * from "./src/dice.mjs";
 export * from "./src/abilities.mjs";
 export * from "./src/weapons.mjs";
@@ -15,3 +15,4 @@ export * from "./src/hit.mjs";
 export * from "./src/shotgun.mjs";
 export * from "./src/brawl.mjs";
 export * from "./src/turn.mjs";
+export * from "./src/morale.mjs";

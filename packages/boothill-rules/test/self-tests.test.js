@@ -15,7 +15,7 @@ for (const file of readdirSync(src).filter((f) => f.endsWith(".mjs") && f !== "s
 
 test("index.js loads and exposes the core API", async () => {
   const api = await import("../index.js");
-  for (const name of ["d100", "rollCharacter", "applyInitialModification", "deriveAbilities", "firstShotBase", "hitBase", "baseNumbers", "weaponProfile", "rangeBand", "isAvailable", "awardSurvival", "rollWound", "condition", "exposedLocations", "netSpeed", "firingOrder", "hitChance", "rollToHit", "fieldOfFire", "startBrawl", "brawlAction", "punchResult", "grappleResult", "firstBlow", "movementOrder", "validateDeclaration", "resolveFiring", "firingQueue", "fireNextGroup"]) {
+  for (const name of ["d100", "rollCharacter", "applyInitialModification", "deriveAbilities", "firstShotBase", "hitBase", "baseNumbers", "weaponProfile", "rangeBand", "isAvailable", "awardSurvival", "rollWound", "condition", "exposedLocations", "netSpeed", "firingOrder", "hitChance", "rollToHit", "fieldOfFire", "startBrawl", "brawlAction", "punchResult", "grappleResult", "firstBlow", "movementOrder", "validateDeclaration", "resolveFiring", "firingQueue", "fireNextGroup", "moraleCheck", "needsCheck", "warPartyChecks"]) {
     assert.equal(typeof api[name], "function", name);
   }
 });

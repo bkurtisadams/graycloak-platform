@@ -19,3 +19,5 @@ Each entry: number, date, kind (RAW, consistency, house, implementation), ruling
 | 13 | 2026-10 | RAW (from example) | A carried "next round" modifier is spent on the character's very next roll, even later in the same round (Juan's −2 after being thrown). |
 | 14 | 2026-10 | Implementation | Movement order: equal d100 rolls move together (the rules give no tie-break for movement). |
 | 15 | 2026-10 | Implementation (limit) | A shotgun or scatter gun checks only the declared targets. Bystanders inside the field of fire are not yet checked automatically; the GM can roll for them. |
+| 16 | 2026-10 | Interpretation (ruling wanted) | Morale: "a major character with a reputation" gives a further −10 per such man in the group (each is also a −5 companion), not −10 once however many are present. |
+| 17 | 2026-10 | Interpretation (ruling wanted) | War parties: "the others check with a penalty of −10 to their rolls" read as a penalty, so +10 on the roll (harder to pass); the others are judged on the same roll they already made, not a fresh one. |
