@@ -37,6 +37,8 @@ Run one module's self-tests:
 - 0.5.0 - Shotgun/Scatter Gun Effects Table from the scan; a shotgun hit rolls d10 for the number of wounds, each on the Wound Chart and checked against cover.
 - 0.6.0 - Minor Character Morale: checks with companion and reputation bonuses, when to keep
   checking, cavalry and war-party rules.
+- 0.6.1 - morale rulings: later checks stop only once casualties cut the enemy below his side;
+  −10 per major character with a reputation; companions are his whole side.
 
 ## Conventions
 

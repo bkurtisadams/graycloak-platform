@@ -2,11 +2,11 @@
  * BOOT HILL 2e · Minor Character Morale (Advanced rules)
  * A minor character facing a critical situation rolls d100: at or under his
  * BRAVERY percentile he acts as his controller wishes; over it, he acts to
- * avoid the confrontation. Each friend with him: −5 on the roll. A major
- * character with a reputation (8+ gunfights) in the group: a further −10
- * (ERRATA 16). Checks repeat each turn the situation lasts, unless the enemy
- * is outnumbered by the minor character and his fellows; the first check is
- * always made.
+ * avoid the confrontation. Each friend on his side: −5 on the roll (ERRATA 19).
+ * Each major character with a reputation (8+ gunfights) on his side: a
+ * further −10 (ERRATA 16, 20). Checks repeat each turn the situation lasts,
+ * unless casualties have cut the enemy down until his side outnumbers them
+ * (ERRATA 18); the first check is always made.
  * Cavalry: exempt while their commanding officer is with them and neither
  * seriously wounded, killed, nor escaping; then they check, NCOs counting as
  * reputations. Indian war parties: exempt until their dead reach 5% of the
@@ -22,10 +22,15 @@ export const REPUTATION_BONUS = -10;
 export const WAR_PARTY_PENALTY = 10;
 export const WAR_PARTY_DEATH_SHARE = 0.05;
 
-/** Must this man check this turn? The first check always; later, unless his side outnumbers the enemy. */
-export function needsCheck({ initial, own, enemies }) {
+/**
+ * Must this man check this turn? The first check always. Later checks stop
+ * only once casualties have reduced the enemy (fewer than at his first check)
+ * to fewer than his side. enemiesAtStart is the enemy count at that first check.
+ */
+export function needsCheck({ initial, own, enemies, enemiesAtStart }) {
   if (initial) return true;
-  return !(enemies < own);
+  const reduced = enemiesAtStart != null && enemies < enemiesAtStart;
+  return !(reduced && enemies < own);
 }
 
 /** Cavalry check only once their officer is down, wounded seriously, gone or escaping. */
@@ -74,8 +79,10 @@ export function runSelfTests() {
   ok(moraleCheck({ braveryPct: 85, group: "warParty", penalty: true, roll: 76 }).adjusted === 86, "war party penalty +10 on the roll");
 
   ok(needsCheck({ initial: true, own: 5, enemies: 1 }), "first check always");
-  ok(!needsCheck({ initial: false, own: 3, enemies: 2 }), "enemy outnumbered: no further checks");
-  ok(needsCheck({ initial: false, own: 2, enemies: 2 }), "even numbers: keep checking");
+  ok(needsCheck({ initial: false, own: 5, enemies: 1, enemiesAtStart: 1 }), "five against one from the start: keep checking (no casualties)");
+  ok(!needsCheck({ initial: false, own: 3, enemies: 2, enemiesAtStart: 4 }), "casualties cut 4 to 2 against 3: checks stop");
+  ok(needsCheck({ initial: false, own: 2, enemies: 2, enemiesAtStart: 4 }), "cut to even numbers: keep checking");
+  ok(needsCheck({ initial: false, own: 3, enemies: 4, enemiesAtStart: 4 }), "no casualties: keep checking");
 
   ok(cavalryExempt({ officerOk: true }) && !cavalryExempt({ officerOk: false }), "cavalry exempt while officer ok");
   ok(warPartyExempt({ deaths: 4, bandSize: 100 }), "band of 100: 4 dead, no checks");

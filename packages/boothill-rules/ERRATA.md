@@ -19,5 +19,8 @@ Each entry: number, date, kind (RAW, consistency, house, implementation), ruling
 | 13 | 2026-10 | RAW (from example) | A carried "next round" modifier is spent on the character's very next roll, even later in the same round (Juan's −2 after being thrown). |
 | 14 | 2026-10 | Implementation | Movement order: equal d100 rolls move together (the rules give no tie-break for movement). |
 | 15 | 2026-10 | Implementation (limit) | A shotgun or scatter gun checks only the declared targets. Bystanders inside the field of fire are not yet checked automatically; the GM can roll for them. |
-| 16 | 2026-10 | Interpretation (ruling wanted) | Morale: "a major character with a reputation" gives a further −10 per such man in the group (each is also a −5 companion), not −10 once however many are present. |
+| 16 | 2026-10 | Ruling | Morale: each major character with a reputation on the side gives a further −10 (each is also a −5 companion). |
 | 17 | 2026-10 | Interpretation (ruling wanted) | War parties: "the others check with a penalty of −10 to their rolls" read as a penalty, so +10 on the roll (harder to pass); the others are judged on the same roll they already made, not a fresh one. |
+| 18 | 2026-10 | Ruling | Morale: after the first check, checks stop only once casualties have reduced the enemy below the minor character's side. A side that outnumbers the enemy from the start keeps checking. |
+| 19 | 2026-10 | Ruling | Morale: "friends or companions accompanying" are everyone on his side in the combat (same token disposition). |
+| 20 | 2026-10 | Ruling | Morale: only a major character (a player character, or an NPC marked Major character) gives the reputation bonus, and major characters never check morale. Cavalry NCOs still count as reputations for their troopers. |
