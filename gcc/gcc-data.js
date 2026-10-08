@@ -1,4 +1,6 @@
-// gcc-data.js v1.6.0 — 2026-10-07
+// gcc-data.js v1.6.1 — 2026-10-08
+// v1.6.1: OD&D's tool is 'Launch game' → odd/index.html?c=<cid> (the game's
+//         lobby and join link, slice 5 pass 3).
 // v1.6.0: New system 'odd' (Original D&D, 1974): the online fight page in
 //         odd/ and Chainmail Battles. An OD&D campaign is an ordinary GCC
 //         campaign; its id is the oddCampaigns/{cid} the fight server uses
@@ -114,7 +116,7 @@ const GCC = (function() {
       icon: '⚔',
       color: '#8a5a30',
       tools: [
-        { id: 'odd-fight', name: 'Fights (online)', href: 'odd/combat-grid.html' },
+        { id: 'odd-game', name: 'Launch game', href: 'odd/index.html' },
         { id: 'odd-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
       ]
     },

@@ -683,10 +683,12 @@ service cloud.firestore {
     // The referee: named on the odd campaign once a fight has opened it, or
     // the owner of the GCC campaign of the same id before then (pass 3: an
     // OD&D campaign is a GCC campaign; the owner lists its fights from day one).
+    // Co-referees the Creator names count too (the game, pass 3).
     function isOddReferee(campaignId) {
       return isAuthed()
         && ((exists(oddCampaignPath(campaignId))
-             && get(oddCampaignPath(campaignId)).data.get('refereeUid', '') == request.auth.uid)
+             && (get(oddCampaignPath(campaignId)).data.get('refereeUid', '') == request.auth.uid
+                 || request.auth.uid in get(oddCampaignPath(campaignId)).data.get('referees', [])))
             || (exists(/databases/$(database)/documents/campaigns/$(campaignId))
                 && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.get('ownerUid', '') == request.auth.uid));
     }
@@ -702,9 +704,31 @@ service cloud.firestore {
         || (viewer != 'referee' && isAuthed() && viewer == request.auth.uid && isInOddFight(campaignId, fightId));
     }
 
+    // A member of the game: joined by its link (or invited by email), through oddCampaign.
+    function isOddMember(campaignId) {
+      return isAuthed()
+        && exists(oddCampaignPath(campaignId))
+        && request.auth.uid in get(oddCampaignPath(campaignId)).data.get('members', []);
+    }
+
     match /oddCampaigns/{campaignId} {
-      allow read: if isOddReferee(campaignId);
+      // the game: its members read it (the join code is in it, but only a member can see it,
+      // and every member already got in); oddCampaign writes it
+      allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
       allow write: if false;
+
+      // who's here now: a page says so through oddCampaign
+      match /presence/{uid} {
+        allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
+        allow write: if false;
+      }
+
+      // the lobby chat: each reader's own copy, as with a fight's chat
+      match /chat/{viewer}/entries/{entryId} {
+        allow read: if (viewer == 'referee' && isOddReferee(campaignId))
+          || (viewer != 'referee' && isAuthed() && viewer == request.auth.uid && isOddMember(campaignId));
+        allow write: if false;
+      }
 
       match /fights/{fightId} {
         // A player lists his fights with where('players', 'array-contains', uid);

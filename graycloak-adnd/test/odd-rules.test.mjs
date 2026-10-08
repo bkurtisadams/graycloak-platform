@@ -81,6 +81,27 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
     await assertFails(outsider.doc('oddCampaigns/gcc-only/fights/f1').get());
   });
 
+  await t.test('the game (pass 3): members read it, its presence and their own lobby chat; co-referees are referees', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      const db = context.firestore();
+      await db.doc('oddCampaigns/game1').set({ refereeUid: REFEREE, referees: [KURT], members: [REFEREE, KURT, BOB], joinCode: 'ABCD1234' });
+      await db.doc('oddCampaigns/game1/presence/' + BOB).set({ seen: 1 });
+      await db.doc(`oddCampaigns/game1/chat/${BOB}/entries/c1`).set({ text: 'hi' });
+      await db.doc('oddCampaigns/game1/chat/referee/entries/c1').set({ text: 'hi' });
+      await db.doc('oddCampaigns/game1/fights/f9').set({ rev: 1, players: [] });
+    });
+    await assertSucceeds(bob.doc('oddCampaigns/game1').get());
+    await assertFails(outsider.doc('oddCampaigns/game1').get());
+    await assertSucceeds(bob.doc('oddCampaigns/game1/presence/' + BOB).get());
+    await assertFails(outsider.doc('oddCampaigns/game1/presence/' + BOB).get());
+    await assertSucceeds(bob.collection(`oddCampaigns/game1/chat/${BOB}/entries`).get());
+    await assertFails(bob.collection('oddCampaigns/game1/chat/referee/entries').get());
+    await assertSucceeds(kurt.collection('oddCampaigns/game1/chat/referee/entries').get(), 'a co-referee reads the referee\'s copy');
+    await assertSucceeds(kurt.collection('oddCampaigns/game1/fights').get(), 'and lists every fight');
+    await assertFails(bob.doc('oddCampaigns/game1').update({ members: [BOB] }));
+    await assertFails(bob.doc('oddCampaigns/game1/presence/' + BOB).set({ seen: 2 }));
+  });
+
   await t.test('a fight header is read by the referee and the players in it', async () => {
     await assertSucceeds(referee.doc(F).get());
     await assertSucceeds(kurt.doc(F).get());

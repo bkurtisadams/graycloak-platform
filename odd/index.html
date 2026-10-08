@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OD&amp;D game</title>
+<!-- odd/index.html v1.0.0 — 2026-10-08 · slice 5 pass 3: the game (approved mockups 8 Oct 2026).
+     One URL per game: odd/?c=<campaign>. With &k=<code> it is the join link.
+       not signed in   step 1: sign in (Google, or email and password)
+       first join      step 2: name at the table, colour, characters
+       referee         the join link, invites, the game URL, players and roles, fights, chat
+       player          the lobby: party, who's here, chat; pulled into the fight the referee opens
+     Every change goes through the oddCampaign callable; the page only reads. -->
+<style>
+  :root { --ink: #1f2b38; --soft: #4a5565; --line: #d5dbe3; --bg: #f3f5f8; --card: #ffffff; --accent: #1d4ed8; --ok: #15803d; --bad: #b91c1c; --warn-bg: #fffbea; --warn-line: #e3cf7a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: Georgia, 'Times New Roman', serif; }
+  :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  button, input, select { font: inherit; }
+  button { border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+  button.primary { background: var(--ink); color: #fff; font-weight: 700; }
+  button.danger { border-color: var(--bad); color: var(--bad); }
+  button:disabled { opacity: .5; cursor: default; }
+  input { padding: 8px 10px; border: 1px solid #9aa5b3; border-radius: 6px; }
+  a { color: var(--accent); }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 20px; }
+  header .sub { font-size: 14px; color: var(--soft); }
+  header .grow { flex: 1; }
+  .strip { display: flex; align-items: center; gap: 14px; padding: 12px 20px; background: var(--warn-bg); border-bottom: 1px solid var(--warn-line); font-size: 15px; flex-wrap: wrap; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+  .card h2 { margin: 0 0 10px; font-size: 16px; }
+  .note { color: var(--soft); font-size: 14px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mono { font-family: 'Courier New', monospace; }
+  .person { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 14px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .on { color: var(--ok); } .off { color: var(--soft); }
+  .menu { margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; display: flex; flex-direction: column; gap: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { text-align: left; padding: 6px 4px; border-top: 1px solid #e5e9ef; }
+  th { font-weight: 400; color: var(--soft); border-top: 0; }
+  #chatLog { font-family: 'Courier New', monospace; font-size: 13px; display: flex; flex-direction: column; gap: 6px; min-height: 160px; max-height: 360px; overflow-y: auto; }
+  .chat.private { background: #f6f1fb; border-left: 3px solid #b9a3d6; padding-left: 6px; }
+  .centre { min-height: 80vh; display: flex; align-items: flex-start; justify-content: center; gap: 28px; padding: 60px 20px; flex-wrap: wrap; background: #2d3a4a; }
+  .centre .card { width: min(520px, 100%); padding: 24px 26px; display: flex; flex-direction: column; gap: 12px; border-radius: 10px; }
+  .step { font-size: 13px; color: var(--soft); letter-spacing: .08em; }
+  .swatches { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatches button { width: 30px; height: 30px; border-radius: 50%; padding: 0; border: 0; }
+  .swatches button.on { outline: 3px solid currentColor; outline-offset: 2px; }
+  .err { color: var(--bad); font-size: 14px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app"><div class="centre"><div class="card"><div class="note">Loading the game…</div></div></div></div>
+<script type="module">
+import { connectOnline } from './online.mjs';
+import { fightView } from '../packages/odd-chainmail-rules/index.js';
+
+const q = new URLSearchParams(location.search);
+const cid = q.get('c') ?? q.get('cid') ?? '';
+const code = q.get('k') ?? '';
+const $ = (s) => document.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const app = $('#app');
+const ONLINE_MS = 3 * 60 * 1000;
+const S = { api: null, game: null, presence: {}, fights: null, menuFor: null, chatOn: false, unsubs: [], welcome: false, error: '' };
+const base = location.pathname.replace(/[^/]*$/, '');
+const gameUrl = () => `${location.origin}${base}?c=${encodeURIComponent(cid)}`;
+const joinUrl = () => `${gameUrl()}&k=${encodeURIComponent(S.game?.joinCode ?? '')}`;
+const fightUrl = (fid, player) => `combat-grid.html?${player ? 'player&' : ''}cid=${encodeURIComponent(cid)}${fid ? `&fid=${encodeURIComponent(fid)}` : ''}`;
+const me = () => S.api?.user?.uid;
+const isRef = () => !!S.game && (S.game.refereeUid === me() || (S.game.referees ?? []).includes(me()));
+const isCreator = () => S.game?.refereeUid === me();
+const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 2880 ? 'yesterday' : `${Math.round(m / 1440)} days ago`; };
+
+if (!cid) app.innerHTML = `<div class="centre"><div class="card"><h1 style="margin:0">No game named</h1><p class="note">Open a game from its campaign page on GCC, or from the link your referee sent you.</p></div></div>`;
+else boot();
+
+async function boot() {
+  S.api = await connectOnline({ emulators: q.has('emu') });
+  S.api.onUser(async (u) => { stop(); if (!u) return signInCard(); await enter(); });
+}
+function stop() { for (const u of S.unsubs) u(); S.unsubs = []; S.chatOn = false; clearInterval(S.here); }
+
+/* ---------- step 1: sign in ---------- */
+function signInCard(msg = '') {
+  app.innerHTML = `<div class="centre"><div class="card">
+    <div class="step">${code ? 'STEP 1 · THE LINK' : 'SIGN IN'}</div>
+    <h1 style="margin:0;font-size:24px">${code ? 'Join the game' : 'Sign in to the game'}</h1>
+    <p style="margin:0">${code ? "You've been invited to an Original D&amp;D game. Sign in and you're in." : 'Sign in with the account you play under.'}</p>
+    <button class="primary" id="g">Continue with Google</button>
+    <div class="note" style="text-align:center">or</div>
+    <input id="em" type="email" placeholder="Email" autocomplete="email">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="row"><button id="si">Sign in</button><button id="reg">Create an account</button><a href="#" id="fp" style="font-size:14px">Forgot password?</a></div>
+    <div class="err" id="err">${esc(msg)}</div>
+    <div class="note">Your Graycloak's Campaign Corner account works here.</div>
+  </div></div>`;
+  const err = (e) => { $('#err').textContent = e?.message?.replace(/^Firebase: /, '') ?? String(e); };
+  $('#g').onclick = () => S.api.signInGoogle().catch(err);
+  $('#si').onclick = () => S.api.signInEmail($('#em').value.trim(), $('#pw').value).catch(err);
+  $('#reg').onclick = () => S.api.register($('#em').value.trim(), $('#pw').value, $('#em').value.trim().split('@')[0]).catch(err);
+  $('#fp').onclick = (e) => { e.preventDefault(); S.api.resetPassword($('#em').value.trim()).then(() => { $('#err').textContent = 'A reset email is on its way.'; }).catch(err); };
+}
+
+/* ---------- getting in: the link, an email invitation, or already a member (or the GCC owner starting it) ---------- */
+async function enter() {
+  app.innerHTML = `<div class="centre"><div class="card"><div class="note">Opening the game…</div></div></div>`;
+  let r = code ? await S.api.game('join', cid, { code }) : await S.api.game('open', cid);
+  if (!r.ok && !code) r = await S.api.game('join', cid);
+  if (!r.ok) {
+    app.innerHTML = `<div class="centre"><div class="card"><h1 style="margin:0;font-size:22px">Not in this game</h1><p>${esc(r.error ?? 'You are not in this game.')}</p><p class="note">Signed in as ${esc(S.api.user.email ?? S.api.user.displayName)}. Ask the referee for the game's join link, or <a href="#" id="so">sign in as someone else</a>.</p></div></div>`;
+    $('#so').onclick = (e) => { e.preventDefault(); S.api.signOut(); };
+    return;
+  }
+  if (code) history.replaceState(null, '', `?c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`);
+  S.game = r.game; S.welcome = !!r.joined;
+  S.unsubs.push(S.api.watchGame(cid, (g) => { if (g) { S.game = { ...S.game, ...g }; onGame(); } }, (e) => { S.error = e; }));
+  S.unsubs.push(S.api.watchPresence(cid, (p) => { S.presence = p; render(); }));
+  const here = () => { if (document.visibilityState === 'visible') S.api.game('here', cid); };
+  here(); S.here = setInterval(here, 120000); document.addEventListener('visibilitychange', here);
+  loadFights();
+  render();
+}
+function onGame() {
+  // a player is pulled into the fight the referee opens
+  if (!isRef() && !S.welcome && S.game.live?.fid) { location.href = fightUrl(S.game.live.fid, true); return; }
+  render();
+}
+async function loadFights() {
+  try { S.fights = await S.api.listFightsOf(cid, !isRef()); } catch (e) { S.fights = []; }
+  render();
+}
+
+/* ---------- step 2: once, on first joining ---------- */
+function welcomeCard() {
+  const mine = S.game.people?.[me()] ?? {};
+  const taken = new Set(Object.entries(S.game.people ?? {}).filter(([u]) => u !== me()).map(([, p]) => p.color));
+  app.innerHTML = `<div class="centre"><div class="card">
+    <div class="step">STEP 2 · ONCE, ON FIRST JOINING</div>
+    <h1 style="margin:0;font-size:22px">Welcome to ${esc(S.game.name ?? 'the game')}</h1>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:14px">Your name at the table <input id="nm" value="${esc(mine.name ?? '')}" maxlength="60"></label>
+    <div style="font-size:14px">Your colour <span class="note">(taken ones are left out)</span></div>
+    <div class="swatches" id="sw">${fightView.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-c="${c}" class="${c === mine.color ? 'on' : ''}" style="background:${c};color:${c}" aria-label="colour ${c}"></button>`).join('')}</div>
+    <div style="font-size:14px;margin-top:4px">Your characters</div>
+    <div class="card" style="width:auto;padding:12px 14px;gap:8px">
+      <div class="note">The referee gives you your characters; until the roster arrives, he picks you for a character when he opens a fight.</div>
+    </div>
+    <button class="primary" id="go">Enter the game</button>
+    <div class="err" id="err"></div>
+    <div class="note">Bookmark the page you land on: it's this game's address for every session.</div>
+  </div></div>`;
+  let colour = mine.color;
+  $('#sw').querySelectorAll('[data-c]').forEach((b) => (b.onclick = () => { colour = b.dataset.c; $('#sw').querySelectorAll('[data-c]').forEach((x) => x.classList.toggle('on', x === b)); }));
+  $('#go').onclick = async () => {
+    const r = await S.api.game('profile', cid, { name: $('#nm').value, color: colour });
+    if (!r.ok) { $('#err').textContent = r.error; return; }
+    S.welcome = false; S.game = { ...S.game, ...r.game }; onGame();
+  };
+}
+
+/* ---------- the page ---------- */
+function render() {
+  if (!S.game) return;
+  if (S.welcome) { if (!$('#nm')) welcomeCard(); return; }
+  const chatHad = $('#chatLog')?.innerHTML ?? '';
+  // keep what's being typed across redraws (presence and the game document redraw the page)
+  const kept = Object.fromEntries(['chatT', 'emails', 'chatTo'].map((id) => [id, $('#' + id)?.value]));
+  const focus = document.activeElement?.id;
+  const g = S.game, ref = isRef(), you = g.people?.[me()] ?? {};
+  const role = isCreator() ? 'you are the Creator' : ref ? 'you are a referee' : `you are ${esc(you.name ?? 'a player')}`;
+  const live = g.live?.fid;
+  const head = `<header><h1>${esc(g.name ?? 'OD&D game')}</h1><span class="sub">Original D&amp;D · ${role}</span><span class="grow"></span>
+    <span class="mono" style="font-size:14px">${live ? 'a fight is open' : 'no fight open'}</span>
+    ${ref ? `<a href="${fightUrl(live ?? null, false)}"><button class="primary">${live ? 'Back to the fight' : 'Open a fight'}</button></a>` : ''}
+    <button id="me">${esc(you.name ?? 'Me')} · sign out</button></header>`;
+  const strip = ref ? (live ? `<div class="strip"><span><b>A fight is open.</b> Every player's page is in it. Going back to this page from the fight brings them here.</span></div>` : '')
+    : `<div class="strip"><span><b>Waiting for the referee.</b> When he opens a fight, this page switches to it on its own.</span></div>`;
+  app.innerHTML = head + strip + `<main><section class="col">${ref ? refereeCards() : playerCards()}</section><aside class="col">${playersCard()}${ref ? rolesCard() : ''}${chatCard()}</aside></main>`;
+  wire();
+  if (chatHad) { $('#chatLog').innerHTML = chatHad; $('#chatLog').scrollTop = $('#chatLog').scrollHeight; }
+  for (const [id, v] of Object.entries(kept)) if (v != null && $('#' + id)) $('#' + id).value = v;
+  if (focus && $('#' + focus)) $('#' + focus).focus();
+  startChat();
+}
+function refereeCards() {
+  const g = S.game;
+  return `<div class="card"><h2>Join link</h2>
+      <p class="note" style="margin:0 0 10px">Anyone with this link who signs in joins as a player. It stays the same until you reset it or remove someone.</p>
+      <div class="row"><input readonly id="jl" class="mono" style="flex:1;min-width:260px;background:#f8fafc" value="${esc(joinUrl())}"><button class="primary" id="copyJ">Copy</button>${isCreator() ? '<button id="reset">Reset link</button>' : ''}</div>
+      <div class="row" style="margin-top:12px"><label for="emails" style="font-size:14px">Invite by email</label><input id="emails" style="flex:1;min-width:240px" placeholder="dave@example.com, carl@example.com"><button id="invite">Send</button></div>
+      <div class="note" style="margin-top:6px">They can come in through the game URL with that email, no link needed; Send also opens your mail program with the link written out.</div>
+      ${(g.invited ?? []).length ? `<div class="note" style="margin-top:6px">Pending: ${g.invited.map((e) => `<b>${esc(e)}</b> <a href="#" data-unin="${esc(e)}">cancel</a>`).join(' · ')}</div>` : ''}
+      <div class="err" id="ierr"></div></div>
+    <div class="card"><h2>Game URL</h2>
+      <div class="row"><span class="mono">${esc(gameUrl())}</span><button id="copyG">Copy</button></div>
+      <p class="note" style="margin:8px 0 0">One address for every session. It opens the fight you have open, or this page when there is none. Players bookmark it once.</p></div>
+    <div class="card"><h2>Characters</h2>
+      <p class="note" style="margin:0">Characters and who they belong to come with the roster (the next pass). Until then, pick each character's player in the fight's Setup when you open it: the players of this game are offered by name.</p></div>
+    ${fightsCard()}`;
+}
+function playerCards() {
+  const g = S.game;
+  const party = (g.members ?? []).filter((u) => u !== g.refereeUid && !(g.referees ?? []).includes(u));
+  return `<div class="card"><h2>The party</h2>
+      ${party.length ? `<table><tbody>${party.map((u) => `<tr><td><span class="dot" style="display:inline-block;background:${esc(g.people?.[u]?.color ?? '#999')}"></span> <b>${esc(g.people?.[u]?.name ?? 'Player')}</b>${u === me() ? ' (you)' : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="note">No players yet.</div>'}
+      <div class="note" style="margin-top:8px">Characters, their sheets and the shop come with the roster (the next pass).</div></div>
+    ${fightsCard()}`;
+}
+function fightsCard() {
+  const list = S.fights;
+  const rows = list === null ? '<div class="note">loading…</div>' : !list.length ? `<div class="note">${isRef() ? 'No fights yet.' : 'No fights you were in yet.'}</div>`
+    : `<table><tbody>${list.slice(0, 12).map((f) => `<tr><td>${esc(f.title || f.fid)}</td><td class="note">${f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ''}</td><td class="note">${f.phase === 'over' ? 'over' : f.phase === 'fight' ? `round ${f.round ?? 0}` : ''}</td><td><a href="${fightUrl(f.fid, !isRef())}">${isRef() ? 'Open' : 'View'}</a></td></tr>`).join('')}</tbody></table>`;
+  return `<div class="card"><h2>${isRef() ? 'Fights' : 'Past fights'}</h2>${rows}</div>`;
+}
+function playersCard() {
+  const g = S.game, ref = isRef();
+  const members = [...(g.members ?? [])].sort((a, b) => (a === g.refereeUid ? -1 : b === g.refereeUid ? 1 : 0));
+  const online = (u) => u === me() || (S.presence[u] && Date.now() - S.presence[u] < ONLINE_MS);
+  const n = members.filter(online).length;
+  const rows = members.map((u) => {
+    const p = g.people?.[u] ?? {}, role = u === g.refereeUid ? 'Creator' : (g.referees ?? []).includes(u) ? 'Referee' : 'Player';
+    const seen = online(u) ? '<span class="on">● online</span>' : `<span class="off">○ ${S.presence[u] ? `last seen ${ago(S.presence[u])}` : 'not seen yet'}</span>`;
+    const menu = isCreator() && u !== g.refereeUid ? `<button data-menu="${esc(u)}" style="padding:4px 8px;font-size:13px">⋯</button>` : '';
+    const open = S.menuFor === u ? `<div class="menu"><button data-role="${esc(u)}">${(g.referees ?? []).includes(u) ? 'Make a player again' : 'Make co-referee'}</button><button class="danger" data-remove="${esc(u)}">Remove from the game · resets the join link</button></div>` : '';
+    return `<div><div class="person"><span class="dot" style="background:${esc(p.color ?? '#999')}"></span><span style="flex:1"><b>${esc(p.name ?? 'Player')}</b>${u === me() ? ' (you)' : ''} · ${role}<br>${seen}</span>${menu}</div>${open}</div>`;
+  }).join('');
+  return `<div class="card"><h2>${ref ? `Players · ${n} of ${members.length} online` : 'Here now'}</h2>${rows}${!ref ? `<div style="margin-top:8px"><a href="#" id="editMe">Change my name or colour</a></div>` : ''}</div>`;
+}
+function rolesCard() {
+  return `<div class="card note" style="font-size:14px"><h2 style="color:var(--ink)">Roles</h2>
+    <div><b>Creator</b>: made the game; one only. Everything a referee can do, plus naming referees and removing players.</div>
+    <div style="margin-top:6px"><b>Referee</b>: runs fights and sees everything. The Creator can make any player co-referee.</div>
+    <div style="margin-top:6px"><b>Player</b>: runs his own characters and sees only what they know.</div></div>`;
+}
+function chatCard() {
+  const ref = isRef();
+  const to = ref ? [['all', 'Everyone'], ...(S.game.members ?? []).filter((u) => !(u === S.game.refereeUid || (S.game.referees ?? []).includes(u))).map((u) => [u, `${S.game.people?.[u]?.name ?? 'Player'} only`])] : [['all', 'Everyone'], ['referee', 'Referee only']];
+  return `<div class="card" style="display:flex;flex-direction:column;gap:8px"><h2 style="margin:0">Chat</h2><div id="chatLog"></div>
+    <form id="chatF" class="row" style="flex-wrap:nowrap"><select id="chatTo" aria-label="Say it to">${to.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select><input id="chatT" style="flex:1;min-width:0" placeholder="Message, or /roll 2d6"><button>Send</button></form><div class="err" id="cerr"></div></div>`;
+}
+function startChat() {
+  if (S.chatOn) return; S.chatOn = true;
+  const viewer = isRef() ? 'referee' : me();
+  S.unsubs.push(S.api.lobbyChat(cid, viewer, (e) => {
+    const log = $('#chatLog'); if (!log) return;
+    const pv = e.to && e.to !== 'all';
+    const body = e.roll ? `rolls ${esc(e.roll.expr)}: [${e.roll.dice.join(', ')}] = <b>${e.roll.total}</b>` : esc(e.text ?? '');
+    log.insertAdjacentHTML('beforeend', `<div class="chat${pv ? ' private' : ''}"><b style="color:${esc(e.color ?? 'var(--ink)')}">${esc(e.person)}</b>${pv ? ` <span class="note">to ${esc(e.toName ?? '')}</span>` : ''}${e.roll ? ' ' : ': '}${body}</div>`);
+    log.scrollTop = log.scrollHeight;
+  }));
+}
+function wire() {
+  $('#me').onclick = () => { if (confirm('Sign out?')) S.api.signOut(); };
+  const copy = (id, text, btn) => { navigator.clipboard?.writeText(text).catch(() => {}); $(btn).textContent = 'Copied'; setTimeout(() => { if ($(btn)) $(btn).textContent = 'Copy'; }, 1500); };
+  $('#copyJ') && ($('#copyJ').onclick = () => copy('jl', joinUrl(), '#copyJ'));
+  $('#copyG') && ($('#copyG').onclick = () => copy('gu', gameUrl(), '#copyG'));
+  $('#reset') && ($('#reset').onclick = async () => { if (confirm('Reset the join link? The old one stops working.')) await S.api.game('reset', cid); });
+  $('#invite') && ($('#invite').onclick = async () => {
+    const emails = $('#emails').value.split(/[\s,;]+/).filter(Boolean); if (!emails.length) return;
+    const r = await S.api.game('invite', cid, { emails });
+    if (!r.ok) { $('#ierr').textContent = r.error; return; }
+    location.href = `mailto:${encodeURIComponent(emails.join(','))}?subject=${encodeURIComponent(`Join ${S.game.name ?? 'my OD&D game'}`)}&body=${encodeURIComponent(`You're invited to my Original D&D game. Sign in with this email and you're in:\n\n${gameUrl()}\n\nOr use the join link:\n${joinUrl()}`)}`;
+  });
+  document.querySelectorAll('[data-unin]').forEach((a) => (a.onclick = (e) => { e.preventDefault(); S.api.game('uninvite', cid, { email: a.dataset.unin }); }));
+  document.querySelectorAll('[data-menu]').forEach((b) => (b.onclick = () => { S.menuFor = S.menuFor === b.dataset.menu ? null : b.dataset.menu; render(); }));
+  document.querySelectorAll('[data-role]').forEach((b) => (b.onclick = async () => { S.menuFor = null; await S.api.game('role', cid, { uid: b.dataset.role, referee: !(S.game.referees ?? []).includes(b.dataset.role) }); }));
+  document.querySelectorAll('[data-remove]').forEach((b) => (b.onclick = async () => { const n = S.game.people?.[b.dataset.remove]?.name ?? 'this player'; if (!confirm(`Remove ${n} from the game? The join link is reset, so his old link stops working.`)) return; S.menuFor = null; await S.api.game('remove', cid, { uid: b.dataset.remove }); }));
+  $('#editMe') && ($('#editMe').onclick = (e) => { e.preventDefault(); S.welcome = true; welcomeCard(); });
+  $('#chatF').onsubmit = async (e) => {
+    e.preventDefault(); const t = $('#chatT').value.trim(); if (!t) return;
+    $('#chatT').value = '';
+    const r = await S.api.sayInLobby(cid, { text: t, to: $('#chatTo').value });
+    if (!r.ok) { $('#cerr').textContent = r.error; $('#chatT').value = t; } else $('#cerr').textContent = '';
+  };
+}
+</script>
+</body>
+</html>

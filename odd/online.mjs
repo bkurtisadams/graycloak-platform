@@ -8,7 +8,10 @@
 //   listFights(cid)     a player's fights in a campaign; listAllFights(cid) the referee's
 //   deleteFight(...)    oddDeleteFight (the referee removes a fight)
 //   chat(data)          oddChat: a line or a /roll, to everyone or privately
-//   roster(cid)         the GCC campaign's players (campaigns/{cid}/players)
+//   roster(cid)         the game's members (else the GCC campaign's players)
+//   game(op, cid, data) oddCampaign: open, join, profile, here, invite, uninvite, live, reset, role, remove
+//   watchGame(cid, cb)  the game document, live (members, people, the live fight); watchPresence(cid, cb)
+//   lobbyChat(cid, viewer, onChat) the lobby's chat; sayInLobby(cid, data)
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -40,6 +43,7 @@ export async function connectOnline({ emulators = false } = {}) {
   const actionCall = fnSdk.httpsCallable(fns, 'oddAction');
   const deleteCall = fnSdk.httpsCallable(fns, 'oddDeleteFight');
   const chatCall = fnSdk.httpsCallable(fns, 'oddChat');
+  const gameCall = fnSdk.httpsCallable(fns, 'oddCampaign');
 
   let open = null;      // { cid, fid, viewer, rev, unsubs, seen }
   let queue = Promise.resolve();
@@ -132,8 +136,40 @@ export async function connectOnline({ emulators = false } = {}) {
       }, fail('the chat')));
     },
 
-    /** The GCC campaign's roster (campaigns/{cid}/players): [{ uid, name, email, role }], the owner first. Empty if there is none. */
+    /** The game (slice 5 pass 3): one request to oddCampaign. */
+    game: (op, cid, data = {}) => call(gameCall, { ...data, op, cid }),
+    /** Follow the game document: cb(game | null). Returns the unsubscribe. */
+    watchGame(cid, cb, onError) {
+      return fsSdk.onSnapshot(fsSdk.doc(db, 'oddCampaigns', cid), (snap) => cb(snap.exists() ? snap.data() : null), (e) => onError?.(e.message));
+    },
+    /** Who has said "here" lately: cb({ uid: seenMs }). */
+    watchPresence(cid, cb) {
+      return fsSdk.onSnapshot(fsSdk.collection(db, `oddCampaigns/${cid}/presence`), (snap) => cb(Object.fromEntries(snap.docs.map((d) => [d.id, d.data().seen ?? 0]))), () => {});
+    },
+    /** The lobby's chat for this viewer ("referee" or his uid): onChat(entry) once per line, oldest first. */
+    lobbyChat(cid, viewer, onChat) {
+      const said = new Set();
+      return fsSdk.onSnapshot(fsSdk.query(fsSdk.collection(db, `oddCampaigns/${cid}/chat/${viewer}/entries`), fsSdk.orderBy('at')), (snap) => {
+        for (const c of snap.docChanges()) { const e = c.doc.data(); if (c.type !== 'added' || said.has(e.id)) continue; said.add(e.id); onChat(e); }
+      }, () => {});
+    },
+    sayInLobby: (cid, data) => call(chatCall, { cid, ...data }),
+    async listFightsOf(cid, mine) {
+      const col = fsSdk.collection(db, `oddCampaigns/${cid}/fights`);
+      const q = mine ? fsSdk.query(col, fsSdk.where('players', 'array-contains', auth.currentUser.uid)) : col;
+      const snap = await fsSdk.getDocs(q);
+      return snap.docs.map((d) => ({ fid: d.id, ...d.data() })).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    },
+
+    /** The game's members as a roster: [{ uid, name, email, role }]; else the GCC campaign's players (campaigns/{cid}/players), the owner first. */
     async roster(cid) {
+      try {
+        const g = await fsSdk.getDoc(fsSdk.doc(db, 'oddCampaigns', cid));
+        if (g.exists() && Array.isArray(g.data().members)) {
+          const gd = g.data();
+          return { name: gd.name ?? null, owner: gd.refereeUid, game: true, players: gd.members.map((u) => ({ uid: u, name: gd.people?.[u]?.name ?? u, email: '', role: gd.people?.[u]?.role ?? 'player' })) };
+        }
+      } catch (e) { /* not a member, or no game yet: fall back to GCC */ }
       try {
         const [camp, snap] = await Promise.all([fsSdk.getDoc(fsSdk.doc(db, 'campaigns', cid)), fsSdk.getDocs(fsSdk.collection(db, `campaigns/${cid}/players`))]);
         const owner = camp.exists() ? camp.data().ownerUid : null;

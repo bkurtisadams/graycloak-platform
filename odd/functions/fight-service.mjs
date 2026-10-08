@@ -16,6 +16,8 @@
 // two players' moves can't cross. A refused action writes nothing.
 // ---------------------------------------------------------------------------
 
+import { isReferee } from "./campaign-service.mjs";
+
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
 // Player colours live in the rules package (fightView.PLAYER_COLOURS), so a player's page offers the same palette.
 const pad = (n) => String(n).padStart(8, "0");
@@ -45,7 +47,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
   const refuse = (code, error, extra = {}) => ({ ok: false, code, error, ...extra });
 
   const playersOf = (state) => [...new Set(Object.values(state.control ?? {}))].filter((c) => c !== "referee" && c !== "game").sort();
-  const whoIs = (state, camp, uid) => (camp?.refereeUid === uid ? { referee: true } : playersOf(state).includes(uid) ? { uid } : null);
+  // the game's Creator and co-referees are its referees (pass 3)
+  const whoIs = (state, camp, uid) => (isReferee(camp, uid) ? { referee: true } : playersOf(state).includes(uid) ? { uid } : null);
 
   /** Every write for a new rev: state, header, a view and a feed entry per viewer, the action record. */
   function writeFight(tx, p, state, events, { rev, uid, action, header }) {
@@ -109,7 +112,18 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const p = fightPaths(cid, fid);
     return store.run(async (tx) => {
       const camp = await tx.get(p.campaign), gcc = await tx.get(p.gcc), existing = await tx.get(p.fight);
-      if (camp && camp.refereeUid !== uid) return refuse("forbidden", "only the campaign's referee opens fights");
+      if (camp && !isReferee(camp, uid)) return refuse("forbidden", "only the campaign's referee opens fights");
+      // a figure given to a player by account (the game's members, pass 3): only members may be named
+      for (const [k, v] of Object.entries(state.control)) {
+        if (v === "referee" || v === "game" || people[v]) continue;
+        if (camp?.members?.includes(v)) { if (v === uid) { state.control[k] = "referee"; continue; } people[v] = { name: String(camp.people?.[v]?.name ?? "Player").slice(0, 60), color: camp.people?.[v]?.color ?? PLAYER_COLOURS[0] }; continue; }
+        // a game with members names only them; an older campaign (no members yet) takes the uid as given
+        if (camp?.members) return refuse("bad-request", "a figure is given to someone who is not in this game");
+        people[v] = { name: "Player", color: PLAYER_COLOURS[(Object.keys(people).length - 1) % PLAYER_COLOURS.length] };
+      }
+      // the game's own names and colours win over the email path's guesses
+      if (camp?.people) for (const u of Object.keys(people)) if (u !== "referee" && camp.people[u]) people[u] = { name: String(camp.people[u].name).slice(0, 60), color: camp.people[u].color };
+      if (camp?.people?.[uid]) people.referee = { name: String(camp.people[uid].name).slice(0, 60), color: REFEREE_COLOUR };
       if (!camp && gcc && gcc.ownerUid !== uid) return refuse("forbidden", "only the campaign's owner on GCC opens its fights");
       if (existing) return refuse("exists", `fight ${fid} already exists`);
       // names as the GCC roster has them, where it has them (read before any write)
@@ -117,7 +131,9 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
         const email = String(r.email ?? "").toLowerCase();
         for (const [k, raw] of Object.entries(players ?? {})) if (email && String(raw ?? "").trim().toLowerCase() === email) { const who = state.control[k]; if (people[who] && r.displayName) people[who].name = String(r.displayName).slice(0, 60); }
       }
-      if (!camp) tx.set(p.campaign, { refereeUid: uid, system: "odd", createdAt: now(), ...(gcc ? { name: String(gcc.name ?? "").slice(0, 120) } : {}) });
+      // the fight opened is the game's live fight: every connected page is pulled into it
+      if (!camp) tx.set(p.campaign, { refereeUid: uid, referees: [], members: [uid], people: { [uid]: { name: String(name || "Referee").slice(0, 60), color: REFEREE_COLOUR, role: "creator" } }, joinCode: Math.random().toString(36).slice(2, 10).toUpperCase(), invited: [], live: { fid, at: now() }, system: "odd", createdAt: now(), name: gcc ? String(gcc.name ?? "").slice(0, 120) : "OD&D game" });
+      else tx.set(p.campaign, clean({ ...camp, live: { fid, at: now() } }));
       writeFight(tx, p, state, events, { rev: 1, uid, header: { title: String(title).slice(0, 120), createdBy: uid, createdAt: now() } });
       // the fight as it opened: Undo replays the accepted actions from here
       tx.set(p.initial, clean(fightStore.toStored(state)));
@@ -217,14 +233,29 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
   async function chat({ uid, data }) {
     if (!uid) return refuse("auth", "sign in first");
     const { cid, fid, to = "all", as = null } = data ?? {};
-    if (!ID.test(cid ?? "") || !ID.test(fid ?? "")) return refuse("bad-request", "no such fight");
+    if (!ID.test(cid ?? "") || (fid != null && !ID.test(fid))) return refuse("bad-request", "no such fight");
     const text = String(data?.text ?? "").trim().slice(0, 400);
     if (!text) return refuse("bad-request", "nothing to say");
-    const p = fightPaths(cid, fid);
+    // no fight: the game's lobby chat, read by its members (pass 3)
+    const lobby = fid == null;
+    const p = lobby ? { campaign: `oddCampaigns/${cid}`, chat: (who, id) => `oddCampaigns/${cid}/chat/${who}/entries/${id}` } : fightPaths(cid, fid);
     return store.run(async (tx) => {
-      const camp = await tx.get(p.campaign), header = await tx.get(p.fight), stored = await tx.get(p.state);
-      if (!header || !stored) return refuse("not-found", "no such fight");
-      const state = fightStore.fromStored(stored);
+      const camp = await tx.get(p.campaign);
+      let state;
+      if (lobby) {
+        if (!camp) return refuse("not-found", "no such game");
+        // the lobby as a fight-shaped state: every non-referee member is a "player"; no figures to speak as
+        const ctl = {}; (camp.members ?? []).filter((u) => !isReferee(camp, u)).forEach((u, i) => { ctl[`m${i}`] = u; });
+        const people = { referee: { name: camp.people?.[uid]?.name ?? "Referee", color: REFEREE_COLOUR } };
+        for (const u of camp.members ?? []) if (!isReferee(camp, u)) people[u] = camp.people?.[u] ?? { name: "Player" };
+        if (isReferee(camp, uid)) people.referee = { name: camp.people?.[uid]?.name ?? "Referee", color: REFEREE_COLOUR };
+        state = { control: ctl, figures: [], people };
+        if (as != null && as !== "A" && as !== "B") return refuse("bad-request", "in the lobby you speak as yourself");
+      } else {
+        const header = await tx.get(p.fight), stored = await tx.get(p.state);
+        if (!header || !stored) return refuse("not-found", "no such fight");
+        state = fightStore.fromStored(stored);
+      }
       const who = whoIs(state, camp, uid);
       if (!who) return refuse("forbidden", "you are not in this fight");
       const me = who.referee ? "referee" : uid, people = state.people ?? {};

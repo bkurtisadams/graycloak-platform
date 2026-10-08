@@ -2,7 +2,7 @@
 // Regenerate: node cache-stamp.mjs [--release X.Y.Z]
 window.GCC_VERSION = {
   "platform": "0.27.33",
-  "date": "2026-10-07",
+  "date": "2026-10-08",
   "modules": {
     "gcc-map-parent-renderer": "1.1.0",
     "gcc-terrain": "0.1.0",
@@ -18,7 +18,7 @@ window.GCC_VERSION = {
     "gcc-backup": "1.2.0",
     "gcc-coast-scanner": "0.4.6",
     "gcc-combat": "0.4.2",
-    "gcc-data": "1.6.0",
+    "gcc-data": "1.6.1",
     "gcc-edge-flags": "0.1.0",
     "gcc-edge-modes": "0.3.0",
     "gcc-edge-scanner": "0.5.5",

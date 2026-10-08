@@ -109,6 +109,7 @@ header.top h1 { font-size: 1.35rem; }
 header.top .sub { color: var(--pencil); font-size: .9rem; }
 .grow { flex-grow: 1; }
 header.top button, .strip button, .drawer button { font: inherit; font-size: .9rem; }
+a.btn { border: 1px solid var(--ink); background: #fff; border-radius: 4px; padding: 5px 12px; color: var(--ink); text-decoration: none; font-size: .9rem; }
 .strip { margin: 0 20px; background: var(--card); border: 1px solid #b7c7d2; border-radius: 6px; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; }
 .strip-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .round { display: flex; flex-direction: column; }
@@ -286,6 +287,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <h1>OD&amp;D combat tester</h1>
   <span class="sub" id="subline">40' room with corridors · seed 1974</span>
   <div class="grow"></div>
+  <a id="toLobby" class="btn" hidden href="#" title="The game's lobby: players, chat, past fights">Game lobby</a>
   <button id="openSetup">Setup</button>
   <button id="reset" disabled>Reset</button>
 </header>
@@ -801,14 +803,14 @@ function runAction(action) {
 const newFightId = () => `fight-${Date.now().toString(36)}`;
 /** Online setup: who plays each character, by the email he signs in with. Blank: the referee runs it. */
 /** The GCC campaign's roster, loaded for the Players list (slice 5 pass 3). */
-const roster = { cid: null, name: null, players: [] };
+const roster = { cid: null, name: null, game: false, players: [] };
 async function loadRoster() {
   const api = online.api, cid = $("#cid").value.trim();
   if (!api?.user || !cid || roster.cid === cid) return;
   roster.cid = cid; roster.players = []; roster.name = null;
   const r = await api.roster(cid);
   if ($("#cid").value.trim() !== cid) return;
-  Object.assign(roster, { name: r.name, players: r.players.filter((p) => p.uid !== api.user.uid) });
+  Object.assign(roster, { name: r.name, game: !!r.game, players: r.players.filter((p) => p.uid !== api.user.uid) });
   $("#whoPlays").dataset.ids = ""; renderWhoPlays();
 }
 function renderWhoPlays() {
@@ -819,14 +821,17 @@ function renderWhoPlays() {
   if (el.dataset.ids === pcs.map((f) => `${f.id}:${f.name}`).join("|")) return; // don't redraw under the cursor
   el.dataset.ids = pcs.map((f) => `${f.id}:${f.name}`).join("|");
   if (roster.players.length) {
-    // the campaign has players on GCC: pick each character's player from them
-    const opts = (f) => [`<option value="">You (referee)</option>`, ...roster.players.map((p) => `<option value="${esc(p.email)}" ${f.playerEmail === p.email ? "selected" : ""}>${esc(p.name)}</option>`), `<option value="*" ${f.playerEmail && !roster.players.some((p) => p.email === f.playerEmail) ? "selected" : ""}>Someone else, by email…</option>`].join("");
-    el.innerHTML = `<h3 style="margin:0 0 4px">Players</h3><p class="note" style="margin:0 0 6px">The players of ${esc(roster.name ?? "this campaign")} on GCC. Pick who runs each character; leave it as you and you run it.</p>`
-      + pcs.map((f) => `<div class="bar"><label style="min-width:11em">${esc(f.name)}</label><select data-plays-sel="${f.id}">${opts(f)}</select><input type="email" data-plays="${f.id}" value="${esc(f.playerEmail ?? "")}" placeholder="email" style="width:14em" spellcheck="false" ${f.playerEmail && !roster.players.some((p) => p.email === f.playerEmail) ? "" : "hidden"}></div>`).join("");
+    // the game's members (by account), or the GCC campaign's players (by email): pick each character's player
+    const key = (p) => (roster.game ? `u:${p.uid}` : p.email), cur = (f) => (f.playerUid ? `u:${f.playerUid}` : f.playerEmail ?? "");
+    const known = (f) => roster.players.some((p) => key(p) === cur(f));
+    const opts = (f) => [`<option value="">You (referee)</option>`, ...roster.players.map((p) => `<option value="${esc(key(p))}" ${cur(f) === key(p) ? "selected" : ""}>${esc(p.name)}</option>`), `<option value="*" ${cur(f) && !known(f) ? "selected" : ""}>Someone else, by email…</option>`].join("");
+    el.innerHTML = `<h3 style="margin:0 0 4px">Players</h3><p class="note" style="margin:0 0 6px">${roster.game ? `The players in ${esc(roster.name ?? "this game")}.` : `The players of ${esc(roster.name ?? "this campaign")} on GCC.`} Pick who runs each character; leave it as you and you run it.</p>`
+      + pcs.map((f) => `<div class="bar"><label style="min-width:11em">${esc(f.name)}</label><select data-plays-sel="${f.id}">${opts(f)}</select><input type="email" data-plays="${f.id}" value="${esc(f.playerEmail ?? "")}" placeholder="email" style="width:14em" spellcheck="false" ${f.playerEmail && !f.playerUid && !known(f) ? "" : "hidden"}></div>`).join("");
     el.querySelectorAll("[data-plays-sel]").forEach((sel) => sel.addEventListener("change", () => {
       const f = byId(Number(sel.dataset.playsSel)), inp = el.querySelector(`[data-plays="${sel.dataset.playsSel}"]`); if (!f) return;
-      if (sel.value === "*") { inp.hidden = false; inp.focus(); f.playerEmail = inp.value.trim() || null; }
-      else { inp.hidden = true; inp.value = sel.value; f.playerEmail = sel.value || null; }
+      if (sel.value === "*") { inp.hidden = false; inp.focus(); f.playerUid = null; f.playerEmail = inp.value.trim() || null; }
+      else if (sel.value.startsWith("u:")) { inp.hidden = true; f.playerUid = sel.value.slice(2); f.playerEmail = null; }
+      else { inp.hidden = true; inp.value = sel.value; f.playerUid = null; f.playerEmail = sel.value || null; }
     }));
     el.querySelectorAll("[data-plays]").forEach((i) => i.addEventListener("input", () => { const f = byId(Number(i.dataset.plays)); if (f) f.playerEmail = i.value.trim() || null; }));
     return;
@@ -886,8 +891,25 @@ function adoptView(v) {
   if (state.selected != null && !byId(state.selected)) state.selected = null;
   state.group = new Set([...state.group].filter((id) => byId(id)));
 }
+/* ---------- the game (pass 3): the lobby, and the live fight that pulls every page along ---------- */
+const lobbyUrl = (cid) => `index.html?c=${encodeURIComponent(cid)}`;
+let gameWatch = null;
+/** Follow the game while a fight is open: a player's page goes where the referee goes; the lobby button links back. */
+function followGame(cid, fid) {
+  gameWatch?.(); gameWatch = null;
+  const api = online.api; if (!api || !cid) return;
+  const btn = $("#toLobby"); btn.hidden = false; btn.href = lobbyUrl(cid);
+  gameWatch = api.watchGame(cid, (g) => {
+    if (!g || !g.members) return; // an older campaign without a game: stay put
+    const live = g.live?.fid ?? null;
+    if (PLAYER && live !== fid) location.href = live ? `combat-grid.html?player&cid=${encodeURIComponent(cid)}&fid=${encodeURIComponent(live)}` : lobbyUrl(cid);
+  });
+}
 function openOnline(cid, fid) {
   const api = online.api; if (!api) return;
+  followGame(cid, fid);
+  // the referee opening a fight makes it the game's live fight: players' pages follow
+  if (!PLAYER) api.game("live", cid, { fid }).catch?.(() => {});
   $("#log").innerHTML = ""; online.header = null; online.lastStep = null;
   const viewer = PLAYER ? api.user?.uid : "referee";
   if (!viewer) { $("#onlineNote").textContent = "Sign in first."; return; }
@@ -915,8 +937,9 @@ function openOnline(cid, fid) {
 }
 async function createOnline() {
   const api = online.api, cid = $("#cid").value.trim(), fid = $("#fid").value.trim();
-  const control = Object.fromEntries(state.figures.map((f) => [f.id, f.side === "B" && $("#autoB").checked ? "game" : "referee"]));
-  const players = Object.fromEntries(state.figures.filter((f) => f.playerEmail).map((f) => [f.id, f.playerEmail]));
+  // a member of the game is named by his account (f.playerUid); a guest by email (f.playerEmail)
+  const control = Object.fromEntries(state.figures.map((f) => [f.id, f.playerUid ? f.playerUid : f.side === "B" && $("#autoB").checked ? "game" : "referee"]));
+  const players = Object.fromEntries(state.figures.filter((f) => f.playerEmail && !f.playerUid).map((f) => [f.id, f.playerEmail]));
   renderOnlineNote("Opening the fight on the server\u2026");
   const res = await api.createFight({ cid, fid, title: $("#ftitle").value.trim() || `${LAYOUT_NAME[$("#layout").value]}, ${state.figures.length} figures`, rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control, players });
   if (!res.ok) { resetFight(); $("#onlineNote").textContent = `The fight didn't open: ${res.error ?? res.code}`; openDrawer("setup"); return; }
@@ -1212,6 +1235,13 @@ $("#playMode").addEventListener("change", async (e) => {
   renderOnlineNote(); render(); refreshRefFights();
 });
 $("#cid").addEventListener("change", () => { refreshRefFights(); loadRoster(); });
+$("#toLobby").addEventListener("click", async (e) => {
+  const cid = online.api?.fight?.cid ?? $("#cid").value.trim(); if (!cid) return;
+  e.preventDefault();
+  // the referee going back to the lobby takes everyone with him
+  if (!PLAYER) await online.api.game("live", cid, { fid: null });
+  location.href = lobbyUrl(cid);
+});
 // arriving from a GCC campaign page (?cid=): that campaign, online, with its roster
 { const q = new URLSearchParams(location.search); if (!PLAYER && q.get("cid")) { $("#cid").value = q.get("cid"); $("#playMode").value = "online"; $("#playMode").dispatchEvent(new Event("change")); } }
 $("#signIn").addEventListener("click", async () => {

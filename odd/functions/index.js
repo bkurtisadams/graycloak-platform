@@ -5,7 +5,8 @@
 //   oddCreateFight  the referee opens a fight; the server seeds the dice
 //   oddAction       one action from a player or the referee
 //   oddDeleteFight  the referee deletes a fight (old test fights)
-//   oddChat         a chat line or a /roll, to everyone or privately
+//   oddChat         a chat line or a /roll, to everyone or privately (no fid: the lobby)
+//   oddCampaign     the game: open, join, profile, here, invite, live, reset, role, remove
 // Both return { ok, rev, ... } or { ok: false, code, error }; only a call
 // with no signed-in user is thrown back as an error.
 //
@@ -21,6 +22,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { randomInt } from 'node:crypto';
 import * as rules from './app/rules/index.js';
 import { createFightService } from './fight-service.mjs';
+import { createCampaignService } from './campaign-service.mjs';
 
 // Same region as the Firestore database (nam5) and the Traveller function.
 setGlobalOptions({ region: 'us-central1', maxInstances: 2 });
@@ -53,3 +55,5 @@ export const oddCreateFight = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (
 export const oddDeleteFight = onCall({ timeoutSeconds: 120, memory: '512MiB' }, (request) => service.remove({ uid: signedIn(request), data: request.data }));
 export const oddAction = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (request) => service.act({ uid: signedIn(request), data: request.data }));
 export const oddChat = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => service.chat({ uid: signedIn(request), data: request.data }));
+const games = createCampaignService({ palette: rules.fightView.PLAYER_COLOURS, refereeColour: rules.fightView.REFEREE_COLOUR, store, newCode: () => Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('') });
+export const oddCampaign = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => games.handle({ uid: signedIn(request), email: request.auth.token.email, name: request.auth.token.name || request.auth.token.email, data: request.data }));
