@@ -42,7 +42,6 @@ test("cert: Colorado Kid fires his DAR6 at medium range on a walking target", as
   assert.equal(hitChance(b.firearms.total, { range: "medium", targetMovement: "walking", hipshooting: true }).chance, 33);
 });
 
-test.todo("Shotgun/Scatter Gun Effects Table encoded from scan");
 
 test("cert: Juan Burrito vs Silver Dollar Sam (ERRATA 1: arm lock 2)", async () => {
   const { startBrawl, brawlAction, holdOn, brawlOver, speedAbility } = await import("../index.js");

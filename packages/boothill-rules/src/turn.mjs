@@ -17,6 +17,8 @@ import { netSpeed } from "./first-shot.mjs";
 import { hitChance } from "./hit.mjs";
 import { weaponProfile, rangeBand } from "./weapons.mjs";
 import { rollWound, coverStopsHit, condition, gunArmPenalty } from "./wounds.mjs";
+import { spreadWounds } from "./shotgun.mjs";
+import { rollD10 } from "./dice.mjs";
 
 /** Movement order: d100 each, lowest first. Equal rolls move together (ERRATA 14). */
 export function movementOrder(ids, rng = Math.random) {
@@ -130,7 +132,19 @@ export function fireNextGroup(input, declarations, done = [], rng = Math.random)
       const roll = d100(rng);
       const ev = { type: "shot", shooterId: id, targetId: s.targetId, shotNumber: i + 1, netSpeed: ns, speedParts, chance: c.chance, parts: c.parts, roll, hit: roll <= c.chance };
       if (ev.hit && p.spread) {
-        ev.spreadPending = true;
+        // Shotgun/Scatter Gun Effects Table: d10 for the number of wounds, each rolled
+        // on the Wound Chart and checked against cover on its own.
+        const d10 = rollD10(rng);
+        const count = spreadWounds(p.spread, rangeBand(d.weaponKey, s.distance), d10);
+        ev.spread = { d10, count };
+        ev.wounds = [];
+        for (let k = 0; k < count; k++) {
+          const w = rollWound({ rng, severityModifier: fighters[s.targetId].severityModifier ?? 0 });
+          const covered = coverStopsHit(w.location, s.exposed);
+          ev.wounds.push({ ...w, cover: covered });
+          if (!covered) landed.push({ targetId: s.targetId, wound: w, ev, multi: true });
+        }
+        if (count === 0 || ev.wounds.every((w) => w.cover)) { ev.noWound = true; }
       } else if (ev.hit) {
         const w = rollWound({ rng, severityModifier: fighters[s.targetId].severityModifier ?? 0 });
         ev.wound = w;
@@ -142,9 +156,11 @@ export function fireNextGroup(input, declarations, done = [], rng = Math.random)
     spent[id] = d.shots.length;
     fired.push(id);
   }
-  for (const { targetId, wound, ev } of landed) {
+  for (const { targetId, wound, ev, multi } of landed) {
     fighters[targetId].wounds.push({ location: wound.location, severity: wound.severity, points: wound.points ?? 0, healed: 0, note: "" });
-    ev.woundIndex = fighters[targetId].wounds.length - 1;
+    const index = fighters[targetId].wounds.length - 1;
+    if (multi) (ev.woundIndices ??= []).push(index);
+    else ev.woundIndex = index;
   }
   for (const id of new Set(landed.map((l) => l.targetId))) {
     const c = stateOf(fighters[id]);
@@ -250,10 +266,21 @@ export function runSelfTests() {
     const r = resolveFiring(fighters, decl, mulberry32(3));
     const shots = r.events.filter((e) => e.type === "shot");
     ok(shots[0].chance - shots[1].chance === 10 && shots[0].chance - shots[2].chance === 20, "shot 2 -10, shot 3 -20");
-    const sg = resolveFiring({ a: kid({ firstShotBase: 25 }), b: kid({}) }, [{ shooterId: "a", weaponKey: "2SG", loaded: 2, shots: [{ targetId: "b", distance: 3 }] }], forceRolls([0, 0.15]));
+    // Hit at 3″ (short), d10 = 8 → 4 wounds, each location 01 (left leg), severity 10 (light).
+    const wound = [0, 0.15, 0.1, 0.05];
+    const sg = resolveFiring({ a: kid({ firstShotBase: 25 }), b: kid({ strengthScore: 40 }) }, [{ shooterId: "a", weaponKey: "2SG", loaded: 2, shots: [{ targetId: "b", distance: 3 }] }],
+      forceRolls([0, 0.15, 0.75, ...wound, ...wound, ...wound, ...wound]));
     const s = sg.events.find((e) => e.type === "shot");
-    ok(s.hit && s.spreadPending && !s.wound, "shotgun hit pending effects table");
+    ok(s.hit && s.spread.d10 === 8 && s.spread.count === 4 && s.wounds.length === 4, "shotgun short d10 8 → 4 wounds");
     ok(s.parts.some((p) => p.key === "spread" && p.value === 10), "shotgun +10");
+    eq(sg.fighters.b.wounds.length, 4, "all four wounds land");
+    eq(s.woundIndices.join(), "0,1,2,3", "wound indices for undo");
+    ok(s.wounds.every((w) => w.location === "leftLeg" && w.severity === "light"), "each wound rolled on the Wound Chart");
+    // Behind a wall the legs are covered: every pellet stopped, no wound.
+    const wall = resolveFiring({ a: kid({ firstShotBase: 25 }), b: kid({}) }, [{ shooterId: "a", weaponKey: "2SG", loaded: 2, shots: [{ targetId: "b", distance: 3, exposed: ["head", "rightArm", "rightShoulder"] }] }],
+      forceRolls([0, 0.15, 0.75, ...wound, ...wound, ...wound, ...wound]));
+    const w2 = wall.events.find((e) => e.type === "shot");
+    ok(w2.noWound && w2.wounds.every((w) => w.cover) && wall.fighters.b.wounds.length === 0, "covered pellets stopped");
   }
 
   // Step by step: the queue shrinks one group at a time.
