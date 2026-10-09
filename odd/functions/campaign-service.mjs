@@ -10,7 +10,9 @@
 //   refereeUid      the Creator (made the game; one only)
 //   referees[]      co-referees the Creator has named
 //   members[]       everyone in the game, the Creator included
-//   people{uid}     { name, color, role: creator | referee | player }
+//   people{uid}     { name, color, role: creator | referee | player, character }
+//                   character: his assigned character (Foundry's User Configuration,
+//                   pass 4): a roster character he owns, or null
 //   joinCode        the secret part of the join link; reset on removal
 //   invited[]       emails invited by name: such a person joins without the code
 //   live            { fid, at } the fight open now, or null (the lobby)
@@ -82,15 +84,32 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
       if (!member) return refuse('forbidden', 'you are not in this game');
 
       if (op === 'profile') {
-        const people = { ...camp.people }, me = { ...(people[uid] ?? { role: ref ? 'referee' : 'player' }) };
+        // his own profile; a referee may also set anyone's (Foundry: the GM configures any user)
+        const who = data.uid && data.uid !== uid ? data.uid : uid;
+        if (who !== uid && !ref) return refuse('forbidden', 'only the referee changes another player');
+        if (!(camp.members ?? []).includes(who)) return refuse('bad-request', 'not in this game');
+        let assigned;
+        if ('character' in data) {
+          if (data.character == null || data.character === '') assigned = null;
+          else {
+            if (!ID.test(String(data.character))) return refuse('bad-request', 'no such character');
+            const ch = await tx.get(`oddCampaigns/${cid}/characters/${data.character}`);
+            if (!ch) return refuse('not-found', 'no such character');
+            if (ch.owner !== who) return refuse('bad-request', 'he can only be given a character he owns');
+            if (ch.status === 'draft') return refuse('bad-request', 'that character is not finished yet');
+            assigned = data.character;
+          }
+        }
+        const people = { ...camp.people }, me = { ...(people[who] ?? { role: isReferee(camp, who) ? 'referee' : 'player' }) };
+        if (assigned !== undefined) me.character = assigned;
         if (data.name != null) { const n = String(data.name).trim().slice(0, 60); if (!n) return refuse('bad-request', 'a name, please'); me.name = n; }
         if (data.color != null) {
           const c = String(data.color).toLowerCase();
-          if (!palette.includes(c) && !(ref && c === refereeColour)) return refuse('bad-request', 'pick one of the colours offered');
-          if (Object.entries(people).some(([u, q]) => u !== uid && q?.color === c)) return refuse('bad-request', 'someone else has that colour');
+          if (!palette.includes(c) && !(isReferee(camp, who) && c === refereeColour)) return refuse('bad-request', 'pick one of the colours offered');
+          if (Object.entries(people).some(([u, q]) => u !== who && q?.color === c)) return refuse('bad-request', 'someone else has that colour');
           me.color = c;
         }
-        people[uid] = me;
+        people[who] = me;
         return write({ ...camp, people });
       }
       if (op === 'here') { tx.set(p.presence(uid), { seen: now() }); return { ok: true }; }

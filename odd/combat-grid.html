@@ -153,6 +153,23 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .sb-pane.on { display: flex; }
 .sb-body { flex: 1 1 auto; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; font-size: .92rem; }
 .sb-icons { flex: 0 0 56px; background: var(--ink); display: flex; flex-direction: column; padding-top: 6px; }
+/* open: the tabs run across the top, above the pane (Kurt, Oct 2026); folded away: the old strip down the side */
+.stage:not(.log-closed) .logpanel.sidebar { flex-direction: column; }
+.stage:not(.log-closed) .sb-icons { flex: 0 0 auto; flex-direction: row; padding: 0; border-radius: 8px 8px 0 0; }
+.stage:not(.log-closed) .sb-icon { flex: 1 1 0; width: auto; height: 48px; border-left: 0; border-bottom: 3px solid transparent; }
+.stage:not(.log-closed) .sb-icon.on { border-bottom-color: #f5d78a; }
+.sb-stack { display: flex; flex-direction: column; gap: 10px; }
+/* Foundry's players list: who is here, each with his assigned character */
+.sb-players { flex: 0 0 auto; border-top: 1px solid #d5dbe3; padding: 6px 12px 8px; font-size: .82rem; max-height: 9.5em; overflow-y: auto; }
+.sb-players .pl { display: flex; align-items: center; gap: 6px; line-height: 1.5; }
+.sb-players .pl .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; border: 2px solid; box-sizing: border-box; }
+.sb-players .pl.away { color: var(--pencil); }
+.sb-players .pl .tag { font-size: .68rem; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; color: var(--pencil); }
+.stage.log-closed .sb-players { display: none; }
+.um-row { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 6px; align-items: center; }
+.um-row select { font: inherit; font-size: .8rem; padding: 2px 4px; max-width: 9.5em; }
+.um-row .um-del { border: 0; background: none !important; color: var(--red) !important; cursor: pointer; padding: 0 4px; font-size: 1rem; }
+.um-row .dot { width: 10px; height: 10px; border-radius: 50%; }
 .sb-icon { width: 56px; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-left: 3px solid transparent; border-radius: 0; background: transparent; color: #aeb9c6; font: 9px var(--serif); padding: 0; cursor: pointer; }
 .sb-icon.on { border-left-color: #f5d78a; background: #2d3a4a; color: #fff; }
 .sb-icon[hidden] { display: none; }
@@ -412,6 +429,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <p class="step" id="stepText"></p>
  </div>
  <aside class="logpanel sidebar" id="logpanel" aria-label="Sidebar">
+  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
   <div class="sb-panes">
    <section class="sb-pane on" data-sbpane="chat" aria-label="Log and chat">
   <div class="logpanel-head"><h2>Chat</h2><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
@@ -423,16 +441,16 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
    <button type="submit">Send</button>
   </form>
    </section>
-   <section class="sb-pane" data-sbpane="party" aria-label="Party"><div class="logpanel-head"><h2>Party</h2></div><div class="sb-body">
+   <section class="sb-pane" data-sbpane="party" aria-label="Actors"><div class="logpanel-head"><h2>Actors</h2></div><div class="sb-body">
   <div id="rosterPanel"></div>
   <section class="people" id="peoplePanel" hidden aria-label="Who runs what"><div id="peopleList"></div></section>
     <div id="partyNote" class="note"></div></div></section>
-   <section class="sb-pane" data-sbpane="players" aria-label="Players"><div class="logpanel-head"><h2>Players</h2></div><div class="sb-body" id="gamePlayers"></div></section>
    <section class="sb-pane" data-sbpane="places" aria-label="Places"><div class="logpanel-head"><h2>Places</h2><span class="note">referee only</span></div><div class="sb-body" id="gamePlaces"></div></section>
    <section class="sb-pane" data-sbpane="fights" aria-label="Fights"><div class="logpanel-head"><h2>Fights</h2></div><div class="sb-body" id="gameFights"></div></section>
-   <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="logpanel-head"><h2>Settings</h2></div><div class="sb-body" id="gameSettings"></div></section>
+   <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="logpanel-head"><h2>Settings</h2></div><div class="sb-body"><div id="gamePlayers" class="sb-stack"></div><div id="gameSettings" class="sb-stack"></div></div></section>
   </div>
-  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Party" aria-label="Party"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Party</span></button><button type="button" class="sb-icon" data-sbtab="players" title="Players" aria-label="Players"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 4l1.5 1.5L21 3" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Players</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
+  <div class="sb-players" id="sbPlayers" aria-label="Players" hidden></div>
+
  </aside>
 </section>
 <div class="floatwin" id="sheetWin" role="dialog" aria-label="Figure sheet" hidden><div class="fw-head" id="sheetHead"><b id="sheetTitle">Figure</b><span class="fw-sub" id="sheetSub"></span><button type="button" id="sheetFold" title="Fold">&ndash;</button><button type="button" id="sheetClose" title="Close">&times;</button></div><div class="fw-body" id="sheetBody"><div id="rsBody" hidden></div></div></div>
@@ -1018,8 +1036,8 @@ function startTable() {
     applyGame();
   });
   api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } });
-  api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "players") renderGamePlayers(); });
-  api.watchCharacters(table.cid, (list) => { table.chars = list; if (sbTab === "party") renderRoster(); if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); });
+  api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "settings") renderGamePlayers(); });
+  api.watchCharacters(table.cid, (list) => { table.chars = list; renderPlayersList(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); });
   const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
   here(); table.here = setInterval(here, 120000); document.addEventListener("visibilitychange", here);
   loadTableFights();
@@ -1055,8 +1073,21 @@ function startLobbyChat() {
   table.lobbyChat = api.lobbyChat(table.cid, viewer, (e) => chatLine(e));
 }
 function stopLobbyChat() { table.lobbyChat?.(); table.lobbyChat = null; }
+/** Foundry's players list at the foot of the sidebar: everyone in the game, here or away, with his assigned character. */
+function renderPlayersList() {
+  const el = $("#sbPlayers"), g = table.game; if (!el) return;
+  el.hidden = !TABLE || !g; if (el.hidden) return;
+  const me = online.api?.user?.uid, on = (u) => u === me || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
+  const order = (u) => (u === g.refereeUid ? 0 : (g.referees ?? []).includes(u) ? 1 : 2);
+  el.innerHTML = [...(g.members ?? [])].sort((a, b) => order(a) - order(b) || (on(b) - on(a))).map((u) => {
+    const p = g.people?.[u] ?? {}, ch = p.character ? table.chars.find((c) => c.id === p.character && c.owner === u) : null;
+    const col = esc(p.color ?? "#999");
+    return `<div class="pl ${on(u) ? "" : "away"}" title="${esc(p.name ?? "Player")}${on(u) ? ", here" : table.presence[u] ? `, last seen ${seenAgo(table.presence[u])}` : ", not seen yet"}"><span class="dot" style="border-color:${col};background:${on(u) ? col : "transparent"}"></span><span><b>${esc(p.name ?? "Player")}</b>${u === me ? " (you)" : ""}${ch ? `: ${esc(ch.name)}` : ""}</span>${isRefOf(g, u) ? `<span class="tag">GM</span>` : ""}</div>`;
+  }).join("");
+}
 function renderPresence() {
   const g = table.game; if (!g) return;
+  renderPlayersList();
   const on = (u) => u === online.api?.user?.uid || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
   $("#hereDots").innerHTML = (g.members ?? []).map((u) => { const p = g.people?.[u] ?? {}; return `<span class="${on(u) ? "" : "away"}" style="background:${esc(p.color ?? "#999")};border-color:${esc(p.color ?? "#999")}" title="${esc(p.name ?? "Player")}${on(u) ? "" : ", away"}"></span>`; }).join("");
 }
@@ -1070,24 +1101,27 @@ function renderLobbyStage() {
   el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The table")}</h2>
     <div>${PLAYER ? "<b>Waiting for the referee.</b> When he opens a fight, it appears here on its own." : "<b>Between fights.</b> Open a fight and every player's table switches to it."}</div>
     ${PLAYER ? "" : `<div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="done" id="lsNew">Open a fight</button>${fights.length ? `<span class="note">or reopen one in the Fights tab</span>` : ""}</div>`}
-    <div><b>The party</b>: ${party.length ? party.map((u) => `<span style="color:${esc(g.people?.[u]?.color ?? "inherit")};font-weight:700">${esc(g.people?.[u]?.name ?? "Player")}</span>`).join(", ") : "no players yet \u2014 send them the join link from the Players tab."}</div>
+    <div><b>The party</b>: ${party.length ? party.map((u) => `<span style="color:${esc(g.people?.[u]?.color ?? "inherit")};font-weight:700">${esc(g.people?.[u]?.name ?? "Player")}</span>`).join(", ") : "no players yet \u2014 send them the join link from Settings, User Management."}</div>
     ${fights.length ? `<div class="note">Recent fights: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</div>` : ""}</div>`;
   $("#lsNew")?.addEventListener("click", () => { table.setup = true; renderLobbyStage(); openDrawer("setup"); });
 }
 function renderGamePlayers() {
   const g = table.game, el = $("#gamePlayers"); if (!g || !el) return;
   const uid = online.api.user.uid, ref = isRefOf(g, uid), creator = g.refereeUid === uid;
+  if (!ref) { el.innerHTML = ""; return; }
   const on = (u) => u === uid || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
   const members = [...(g.members ?? [])].sort((a, b) => (a === g.refereeUid ? -1 : b === g.refereeUid ? 1 : 0));
+  // Foundry's User Management: a row per user with his role; his character as in his User Configuration
   const rows = members.map((u) => {
-    const p = g.people?.[u] ?? {}, role = u === g.refereeUid ? "Creator" : (g.referees ?? []).includes(u) ? "Referee" : "Player";
-    const seen = on(u) ? `<span style="color:#15803d">\u25cf online</span>` : `<span class="note">\u25cb ${table.presence[u] ? `last seen ${seenAgo(table.presence[u])}` : "not seen yet"}</span>`;
-    const menu = creator && u !== g.refereeUid ? `<button data-gmenu="${esc(u)}" title="More">\u22ef</button>` : "";
-    const open = table.menuFor === u ? `<div class="row" style="margin:4px 0 0 22px"><button data-grole="${esc(u)}">${(g.referees ?? []).includes(u) ? "Make a player again" : "Make co-referee"}</button><button class="bad" data-gremove="${esc(u)}">Remove \u00b7 resets the link</button></div>` : "";
-    return `<div><div class="row" style="display:flex;gap:8px;align-items:center"><span class="dot" style="background:${esc(p.color ?? "#999")}"></span><span style="flex:1"><b>${esc(p.name ?? "Player")}</b>${u === uid ? " (you)" : ""} \u00b7 ${role}<br>${seen}</span>${menu}</div>${open}</div>`;
+    const p = g.people?.[u] ?? {}, isCreator = u === g.refereeUid, isRef = (g.referees ?? []).includes(u);
+    const role = isCreator ? `<select disabled title="The Creator made the game"><option>Creator</option></select>`
+      : `<select data-grole="${esc(u)}" ${creator ? "" : "disabled title=\"Only the Creator changes roles\""}><option value="player" ${isRef ? "" : "selected"}>Player</option><option value="referee" ${isRef ? "selected" : ""}>Co-referee</option></select>`;
+    const own = table.chars.filter((c) => c.owner === u && c.status === "ready");
+    const charSel = `<select data-gchar="${esc(u)}" title="His assigned character"><option value="">no character</option>${own.map((c) => `<option value="${esc(c.id)}" ${p.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>`;
+    return `<div class="um-row"><span class="dot" style="background:${esc(p.color ?? "#999")}"></span><span><b>${esc(p.name ?? "Player")}</b>${u === uid ? " (you)" : ""}<br><span class="note">${on(u) ? "here" : table.presence[u] ? `last seen ${seenAgo(table.presence[u])}` : "not seen yet"}</span></span><span style="display:flex;flex-direction:column;gap:3px">${role}${charSel}</span>${creator && !isCreator ? `<button class="um-del" data-gremove="${esc(u)}" title="Remove from the game (resets the join link)" aria-label="Remove">\u{1F5D1}</button>` : "<span></span>"}</div>`;
   }).join("");
   const n = members.filter(on).length;
-  el.innerHTML = `<div class="sbcard"><h3>${n} of ${members.length} here</h3>${rows}</div>`
+  el.innerHTML = `<div class="sbcard"><h3>User Management <span class="note">${n} of ${members.length} here</span></h3>${rows}</div>`
     + (ref ? `<div class="sbcard"><h3>Join link</h3><div class="note">Anyone with this link who signs in joins as a player.</div><div class="row"><input readonly id="gJoin" value="${esc(joinUrl())}" style="flex:1;min-width:0;font-family:var(--type);font-size:.8rem"><button id="gCopyJ">Copy</button>${creator ? `<button id="gReset">Reset</button>` : ""}</div>
       <div class="row"><input id="gEmails" placeholder="Invite by email" style="flex:1;min-width:0"><button id="gInvite">Send</button></div>
       ${(g.invited ?? []).length ? `<div class="note">Pending: ${g.invited.map((e) => `${esc(e)} <a href="#" data-guninv="${esc(e)}">cancel</a>`).join(" \u00b7 ")}</div>` : ""}
@@ -1103,8 +1137,8 @@ function renderGamePlayers() {
     location.href = `mailto:${encodeURIComponent(emails.join(","))}?subject=${encodeURIComponent(`Join ${g.name ?? "my OD&D game"}`)}&body=${encodeURIComponent(`You're invited to my Original D&D game. Sign in with this email and you're in:\n\n${gameUrl()}\n\nOr use the join link:\n${joinUrl()}`)}`;
   });
   el.querySelectorAll("[data-guninv]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); api.game("uninvite", cid, { email: a.dataset.guninv }); }));
-  el.querySelectorAll("[data-gmenu]").forEach((b) => b.addEventListener("click", () => { table.menuFor = table.menuFor === b.dataset.gmenu ? null : b.dataset.gmenu; renderGamePlayers(); }));
-  el.querySelectorAll("[data-grole]").forEach((b) => b.addEventListener("click", () => { table.menuFor = null; api.game("role", cid, { uid: b.dataset.grole, referee: !(g.referees ?? []).includes(b.dataset.grole) }); }));
+  el.querySelectorAll("[data-grole]").forEach((sel) => sel.addEventListener("change", () => api.game("role", cid, { uid: sel.dataset.grole, referee: sel.value === "referee" })));
+  el.querySelectorAll("[data-gchar]").forEach((sel) => sel.addEventListener("change", async () => { const r = await api.game("profile", cid, { uid: sel.dataset.gchar, character: sel.value || null }); if (!r.ok) $("#gErr").textContent = r.error; }));
   el.querySelectorAll("[data-gremove]").forEach((b) => b.addEventListener("click", () => { const nm = g.people?.[b.dataset.gremove]?.name ?? "this player"; if (confirm(`Remove ${nm} from the game? The join link is reset.`)) { table.menuFor = null; api.game("remove", cid, { uid: b.dataset.gremove }); } }));
 }
 function renderGamePlaces() {
@@ -1130,11 +1164,13 @@ function renderGameSettings() {
   const g = table.game, uid = online.api?.user?.uid, me = g?.people?.[uid] ?? {};
   const taken = new Set(Object.entries(g?.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
   el.innerHTML = (g ? `<div class="sbcard"><h3>You at the table</h3><div class="row"><input id="gsName" value="${esc(me.name ?? "")}" maxlength="60" style="flex:1"><button id="gsSave">Save</button></div>
+      <div class="row"><label style="display:flex;gap:6px;align-items:center">Your character <select id="gsChar"><option value="">none</option>${table.chars.filter((c) => c.owner === uid && c.status === "ready").map((c) => `<option value="${esc(c.id)}" ${me.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label></div>
       <div class="row">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-gscol="${c}" aria-label="colour ${c}" style="width:24px;height:24px;border-radius:50%;padding:0;border:${c === me.color ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"};background:${c}"></button>`).join("")}</div><div class="bad" id="gsErr"></div></div>` : "")
     + `<div class="sbcard"><h3>The character card</h3><div class="row"><button id="gsDock">Dock it at the foot of the map</button><button id="gsFold">${abPlace.mini ? "Unfold it" : "Fold it to a line"}</button></div></div>`
     + (online.api?.user ? `<div class="sbcard"><h3>Account</h3><div class="note">Signed in as ${esc(online.api.user.email ?? online.api.user.displayName ?? "")}</div><div class="row"><button id="gsOut">Sign out</button></div></div>` : "");
   const save = async (data) => { const r = await online.api.game("profile", table.cid, data); $("#gsErr").textContent = r.ok ? "" : r.error; };
   $("#gsSave")?.addEventListener("click", () => save({ name: $("#gsName").value }));
+  $("#gsChar")?.addEventListener("change", (e) => save({ character: e.target.value || null }));
   el.querySelectorAll("[data-gscol]").forEach((b) => b.addEventListener("click", () => save({ color: b.dataset.gscol })));
   $("#gsDock").addEventListener("click", () => { delete abPlace.x; delete abPlace.y; saveAbPlace(); renderActionBar(); });
   $("#gsFold").addEventListener("click", () => { abPlace.mini = !abPlace.mini; saveAbPlace(); renderActionBar(); renderGameSettings(); });
@@ -1172,7 +1208,7 @@ function openOnline(cid, fid) {
     onView: (v) => {
       adoptView(v); refreshLoot();
       // the player's page always shows one of his own characters in the bar, unless he clicked another figure
-      if (PLAYER && (state.selected == null || !byId(state.selected))) { const own = state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
+      if (PLAYER && (state.selected == null || !byId(state.selected))) { const assigned = table.game?.people?.[online.api?.user?.uid]?.character; const own = (assigned && state.figures.find((f) => f.mine && f.charId === assigned && present(f))) ?? state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();
       renderOnlineNote();
     },
@@ -2256,7 +2292,7 @@ const iRef = () => TABLE && isRefOf(table.game, meUid());
 function renderRoster() {
   const el = $("#rosterPanel"); if (!el) return;
   if (!TABLE || !table.game) { el.innerHTML = ""; return; }
-  el.innerHTML = rui.rosterHtml(rs, table.chars, { me: meUid(), ref: iRef(), people: table.game.people, inFight: !!online.api?.fight });
+  el.innerHTML = rui.rosterHtml(rs, table.chars, { me: meUid(), ref: iRef(), people: table.game.people, members: table.game.members ?? [], inFight: !!online.api?.fight, menuFor: table.actorMenu });
 }
 function openCharSheet(id, tab) {
   const w = $("#sheetWin");
@@ -2315,12 +2351,18 @@ $("#rsBody").addEventListener("change", (e) => {
 $("#rosterPanel").addEventListener("click", async (e) => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.rsOpen) openCharSheet(b.dataset.rsOpen);
+  else if (b.dataset.rsMenu) { table.actorMenu = table.actorMenu === b.dataset.rsMenu ? null : b.dataset.rsMenu; renderRoster(); }
   else if ("rsRoll" in b.dataset) {
     b.disabled = true; b.textContent = "Rolling\u2026";
     const r = await online.api.character("roll", table.cid);
     if (!r.ok) { b.disabled = false; b.textContent = "Roll a new character"; alert(r.error ?? "The server didn't roll."); return; }
     table.chars.push(r.character); renderRoster(); openCharSheet(r.character.id);
   }
+});
+$("#rosterPanel").addEventListener("change", async (e) => {
+  const t = e.target; if (!t.dataset.rsOwner) return;
+  const r = await online.api.character("owner", table.cid, { id: t.dataset.rsOwner, uid: t.value });
+  if (!r.ok) alert(r.error ?? "The server refused."); else { table.actorMenu = null; const i = table.chars.findIndex((c) => c.id === r.character.id); if (i >= 0) table.chars[i] = r.character; renderRoster(); }
 });
 /** Setup (the referee, between fights): every finished character onto side A, run by his player. */
 function addParty() {
@@ -2383,16 +2425,15 @@ document.querySelectorAll("[data-logf]").forEach((b) => b.addEventListener("clic
 /** Which tabs show: Party once online, Players and Fights in a game, Places for its referees. */
 function sidebarTabs() {
   const inGame = TABLE && !!table.game, ref = inGame && isRefOf(table.game, online.api?.user?.uid);
-  const vis = { chat: true, party: online.on, players: inGame, places: ref, fights: inGame, settings: true };
+  const vis = { chat: true, party: online.on, places: ref, fights: inGame, settings: true };
   document.querySelectorAll(".sb-icon").forEach((b) => (b.hidden = !vis[b.dataset.sbtab]));
   if (!vis[sbTab]) showTab("chat");
 }
 function renderSidebar() {
   sidebarTabs();
-  if (sbTab === "players") renderGamePlayers();
-  else if (sbTab === "places") renderGamePlaces();
+  if (sbTab === "places") renderGamePlaces();
   else if (sbTab === "fights") renderGameFights();
-  else if (sbTab === "settings") renderGameSettings();
+  else if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); }
   else if (sbTab === "party") { renderRoster(); $("#partyNote").textContent = online.api?.fight || !TABLE ? "" : "Who runs which character shows here during a fight."; }
 }
 /** Who can speak: the referee, either side, or any character on the board; online, a player as himself or one of his own. */

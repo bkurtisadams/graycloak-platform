@@ -104,3 +104,22 @@ test("a roster character opens a fight with his own hit points and pack", async 
   const view = store.docs.get(fightPaths("c1", "f1").view("bob"));
   assert.equal(view.figures.find((f) => f.id === 1).charId, id, "the player's page knows which character it is");
 });
+
+test("Foundry's way: the referee gives a character to another player; a player is assigned a character he owns", async () => {
+  const { store, call } = game();
+  const id = (await call("bob", { op: "roll" })).character.id;
+  await call("bob", { op: "basics", id, name: "Brom" }); await call("bob", { op: "buy", id, key: "sword" }); await call("bob", { op: "finish", id });
+  const { createCampaignService } = await import("../campaign-service.mjs");
+  const games = createCampaignService({ palette: rules.fightView.PLAYER_COLOURS, refereeColour: rules.fightView.REFEREE_COLOUR, store, now: () => 1000 });
+  const prof = (uid, data) => games.handle({ uid, email: `${uid}@x.test`, name: uid, data: { op: "profile", cid: "c1", ...data } });
+  assert.equal((await prof("ann", { character: id })).ok, false, "Ann doesn't own Brom");
+  const mine = await prof("bob", { character: id });
+  assert.equal(mine.ok, true, mine.error); assert.equal(mine.game.people.bob.character, id);
+  assert.equal((await prof("ann", { uid: "bob", character: null })).code, "forbidden", "a player can't change another");
+  assert.equal((await prof("kurt", { uid: "bob", character: null })).game.people.bob.character, null, "the referee can");
+  assert.equal((await call("bob", { op: "owner", id, uid: "ann" })).code, "forbidden");
+  const moved = await call("kurt", { op: "owner", id, uid: "ann" });
+  assert.equal(moved.ok, true, moved.error); assert.equal(moved.character.owner, "ann"); assert.equal(moved.character.ownerName, "Ann");
+  assert.equal((await prof("ann", { character: id })).ok, true, "now Ann may take him as her character");
+  assert.equal((await call("kurt", { op: "owner", id, uid: "eve" })).ok, false, "only to a member");
+});

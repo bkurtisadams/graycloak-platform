@@ -13,6 +13,7 @@
 //   ready     the weapon in hand and the bow carried into fights
 //   remember  spells remembered
 //   rename, notes
+//   owner     the referee gives a character to another member (Foundry's Configure Ownership)
 //   delete    the referee only: rolls stand unless the referee throws a character away
 // The owner or a referee may do all but roll and delete.
 // ---------------------------------------------------------------------------
@@ -76,7 +77,11 @@ export function createCharacterService({ rules, store, now = () => Date.now(), r
       if (ch.owner !== uid && !ref) return refuse("forbidden", "that character isn't yours");
 
       let r;
-      if (op === "basics") r = roster.setBasics(ch, { name: data.name, race: data.race, cls: data.cls, alignment: data.alignment, exchange: data.exchange });
+      if (op === "owner") {
+        if (!ref) return refuse("forbidden", "only the referee changes who owns a character");
+        if (!(camp.members ?? []).includes(data.uid)) return refuse("bad-request", "not in this game");
+        r = { ok: true, ch: { ...ch, owner: data.uid, ownerName: camp.people?.[data.uid]?.name ?? null } };
+      } else if (op === "basics") r = roster.setBasics(ch, { name: data.name, race: data.race, cls: data.cls, alignment: data.alignment, exchange: data.exchange });
       else if (op === "buy") r = roster.buy(ch, String(data.key ?? ""));
       else if (op === "sell") r = roster.sell(ch, Number(data.index));
       else if (op === "finish") r = roster.finish(ch, d6);

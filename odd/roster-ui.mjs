@@ -28,23 +28,27 @@ export function titleFor(rs, ch) {
   return { title: ch.name, sub: `${sh.title} \u00b7 ${sh.raceLabel ? `${sh.raceLabel} ` : ""}${sh.classLabel} ${ch.level ?? 1} \u00b7 ${sh.alignLabel}` };
 }
 
-/** The Party tab: every finished character, and the drafts the viewer may see. */
-export function rosterHtml(rs, chars, { me, ref, people, inFight }) {
+/**
+ * The Actors directory (Foundry's sidebar directory, Kurt Oct 2026): "Create Actor" at the top, then a
+ * folder per kind. Player Characters for now; NPCs, hirelings and retainers get their folder when they
+ * become campaign data. The referee's menu on an actor changes who owns it (Configure Ownership).
+ */
+export function rosterHtml(rs, chars, { me, ref, people, members = [], inFight, menuFor = null }) {
   const who = (uid) => (uid === me ? "you" : people?.[uid]?.name ?? "a player");
   const done = chars.filter((c) => c.status !== "draft"), drafts = chars.filter((c) => c.status === "draft");
   const mine = drafts.find((c) => c.owner === me);
-  const rows = done.map((c) => {
-    const sh = rs.sheetFor(c);
-    return `<div class="rs-row"><div class="rs-main"><b>${esc(c.name)}</b> <span class="note">${esc(sh.raceLabel ? `${sh.raceLabel} ` : "")}${esc(sh.classLabel)} ${c.level ?? 1}</span><br>
-      <span class="mono rs-stats">${c.hp}/${c.maxHp} hp \u00b7 AC ${sh.ac} \u00b7 move ${sh.move}\u2033</span> <span class="note">\u00b7 ${esc(who(c.owner))}</span></div>
-      <button type="button" data-rs-open="${esc(c.id)}">Sheet</button></div>`;
-  }).join("");
+  const entry = (c) => {
+    const sh = rs.sheetFor(c), col = people?.[c.owner]?.color ?? "#999";
+    const menu = ref && menuFor === c.id ? `<div class="rs-menu"><label>Owner <select data-rs-owner="${esc(c.id)}">${members.map((u) => `<option value="${esc(u)}" ${u === c.owner ? "selected" : ""}>${esc(people?.[u]?.name ?? u)}</option>`).join("")}</select></label><span class="note">Configure Ownership: the owner runs him in fights and edits his sheet.</span></div>` : "";
+    return `<div class="rs-row"><span class="rs-own" style="background:${esc(col)}" title="Owned by ${esc(who(c.owner))}"></span><button type="button" class="rs-main" data-rs-open="${esc(c.id)}"><b>${esc(c.name)}</b> <span class="note">${esc(sh.raceLabel ? `${sh.raceLabel} ` : "")}${esc(sh.classLabel)} ${c.level ?? 1}</span><br>
+      <span class="mono rs-stats">${c.hp}/${c.maxHp} hp \u00b7 AC ${sh.ac} \u00b7 move ${sh.move}\u2033</span> <span class="note">\u00b7 ${esc(who(c.owner))}</span></button>
+      ${ref ? `<button type="button" class="rs-dots" data-rs-menu="${esc(c.id)}" title="Configure Ownership" aria-label="Actor menu">\u22ef</button>` : ""}</div>${menu}`;
+  };
   const others = drafts.filter((c) => c.owner !== me).map((c) => `<div class="note">${esc(who(c.owner))} is rolling a character${ref ? ` <button type="button" class="linkish" data-rs-open="${esc(c.id)}">look</button>` : ""}</div>`).join("");
-  return `<div class="sbcard"><h3>Characters${done.length ? ` <span class="note">(${done.length})</span>` : ""}</h3>
-    ${rows || `<div class="note">No characters yet. Roll one: 3d6 in order, then class, race and shopping.</div>`}
-    ${others}
-    <div class="row">${mine ? `<button type="button" class="primary" data-rs-open="${esc(mine.id)}">Finish ${esc(mine.name || "your rolled character")}</button>` : `<button type="button" data-rs-roll>Roll a new character</button>`}</div>
-    ${inFight ? "" : `<div class="note">The referee adds the party to a fight from Setup.</div>`}</div>`;
+  return `<div class="rs-create">${mine ? `<button type="button" class="primary" data-rs-open="${esc(mine.id)}">Finish ${esc(mine.name || "your rolled character")}</button>` : `<button type="button" data-rs-roll>Create Actor</button>`}<span class="note">3d6 in order, then class, race and shopping</span></div>
+    <details class="rs-folder" open><summary>Player Characters <span class="note">(${done.length})</span></summary>
+    ${done.map(entry).join("") || `<div class="note">No characters yet.</div>`}${others}</details>
+    ${inFight ? "" : `<div class="note">The referee adds the party to a fight from Setup.</div>`}`;
 }
 
 function abilityBoxes(rs, ch, sh, { rolled = false } = {}) {
@@ -138,7 +142,14 @@ export function chargenHtml(rs, ch, { error = "", busy = false, openCats = new S
 }
 
 export const ROSTER_CSS = `
-.rs-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid #e5e9ef; }
+.rs-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px solid #e5e9ef; }
+.rs-create { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rs-folder > summary { cursor: pointer; font-weight: 700; padding: 4px 0; border-bottom: 1px solid #d5dbe3; }
+.rs-own { width: 6px; align-self: stretch; border-radius: 3px; flex: none; }
+#rosterPanel .rs-main { flex: 1; min-width: 0; text-align: left; border: 0; background: none !important; color: inherit !important; padding: 2px 0; cursor: pointer; font: inherit; }
+#rosterPanel .rs-main:hover b { text-decoration: underline; }
+#rosterPanel .rs-dots { border: 0; background: none !important; color: var(--pencil) !important; font-size: 1.1rem; padding: 0 6px; cursor: pointer; }
+.rs-menu { margin: 0 0 6px 14px; display: flex; flex-direction: column; gap: 4px; font-size: .82rem; }
 .rs-row:first-of-type { border-top: 0; }
 .rs-main { flex: 1; min-width: 0; font-size: .9rem; line-height: 1.35; }
 .rs-stats { font-size: .78rem; }
