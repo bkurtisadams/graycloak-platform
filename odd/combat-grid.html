@@ -144,8 +144,48 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .chip .ca { font-size: .82rem; color: var(--pencil); }
 .chip .ca.warn { color: var(--red); }
 .chip.down { opacity: .5; }
-.stage { margin: 12px 20px 20px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
-.stage.log-closed { grid-template-columns: minmax(0, 1fr) 44px; }
+.stage { margin: 12px 20px 20px; display: grid; grid-template-columns: minmax(0, 1fr) 416px; gap: 16px; align-items: start; }
+.stage.log-closed { grid-template-columns: minmax(0, 1fr) 58px; }
+/* the sidebar (Foundry's paradigm, approved mockup 8 Oct 2026): panes on the left, icon tabs on the right */
+.logpanel.sidebar { flex-direction: row; padding: 0; }
+.sb-panes { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.sb-pane { display: none; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.sb-pane.on { display: flex; }
+.sb-body { flex: 1 1 auto; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; font-size: .92rem; }
+.sb-icons { flex: 0 0 56px; background: var(--ink); display: flex; flex-direction: column; padding-top: 6px; }
+.sb-icon { width: 56px; height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; border-left: 3px solid transparent; border-radius: 0; background: transparent; color: #aeb9c6; font: 9px var(--serif); padding: 0; cursor: pointer; }
+.sb-icon.on { border-left-color: #f5d78a; background: #2d3a4a; color: #fff; }
+.sb-icon[hidden] { display: none; }
+.stage.log-closed .sb-panes { display: none; }
+.logchips { display: flex; gap: 4px; flex-wrap: wrap; }
+.logchips button { font: inherit; font-size: .75rem; padding: 1px 8px; border: 1px solid #c9d2dd; border-radius: 999px; background: #fff; color: var(--pencil); min-height: 0; }
+.logchips button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+#log[data-f="fight"] .chat { display: none; }
+#log[data-f="chat"] > :not(.chat) { display: none; }
+#log[data-f="dice"] > :not(.chat):not(.diceroll), #log[data-f="dice"] .chat:not(:has(.roll)) { display: none; }
+.sbcard { border: 1px solid #d5dbe3; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.sbcard.live { border-color: var(--ink); background: #f1f5fb; }
+.sbcard h3 { margin: 0; font-size: .95rem; }
+.sbcard .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.sbcard button, .sb-body button { font: inherit; font-size: .85rem; padding: 4px 10px; }
+.sbcard input { font: inherit; padding: 5px 8px; border: 1px solid #9fb2c0; border-radius: 4px; }
+.livebadge { font-size: .7rem; background: var(--red, #b91c1c); color: #fff; border-radius: 999px; padding: 1px 8px; }
+.presence { display: flex; gap: 4px; align-items: center; }
+.presence span { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+.presence span.away { background: transparent !important; border: 2px solid; box-sizing: border-box; }
+/* the stage between fights: the lobby over the board */
+.lobbystage { position: absolute; inset: 0; z-index: 4; background: rgba(31, 43, 56, .92); display: flex; align-items: flex-start; justify-content: center; padding: 48px 20px; overflow-y: auto; }
+.lobbystage[hidden] { display: none; }
+.lobbystage .lcard { background: var(--card); border-radius: 10px; padding: 22px 26px; width: min(620px, 100%); display: flex; flex-direction: column; gap: 12px; }
+.lobbystage h2 { margin: 0; font-size: 1.3rem; }
+/* floating windows: a figure's sheet (Details) */
+.floatwin { position: fixed; z-index: 30; width: min(460px, calc(100vw - 20px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); overflow: hidden; }
+.floatwin[hidden] { display: none; }
+.floatwin .fw-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--ink); color: #fff; cursor: grab; user-select: none; touch-action: none; }
+.floatwin .fw-head b { flex: 1; font-size: .95rem; }
+.floatwin .fw-head button { font: inherit; font-size: 12px; line-height: 1; min-height: 0; height: 22px; width: 24px; padding: 0; border: 1px solid #8a96a1; background: transparent; color: #fff; border-radius: 3px; }
+.floatwin .fw-body { overflow-y: auto; padding: 10px 12px; }
+.floatwin.folded .fw-body { display: none; }
 .map-col { min-width: 0; }
 .logpanel { display: flex; flex-direction: column; height: max(520px, calc(100vh - 250px)); background: var(--card); border: 1px solid #9fb2c0; border-radius: 6px; overflow: hidden; }
 .logpanel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #c5d1d9; }
@@ -157,9 +197,7 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .chat { margin: 4px 0; font-family: var(--serif); font-size: .92rem; }
 .chat .who-a { color: var(--side-a); font-weight: 700; } .chat .who-b { color: var(--side-b); font-weight: 700; } .chat .who-r { color: var(--ink); font-weight: 700; }
 .chat .roll { font-family: var(--type); background: #eef2f5; padding: 0 4px; border-radius: 3px; }
-.stage.log-closed .logpanel #log, .stage.log-closed .logpanel .chatbar, .stage.log-closed .logpanel-head h2 { display: none; }
-.stage.log-closed .logpanel-head { flex-direction: column; padding: 8px 4px; border: none; }
-@media (max-width: 1000px) { .stage, .stage.log-closed { grid-template-columns: minmax(0, 1fr); } .logpanel { height: 45vh; } .stage.log-closed .logpanel { height: auto; } }
+@media (max-width: 1000px) { .stage, .stage.log-closed { grid-template-columns: minmax(0, 1fr); } .logpanel { height: 50vh; } .stage.log-closed .logpanel { height: auto; } .stage.log-closed .sb-icons { flex-direction: row; } .logpanel.sidebar { flex-direction: column-reverse; } .sb-icons { flex-direction: row; flex: 0 0 auto; padding: 0; overflow-x: auto; } .sb-icon { border-left: 0; border-top: 3px solid transparent; } .sb-icon.on { border-top-color: #f5d78a; } }
 .stage .map-wrap { height: max(520px, calc(100vh - 250px)); }
 .banner { position: absolute; left: 16px; top: 14px; max-width: calc(100% - 420px); display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,.25); z-index: 3; font-size: .95rem; }
 .banner[hidden] { display: none; }
@@ -281,7 +319,7 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 @media (max-width: 700px) { .ab-status { flex-direction: row; border-left: none; border-top: 1px solid #c9d8e2; padding: 8px 0 0; } .ab-status button { width: auto; } }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
-body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:not(.online-fight) #chatForm, body.player-mode #chips { display: none !important; }
+body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:not(.online-fight):not(.table) #chatForm, body.player-mode #chips { display: none !important; }
 /* online: speaker and listener on one row, the message on the next */
 .chatbar:has(#chatTo:not([hidden])) { flex-wrap: wrap; }
 .chatbar:has(#chatTo:not([hidden])) select { flex: 1 1 40%; max-width: none; }
@@ -302,7 +340,8 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <h1>OD&amp;D combat tester</h1>
   <span class="sub" id="subline">40' room with corridors · seed 1974</span>
   <div class="grow"></div>
-  <a id="toLobby" class="btn" hidden href="#" title="The game's lobby: players, chat, past fights">Game lobby</a>
+  <span class="presence" id="hereDots" aria-label="Here now"></span>
+  <a id="toLobby" class="btn" hidden href="#" title="End the fight: everyone goes back to the table between fights">End the fight</a>
   <button id="openSetup">Setup</button>
   <button id="reset" disabled>Reset</button>
 </header>
@@ -332,13 +371,15 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
     <div class="mapbar"><button id="zIn" aria-label="Zoom in">+</button><button id="zOut" aria-label="Zoom out">−</button><button id="fit">Fit</button><button id="measure" title="Measure a distance: click a start and an end (M)">Measure</button><button id="groupMode" title="Tap figures to add or remove them from the group">Select group</button><button id="showTargets" aria-pressed="false" title="Show every figure's target line (otherwise: the selected figure, the one under the pointer, and chargers)">Show targets</button></div>
     <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div>
     <div class="actionbar" id="actionbar"></div>
+    <div class="lobbystage" id="lobbyStage" hidden></div>
   </div>
   <p id="dragInfo" aria-live="polite"></p>
   <p class="step" id="stepText"></p>
  </div>
- <aside class="logpanel" id="logpanel" aria-label="Log and chat">
-  <section class="people" id="peoplePanel" hidden aria-label="Players"><h2>Players</h2><div id="peopleList"></div></section>
-  <div class="logpanel-head"><h2>Log &amp; chat</h2><button id="logToggle" title="Hide or show the log" aria-expanded="true">Hide</button></div>
+ <aside class="logpanel sidebar" id="logpanel" aria-label="Sidebar">
+  <div class="sb-panes">
+   <section class="sb-pane on" data-sbpane="chat" aria-label="Log and chat">
+  <div class="logpanel-head"><h2>Chat</h2><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
   <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
   <form class="chatbar" id="chatForm" autocomplete="off">
    <select id="chatAs" aria-label="Speak as"></select>
@@ -346,8 +387,19 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
    <input id="chatText" placeholder="Message, or /roll 2d6" aria-label="Chat message" maxlength="400">
    <button type="submit">Send</button>
   </form>
+   </section>
+   <section class="sb-pane" data-sbpane="party" aria-label="Party"><div class="logpanel-head"><h2>Party</h2></div><div class="sb-body">
+  <section class="people" id="peoplePanel" hidden aria-label="Who runs what"><div id="peopleList"></div></section>
+    <div id="partyNote" class="note"></div></div></section>
+   <section class="sb-pane" data-sbpane="players" aria-label="Players"><div class="logpanel-head"><h2>Players</h2></div><div class="sb-body" id="gamePlayers"></div></section>
+   <section class="sb-pane" data-sbpane="places" aria-label="Places"><div class="logpanel-head"><h2>Places</h2><span class="note">referee only</span></div><div class="sb-body" id="gamePlaces"></div></section>
+   <section class="sb-pane" data-sbpane="fights" aria-label="Fights"><div class="logpanel-head"><h2>Fights</h2></div><div class="sb-body" id="gameFights"></div></section>
+   <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="logpanel-head"><h2>Settings</h2></div><div class="sb-body" id="gameSettings"></div></section>
+  </div>
+  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Party" aria-label="Party"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Party</span></button><button type="button" class="sb-icon" data-sbtab="players" title="Players" aria-label="Players"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 4l1.5 1.5L21 3" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Players</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
  </aside>
 </section>
+<div class="floatwin" id="sheetWin" role="dialog" aria-label="Figure sheet" hidden><div class="fw-head" id="sheetHead"><b id="sheetTitle">Figure</b><button type="button" id="sheetFold" title="Fold">&ndash;</button><button type="button" id="sheetClose" title="Close">&times;</button></div><div class="fw-body" id="sheetBody"></div></div>
 <aside class="drawer" id="drawer" hidden aria-label="Setup and figure details">
   <div class="drawer-head">
     <div class="tabs" role="tablist">
@@ -872,7 +924,7 @@ async function goOnline() {
     $("#onlineNote").textContent = `Can't reach Firebase (${e.message}). Online play needs the page served from your machine or graycloak.net; the hosted artifact blocks it.`;
     return null;
   }
-  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (PLAYER) playerSignedIn(); else { refreshRefFights(); loadRoster(); refereeFromGcc(); } });
+  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (TABLE && online.api.user) startTable(); else if (TABLE) { location.replace(`index.html?c=${encodeURIComponent(table.cid)}`); return; } if (PLAYER) playerSignedIn(); else { refreshRefFights(); loadRoster(); refereeFromGcc(); } });
   return online.api;
 }
 /** Send an action to the server. The answer's events arrive through the feed; a refusal shows here. */
@@ -906,6 +958,150 @@ function adoptView(v) {
   if (state.selected != null && !byId(state.selected)) state.selected = null;
   state.group = new Set([...state.group].filter((id) => byId(id)));
 }
+/* ---------- the table (approved mockup 8 Oct 2026): one page per game, the stage in the middle, the sidebar on the right.
+   combat-grid.html?c=<game> (the referee) or ?player&c=<game>; odd/?c= sends you here once you're in.
+   The game document says which fight is live; every page opens it in place, and shows the lobby on the stage when none is. */
+const TABLE = new URLSearchParams(location.search).has("c");
+if (TABLE) { document.body.classList.add("table"); if (PLAYER) $("#openSetup").hidden = true; } // a player's table has no Setup
+const table = { cid: new URLSearchParams(location.search).get("c") ?? "", game: null, presence: {}, fights: null, menuFor: null, setup: false, lobbyChat: null, here: null };
+const isRefOf = (g, uid) => !!g && !!uid && (g.refereeUid === uid || (g.referees ?? []).includes(uid));
+const ONLINE_MS = 3 * 60 * 1000;
+const seenAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 2880 ? "yesterday" : `${Math.round(m / 1440)} days ago`; };
+const gameUrl = () => `${location.origin}${location.pathname.replace(/[^/]*$/, "")}?c=${encodeURIComponent(table.cid)}`;
+const joinUrl = () => `${gameUrl()}&k=${encodeURIComponent(table.game?.joinCode ?? "")}`;
+function startTable() {
+  const api = online.api, uid = api?.user?.uid; if (!TABLE || !uid || table.started) return;
+  table.started = true;
+  $("#cid").value = table.cid;
+  api.game("open", table.cid).then((r) => {
+    if (!r.ok) { logAppend(`<div class="card note"><span class="bad">${esc(r.error ?? "Not in this game.")}</span> <a href="index.html?c=${encodeURIComponent(table.cid)}">Join it here.</a></div>`); return; }
+    table.game = { ...r.game };
+    if (isRefOf(r.game, uid) === PLAYER) { location.replace(`combat-grid.html?${PLAYER ? "" : "player&"}c=${encodeURIComponent(table.cid)}`); return; } // wrong page for his role
+    applyGame();
+  });
+  api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } });
+  api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "players") renderGamePlayers(); });
+  const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
+  here(); table.here = setInterval(here, 120000); document.addEventListener("visibilitychange", here);
+  loadTableFights();
+}
+async function loadTableFights() { try { table.fights = await online.api.listFightsOf(table.cid, PLAYER); } catch { table.fights = []; } if (sbTab === "fights") renderGameFights(); renderLobbyStage(); }
+/** The game changed: names, presence, roles, and which fight is live. */
+function applyGame() {
+  const g = table.game, api = online.api; if (!g || !api) return;
+  document.querySelector("header.top h1").textContent = g.name ?? "OD&D game";
+  const me = g.people?.[api.user.uid];
+  $("#subline").textContent = PLAYER ? `Original D&D \u00b7 you are ${me?.name ?? "a player"}` : `Original D&D \u00b7 ${g.refereeUid === api.user.uid ? "you are the Creator" : "you are a referee"}`;
+  const live = g.live?.fid ?? null, open = api.fight?.fid ?? null;
+  if (live) table.setup = false; // a fight is live: Setup is done
+  if (live && live !== open) { stopLobbyChat(); table.setup = false; openOnline(table.cid, live); }
+  else if (!live && open) leaveFight();
+  $("#toLobby").hidden = PLAYER || !live;
+  // the Setup's Players list offers the game's members: refresh it when they change
+  const mk = (g.members ?? []).join(",") + "|" + Object.values(g.people ?? {}).map((p) => p.name).join(",");
+  if (!PLAYER && mk !== table.membersKey) { table.membersKey = mk; roster.cid = null; loadRoster(); }
+  renderPresence(); renderLobbyStage(); renderSidebar(); refreshChatTo(); refreshChatAs();
+  if (!live && !table.lobbyChat) startLobbyChat();
+}
+/** Back to the table between fights: close the fight here, without a reload. */
+function leaveFight() {
+  online.api.closeFight();
+  if (!PLAYER) resetFight(); else { Object.assign(state, { phase: "setup", figures: [], selected: null }); render(); }
+  $("#log").innerHTML = "";
+  loadTableFights();
+}
+function startLobbyChat() {
+  stopLobbyChat();
+  const api = online.api, viewer = PLAYER ? api.user.uid : "referee";
+  table.lobbyChat = api.lobbyChat(table.cid, viewer, (e) => chatLine(e));
+}
+function stopLobbyChat() { table.lobbyChat?.(); table.lobbyChat = null; }
+function renderPresence() {
+  const g = table.game; if (!g) return;
+  const on = (u) => u === online.api?.user?.uid || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
+  $("#hereDots").innerHTML = (g.members ?? []).map((u) => { const p = g.people?.[u] ?? {}; return `<span class="${on(u) ? "" : "away"}" style="background:${esc(p.color ?? "#999")};border-color:${esc(p.color ?? "#999")}" title="${esc(p.name ?? "Player")}${on(u) ? "" : ", away"}"></span>`; }).join("");
+}
+/** The stage between fights: who's here and what's next (and, for the referee, a way into Setup). */
+function renderLobbyStage() {
+  const el = $("#lobbyStage"); if (!el) return;
+  const g = table.game, show = TABLE && !!g && !online.api?.fight && !table.setup;
+  el.hidden = !show; if (!show) return;
+  const party = (g.members ?? []).filter((u) => !isRefOf(g, u));
+  const fights = (table.fights ?? []).slice(0, 5);
+  el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The table")}</h2>
+    <div>${PLAYER ? "<b>Waiting for the referee.</b> When he opens a fight, it appears here on its own." : "<b>Between fights.</b> Open a fight and every player's table switches to it."}</div>
+    ${PLAYER ? "" : `<div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="done" id="lsNew">Open a fight</button>${fights.length ? `<span class="note">or reopen one in the Fights tab</span>` : ""}</div>`}
+    <div><b>The party</b>: ${party.length ? party.map((u) => `<span style="color:${esc(g.people?.[u]?.color ?? "inherit")};font-weight:700">${esc(g.people?.[u]?.name ?? "Player")}</span>`).join(", ") : "no players yet \u2014 send them the join link from the Players tab."}</div>
+    ${fights.length ? `<div class="note">Recent fights: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</div>` : ""}</div>`;
+  $("#lsNew")?.addEventListener("click", () => { table.setup = true; renderLobbyStage(); openDrawer("setup"); });
+}
+function renderGamePlayers() {
+  const g = table.game, el = $("#gamePlayers"); if (!g || !el) return;
+  const uid = online.api.user.uid, ref = isRefOf(g, uid), creator = g.refereeUid === uid;
+  const on = (u) => u === uid || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
+  const members = [...(g.members ?? [])].sort((a, b) => (a === g.refereeUid ? -1 : b === g.refereeUid ? 1 : 0));
+  const rows = members.map((u) => {
+    const p = g.people?.[u] ?? {}, role = u === g.refereeUid ? "Creator" : (g.referees ?? []).includes(u) ? "Referee" : "Player";
+    const seen = on(u) ? `<span style="color:#15803d">\u25cf online</span>` : `<span class="note">\u25cb ${table.presence[u] ? `last seen ${seenAgo(table.presence[u])}` : "not seen yet"}</span>`;
+    const menu = creator && u !== g.refereeUid ? `<button data-gmenu="${esc(u)}" title="More">\u22ef</button>` : "";
+    const open = table.menuFor === u ? `<div class="row" style="margin:4px 0 0 22px"><button data-grole="${esc(u)}">${(g.referees ?? []).includes(u) ? "Make a player again" : "Make co-referee"}</button><button class="bad" data-gremove="${esc(u)}">Remove \u00b7 resets the link</button></div>` : "";
+    return `<div><div class="row" style="display:flex;gap:8px;align-items:center"><span class="dot" style="background:${esc(p.color ?? "#999")}"></span><span style="flex:1"><b>${esc(p.name ?? "Player")}</b>${u === uid ? " (you)" : ""} \u00b7 ${role}<br>${seen}</span>${menu}</div>${open}</div>`;
+  }).join("");
+  const n = members.filter(on).length;
+  el.innerHTML = `<div class="sbcard"><h3>${n} of ${members.length} here</h3>${rows}</div>`
+    + (ref ? `<div class="sbcard"><h3>Join link</h3><div class="note">Anyone with this link who signs in joins as a player.</div><div class="row"><input readonly id="gJoin" value="${esc(joinUrl())}" style="flex:1;min-width:0;font-family:var(--type);font-size:.8rem"><button id="gCopyJ">Copy</button>${creator ? `<button id="gReset">Reset</button>` : ""}</div>
+      <div class="row"><input id="gEmails" placeholder="Invite by email" style="flex:1;min-width:0"><button id="gInvite">Send</button></div>
+      ${(g.invited ?? []).length ? `<div class="note">Pending: ${g.invited.map((e) => `${esc(e)} <a href="#" data-guninv="${esc(e)}">cancel</a>`).join(" \u00b7 ")}</div>` : ""}
+      <div class="note">Game URL: <span style="font-family:var(--type)">${esc(gameUrl())}</span> <a href="#" id="gCopyG">copy</a></div><div class="bad" id="gErr"></div></div>` : "");
+  const api = online.api, cid = table.cid;
+  const copy = (txt, b) => { navigator.clipboard?.writeText(txt).catch(() => {}); b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1500); };
+  $("#gCopyJ")?.addEventListener("click", (e) => copy(joinUrl(), e.target));
+  $("#gCopyG")?.addEventListener("click", (e) => { e.preventDefault(); navigator.clipboard?.writeText(gameUrl()).catch(() => {}); e.target.textContent = "copied"; });
+  $("#gReset")?.addEventListener("click", () => { if (confirm("Reset the join link? The old one stops working.")) api.game("reset", cid); });
+  $("#gInvite")?.addEventListener("click", async () => {
+    const emails = $("#gEmails").value.split(/[\s,;]+/).filter(Boolean); if (!emails.length) return;
+    const r = await api.game("invite", cid, { emails }); if (!r.ok) { $("#gErr").textContent = r.error; return; }
+    location.href = `mailto:${encodeURIComponent(emails.join(","))}?subject=${encodeURIComponent(`Join ${g.name ?? "my OD&D game"}`)}&body=${encodeURIComponent(`You're invited to my Original D&D game. Sign in with this email and you're in:\n\n${gameUrl()}\n\nOr use the join link:\n${joinUrl()}`)}`;
+  });
+  el.querySelectorAll("[data-guninv]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); api.game("uninvite", cid, { email: a.dataset.guninv }); }));
+  el.querySelectorAll("[data-gmenu]").forEach((b) => b.addEventListener("click", () => { table.menuFor = table.menuFor === b.dataset.gmenu ? null : b.dataset.gmenu; renderGamePlayers(); }));
+  el.querySelectorAll("[data-grole]").forEach((b) => b.addEventListener("click", () => { table.menuFor = null; api.game("role", cid, { uid: b.dataset.grole, referee: !(g.referees ?? []).includes(b.dataset.grole) }); }));
+  el.querySelectorAll("[data-gremove]").forEach((b) => b.addEventListener("click", () => { const nm = g.people?.[b.dataset.gremove]?.name ?? "this player"; if (confirm(`Remove ${nm} from the game? The join link is reset.`)) { table.menuFor = null; api.game("remove", cid, { uid: b.dataset.gremove }); } }));
+}
+function renderGamePlaces() {
+  const g = table.game, el = $("#gamePlaces"); if (!g || !el) return;
+  const live = g.live?.fid, lf = (table.fights ?? []).find((f) => f.fid === live);
+  el.innerHTML = `<div class="sbcard ${live ? "" : "live"}"><h3>Between fights${live ? "" : ` <span class="livebadge">the party is here</span>`}</h3><div class="note">The table: the party, the chat, who's here.</div>${live ? `<div class="row"><button id="plBack">Go here \u00b7 ends the fight</button></div>` : ""}</div>
+    ${live ? `<div class="sbcard live"><h3>${esc(lf?.title ?? "The fight")} <span class="livebadge">LIVE</span></h3><div class="note">${lf ? `round ${lf.round ?? 0}` : ""}</div><div class="row"><button id="plEnd">End the fight</button></div></div>` : ""}
+    <div class="note">Dungeon levels, the wilderness and towns come with the level keys: "Show me" will change only your stage; "Go here" will move the party, and every player's stage follows.</div>`;
+  const end = () => online.api.game("live", table.cid, { fid: null });
+  $("#plBack")?.addEventListener("click", end); $("#plEnd")?.addEventListener("click", end);
+}
+function renderGameFights() {
+  const el = $("#gameFights"); if (!el || !table.game) return;
+  const list = table.fights, live = table.game.live?.fid;
+  const rows = list === null ? `<div class="note">loading\u2026</div>` : !list.length ? `<div class="note">${PLAYER ? "No fights you were in yet." : "No fights yet."}</div>`
+    : list.slice(0, 20).map((f) => `<div class="sbcard ${f.fid === live ? "live" : ""}"><h3>${esc(f.title || f.fid)}${f.fid === live ? ` <span class="livebadge">LIVE</span>` : ""}</h3><div class="note">${f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ""} \u00b7 ${f.phase === "over" ? "over" : f.phase === "fight" ? `round ${f.round ?? 0}` : ""}</div>${PLAYER || f.fid === live ? "" : `<div class="row"><button data-gopen="${esc(f.fid)}">Open \u00b7 pulls the party in</button></div>`}</div>`).join("");
+  el.innerHTML = (PLAYER ? "" : `<div class="row"><button class="done" id="gfNew">New fight</button></div>`) + rows;
+  $("#gfNew")?.addEventListener("click", async () => { if (live) await online.api.game("live", table.cid, { fid: null }); table.setup = true; renderLobbyStage(); openDrawer("setup"); });
+  el.querySelectorAll("[data-gopen]").forEach((b) => b.addEventListener("click", () => online.api.game("live", table.cid, { fid: b.dataset.gopen })));
+}
+function renderGameSettings() {
+  const el = $("#gameSettings"); if (!el) return;
+  const g = table.game, uid = online.api?.user?.uid, me = g?.people?.[uid] ?? {};
+  const taken = new Set(Object.entries(g?.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
+  el.innerHTML = (g ? `<div class="sbcard"><h3>You at the table</h3><div class="row"><input id="gsName" value="${esc(me.name ?? "")}" maxlength="60" style="flex:1"><button id="gsSave">Save</button></div>
+      <div class="row">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-gscol="${c}" aria-label="colour ${c}" style="width:24px;height:24px;border-radius:50%;padding:0;border:${c === me.color ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"};background:${c}"></button>`).join("")}</div><div class="bad" id="gsErr"></div></div>` : "")
+    + `<div class="sbcard"><h3>The character card</h3><div class="row"><button id="gsDock">Dock it at the foot of the map</button><button id="gsFold">${abPlace.mini ? "Unfold it" : "Fold it to a line"}</button></div></div>`
+    + (online.api?.user ? `<div class="sbcard"><h3>Account</h3><div class="note">Signed in as ${esc(online.api.user.email ?? online.api.user.displayName ?? "")}</div><div class="row"><button id="gsOut">Sign out</button></div></div>` : "");
+  const save = async (data) => { const r = await online.api.game("profile", table.cid, data); $("#gsErr").textContent = r.ok ? "" : r.error; };
+  $("#gsSave")?.addEventListener("click", () => save({ name: $("#gsName").value }));
+  el.querySelectorAll("[data-gscol]").forEach((b) => b.addEventListener("click", () => save({ color: b.dataset.gscol })));
+  $("#gsDock").addEventListener("click", () => { delete abPlace.x; delete abPlace.y; saveAbPlace(); renderActionBar(); });
+  $("#gsFold").addEventListener("click", () => { abPlace.mini = !abPlace.mini; saveAbPlace(); renderActionBar(); renderGameSettings(); });
+  $("#gsOut")?.addEventListener("click", () => { if (confirm("Sign out?")) online.api.signOut().then(() => location.reload()); });
+}
+
 /* ---------- the game (pass 3): the lobby, and the live fight that pulls every page along ---------- */
 const lobbyUrl = (cid) => `index.html?c=${encodeURIComponent(cid)}`;
 let gameWatch = null;
@@ -913,6 +1109,7 @@ let gameWatch = null;
 function followGame(cid, fid) {
   gameWatch?.(); gameWatch = null;
   const api = online.api; if (!api || !cid) return;
+  if (TABLE) return; // the table follows the game itself, in place (startTable)
   const btn = $("#toLobby"); btn.hidden = false; btn.href = lobbyUrl(cid);
   gameWatch = api.watchGame(cid, (g) => {
     if (!g || !g.members) return; // an older campaign without a game: stay put
@@ -924,7 +1121,7 @@ function openOnline(cid, fid) {
   const api = online.api; if (!api) return;
   followGame(cid, fid);
   // the referee opening a fight makes it the game's live fight: players' pages follow
-  if (!PLAYER) api.game("live", cid, { fid }).catch?.(() => {});
+  if (!PLAYER && !(TABLE && table.game?.live?.fid === fid)) api.game("live", cid, { fid }).catch?.(() => {});
   $("#log").innerHTML = ""; online.header = null; online.lastStep = null;
   const viewer = PLAYER ? api.user?.uid : "referee";
   if (!viewer) { $("#onlineNote").textContent = "Sign in first."; return; }
@@ -1194,6 +1391,7 @@ function playerSignedIn() {
   $("#pSignIn").textContent = u ? "Sign out" : "Sign in";
   $("#pWho").innerHTML = u ? `Signed in as <b>${esc(u.email ?? u.displayName ?? "you")}</b>. <span class="note">The referee puts this email beside your character.</span>` : "Sign in to play.";
   const q = new URLSearchParams(location.search);
+  if (TABLE) { $("#drawer").hidden = true; return; } // the table opens the live fight itself
   if (u && q.get("cid") && q.get("fid") && !online.api.fight) { $("#pCid").value = q.get("cid"); openOnline(q.get("cid"), q.get("fid")); $("#drawer").hidden = true; }
   else if (u) findFights();
 }
@@ -1253,12 +1451,13 @@ $("#cid").addEventListener("change", () => { refreshRefFights(); loadRoster(); }
 $("#toLobby").addEventListener("click", async (e) => {
   const cid = online.api?.fight?.cid ?? $("#cid").value.trim(); if (!cid) return;
   e.preventDefault();
+  if (TABLE) { await online.api.game("live", cid, { fid: null }); return; } // the table leaves the fight in place
   // the referee going back to the lobby takes everyone with him
   if (!PLAYER) await online.api.game("live", cid, { fid: null });
   location.href = lobbyUrl(cid);
 });
 // arriving from a GCC campaign page (?cid=): that campaign, online, with its roster
-{ const q = new URLSearchParams(location.search); if (!PLAYER && q.get("cid")) { $("#cid").value = q.get("cid"); $("#playMode").value = "online"; $("#playMode").dispatchEvent(new Event("change")); } }
+{ const q = new URLSearchParams(location.search); if (q.get("c")) { $("#cid").value = q.get("c"); $("#playMode").value = "online"; $("#playMode").dispatchEvent(new Event("change")); } else if (!PLAYER && q.get("cid")) { $("#cid").value = q.get("cid"); $("#playMode").value = "online"; $("#playMode").dispatchEvent(new Event("change")); } }
 $("#signIn").addEventListener("click", async () => {
   const api = await goOnline(); if (!api) return;
   if (api.user) { await api.signOut(); renderOnlineNote(); } else openSignIn();
@@ -1837,6 +2036,7 @@ function gripActionBar(el) {
 }
 function renderActionBar() {
   drawActionBar();
+  if (!$("#sheetWin").hidden) titleSheet();
   const el = $("#actionbar"); gripActionBar(el); placeActionBar(el);
 }
 function drawActionBar() {
@@ -1930,7 +2130,34 @@ function renderBanner() {
   b.hidden = true; return;
   b.hidden = false; $("#bannerK").textContent = state.banner.k; $("#bannerText").textContent = state.banner.text;
 }
+/* ---------- a figure's sheet as a floating window (Foundry's sheets): drag its title bar; it stays where you leave it ---------- */
+const sheetPlace = (() => { try { return JSON.parse(localStorage.getItem("odd-sheetwin") || "{}"); } catch { return {}; } })();
+function placeSheet() {
+  const w = $("#sheetWin"), W = window.innerWidth, H = window.innerHeight;
+  const x = sheetPlace.x ?? Math.max(10, W - 480 - w.offsetWidth), y = sheetPlace.y ?? 140; // by default just left of the sidebar
+  w.style.left = `${Math.max(4, Math.min(W - 60, x))}px`; w.style.top = `${Math.max(4, Math.min(H - 40, y))}px`;
+}
+function openSheet() {
+  const w = $("#sheetWin");
+  if ($("#detail").parentElement !== $("#sheetBody")) $("#sheetBody").appendChild($("#detail"));
+  w.hidden = false; w.classList.remove("folded"); placeSheet(); titleSheet();
+}
+function titleSheet() {
+  const f = state.selected != null ? byId(state.selected) : null;
+  $("#sheetTitle").textContent = f ? f.name : "Figure";
+}
+$("#sheetClose").addEventListener("click", () => { $("#sheetWin").hidden = true; });
+$("#sheetFold").addEventListener("click", () => $("#sheetWin").classList.toggle("folded"));
+$("#sheetHead").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || e.target.closest("button")) return;
+  const w = $("#sheetWin"), r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top, h = e.currentTarget;
+  h.setPointerCapture(e.pointerId);
+  h.onpointermove = (m) => { sheetPlace.x = m.clientX - dx; sheetPlace.y = m.clientY - dy; placeSheet(); };
+  h.onpointerup = () => { h.onpointermove = h.onpointerup = null; try { localStorage.setItem("odd-sheetwin", JSON.stringify(sheetPlace)); } catch {} };
+});
+$("#sheetHead").addEventListener("dblclick", () => $("#sheetWin").classList.toggle("folded"));
 function openDrawer(tab) {
+  if (tab === "figure") { openSheet(); return; }
   $("#drawer").hidden = false;
   document.querySelectorAll(".tabs [data-tab]").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === tab)));
   document.querySelectorAll(".tabpane").forEach((p) => p.classList.toggle("on", p.dataset.pane === tab));
@@ -1949,17 +2176,52 @@ function setLogOpen(open) {
 }
 $("#showTargets").addEventListener("click", () => { state.showTargets = !state.showTargets; $("#showTargets").setAttribute("aria-pressed", String(!!state.showTargets)); $("#showTargets").classList.toggle("primary", !!state.showTargets); renderMap(); });
 $("#logToggle").addEventListener("click", () => setLogOpen($("#stage").classList.contains("log-closed")));
+/* ---------- the sidebar: icon tabs (Foundry's paradigm). Clicking the open tab folds the sidebar away. ---------- */
+let sbTab = (() => { try { return localStorage.getItem("odd.sbtab") || "chat"; } catch { return "chat"; } })();
+function showTab(tab, fromClick) {
+  const icon = document.querySelector(`.sb-icon[data-sbtab="${tab}"]`);
+  if (!icon || icon.hidden) tab = "chat";
+  if (fromClick && tab === sbTab && !$("#stage").classList.contains("log-closed")) { setLogOpen(false); return; }
+  if ($("#stage").classList.contains("log-closed")) setLogOpen(true);
+  sbTab = tab; try { localStorage.setItem("odd.sbtab", tab); } catch {}
+  document.querySelectorAll(".sb-icon").forEach((b) => b.classList.toggle("on", b.dataset.sbtab === tab));
+  document.querySelectorAll(".sb-pane").forEach((p) => p.classList.toggle("on", p.dataset.sbpane === tab));
+  renderSidebar();
+}
+document.querySelectorAll(".sb-icon").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.sbtab, true)));
+document.querySelectorAll("[data-logf]").forEach((b) => b.addEventListener("click", () => {
+  $("#log").dataset.f = b.dataset.logf;
+  document.querySelectorAll("[data-logf]").forEach((x) => x.classList.toggle("on", x === b));
+}));
+/** Which tabs show: Party once online, Players and Fights in a game, Places for its referees. */
+function sidebarTabs() {
+  const inGame = TABLE && !!table.game, ref = inGame && isRefOf(table.game, online.api?.user?.uid);
+  const vis = { chat: true, party: online.on, players: inGame, places: ref, fights: inGame, settings: true };
+  document.querySelectorAll(".sb-icon").forEach((b) => (b.hidden = !vis[b.dataset.sbtab]));
+  if (!vis[sbTab]) showTab("chat");
+}
+function renderSidebar() {
+  sidebarTabs();
+  if (sbTab === "players") renderGamePlayers();
+  else if (sbTab === "places") renderGamePlaces();
+  else if (sbTab === "fights") renderGameFights();
+  else if (sbTab === "settings") renderGameSettings();
+  else if (sbTab === "party") $("#partyNote").textContent = online.api?.fight ? "" : "Who runs which character shows here during a fight. Characters and their sheets come with the roster.";
+}
 /** Who can speak: the referee, either side, or any character on the board; online, a player as himself or one of his own. */
 function chatSpeakers() {
+  if (TABLE && !online.api?.fight) return [[PLAYER ? "me" : "ref", table.game?.people?.[online.api?.user?.uid]?.name ?? (PLAYER ? "Me" : "Referee")]];
   if (online.on && PLAYER) return [["me", state.people?.[online.api?.user?.uid]?.name ?? "Me"], ...state.figures.filter((f) => f.mine && f.placed).map((f) => [`f${f.id}`, f.name])];
   return [["ref", "Referee"], ["A", "Side A"], ["B", "Side B"], ...state.figures.filter((f) => (online.on ? true : f.kind === "pc") && f.placed).map((f) => [`f${f.id}`, f.name])];
 }
 /** Online: who hears it. A player speaks to everyone or the referee alone; the referee to everyone or one player. */
 function refreshChatTo() {
   const sel = $("#chatTo"); if (!sel) return;
-  sel.hidden = !(online.on && state.phase !== "setup");
+  const lobby = TABLE && !online.api?.fight;
+  sel.hidden = !(lobby ? !!table.game : online.on && state.phase !== "setup");
   if (sel.hidden) return;
-  const list = PLAYER ? [["all", "Everyone"], ["referee", "Referee only"]] : [["all", "Everyone"], ...Object.entries(state.people ?? {}).filter(([u]) => u !== "referee").map(([u, p]) => [u, `${p.name} only`])];
+  const people = lobby ? Object.fromEntries((table.game.members ?? []).filter((u) => !isRefOf(table.game, u)).map((u) => [u, table.game.people?.[u] ?? { name: "Player" }])) : state.people ?? {};
+  const list = PLAYER ? [["all", "Everyone"], ["referee", "Referee only"]] : [["all", "Everyone"], ...Object.entries(people).filter(([u]) => u !== "referee").map(([u, p]) => [u, `${p.name} only`])];
   const key = list.map((x) => x.join(":")).join("|"); if (sel.dataset.key === key) return;
   const was = sel.value; sel.dataset.key = key;
   sel.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
@@ -1990,6 +2252,13 @@ function chatRoll(expr) {
 $("#chatForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("#chatText").value.trim(); if (!text) return;
+  if (TABLE && online.api?.user && !online.api?.fight) {
+    // between fights at the table: the game's lobby chat
+    $("#chatText").value = "";
+    const r = await online.api.sayInLobby(table.cid, { text, to: $("#chatTo").value || "all" });
+    if (!r.ok) { $("#chatText").value = text; logAppend(`<div class="card note"><span class="bad">${esc(r.error ?? "Not sent.")}</span></div>`); }
+    return;
+  }
   if (online.on && state.phase !== "setup" && online.api?.fight) {
     const as = $("#chatAs").value, data = { text, to: $("#chatTo").value || "all", as: as.startsWith("f") ? Number(as.slice(1)) : as === "A" || as === "B" ? as : null };
     $("#chatText").value = "";

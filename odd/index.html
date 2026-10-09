@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OD&amp;D game</title>
-<!-- odd/index.html v1.0.0 — 2026-10-08 · slice 5 pass 3: the game (approved mockups 8 Oct 2026).
+<!-- odd/index.html v1.1.0 — 2026-10-08 · slice 5 pass 3: the game (approved mockups 8 Oct 2026).
+     v1.1.0: once you're in, this page sends you to the table (combat-grid.html?c=), which now holds
+     the lobby, players, fights and chat in its sidebar; this page keeps signing in and joining.
      One URL per game: odd/?c=<campaign>. With &k=<code> it is the join link.
        not signed in   step 1: sign in (Google, or email and password)
        first join      step 2: name at the table, colour, characters
@@ -120,6 +122,7 @@ async function enter() {
   }
   if (code) history.replaceState(null, '', `?c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`);
   S.game = r.game; S.welcome = !!r.joined;
+  if (!S.welcome) { onGame(); return; }
   S.unsubs.push(S.api.watchGame(cid, (g) => { if (g) { S.game = { ...S.game, ...g }; onGame(); } }, (e) => { S.error = e; }));
   S.unsubs.push(S.api.watchPresence(cid, (p) => { S.presence = p; render(); }));
   const here = () => { if (document.visibilityState === 'visible') S.api.game('here', cid); };
@@ -128,8 +131,8 @@ async function enter() {
   render();
 }
 function onGame() {
-  // a player is pulled into the fight the referee opens
-  if (!isRef() && !S.welcome && S.game.live?.fid) { location.href = fightUrl(S.game.live.fid, true); return; }
+  // in: go to the table (one page per game; it shows the live fight or the lobby on its stage)
+  if (!S.welcome) { location.replace(`combat-grid.html?${isRef() ? '' : 'player&'}c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`); return; }
   render();
 }
 async function loadFights() {
