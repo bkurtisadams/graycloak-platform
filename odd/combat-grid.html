@@ -339,6 +339,10 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
   .ab-status .k { font-size: .65rem; } .ab-status .v { font-size: .85rem; }
   .ab-status button { min-height: 30px; padding: 3px 8px; font-size: .82rem !important; }
 }
+.ab-stats { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-family: var(--type); font-size: .75rem; }
+.ab-stats .hpbar { width: 48px; flex-shrink: 0; }
+@media (min-width: 701px) { .ab-who { max-width: 270px; } }
+.ab-warn { font-size: .75rem; color: var(--red); font-weight: 600; }
 .ab-status .why { font-size: .72rem; color: var(--pencil); line-height: 1.3; max-width: 150px; }
 .ab-cap { flex-basis: 100%; font-size: .75rem; color: var(--pencil); font-family: var(--serif); }
 .ab-hint { align-self: center; }
@@ -1248,6 +1252,13 @@ function colourChoices(uid) {
   return `<div class="swatches" style="display:flex;gap:6px;flex-wrap:wrap;margin:6px 0">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-colour="${c}" aria-label="Colour ${c}" style="width:22px;height:22px;border-radius:50%;padding:0;background:${c};border:${state.people?.[uid]?.color === c ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"}"></button>`).join("")}</div>`;
 }
 const CLASS_NAME = Object.fromEntries(CLASSES.map((c) => [c.id, c.label === "Fighting-Man" ? "Fighter" : c.label]));
+/** The card's order line in plain words, naming the weapon ("melee with the sword", "fire the short bow"). */
+function orderText(f, p) {
+  const a = f.action ?? "melee";
+  if (a !== "melee") return cardAction(f);
+  const w = p.profileAttack ? "" : (WEAPON_LABEL[p.weaponId] ?? "").toLowerCase();
+  return `${f.stance === "parry" ? "parry" : "melee"}${w ? ` with the ${w}` : ""}`;
+}
 /** The card's Action line, as in the mockup ("fire the short bow"); the target has its own line. */
 function cardAction(f) {
   const a = f.action ?? "melee";
@@ -1354,8 +1365,8 @@ function statusBlock(f) {
   const body = !needsReady(f)
     ? `<span class="v st-other">${!alive(f) ? "Down" : !active(f) ? esc(f.status ?? "Out") : mayElectHere() ? "Your call" : isOrders() ? "Nothing to decide" : movingSide() && f.side !== movingSide() ? "Not moving" : "Waiting"}</span>${alive(f) && active(f) && !mayElectHere() ? `<span class="why">${esc(waitReason(f))}</span>` : ""}`
     : isReadyFig(f)
-      ? `<span class="v st-ready">\u2713 Ready</span><span class="why">${esc(waitReason(f))}</span><button type="button" class="back" data-unready="${f.id}">Change orders</button>`
-      : `<span class="v st-deciding">Deciding</span><button type="button" class="go primary" data-ready="${f.id}">Ready</button>`;
+      ? `<span class="v st-ready">\u2713 ${isOrders() ? "Confirmed" : "Done moving"}</span><span class="why">${esc(waitReason(f))}</span><button type="button" class="back" data-unready="${f.id}">${isOrders() ? "Change orders" : "Not done yet"}</button>`
+      : `<span class="v st-deciding">${isOrders() ? "Deciding" : "Moving"}</span><button type="button" class="go primary" data-ready="${f.id}">${isOrders() ? "Confirm orders" : "Done moving"}</button>`;
   return `<div class="ab-status"><span class="k">Status</span>${body}</div>`;
 }
 /** A player with more than one character switches between them in the bar's header. */
@@ -1964,7 +1975,7 @@ function stepLabel() {
   }
   if (state.phase === "setup") return online.on ? "Start fight online" : "Start fight";
   if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect" && state.step !== "orders") return "The server resolves this step";
-  if (online.on && state.phase === "fight" && (state.step.startsWith("move-") || state.step === "orders")) { const n = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length; return n ? `Mark my ${n === 1 ? "figure" : `${n} figures`} Ready` : "Waiting on the players"; }
+  if (online.on && state.phase === "fight" && (state.step.startsWith("move-") || state.step === "orders")) { const n = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length; return n ? (state.step === "orders" ? (n === 1 ? "Confirm my orders" : `Confirm orders for my ${n} figures`) : (n === 1 ? "My figure is done moving" : `My ${n} figures are done moving`)) : "Waiting on the players"; }
   if (state.phase === "over") return "Fight over";
   if (state.step === "init") return state.round ? "Next round" : "Roll initiative";
   if (state.step === "elect") return "Choose to move first or last";
@@ -2116,8 +2127,12 @@ function drawActionBar() {
   const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx, hpTxt = hpText(f);
   const total = allowanceOf(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
   const fight = state.phase === "fight" && active(f) && mineOk(f);
+  const ammoN = f.missile && f.mine !== false ? ms.ammoLeft(f) : null;
+  const ammo = ammoN == null ? null : `${ammoN} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ammoN === 1 ? 0 : 1]}`;
+  // what has gone wrong with him, kept in sight (Oct 2026): a broken weapon, no shots left, a condition
+  const probs = [f.weaponBroken && !p.profileAttack ? `${(WEAPON_LABEL[p.weaponId] ?? "weapon").toLowerCase()} broken` : null, ammoN === 0 ? `out of ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][1]}` : null, alive(f) && f.status ? f.status : null].filter(Boolean);
   const btn = (id, text, on, cls = "", title = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}"${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</button>`;
-  const acts = []; let hint = "", cap = fight && state.step === "orders" ? "Declare this round's order: everyone's fire, spells and melee resolve together once all are Ready." : "";
+  const acts = []; let hint = "", cap = fight && state.step === "orders" ? "Declare this round's order: everyone's fire, spells and melee resolve together once all are confirmed." : "";
   if (fight && state.step === "orders") {
     // Orders (Kurt, Oct 2026): only what is declared here; the movement buttons belong to the move steps
     if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
@@ -2162,11 +2177,12 @@ function drawActionBar() {
   el.innerHTML = `
     <div class="ab-row">
       <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
-        <span class="ab-sub">${f.kind === "pc" && f.level ? `level ${f.level} \u00b7 ` : ""}<span class="ab-term" role="button" tabindex="0" data-tip="fc" title="${esc(fcTip(p))}">${esc(p.fcLabel)}</span> \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>
-        ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span class="mono" style="font-size:.82rem">${hpTxt} hp</span>` : ""}</div>`}
+        ${PLAYER ? "" : `<span class="ab-sub">${f.kind === "pc" && f.level ? `level ${f.level} \u00b7 ` : ""}<span class="ab-term" role="button" tabindex="0" data-tip="fc" title="${esc(fcTip(p))}">${esc(p.fcLabel)}</span> \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>`}
+        <div class="ab-hp ab-stats">${hp == null ? "" : `<div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span>${hpTxt} hp</span>` : ""}`}${PLAYER && ammo != null ? `<span>\u00b7 ${esc(ammo)}</span>` : ""}</div>
+        <span class="ab-move mono" style="font-size:.75rem">Move ${esc(moveLine(f, total, usedIn, leftIn))}</span>
+        ${probs.length ? `<span class="ab-warn">${probs.map(esc).join(" \u00b7 ")}</span>` : ""}
         <span class="ab-phone-line mono" style="font-size:.8rem">${hpTxt ? `${hpTxt} hp \u00b7 ` : ""}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
-        ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${isOrders() ? "Order" : "Standing order"}: ${esc(cardAction(f))}${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"} \u00b7 stance ${esc(f.stance ?? "attack")}</span>` : ""}
-        <span class="ab-move mono" style="font-size:.82rem">Move ${esc(moveLine(f, total, usedIn, leftIn))}</span>
+        ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${isOrders() ? "Order" : "Standing order"}: <b>${esc(orderText(f, p))}</b>${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"}</span>` : ""}
         ${fight && state.step === `move-${f.side}` && (f.moved ?? 0) > 0 && !isReadyFig(f) && !f.chargedRound ? `<button type="button" class="ab-undomove" data-undomove title="Put ${esc(f.name)} back where this move began, with his full move">Undo move</button>` : ""}
         ${abTip === "fc" ? `<span class="ab-tipline">${esc(fcTip(p))}</span>` : ""}
         <button type="button" class="ab-more" id="abDetails" title="Open ${esc(f.name)}'s details">Details</button></div>
