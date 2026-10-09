@@ -1310,7 +1310,7 @@ function cardAction(f) {
   if (a === "fire") return f.missile ? `fire the ${MISSILE_LABEL[f.missile].toLowerCase()}` : "fire";
   if (a === "passthrough") return "hold pass-through fire";
   if (a === "hold") return "hold";
-  if (a.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === a.slice(5)); return `cast ${sp?.name ?? a.slice(5)}${f.castAim ? " at the marked point" : ""}`; }
+  if (a.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === a.slice(5)); return `cast ${sp?.name ?? a.slice(5)}${f.castAim ? " at the marked point" : ""}`; }
   return "melee";
 }
 /** The Orders step's plain preview under the buttons (mockup): what will happen, and anything that wastes the turn. */
@@ -1325,7 +1325,7 @@ function orderPreview(f, t) {
       lines.push(`<span><b>Fires ${pv.shots > 1 ? `${pv.shots} ${ammo}` : ammo} at ${esc(t.name)}</b> \u00b7 ${pv.d}\u2033, ${esc(pv.band)} range \u00b7 needs ${pv.need} on 2d6${dexB ? ` (${dexB > 0 ? "+" : ""}${dexB} Dex)` : ""}${pv.overHalf ? " \u00b7 moved over half: a fire-die contest first" : ""}</span>`);
     } }
   } else if (a.startsWith("cast:")) {
-    const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === a.slice(5));
+    const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === a.slice(5));
     if (f.castAim) lines.push(`<span><b>Casts ${esc(sp?.name ?? a.slice(5))}</b> at the marked point</span>`);
     else if (t && present(t)) lines.push(`<span><b>Casts ${esc(sp?.name ?? a.slice(5))}</b> at ${esc(t.name)}</span>`);
     else if (sp?.id === "protectionEvil") lines.push(`<span><b>Casts ${esc(sp.name)}</b></span>`);
@@ -1911,7 +1911,7 @@ function actionPreview(f) {
     const picker = two ? `<br><label>Second shot <select id="secondShot">${opts([["", `same target (${t.name})`], ...others.map((e) => [e.id, `${e.name}, ${distIn(f, e)}"`])], f.secondTarget ?? "")}</select></label>` : "";
     return `Ready: ${d}" away, ${BAND_LABEL[band] ?? band} range (${esc(MISSILE_LABEL[f.missile].toLowerCase())} reaches ${range}"). ${two ? "Two shots: standing still." : "One shot."}${note}${picker}`;
   }
-  const sp = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
+  const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === f.action.slice(5));
   if (!sp) return "<b>No slot left</b> for that spell.";
   if (f.moved > 0) return "<b>Moved this round:</b> the spell will fail.";
   if (d > sp.range) return `<b>Out of range:</b> ${d}" away, ${esc(sp.name)} reaches ${sp.range}".`;
@@ -1919,7 +1919,7 @@ function actionPreview(f) {
   return `Ready: ${d}" (range ${sp.range}"). A hit from a faster shooter before it goes off will spoil it.`;
 }
 function holdPicker(f) {
-  const sp = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === "holdPerson"); if (!sp) return "";
+  const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === "holdPerson"); if (!sp) return "";
   const picks = new Set([f.target, ...(f.holdTargets ?? [])].filter((x) => x != null));
   const cands = state.figures.filter((e) => present(e) && e.side !== f.side && distIn(f, e) <= sp.range);
   if (!cands.length) return `<p class="note">No enemies within ${sp.range}".</p>`;
@@ -1928,7 +1928,7 @@ function holdPicker(f) {
 function actionsFor(f) {
   const list = [["melee", "Melee"]];
   if (f.missile && ms.ammoLeft(f) !== 0) list.push(["fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`], ["passthrough", "Pass-through fire (stand and shoot movers)"]);
-  if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft)) list.push([`cast:${sp.id}`, `Cast ${sp.name}${sp.id === "protectionEvil" ? " (self)" : ""}`]);
+  if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered)) list.push([`cast:${sp.id}`, `Cast ${sp.name}${sp.id === "protectionEvil" ? " (self)" : ""}`]);
   return list;
 }
 function engagementsOf(f) {
@@ -2081,8 +2081,8 @@ function actionText(f) {
   if (f.action === "hold") return { text: "Holding", warn: false };
   if (f.action === "fire") return { text: tn ? `Fire \u2192 ${tn}` : "Fire: no target", warn: !tn };
   if (f.action === "passthrough") return { text: f.lastFired === state.round ? "Pass-through: fired" : `Pass-through fire${tn ? `, else \u2192 ${tn}` : ""}`, warn: false };
-  if (f.action?.startsWith("cast:") && AREA_SPELLS.includes(f.action.slice(5))) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: f.castAim ? `Cast ${sp?.name ?? "spell"}: placed` : `Cast ${sp?.name ?? "spell"}: place it`, warn: !f.castAim }; }
-  if (f.action?.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === f.action.slice(5)); return { text: sp?.id === "protectionEvil" ? `Cast ${sp.name}` : tn ? `Cast ${sp?.name ?? "spell"} \u2192 ${tn}` : `Cast ${sp?.name ?? "spell"}: no target`, warn: sp?.id !== "protectionEvil" && !tn }; }
+  if (f.action?.startsWith("cast:") && AREA_SPELLS.includes(f.action.slice(5))) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === f.action.slice(5)); return { text: f.castAim ? `Cast ${sp?.name ?? "spell"}: placed` : `Cast ${sp?.name ?? "spell"}: place it`, warn: !f.castAim }; }
+  if (f.action?.startsWith("cast:")) { const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === f.action.slice(5)); return { text: sp?.id === "protectionEvil" ? `Cast ${sp.name}` : tn ? `Cast ${sp?.name ?? "spell"} \u2192 ${tn}` : `Cast ${sp?.name ?? "spell"}: no target`, warn: sp?.id !== "protectionEvil" && !tn }; }
   if (tn) return { text: `${f.stance === "parry" ? "Parry" : "Melee"} \u2192 ${tn}`, warn: false };
   return { text: "No action yet", warn: true };
 }
@@ -2184,7 +2184,7 @@ function drawActionBar() {
     // Orders (Kurt, Oct 2026): only what is declared here; the movement buttons belong to the move steps
     if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
     acts.push(btn("melee", t && f.action === "melee" && f.stance !== "parry" ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
-    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
+    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered)) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
     if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough", "", PASS_TIP));
     acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
@@ -2804,7 +2804,7 @@ $("#map").addEventListener("contextmenu", (e) => {
     if (!adj && canMoveNow(sel)) items.push([`Close and melee ${tokenLabel(f)}`, () => { if (closeOn(sel, f)) render(); }]);
     if (!adj && mayCharge(sel)) items.push([`Charge ${tokenLabel(f)} (up to ${chargeInches(sel)}\u2033)`, () => { if (closeOn(sel, f, { charge: true })) render(); }]);
     if (sel.missile && !adj && missileBand(distIn(sel, f), missileRange(sel.missile)) && lineOfSight(sel, f)) items.push([`Fire ${MISSILE_LABEL[sel.missile].toLowerCase()} at ${tokenLabel(f)}`, () => setTarget(sel, f, { action: "fire" })]);
-    if (sel.kind === "pc") for (const sp of combatSpellsFor(sel.cls, sel.slotsLeft ?? [])) {
+    if (sel.kind === "pc") for (const sp of combatSpellsFor(sel.cls, sel.slotsLeft ?? [], sel.remembered)) {
       if (sp.id === "protectionEvil") continue;
       if (AREA_SPELLS.includes(sp.id)) items.push([`Cast ${sp.name}\u2026 (place it)`, () => { setGroup([sel.id]); enterCast(sel, sp.id); }]);
       else if (sp.id === "holdPerson") items.push([`Cast Hold Person\u2026 (pick up to 4)`, () => { setGroup([sel.id]); enterCast(sel, sp.id); if (castEligible(sel, spellOf(sel, sp.id), f, null)) castClick({ x: f.x, y: f.y }, f); }]);
@@ -2999,7 +2999,7 @@ wrap.addEventListener("contextmenu", (e) => { if (state.rightDragged) { e.preven
 state.cast = null; state.castHover = null;
 const AREA_SPELLS = ["fireBall", "lightningBolt", "sleep"];
 const coarse = () => window.matchMedia?.("(pointer: coarse)").matches;
-function spellOf(f, id) { return combatSpellsFor(f.cls, f.slotsLeft ?? []).find((x) => x.id === id); }
+function spellOf(f, id) { return combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === id); }
 function enterCast(f, id) {
   const sp = spellOf(f, id); if (!sp) return;
   if (id === "protectionEvil") { order(f, { action: `cast:${id}` }); return; }

@@ -81,7 +81,7 @@ const face = (f, t) => { f.facing = dir8(centre(t).x - centre(f).x, centre(t).y 
 const enemyOk = (state, f, id) => { const t = byId(state, id); return t && t.side !== f.side && present(t) ? t : null; };
 
 /** Spells the figure can cast now. */
-export const spellsFor = (f) => (f.kind === "pc" ? combatSpellsFor(f.cls, f.slotsLeft ?? []) : []);
+export const spellsFor = (f) => (f.kind === "pc" ? combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered) : []);
 
 /**
  * Set any of a figure's orders. o: { target, holdTargets, secondTarget,

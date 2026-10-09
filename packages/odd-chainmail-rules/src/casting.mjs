@@ -124,10 +124,15 @@ export function lightningCells(caster, start, isOpen, { lengthInches = 6, widthI
   return { cells, maxReach };
 }
 
-/** Spells of a class that fit the caster's slot levels. */
-export function combatSpellsFor(rawClass, slots) {
+/**
+ * Spells of a class that fit the caster's slot levels. A roster character (pass 4)
+ * brings the spells he remembered: then only those, each once (Men & Magic: a
+ * spell cast is forgotten). A figure set up by hand (no list) may cast any.
+ */
+export function combatSpellsFor(rawClass, slots, remembered = null) {
   const cls = String(rawClass || "").toLowerCase();
   return Object.values(COMBAT_SPELLS).filter((s) => {
+    if (Array.isArray(remembered) && !remembered.includes(s.id)) return false;
     if (!s.classes.includes(cls) && !(cls === "cleric" && s.clericLevel)) return false;
     const lvl = cls === "cleric" && s.clericLevel ? s.clericLevel : s.level;
     return (slots?.[lvl - 1] ?? 0) > 0;
@@ -294,6 +299,8 @@ function runSelfTests() {
   ok(mu1.includes("sleep") && mu1.includes("charmPerson") && !mu1.includes("holdPerson"), "MU 1 spells");
   const mu5 = combatSpellsFor("magic-user", [4, 2, 1, 0, 0, 0]).map((s) => s.id);
   ok(mu5.includes("holdPerson"), "MU with a 3rd-level slot gets Hold Person");
+  ok(combatSpellsFor("magic-user", [1, 0, 0, 0, 0, 0], ["sleep", "detectMagic"]).map((s) => s.id).join() === "sleep", "a roster magic-user casts only what he remembered");
+  ok(combatSpellsFor("magic-user", [1, 0, 0, 0, 0, 0], []).length === 0, "and nothing if he remembered nothing");
   const cl1 = combatSpellsFor("cleric", [0, 0, 0, 0, 0]);
   ok(cl1.length === 0, "Acolyte has no spells");
   const cl3 = combatSpellsFor("cleric", [2, 1, 0, 0, 0]);

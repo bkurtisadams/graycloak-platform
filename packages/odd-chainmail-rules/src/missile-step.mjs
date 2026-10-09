@@ -108,8 +108,8 @@ export function resolveMissileStep(state, rng) {
     if (!active(f) || !f.action || f.action === "melee" || f.action === "hold") continue;
     const selfSpell = f.action === "cast:protectionEvil";
     if (f.action.startsWith("cast:") && AREA_SPELLS.includes(f.action.slice(5))) {
-      const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
-      if (!spell) { note(`${f.name} has no slot left for that spell.`); continue; }
+      const spell = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === f.action.slice(5));
+      if (!spell) { note(`${f.name} can't cast that: ${Array.isArray(f.remembered) && !f.remembered.includes(f.action.slice(5)) ? "he didn't remember it" : "no slot left for it"}.`); continue; }
       if (!f.castAim) { note(`${f.name} hasn't placed ${spell.name}.`); continue; }
       const aim = { x: f.castAim.x, y: f.castAim.y, size: 1 };
       if (distIn(f, aim) > spell.range || !lineOfSight(state, f, aim)) { note(`${spell.name}'s aim point is out of range or sight.`); continue; }
@@ -129,8 +129,8 @@ export function resolveMissileStep(state, rng) {
       if (!missileBand(d, missileRange(f.missile))) { note(`${t.name} is out of range (${d}" of ${missileRange(f.missile)}").`); continue; }
       plans.push({ f, t, kind: "fire" });
     } else if (f.action.startsWith("cast:")) {
-      const spell = combatSpellsFor(f.cls, f.slotsLeft).find((x) => x.id === f.action.slice(5));
-      if (!spell) { note(`${f.name} has no slot left for that spell.`); continue; }
+      const spell = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === f.action.slice(5));
+      if (!spell) { note(`${f.name} can't cast that: ${Array.isArray(f.remembered) && !f.remembered.includes(f.action.slice(5)) ? "he didn't remember it" : "no slot left for it"}.`); continue; }
       if (spell.id !== "protectionEvil" && d > spell.range) { note(`${t.name} is beyond ${spell.name}'s ${spell.range}" range.`); continue; }
       if (spell.id !== "protectionEvil" && !lineOfSight(state, f, t)) { note(`${f.name} can't see ${t.name}.`); continue; }
       plans.push({ f, t, kind: "cast", spell });
@@ -151,6 +151,7 @@ export function resolveMissileStep(state, rng) {
       } else {
         const sp = p.spell;
         f.slotsLeft[sp.level - 1]--;
+        if (Array.isArray(f.remembered)) { const i = f.remembered.indexOf(sp.id); if (i >= 0) f.remembered.splice(i, 1); } // cast, or spoiled: forgotten either way
         const gate = castingGate({ moved: f.moved, hitFirst: attacked.has(f.id) });
         if (!gate.ok) { hits.push({ a: f.id, t: null, dmg: 0, extra: `lost ${sp.name}` }); cards.push({ title: [{ fig: f.id }, { text: ` casts ${sp.name}` }], items: [{ text: `Spoiled: ${gate.reason}. The spell is lost.`, hit: true }] }); continue; }
         const before = new Map(state.figures.map((x) => [x.id, `${x.status}|${x.side}`]));
@@ -182,6 +183,15 @@ function runSelfTests() {
     const orcs = [orc(2, 20, 5), orc(3, 21, 5), orc(4, 20, 6)];
     const r = resolveMissileStep(st([mu, ...orcs]), () => 0.99);
     ok(orcs.every((o) => o.status === "asleep") && mu.slotsLeft[0] === 0 && r.cards.some((c) => c.title.some((g) => g.text === " casts Sleep")), "Sleep puts the orcs under the template to sleep and spends the slot");
+  }
+  // A roster magic-user (pass 4) casts the spell he remembered and forgets it; one he didn't remember isn't cast.
+  {
+    const mu = pc(1, "A", 2, 5, { cls: "magic-user", level: 1, action: "cast:sleep", castAim: { x: 20, y: 5 }, slotsLeft: [1, 0, 0, 0, 0, 0], remembered: ["sleep"] });
+    resolveMissileStep(st([mu, orc(2, 20, 5)]), () => 0.99);
+    ok(mu.remembered.length === 0 && mu.slotsLeft[0] === 0, "Sleep cast: forgotten, and the slot spent");
+    const mu2 = pc(1, "A", 2, 5, { cls: "magic-user", level: 1, action: "cast:sleep", castAim: { x: 20, y: 5 }, slotsLeft: [1, 0, 0, 0, 0, 0], remembered: ["charmPerson"] });
+    const o = orc(2, 20, 5), r = resolveMissileStep(st([mu2, o]), () => 0.99);
+    ok(o.status !== "asleep" && mu2.slotsLeft[0] === 1 && r.cards.some((c) => /didn't remember/.test(c.title?.[0]?.text ?? "")), "Sleep not remembered: not cast");
   }
   // A caster who moved loses the spell.
   {

@@ -26,7 +26,7 @@ export function hasChoice(state, f) {
   if (!foes.length) return false;
   if (foes.some((g) => adjacent(f, g))) return true;
   if (f.missile) { const max = missileRange(f.missile); if (foes.some((g) => distIn(f, g) <= max)) return true; }
-  if (f.kind === "pc" && combatSpellsFor(f.cls, f.slotsLeft ?? []).length) return true;
+  if (f.kind === "pc" && combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).length) return true;
   return false;
 }
 

@@ -264,7 +264,7 @@ export function toFigure(ch, { id, side = "A", name } = {}) {
     armor: armour.id, ac: armour.ac, weaponId: weapon ?? "dagger", missile: missile ?? "", spare,
     str: a.str, int: a.int, wis: a.wis, con: a.con, dex: a.dex, cha: a.cha, purse: 0,
     inv: { coins: { cp: ch.coins?.cp ?? 0, sp: ch.coins?.sp ?? 0, gp: ch.coins?.gp ?? 0 }, items }, invSet: true,
-    hp: ch.hp, maxHp: ch.maxHp, hpSet: ch.hp != null, stance: "attack", target: null, action: "melee"
+    hp: ch.hp, maxHp: ch.maxHp, hpSet: ch.hp != null, remembered: [...(ch.remembered ?? [])], stance: "attack", target: null, action: "melee"
   };
 }
 

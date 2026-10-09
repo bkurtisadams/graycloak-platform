@@ -79,7 +79,19 @@ jobs:
           rm -rf gcc/odd/functions
           cp -r packages/odd-chainmail-rules gcc/packages/odd-chainmail-rules
           rm -rf gcc/packages/odd-chainmail-rules/node_modules gcc/packages/odd-chainmail-rules/test
-          echo "assembled gcc/odd and gcc/packages/odd-chainmail-rules"
+          # Version the imports (Oct 2026), as Traveller's assets are: the rules package
+          # goes to a folder named for the commit, and the page's own modules get
+          # ?v=<commit>, so a browser or the CDN holding last release's modules can't
+          # serve them to this release's page. The package's files import each other
+          # relatively, so a new folder name refreshes all of them at once.
+          V="${GITHUB_SHA::8}"
+          cp -r gcc/packages/odd-chainmail-rules "gcc/packages/odd-chainmail-rules-$V"
+          for f in gcc/odd/*.html gcc/odd/*.mjs; do
+            sed -i "s#\(['\"]\)\.\./packages/odd-chainmail-rules/#\1../packages/odd-chainmail-rules-$V/#g; s#\(['\"]\)\./\(online\.mjs\|roster-ui\.mjs\|firebase-config\.js\)\1#\1./\2?v=$V\1#g" "$f"
+          done
+          grep -c "odd-chainmail-rules-$V/index.js" gcc/odd/combat-grid.html
+          grep -c "online.mjs?v=$V" gcc/odd/combat-grid.html
+          echo "assembled gcc/odd and gcc/packages/odd-chainmail-rules (imports stamped $V)"
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
