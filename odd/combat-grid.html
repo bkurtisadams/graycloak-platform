@@ -339,6 +339,14 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
   .ab-status .k { font-size: .65rem; } .ab-status .v { font-size: .85rem; }
   .ab-status button { min-height: 30px; padding: 3px 8px; font-size: .82rem !important; }
 }
+.ab-status .why { font-size: .72rem; color: var(--pencil); line-height: 1.3; max-width: 150px; }
+.ab-cap { flex-basis: 100%; font-size: .75rem; color: var(--pencil); font-family: var(--serif); }
+.ab-hint { align-self: center; }
+.ab-term { border-bottom: 1px dotted currentColor; cursor: help; }
+.ab-tipline { font-size: .75rem; line-height: 1.35; background: #eef3f7; border-left: 3px solid var(--side-a); padding: 3px 6px; border-radius: 3px; }
+.ab-more { font: inherit; font-size: .78rem; align-self: flex-start; padding: 2px 10px; min-height: 26px; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; }
+:root[data-theme="dark"] .ab-tipline { background: #24323f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ab-tipline { background: #24323f; } }
 @media (min-width: 701px) and (pointer: coarse) { .ab-actions button, .ab-status button { min-height: 44px; } }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
@@ -1267,7 +1275,7 @@ function orderPreview(f, t) {
     else if (sp?.id === "protectionEvil") lines.push(`<span><b>Casts ${esc(sp.name)}</b></span>`);
     else warn(`${sp?.name ?? "The spell"} has no target or aim point yet.`);
   } else if (a === "hold") lines.push(`<span><b>Holds:</b> does nothing this round</span>`);
-  else if (a === "passthrough") lines.push(`<span><b>Holds pass-through fire</b> for the next moves${t ? `, else fires at ${esc(t.name)}` : ""}</span>`);
+  else if (a === "passthrough") lines.push(`<span><b>Holds pass-through fire</b> for the next moves${t ? `, else fires at ${esc(t.name)}` : ""}</span><span class="ab-k">${esc(PASS_TIP)}</span>`);
   else {
     const foe = t && present(t) && adjacent(f, t) ? t : null;
     if (!foe) warn(`${f.name} has no one in reach: ${he} will stand.`);
@@ -1306,13 +1314,47 @@ function localUndoPop() {
   render();
 }
 /** The Status block at the bar's right end (online): Deciding / Ready, as in the approved mockup's card. */
+/** Card wording (Oct 2026): who a uid is, as the card says it ("you", the referee, a player's name). */
+function whoName(c) {
+  const me = online.api?.user?.uid;
+  if (c === "game") return "the game";
+  if (c === "referee" || c == null) return !PLAYER ? "you" : (state.people?.referee?.name ?? "the referee");
+  return c === me ? "you" : (state.people?.[c]?.name ?? "a player");
+}
+const andList = (a) => (a.length > 1 ? `${a.slice(0, -1).join(", ")} and ${a.at(-1)}` : a[0] ?? "");
+/** May this page make the initiative winner's choice now? (the referee always; a player when he is the side's caller) */
+const mayElectHere = () => state.phase === "fight" && state.step === "elect" && !!state.init?.winner && (!PLAYER || (online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
+/** What the step is waiting on, in words, for the card's status (replaces a bare "Waiting"). */
+function waitReason(f) {
+  const st = state.step, w = online.header?.waitingOn ?? [];
+  const names = andList(w.map(whoName));
+  if (state.phase !== "fight") return "";
+  if (st === "elect") {
+    const c = rd.callerOf(state, state.init.winner);
+    if (c === "game") return `Side ${state.init.winner} chooses by behaviour`;
+    return `${whoName(c) === "you" ? "You" : `Side ${state.init.winner}'s caller, ${whoName(c)},`} ${whoName(c) === "you" ? "choose" : "chooses"} to move first or last`;
+  }
+  if (st === "init") return state.round ? "Round over: initiative is rolled next" : "Initiative is rolled next";
+  if (st.startsWith("move-")) { const sd = st.slice(5); return names ? `${f.side === sd ? "" : `Side ${sd} is moving; `}waiting on ${names}` : `Side ${sd} is moving`; }
+  if (st === "orders") return names ? `Orders: waiting on ${names}` : "All orders are in";
+  if (st === "missiles" || st === "artillery") return "Missiles and spells are resolving";
+  if (st === "melee") return "Melee is resolving";
+  return "";
+}
+/** The card's small explanations, opened by a tap or a click on a dotted term (one open at a time). */
+let abTip = null;
+function fcTip(p) {
+  if (p.profileAttack) return `${p.fcLabel}: attacks with its natural weapons, one die per hit die on the monster table.`;
+  return `Fights as ${p.fcLabel} (Men & Magic, Fighting Capability): ${p.dice} ${p.dice === 1 ? "die" : "dice"} in melee${p.bonus ? `, +${p.bonus} to hit${p.dice > 1 ? " on one of them" : ""}` : ""}.`;
+}
+const PASS_TIP = "Pass-through fire: he holds his shot during the enemy's move and fires at an enemy that moves within range and in front of him, at the half-way point of its move. Only if he hasn't moved this round.";
 function statusBlock(f) {
   if (!online.on || state.phase !== "fight" || !state.people) return "";
   if (PLAYER ? !f.mine : controllerOfFig(f) !== "referee") return "";
   const body = !needsReady(f)
-    ? `<span class="v st-other">${!alive(f) ? "Down" : !active(f) ? esc(f.status ?? "Out") : movingSide() ? "Not moving" : "Waiting"}</span>`
+    ? `<span class="v st-other">${!alive(f) ? "Down" : !active(f) ? esc(f.status ?? "Out") : mayElectHere() ? "Your call" : isOrders() ? "Nothing to decide" : movingSide() && f.side !== movingSide() ? "Not moving" : "Waiting"}</span>${alive(f) && active(f) && !mayElectHere() ? `<span class="why">${esc(waitReason(f))}</span>` : ""}`
     : isReadyFig(f)
-      ? `<span class="v st-ready">\u2713 Ready</span><button type="button" class="back" data-unready="${f.id}">Change orders</button>`
+      ? `<span class="v st-ready">\u2713 Ready</span><span class="why">${esc(waitReason(f))}</span><button type="button" class="back" data-unready="${f.id}">Change orders</button>`
       : `<span class="v st-deciding">Deciding</span><button type="button" class="go primary" data-ready="${f.id}">Ready</button>`;
   return `<div class="ab-status"><span class="k">Status</span>${body}</div>`;
 }
@@ -2074,28 +2116,36 @@ function drawActionBar() {
   const hp = f.hp == null ? null : Math.max(0, f.hp), mx = f.maxHp ?? 0, frac = hp == null || !mx ? 1 : hp / mx, hpTxt = hpText(f);
   const total = allowanceOf(f), usedIn = halfCellsToInches(f.moved ?? 0), leftIn = Math.max(0, Math.round((total - usedIn) * 10) / 10);
   const fight = state.phase === "fight" && active(f) && mineOk(f);
-  const btn = (id, text, on, cls = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}">${esc(text)}</button>`;
-  const acts = [];
+  const btn = (id, text, on, cls = "", title = "") => `<button data-act="${id}" class="${on ? "on" : ""} ${cls}"${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</button>`;
+  const acts = []; let hint = "", cap = fight && state.step === "orders" ? "Declare this round's order: everyone's fire, spells and melee resolve together once all are Ready." : "";
   if (fight && state.step === "orders") {
     // Orders (Kurt, Oct 2026): only what is declared here; the movement buttons belong to the move steps
     if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
     acts.push(btn("melee", t && f.action === "melee" && f.stance !== "parry" ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
     if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
     if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
-    if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough"));
+    if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough", "", PASS_TIP));
     acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
   } else if (fight) {
-    acts.push(btn("melee", t ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
-    if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}`, f.action === "fire"));
-    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [])) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
-    if (mayCharge(f) || f.charging) acts.push(btn("charge", f.charging ? `Charging (${chargeInches(f)}\u2033)` : `Charge (${chargeInches(f)}\u2033)`, !!f.charging));
-    if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
-    if (f.kind === "pc") acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
-    if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough"));
-    for (const d of drawable(f)) acts.push(btn(`draw:${d.index}`, `Draw ${d.item.name.toLowerCase()}`));
-    if (ms.canSplitMove(f) && state.step === `move-${f.side}` && f.target != null && f.splitFired !== state.round) acts.push(btn("splitfire", "Split-move fire"));
-    acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
-    acts.push(`<button data-act="more" class="phone">More\u2026</button>`);
+    // Phase-driven card (Kurt, Oct 2026): each step shows only what can be done in it. Fire, spells,
+    // melee, parry and hold are declared in Orders; the move steps keep movement; pass-through fire
+    // stays an advance order before the enemy moves, labelled as one.
+    const st = state.step, mover = movingSide();
+    const passAhead = f.missile && f.kind === "pc" && ms.ammoLeft(f) !== 0 && !(f.moved > 0) && (st === "elect" || st === "init" || (mover && mover !== f.side));
+    if (st === "elect" && mayElectHere()) {
+      const w = state.init.winner, own = w === f.side;
+      acts.push(`<button data-elect="move" title="Side ${w} moves first">${own ? "Move first" : `Side ${w}: move first`}</button>`, `<button data-elect="counter" title="Side ${w} moves last and sees the other side's move before making its own (Chainmail p.8)">${own ? "Move last" : `Side ${w}: move last`}</button>`);
+      cap = `Side ${w} won initiative (A ${state.init.a}, B ${state.init.b}) and chooses to move first or last.`;
+    } else if (mover === f.side) {
+      if (mayCharge(f) || f.charging) acts.push(btn("charge", f.charging ? `Charging (${chargeInches(f)}\u2033)` : `Charge (${chargeInches(f)}\u2033)`, !!f.charging));
+      if (f.kind === "pc") acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
+      for (const d of drawable(f)) acts.push(btn(`draw:${d.index}`, `Draw ${d.item.name.toLowerCase()}`));
+      if (ms.canSplitMove(f) && f.target != null && f.splitFired !== state.round) acts.push(btn("splitfire", "Split-move fire"));
+      if (!acts.length) hint = "Drag the figure to move it; fire, spells and melee are declared in Orders.";
+    }
+    if (passAhead) acts.push(btn("passthrough", f.action === "passthrough" ? "\u2713 Order: pass-through fire" : "Order: pass-through fire", f.action === "passthrough", "", PASS_TIP));
+    if (!acts.length && !statusBlock(f)) hint = waitReason(f);
+    if (acts.length) acts.push(`<button data-act="more" class="phone">More\u2026</button>`);
   } else if (state.phase === "over" && f.kind === "pc" && active(f)) {
     acts.push(btn("search", "Search", false, searchable(f).length ? "" : "quiet"));
   }
@@ -2112,16 +2162,17 @@ function drawActionBar() {
   el.innerHTML = `
     <div class="ab-row">
       <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
-        <span class="ab-sub">${f.kind === "pc" && f.level ? `level ${f.level} \u00b7 ` : ""}${esc(p.fcLabel)} \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>
+        <span class="ab-sub">${f.kind === "pc" && f.level ? `level ${f.level} \u00b7 ` : ""}<span class="ab-term" role="button" tabindex="0" data-tip="fc" title="${esc(fcTip(p))}">${esc(p.fcLabel)}</span> \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>
         ${hp == null ? "" : `<div class="ab-hp" style="display:flex;align-items:center;gap:6px"><div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span class="mono" style="font-size:.82rem">${hpTxt} hp</span>` : ""}</div>`}
         <span class="ab-phone-line mono" style="font-size:.8rem">${hpTxt ? `${hpTxt} hp \u00b7 ` : ""}AC ${f.ac} \u00b7 ${leftIn}\u2033 of ${total}\u2033 left</span>
-        ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${esc(cardAction(f))}${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"} \u00b7 stance ${esc(f.stance ?? "attack")}</span>` : ""}
+        ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${isOrders() ? "Order" : "Standing order"}: ${esc(cardAction(f))}${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"} \u00b7 stance ${esc(f.stance ?? "attack")}</span>` : ""}
         <span class="ab-move mono" style="font-size:.82rem">Move ${esc(moveLine(f, total, usedIn, leftIn))}</span>
         ${fight && state.step === `move-${f.side}` && (f.moved ?? 0) > 0 && !isReadyFig(f) && !f.chargedRound ? `<button type="button" class="ab-undomove" data-undomove title="Put ${esc(f.name)} back where this move began, with his full move">Undo move</button>` : ""}
-        <a href="#" class="ab-more" id="abDetails">Details</a></div>
+        ${abTip === "fc" ? `<span class="ab-tipline">${esc(fcTip(p))}</span>` : ""}
+        <button type="button" class="ab-more" id="abDetails" title="Open ${esc(f.name)}'s details">Details</button></div>
       ${state.step === "orders" && state.phase === "fight" ? "" : tgt}
     </div>
-    <div class="ab-actions">${acts.join("")}${fight || acts.length ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}${fight && state.step === "orders" ? orderPreview(f, t) : ""}</div>
+    <div class="ab-actions">${cap ? `<span class="ab-cap">${esc(cap)}</span>` : ""}${acts.join("")}${hint ? `<span class="ab-k ab-hint">${esc(hint)}</span>` : ""}${fight || acts.length || hint ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}${fight && state.step === "orders" ? orderPreview(f, t) : ""}</div>
     ${statusBlock(f)}`;
   el.querySelector("[data-undomove]")?.addEventListener("click", () => { const r = runAction({ type: "undo-move", id: f.id }); if (!r.ok && r.error) $("#dragInfo").innerHTML = `<span class="bad">${esc(r.error)}</span>`; render(); });
   el.querySelector("#abCentre")?.addEventListener("click", (e) => { e.preventDefault(); cam.x = (centre(f).x + 0.5) * PX; cam.y = (centre(f).y + 0.5) * PX; applyView(); });
@@ -2131,12 +2182,14 @@ function drawActionBar() {
   // desktop order: who | move | actions | target
   if (window.matchMedia("(min-width: 701px)").matches) { const tEl = el.querySelector(".ab-target"); if (tEl) el.appendChild(tEl); }
   el.querySelector("#abDetails").onclick = (e) => { e.preventDefault(); openDrawer("figure"); };
+  el.querySelectorAll("[data-elect]").forEach((b) => (b.onclick = () => elect(b.dataset.elect)));
+  el.querySelectorAll("[data-tip]").forEach((t) => { const go = () => { abTip = abTip === t.dataset.tip ? null : t.dataset.tip; drawActionBar(); }; t.onclick = go; t.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } }; });
   el.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const a = b.dataset.act;
     if (a === "melee") order(f, { action: "melee", stance: "attack" });
     else if (a === "parry") order(f, { action: "melee", stance: "parry" });
     else if (a === "hold") order(f, { action: "hold" });
-    else if (a === "passthrough") order(f, { action: "passthrough" });
+    else if (a === "passthrough") order(f, { action: f.action === "passthrough" && !isOrders() ? "melee" : "passthrough" });
     else if (a.startsWith("draw:")) { drawWeapon(f, Number(a.slice(5))); return; }
     else if (a === "splitfire") { const r = runAction({ type: "split-fire", id: f.id, targetId: f.target }); if (!r.ok) $("#dragInfo").innerHTML = `<span class="bad">${esc(r.error)}</span>`; render(); return; }
     else if (a === "charge") { const r = runAction({ type: "charge-mode", id: f.id, on: !f.charging }); $("#dragInfo").textContent = !r.ok ? r.error : f.charging ? `Charging: up to ${chargeInches(f)}″, and the move must end in contact with an enemy.` : ""; render(); return; }
