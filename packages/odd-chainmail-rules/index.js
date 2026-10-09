@@ -46,6 +46,7 @@ export * as looting from "./src/loot.mjs";
 export * as fightView from "./src/view.mjs";
 export * as session from "./src/session.mjs";
 export * as readiness from "./src/readiness.mjs";
+export * as roster from "./src/roster.mjs";
 export { serialRng, rngHolder } from "./src/dice.mjs";
 export * from "./src/spell-progression.mjs";
 export * from "./src/specials.mjs";

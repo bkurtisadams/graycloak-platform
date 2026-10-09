@@ -2,7 +2,7 @@
 //
 // The Firebase CLI deploys only folders beside graycloak-adnd\firebase.json,
 // so this builds graycloak-adnd\odd-functions (the "odd" codebase): index.js,
-// fight-service.mjs, package.json and the rules package in app\rules. The
+// fight-service.mjs, campaign-service.mjs, character-service.mjs, package.json and the rules package in app\rules. The
 // folder is output only and ignores itself in git; edit odd\functions.
 // node_modules there is kept between builds and brought up to date with
 // npm install, because the CLI loads the functions locally before deploying.
@@ -20,7 +20,7 @@ const out = path.join(platform, 'graycloak-adnd', 'odd-functions');
 
 await mkdir(out, { recursive: true });
 for (const entry of await readdir(out)) if (entry !== 'node_modules') await rm(path.join(out, entry), { recursive: true, force: true });
-for (const file of ['index.js', 'fight-service.mjs', 'campaign-service.mjs', 'package.json']) await cp(path.join(functionsDir, file), path.join(out, file));
+for (const file of ['index.js', 'fight-service.mjs', 'campaign-service.mjs', 'character-service.mjs', 'package.json']) await cp(path.join(functionsDir, file), path.join(out, file));
 for (const entry of ['index.js', 'package.json', 'src']) await cp(path.join(rulesSource, entry), path.join(out, 'app', 'rules', entry), { recursive: true });
 await writeFile(path.join(out, '.gitignore'), '# Built by odd\\functions\\scripts\\build.mjs; not source.\n*\n');
 await writeFile(path.join(out, 'README.txt'), 'Built by odd\\functions\\scripts\\build.mjs (deploy.bat). Do not edit: every build replaces this folder.\n');

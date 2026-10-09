@@ -424,6 +424,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   </form>
    </section>
    <section class="sb-pane" data-sbpane="party" aria-label="Party"><div class="logpanel-head"><h2>Party</h2></div><div class="sb-body">
+  <div id="rosterPanel"></div>
   <section class="people" id="peoplePanel" hidden aria-label="Who runs what"><div id="peopleList"></div></section>
     <div id="partyNote" class="note"></div></div></section>
    <section class="sb-pane" data-sbpane="players" aria-label="Players"><div class="logpanel-head"><h2>Players</h2></div><div class="sb-body" id="gamePlayers"></div></section>
@@ -434,7 +435,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Party" aria-label="Party"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Party</span></button><button type="button" class="sb-icon" data-sbtab="players" title="Players" aria-label="Players"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 20c0-4 3-6 7-6s7 2 7 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M17 4l1.5 1.5L21 3" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Players</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
  </aside>
 </section>
-<div class="floatwin" id="sheetWin" role="dialog" aria-label="Figure sheet" hidden><div class="fw-head" id="sheetHead"><b id="sheetTitle">Figure</b><button type="button" id="sheetFold" title="Fold">&ndash;</button><button type="button" id="sheetClose" title="Close">&times;</button></div><div class="fw-body" id="sheetBody"></div></div>
+<div class="floatwin" id="sheetWin" role="dialog" aria-label="Figure sheet" hidden><div class="fw-head" id="sheetHead"><b id="sheetTitle">Figure</b><span class="fw-sub" id="sheetSub"></span><button type="button" id="sheetFold" title="Fold">&ndash;</button><button type="button" id="sheetClose" title="Close">&times;</button></div><div class="fw-body" id="sheetBody"><div id="rsBody" hidden></div></div></div>
 <aside class="drawer" id="drawer" hidden aria-label="Setup and figure details">
   <div class="drawer-head">
     <div class="tabs" role="tablist">
@@ -506,9 +507,11 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
+import * as rui from "./roster-ui.mjs";
+{ const st = document.createElement("style"); st.textContent = rui.ROSTER_CSS; document.head.appendChild(st); }
 
 /* ---------- data ---------- */
 const ARMOR = mv.ARMOR;
@@ -519,7 +522,7 @@ const CLASSES = [
   { id: "thief", label: "Thief", weapon: "sword", armor: "leather" }
 ];
 const WEAPON_LABEL = { dagger: "Dagger", handaxe: "Hand axe", mace: "Mace", sword: "Sword", battleaxe: "Battle axe", morningstar: "Morning star", flail: "Flail", spear: "Spear", polearm: "Pole arm", halberd: "Halberd", twohanded: "Two-handed sword", lance: "Lance", pike: "Pike" };
-const MISSILES = [["", "No missile"], ["shortbow", "Short bow"], ["longbow", "Long bow"], ["lightcrossbow", "Light crossbow"], ["heavycrossbow", "Heavy crossbow"], ["sling", "Sling"]];
+const MISSILES = [["", "No missile"], ["shortbow", "Short bow"], ["longbow", "Long bow"], ["lightcrossbow", "Light crossbow"], ["heavycrossbow", "Heavy crossbow"], ["sling", "Sling"], ["compositebow", "Composite bow"]];
 const MISSILE_LABEL = Object.fromEntries(MISSILES);
 const BAND_LABEL = { close: "short", medium: "medium", max: "long" };
 const MONSTER_DEX = 10; // OPEN: monsters have no Dexterity in Books I-III
@@ -998,7 +1001,7 @@ function adoptView(v) {
    The game document says which fight is live; every page opens it in place, and shows the lobby on the stage when none is. */
 const TABLE = new URLSearchParams(location.search).has("c");
 if (TABLE) { document.body.classList.add("table"); if (PLAYER) $("#openSetup").hidden = true; } // a player's table has no Setup
-const table = { cid: new URLSearchParams(location.search).get("c") ?? "", game: null, presence: {}, fights: null, menuFor: null, setup: false, lobbyChat: null, here: null };
+const table = { cid: new URLSearchParams(location.search).get("c") ?? "", chars: [], game: null, presence: {}, fights: null, menuFor: null, setup: false, lobbyChat: null, here: null };
 const isRefOf = (g, uid) => !!g && !!uid && (g.refereeUid === uid || (g.referees ?? []).includes(uid));
 const ONLINE_MS = 3 * 60 * 1000;
 const seenAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 2880 ? "yesterday" : `${Math.round(m / 1440)} days ago`; };
@@ -1016,6 +1019,7 @@ function startTable() {
   });
   api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } });
   api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "players") renderGamePlayers(); });
+  api.watchCharacters(table.cid, (list) => { table.chars = list; if (sbTab === "party") renderRoster(); if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); });
   const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
   here(); table.here = setInterval(here, 120000); document.addEventListener("visibilitychange", here);
   loadTableFights();
@@ -1743,6 +1747,8 @@ function renderMap() {
   applyView();
 }
 function tokenLabel(f) {
+  // a roster character (pass 4) goes by his own name: "Brom" is Br
+  if (f.charId && f.name) { const w = f.name.trim().split(/\s+/); return (w.length > 1 ? w[0][0] + w[1][0] : w[0].slice(0, 2)).replace(/^./, (c) => c.toUpperCase()); }
   const n = f.name.match(/\d+$/)?.[0] ?? "";
   if (f.kind === "pc") return ({ fighter: "F", cleric: "C", "magic-user": "MU", thief: "T" }[f.cls] ?? "?") + n;
   const words = (MONSTERS.find((m) => m.key === f.monsterKey)?.name ?? "?").split(/\s+/);
@@ -1836,7 +1842,7 @@ function renderSide(side) {
     <select id="race-${side}" aria-label="Race">${opts([["human", "Human"], ["elf", "Elf"], ["dwarf", "Dwarf"], ["halfling", "Halfling"]], "human")}</select>
     <select id="aln-${side}" aria-label="Alignment">${opts([["law", "Law"], ["neutral", "Neutrality"], ["chaos", "Chaos"]], "law")}</select>
     <label>Purse <input id="gp-${side}" type="number" min="0" value="50" style="width:5em"> gp</label>
-    <button data-add-pc="${side}">Add character</button></div>
+    <button data-add-pc="${side}">Add character</button>${side === "A" && TABLE && !PLAYER ? ` <button data-add-party title="Every finished character in the roster, run by his player">Add the party (${table.chars.filter((c) => c.status === "ready" && !state.figures.some((f) => f.charId === c.id)).length})</button>` : ""}</div>
     <div class="adders"><input id="cnt-${side}" type="number" min="1" max="30" value="1" aria-label="How many">
     <select id="mon-${side}" aria-label="Monster">${opts(MONSTERS.map((m) => [m.key, m.name]), "orc")}</select>
     <button data-add-mon="${side}">Add monsters</button>
@@ -2176,7 +2182,7 @@ function drawActionBar() {
   }
   el.innerHTML = `
     <div class="ab-row">
-      <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
+      <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(f.charId ? f.name : tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(f.charId ? f.name : tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
         ${PLAYER ? "" : `<span class="ab-sub">${f.kind === "pc" && f.level ? `level ${f.level} \u00b7 ` : ""}<span class="ab-term" role="button" tabindex="0" data-tip="fc" title="${esc(fcTip(p))}">${esc(p.fcLabel)}</span> \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>`}
         <div class="ab-hp ab-stats">${hp == null ? "" : `<div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span>${hpTxt} hp</span>` : ""}`}${PLAYER && ammo != null ? `<span>\u00b7 ${esc(ammo)}</span>` : ""}</div>
         <span class="ab-move mono" style="font-size:.75rem">Move ${esc(moveLine(f, total, usedIn, leftIn))}</span>
@@ -2185,7 +2191,7 @@ function drawActionBar() {
         ${state.phase === "fight" && active(f) && (f.mine || !PLAYER) && (online.on || f.kind === "pc") ? `<span class="ab-sub ab-orders">${isOrders() ? "Order" : "Standing order"}: <b>${esc(orderText(f, p))}</b>${t && present(t) ? ` \u2192 ${esc(t.name)}, ${distIn(f, t)}\u2033` : " \u00b7 no target"}</span>` : ""}
         ${fight && state.step === `move-${f.side}` && (f.moved ?? 0) > 0 && !isReadyFig(f) && !f.chargedRound ? `<button type="button" class="ab-undomove" data-undomove title="Put ${esc(f.name)} back where this move began, with his full move">Undo move</button>` : ""}
         ${abTip === "fc" ? `<span class="ab-tipline">${esc(fcTip(p))}</span>` : ""}
-        <button type="button" class="ab-more" id="abDetails" title="Open ${esc(f.name)}'s details">Details</button></div>
+        <button type="button" class="ab-more" id="abDetails" title="Open ${esc(f.name)}'s ${f.charId ? "character sheet" : "details"}">${f.charId && TABLE && charOf(f.charId) ? "Sheet" : "Details"}</button></div>
       ${state.step === "orders" && state.phase === "fight" ? "" : tgt}
     </div>
     <div class="ab-actions">${cap ? `<span class="ab-cap">${esc(cap)}</span>` : ""}${acts.join("")}${hint ? `<span class="ab-k ab-hint">${esc(hint)}</span>` : ""}${fight || acts.length || hint ? "" : `<span class="ab-k">${state.phase === "setup" ? "Setup: drag figures to place them." : !alive(f) ? "Down." : helpless(f) ? `${esc(f.status)}.` : ""}</span>`}${fight && state.step === "orders" ? orderPreview(f, t) : ""}</div>
@@ -2197,7 +2203,7 @@ function drawActionBar() {
   el.querySelectorAll("[data-unready]").forEach((b) => (b.onclick = () => runAction({ type: "unready", ids: [Number(b.dataset.unready)] })));
   // desktop order: who | move | actions | target
   if (window.matchMedia("(min-width: 701px)").matches) { const tEl = el.querySelector(".ab-target"); if (tEl) el.appendChild(tEl); }
-  el.querySelector("#abDetails").onclick = (e) => { e.preventDefault(); openDrawer("figure"); };
+  el.querySelector("#abDetails").onclick = (e) => { e.preventDefault(); if (f.charId && charOf(f.charId)) openCharSheet(f.charId); else openDrawer("figure"); };
   el.querySelectorAll("[data-elect]").forEach((b) => (b.onclick = () => elect(b.dataset.elect)));
   el.querySelectorAll("[data-tip]").forEach((t) => { const go = () => { abTip = abTip === t.dataset.tip ? null : t.dataset.tip; drawActionBar(); }; t.onclick = go; t.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } }; });
   el.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
@@ -2227,16 +2233,105 @@ const sheetPlace = (() => { try { return JSON.parse(localStorage.getItem("odd-sh
 function placeSheet() {
   const w = $("#sheetWin"), W = window.innerWidth, H = window.innerHeight;
   const x = sheetPlace.x ?? Math.max(10, W - 480 - w.offsetWidth), y = sheetPlace.y ?? 140; // by default just left of the sidebar
-  w.style.left = `${Math.max(4, Math.min(W - 60, x))}px`; w.style.top = `${Math.max(4, Math.min(H - 40, y))}px`;
+  const top = Math.max(4, Math.min(H - 40, y));
+  w.style.left = `${Math.max(4, Math.min(W - 60, x))}px`; w.style.top = `${top}px`;
+  w.style.maxHeight = `${Math.max(200, H - top - 10)}px`; // a long sheet scrolls inside the window instead of running off the screen
 }
 function openSheet() {
   const w = $("#sheetWin");
   if ($("#detail").parentElement !== $("#sheetBody")) $("#sheetBody").appendChild($("#detail"));
+  charSheet.id = null; $("#rsBody").hidden = true; $("#detail").hidden = false;
   w.hidden = false; w.classList.remove("folded"); placeSheet(); titleSheet();
 }
 function titleSheet() {
+  if (charSheet.id) return;
   const f = state.selected != null ? byId(state.selected) : null;
-  $("#sheetTitle").textContent = f ? f.name : "Figure";
+  $("#sheetTitle").textContent = f ? f.name : "Figure"; $("#sheetSub").textContent = "";
+}
+/* ---------- the roster (pass 4): the Party tab's characters, chargen and the character sheet ---------- */
+const charSheet = { id: null, tab: "sheet", spells: false, error: "", busy: false, openCats: new Set(["weapon", "armor"]) };
+const charOf = (id) => table.chars.find((c) => c.id === id) ?? null;
+const meUid = () => online.api?.user?.uid ?? null;
+const iRef = () => TABLE && isRefOf(table.game, meUid());
+function renderRoster() {
+  const el = $("#rosterPanel"); if (!el) return;
+  if (!TABLE || !table.game) { el.innerHTML = ""; return; }
+  el.innerHTML = rui.rosterHtml(rs, table.chars, { me: meUid(), ref: iRef(), people: table.game.people, inFight: !!online.api?.fight });
+}
+function openCharSheet(id, tab) {
+  const w = $("#sheetWin");
+  if (charSheet.id !== id) Object.assign(charSheet, { id, tab: tab ?? "sheet", spells: false, error: "", busy: false });
+  else if (tab) charSheet.tab = tab;
+  w.hidden = false; w.classList.remove("folded"); placeSheet(); renderCharSheet();
+}
+function renderCharSheet() {
+  const ch = charOf(charSheet.id), body = $("#rsBody");
+  if (!ch) { if (charSheet.id) { charSheet.id = null; $("#sheetWin").hidden = true; } return; }
+  $("#detail").hidden = true; body.hidden = false;
+  const t = rui.titleFor(rs, ch); $("#sheetTitle").textContent = t.title; $("#sheetSub").textContent = t.sub;
+  const canEdit = ch.owner === meUid() || iRef();
+  const keep = document.activeElement?.id === "rsNotes" ? $("#rsNotes").value : null;
+  body.innerHTML = ch.status === "draft" && canEdit
+    ? rui.chargenHtml(rs, ch, { error: charSheet.error, busy: charSheet.busy, openCats: charSheet.openCats })
+    : ch.status === "draft" ? `<div class="note">${esc(table.game?.people?.[ch.owner]?.name ?? "A player")} is still rolling this character.</div>`
+    : rui.sheetHtml(rs, ch, { tab: charSheet.tab, canEdit, ref: iRef(), people: table.game?.people, me: meUid(), editingSpells: charSheet.spells, spellPick: charSheet.spellPick, error: charSheet.error });
+  if (keep != null && $("#rsNotes")) { $("#rsNotes").value = keep; $("#rsNotes").focus(); }
+}
+/** One request to oddCharacter for the open character; the roster listener redraws, the answer is shown at once. */
+async function charCall(op, data = {}) {
+  const id = charSheet.id; charSheet.busy = true; charSheet.error = ""; renderCharSheet();
+  const r = await online.api.character(op, table.cid, { id, ...data });
+  charSheet.busy = false;
+  if (!r.ok) charSheet.error = r.error ?? r.code ?? "That didn't work.";
+  else if (r.character) { const i = table.chars.findIndex((c) => c.id === r.character.id); if (i >= 0) table.chars[i] = r.character; else table.chars.push(r.character); }
+  if (r.ok && op === "finish") charSheet.tab = "sheet";
+  renderCharSheet(); if (sbTab === "party") renderRoster();
+  return r;
+}
+$("#rsBody").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  const d = b.dataset, ch = charOf(charSheet.id); if (!ch) return;
+  if (d.rsTab) { charSheet.tab = d.rsTab; charSheet.error = ""; renderCharSheet(); }
+  else if (d.rsBuy) charCall("buy", { key: d.rsBuy });
+  else if (d.rsSell != null) charCall("sell", { index: Number(d.rsSell) });
+  else if (d.rsEx) { const cur = ch.exchange?.from === d.rsEx ? ch.exchange.steps : 0; charCall("basics", { exchange: { from: d.rsEx, steps: Math.max(0, cur + Number(d.step)) } }); }
+  else if ("rsFinish" in d) { const nm = $("#rsName")?.value.trim(); if (nm && nm !== ch.name) { const r = await charCall("basics", { name: nm }); if (!r.ok) return; } charCall("finish"); }
+  else if ("rsSpells" in d) { charSheet.spells = true; charSheet.spellPick = [...(ch.remembered ?? [])]; renderCharSheet(); }
+  else if ("rsSpellsCancel" in d) { charSheet.spells = false; charSheet.error = ""; renderCharSheet(); }
+  else if ("rsSpellsSave" in d) { const r = await charCall("remember", { spells: charSheet.spellPick ?? [] }); if (r.ok) { charSheet.spells = false; renderCharSheet(); } }
+  else if ("rsNotes" in d) charCall("notes", { notes: $("#rsNotes").value });
+  else if ("rsRename" in d) { const nm = prompt("A new name", ch.name); if (nm && nm.trim()) charCall("rename", { name: nm.trim() }); }
+  else if ("rsDelete" in d) { if (confirm(`Delete ${ch.name || "this character"}? It can't be undone.`)) { const r = await online.api.character("delete", table.cid, { id: ch.id }); if (!r.ok) { charSheet.error = r.error; renderCharSheet(); } else { table.chars = table.chars.filter((c) => c.id !== ch.id); charSheet.id = null; $("#sheetWin").hidden = true; renderRoster(); } } }
+});
+// the shop's sections stay as the player left them across redraws
+$("#rsBody").addEventListener("toggle", (e) => { const c = e.target.dataset?.rsCat; if (c) { if (e.target.open) charSheet.openCats.add(c); else charSheet.openCats.delete(c); } }, true);
+$("#rsBody").addEventListener("change", (e) => {
+  const t = e.target, ch = charOf(charSheet.id); if (!ch) return;
+  if (t.dataset.rsBasic) charCall("basics", { [t.dataset.rsBasic]: t.value });
+  else if (t.id === "rsName" && t.value.trim() && t.value.trim() !== ch.name) charCall("basics", { name: t.value.trim() });
+  else if (t.dataset.rsReady) charCall("ready", { [t.dataset.rsReady]: t.value || null });
+  else if (t.dataset.rsSpell) { const k = t.dataset.rsSpell, pick = new Set(charSheet.spellPick ?? []); if (t.checked) pick.add(k); else pick.delete(k); charSheet.spellPick = [...pick]; }
+});
+$("#rosterPanel").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.rsOpen) openCharSheet(b.dataset.rsOpen);
+  else if ("rsRoll" in b.dataset) {
+    b.disabled = true; b.textContent = "Rolling\u2026";
+    const r = await online.api.character("roll", table.cid);
+    if (!r.ok) { b.disabled = false; b.textContent = "Roll a new character"; alert(r.error ?? "The server didn't roll."); return; }
+    table.chars.push(r.character); renderRoster(); openCharSheet(r.character.id);
+  }
+});
+/** Setup (the referee, between fights): every finished character onto side A, run by his player. */
+function addParty() {
+  const have = new Set(state.figures.map((f) => f.charId).filter(Boolean));
+  const add = table.chars.filter((c) => c.status === "ready" && !have.has(c.id));
+  for (const c of add) {
+    const f = rs.toFigure(c, { id: state.nextId++, side: "A" });
+    if (c.owner && !isRefOf(table.game, c.owner)) f.playerUid = c.owner;
+    state.figures.push(f);
+  }
+  return add.length;
 }
 $("#sheetClose").addEventListener("click", () => { $("#sheetWin").hidden = true; });
 $("#sheetFold").addEventListener("click", () => $("#sheetWin").classList.toggle("folded"));
@@ -2298,7 +2393,7 @@ function renderSidebar() {
   else if (sbTab === "places") renderGamePlaces();
   else if (sbTab === "fights") renderGameFights();
   else if (sbTab === "settings") renderGameSettings();
-  else if (sbTab === "party") $("#partyNote").textContent = online.api?.fight ? "" : "Who runs which character shows here during a fight. Characters and their sheets come with the roster.";
+  else if (sbTab === "party") { renderRoster(); $("#partyNote").textContent = online.api?.fight || !TABLE ? "" : "Who runs which character shows here during a fight."; }
 }
 /** Who can speak: the referee, either side, or any character on the board; online, a player as himself or one of his own. */
 function chatSpeakers() {
@@ -2597,6 +2692,7 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest?.("button"); if (!b) return;
   if (b.dataset.addPc) { const s = b.dataset.addPc; addCharacter(s, $(`#cls-${s}`).value, Math.min(14, Math.max(1, Number($(`#lvl-${s}`).value) || 1)), $(`#arm-${s}`).value, $(`#wpn-${s}`).value, Math.min(18, Math.max(3, Number($(`#dex-${s}`).value) || 10)), $(`#msl-${s}`).value, $(`#aln-${s}`).value, Math.min(18, Math.max(3, Number($(`#int-${s}`).value) || 10)), Math.max(0, Math.trunc(Number($(`#gp-${s}`).value) || 0)), Math.min(18, Math.max(3, Number($(`#cha-${s}`).value) || 10)), $(`#race-${s}`).value, $(`#spare-${s}`).value); deploy(); render(); }
   else if (b.dataset.hoard) { const k = $(`#mon-${b.dataset.hoard}`).value; if (!placeHoard(k)) logAppend(`<div class="card note">${esc(MONSTERS.find((m) => m.key === k)?.name ?? k)} keep no lair treasure.</div>`); else logAppend(`<div class="card note">Placed ${esc(state.chests.at(-1).label)}: ${Math.round(state.chests.at(-1).value).toLocaleString()} gp in coins, gems and jewellery, plus ${state.chests.at(-1).inv.items.filter((i) => !["gem", "jewelry"].includes(i.kind)).length} other item(s).</div>`); render(); }
+  else if ("addParty" in b.dataset) { const k = addParty(); deploy(); render(); if (!k) logAppend(`<div class="card note">Everyone in the roster is already on the board, or no character is finished yet.</div>`); }
   else if (b.dataset.addMon) { const s = b.dataset.addMon; addMonsters(s, $(`#mon-${s}`).value, Math.min(30, Math.max(1, Number($(`#cnt-${s}`).value) || 1))); deploy(); render(); }
   else if (b.dataset.edit) { state.editing = state.editing === Number(b.dataset.edit) ? null : Number(b.dataset.edit); render(); return; }
   else if (b.dataset.saveEdit) { saveEdit(Number(b.dataset.saveEdit)); return; }

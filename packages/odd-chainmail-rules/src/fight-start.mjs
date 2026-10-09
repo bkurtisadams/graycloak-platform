@@ -6,7 +6,8 @@
  * monster group's languages and lair hoards are rolled here, from the fight's seed, so the
  * server rolls them for an online fight (clients never roll dice that change
  * state) and local play rolls them the same way it always has: the same seed
- * gives the same fight.
+ * gives the same fight. A roster character (pass 4) brings his own hit points
+ * (hpSet) and pack (invSet), so neither is rolled for him.
  */
 import { MONSTERS } from "./monsters.mjs";
 import { hitDiceFor } from "./hit-dice.mjs";
@@ -60,7 +61,7 @@ export const setupProblems = (state) => state.figures.flatMap(weaponProblems);
  */
 export function openFight(state, seed) {
   const rng = seedFight(state, seed);
-  for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; f.hp = rollHp(f, rng); f.maxHp = f.hp; f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
+  for (const f of state.figures) { f.origSide = f.origSide ?? f.side; f.side = f.origSide; f.charmed = false; f.pfe = false; f.holdTargets = []; f.firstHitRound = null; f.burned = false; f.regenStore = 0; f.breathLeft = undefined; f.pendingStatus = null; f.level = f.baseLevel ?? f.level; f.baseLevel = f.level; if (f.hpSet && f.hp != null) f.maxHp = f.maxHp ?? f.hp; else { f.hp = rollHp(f, rng); f.maxHp = f.hp; } f.target = null; f.moved = 0; f.status = null; f.acted = null; f.lastFired = null; f.moveSeq = 0; f.action = "melee"; f.slotsLeft = f.kind === "pc" ? slotsFor(f.cls, f.level) : []; }
   // a figure whose treasure the referee set in Setup keeps it; everyone else's is rolled
   for (const f of state.figures) { f.remains = null; if (f.invSet && f.inv) continue; f.inv = emptyInventory(); if (f.kind === "monster") Object.assign(f.inv.coins, carriedCoins(f.monsterKey, rng)); }
   for (const f of state.figures) { f.lastResult = null; f.lastTaken = null; f.startWeaponId = f.weaponId; f.weaponBroken = false; if (f.kind === "pc" && f.spare && !f.invSet) f.inv.items.push(weaponItem(f.spare)); if (f.kind === "pc" && AMMO_TYPE[f.missile] && !f.invSet) f.inv.items.push(ammoItem(AMMO_TYPE[f.missile], STARTING_AMMO[AMMO_TYPE[f.missile]])); }
@@ -72,7 +73,7 @@ export function openFight(state, seed) {
   const erng = mulberry32(seed + 104729); state.encounter = new Map(); state.meleeBegun = false; state.lairNoted = new Set();
   for (const f of state.figures) {
     Object.assign(f, { averted: false, mirror: false, risesAs: null, lastHitBy: null, serviceClosed: false, serviceTries: 0, retainer: false });
-    if (f.kind === "pc") { if (!f.invSet) f.inv.coins.gp += f.purse ?? 0; const l = characterLanguages({ alignment: f.alignment ?? "law", int: f.int ?? 10 }); f.languages = l.known.slice(); f.langSlots = l.unfilled; continue; }
+    if (f.kind === "pc") { if (!f.invSet) f.inv.coins.gp += f.purse ?? 0; const l = characterLanguages({ alignment: f.alignment ?? "law", int: f.int ?? 10, race: f.race ?? "human" }); f.languages = l.known.slice(); f.langSlots = l.unfilled; continue; }
     const k = `${f.side}:${f.monsterKey}`;
     if (!state.encounter.has(k)) state.encounter.set(k, { key: k, side: f.side, monsterKey: f.monsterKey, ...groupLanguages(mon(f).mind, erng), reaction: null, holdRound: null });
   }
@@ -111,6 +112,7 @@ function runSelfTests() {
     openFight(st2, 1974); ok(st2.figures[1].inv.coins.gp === 99, "so is a monster's own treasure");
     ok(rollLairHoard("skeleton", 1, 1) === null || rollLairHoard("skeleton", 1, 1).inv, "a monster with no treasure type has no hoard");
   }
+  { const st = board(); Object.assign(st.figures[0], { hpSet: true, hp: 4, maxHp: 7 }); openFight(st, 3); ok(st.figures[0].hp === 4 && st.figures[0].maxHp === 7, "a roster character keeps his own hit points (pass 4)"); }
   { const st = board(); Object.assign(st.figures[0], { missile: "longbow" }); openFight(st, 3); ok(st.figures[0].inv.items.some((i) => i.kind === "ammo" && i.qty === 20), "an archer opens the fight with a quiver of 20 arrows"); }
   console.log(`fight-start.mjs — all self-tests passed (${pass} assertions).`);
 }

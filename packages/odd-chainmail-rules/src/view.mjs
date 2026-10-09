@@ -42,7 +42,7 @@ export const figuresOf = (state, who) => state.figures.filter((f) => controls(st
 
 /* ------------------------------------------------------------------ figures */
 
-export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "origSide", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "ac", "cls", "race", "retainer", "charmed", "serviceTries", "serviceClosed", "averted", "mirror", "burned"]);
+export const PUBLIC_FIGURE_KEYS = Object.freeze(["id", "name", "kind", "monsterKey", "side", "origSide", "x", "y", "size", "facing", "placed", "elevation", "movementAction", "status", "target", "charging", "moved", "weaponId", "weaponBroken", "missile", "armor", "ac", "cls", "race", "retainer", "charmed", "serviceTries", "serviceClosed", "averted", "mirror", "burned", "charId"]);
 export const ALLY_FIGURE_KEYS = Object.freeze(["hp", "maxHp", "level", "action", "stance"]);
 /** What a player knows of a monster group: its tongues and how talks have gone. */
 export const ENCOUNTER_PUBLIC_KEYS = Object.freeze(["key", "side", "monsterKey", "talks", "languages", "reaction", "holdRound"]);

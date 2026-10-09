@@ -1,6 +1,6 @@
 {
   "name": "@graycloak/odd-functions",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "description": "OD&D online: the server runs every fight action and keeps the dice",

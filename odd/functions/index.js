@@ -7,6 +7,7 @@
 //   oddDeleteFight  the referee deletes a fight (old test fights)
 //   oddChat         a chat line or a /roll, to everyone or privately (no fid: the lobby)
 //   oddCampaign     the game: open, join, profile, here, invite, live, reset, role, remove
+//   oddCharacter    the roster (pass 4): roll, basics, buy, sell, finish, ready, remember, rename, notes, delete
 // Both return { ok, rev, ... } or { ok: false, code, error }; only a call
 // with no signed-in user is thrown back as an error.
 //
@@ -23,6 +24,7 @@ import { randomInt } from 'node:crypto';
 import * as rules from './app/rules/index.js';
 import { createFightService } from './fight-service.mjs';
 import { createCampaignService } from './campaign-service.mjs';
+import { createCharacterService } from './character-service.mjs';
 
 // Same region as the Firestore database (nam5) and the Traveller function.
 setGlobalOptions({ region: 'us-central1', maxInstances: 2 });
@@ -57,3 +59,5 @@ export const oddAction = onCall({ timeoutSeconds: 60, memory: '512MiB' }, (reque
 export const oddChat = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => service.chat({ uid: signedIn(request), data: request.data }));
 const games = createCampaignService({ palette: rules.fightView.PLAYER_COLOURS, refereeColour: rules.fightView.REFEREE_COLOUR, store, newCode: () => Array.from({ length: 8 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('') });
 export const oddCampaign = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => games.handle({ uid: signedIn(request), email: request.auth.token.email, name: request.auth.token.name || request.auth.token.email, data: request.data }));
+const roster = createCharacterService({ rules, store, rollDie: (n) => randomInt(1, n + 1), newId: () => `ch${Date.now().toString(36)}${randomInt(36 ** 4).toString(36)}` });
+export const oddCharacter = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => roster.handle({ uid: signedIn(request), data: request.data }));

@@ -102,6 +102,18 @@ test('OD&D online fight rules', { skip: available ? false : `Firestore emulator 
     await assertFails(bob.doc('oddCampaigns/game1/presence/' + BOB).set({ seen: 2 }));
   });
 
+  await t.test('the roster (pass 4): every member reads every character; nobody writes one', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc('oddCampaigns/game1/characters/ch1').set({ owner: BOB, name: 'Brom', hp: 5 });
+    });
+    await assertSucceeds(bob.doc('oddCampaigns/game1/characters/ch1').get());
+    await assertSucceeds(bob.collection('oddCampaigns/game1/characters').get(), 'a player lists the whole roster');
+    await assertSucceeds(kurt.collection('oddCampaigns/game1/characters').get(), 'so does a co-referee');
+    await assertFails(outsider.collection('oddCampaigns/game1/characters').get());
+    await assertFails(bob.doc('oddCampaigns/game1/characters/ch1').update({ hp: 99 }), 'not even his own: oddCharacter writes it');
+    await assertFails(bob.doc('oddCampaigns/game1/characters/ch2').set({ owner: BOB }));
+  });
+
   await t.test('a fight header is read by the referee and the players in it', async () => {
     await assertSucceeds(referee.doc(F).get());
     await assertSucceeds(kurt.doc(F).get());

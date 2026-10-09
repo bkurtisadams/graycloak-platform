@@ -12,6 +12,7 @@
 //   game(op, cid, data) oddCampaign: open, join, profile, here, invite, uninvite, live, reset, role, remove
 //   watchGame(cid, cb)  the game document, live (members, people, the live fight); watchPresence(cid, cb)
 //   lobbyChat(cid, viewer, onChat) the lobby's chat; sayInLobby(cid, data)
+//   character(op, cid, data) oddCharacter (pass 4); watchCharacters(cid, cb) the roster, live
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -44,6 +45,7 @@ export async function connectOnline({ emulators = false } = {}) {
   const deleteCall = fnSdk.httpsCallable(fns, 'oddDeleteFight');
   const chatCall = fnSdk.httpsCallable(fns, 'oddChat');
   const gameCall = fnSdk.httpsCallable(fns, 'oddCampaign');
+  const characterCall = fnSdk.httpsCallable(fns, 'oddCharacter');
 
   let open = null;      // { cid, fid, viewer, rev, unsubs, seen }
   let queue = Promise.resolve();
@@ -141,6 +143,12 @@ export async function connectOnline({ emulators = false } = {}) {
     /** Follow the game document: cb(game | null). Returns the unsubscribe. */
     watchGame(cid, cb, onError) {
       return fsSdk.onSnapshot(fsSdk.doc(db, 'oddCampaigns', cid), (snap) => cb(snap.exists() ? snap.data() : null), (e) => onError?.(e.message));
+    },
+    /** The roster (pass 4): one request to oddCharacter (roll, basics, buy, sell, finish, ready, remember, rename, notes, delete). */
+    character: (op, cid, data = {}) => call(characterCall, { ...data, op, cid }),
+    /** Follow the game's characters: cb([character]), oldest first. Returns the unsubscribe. */
+    watchCharacters(cid, cb, onError) {
+      return fsSdk.onSnapshot(fsSdk.collection(db, `oddCampaigns/${cid}/characters`), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))), (e) => onError?.(e.message));
     },
     /** Who has said "here" lately: cb({ uid: seenMs }). */
     watchPresence(cid, cb) {

@@ -717,6 +717,12 @@ service cloud.firestore {
       allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
       allow write: if false;
 
+      // the roster (pass 4): every member reads every character; oddCharacter writes them
+      match /characters/{characterId} {
+        allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
+        allow write: if false;
+      }
+
       // who's here now: a page says so through oddCampaign
       match /presence/{uid} {
         allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
