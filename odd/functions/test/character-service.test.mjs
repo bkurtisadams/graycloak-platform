@@ -117,9 +117,35 @@ test("Foundry's way: the referee gives a character to another player; a player i
   assert.equal(mine.ok, true, mine.error); assert.equal(mine.game.people.bob.character, id);
   assert.equal((await prof("ann", { uid: "bob", character: null })).code, "forbidden", "a player can't change another");
   assert.equal((await prof("kurt", { uid: "bob", character: null })).game.people.bob.character, null, "the referee can");
-  assert.equal((await call("bob", { op: "owner", id, uid: "ann" })).code, "forbidden");
-  const moved = await call("kurt", { op: "owner", id, uid: "ann" });
-  assert.equal(moved.ok, true, moved.error); assert.equal(moved.character.owner, "ann"); assert.equal(moved.character.ownerName, "Ann");
+  assert.equal((await call("bob", { op: "ownership", id, ownership: { default: 1, ann: 3 } })).code, "forbidden", "Configure Ownership is the referee's");
+  const moved = await call("kurt", { op: "ownership", id, ownership: { default: 1, ann: 3, bob: 2 } });
+  assert.equal(moved.ok, true, moved.error); assert.equal(moved.character.owner, "ann"); assert.deepEqual(moved.character.viewers.sort(), ["*", "ann", "bob"]);
+  assert.equal((await call("bob", { op: "notes", id, notes: "x" })).code, "forbidden", "an Observer can't change him");
   assert.equal((await prof("ann", { character: id })).ok, true, "now Ann may take him as her character");
-  assert.equal((await call("kurt", { op: "owner", id, uid: "eve" })).ok, false, "only to a member");
+  assert.equal((await call("kurt", { op: "ownership", id, ownership: { eve: 3 } })).ok, false, "only to a member");
+});
+
+test("a new character: his maker owns him and nobody else sees him (Foundry's default)", async () => {
+  const { call } = game();
+  const ch = (await call("bob", { op: "roll" })).character;
+  assert.deepEqual(ch.ownership, { default: 0, bob: 3 }); assert.deepEqual(ch.viewers, ["bob"]); assert.equal(ch.folder, null);
+});
+
+test("the Actors directory's folders: the referee makes, nests, moves into and removes them", async () => {
+  const { store, call } = game();
+  assert.equal((await call("bob", { op: "folder-create", name: "PCs" })).code, "forbidden");
+  const pcs = (await call("kurt", { op: "folder-create", name: "PCs", color: "#d4a017" })).folder;
+  const dead = (await call("kurt", { op: "folder-create", name: "The Dead", parent: pcs.id })).folder;
+  assert.equal(dead.parent, pcs.id);
+  assert.equal((await call("kurt", { op: "folder-update", folder: pcs.id, parent: dead.id })).ok, false, "not inside itself");
+  let d = dead; for (let i = 0; i < 2; i++) d = (await call("kurt", { op: "folder-create", name: `L${i}`, parent: d.id })).folder;
+  assert.equal((await call("kurt", { op: "folder-create", name: "too deep", parent: d.id })).ok, false, "four deep at most");
+  const id = (await call("bob", { op: "roll" })).character.id;
+  assert.equal((await call("bob", { op: "move", id, folder: dead.id })).code, "forbidden");
+  assert.equal((await call("kurt", { op: "move", id, folder: dead.id })).character.folder, dead.id);
+  const rm = await call("kurt", { op: "folder-delete", folder: dead.id });
+  assert.equal(rm.ok, true, rm.error);
+  assert.equal(store.docs.get(characterPaths("c1").character(id)).folder, pcs.id, "his character moves up to the parent folder");
+  const dup = await call("kurt", { op: "duplicate", id });
+  assert.equal(dup.ok, true); assert.match(dup.character.name, /\(Copy\)$/); assert.notEqual(dup.character.id, id);
 });

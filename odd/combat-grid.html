@@ -453,6 +453,8 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
 
  </aside>
 </section>
+<div id="actorMenu" role="menu" hidden></div>
+<div class="floatwin" id="dlgWin" role="dialog" hidden style="width:min(420px, calc(100vw - 20px))"><div class="fw-head" id="dlgHead"><b id="dlgTitle"></b><button type="button" id="dlgClose" title="Close">&times;</button></div><div class="fw-body" id="dlgBody"></div></div>
 <div class="floatwin" id="sheetWin" role="dialog" aria-label="Figure sheet" hidden><div class="fw-head" id="sheetHead"><b id="sheetTitle">Figure</b><span class="fw-sub" id="sheetSub"></span><button type="button" id="sheetFold" title="Fold">&ndash;</button><button type="button" id="sheetClose" title="Close">&times;</button></div><div class="fw-body" id="sheetBody"><div id="rsBody" hidden></div></div></div>
 <aside class="drawer" id="drawer" hidden aria-label="Setup and figure details">
   <div class="drawer-head">
@@ -529,7 +531,7 @@ import {
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 import * as rui from "./roster-ui.mjs";
-{ const st = document.createElement("style"); st.textContent = rui.ROSTER_CSS; document.head.appendChild(st); }
+{ const st = document.createElement("style"); st.textContent = rui.ROSTER_CSS + rui.DIRECTORY_CSS; document.head.appendChild(st); }
 
 /* ---------- data ---------- */
 const ARMOR = mv.ARMOR;
@@ -1019,7 +1021,7 @@ function adoptView(v) {
    The game document says which fight is live; every page opens it in place, and shows the lobby on the stage when none is. */
 const TABLE = new URLSearchParams(location.search).has("c");
 if (TABLE) { document.body.classList.add("table"); if (PLAYER) $("#openSetup").hidden = true; } // a player's table has no Setup
-const table = { cid: new URLSearchParams(location.search).get("c") ?? "", chars: [], game: null, presence: {}, fights: null, menuFor: null, setup: false, lobbyChat: null, here: null };
+const table = { cid: new URLSearchParams(location.search).get("c") ?? "", chars: [], folders: [], adSearch: "", adSort: (() => { try { return localStorage.getItem("odd.adSort") || "name"; } catch { return "name"; } })(), adClosed: (() => { try { return new Set(JSON.parse(localStorage.getItem("odd.adClosed") || "[]")); } catch { return new Set(); } })(), game: null, presence: {}, fights: null, menuFor: null, setup: false, lobbyChat: null, here: null };
 const isRefOf = (g, uid) => !!g && !!uid && (g.refereeUid === uid || (g.referees ?? []).includes(uid));
 const ONLINE_MS = 3 * 60 * 1000;
 const seenAgo = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 2880 ? "yesterday" : `${Math.round(m / 1440)} days ago`; };
@@ -1037,7 +1039,8 @@ function startTable() {
   });
   api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } });
   api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "settings") renderGamePlayers(); });
-  api.watchCharacters(table.cid, (list) => { table.chars = list; renderPlayersList(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); });
+  api.watchFolders(table.cid, (list) => { table.folders = list; if (sbTab === "party") renderRoster(); });
+  api.watchCharacters(table.cid, (list) => { table.chars = list; renderPlayersList(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER });
   const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
   here(); table.here = setInterval(here, 120000); document.addEventListener("visibilitychange", here);
   loadTableFights();
@@ -1080,7 +1083,9 @@ function renderPlayersList() {
   const me = online.api?.user?.uid, on = (u) => u === me || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
   const order = (u) => (u === g.refereeUid ? 0 : (g.referees ?? []).includes(u) ? 1 : 2);
   el.innerHTML = [...(g.members ?? [])].sort((a, b) => order(a) - order(b) || (on(b) - on(a))).map((u) => {
-    const p = g.people?.[u] ?? {}, ch = p.character ? table.chars.find((c) => c.id === p.character && c.owner === u) : null;
+    const p = g.people?.[u] ?? {}, seen = p.character ? table.chars.find((c) => c.id === p.character) : null;
+    // his character's name: from the roster if this viewer can see him (and he still owns him), else as it was when assigned
+    const ch = seen ? (rs.levelOf(seen, u) >= 3 ? seen : null) : p.character && p.characterName ? { name: p.characterName } : null;
     const col = esc(p.color ?? "#999");
     return `<div class="pl ${on(u) ? "" : "away"}" title="${esc(p.name ?? "Player")}${on(u) ? ", here" : table.presence[u] ? `, last seen ${seenAgo(table.presence[u])}` : ", not seen yet"}"><span class="dot" style="border-color:${col};background:${on(u) ? col : "transparent"}"></span><span><b>${esc(p.name ?? "Player")}</b>${u === me ? " (you)" : ""}${ch ? `: ${esc(ch.name)}` : ""}</span>${isRefOf(g, u) ? `<span class="tag">GM</span>` : ""}</div>`;
   }).join("");
@@ -1116,7 +1121,7 @@ function renderGamePlayers() {
     const p = g.people?.[u] ?? {}, isCreator = u === g.refereeUid, isRef = (g.referees ?? []).includes(u);
     const role = isCreator ? `<select disabled title="The Creator made the game"><option>Creator</option></select>`
       : `<select data-grole="${esc(u)}" ${creator ? "" : "disabled title=\"Only the Creator changes roles\""}><option value="player" ${isRef ? "" : "selected"}>Player</option><option value="referee" ${isRef ? "selected" : ""}>Co-referee</option></select>`;
-    const own = table.chars.filter((c) => c.owner === u && c.status === "ready");
+    const own = table.chars.filter((c) => rs.levelOf(c, u) >= 3 && c.status === "ready");
     const charSel = `<select data-gchar="${esc(u)}" title="His assigned character"><option value="">no character</option>${own.map((c) => `<option value="${esc(c.id)}" ${p.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>`;
     return `<div class="um-row"><span class="dot" style="background:${esc(p.color ?? "#999")}"></span><span><b>${esc(p.name ?? "Player")}</b>${u === uid ? " (you)" : ""}<br><span class="note">${on(u) ? "here" : table.presence[u] ? `last seen ${seenAgo(table.presence[u])}` : "not seen yet"}</span></span><span style="display:flex;flex-direction:column;gap:3px">${role}${charSel}</span>${creator && !isCreator ? `<button class="um-del" data-gremove="${esc(u)}" title="Remove from the game (resets the join link)" aria-label="Remove">\u{1F5D1}</button>` : "<span></span>"}</div>`;
   }).join("");
@@ -1164,7 +1169,7 @@ function renderGameSettings() {
   const g = table.game, uid = online.api?.user?.uid, me = g?.people?.[uid] ?? {};
   const taken = new Set(Object.entries(g?.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
   el.innerHTML = (g ? `<div class="sbcard"><h3>You at the table</h3><div class="row"><input id="gsName" value="${esc(me.name ?? "")}" maxlength="60" style="flex:1"><button id="gsSave">Save</button></div>
-      <div class="row"><label style="display:flex;gap:6px;align-items:center">Your character <select id="gsChar"><option value="">none</option>${table.chars.filter((c) => c.owner === uid && c.status === "ready").map((c) => `<option value="${esc(c.id)}" ${me.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label></div>
+      <div class="row"><label style="display:flex;gap:6px;align-items:center">Your character <select id="gsChar"><option value="">none</option>${table.chars.filter((c) => rs.levelOf(c, uid) >= 3 && c.status === "ready").map((c) => `<option value="${esc(c.id)}" ${me.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label></div>
       <div class="row">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-gscol="${c}" aria-label="colour ${c}" style="width:24px;height:24px;border-radius:50%;padding:0;border:${c === me.color ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"};background:${c}"></button>`).join("")}</div><div class="bad" id="gsErr"></div></div>` : "")
     + `<div class="sbcard"><h3>The character card</h3><div class="row"><button id="gsDock">Dock it at the foot of the map</button><button id="gsFold">${abPlace.mini ? "Unfold it" : "Fold it to a line"}</button></div></div>`
     + (online.api?.user ? `<div class="sbcard"><h3>Account</h3><div class="note">Signed in as ${esc(online.api.user.email ?? online.api.user.displayName ?? "")}</div><div class="row"><button id="gsOut">Sign out</button></div></div>` : "");
@@ -2292,8 +2297,13 @@ const iRef = () => TABLE && isRefOf(table.game, meUid());
 function renderRoster() {
   const el = $("#rosterPanel"); if (!el) return;
   if (!TABLE || !table.game) { el.innerHTML = ""; return; }
-  el.innerHTML = rui.rosterHtml(rs, table.chars, { me: meUid(), ref: iRef(), people: table.game.people, members: table.game.members ?? [], inFight: !!online.api?.fight, menuFor: table.actorMenu });
+  const focus = document.activeElement?.id === "adSearch", caret = focus ? $("#adSearch").selectionStart : 0;
+  el.innerHTML = rui.directoryHtml(rs, { chars: table.chars, folders: table.folders, me: meUid(), ref: iRef(), people: table.game.people, search: table.adSearch, open: new Set(table.folders.filter((f) => !table.adClosed.has(f.id)).map((f) => f.id)), sort: table.adSort });
+  if (focus) { const i = $("#adSearch"); i.focus(); i.setSelectionRange(caret, caret); }
 }
+// folders start open; the ones a viewer folds stay folded in his browser
+const saveAdOpen = () => { try { localStorage.setItem("odd.adClosed", JSON.stringify([...table.adClosed])); } catch {} };
+const levelHere = (ch) => (iRef() ? 3 : rs.levelOf(ch, meUid()));
 function openCharSheet(id, tab) {
   const w = $("#sheetWin");
   if (charSheet.id !== id) Object.assign(charSheet, { id, tab: tab ?? "sheet", spells: false, error: "", busy: false });
@@ -2305,7 +2315,8 @@ function renderCharSheet() {
   if (!ch) { if (charSheet.id) { charSheet.id = null; $("#sheetWin").hidden = true; } return; }
   $("#detail").hidden = true; body.hidden = false;
   const t = rui.titleFor(rs, ch); $("#sheetTitle").textContent = t.title; $("#sheetSub").textContent = t.sub;
-  const canEdit = ch.owner === meUid() || iRef();
+  const canEdit = levelHere(ch) >= 3;
+  if (levelHere(ch) < 2) { charSheet.id = null; $("#sheetWin").hidden = true; return; } // Limited: his name only
   const keep = document.activeElement?.id === "rsNotes" ? $("#rsNotes").value : null;
   body.innerHTML = ch.status === "draft" && canEdit
     ? rui.chargenHtml(rs, ch, { error: charSheet.error, busy: charSheet.busy, openCats: charSheet.openCats })
@@ -2348,21 +2359,126 @@ $("#rsBody").addEventListener("change", (e) => {
   else if (t.dataset.rsReady) charCall("ready", { [t.dataset.rsReady]: t.value || null });
   else if (t.dataset.rsSpell) { const k = t.dataset.rsSpell, pick = new Set(charSheet.spellPick ?? []); if (t.checked) pick.add(k); else pick.delete(k); charSheet.spellPick = [...pick]; }
 });
-$("#rosterPanel").addEventListener("click", async (e) => {
+/* ---------- the Actors directory (Foundry's): create, search, folders, right-click menus, drag into folders ---------- */
+async function createActor(folder) {
+  const r = await online.api.character("roll", table.cid, folder ? { folder } : {});
+  if (!r.ok) { alert(r.error ?? "The server didn't roll."); return; }
+  table.chars.push(r.character); renderRoster(); openCharSheet(r.character.id);
+}
+function openDialog(title, html, at) {
+  const w = $("#dlgWin"); $("#dlgTitle").textContent = title; $("#dlgBody").innerHTML = html; w.hidden = false;
+  const W = window.innerWidth, H = window.innerHeight, r = w.getBoundingClientRect();
+  w.style.left = `${Math.max(8, Math.min(W - r.width - 8, (at?.x ?? W / 2 - r.width / 2)))}px`; w.style.top = `${Math.max(8, Math.min(H - r.height - 8, at?.y ?? 120))}px`;
+}
+$("#dlgClose").addEventListener("click", () => { $("#dlgWin").hidden = true; });
+$("#dlgHead").addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || e.target.closest("button")) return;
+  const w = $("#dlgWin"), r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top, h = e.currentTarget;
+  h.setPointerCapture(e.pointerId); h.onpointermove = (m) => { w.style.left = `${m.clientX - dx}px`; w.style.top = `${m.clientY - dy}px`; }; h.onpointerup = () => { h.onpointermove = h.onpointerup = null; };
+});
+const dlg = { kind: null, id: null, showGm: false, color: "" };
+function ownershipDialog(id, at) {
+  const ch = charOf(id); if (!ch) return;
+  Object.assign(dlg, { kind: "own", id });
+  const g = table.game;
+  openDialog(`Ownership Configuration: ${ch.name || "New character"}`, rui.ownershipHtml(rs, ch, { members: g.members ?? [], people: g.people, referees: [g.refereeUid, ...(g.referees ?? [])], showGm: dlg.showGm }), at);
+}
+function folderDialog(f, parent, at) {
+  Object.assign(dlg, { kind: "folder", id: f?.id ?? null, parent: parent ?? null, color: f?.color ?? "" });
+  openDialog(f ? `Edit Folder: ${f.name}` : "Create Folder", rui.folderHtml(f), at);
+  setTimeout(() => $("#fdName")?.select(), 0);
+}
+$("#dlgBody").addEventListener("change", (e) => { if (e.target.id === "owShowGm") { dlg.showGm = e.target.checked; ownershipDialog(dlg.id); } });
+$("#dlgBody").addEventListener("click", async (e) => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.rsOpen) openCharSheet(b.dataset.rsOpen);
-  else if (b.dataset.rsMenu) { table.actorMenu = table.actorMenu === b.dataset.rsMenu ? null : b.dataset.rsMenu; renderRoster(); }
-  else if ("rsRoll" in b.dataset) {
-    b.disabled = true; b.textContent = "Rolling\u2026";
-    const r = await online.api.character("roll", table.cid);
-    if (!r.ok) { b.disabled = false; b.textContent = "Roll a new character"; alert(r.error ?? "The server didn't roll."); return; }
-    table.chars.push(r.character); renderRoster(); openCharSheet(r.character.id);
+  if (b.dataset.fcol != null) { dlg.color = b.dataset.fcol; document.querySelectorAll("#dlgBody .fd-col").forEach((x) => x.classList.toggle("on", x === b)); return; }
+  if ("ownSave" in b.dataset) {
+    const own = {}; document.querySelectorAll("#dlgBody [data-own]").forEach((sel) => { own[sel.dataset.own] = sel.value === "" ? null : Number(sel.value); });
+    // users hidden by "Show referees" keep what they had
+    const prev = rs.ownershipOf(charOf(dlg.id)); for (const [u, v] of Object.entries(prev)) if (!(u in own)) own[u] = v;
+    const r = await online.api.character("ownership", table.cid, { id: dlg.id, ownership: own });
+    if (!r.ok) { $("#owErr").textContent = r.error; return; }
+    const i = table.chars.findIndex((c) => c.id === r.character.id); if (i >= 0) table.chars[i] = r.character;
+    $("#dlgWin").hidden = true; renderRoster();
+  }
+  if ("fdSave" in b.dataset) {
+    const name = $("#fdName").value.trim(); if (!name) { $("#fdErr").textContent = "A name, please."; return; }
+    const r = dlg.id ? await online.api.character("folder-update", table.cid, { folder: dlg.id, name, color: dlg.color })
+      : await online.api.character("folder-create", table.cid, { name, color: dlg.color || null, parent: dlg.parent });
+    if (!r.ok) { $("#fdErr").textContent = r.error; return; }
+    if (!dlg.id && dlg.parent) { table.adClosed.delete(dlg.parent); saveAdOpen(); }
+    $("#dlgWin").hidden = true;
   }
 });
-$("#rosterPanel").addEventListener("change", async (e) => {
-  const t = e.target; if (!t.dataset.rsOwner) return;
-  const r = await online.api.character("owner", table.cid, { id: t.dataset.rsOwner, uid: t.value });
-  if (!r.ok) alert(r.error ?? "The server refused."); else { table.actorMenu = null; const i = table.chars.findIndex((c) => c.id === r.character.id); if (i >= 0) table.chars[i] = r.character; renderRoster(); }
+const menu = { kind: null, id: null };
+function showActorMenu(kind, id, x, y) {
+  const m = $("#actorMenu"); Object.assign(menu, { kind, id });
+  m.innerHTML = kind === "actor" ? rui.actorMenuHtml(rs, charOf(id), { me: meUid(), ref: iRef() }) : rui.folderMenuHtml();
+  m.hidden = false; const r = m.getBoundingClientRect();
+  m.style.left = `${Math.min(x, window.innerWidth - r.width - 8)}px`; m.style.top = `${Math.min(y, window.innerHeight - r.height - 8)}px`;
+  m.querySelector("button")?.focus();
+}
+const hideActorMenu = () => { $("#actorMenu").hidden = true; };
+document.addEventListener("pointerdown", (e) => { if (!$("#actorMenu").hidden && !e.target.closest("#actorMenu")) hideActorMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideActorMenu(); });
+$("#actorMenu").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-am]"); if (!b) return;
+  const k = b.dataset.am, id = menu.id, at = { x: Math.max(8, $("#actorMenu").getBoundingClientRect().left - 440), y: 120 }; hideActorMenu();
+  const ch = menu.kind === "actor" ? charOf(id) : null, f = menu.kind === "folder" ? table.folders.find((x) => x.id === id) : null;
+  const call = async (op, data) => { const r = await online.api.character(op, table.cid, data); if (!r.ok) alert(r.error ?? "The server refused."); return r; };
+  if (k === "edit") openCharSheet(id);
+  else if (k === "ownership") ownershipDialog(id, at);
+  else if (k === "export") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(ch, null, 2)], { type: "application/json" })); a.download = `${(ch.name || "character").replace(/[^\w-]+/g, "_")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+  else if (k === "clear") call("move", { id, folder: null });
+  else if (k === "duplicate") call("duplicate", { id });
+  else if (k === "delete") { if (confirm(`Delete ${ch.name || "this character"}? It can't be undone.`)) { const r = await call("delete", { id }); if (r.ok) { table.chars = table.chars.filter((c) => c.id !== id); if (charSheet.id === id) { charSheet.id = null; $("#sheetWin").hidden = true; } renderRoster(); } } }
+  else if (k === "fedit") folderDialog(f, null, at);
+  else if (k === "fsub") folderDialog(null, id, at);
+  else if (k === "fnew") createActor(id);
+  else if (k === "fremove") { if (confirm(`Remove the folder ${f?.name ?? ""}? What is in it moves up a level; no actor is deleted.`)) call("folder-delete", { folder: id }); }
+});
+const panel = $("#rosterPanel");
+panel.addEventListener("click", async (e) => {
+  const b = e.target.closest("button");
+  if (b) {
+    if ("adCreate" in b.dataset) { b.disabled = true; await createActor(null); b.disabled = false; }
+    else if ("adFolder" in b.dataset) folderDialog(null, null);
+    else if ("adSort" in b.dataset) { table.adSort = table.adSort === "name" ? "made" : "name"; try { localStorage.setItem("odd.adSort", table.adSort); } catch {} renderRoster(); }
+    else if ("adCollapse" in b.dataset) { for (const f of table.folders) table.adClosed.add(f.id); saveAdOpen(); renderRoster(); }
+    else if (b.dataset.fsub) folderDialog(null, b.dataset.fsub);
+    else if (b.dataset.fnew) createActor(b.dataset.fnew);
+    else if (b.dataset.rsOpen) openCharSheet(b.dataset.rsOpen);
+    return;
+  }
+  const head = e.target.closest("[data-fhead]");
+  if (head) { const id = head.dataset.fhead; if (table.adClosed.has(id)) table.adClosed.delete(id); else table.adClosed.add(id); saveAdOpen(); renderRoster(); return; }
+  const row = e.target.closest("[data-actor]");
+  if (row) { const ch = charOf(row.dataset.actor); if (ch && levelHere(ch) >= 2) openCharSheet(ch.id); }
+});
+panel.addEventListener("keydown", (e) => { const row = e.target.closest?.("[data-actor]"); if (row && e.key === "Enter") openCharSheet(row.dataset.actor); });
+panel.addEventListener("input", (e) => { if (e.target.id === "adSearch") { table.adSearch = e.target.value; renderRoster(); } });
+panel.addEventListener("contextmenu", (e) => {
+  const row = e.target.closest("[data-actor]"), head = e.target.closest("[data-fhead]");
+  if (row) { e.preventDefault(); showActorMenu("actor", row.dataset.actor, e.clientX, e.clientY); }
+  else if (head && iRef()) { e.preventDefault(); showActorMenu("folder", head.dataset.fhead, e.clientX, e.clientY); }
+});
+// the referee drags actors (and folders) into folders, or out to the top level
+panel.addEventListener("dragstart", (e) => {
+  const row = e.target.closest?.("[data-actor]"), head = e.target.closest?.("[data-fhead]");
+  if (!iRef() || (!row && !head)) return;
+  e.dataTransfer.setData("text/plain", row ? `actor:${row.dataset.actor}` : `folder:${head.dataset.fhead}`); e.dataTransfer.effectAllowed = "move";
+});
+const dropTarget = (e) => e.target.closest?.("[data-fhead], [data-folder-root]");
+panel.addEventListener("dragover", (e) => { const t = dropTarget(e); if (!t || !iRef()) return; e.preventDefault(); panel.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop")); t.classList.add("drop"); });
+panel.addEventListener("dragleave", (e) => { const t = dropTarget(e); if (t && !t.contains(e.relatedTarget)) t.classList.remove("drop"); });
+panel.addEventListener("drop", async (e) => {
+  const t = dropTarget(e); panel.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop"));
+  if (!t || !iRef()) return; e.preventDefault();
+  const [kind, id] = (e.dataTransfer.getData("text/plain") || "").split(":"), to = t.dataset.fhead ?? null;
+  if (!id || id === to) return;
+  const r = kind === "actor" ? await online.api.character("move", table.cid, { id, folder: to }) : await online.api.character("folder-update", table.cid, { folder: id, parent: to });
+  if (!r.ok) alert(r.error ?? "The server refused.");
+  else if (to) { table.adClosed.delete(to); saveAdOpen(); }
 });
 /** Setup (the referee, between fights): every finished character onto side A, run by his player. */
 function addParty() {

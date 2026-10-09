@@ -39,6 +39,51 @@ import { fightingCapabilityFor } from "./fighting-capability.mjs";
 import { hirelingsFor } from "./retainers.mjs";
 
 export const ABILITIES = Object.freeze(["str", "int", "wis", "con", "dex", "cha"]);
+
+/**
+ * Ownership, as Foundry has it (Kurt, Oct 2026): a level for all players
+ * (ownership.default) and, per user, a level that overrides it. None sees
+ * nothing; Limited sees the actor's name in the directory; Observer opens his
+ * sheet; Owner edits him and runs him in fights. Referees see and edit
+ * everything. `owner` is the one who runs him in a fight: the first Owner
+ * (the one he already had if still an Owner), else nobody (the referee).
+ * `viewers` is what the server stores for Firestore's rules: every user with
+ * Limited or better, and "*" when all players have it.
+ */
+export const OWNERSHIP = Object.freeze({ NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 });
+export const OWNERSHIP_LABEL = Object.freeze(["None", "Limited", "Observer", "Owner"]);
+const LEVELS = [0, 1, 2, 3];
+/** A character's ownership, filled in for one made before ownership existed: his owner Owner, everyone else None. */
+export function ownershipOf(ch) {
+  if (ch?.ownership && typeof ch.ownership === "object") return ch.ownership;
+  return { default: OWNERSHIP.NONE, ...(ch?.owner ? { [ch.owner]: OWNERSHIP.OWNER } : {}) };
+}
+/** A user's level for this character (his own, else the all-players level). */
+export function levelOf(ch, uid) {
+  const o = ownershipOf(ch);
+  return uid != null && Number.isInteger(o[uid]) ? o[uid] : (o.default ?? 0);
+}
+/** Set the ownership: { default, uid: level } (a user left out, or null, takes the default). Returns { ok, ch } with owner and viewers worked out. */
+export function setOwnership(ch, ownership = {}, members = []) {
+  const def = Number(ownership.default ?? 0);
+  if (!LEVELS.includes(def)) return fail("not an ownership level");
+  const o = { default: def };
+  for (const [u, v] of Object.entries(ownership)) {
+    if (u === "default" || v == null || v === "") continue;
+    if (!members.includes(u)) return fail("not a player in this game");
+    if (!LEVELS.includes(Number(v))) return fail("not an ownership level");
+    o[u] = Number(v);
+  }
+  return { ok: true, ch: withAccess({ ...copy(ch), ownership: o }, members) };
+}
+/** owner and viewers from the ownership. */
+export function withAccess(ch, members = []) {
+  const o = ownershipOf(ch), lvl = (u) => (Number.isInteger(o[u]) ? o[u] : o.default ?? 0);
+  const owners = members.filter((u) => lvl(u) >= OWNERSHIP.OWNER);
+  const owner = owners.includes(ch.owner) ? ch.owner : owners[0] ?? null;
+  const viewers = [...new Set([...((o.default ?? 0) >= OWNERSHIP.LIMITED ? ["*"] : []), ...Object.keys(o).filter((u) => u !== "default" && o[u] >= OWNERSHIP.LIMITED)])];
+  return { ...ch, ownership: o, owner, viewers };
+}
 export const RACES = Object.freeze(["human", "dwarf", "elf", "halfling"]);
 export const CLASS_LABEL = Object.freeze({ fighter: "Fighting-Man", "magic-user": "Magic-User", cleric: "Cleric", thief: "Thief" });
 export const ALIGN_LABEL = Object.freeze({ law: "Law", neutral: "Neutrality", chaos: "Chaos" });
@@ -282,6 +327,15 @@ function runSelfTests() {
   const mu = finish(buy(setBasics({ ...strong, abilities: { ...strong.rolled } }, { name: "Zed", cls: "magic-user" }).ch, "dagger").ch, dice(2)).ch;
   ok(!remember(mu, ["sleep", "charmPerson"]).ok && remember(mu, ["sleep"]).ok && !remember(mu, ["fireBall"]).ok, "a 1st-level magic-user remembers one first-level spell");
   ok(!remember({ ...mu, cls: "cleric" }, ["light"]).ok, "a 1st-level cleric has no spells yet");
+  {
+    const c0 = { owner: "bob", name: "Brom" };
+    ok(levelOf(c0, "bob") === 3 && levelOf(c0, "ann") === 0, "a character from before ownership: his owner owns him, nobody else sees him");
+    let r = setOwnership(c0, { default: 1, ann: 2 }, ["kurt", "bob", "ann", "cy"]);
+    ok(r.ok && r.ch.owner === null && levelOf(r.ch, "bob") === 1 && levelOf(r.ch, "ann") === 2 && levelOf(r.ch, "cy") === 1, "all players Limited, Ann Observer; Bob left at the default loses ownership");
+    ok(r.ch.viewers.includes("*") && r.ch.viewers.includes("ann"), "viewers: everyone, and Ann by name");
+    r = setOwnership(c0, { default: 0, bob: 3, ann: 3 }, ["bob", "ann"]); ok(r.ch.owner === "bob" && !r.ch.viewers.includes("*"), "two owners: he keeps the one he had");
+    ok(!setOwnership(c0, { eve: 3 }, ["bob"]).ok && !setOwnership(c0, { default: 7 }, ["bob"]).ok, "only members, only the four levels");
+  }
   ok(gearProblem("fighter", "twohanded") === null && SHOP.every((e) => e.category !== "mount"), "a fighter buys anything; no mounts in the shop yet");
   console.log(`roster.mjs — all self-tests passed (${pass} assertions).`);
 }

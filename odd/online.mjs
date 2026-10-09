@@ -12,7 +12,8 @@
 //   game(op, cid, data) oddCampaign: open, join, profile, here, invite, uninvite, live, reset, role, remove
 //   watchGame(cid, cb)  the game document, live (members, people, the live fight); watchPresence(cid, cb)
 //   lobbyChat(cid, viewer, onChat) the lobby's chat; sayInLobby(cid, data)
-//   character(op, cid, data) oddCharacter (pass 4); watchCharacters(cid, cb) the roster, live
+//   character(op, cid, data) oddCharacter (pass 4); watchCharacters(cid, cb) the roster, live;
+//                       watchFolders(cid, cb) the Actors directory's folders
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
 // The page never changes the fight itself in online play; it draws whatever
@@ -146,9 +147,23 @@ export async function connectOnline({ emulators = false } = {}) {
     },
     /** The roster (pass 4): one request to oddCharacter (roll, basics, buy, sell, finish, ready, remember, rename, notes, delete). */
     character: (op, cid, data = {}) => call(characterCall, { ...data, op, cid }),
-    /** Follow the game's characters: cb([character]), oldest first. Returns the unsubscribe. */
-    watchCharacters(cid, cb, onError) {
-      return fsSdk.onSnapshot(fsSdk.collection(db, `oddCampaigns/${cid}/characters`), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))), (e) => onError?.(e.message));
+    /**
+     * Follow the characters this viewer may see: cb([character]), oldest first. The referee
+     * (all) reads them all; a player reads those whose viewers name him or "*" (Foundry's
+     * ownership; the rules allow exactly those two queries). Returns the unsubscribe.
+     */
+    watchCharacters(cid, cb, onError, { all = false } = {}) {
+      const col = fsSdk.collection(db, `oddCampaigns/${cid}/characters`), fail = (e) => onError?.(e.message);
+      const sorted = (list) => list.sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+      if (all) return fsSdk.onSnapshot(col, (snap) => cb(sorted(snap.docs.map((d) => ({ id: d.id, ...d.data() })))), fail);
+      const parts = [new Map(), new Map()];
+      const emit = () => cb(sorted([...new Map([...parts[0], ...parts[1]]).values()]));
+      const subs = [auth.currentUser?.uid, '*'].map((v, i) => fsSdk.onSnapshot(fsSdk.query(col, fsSdk.where('viewers', 'array-contains', v)), (snap) => { parts[i] = new Map(snap.docs.map((d) => [d.id, { id: d.id, ...d.data() }])); emit(); }, fail));
+      return () => subs.forEach((u) => u());
+    },
+    /** The Actors directory's folders: cb([folder]). */
+    watchFolders(cid, cb, onError) {
+      return fsSdk.onSnapshot(fsSdk.collection(db, `oddCampaigns/${cid}/folders`), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))), (e) => onError?.(e.message));
     },
     /** Who has said "here" lately: cb({ uid: seenMs }). */
     watchPresence(cid, cb) {

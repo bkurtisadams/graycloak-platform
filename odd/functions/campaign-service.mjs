@@ -88,20 +88,23 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
         const who = data.uid && data.uid !== uid ? data.uid : uid;
         if (who !== uid && !ref) return refuse('forbidden', 'only the referee changes another player');
         if (!(camp.members ?? []).includes(who)) return refuse('bad-request', 'not in this game');
-        let assigned;
+        let assigned, assignedName = null;
         if ('character' in data) {
           if (data.character == null || data.character === '') assigned = null;
           else {
             if (!ID.test(String(data.character))) return refuse('bad-request', 'no such character');
             const ch = await tx.get(`oddCampaigns/${cid}/characters/${data.character}`);
             if (!ch) return refuse('not-found', 'no such character');
-            if (ch.owner !== who) return refuse('bad-request', 'he can only be given a character he owns');
+            // Foundry: a user's character is one he owns (ownership level Owner, 3)
+            const lvl = ch.ownership ? (Number.isInteger(ch.ownership[who]) ? ch.ownership[who] : ch.ownership.default ?? 0) : ch.owner === who ? 3 : 0;
+            if (lvl < 3) return refuse('bad-request', 'he can only be given a character he owns');
             if (ch.status === 'draft') return refuse('bad-request', 'that character is not finished yet');
-            assigned = data.character;
+            assigned = data.character; assignedName = ch.name ?? null;
           }
         }
         const people = { ...camp.people }, me = { ...(people[who] ?? { role: isReferee(camp, who) ? 'referee' : 'player' }) };
-        if (assigned !== undefined) me.character = assigned;
+        // the name goes with it, so the players list can show it to players who can't see the character
+        if (assigned !== undefined) { me.character = assigned; me.characterName = assignedName; }
         if (data.name != null) { const n = String(data.name).trim().slice(0, 60); if (!n) return refuse('bad-request', 'a name, please'); me.name = n; }
         if (data.color != null) {
           const c = String(data.color).toLowerCase();

@@ -29,27 +29,116 @@ export function titleFor(rs, ch) {
 }
 
 /**
- * The Actors directory (Foundry's sidebar directory, Kurt Oct 2026): "Create Actor" at the top, then a
- * folder per kind. Player Characters for now; NPCs, hirelings and retainers get their folder when they
- * become campaign data. The referee's menu on an actor changes who owns it (Configure Ownership).
+ * The Actors directory, Foundry's way (Kurt, Oct 2026): Create Actor and Create Folder, a search,
+ * then folders (coloured bars, nested up to four deep) holding actors; actors outside any folder
+ * last. Right-click an actor or a folder for its menu; the referee drags actors and folders into
+ * folders. A player sees only actors he may (Limited or better) and the folders that hold them;
+ * a Limited actor shows its name only.
  */
-export function rosterHtml(rs, chars, { me, ref, people, members = [], inFight, menuFor = null }) {
-  const who = (uid) => (uid === me ? "you" : people?.[uid]?.name ?? "a player");
-  const done = chars.filter((c) => c.status !== "draft"), drafts = chars.filter((c) => c.status === "draft");
-  const mine = drafts.find((c) => c.owner === me);
-  const entry = (c) => {
-    const sh = rs.sheetFor(c), col = people?.[c.owner]?.color ?? "#999";
-    const menu = ref && menuFor === c.id ? `<div class="rs-menu"><label>Owner <select data-rs-owner="${esc(c.id)}">${members.map((u) => `<option value="${esc(u)}" ${u === c.owner ? "selected" : ""}>${esc(people?.[u]?.name ?? u)}</option>`).join("")}</select></label><span class="note">Configure Ownership: the owner runs him in fights and edits his sheet.</span></div>` : "";
-    return `<div class="rs-row"><span class="rs-own" style="background:${esc(col)}" title="Owned by ${esc(who(c.owner))}"></span><button type="button" class="rs-main" data-rs-open="${esc(c.id)}"><b>${esc(c.name)}</b> <span class="note">${esc(sh.raceLabel ? `${sh.raceLabel} ` : "")}${esc(sh.classLabel)} ${c.level ?? 1}</span><br>
-      <span class="mono rs-stats">${c.hp}/${c.maxHp} hp \u00b7 AC ${sh.ac} \u00b7 move ${sh.move}\u2033</span> <span class="note">\u00b7 ${esc(who(c.owner))}</span></button>
-      ${ref ? `<button type="button" class="rs-dots" data-rs-menu="${esc(c.id)}" title="Configure Ownership" aria-label="Actor menu">\u22ef</button>` : ""}</div>${menu}`;
+export function directoryHtml(rs, { chars, folders = [], me, ref, people, search = "", open = new Set(), sort = "name" }) {
+  const q = search.trim().toLowerCase();
+  const visible = chars.filter((c) => !q || (c.name || "").toLowerCase().includes(q));
+  const order = (a, b) => (sort === "name" ? (a.name || "~").localeCompare(b.name || "~") : (a.createdAt ?? 0) - (b.createdAt ?? 0));
+  const kids = (fid) => folders.filter((f) => (f.parent ?? null) === fid).sort((a, b) => (sort === "name" ? a.name.localeCompare(b.name) : (a.sort ?? 0) - (b.sort ?? 0)));
+  const inFolder = (fid) => visible.filter((c) => (c.folder ?? null) === fid && (fid === null || folders.some((f) => f.id === fid))).sort(order);
+  const orphan = (c) => c.folder && !folders.some((f) => f.id === c.folder);
+  const holds = (fid) => inFolder(fid).length > 0 || kids(fid).some((f) => holds(f.id));
+  const initials = (n) => (n || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const actor = (c) => {
+    const lvl = ref ? 3 : rs.levelOf(c, me), col = people?.[c.owner]?.color ?? "#7b8794";
+    const sh = c.status === "draft" || lvl < 2 ? null : rs.sheetFor(c);
+    const sub = c.status === "draft" ? "rolling" : sh ? `${sh.classLabel} ${c.level ?? 1} \u00b7 ${c.hp}/${c.maxHp} hp` : "";
+    return `<li class="ad-actor" data-actor="${esc(c.id)}" ${ref ? 'draggable="true"' : ""} tabindex="0" title="${lvl < 2 ? "Limited: you see his name only" : "Right-click for more"}">
+      <span class="ad-tok" style="border-color:${esc(col)}">${esc(initials(c.name))}</span><span class="ad-name">${esc(c.name || "New character")}${sub ? `<small>${esc(sub)}</small>` : ""}</span>${c.owner === me ? `<span class="ad-mine" title="You own him">\u25cf</span>` : ""}</li>`;
   };
-  const others = drafts.filter((c) => c.owner !== me).map((c) => `<div class="note">${esc(who(c.owner))} is rolling a character${ref ? ` <button type="button" class="linkish" data-rs-open="${esc(c.id)}">look</button>` : ""}</div>`).join("");
-  return `<div class="rs-create">${mine ? `<button type="button" class="primary" data-rs-open="${esc(mine.id)}">Finish ${esc(mine.name || "your rolled character")}</button>` : `<button type="button" data-rs-roll>Create Actor</button>`}<span class="note">3d6 in order, then class, race and shopping</span></div>
-    <details class="rs-folder" open><summary>Player Characters <span class="note">(${done.length})</span></summary>
-    ${done.map(entry).join("") || `<div class="note">No characters yet.</div>`}${others}</details>
-    ${inFight ? "" : `<div class="note">The referee adds the party to a fight from Setup.</div>`}`;
+  const folder = (f, depth) => {
+    if (!ref && !holds(f.id)) return "";
+    if (q && !holds(f.id)) return "";
+    const isOpen = q ? true : open.has(f.id);
+    const bar = f.color ? `background:${esc(f.color)};color:${contrast(f.color)}` : "";
+    return `<li class="ad-folder${isOpen ? " open" : ""}" data-folder="${esc(f.id)}"><div class="ad-fhead" style="${bar}" ${ref ? 'draggable="true"' : ""} data-fhead="${esc(f.id)}" title="${ref ? "Right-click for more; drop actors here" : ""}">
+      <span class="ad-ficon">${isOpen ? "\u{1F4C2}" : "\u{1F4C1}"}</span><span class="ad-fname">${esc(f.name)}</span>
+      ${ref ? `${depth < 4 ? `<button type="button" class="ad-fbtn" data-fsub="${esc(f.id)}" title="Create a folder inside">+\u{1F4C1}</button>` : ""}<button type="button" class="ad-fbtn" data-fnew="${esc(f.id)}" title="Create an actor in this folder">+\u{1F464}</button>` : ""}</div>
+      ${isOpen ? `<ul class="ad-list">${kids(f.id).map((k) => folder(k, depth + 1)).join("")}${inFolder(f.id).map(actor).join("")}</ul>` : ""}</li>`;
+  };
+  const root = [...visible.filter((c) => !c.folder || orphan(c))].sort(order);
+  const tree = kids(null).map((f) => folder(f, 1)).join("") + root.map(actor).join("");
+  return `<div class="ad-top"><button type="button" data-ad-create>\u{1F464} Create Actor</button>${ref ? `<button type="button" data-ad-folder>\u{1F4C1} Create Folder</button>` : ""}</div>
+    <div class="ad-search"><input type="search" id="adSearch" placeholder="Search Actors" value="${esc(search)}" aria-label="Search actors"><button type="button" data-ad-sort title="${sort === "name" ? "Sorted by name: sort by when made" : "Sorted by when made: sort by name"}">${sort === "name" ? "A\u2193Z" : "1\u21932"}</button><button type="button" data-ad-collapse title="Collapse all folders">\u2296</button></div>
+    <ul class="ad-list ad-root" data-folder-root="1">${tree || `<li class="note">${q ? "No actor by that name." : ref ? "No actors yet. Create one, or let the players roll theirs." : "No characters you can see yet. Create Actor rolls yours."}</li>`}</ul>
+    ${ref && folders.length ? `<div class="ad-rootdrop" data-folder-root="1">Drop here to take an actor out of its folder</div>` : ""}`;
 }
+const contrast = (hex) => { const n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255; return (r * 299 + g * 587 + b * 114) / 1000 > 140 ? "#1f2b38" : "#fff"; };
+
+/** The right-click menu for an actor (Foundry's, less the artwork items until portraits come). */
+export function actorMenuHtml(rs, ch, { me, ref }) {
+  const lvl = ref ? 3 : rs.levelOf(ch, me), items = [];
+  if (lvl >= 2) items.push(["edit", lvl >= 3 ? "\u270E Edit" : "\u{1F441} View"]);
+  if (ref) items.push(["ownership", "\u{1F465} Configure Ownership"]);
+  if (lvl >= 2) items.push(["export", "\u21E9 Export Data"]);
+  if (ref && ch.folder) items.push(["clear", "\u{1F4C1} Clear Folder"]);
+  if (ref) items.push(["delete", "\u{1F5D1} Delete"], ["duplicate", "\u29C9 Duplicate"]);
+  return items.length ? items.map(([k, l]) => `<button type="button" role="menuitem" data-am="${k}">${esc(l)}</button>`).join("") : `<div class="ctx-h">Limited: nothing to open</div>`;
+}
+export function folderMenuHtml() {
+  return [["fedit", "\u270E Edit Folder"], ["fsub", "\u{1F4C1} Create Subfolder"], ["fnew", "\u{1F464} Create Actor here"], ["fremove", "\u{1F5D1} Remove Folder"]].map(([k, l]) => `<button type="button" role="menuitem" data-am="${k}">${esc(l)}</button>`).join("");
+}
+
+/** Configure Ownership (Foundry's dialog): All Players, then each user Default / None / Limited / Observer / Owner. */
+export function ownershipHtml(rs, ch, { members, people, referees = [], showGm = false }) {
+  const o = rs.ownershipOf(ch), L = rs.OWNERSHIP_LABEL;
+  const sel = (name, cur, withDefault) => `<select data-own="${esc(name)}">${withDefault ? `<option value="" ${cur == null ? "selected" : ""}>Default</option>` : ""}${L.map((l, v) => `<option value="${v}" ${cur === v ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  const rows = members.filter((u) => showGm || !referees.includes(u)).map((u) => `<label class="ow-row"><b>${esc(people?.[u]?.name ?? u)}</b>${referees.includes(u) ? ` <span class="note">referee</span>` : ""}${sel(u, Number.isInteger(o[u]) ? o[u] : null, true)}</label>`).join("");
+  return `<p class="note">Configure access to ${esc(ch.name || "this character")}, allowing each user a different level. Limited sees his name; Observer opens his sheet; Owner edits him and runs him in fights.</p>
+    <label class="ow-gm"><input type="checkbox" id="owShowGm" ${showGm ? "checked" : ""}> Show referees</label>
+    <label class="ow-row ow-all"><b>All Players</b>${sel("default", o.default ?? 0, false)}</label>${rows}
+    <div class="rs-err" id="owErr"></div><button type="button" class="primary ow-save" data-own-save>\u{1F4BE} Save Changes</button>`;
+}
+
+/** Create or edit a folder: its name and colour. */
+export const FOLDER_COLOURS = ["#d4a017", "#b45309", "#b91c1c", "#be185d", "#6d28d9", "#1d4ed8", "#0f766e", "#15803d", "#475569"];
+export function folderHtml(f) {
+  return `<label class="ow-row"><b>Name</b><input id="fdName" maxlength="60" value="${esc(f?.name ?? "New Folder")}"></label>
+    <div class="fd-cols"><b>Colour</b><span>${["", ...FOLDER_COLOURS].map((c) => `<button type="button" class="fd-col${(f?.color ?? "") === c ? " on" : ""}" data-fcol="${c}" style="background:${c || "transparent"}" title="${c || "none"}">${c ? "" : "\u2205"}</button>`).join("")}</span></div>
+    <div class="rs-err" id="fdErr"></div><button type="button" class="primary ow-save" data-fd-save>\u{1F4BE} ${f?.id ? "Update Folder" : "Create Folder"}</button>`;
+}
+
+export const DIRECTORY_CSS = `
+.ad-top { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ad-top button { font: inherit; font-size: .85rem; padding: 6px 8px; }
+.ad-search { display: flex; gap: 4px; align-items: center; }
+.ad-search input { flex: 1; min-width: 0; font: inherit; font-size: .85rem; padding: 4px 8px; border: 1px solid #9fb2c0; border-radius: 4px; }
+.ad-search button { font: inherit; font-size: .75rem; padding: 3px 6px; min-height: 0; }
+.ad-list { list-style: none; margin: 0; padding: 0; }
+.ad-list .ad-list { padding-left: 10px; border-left: 3px solid #d5dbe3; margin-left: 4px; }
+.ad-folder { margin: 2px 0; }
+.ad-fhead { display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: #e9eef4; border-radius: 4px; cursor: pointer; font-weight: 700; font-size: .88rem; user-select: none; }
+.ad-fhead.drop, .ad-root.drop, .ad-rootdrop.drop { outline: 2px dashed var(--ink); outline-offset: -2px; }
+.ad-fname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ad-fbtn { border: 0 !important; background: none !important; color: inherit !important; padding: 0 3px !important; font-size: .8rem !important; min-height: 0 !important; cursor: pointer; opacity: .85; }
+.ad-actor { display: flex; align-items: center; gap: 8px; padding: 4px 4px; border-bottom: 1px solid #eef1f4; cursor: pointer; border-radius: 4px; }
+.ad-actor:hover, .ad-actor:focus-visible { background: #eef4fb; outline: none; }
+.ad-actor.sel { background: #dbe7f5; }
+.ad-tok { width: 30px; height: 30px; flex: none; border-radius: 50%; border: 3px solid; display: grid; place-items: center; font-size: .72rem; font-weight: 700; background: #1f2b38; color: #fff; }
+.ad-name { flex: 1; min-width: 0; font-size: .9rem; line-height: 1.2; }
+.ad-name small { display: block; font-size: .72rem; color: var(--pencil); }
+.ad-mine { color: #15803d; font-size: .6rem; }
+.ad-rootdrop { margin-top: 6px; padding: 6px; border: 1px dashed #b7c7d2; border-radius: 4px; text-align: center; font-size: .75rem; color: var(--pencil); }
+#actorMenu { position: fixed; z-index: 40; background: #fff; border: 1px solid var(--ink); border-radius: 4px; box-shadow: 0 4px 14px rgba(31,43,56,.25); padding: 4px 0; min-width: 200px; }
+#actorMenu[hidden] { display: none; }
+#actorMenu button { display: block; width: 100%; text-align: left; border: none; border-radius: 0; padding: 6px 12px; font: inherit; font-size: .88rem; background: none; color: inherit; cursor: pointer; }
+#actorMenu button:hover, #actorMenu button:focus-visible { background: #e3edf5; }
+#actorMenu .ctx-h { padding: 6px 12px; font-size: .8rem; color: var(--pencil); }
+.ow-row { display: grid; grid-template-columns: 1fr 10em; gap: 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid #eef1f4; font-size: .88rem; }
+.ow-row select, .ow-row input { font: inherit; font-size: .85rem; padding: 3px 6px; }
+.ow-all { border-bottom: 2px solid #d5dbe3; }
+.ow-gm { display: flex; justify-content: flex-end; gap: 6px; font-size: .8rem; color: var(--pencil); }
+.ow-save { width: 100%; margin-top: 10px; font: inherit; padding: 6px; }
+.fd-cols { display: grid; grid-template-columns: 1fr 10em; gap: 8px; align-items: center; padding: 6px 0; font-size: .88rem; }
+.fd-cols span { display: flex; flex-wrap: wrap; gap: 4px; }
+.fd-col { width: 20px; height: 20px; min-height: 0 !important; padding: 0 !important; border-radius: 50%; border: 1px solid #9fb2c0; font-size: .7rem; line-height: 1; cursor: pointer; }
+.fd-col.on { outline: 2px solid var(--ink); outline-offset: 1px; }
+`;
 
 function abilityBoxes(rs, ch, sh, { rolled = false } = {}) {
   return `<div class="rs-abil">${rs.ABILITIES.map((k) => {

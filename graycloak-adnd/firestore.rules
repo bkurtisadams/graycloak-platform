@@ -717,8 +717,18 @@ service cloud.firestore {
       allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
       allow write: if false;
 
-      // the roster (pass 4): every member reads every character; oddCharacter writes them
+      // the roster (pass 4): Foundry's ownership. The referee reads every character; a member
+      // reads one he may see (Limited or better: his uid, or "*" for all players, in viewers).
+      // A player lists them with two queries, viewers array-contains his uid and array-contains "*".
       match /characters/{characterId} {
+        allow read: if isOddReferee(campaignId)
+          || (isOddMember(campaignId)
+              && (request.auth.uid in resource.data.get('viewers', []) || '*' in resource.data.get('viewers', [])));
+        allow write: if false;
+      }
+
+      // the Actors directory's folders: members read them; oddCharacter writes them
+      match /folders/{folderId} {
         allow read: if isOddReferee(campaignId) || isOddMember(campaignId);
         allow write: if false;
       }
