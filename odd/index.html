@@ -230,7 +230,7 @@ function playersCard() {
     const open = S.menuFor === u ? `<div class="menu"><button data-role="${esc(u)}">${(g.referees ?? []).includes(u) ? 'Make a player again' : 'Make co-referee'}</button><button class="danger" data-remove="${esc(u)}">Remove from the game · resets the join link</button></div>` : '';
     return `<div><div class="person"><span class="dot" style="background:${esc(p.color ?? '#999')}"></span><span style="flex:1"><b>${esc(p.name ?? 'Player')}</b>${u === me() ? ' (you)' : ''} · ${role}<br>${seen}</span>${menu}</div>${open}</div>`;
   }).join('');
-  return `<div class="card"><h2>${ref ? `Players · ${n} of ${members.length} online` : 'Here now'}</h2>${rows}${!ref ? `<div style="margin-top:8px"><a href="#" id="editMe">Change my name or colour</a></div>` : ''}</div>`;
+  return `<div class="card"><h2>${ref ? `Players · ${n} of ${members.length} online` : 'Here now'}</h2>${rows}<div style="margin-top:8px"><a href="#" id="editMe">Change my name or colour</a></div></div>`;
 }
 function rolesCard() {
   return `<div class="card note" style="font-size:14px"><h2 style="color:var(--ink)">Roles</h2>

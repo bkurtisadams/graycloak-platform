@@ -169,6 +169,21 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .stage #mini { right: 16px; bottom: 14px; z-index: 3; }
 .actionbar { position: absolute; left: 16px; right: 236px; bottom: 14px; display: flex; align-items: center; gap: 16px; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; padding: 12px 14px; box-shadow: 0 4px 14px rgba(0,0,0,.3); z-index: 3; }
 .actionbar[hidden] { display: none; }
+/* the card's grip: a tab on its top edge (desktop) */
+.ab-grip { position: absolute; top: -21px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; background: var(--card); border: 1px solid var(--ink); border-bottom: none; border-radius: 8px 8px 0 0; padding: 0 8px; height: 22px; cursor: grab; user-select: none; touch-action: none; }
+.ab-grip:active { cursor: grabbing; }
+.ab-grip-dots { font-size: 14px; padding: 0 4px; letter-spacing: -1px; color: var(--pencil); line-height: 1; }
+.ab-grip button { font: inherit; font-size: 12px; line-height: 1; min-height: 0; height: 18px; padding: 0 7px; border: 1px solid #8a96a1; border-radius: 3px; background: var(--card); cursor: pointer; }
+/* moved: free over the map, as wide as it needs */
+.actionbar.free { right: auto; bottom: auto; max-width: min(860px, calc(100% - 8px)); }
+/* folded: a line with the name, hit points and Ready */
+.actionbar.mini { gap: 12px; padding: 8px 12px; right: auto; }
+.actionbar.mini .ab-actions, .actionbar.mini .ab-target, .actionbar.mini .ab-move, .actionbar.mini .ab-sub, .actionbar.mini .ab-switch, .actionbar.mini .ab-more, .actionbar.mini .ab-undomove, .actionbar.mini .ab-preview { display: none !important; }
+.actionbar.mini .ab-name { white-space: nowrap; }
+.actionbar.mini .ab-who { min-width: 0; flex-direction: row; align-items: center; gap: 10px; }
+.actionbar.mini .ab-status { flex: 0 0 auto; flex-direction: row; align-self: center; border-left: 1px solid #c9d8e2; padding-left: 10px; gap: 8px; }
+.actionbar.mini .ab-status .k { display: none; }
+.actionbar.mini .ab-status button { min-height: 32px; width: auto; padding: 4px 12px; }
 .ab-who { display: flex; flex-direction: column; gap: 4px; min-width: 170px; max-width: 280px; }
 .ab-name { font-size: 1.05rem; font-weight: 700; }
 .ab-name.a { color: var(--side-a); } .ab-name.b { color: var(--side-b); }
@@ -1051,7 +1066,7 @@ function markReady(ids, anchor) {
   const names = ids.map((id) => byId(id)?.name).filter(Boolean), list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
   box.innerHTML = `<b>Everyone else is ready.</b><span>Marking ${esc(list)} ${isOrders() ? "resolves the round now: fire, spells, then melee." : "ends this move now."}</span><div class="btns"><button type="button" class="primary" data-go>Resolve</button><button type="button" data-no>Not yet</button></div>`;
   const wrapBox = $("#wrap"); wrapBox.appendChild(box);
-  const bar = $("#actionbar"); box.style.bottom = `${(bar && !bar.hidden ? bar.offsetHeight : 0) + 24}px`;
+  const bar = $("#actionbar"); box.style.bottom = `${(bar && !bar.hidden && !bar.classList.contains("free") ? bar.offsetHeight : 0) + 24}px`;
   if (anchor === $("#step")) { box.style.top = "12px"; box.style.bottom = ""; }
   box.querySelector("[data-go]").onclick = () => { box.remove(); runAction({ type: "ready", ids }); render(); };
   box.querySelector("[data-no]").onclick = () => box.remove();
@@ -1785,7 +1800,46 @@ function needsAgainst(f, t) {
   const facing = adjacent(f, t) ? attackFacing(centre(t), t.facing, centre(f)) : "front";
   return { needs: resolveAttackPool({ attacker: { name: f.name, weaponId: p.weaponId, dice: 0, profileAttack: p.profileAttack }, target: { name: t.name, ac: t.ac } }, () => 0.5).toHitNumber, facing };
 }
+/* ---------- the character card: movable and foldable on a desktop, so it never has to cover the map ----------
+   Drag the grip on its top edge to put it anywhere over the map (or beside the map's edge); the fold
+   button shrinks it to its name, hit points and Ready; double-click the grip to dock it again.
+   Where it sits and whether it's folded are remembered in this browser. */
+const abPlace = (() => { try { return JSON.parse(localStorage.getItem("odd-actionbar") || "{}"); } catch { return {}; } })();
+function saveAbPlace() { try { localStorage.setItem("odd-actionbar", JSON.stringify(abPlace)); } catch {} }
+function placeActionBar(el) {
+  const phone = window.matchMedia("(max-width: 700px)").matches;
+  el.classList.toggle("mini", !!abPlace.mini && !phone);
+  const free = !phone && abPlace.x != null;
+  el.classList.toggle("free", free);
+  if (!free) { el.style.left = el.style.top = ""; return; }
+  const W = wrap.clientWidth, H = wrap.clientHeight, w = el.offsetWidth, h = el.offsetHeight;
+  el.style.left = `${Math.max(4, Math.min(W - Math.min(w, W) - 4, abPlace.x))}px`;
+  el.style.top = `${Math.max(4, Math.min(H - Math.min(h, H) - 4, abPlace.y))}px`;
+}
+function gripActionBar(el) {
+  if (window.matchMedia("(max-width: 700px)").matches || el.hidden) return;
+  const g = document.createElement("div"); g.className = "ab-grip";
+  g.innerHTML = `<span class="ab-grip-dots" title="Drag to move the card · double-click to dock it">\u2817\u2817\u2817</span><button type="button" data-ab-fold title="${abPlace.mini ? "Unfold the card" : "Fold the card to a line"}">${abPlace.mini ? "\u25a2" : "\u2013"}</button>${abPlace.x != null ? `<button type="button" data-ab-dock title="Dock the card at the foot of the map">dock</button>` : ""}`;
+  el.prepend(g);
+  g.querySelector("[data-ab-fold]").onclick = (e) => { e.stopPropagation(); abPlace.mini = !abPlace.mini; saveAbPlace(); renderActionBar(); };
+  g.querySelector("[data-ab-dock]")?.addEventListener("click", (e) => { e.stopPropagation(); delete abPlace.x; delete abPlace.y; saveAbPlace(); renderActionBar(); });
+  g.ondblclick = () => { delete abPlace.x; delete abPlace.y; saveAbPlace(); renderActionBar(); };
+  g.onpointerdown = (e) => {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    e.preventDefault(); e.stopPropagation();
+    const wr = wrap.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const dx = e.clientX - er.left, dy = e.clientY - er.top;
+    abPlace.x = er.left - wr.left; abPlace.y = er.top - wr.top; placeActionBar(el);
+    g.setPointerCapture(e.pointerId);
+    g.onpointermove = (m) => { abPlace.x = m.clientX - wr.left - dx; abPlace.y = m.clientY - wr.top - dy; placeActionBar(el); };
+    g.onpointerup = () => { g.onpointermove = g.onpointerup = null; saveAbPlace(); };
+  };
+}
 function renderActionBar() {
+  drawActionBar();
+  const el = $("#actionbar"); gripActionBar(el); placeActionBar(el);
+}
+function drawActionBar() {
   const el = $("#actionbar"); const f = state.selected != null ? byId(state.selected) : null;
   // On a phone the bar is a bottom sheet under the map; on a desktop it floats over the map's foot.
   const phone = window.matchMedia("(max-width: 700px)").matches;
