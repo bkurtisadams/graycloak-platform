@@ -8,8 +8,9 @@
  * the only writer and rolls every die; nothing here touches storage.
  *
  * Men & Magic as the package already reads it: 3d6 in order (rollAbilities),
- * 3d6 x 10 gold, the prime-requisite exchange (opt-in, donor floor 9; the
- * cleric's Strength trade counts for experience only, as written), race,
+ * 3d6 x 10 gold, the prime-requisite exchange (opt-in, donor floor 9; every
+ * trade raises the prime for all purposes, the cleric's Strength-for-Wisdom
+ * trade included: Kurt, Oct 2026, overruling "for experience only"), race,
  * class and alignment limits, Constitution on hit points, languages.
  *
  * Shopping limits by class (defaults, the referee may overrule):
@@ -18,8 +19,8 @@
  *   thief       leather armour, no shield (Greyhawk)
  * A character must own a melee weapon before he is finished.
  *
- * Rolls stand: a player can't throw away a rolled character; the referee can
- * delete one (Kurt's call on rerolls is still open).
+ * Rolls stand (Kurt, Oct 2026: in the book the referee rolls the abilities):
+ * a player can't throw away a rolled character; the referee can delete one.
  */
 import { rollAbilities, rollStartingGold, raceClassLegal, raceAlignmentLegal, legalClassesFor, legalAlignmentsFor, recomputeExchange, exchangeDonorsFor, maxExchangeSteps, startingHp, maxLevelFor } from "./chargen.mjs";
 import { hitDiceFor } from "./hit-dice.mjs";
@@ -91,7 +92,7 @@ export function choicesFor(ch) {
   const prime = primeFor(ch.cls);
   return {
     classes: legalClassesFor(ch.race, { greyhawk: true }), alignments: legalAlignmentsFor(ch.race), prime,
-    donors: Object.entries(exchangeDonorsFor(ch.cls)).map(([from, ratio]) => ({ from, ratio, max: maxExchangeSteps(ch.rolled, ch.cls, prime, from), xpOnly: classKey(ch.cls) === "cleric" && from === "str" }))
+    donors: Object.entries(exchangeDonorsFor(ch.cls)).map(([from, ratio]) => ({ from, ratio, max: maxExchangeSteps(ch.rolled, ch.cls, prime, from), xpOnly: false }))
   };
 }
 
@@ -108,7 +109,7 @@ export function setBasics(ch, o = {}) {
   // a changed class keeps no exchange it can't make; the shop list is checked again on finishing
   const ex = o.exchange ?? (next.cls === ch.cls ? next.exchange : { from: "", steps: 0 });
   if (ex.from && !exchangeDonorsFor(next.cls)[ex.from]) return fail(`a ${CLASS_LABEL[next.cls].toLowerCase()} can't trade ${ex.from}`);
-  const r = recomputeExchange({ abilities: next.rolled, xpPrimeBonus: 0, cls: next.cls, prime: primeFor(next.cls), oldRecord: null, newRecord: { from: ex.from || "", steps: Math.max(0, Math.trunc(ex.steps) || 0) }, mode: "xpOnly" });
+  const r = recomputeExchange({ abilities: next.rolled, xpPrimeBonus: 0, cls: next.cls, prime: primeFor(next.cls), oldRecord: null, newRecord: { from: ex.from || "", steps: Math.max(0, Math.trunc(ex.steps) || 0) }, mode: "real" });
   Object.assign(next, { abilities: r.abilities, xpPrimeBonus: r.xpPrimeBonus, exchange: r.record });
   return { ok: true, ch: next };
 }
@@ -258,7 +259,7 @@ function runSelfTests() {
   ok(r.ok && r.ch.abilities.str === 15 && r.ch.abilities.int === 11, "fighter trades Intelligence 2 for 1 into Strength");
   r = setBasics(r.ch, { cls: "magic-user" }); ok(r.ok && r.ch.abilities.str === 13 && r.ch.exchange.from === "", "changing class drops a trade the new class can't make");
   const cleric = setBasics({ ...strong, abilities: { ...strong.rolled } }, { cls: "cleric", exchange: { from: "str", steps: 1 } }).ch;
-  ok(cleric.abilities.str === 10 && cleric.abilities.wis === 12 && cleric.xpPrimeBonus === 1, "the cleric's Strength trade counts for experience only");
+  ok(cleric.abilities.str === 10 && cleric.abilities.wis === 13 && cleric.xpPrimeBonus === 0, "the cleric's Strength trade raises his Wisdom for all purposes (Kurt)");
   let f = setBasics(strong, { name: "Brom", cls: "fighter" }).ch;
   ok(!buy({ ...f, cls: "magic-user" }, "sword").ok && !buy({ ...f, cls: "magic-user" }, "leather").ok, "a magic-user buys no sword and no armour");
   ok(!buy({ ...f, cls: "cleric" }, "sword").ok && buy({ ...f, cls: "cleric" }, "mace").ok && !buy({ ...f, cls: "cleric" }, "shortbow").ok, "a cleric: mace yes, sword and bow no");
