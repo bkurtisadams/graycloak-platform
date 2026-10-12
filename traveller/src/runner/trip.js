@@ -23,6 +23,7 @@ import {
   skimGasGiantToCapacity, payCurrentBerthing, performMaintenance, shipMaintenanceStatus, canShipMakeJump,
   calculateLifeSupportCostForTrip, chargeLifeSupportForTrip, deliverFreightAtDestination, disembarkPassengersAtDestination,
   beginPortCall, calculateBerthingCost, creditShipAccount, unloadCargo, loadCargo, bookPassenger, availablePassengerCapacity,
+  highPassageRoom, bumpableMiddlePassengers, standbyMiddleCapacity, bumpMiddlePassenger,
   generateFreightOffers, generatePassengerDemand, rollShipEncounter, rollReaction, chargeShipUpkeep, shipMortgageSchedule,
   reviveLowPassengers, settleLowPassageLottery, attendingMedicExpertise, rollPassengerEndurance,
   checkRepossession, impoundShip, releaseImpound, rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
@@ -30,7 +31,7 @@ import {
   DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, quoteStarportDriveRepair, repairDrivesAtStarport,
   shipEncounterReactionDMParts, debitShipAccount, shipReactionStance, rollReactionAttack,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
-} from '../../vendor/classic-traveller-rules/index.js?v=r0.92.0';
+} from '../../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from '../contract-document.js';
 import { campaignDateKey, routeMarketSeed, seededDice } from '../../client/commerce-market.js';
@@ -225,13 +226,26 @@ export function portFacts(state, context) {
     const freeHold = Math.max(0, ship.specifications.cargo.capacityTons - ship.state.cargoUsedTons);
     const booked = (passageClass) => ship.state.passengerManifest.filter((entry) => entry.originSystemId === system.id && entry.destinationSystemId === target.id && entry.class === passageClass).length;
     const stewards = ship.crew.assignments.filter((entry) => String(entry.role).toLowerCase() === 'steward').length;
+    const waitingFor = (passageClass) => Math.max(0, (demand[passageClass] ?? 0) - booked(passageClass));
+    const highWaiting = waitingFor('high');
     route = {
       target, distance, freeHold,
       freight: offers.filter((entry) => !aboardIds.has(entry.id)),
       classes: ['high', 'middle', 'low'].map((passageClass) => {
-        const waiting = Math.max(0, (demand[passageClass] ?? 0) - booked(passageClass));
-        const berths = availablePassengerCapacity(ship, passageClass);
-        return { passageClass, waiting, booked: booked(passageClass), count: Math.min(waiting, berths), blocked: passageClass === 'high' && stewards < 1 };
+        const waiting = waitingFor(passageClass);
+        const free = availablePassengerCapacity(ship, passageClass);
+        if (passageClass === 'high') {
+          // Book 2 p.2: a high passenger may bump a middle booked here.
+          const bumpable = bumpableMiddlePassengers(ship, system.id).length;
+          const count = Math.min(waiting, free + bumpable, highPassageRoom(ship));
+          return { passageClass, waiting, booked: booked(passageClass), count, bumps: Math.max(0, count - free), blocked: stewards < 1 };
+        }
+        if (passageClass === 'middle') {
+          // Book 2 p.2: middle passage is standby, sold from staterooms high passage leaves.
+          const berths = standbyMiddleCapacity(ship, { highWaiting });
+          return { passageClass, waiting, booked: booked(passageClass), count: Math.min(waiting, berths), heldForHigh: free - berths, blocked: false };
+        }
+        return { passageClass, waiting, booked: booked(passageClass), count: Math.min(waiting, free), blocked: false };
       })
     };
   }
@@ -466,12 +480,18 @@ const HANDLERS = {
   'book-passengers'(state, action, context) {
     const facts = portFacts(state, context);
     const entry = facts.route.classes.find((candidate) => candidate.passageClass === action.passageClass);
+    let bumped = 0;
     for (let index = 0; index < entry.count; index += 1) {
       const id = `pass-${campaignDateKey(state.campaign)}-${facts.system.id}-${facts.target.id}-${entry.passageClass}-${entry.booked + index + 1}`;
       const endurance = entry.passageClass === 'low' ? rollPassengerEndurance(seeded(state, `${id}|endurance`)) : null;
+      if (entry.passageClass === 'high' && availablePassengerCapacity(state.ship, 'high') < 1) {
+        state.ship = bumpMiddlePassenger(state.ship, { originSystemId: facts.system.id }).ship;
+        bumped += 1;
+      }
       state.ship = bookPassenger(state.ship, { id, passageClass: entry.passageClass, originSystemId: facts.system.id, destinationSystemId: facts.target.id, endurance });
     }
-    return one(state, [event(state, 'port', `booked ${entry.count} ${entry.passageClass} for ${facts.target.name}, ${cr(PASSAGE_FARES_CR[entry.passageClass])} each`)]);
+    const bumpNote = bumped ? `; ${bumped} middle bumped, ticket${bumped === 1 ? '' : 's'} returned` : '';
+    return one(state, [event(state, 'port', `booked ${entry.count} ${entry.passageClass} for ${facts.target.name}, ${cr(PASSAGE_FARES_CR[entry.passageClass])} each${bumpNote}`)]);
   },
 
   'carry-message'(state, action, context) {

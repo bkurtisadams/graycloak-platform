@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDocumentRegistry, createMemoryStorage } from '../src/document-registry.js';
-import { createShipDocument, financeShip, loadCargo } from '../vendor/classic-traveller-rules/index.js';
+import { createShipDocument, financeShip, loadCargo, assignShipCrew, bookPassenger } from '../vendor/classic-traveller-rules/index.js';
 import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js';
 import { laneBetween } from '../vendor/classic-traveller-rules/index.js';
 import { createTrip, listActions, applyAction, tripDate, portFacts, tripRecord, tripFromDocuments } from '../src/runner/trip.js';
@@ -276,4 +276,29 @@ test('v0.320.0 Far Meridian sits at F in Meridian Reach: its worlds on sector he
 test('v0.325.0 Far Meridian holds 28 worlds, about the sparse density round it; its first thirteen lanes unchanged', () => {
   assert.equal(FAR_MERIDIAN_SUBSECTOR.systems.length, 28);
   for (const [from, to] of [['heliograph', 'northmark'], ['vesper', 'san-telmo'], ['calder', 'orison']]) assert.ok(laneBetween(FAR_MERIDIAN_SUBSECTOR, from, to));
+});
+
+test('v0.356.0 Book 2 p.2: middle passage is standby, and a high passenger bumps a middle booked here', async () => {
+  let trip = createTrip(await resolvedAt('orison'));
+  trip.ship = assignShipCrew(trip.ship, { role: 'steward', characterId: 'crew-steward', characterName: 'Steward' });
+  trip = applyAction(trip, { type: 'choose-destination', systemId: 'fiozaisust' }, context).state;
+  const classes = () => Object.fromEntries(portFacts(trip, context).route.classes.map((entry) => [entry.passageClass, entry]));
+  const before = classes();
+  assert.ok(before.high.waiting >= 8, 'nine high passengers wait on this route');
+  assert.equal(before.high.count, 8, 'one steward serves eight (Book 2 p.16)');
+  assert.equal(before.middle.heldForHigh, 8, 'all eight free staterooms are held for them');
+  assert.equal(before.middle.count, 0);
+
+  for (let index = 1; index <= 7; index += 1) {
+    trip.ship = bookPassenger(trip.ship, { id: `early-middle-${index}`, passageClass: 'middle', originSystemId: 'orison', destinationSystemId: 'fiozaisust' });
+  }
+  const full = classes();
+  assert.equal(full.high.count, 8);
+  assert.equal(full.high.bumps, 7);
+  const booked = applyAction(trip, { type: 'book-passengers', passageClass: 'high' }, context);
+  trip = booked.state;
+  const manifest = trip.ship.state.passengerManifest;
+  assert.equal(manifest.filter((entry) => entry.class === 'high').length, 8);
+  assert.deepEqual(manifest.filter((entry) => entry.class === 'middle').map((entry) => entry.id), []);
+  assert.ok(booked.events.some((entry) => /7 middle bumped, tickets returned/.test(entry.text ?? entry.message ?? '')));
 });

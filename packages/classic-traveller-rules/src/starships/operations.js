@@ -519,6 +519,39 @@ export function bookPassenger(ship, {
   return next;
 }
 
+// Book 2 p.2: middle passage is standby, sold only when not enough high
+// passages are, and a middle may be bumped by a late high passenger: his
+// ticket returned, nothing more. Fares are paid on delivery, so a bumped
+// middle simply leaves the manifest.
+export function highPassageRoom(ship) {
+  assertValidShipDocument(ship);
+  const stewards = ship.crew.assignments.filter((entry) => entry.role.toLowerCase() === 'steward').length;
+  const highAboard = ship.state.passengerManifest.filter((entry) => entry.class === 'high').length;
+  return Math.max(0, stewards * HIGH_PASSENGERS_PER_STEWARD - highAboard);
+}
+
+export function bumpableMiddlePassengers(ship, originSystemId) {
+  assertValidShipDocument(ship);
+  const origin = String(originSystemId ?? '').trim();
+  return ship.state.passengerManifest.filter((entry) => entry.class === 'middle' && entry.originSystemId === origin);
+}
+
+export function standbyMiddleCapacity(ship, { highWaiting = 0 } = {}) {
+  const free = availablePassengerCapacity(ship, 'middle');
+  const held = Math.min(Math.max(0, Math.floor(Number(highWaiting) || 0)), highPassageRoom(ship), free);
+  return free - held;
+}
+
+export function bumpMiddlePassenger(ship, { originSystemId } = {}) {
+  const candidates = bumpableMiddlePassengers(ship, originSystemId);
+  if (!candidates.length) throw new RangeError(`no middle passenger booked at ${originSystemId} to bump`);
+  const bumped = candidates[candidates.length - 1];
+  const next = cloneJson(ship);
+  next.state.passengerManifest = next.state.passengerManifest.filter((entry) => entry.id !== bumped.id);
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, bumped: Object.freeze({ ...bumped }) });
+}
+
 // Book 2 p.6: "Each stateroom on a starship, occupied or not, involves a
 // constant overhead cost of CR 2000 per trip made." The charge is per
 // stateroom built, not per person aboard — a Type S with four staterooms and

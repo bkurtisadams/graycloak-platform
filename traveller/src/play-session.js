@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
+import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.92.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -2822,12 +2822,15 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
       if (entry.waiting < 1) continue;
       const book = find('book-passengers', (candidate) => candidate.passageClass === entry.passageClass);
       if (!book) {
-        turnedAway.push({ text: `${entry.waiting} ${entry.passageClass}`, why: entry.blocked ? 'High passage needs a steward aboard, and nobody is assigned.' : `No ${entry.passageClass === 'low' ? 'low berths' : 'staterooms'} free for ${entry.passageClass} passage.` });
+        const why = entry.blocked ? 'High passage needs a steward aboard, and nobody is assigned.'
+          : entry.heldForHigh ? 'Middle passage is standby: the free staterooms are held for the high passengers waiting (Book 2 p.2).'
+            : `No ${entry.passageClass === 'low' ? 'low berths' : 'staterooms'} free for ${entry.passageClass} passage.`;
+        turnedAway.push({ text: `${entry.waiting} ${entry.passageClass}`, why });
         continue;
       }
       steps.push({ id: `pass-${entry.passageClass}`, title: label, figure: `${entry.waiting} waiting, ${cr(PASSAGE_FARES_CR[entry.passageClass])} each`, state: 'ready',
         command: tripCommand(book), verb: `Book ${book.count}`,
-        copy: `${entry.waiting} for ${name}; room for ${book.count}. Fares reach the ship\u2019s account when the passengers are delivered.`, cite: 'Book 2 p.8' });
+        copy: `${entry.waiting} for ${name}; room for ${book.count}.${entry.bumps ? ` ${entry.bumps} middle passenger${entry.bumps === 1 ? ' is' : 's are'} bumped to make room, ticket${entry.bumps === 1 ? '' : 's'} returned (Book 2 p.2).` : ''}${entry.heldForHigh ? ` Middle passage is standby: ${entry.heldForHigh} stateroom${entry.heldForHigh === 1 ? ' is' : 's are'} held for high passengers waiting (Book 2 p.2).` : ''} Fares reach the ship\u2019s account when the passengers are delivered.`, cite: 'Book 2 p.8' });
     }
     if (turnedAway.length) {
       steps.push({ id: 'pass-turned-away', title: 'Passengers you cannot carry', figure: `${turnedAway.map((entry) => entry.text).join(', ')} waiting`, state: 'blocked',
@@ -5267,7 +5270,10 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             && (resolved.characters ?? []).some((entry) => characterFolder(resolved.campaign, entry.identity.id) === folder)
             && !(resolved.npcActors ?? []).some((entry) => normalizeFolderPath(entry.profile?.folder ?? '') === folder);
           if (characterOnly) folder = '';
-          const created = createNpcActorDocument({ name, kind, folder, role: value?.role ?? '' });
+          // Kurt, Oct 2026: an NPC is handed his weapon with expertise-0 in
+          // it, so the default pistol is not an untrained -5 (Book 1 p.32).
+          const weaponKey = 'automatic-pistol';
+          const created = createNpcActorDocument({ name, kind, folder, role: value?.role ?? '', weaponKey, skills: { [getPersonalWeapon(weaponKey).skillNames[0]]: 0 } });
           // The document alone is not in the campaign: an actor is reached
           // through the campaign's own refs and roster, so both are written.
           registry.putAll([created, addNpcActorToCampaign(resolved.campaign, created)]);

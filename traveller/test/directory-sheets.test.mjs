@@ -2499,3 +2499,11 @@ test('v0.353.0 the Store shows everything, greys what is not sold, and offers th
   for (const button of document.querySelectorAll('.black-offer button, .gear-actions button')) if (!button.disabled) button.click();
   assert.ok(seen.includes('black-buy') && seen.includes('black-decline') && seen.includes('seek'));
 });
+
+test('v0.356.0 a new NPC is handed his automatic pistol with expertise-0 in it, not untrained', async () => {
+  const { session } = await freshSession();
+  const id = session.run('actor:create', { fight: { value: { kind: 'statblock', name: 'Thug' } } }).createdId;
+  const actor = session.resolved.npcActors.find((entry) => entry.identity.id === id);
+  assert.equal(actor.loadout.weaponKey, 'automatic-pistol');
+  assert.deepEqual(actor.skills, { 'Automatic Pistol': 0 });
+});
