@@ -1,4 +1,7 @@
-// gcc-data.js v1.6.1 — 2026-10-08
+// gcc-data.js v1.7.0 — 2026-10-13
+// v1.7.0: New system 'traveller' (Classic Traveller): 'Launch game' →
+//         traveller/client/enter.html, the game's own lobby. A link only —
+//         Traveller campaigns stay in travellerCampaigns, not tied to GCC ids.
 // v1.6.1: OD&D's tool is 'Launch game' → odd/index.html?c=<cid> (the game's
 //         lobby and join link, slice 5 pass 3).
 // v1.6.0: New system 'odd' (Original D&D, 1974): the online fight page in
@@ -118,6 +121,15 @@ const GCC = (function() {
       tools: [
         { id: 'odd-game', name: 'Launch game', href: 'odd/index.html' },
         { id: 'odd-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
+      ]
+    },
+    {
+      id: 'traveller',
+      name: 'Classic Traveller',
+      icon: '✶',
+      color: '#a3332b',
+      tools: [
+        { id: 'trav-game', name: 'Launch game', href: 'traveller/client/enter.html' },
       ]
     },
 
