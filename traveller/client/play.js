@@ -2,18 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.357.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.357.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.357.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.357.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.357.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.357.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.357.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.357.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.357.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.357.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.357.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.357.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.357.1';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.357.1';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.357.1';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.357.1';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.357.1';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.357.1';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.357.1';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.357.1';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.357.1';
+import { createPlayCloud } from './play-cloud.js?v=v0.357.1';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.357.1';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.357.1';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -83,6 +83,10 @@ const ui = {
   vectorCamera: null,
   shotsSeen: 0,
   shotsFight: null,
+  // A shot stays fresh for a moment after it lands, not for one render: the
+  // session renders on every change and the Fire/Advance handlers render
+  // again, so one render's worth of freshness was gone before it was seen.
+  shotsFresh: null,
   // Which referee tab, folder and search the directory is showing.
   referee: { tab: 'Journal', folder: '', query: '' },
   // The vector-board scene currently expanded for staging (Scenes tab).
@@ -162,14 +166,14 @@ function viewState() {
       // lives here (ui.vectorThrust), same reasoning as the declare overlay
       // above — the session only knows what has actually been committed.
       if (state.shipFight?.vector) {
-        if (ui.shotsFight !== state.shipFight.fightId) { ui.shotsFight = state.shipFight.fightId; ui.shotsSeen = 0; ui.vectorCamera = null; }
+        if (ui.shotsFight !== state.shipFight.fightId) { ui.shotsFight = state.shipFight.fightId; ui.shotsSeen = 0; ui.shotsFresh = null; ui.vectorCamera = null; }
         const v = state.shipFight.vector;
         return { ...state, shipFight: { ...state.shipFight, vector: {
           ...v,
           pendingThrust: ui.vectorThrust ?? { x: 0, y: 0 },
           camera: ui.vectorCamera,
           laserDisplay: ui.settings.laserShots === 'flash' ? 'flash' : 'hold',
-          shots: (v.shots ?? []).map((shot) => ({ ...shot, fresh: shot.index >= ui.shotsSeen }))
+          shots: (v.shots ?? []).map((shot) => ({ ...shot, fresh: shot.index >= ui.shotsSeen || (ui.shotsFresh && shot.index >= ui.shotsFresh.from && Date.now() < ui.shotsFresh.until) }))
         } } };
       }
       return state;
@@ -989,7 +993,11 @@ function render() {
   $('scene').replaceChildren(...renderScene(state, handlers));
   // Every shot now on the plot has been shown; the next render holds it
   // rather than flashing it again.
-  for (const shot of state.shipFight?.vector?.shots ?? []) ui.shotsSeen = Math.max(ui.shotsSeen, shot.index + 1);
+  const landed = (state.shipFight?.vector?.shots ?? []).filter((shot) => shot.index >= ui.shotsSeen);
+  if (landed.length) {
+    ui.shotsFresh = { from: Math.min(...landed.map((shot) => shot.index)), until: Date.now() + 2500 };
+    ui.shotsSeen = Math.max(...landed.map((shot) => shot.index)) + 1;
+  }
 
   // v0.253.0: the sidebar is always there (unless collapsed). A chip's panel
   // takes it over; otherwise it shows the tab.
