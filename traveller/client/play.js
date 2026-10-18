@@ -2,18 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.356.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.356.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.356.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.356.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.356.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.356.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.356.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.356.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.356.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.356.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.356.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.356.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.357.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.357.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.357.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.357.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.357.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.357.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.357.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.357.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.357.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.357.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.357.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.357.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -76,6 +76,13 @@ const ui = {
   // whenever it's committed/coasted or a new movement phase starts, the
   // same lifecycle ui.sheet already has for a personal fight's round.
   vectorThrust: null,
+  // v0.357.0: the vector plot's camera (null = fit to the plot), and which
+  // laser shots the plot has already shown — by log position, per fight —
+  // so a shot that has just landed can be told from one held from the
+  // phase before.
+  vectorCamera: null,
+  shotsSeen: 0,
+  shotsFight: null,
   // Which referee tab, folder and search the directory is showing.
   referee: { tab: 'Journal', folder: '', query: '' },
   // The vector-board scene currently expanded for staging (Scenes tab).
@@ -155,7 +162,15 @@ function viewState() {
       // lives here (ui.vectorThrust), same reasoning as the declare overlay
       // above — the session only knows what has actually been committed.
       if (state.shipFight?.vector) {
-        return { ...state, shipFight: { ...state.shipFight, vector: { ...state.shipFight.vector, pendingThrust: ui.vectorThrust ?? { x: 0, y: 0 } } } };
+        if (ui.shotsFight !== state.shipFight.fightId) { ui.shotsFight = state.shipFight.fightId; ui.shotsSeen = 0; ui.vectorCamera = null; }
+        const v = state.shipFight.vector;
+        return { ...state, shipFight: { ...state.shipFight, vector: {
+          ...v,
+          pendingThrust: ui.vectorThrust ?? { x: 0, y: 0 },
+          camera: ui.vectorCamera,
+          laserDisplay: ui.settings.laserShots === 'flash' ? 'flash' : 'hold',
+          shots: (v.shots ?? []).map((shot) => ({ ...shot, fresh: shot.index >= ui.shotsSeen }))
+        } } };
       }
       return state;
     }
@@ -181,7 +196,7 @@ function viewState() {
 }
 
 function loadViewSettings() {
-  const defaults = { combatMessages: 'terse', autoTarget: false };
+  const defaults = { combatMessages: 'terse', autoTarget: false, laserShots: 'hold' };
   try { return { ...defaults, ...JSON.parse(localStorage.getItem('graycloak-traveller-view-settings') || '{}') }; } catch { return defaults; }
 }
 function saveViewSettings() {
@@ -770,7 +785,8 @@ function render() {
         const name = await typed('Name:', '', { title: action === 'create-space' ? 'New space scene' : 'New scene', confirm: 'Create' });
         if (name === null || !name.trim()) return;
         const wantedFolder = folder && folder !== 'Unfiled' ? folder : undefined;
-        source.session.run('scene:create', { fight: { value: { name: name.trim(), folder: wantedFolder, boardKind: action === 'create-space' ? 'vector' : 'grid' } } });
+        const result = source.session.run('scene:create', { fight: { value: { name: name.trim(), folder: wantedFolder, boardKind: action === 'create-space' ? 'vector' : 'grid' } } });
+        if (!result.ok) note(result.message);
       } else if (action === 'file') {
         const wanted = await typed('File this scene under (use / for sub-folders):', folder ?? '', { title: 'File scene', confirm: 'File' });
         if (wanted === null || !wanted.trim()) return;
@@ -875,6 +891,26 @@ function render() {
       source.session.run('shipfight:vector-advance');
       render();
     },
+    onCamera: (camera) => { ui.vectorCamera = camera; render(); },
+    // v0.357.0: the Space chip. Staging open: close it. Otherwise open the
+    // board of the space scene the chip names, making one first if the
+    // campaign has none.
+    onSpace: async () => {
+      if (source.mode !== 'live') return;
+      if (ui.stagingSceneId) { ui.stagingSceneId = null; render(); return; }
+      let space = viewState().space;
+      if (!space) {
+        const name = await typed('Name:', 'Space', { title: 'New space scene', confirm: 'Create' });
+        if (name === null || !name.trim()) return;
+        const result = source.session.run('scene:create', { fight: { value: { name: name.trim(), boardKind: 'vector' } } });
+        if (!result.ok) { note(result.message); return; }
+        space = viewState().space;
+        if (!space) return;
+      }
+      ui.stagingSceneId = space.sceneId;
+      ui.drawer = null;
+      render();
+    },
     onFire: () => {
       if (source.mode !== 'live') return;
       source.session.run('shipfight:vector-fire');
@@ -947,10 +983,13 @@ function render() {
       state.save.state === 'cloud' || state.save.state === 'error' ? h('button', { type: 'button', class: 'mast-signin', text: 'Account', onclick: () => openAccount() }) : null,
       state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
   }
-  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer, openSheet: source.mode === 'live' ? (kind, id) => handlers.onOpenSheet(kind, id) : null, openSheets: ui.openSheets }));
+  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer, openSheet: source.mode === 'live' ? (kind, id) => handlers.onOpenSheet(kind, id) : null, openSheets: ui.openSheets, onSpace: handlers.onSpace }));
 
   $('now').replaceChildren(...renderNow(state, handlers));
   $('scene').replaceChildren(...renderScene(state, handlers));
+  // Every shot now on the plot has been shown; the next render holds it
+  // rather than flashing it again.
+  for (const shot of state.shipFight?.vector?.shots ?? []) ui.shotsSeen = Math.max(ui.shotsSeen, shot.index + 1);
 
   // v0.253.0: the sidebar is always there (unless collapsed). A chip's panel
   // takes it over; otherwise it shows the tab.

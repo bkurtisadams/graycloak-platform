@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.356.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.356.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.356.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.356.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.357.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.357.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.357.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.357.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.356.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.356.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.356.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.357.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.357.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.357.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.356.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.356.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.357.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.357.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.356.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.357.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -73,7 +73,7 @@ function entryThumb(markup) {
 
 // ---------------------------------------------------------------- masthead
 
-export function renderMastChips(state, { openDrawer, drawer, openSheet = null, openSheets = [] }) {
+export function renderMastChips(state, { openDrawer, drawer, openSheet = null, openSheets = [], onSpace = null }) {
   const chips = [];
   const c = state.character;
   if (c) {
@@ -106,6 +106,19 @@ export function renderMastChips(state, { openDrawer, drawer, openSheet = null, o
     },
     h('span', { class: 'chip-name', text: 'Combat' }),
     h('span', { class: 'chip-line', text: fighting ? state.situation.title.replace('Fight, ', '').replace('Ship fight, ', 'Ship, ') : settingUp ? 'Board open, setting up' : 'No fight' })));
+    // v0.357.0: Space beside Combat (Kurt, Sep 2026). It opens the vector
+    // board for staging — the active space scene, else the newest, else a
+    // new one — and reports the fight when one is on it.
+    const spaceFight = Boolean(state.shipFight) && state.shipFight.spatialMode === 'vector';
+    const stagingSpace = Boolean(state.staging);
+    const space = state.space;
+    chips.push(h('button', {
+      class: `chip${spaceFight ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': stagingSpace,
+      title: spaceFight ? 'A space fight is running; it has the screen' : stagingSpace ? 'Close the space board' : space ? `Open ${space.name} for staging a vector fight (Book 2 pp.22-31)` : 'Make a space scene and open it for staging',
+      onclick: () => (spaceFight ? null : onSpace?.())
+    },
+    h('span', { class: 'chip-name', text: 'Space' }),
+    h('span', { class: 'chip-line', text: spaceFight ? `Fighting, turn ${state.shipFight.gameTurn}` : stagingSpace ? `Staging ${state.staging.sceneName}` : space ? `${space.name} \u00b7 ${space.staged} staged` : 'No space scene' })));
     // v0.253.0: no Referee chip. Its directories are the sidebar's tabs,
     // always on screen, so a chip that opened them has nothing to open.
   }
@@ -1130,7 +1143,9 @@ export function renderNow(state, handlers = {}) {
     return [
       h('header', { class: 'now-head' },
         h('h1', { text: 'Ship fight' }),
-        h('p', { text: `${fight.opponentLabel} \u2014 ${fight.outcome === 'in-progress' ? `turn ${fight.gameTurn}, ${fight.phase}` : 'over'}` })),
+        // v0.357.0: whose phase it is, by ship, not just the phase's name.
+        h('p', { text: `${fight.opponentLabel} \u2014 ${fight.outcome === 'in-progress'
+          ? `turn ${fight.gameTurn}, ${fight.vector?.acting ? `${fight.vector.acting.yours ? 'your' : `${fight.vector.acting.name}\u2019s`} ${fight.phase.toLowerCase()}` : fight.phase}` : 'over'}` })),
       state.notice ? h('p', { class: `notice${state.notice.ok ? '' : ' is-error'}`, role: 'status', text: state.notice.message }) : null
     ].filter(Boolean);
   }
@@ -1906,9 +1921,11 @@ export function shipFightScene(fight, handlers) {
         // Fire/Hold/Flee, and clicking one of these alone advances nothing.
         repairBlock);
   const lead = h('header', { class: 'lead' },
-    h('h2', { text: fight.outcome === 'in-progress' ? `Ship fight \u2014 turn ${fight.gameTurn}, ${fight.phase}` : 'Ship fight \u2014 over' }),
+    h('h2', { text: fight.outcome === 'in-progress'
+      ? `Ship fight \u2014 turn ${fight.gameTurn}, ${fight.phase}${fight.vector?.acting ? ` \u00b7 ${fight.vector.acting.yours ? 'you act' : `${fight.vector.acting.name} acts`}` : ''}`
+      : 'Ship fight \u2014 over' }),
     h('p', { text: fight.outcome === 'in-progress'
-      ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
+      ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement. Wheel to zoom, right-drag to pan.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
       : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` }));
   const blocked = fight.fireBlocked && fight.outcome === 'in-progress' ? h('p', { class: 'notice is-warning', text: fight.fireBlocked }) : null;
   const roster = h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
@@ -2586,6 +2603,12 @@ function settingsDrawer(state, handlers) {
       h('legend', { text: 'Combat messages in chat' }),
       choice('combatMessages', 'terse', 'Attacks only', 'Who hit whom. The band line already shows where everyone is.'),
       choice('combatMessages', 'verbose', 'Attacks and movement', 'Adds a line for every close, open and evade.')),
+    // v0.357.0: laser shots on the vector plot (Kurt, Oct 2026: hold by
+    // default, so the opponent’s shot inside Advance is still there to see).
+    h('fieldset', { class: 'setting' },
+      h('legend', { text: 'Laser shots on the vector plot' }),
+      choice('laserShots', 'hold', 'Hold until the next phase', 'A volley stays drawn through the phase after it was fired.'),
+      choice('laserShots', 'flash', 'Flash', 'Each shot shows for a moment as it lands, then clears.')),
     h('fieldset', { class: 'setting' },
       h('legend', { text: 'Targeting' }),
       h('label', { class: 'setting-choice' },

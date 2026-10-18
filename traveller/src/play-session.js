@@ -753,6 +753,17 @@ function sceneEntries(resolved) {
   }));
 }
 
+// v0.357.0: the one vector board the Space chip stands for. Kurt (Sep 2026):
+// space combat gets its own masthead button beside Combat, not a path
+// through the Scenes tab.
+function spaceSceneSummary(resolved) {
+  const boards = (resolved.scenes ?? []).filter(sceneIsVectorBoard);
+  if (!boards.length) return null;
+  const scene = boards.find((entry) => entry.identity.id === resolved.campaign.activeSceneId)
+    ?? [...boards].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
+  return { sceneId: scene.identity.id, name: scene.identity.name, staged: scene.tokens.length, active: scene.identity.id === resolved.campaign.activeSceneId };
+}
+
 // The staging picker and staged-token list for one vector-board scene —
 // separate from sceneEntries (which stays a lightweight list row for all
 // scenes) since only one scene is ever being staged onto at a time.
@@ -1858,6 +1869,54 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
 // ------------------------------------------------------------------ session
 
 const cr = (amount) => `Cr ${Number(amount).toLocaleString('en-US')}`;
+
+// v0.357.0: Book 2 p.23's phases in one running order, so "the phase before
+// this one" is a subtraction: five intruder phases, then five native.
+function vectorPhaseOrdinal(gameTurn, phasingSide, phaseKey) {
+  const index = SHIP_COMBAT_PHASES.findIndex((entry) => entry.key === phaseKey);
+  return gameTurn * 10 + (phasingSide === 'native' ? 5 : 0) + Math.max(0, index);
+}
+
+// Who acts in the current phase: the phasing side's ship, except in return
+// fire (p.23 C), which is the other side's shot inside this side's turn.
+function vectorActing(encounter, playerSide) {
+  const phase = currentPhase(encounter);
+  const side = actingSide(encounter);
+  const onSide = encounter.participants.filter((entry) => entry.side === side);
+  const ship = onSide.find((entry) => !entry.escaped && !entry.surrendered) ?? onSide[0] ?? null;
+  const other = encounter.participants.find((entry) => entry.side !== side) ?? null;
+  return {
+    side, yours: side === playerSide, name: ship?.name ?? side,
+    phasingName: (side === encounter.phasingSide ? ship : other)?.name ?? encounter.phasingSide,
+    phaseKey: phase.key, phaseLabel: phase.label
+  };
+}
+
+// The laser shots worth drawing: those of the current phase and of the one
+// before it, each with where it was fired from and at. Ships only move in
+// phase A, and lasers only fire in B and C, so the positions now are the
+// positions then. `index` is the log position, which the page uses to tell a
+// shot it has already shown from one that has just landed.
+function vectorShots(encounter, playerSide) {
+  const now = vectorPhaseOrdinal(encounter.gameTurn, encounter.phasingSide, currentPhase(encounter).key);
+  const shots = [];
+  encounter.log.forEach((entry, index) => {
+    if (entry.kind !== 'laser-fire' || !entry.fired) return;
+    const when = vectorPhaseOrdinal(entry.gameTurn, entry.phasingSide, entry.phase);
+    if (when < now - 1) return;
+    const from = encounter.spatial?.ships?.[entry.shipId]?.position;
+    const to = encounter.spatial?.ships?.[entry.targetId]?.position;
+    if (!from || !to) return;
+    const shooter = encounter.participants.find((p) => p.id === entry.shipId);
+    shots.push({
+      index, shipId: entry.shipId, targetId: entry.targetId, turretId: entry.turretId, weapon: entry.weapon,
+      hit: Boolean(entry.hit), location: entry.location ?? null, total: entry.total, target: entry.target,
+      yours: shooter?.side === playerSide, current: when === now,
+      from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y }
+    });
+  });
+  return shots;
+}
 
 // v0.230.0: a shot log entry from resolveLaserFire, in one sentence — enough
 // to narrate a laser exchange without repeating the whole shot object.
@@ -7735,6 +7794,9 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.jobResult = resolved.campaign.roster?.jobResult ?? null;
       state.jobBook = seat === 'player' ? playerJobBook(resolved) : null;
       state.referee = refereeView(resolved, referee);
+      // v0.357.0: the space scene the masthead's Space chip opens — the
+      // active one if it is a vector board, else the newest vector board.
+      state.space = spaceSceneSummary(resolved);
       // v0.249.0: open sheets ride alongside whatever the screen is showing —
       // a fight, staging or the port — because that is what a panel floating
       // over the page means. A sheet whose document has been deleted drops out.
@@ -7860,7 +7922,16 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             fireBlockedReason: playerFireActions.length ? null : phaseActions?.reason ?? null,
             player: { position: mySpatial.position, velocity: mySpatial.velocity, maxG: previewShipVector(encounter, 'player', { x: 0, y: 0 }).maximumG },
             opponent: oppSpatial ? { name: opponent.name, side: opponent.side, position: oppSpatial.position, velocity: oppSpatial.velocity } : null,
-            range: opponent ? vectorRangeDM(encounter, 'player', opponent.id) : null
+            range: opponent ? vectorRangeDM(encounter, 'player', opponent.id) : null,
+            // v0.357.0: whose phase this is, by ship, for the banner. Kurt
+            // (Oct 2026) sat in the intruder's laser-fire phase looking for a
+            // Fire button that was never going to appear.
+            acting: vectorActing(encounter, pendingShipFight.playerSide),
+            // v0.357.0: laser shots drawn on the plot. A volley stays through
+            // the phase after the one it was fired in — the opponent's shot
+            // resolves inside Advance, so the phase it is logged under is
+            // already over by the time the screen settles.
+            shots: vectorShots(encounter, pendingShipFight.playerSide)
           };
         }
         // A toothless ship offering "Fire lasers" is misleading — the
@@ -7887,6 +7958,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           ...state,
           situation: { kind: 'ship-fight', title: `Ship fight, turn ${encounter.gameTurn}`, detail: `vs ${pendingShipFight.opponentLabel}` },
           shipFight: {
+            fightId: encounter.id,
             roster,
             spatialMode: encounter.spatialMode,
             vector,

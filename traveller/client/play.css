@@ -850,6 +850,29 @@ a.button { text-decoration: none; color: inherit; }
 .vfv-thrust-actions { display: flex; gap: 8px; margin-left: auto; }
 .vfv-note { margin: 0; font-size: 12px; color: var(--ink-2); }
 .vfv-note.is-error { color: var(--red); }
+/* v0.357.0: whose phase it is, above the plot. Yours is lit in the ship's
+   own signal colour; theirs is flat so it reads as "wait". */
+.vfv-banner { margin: 0; padding: 7px 10px; font-size: 13px; border: 1px solid var(--line); border-left-width: 4px; background: var(--raise); color: var(--ink); }
+.vfv-banner b { font-family: var(--code); font-size: 11px; letter-spacing: .08em; margin-right: 6px; }
+.vfv-banner.is-yours { border-left-color: var(--signal); }
+.vfv-banner.is-yours b { color: var(--signal); }
+.vfv-banner.is-theirs { border-left-color: var(--ink-2); color: var(--ink-2); }
+.vfv-camera { white-space: nowrap; }
+.vfv-fit { font: inherit; font-size: 11px; padding: 0 4px; border: 1px solid var(--line); background: var(--raise); color: var(--ink); cursor: pointer; }
+.vfv-fit:hover { background: var(--signal-wash); }
+/* v0.357.0: laser shots. A beam runs from the firing ship to its target in
+   the shooter's colour: solid with a burst at the target for a hit, dashed
+   and faint for a miss. Held shots (the phase before) dim; a flash fades. */
+.vfv-shots { pointer-events: none; }
+.vfv-shot { --side: var(--red); }
+.vfv-shot.is-player { --side: var(--signal); }
+.vfv-beam { stroke: var(--side); stroke-width: 2.5; stroke-linecap: round; }
+.vfv-shot.is-miss .vfv-beam { stroke-width: 1.5; stroke-dasharray: 3 6; opacity: .55; }
+.vfv-burst { fill: var(--side); fill-opacity: .35; stroke: var(--side); stroke-width: 1.5; }
+.vfv-shot:not(.is-fresh) { opacity: .45; }
+.vfv-shot.is-flash { animation: vfv-shot-fade 2.2s ease-in forwards; }
+@keyframes vfv-shot-fade { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+.vfv-shot.is-fresh .vfv-beam { filter: drop-shadow(0 0 3px var(--side)); }
 .vfv-actions, .vfv-root > .button { align-self: flex-start; }
 .vfv-root > .button + .button { margin-left: 0; }
 @container (max-width: 760px) {

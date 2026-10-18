@@ -22,14 +22,21 @@
 //     steps past those phases without doing anything in them. A note only
 //     appears for the phases that matter (fire); silence for these two is
 //     deliberate, not an oversight, and worth its own slice.
-//   - A fixed-fit camera sized to whatever is on the plot each render. No
-//     interactive zoom/pan yet.
+//   - v0.357.0: a camera, Foundry's way — right-drag (or middle-drag) pans,
+//     the wheel zooms about the pointer, [ FIT ] refits. The camera is
+//     play.js's ui.vectorCamera (zoom plus an offset from the fitted view),
+//     handed in as vector.camera and handed back through onCamera; this
+//     module still keeps nothing between calls.
+//   - v0.357.0: laser shots drawn on the plot from vector.shots (a line from
+//     the firing ship to its target, solid for a hit, dashed for a miss).
+//     Held until the phase after the one they were fired in, or flashed and
+//     gone, by the page's "Laser shots" setting (vector.laserDisplay).
 //   - v0.246.0: the plot is y-up like the staging board; a typed or clicked
 //     thrust repaints its own preview instead of asking play.js to re-render.
 //   - No gravity, no planet, no ordnance drawing. shipfight:vector-start has
 //     nothing that stages a planet yet either, so there is nothing to test
 //     this against in the UI even if it were built.
-import { kindButton } from './kind-button.js?v=v0.356.0';
+import { kindButton } from './kind-button.js?v=v0.357.0';
 
 const NS = 'http://www.w3.org/2000/svg';
 function h(tag, attributes = {}, ...children) {
@@ -88,6 +95,69 @@ function gridStep(width) {
   return 1000;
 }
 
+const ZOOM_MIN = 0.25, ZOOM_MAX = 16, WHEEL_STEP = 1.15;
+
+// The fitted box with the camera applied: zoom shrinks it about its centre,
+// the offset (in plot units, SVG y-down) moves it.
+function cameraBox(fit, camera) {
+  const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(camera?.zoom) || 1));
+  const dx = Number(camera?.dx) || 0, dy = Number(camera?.dy) || 0;
+  const w = fit.w / zoom, h = fit.h / zoom;
+  return { minX: fit.minX + (fit.w - w) / 2 + dx, minY: fit.minY + (fit.h - h) / 2 + dy, w, h, zoom, dx, dy };
+}
+
+function phasingBanner(v) {
+  const a = v.acting;
+  if (!a) return null;
+  const them = a.name;
+  const text = a.yours
+    ? ({
+      'movement': 'Your movement: plot a thrust, or coast.',
+      'laser-fire': 'Your laser fire: fire, or Advance to hold.',
+      'return-fire': `Your return fire, inside ${a.phasingName}\u2019s turn: fire back at a ship that fired on you, or Advance.`,
+      'ordnance-launch': 'Your ordnance launch: no controls here yet; Advance.',
+      'computer-reprogramming': 'Your reprogramming: no controls here yet; Advance.'
+    })[a.phaseKey] ?? `Your ${a.phaseLabel.toLowerCase()}.`
+    : ({
+      'movement': `${them}\u2019s movement: it moves when you Advance.`,
+      'laser-fire': `${them}\u2019s laser fire: its shot resolves when you Advance.`,
+      'return-fire': `${them}\u2019s return fire, inside your turn: it resolves when you Advance.`,
+      'ordnance-launch': `${them}\u2019s ordnance launch: nothing for you to do; Advance.`,
+      'computer-reprogramming': `${them}\u2019s reprogramming: nothing for you to do; Advance.`
+    })[a.phaseKey] ?? `${them}\u2019s ${a.phaseLabel.toLowerCase()}.`;
+  return h('p', { class: `vfv-banner ${a.yours ? 'is-yours' : 'is-theirs'}`, role: 'status' },
+    h('b', { text: a.yours ? 'YOU ACT' : `${them.toUpperCase()} ACTS` }), ' ', text);
+}
+
+// A laser shot as a line from the firing ship to its target. Shots between
+// the same pair are fanned sideways so two turrets do not draw as one.
+function drawShots(shots, unit, laserDisplay) {
+  const group = svg('g', { class: 'vfv-shots' });
+  const pairs = new Map();
+  for (const shot of shots) {
+    const key = `${shot.shipId}>${shot.targetId}`;
+    if (!pairs.has(key)) pairs.set(key, []);
+    pairs.get(key).push(shot);
+  }
+  for (const list of pairs.values()) {
+    list.forEach((shot, i) => {
+      if (laserDisplay === 'flash' && !shot.fresh) return;
+      const dx = shot.to.x - shot.from.x, dy = shot.to.y - shot.from.y, len = Math.hypot(dx, dy) || 1;
+      const off = (i - (list.length - 1) / 2) * unit * 0.008;
+      const nx = (-dy / len) * off, ny = (dx / len) * off;
+      const x1 = shot.from.x + nx, y1 = shot.from.y + ny, x2 = shot.to.x + nx, y2 = shot.to.y + ny;
+      const g = svg('g', { class: `vfv-shot${shot.hit ? ' is-hit' : ' is-miss'}${shot.yours ? ' is-player' : ''}${shot.fresh ? ' is-fresh' : ''}${laserDisplay === 'flash' ? ' is-flash' : ''}` });
+      g.append(svg('line', { x1, y1: sy(y1), x2, y2: sy(y2), class: 'vfv-beam' }));
+      if (shot.hit) g.append(svg('circle', { cx: x2, cy: sy(y2), r: unit * 0.012, class: 'vfv-burst' }));
+      const title = svg('title');
+      title.textContent = `${shot.turretId} ${String(shot.weapon ?? 'laser').replace(/-/g, ' ')}: ${shot.hit ? `hit${shot.location ? `, ${shot.location}` : ''}` : 'miss'} (${shot.total} vs ${shot.target}+)`;
+      g.append(title);
+      group.append(g);
+    });
+  }
+  return group;
+}
+
 /**
  * shipFight: the whole view-state object play-session.js builds (roster,
  * spatialMode, vector, phase, outcome, log, actions, ...). vector.pendingThrust
@@ -116,20 +186,70 @@ export function renderVectorFight(shipFight, handlers = {}) {
 
   const points = [playerPos, oppPos, coast, v.opponent ? { x: oppPos.x + v.opponent.velocity.x, y: oppPos.y + v.opponent.velocity.y } : null].filter(Boolean);
   if (v.awaitingMovement) points.push({ x: coast.x - reach, y: coast.y - reach }, { x: coast.x + reach, y: coast.y + reach });
-  const box = fitViewBox(points);
+  const fit = fitViewBox(points);
+  const box = cameraBox(fit, v.camera);
   const unit = Math.max(box.w, box.h);
   const plot = svg('svg', { class: 'vfv-plot', viewBox: `${box.minX} ${box.minY} ${box.w} ${box.h}`, role: 'img', 'aria-label': 'Ship vector plot' });
 
   const step = gridStep(box.w);
   const grid = svg('g', { class: 'vfv-grid' });
-  // Drawn a full view past every edge: the element is rarely the viewBox's
-  // own shape, and the letterboxed margin would otherwise show no grid.
-  const gx0 = box.minX - box.w, gx1 = box.minX + box.w * 2, gy0 = box.minY - box.h * 2, gy1 = box.minY + box.h * 3;
+  // Drawn three views past every edge: the element is rarely the viewBox's
+  // own shape, and a pan runs the view off the grid before the release
+  // redraws it.
+  const gx0 = box.minX - box.w * 3, gx1 = box.minX + box.w * 4, gy0 = box.minY - box.h * 3, gy1 = box.minY + box.h * 4;
   for (let x = Math.ceil(gx0 / step) * step; x <= gx1; x += step) grid.append(svg('line', { x1: x, y1: gy0, x2: x, y2: gy1 }));
   for (let y = Math.ceil(gy0 / step) * step; y <= gy1; y += step) grid.append(svg('line', { x1: gx0, y1: y, x2: gx1, y2: y }));
   plot.append(grid);
 
   if (oppPos) plot.append(svg('line', { x1: playerPos.x, y1: sy(playerPos.y), x2: oppPos.x, y2: sy(oppPos.y), class: 'vfv-range' }));
+  if (v.shots?.length) plot.append(drawShots(v.shots, unit, v.laserDisplay ?? 'hold'));
+
+  // Camera: right-drag or middle-drag pans (the viewBox moves live, the
+  // page is told on release), the wheel zooms about the pointer. A left
+  // click still plots a thrust below, and the browser's own menu stays shut.
+  const toPlot = (clientX, clientY) => {
+    const matrix = plot.getScreenCTM?.();
+    return matrix ? new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse()) : null;
+  };
+  let pan = null;
+  plot.addEventListener('contextmenu', (event) => event.preventDefault());
+  plot.addEventListener('pointerdown', (event) => {
+    if (event.button !== 1 && event.button !== 2) return;
+    pan = { x: event.clientX, y: event.clientY, dx: box.dx, dy: box.dy };
+    plot.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+  plot.addEventListener('pointermove', (event) => {
+    if (!pan) return;
+    const matrix = plot.getScreenCTM?.();
+    const scale = matrix?.a ? 1 / matrix.a : 0;
+    pan.dx = pan.dx - (event.clientX - pan.x) * scale;
+    pan.dy = pan.dy - (event.clientY - pan.y) * scale;
+    pan.x = event.clientX; pan.y = event.clientY;
+    const live = cameraBox(fit, { zoom: box.zoom, dx: pan.dx, dy: pan.dy });
+    plot.setAttribute('viewBox', `${live.minX} ${live.minY} ${live.w} ${live.h}`);
+  });
+  const endPan = (event) => {
+    if (!pan) return;
+    const next = { zoom: box.zoom, dx: pan.dx, dy: pan.dy };
+    pan = null;
+    plot.releasePointerCapture?.(event.pointerId);
+    handlers.onCamera?.(next);
+  };
+  plot.addEventListener('pointerup', endPan);
+  plot.addEventListener('pointercancel', endPan);
+  plot.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const at = toPlot(event.clientX, event.clientY);
+    const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, box.zoom * (event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP)));
+    if (zoom === box.zoom) return;
+    // Keep the point under the pointer where it is: the new box's centre is
+    // pulled toward it by the fraction the view shrank.
+    const cx = box.minX + box.w / 2, cy = box.minY + box.h / 2;
+    const k = box.zoom / zoom;
+    const ncx = at ? at.x - (at.x - cx) * k : cx, ncy = at ? at.y - (at.y - cy) * k : cy;
+    handlers.onCamera?.({ zoom, dx: ncx - (fit.minX + fit.w / 2), dy: ncy - (fit.minY + fit.h / 2) });
+  }, { passive: false });
 
   const drawShip = (pos, vel, side, label, isPlayer) => {
     const group = svg('g', { class: `vfv-ship ${SIDE_CLASS(side)}${isPlayer ? ' is-player' : ''}` });
@@ -171,9 +291,12 @@ export function renderVectorFight(shipFight, handlers = {}) {
   const status = h('p', { class: 'vfv-status' },
     `VEL ${speedOf(playerVel.x, playerVel.y).toFixed(1)}" @ ${String(bearingOf(playerVel.x, playerVel.y)).padStart(3, '0')}\u00b0`,
     v.range ? ` \u00b7 RANGE ${v.range.distance.toFixed(1)}"${v.range.dm ? ` (DM ${v.range.dm})` : ''}` : '',
-    ` \u00b7 TURN ${shipFight.gameTurn}, ${shipFight.phase} \u00b7 GRID ${step}"`);
+    ` \u00b7 TURN ${shipFight.gameTurn}, ${shipFight.phase} \u00b7 GRID ${step}"`,
+    h('span', { class: 'vfv-camera', title: 'Wheel to zoom, right-drag to pan' },
+      ` \u00b7 ZOOM ${Math.round(box.zoom * 100)}% `,
+      h('button', { type: 'button', class: 'text-button vfv-fit', text: '[ FIT ]', 'aria-label': 'Fit the whole plot', onclick: () => handlers.onCamera?.(null) })));
 
-  const parts = [plot, status];
+  const parts = [phasingBanner(v), plot, status].filter(Boolean);
 
   // v0.282.0: the players' copy (readOnly) draws the plot and nothing to press.
   if (shipFight.readOnly) {

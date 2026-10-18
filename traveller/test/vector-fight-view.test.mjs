@@ -408,3 +408,179 @@ test('v0.355.0 a vector shot inside 150 inches takes no range DM', async () => {
   assert.equal(session.run('shipfight:vector-fire').ok, true);
   assert.doesNotMatch(session.view().shipFight.log.join('\n'), /inches \(/);
 });
+
+// v0.357.0: the banner names whose phase it is; the shots drawn on the plot
+// are the current phase's and the one before; the camera pans and zooms.
+test('v0.357.0 vector.acting names the ship whose phase it is, and the banner says so', { skip: !JSDOM }, async () => {
+  const session = await stagedVectorFight({ intruder: 'opposition' });
+  let v = session.view().shipFight.vector;
+  assert.equal(v.acting.yours, false, 'the opposition intrudes, so it moves first');
+  assert.equal(v.acting.name, 'Corsair');
+  assert.equal(v.acting.phaseKey, 'movement');
+
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  let root = renderVectorFight(session.view().shipFight, {});
+  let banner = root.querySelector('.vfv-banner');
+  assert.ok(banner.classList.contains('is-theirs'));
+  assert.match(banner.textContent, /CORSAIR ACTS/);
+  assert.match(banner.textContent, /Corsair\u2019s movement/);
+
+  // Advance through Corsair's B; C is the player's return fire inside its turn.
+  session.run('shipfight:vector-advance');
+  session.run('shipfight:vector-advance');
+  v = session.view().shipFight.vector;
+  if (session.view().shipFight.outcome === 'in-progress') {
+    assert.equal(v.phaseKey, 'return-fire');
+    assert.equal(v.acting.yours, true, 'p.23 C: the native returns fire inside the intruder\u2019s turn');
+    assert.equal(v.acting.phasingName, 'Corsair');
+    root = renderVectorFight(session.view().shipFight, {});
+    banner = root.querySelector('.vfv-banner');
+    assert.ok(banner.classList.contains('is-yours'));
+    assert.match(banner.textContent, /YOU ACT/);
+  }
+  dom.window.close();
+  delete globalThis.document;
+});
+
+test('v0.357.0 a shot is drawn on the plot from the firing ship to its target, and held through the next phase', { skip: !JSDOM }, async () => {
+  const session = await stagedVectorFight({ intruder: 'party' });
+  session.run('shipfight:vector-coast', { fight: { shipId: 'player' } });
+  session.run('shipfight:vector-advance'); // -> laser-fire, player's
+  assert.equal(session.view().shipFight.vector.shots.length, 0, 'nothing fired yet');
+  session.run('shipfight:vector-fire');
+  let fight = session.view().shipFight;
+  const v = fight.vector;
+  assert.equal(v.shots.length, 1, 'one armed turret, one shot');
+  const shot = v.shots[0];
+  assert.equal(shot.shipId, 'player');
+  assert.equal(shot.yours, true);
+  assert.equal(shot.current, true);
+  assert.deepEqual(shot.from, v.player.position);
+  assert.deepEqual(shot.to, v.opponent.position);
+  assert.equal(typeof shot.index, 'number');
+
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  let root = renderVectorFight({ ...fight, vector: { ...v, shots: v.shots.map((s) => ({ ...s, fresh: true })), laserDisplay: 'hold' } }, {});
+  let drawn = root.querySelectorAll('.vfv-shot');
+  assert.equal(drawn.length, 1);
+  assert.ok(drawn[0].classList.contains('is-player'));
+  assert.ok(drawn[0].classList.contains('is-fresh'));
+  assert.ok(drawn[0].classList.contains(shot.hit ? 'is-hit' : 'is-miss'));
+  assert.equal(drawn[0].querySelectorAll('.vfv-beam').length, 1);
+  assert.equal(drawn[0].querySelectorAll('.vfv-burst').length, shot.hit ? 1 : 0, 'a burst marks a hit at the target');
+  assert.ok(drawn[0].querySelector('title').textContent.includes(shot.turretId));
+
+  // Flash: a shot already shown is not drawn again.
+  root = renderVectorFight({ ...fight, vector: { ...v, shots: v.shots.map((s) => ({ ...s, fresh: false })), laserDisplay: 'flash' } }, {});
+  assert.equal(root.querySelectorAll('.vfv-shot').length, 0);
+  root = renderVectorFight({ ...fight, vector: { ...v, shots: v.shots.map((s) => ({ ...s, fresh: true })), laserDisplay: 'flash' } }, {});
+  assert.ok(root.querySelector('.vfv-shot').classList.contains('is-flash'));
+
+  // Held through the next phase (C), gone the phase after (D).
+  if (session.view().shipFight.outcome === 'in-progress') {
+    session.run('shipfight:vector-advance'); // -> return-fire
+    fight = session.view().shipFight;
+    if (fight.outcome === 'in-progress') {
+      assert.ok(fight.vector.shots.some((s) => s.shipId === 'player' && !s.current), 'the player\u2019s B shot is still there in C, no longer current');
+      session.run('shipfight:vector-advance'); // -> ordnance-launch
+      fight = session.view().shipFight;
+      if (fight.outcome === 'in-progress') {
+        assert.equal(fight.vector.shots.filter((s) => s.shipId === 'player').length, 0, 'gone by D');
+      }
+    }
+  }
+  dom.window.close();
+  delete globalThis.document;
+});
+
+test('v0.357.0 the plot has a camera: the wheel zooms, a right-drag pans, [ FIT ] refits, and the browser menu is kept off', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>', { pretendToBeVisual: true });
+  globalThis.document = dom.window.document;
+  globalThis.DOMPoint = dom.window.DOMPoint ?? class { constructor(x, y) { this.x = x; this.y = y; } matrixTransform() { return this; } };
+  const session = await stagedVectorFight({ intruder: 'party' });
+  const fight = session.view().shipFight;
+  const cameras = [];
+  let root = renderVectorFight({ ...fight, vector: { ...fight.vector, camera: null } }, { onCamera: (c) => cameras.push(c) });
+  document.querySelector('main').append(root);
+  const plot = root.querySelector('svg.vfv-plot');
+  const fitBox = plot.getAttribute('viewBox').split(' ').map(Number);
+  assert.match(root.querySelector('.vfv-camera').textContent, /ZOOM 100%/);
+
+  const menu = new dom.window.Event('contextmenu', { cancelable: true });
+  plot.dispatchEvent(menu);
+  assert.equal(menu.defaultPrevented, true, 'right-click is the pan button, not the browser menu');
+
+  const wheel = new dom.window.WheelEvent('wheel', { deltaY: -100, cancelable: true, clientX: 0, clientY: 0 });
+  plot.dispatchEvent(wheel);
+  assert.equal(wheel.defaultPrevented, true);
+  assert.equal(cameras.length, 1);
+  assert.ok(cameras[0].zoom > 1, 'wheel up zooms in');
+
+  root = renderVectorFight({ ...fight, vector: { ...fight.vector, camera: cameras[0] } }, { onCamera: (c) => cameras.push(c) });
+  const zoomedBox = root.querySelector('svg.vfv-plot').getAttribute('viewBox').split(' ').map(Number);
+  assert.ok(zoomedBox[2] < fitBox[2], 'a zoomed-in view box is narrower');
+  assert.match(root.querySelector('.vfv-camera').textContent, /ZOOM 115%/);
+
+  const fit = [...root.querySelectorAll('button')].find((b) => b.textContent === '[ FIT ]');
+  fit.click();
+  assert.equal(cameras.at(-1), null, '[ FIT ] hands back no camera: fit to the plot');
+
+  // A right-drag: the view box moves while the button is held, and the page
+  // is told the camera on release.
+  root = renderVectorFight({ ...fight, vector: { ...fight.vector, camera: null } }, { onCamera: (c) => cameras.push(c) });
+  document.querySelector('main').replaceChildren(root);
+  const plot2 = root.querySelector('svg.vfv-plot');
+  plot2.getScreenCTM = () => ({ a: 2, inverse: () => ({}) });
+  const before = cameras.length;
+  plot2.dispatchEvent(new dom.window.MouseEvent('pointerdown', { button: 2, clientX: 100, clientY: 100 }));
+  plot2.dispatchEvent(new dom.window.MouseEvent('pointermove', { clientX: 120, clientY: 100 }));
+  const dragged = plot2.getAttribute('viewBox').split(' ').map(Number);
+  assert.ok(Math.abs((dragged[0] - fitBox[0]) + 10) < 1e-9, 'dragging right by 20px at scale 1/2 moves the view 10 plot units left');
+  plot2.dispatchEvent(new dom.window.MouseEvent('pointerup', { button: 2, clientX: 120, clientY: 100 }));
+  assert.equal(cameras.length, before + 1);
+  assert.ok(Math.abs(cameras.at(-1).dx + 10) < 1e-9);
+
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.DOMPoint;
+});
+
+test('v0.357.0 the situation line and the fight heading name whose phase it is', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const session = await stagedVectorFight({ intruder: 'opposition' });
+  const view = session.view();
+  const nodes = renderScene(view, {}).flat(Infinity).filter(Boolean);
+  const main = document.querySelector('main');
+  main.append(...nodes);
+  assert.match(main.querySelector('.lead h2').textContent, /Corsair acts/);
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+});
+
+test('v0.357.0 the masthead has a Space chip beside Combat that names the space scene and opens it', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { renderMastChips } = await import('../client/play-views.js');
+  const session = await stagedVectorFight({ intruder: 'party' });
+  session.run('shipfight:end');
+  const view = session.view();
+  assert.equal(view.space?.name, 'Verify Space');
+  assert.equal(view.space.staged, 2);
+  let opened = 0;
+  const chips = renderMastChips({ ...view, seat: 'referee', shipFight: null }, { openDrawer: () => null, drawer: null, onSpace: () => { opened += 1; } });
+  const names = chips.map((chip) => chip.querySelector('.chip-name').textContent.trim());
+  assert.ok(names.indexOf('Space') === names.indexOf('Combat') + 1, `Space sits right after Combat: ${names.join(', ')}`);
+  const space = chips[names.indexOf('Space')];
+  assert.match(space.querySelector('.chip-line').textContent, /Verify Space \u00b7 2 staged/);
+  space.click();
+  assert.equal(opened, 1);
+  dom.window.close();
+  delete globalThis.document;
+  delete globalThis.Node;
+});
