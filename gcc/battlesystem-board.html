@@ -12773,7 +12773,7 @@ const NET = (function () {
       const updated = new Date().toISOString();
       const viewers = audienceUids();
       const publicDoc = (privateFeedsReady) => ({
-        name: state.net.name || 'Untitled battle', ownerUid: user.uid,
+        name: state.net.name || 'Untitled battle', ownerUid: user.uid, format: 'battlesystem-board',
         simVersion: SIM_VERSION, transportVersion: 2, privacyTransport: 2,
         privateFeedsReady, viewerUids: viewers, seq: nextSeq,
         status: state.setup ? 'setup' : 'live', stage: stageSummary(), snapshot: publishPayload(), _updated: updated,

@@ -2769,7 +2769,8 @@ function renderBattlesRow(){
   if(!_battles.length){row.innerHTML='<span class="battles-note">No battles yet — open Chainmail or Battlesystem Battles above and load or build one.</span>';return}
   row.innerHTML=_battles.map(b=>{
     //const base='chainmail-board.html?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
-    const board=(b.format==='battlesystem-board')?'battlesystem-board.html':'chainmail-board.html';
+    const fmt=b.format||(String(b.snapshot||'').slice(0,120).indexOf('"format":"battlesystem-board"')>=0?'battlesystem-board':'');
+    const board=(fmt==='battlesystem-board')?'battlesystem-board.html':'chainmail-board.html';
     const base=board+'?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
     // v0.70.0: stage from the board (Deployment / Round N · Phase) plus who is connected right now
     const sg=b.stage||null;
