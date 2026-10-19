@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.70.2 · HERO-VS-UNIT CONTACT REACH. RULING (Kurt, 2026-10-19): a 1:1 counter and an army unit are in base contact at ≤ ½″ (CONTACT_GLUE) — the [7.8] close-enough band applied as REACH rather than glue, since v0.61.6.5 keeps counters out of the seam settle. pairContactReach returns it for mixed pairs and meleeState's Hero/figure path reads inPairContact, so a Hero a quarter inch from a card fights it and a card charging a Hero engages. 1:1 vs 1:1 stays at the 0.75″ grid adjacency; unit vs unit stays base-to-base. Ammunition loadout log names the ammunition instead of its key. -->
 <!-- battlesystem-board.html · v0.70.1 · PLAYER EQUIP INTENTS + BATTLE DOC FORMAT. A player's Hero sheet now enables the Melee weapon, Fire with and Ammunition selects on a controlled 1:1; a change posts an 'equip' intent that the GM board applies through the ordinary setters (setMeleeWeaponInHand keeps its [8.2] Melee-Phase lock), so a Hero whose Fire with sits on a dagger can be switched to her bow from the player's side before an Initial Missile shot. The public battle doc carries format:'battlesystem-board' at the top level so the campaign page's Battles card opens the right board (it previously read only chainmail). -->
 <!-- battlesystem-board.html · v0.70.0 · PRESENCE + PLAYERS PANEL. Every connected board (GM, player, spectator) heartbeats battles/{bid}/presence/{uid} every 30 s (stale after 90 s; needs the matching GCC Firestore rules block). The GM dock gains a Players tab: the campaign roster with a connected dot, each player's controlled units with one-click Clear, and + Assign… opening a unit picker — assignment no longer requires selecting a unit first; the roster re-reads on tab open or ↻. Connected accounts that are not on the campaign roster are listed as 'not on roster' so the missing invite is visible. The public battle doc now carries stage {setup, round, phase, moverSide} and counts for the campaign page's Battles card; a player with no units sees the name the GM will see them under. -->
 <!-- battlesystem-board.html · v0.69.0 · PLAYER ACTION INTENTS. Player boards (&player=1) now fire, melee, declare charges and rally with the units they control: the four verbs light under the same fireState/meleeState/chargeState/rallyState grammar the GM sees, a click posts an intent to battles/{bid}/commands instead of resolving locally, and the GM board validates it against the live engine (ownership, phase, side sequence, contact, ammunition) and runs the ordinary resolver — dice, log and publish stay on the GM board; refusals echo as 'Player <verb> refused' log lines. Multi-target melee, Hero/figure and Individual Combat pairs (including ▶ Continue duel) and the targeted-figure override ride the same intent. Magic, pass-through, bombing and turning stay GM-resolved for now. -->
@@ -16,7 +17,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.70.1</title>
+<title>Battlesystem — Battlefield · v0.70.2</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1161,7 +1162,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.70.1';
+const SIM_VERSION = '0.70.2';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -6254,7 +6255,7 @@ const CONTACT_EPS = 0.1;               // v0.61.5 RAW [7.8]/[8.1]: melee needs b
 const sameContactAltitude=(u,v)=>altitudeOf(u)===altitudeOf(v);              // v0.63.0: different altitude levels cannot be base-to-base melee contact
 const inContact = (u, v) => !isMountedMount(u)&&!isMountedMount(v)&&sameContactAltitude(u,v)&&rectGap(u, v) <= CONTACT_EPS;
 const inIndividualContact = (u,v) => sameContactAltitude(u,v)&&rectGap(u,v) <= INDIVIDUAL_CONTACT_EPS + 1e-6; // [9.4B] pair-specific 1:1 adjacency; does NOT inherit army reach
-const pairContactReach = (u,v) => isIndividual(u)&&isIndividual(v) ? INDIVIDUAL_CONTACT_EPS : CONTACT_EPS;
+const pairContactReach = (u,v) => isIndividual(u)&&isIndividual(v) ? INDIVIDUAL_CONTACT_EPS : (isIndividual(u)||isIndividual(v)) ? CONTACT_GLUE : CONTACT_EPS;   // v0.70.2 RULING: 1:1 ↔ army unit touches at ≤ ½″
 const inPairContact = (u,v) => !isMountedMount(u)&&!isMountedMount(v)&&sameContactAltitude(u,v)&&rectGap(u,v) <= pairContactReach(u,v) + 1e-6;
 /* Exact translation that zeroes the poly gap; hypot(dx,dy) === rectGap. */
 function contactDelta(u, v) { return closestPair(u, v); }
@@ -11357,7 +11358,7 @@ function meleeState(a, d) {                                          // lit when
   if (isIndividual(a) || isIndividual(d)) {
     const pair=heroFigurePair(a,d), hs=pair?heroFigureAttackState(pair.hero,pair.unit):{ok:false,reason:'invalid Hero/figure pair'};
     if (!hs.ok) return hs;
-    if (!inContact(a,d)) return {ok:false,reason:`not in base-to-base contact — ${fmt(rectGap(a,d))}″ apart [7.8]/[8.1]`};
+    if (!inPairContact(a,d)) return {ok:false,reason:`not in base-to-base contact — ${fmt(rectGap(a,d))}″ apart; a 1:1 counter touches a unit at ≤ ${fmt(CONTACT_GLUE)}″ [7.8]/[8.1]`};   // v0.70.2
     return {ok:true,warns,heroFigure:true};
   }
   if (a.routed) return { ok:false, reason:'routed units cannot attack [6.4]' };
@@ -13078,7 +13079,8 @@ const NET = (function () {
     else if (slot === 'ammo') { const e = missileRowOf(u); ok = !!e && setSelectedAmmo(u, e, value); if (ok) renderAll(); }
     else { refuse(`unknown loadout slot "${esc(slot)}"`); return false; }
     if (!ok) { refuse(`${esc(uName(u))} could not change its ${slot === 'ammo' ? 'ammunition' : slot === 'missile' ? 'missile weapon' : 'melee weapon'} now`); return false; }
-    log('phase', `Player loadout \u00b7 ${esc(uName(u))} (${armyName(u.side)})`, `${who} \u00b7 ${slot === 'ammo' ? 'ammunition' : slot === 'missile' ? 'fires with' : 'weapon in hand'} \u2192 ${esc(slot === 'ammo' ? value : (weaponEntries(u).find(e => String(e?.itemId || '') === value)?.name || value))}`);
+    const shown = slot === 'ammo' ? (() => { const e = missileRowOf(u), mw = e && missileDataForEntry(u, e); return (mw && ammoOptionsFor(u, e, mw).find(x => x.key === value)?.name) || value; })() : (weaponEntries(u).find(e => String(e?.itemId || '') === value)?.name || value);
+    log('phase', `Player loadout \u00b7 ${esc(uName(u))} (${armyName(u.side)})`, `${who} \u00b7 ${slot === 'ammo' ? 'ammunition' : slot === 'missile' ? 'fires with' : 'weapon in hand'} \u2192 ${esc(shown)}`);
     return true;
   }
   // GM side. Pure: stages nothing, reads state, returns the staged selection or the refusal.
@@ -15001,6 +15003,19 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
     t('[NET/v0.70.1] applyEquip refuses an uncontrolled Hero', NET._test.applyEquip({uid:'other',name:'Tester',unitId:QA.id,slot:'missile',value:'dag-test'})===false && String(QA.missileWeaponId)==='bow-test');
     t('[NET/v0.70.1] applyEquip refuses an unknown slot', NET._test.applyEquip({uid:'uidP',name:'Tester',unitId:QA.id,slot:'hat',value:'x'})===false);
     state.units=units0; state.setup=su; if($('#log'))$('#log').innerHTML=keepLog; syncLogCount(); })();
+  // v0.70.2 hero-vs-unit contact reach
+  (()=>{ const units0=state.units, su=state.setup, ph=state.phaseIdx, en=state.enforce;
+    const H=mkUnit('PCNPC','A',1,10,10), G=mkUnit('GNOLL','B',12,10,10), H2=mkUnit('PCNPC','B',1,30,30), O=mkUnit('ORC','A',12,30,30);
+    state.units=[H,G,H2,O]; state.setup=false; state.round=3; state.phaseIdx=PHASES.findIndex(x=>x.id==='melee'); state.enforce=true;
+    H.facing=180; G.facing=0; setUnitCenter(G, centerPoint(H).x, centerPoint(H).y+unitRect(H).h/2+unitRect(G).h/2+0.25);
+    t('[7.8/v0.70.2] a 1:1 counter a quarter inch from an army card is in contact (reach ½″)', pairContactReach(H,G)===CONTACT_GLUE && inPairContact(H,G)===true && rectGap(H,G)>CONTACT_EPS);
+    t('[9.4A/v0.70.2] Hero-vs-figure melee is legal at that gap', meleeState(H,G).ok===true && meleeState(H,G).heroFigure===true);
+    setUnitCenter(G, centerPoint(H).x, centerPoint(H).y+unitRect(H).h/2+unitRect(G).h/2+0.6);
+    t('[7.8/v0.70.2] beyond ½″ the Hero is not in contact and the reason names the reach', meleeState(H,G).ok===false && /≤ 0\.5″/.test(meleeState(H,G).reason));
+    O.facing=0; setUnitCenter(O, centerPoint(H2).x, centerPoint(H2).y-unitRect(H2).h/2-unitRect(O).h/2-0.25);
+    t('[7.8/v0.70.2] the band is symmetric — an army card a quarter inch from a 1:1 counter is in contact too', inPairContact(O,H2)===true && pairContactReach(O,H2)===CONTACT_GLUE);
+    t('[7.8/v0.70.2] unit-to-unit reach is unchanged', pairContactReach(G,O)===CONTACT_EPS && pairContactReach(H,H2)===INDIVIDUAL_CONTACT_EPS);
+    state.units=units0; state.setup=su; state.phaseIdx=ph; state.enforce=en; })();
   // drag-undo FIX: the drop's undo entry is the PRE-drag snapshot
   state.setup = true; state.units = [mkUnit('ORC','A',12,10,10)];
   const MU = state.units[0], preS = snap();
