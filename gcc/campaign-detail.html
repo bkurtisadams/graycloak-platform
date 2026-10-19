@@ -559,7 +559,7 @@ End of episode 1. Total xp = 71.' style="min-height:200px;font-family:var(--fm,m
 </div></div>
 
 <script src="gcc-dialog.js?v=d89481ae"></script>
-<script src="gcc-data.js?v=93de7b2d"></script>
+<script src="gcc-data.js?v=f7390d58"></script>
 <script src="gcc-images.js?v=d771a7c0"></script>
 <script src="gcc-sections.js?v=f6a7a92b"></script>
 <script src="gcc-backup.js?v=41639a0c"></script>
@@ -568,7 +568,7 @@ End of episode 1. Total xp = 71.' style="min-height:200px;font-family:var(--fm,m
 <script src="gcc-auth.js?v=dc620d93"></script>
 <script src="gcc-sync.js?v=1e5a9f39"></script>
 <script src="gcc-storage.js?v=e0bcb37c"></script>
-<script src="gcc-invite.js?v=83e3f477"></script>
+<script src="gcc-invite.js?v=41832d9b"></script>
 <script src="gcc-table-feed.js?v=ab655d68"></script>
 <script>
 GCC.init();
@@ -1173,7 +1173,7 @@ async function render(){
     }
   }
 
-  const overviewHtml=`${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';let href=t.href||'';if(href&&campId&&/map\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'campaign='+encodeURIComponent(campId);if(href&&campId&&/chainmail-board\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'camp='+encodeURIComponent(campId);if(href&&campId&&/^odd\/index\.html$/i.test(href.split('?')[0])){href=oddBase()+'index.html?c='+encodeURIComponent(campId);}if(href&&/^traveller\//i.test(href))href=travBase()+href;return`<a class="${cls}"${href?' href="'+ESC(href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}</div><div class="sec-hdr"><div class="sec-title">BATTLES</div></div><div class="battles-list" id="battles-row"><span class="battles-note">loading…</span></div>${camp.system==='odd'?`<div class="sec-hdr"><div class="sec-title">FIGHTS</div></div><div class="battles-list" id="fights-row"><span class="battles-note">loading…</span></div>`:''}`;
+  const overviewHtml=`${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';let href=t.href||'';if(href&&campId&&/map\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'campaign='+encodeURIComponent(campId);if(href&&campId&&/(chainmail|battlesystem)-board\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'camp='+encodeURIComponent(campId);if(href&&campId&&/^odd\/index\.html$/i.test(href.split('?')[0])){href=oddBase()+'index.html?c='+encodeURIComponent(campId);}if(href&&/^traveller\//i.test(href))href=travBase()+href;return`<a class="${cls}"${href?' href="'+ESC(href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}</div><div class="sec-hdr"><div class="sec-title">BATTLES</div></div><div class="battles-list" id="battles-row"><span class="battles-note">loading…</span></div>${camp.system==='odd'?`<div class="sec-hdr"><div class="sec-title">FIGHTS</div></div><div class="battles-list" id="fights-row"><span class="battles-note">loading…</span></div>`:''}`;
 
   // Party tab — helper to build a single entity card
   function buildEntityCard(resolved,ch,refKey,idx,camp,opts){
@@ -2767,7 +2767,9 @@ function renderBattlesRow(){
   if(_battles===null){row.innerHTML='<span class="battles-note">loading…</span>';return}
   if(!_battles.length){row.innerHTML='<span class="battles-note">No battles yet — open Chainmail Battles above and load or build one.</span>';return}
   row.innerHTML=_battles.map(b=>{
-    const base='chainmail-board.html?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
+    //const base='chainmail-board.html?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
+    const board=(b.format==='battlesystem-board')?'battlesystem-board.html':'chainmail-board.html';
+    const base=board+'?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
     const st=b.status==='live'?'<span class="battle-st live">LIVE</span>':'<span class="battle-st">SETUP</span>';
     const when=b._updated?new Date(b._updated).toLocaleDateString():'';
     const gm=!_isPlayerMode?`<a class="battle-lnk" href="${ESC(base)}">Resume</a>`:'';

@@ -1,4 +1,5 @@
-// gcc-data.js v1.7.0 — 2026-10-13
+// gcc-data.js v1.7.1 — 2026-10-19
+// v1.7.1: Add battle-system id to add1e tools 
 // v1.7.0: New system 'traveller' (Classic Traveller): 'Launch game' →
 //         traveller/client/enter.html, the game's own lobby. A link only —
 //         Traveller campaigns stay in travellerCampaigns, not tied to GCC ids.
@@ -111,6 +112,7 @@ const GCC = (function() {
         { id: 'add1-voy', name: 'Voyage Simulator', href: 'greyhawk-map.html#voyage' },
         { id: 'add1-set', name: 'Settlement Editor', href: 'settlement-editor.html' },
         { id: 'add1-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
+        { id: 'add1-battlesystem', name: 'Battlesystem Battles', href: 'battlesystem-board.html' },
       ]
     },
     {
