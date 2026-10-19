@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.70.1 · PLAYER EQUIP INTENTS + BATTLE DOC FORMAT. A player's Hero sheet now enables the Melee weapon, Fire with and Ammunition selects on a controlled 1:1; a change posts an 'equip' intent that the GM board applies through the ordinary setters (setMeleeWeaponInHand keeps its [8.2] Melee-Phase lock), so a Hero whose Fire with sits on a dagger can be switched to her bow from the player's side before an Initial Missile shot. The public battle doc carries format:'battlesystem-board' at the top level so the campaign page's Battles card opens the right board (it previously read only chainmail). -->
 <!-- battlesystem-board.html · v0.70.0 · PRESENCE + PLAYERS PANEL. Every connected board (GM, player, spectator) heartbeats battles/{bid}/presence/{uid} every 30 s (stale after 90 s; needs the matching GCC Firestore rules block). The GM dock gains a Players tab: the campaign roster with a connected dot, each player's controlled units with one-click Clear, and + Assign… opening a unit picker — assignment no longer requires selecting a unit first; the roster re-reads on tab open or ↻. Connected accounts that are not on the campaign roster are listed as 'not on roster' so the missing invite is visible. The public battle doc now carries stage {setup, round, phase, moverSide} and counts for the campaign page's Battles card; a player with no units sees the name the GM will see them under. -->
 <!-- battlesystem-board.html · v0.69.0 · PLAYER ACTION INTENTS. Player boards (&player=1) now fire, melee, declare charges and rally with the units they control: the four verbs light under the same fireState/meleeState/chargeState/rallyState grammar the GM sees, a click posts an intent to battles/{bid}/commands instead of resolving locally, and the GM board validates it against the live engine (ownership, phase, side sequence, contact, ammunition) and runs the ordinary resolver — dice, log and publish stay on the GM board; refusals echo as 'Player <verb> refused' log lines. Multi-target melee, Hero/figure and Individual Combat pairs (including ▶ Continue duel) and the targeted-figure override ride the same intent. Magic, pass-through, bombing and turning stay GM-resolved for now. -->
 <!-- battlesystem-board.html · v0.68.3 · ILLUSION COMMUNICATION + DISPEL WORKFLOW [PHB/14.14]. Allied disbelief unlocks retries, while the +4 save bonus now requires explicit communication; Dispel Magic targets illusion markers through normal timing, range/LOS, action, and spell-resource handling with referee-selected resolution. Engine v0.17.2. -->
@@ -15,7 +16,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.70.0</title>
+<title>Battlesystem — Battlefield · v0.70.1</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -1160,7 +1161,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.70.0';
+const SIM_VERSION = '0.70.1';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -4934,7 +4935,7 @@ function aerialRiderStrikeHtml(u){
   const root=aerialPassOwner(u),mount=mountedMountOf(root);if(!mount)return'';const e=individualMeleeWeaponEntry(root);if(!e||missileDataForEntry(root,e))return'<span class="char-attack-fights muted"><b>Pass rider</b> no melee weapon</span>';return`<span class="char-attack-fights" title="Mounted rider contributes this current melee weapon during a v0.63.2 aerial pass; Haste/Slow cadence remains separate from the mount"><b>Pass rider</b>${esc(e.name||'Weapon')}</span>`;
 }
 function characterAttackReadHtml(u){
-  const wrows=characterWeaponAttackRows(u),rrows=characterRoutineAttackRows(u),routines=configuredAttackRoutines(u),active=characterActiveAttackId(u),readOnly=!!(state.net.spectate||state.net.player),rate=characterMeleeAttackRate(u);
+  const wrows=characterWeaponAttackRows(u),rrows=characterRoutineAttackRows(u),routines=configuredAttackRoutines(u),active=characterActiveAttackId(u),readOnly=!!(state.net.spectate||(state.net.player&&!NET.controlsUnit(u))),rate=characterMeleeAttackRate(u);
   const dmg=r=>`${r.sm||'—'}${r.l&&r.l!==r.sm?`/${r.l}`:''}`;
   // Exceptions only: a conventional +N weapon already says everything in its name.
   const mods=(r,read)=>{const b=[],implied=read?.impliedPlus||0;if(r.magicPlus&&r.magicPlus!==implied)b.push(`hit +${r.magicPlus}`);if(r.hit&&r.hit!==implied)b.push(`H${r.hit>0?'+':''}${r.hit}`);if(r.dmod&&r.dmod!==implied)b.push(`D${r.dmod>0?'+':''}${r.dmod}`);if(r.magic&&!r.magicPlus&&!implied)b.push('magic');if(r.silver)b.push('silver');if(r.sharpness)b.push('sharp');if(r.fire)b.push('fire');if(r.acid)b.push('acid');return b.join(' ');};
@@ -10525,9 +10526,9 @@ function renderCharacterSel(pane,u,p,base) {
   {const rb=$('#ch-reset-round-state');if(rb)rb.onclick=()=>resetCharacterRoundTestState(u);}
   wireCharacterLoadoutControls(u);wireCharacterRecordEditors(u);
   {const aa=$('#ch-active-attack');if(aa&&!aa.disabled)aa.onchange=()=>{if(!setCharacterActiveAttack(u,aa.value))aa.value=characterActiveAttackId(u);};}
-  {const mw=$('#ch-melee-weapon');if(mw&&!mw.disabled)mw.onchange=()=>{if(!setMeleeWeaponInHand(u,mw.value))mw.value=String(characterInventory(u).mainWeapon||'');};}
-  {const fw=$('#ch-missile-weapon');if(fw&&!fw.disabled)fw.onchange=()=>{if(!setCharacterMissileWeapon(u,fw.value))fw.value=String(missileRowOf(u)?.itemId||'');};}
-  {const am=$('#ch-ammunition');if(am&&!am.disabled)am.onchange=()=>{const e=missileRowOf(u);if(!e||!setSelectedAmmo(u,e,am.value)){const mw=e&&missileDataForEntry(u,e),cur=mw&&selectedAmmoFor(u,e,mw);am.value=String(cur?.key||'');}};}
+  {const mw=$('#ch-melee-weapon');if(mw&&!mw.disabled)mw.onchange=()=>{if(state.net.player){NET.sendEquip(u,'melee',mw.value);mw.value=String(characterInventory(u).mainWeapon||'');return;}if(!setMeleeWeaponInHand(u,mw.value))mw.value=String(characterInventory(u).mainWeapon||'');};}
+  {const fw=$('#ch-missile-weapon');if(fw&&!fw.disabled)fw.onchange=()=>{if(state.net.player){NET.sendEquip(u,'missile',fw.value);fw.value=String(missileRowOf(u)?.itemId||'');return;}if(!setCharacterMissileWeapon(u,fw.value))fw.value=String(missileRowOf(u)?.itemId||'');};}
+  {const am=$('#ch-ammunition');if(am&&!am.disabled)am.onchange=()=>{if(state.net.player){NET.sendEquip(u,'ammo',am.value);return;}const e=missileRowOf(u);if(!e||!setSelectedAmmo(u,e,am.value)){const mw=e&&missileDataForEntry(u,e),cur=mw&&selectedAmmoFor(u,e,mw);am.value=String(cur?.key||'');}};}
   {const av=$('#ch-aerial-attack');if(av&&!av.disabled)av.onchange=()=>{const subject=aerialAttackSubject(u);if(!setAerialAttackMode(subject,av.value))av.value=String(aerialAttackModeOf(subject)?.id||'');};}
   if(state.net.spectate||state.net.player)return;
   const act=document.createElement('div');act.className='us-actions';
@@ -13050,6 +13051,36 @@ const NET = (function () {
       return true;
     } catch (e) { chip('err', '\u26a0 send failed', e.message); return false; }
   }
+  // v0.70.1 EQUIP INTENTS — a player's Hero sheet picks (melee weapon in hand,
+  // Fire with, ammunition) post as 'equip' and the GM board applies them with
+  // the same setters the GM's own selects use, rule locks included.
+  const EQUIP_SLOTS = Object.freeze(['melee','missile','ammo']);
+  async function sendEquip(u, slot, value) {
+    if (!EQUIP_SLOTS.includes(slot) || !u || !controlsUnit(u)) return false;
+    if (!db || !user || !state.net.battleId) { chip('err', '\u26a0 not connected', 'Sign in and reload the player link'); return false; }
+    try {
+      chip('busy', '\u27f3 loadout sent');
+      await cmdsRef().add({ uid: user.uid, name: me().name, action: 'equip', unitId: u.id, slot, value: String(value ?? ''), ts: firebase.firestore.FieldValue.serverTimestamp(), build: SIM_VERSION });
+      chip('live', '\u2713 sent \u2014 awaiting the GM', 'The GM\u2019s board applies the loadout change; the echo lands here');
+      return true;
+    } catch (e) { chip('err', '\u26a0 send failed', e.message); return false; }
+  }
+  function applyEquip(c) {
+    const who = esc((c.name || 'A player').slice(0, 60)), slot = String(c.slot || ''), value = String(c.value ?? '');
+    const refuse = (why) => { log('phase', 'Player loadout change refused', `${who} \u2014 ${why} (command dropped)`); schedulePublish(); renderAll(); };
+    const u = state.units.find(w => w.id === Number(c.unitId));
+    if (!u || u.figures <= 0) { refuse('that unit is gone'); return false; }
+    if (!c.uid || !(u.controllerUid === c.uid || magicControlPlayerUid(u) === String(c.uid))) { refuse(`${esc(uName(u))} is not under that player\u2019s control`); return false; }
+    if (!characterRawIndividual(u)) { refuse(`${esc(uName(u))} is not a 1:1 character`); return false; }
+    let ok = false;
+    if (slot === 'melee') ok = setMeleeWeaponInHand(u, value);
+    else if (slot === 'missile') ok = setCharacterMissileWeapon(u, value);
+    else if (slot === 'ammo') { const e = missileRowOf(u); ok = !!e && setSelectedAmmo(u, e, value); if (ok) renderAll(); }
+    else { refuse(`unknown loadout slot "${esc(slot)}"`); return false; }
+    if (!ok) { refuse(`${esc(uName(u))} could not change its ${slot === 'ammo' ? 'ammunition' : slot === 'missile' ? 'missile weapon' : 'melee weapon'} now`); return false; }
+    log('phase', `Player loadout \u00b7 ${esc(uName(u))} (${armyName(u.side)})`, `${who} \u00b7 ${slot === 'ammo' ? 'ammunition' : slot === 'missile' ? 'fires with' : 'weapon in hand'} \u2192 ${esc(slot === 'ammo' ? value : (weaponEntries(u).find(e => String(e?.itemId || '') === value)?.name || value))}`);
+    return true;
+  }
   // GM side. Pure: stages nothing, reads state, returns the staged selection or the refusal.
   function validateAction(c) {
     const kind = String(c.action||'');
@@ -13125,7 +13156,7 @@ const NET = (function () {
 
   function applyCommand(c) {
     if (!c) return;
-    if (c.action !== 'move') { if (ACTION_KINDS.includes(String(c.action))) applyAction(c); return; }   // v0.69.0
+    if (c.action !== 'move') { if (ACTION_KINDS.includes(String(c.action))) applyAction(c); else if (c.action === 'equip') applyEquip(c); return; }   // v0.69.0 / v0.70.1
     const who = esc((c.name || 'A player').slice(0, 60));
     const refuse = (why) => {
       log('phase', 'Player move refused', `${who} \u2014 ${why} (command dropped)`);
@@ -13330,7 +13361,7 @@ const NET = (function () {
   return {
     init, schedulePublish, publishNow, publishPayload, publishPayloadForSides, publishPayloadFull, applyRemote,
     diagnosticAudience, privacyAudit,
-    shareSpectateLink, sharePlayerLink, sendMove, sendAction, playerVerbsNow, ownsUnit, controlsUnit, canAssign, openAssignMenu,
+    shareSpectateLink, sharePlayerLink, sendMove, sendAction, sendEquip, playerVerbsNow, ownsUnit, controlsUnit, canAssign, openAssignMenu,
     refreshRoster, renderPlayersPanel, assignControl, clearControl,
     // self-test hooks — not for gameplay use
     _test: {
@@ -13338,7 +13369,7 @@ const NET = (function () {
       get pending() { return !!timer; },
       cancel() { if (timer) clearTimeout(timer); timer = null; dirty = false; },
       validateMove, validateAction, applyAction, audienceSidesForUid, networkStateForSides, visibleToAudience,
-      playersPanelModel, stageSummary, setPresence(map) { presence = map; }, setRoster(list) { rosterCache = list; rosterAt = Date.now(); },
+      playersPanelModel, stageSummary, applyEquip, setPresence(map) { presence = map; }, setRoster(list) { rosterCache = list; rosterAt = Date.now(); },
     },
   };
 })();
@@ -14960,6 +14991,16 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
     t('[NET/v0.70.0] Players tab renders a row per account with a dot and the GM assignment affordances', activeDockTab==='players' && $('#players-pane').querySelectorAll('.pl-row').length===3 && $('#players-pane').querySelectorAll('.pl-dot.on').length===2 && $('#players-pane').querySelectorAll('.pl-assign').length===2);
     t('[NET/v0.70.0] not-on-roster account shows the invite hint instead of an Assign button', /not on roster/.test($('#players-pane').textContent));
     NET._test.setPresence(new Map()); NET._test.setRoster(null); state.net.campId=keepCamp; state.net.battleId=keepBid; setDockTab(keepTab); state.units=units0; state.setup=su; })();
+  // v0.70.1 equip intents
+  (()=>{ const units0=state.units, su=state.setup, keepLog=$('#log')?.innerHTML||'';
+    const QA=mkUnit('PCNPC','A',1,18,18); QA.prof.weapons=[{name:'dagger',sm:'1d4',l:'1d3',itemId:'dag-test',rangeS:1,rangeM:2,rangeL:3},{name:'longbow',sm:'1d6',l:'1d6',rangeS:7,rangeM:14,rangeL:21,itemId:'bow-test'}];
+    QA.controllerUid='uidP'; state.units=[QA]; state.setup=true; QA.missileWeaponId='dag-test';
+    const can=characterMissileWeaponRows(QA).some(r=>String(r.itemId)==='bow-test');
+    const ok=can?NET._test.applyEquip({uid:'uidP',name:'Tester',unitId:QA.id,slot:'missile',value:'bow-test'}):null;
+    t('[NET/v0.70.1] applyEquip switches a controlled Hero\u2019s Fire with to the bow and logs it', ok===true && String(QA.missileWeaponId)==='bow-test' && /Player loadout/.test($('#log')?.innerHTML||''));
+    t('[NET/v0.70.1] applyEquip refuses an uncontrolled Hero', NET._test.applyEquip({uid:'other',name:'Tester',unitId:QA.id,slot:'missile',value:'dag-test'})===false && String(QA.missileWeaponId)==='bow-test');
+    t('[NET/v0.70.1] applyEquip refuses an unknown slot', NET._test.applyEquip({uid:'uidP',name:'Tester',unitId:QA.id,slot:'hat',value:'x'})===false);
+    state.units=units0; state.setup=su; if($('#log'))$('#log').innerHTML=keepLog; syncLogCount(); })();
   // drag-undo FIX: the drop's undo entry is the PRE-drag snapshot
   state.setup = true; state.units = [mkUnit('ORC','A',12,10,10)];
   const MU = state.units[0], preS = snap();
