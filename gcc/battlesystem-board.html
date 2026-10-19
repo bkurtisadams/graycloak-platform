@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.70.0 · PRESENCE + PLAYERS PANEL. Every connected board (GM, player, spectator) heartbeats battles/{bid}/presence/{uid} every 30 s (stale after 90 s; needs the matching GCC Firestore rules block). The GM dock gains a Players tab: the campaign roster with a connected dot, each player's controlled units with one-click Clear, and + Assign… opening a unit picker — assignment no longer requires selecting a unit first; the roster re-reads on tab open or ↻. Connected accounts that are not on the campaign roster are listed as 'not on roster' so the missing invite is visible. The public battle doc now carries stage {setup, round, phase, moverSide} and counts for the campaign page's Battles card; a player with no units sees the name the GM will see them under. -->
 <!-- battlesystem-board.html · v0.69.0 · PLAYER ACTION INTENTS. Player boards (&player=1) now fire, melee, declare charges and rally with the units they control: the four verbs light under the same fireState/meleeState/chargeState/rallyState grammar the GM sees, a click posts an intent to battles/{bid}/commands instead of resolving locally, and the GM board validates it against the live engine (ownership, phase, side sequence, contact, ammunition) and runs the ordinary resolver — dice, log and publish stay on the GM board; refusals echo as 'Player <verb> refused' log lines. Multi-target melee, Hero/figure and Individual Combat pairs (including ▶ Continue duel) and the targeted-figure override ride the same intent. Magic, pass-through, bombing and turning stay GM-resolved for now. -->
 <!-- battlesystem-board.html · v0.68.3 · ILLUSION COMMUNICATION + DISPEL WORKFLOW [PHB/14.14]. Allied disbelief unlocks retries, while the +4 save bonus now requires explicit communication; Dispel Magic targets illusion markers through normal timing, range/LOS, action, and spell-resource handling with referee-selected resolution. Engine v0.17.2. -->
 <!-- battlesystem-board.html · v0.67.0 · BOARD PERFORMANCE. Live drags (unit, figure, terrain, measure, magic aim) now coalesce to one SVG render per animation frame instead of one per mousemove; wheel zoom writes the viewBox only and rebuilds the SVG just when the fine 1″-grid threshold is crossed, the single zoom-dependent element; hover titles are built on first mouseover of a figure or card instead of a <title> per figure per render (the v0.62.9.1 hover system had been adding ~200 strings and nodes to every render of a 16-unit field); renderUnit hoists per-unit values (selection, facings, target set, commander predicate) out of the figure loop. No rules or visuals change. Baseline 1285 ok. -->
@@ -14,7 +15,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.69.0</title>
+<title>Battlesystem — Battlefield · v0.70.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -818,6 +819,22 @@
     text-transform: uppercase; color: var(--ink-soft); padding: 3px 6px; }
   .ctx-menu button { text-align: left; }
   .ctx-menu button.danger { color: var(--rear); }
+  .ctx-menu { max-height: 60vh; overflow: auto; }
+  /* v0.70.0 Players tab */
+  .pl-head { display:flex; align-items:center; justify-content:space-between; font-family:var(--sans); font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--ink-soft); margin-bottom:6px; }
+  .pl-head button { padding:1px 7px; }
+  .pl-row { display:grid; grid-template-columns:12px 1fr auto; column-gap:8px; row-gap:3px; align-items:start; padding:6px 0; border-top:1px solid var(--rule); }
+  .pl-row:first-of-type { border-top:0; }
+  .pl-dot { width:9px; height:9px; margin-top:4px; border-radius:50%; background:#b9ad92; border:1px solid #8a7d60; }
+  .pl-dot.on { background:#3fa34d; border-color:#2a7a36; box-shadow:0 0 0 2px rgba(63,163,77,.25); }
+  .pl-name { font-weight:700; }
+  .pl-note { font-weight:400; color:var(--ink-soft); font-size:11px; }
+  .pl-units { grid-column:2 / span 2; display:flex; flex-wrap:wrap; gap:4px; }
+  .pl-unit { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--rule); border-radius:4px; padding:1px 4px 1px 6px; font-size:12px; }
+  .pl-unit small { color:var(--ink-soft); }
+  .pl-unit button { padding:0 4px; line-height:1.2; }
+  .pl-assign { white-space:nowrap; }
+  body.player [data-dock-tab="players"], body.player #players-panel { display:none !important; }
 
   /* v0.45.8 GM-only multiplayer privacy diagnostics. View-local: never snapshotted. */
   .privacy-preview-banner { position:absolute; z-index:12; left:50%; top:8px; transform:translateX(-50%);
@@ -1044,6 +1061,7 @@
       <div class="dock-tabs" id="dock-tabs">
         <button class="dock-tab active" data-dock-tab="selected">Unit</button>
         <button class="dock-tab" data-dock-tab="muster">Muster</button>
+        <button class="dock-tab" data-dock-tab="players" id="dock-tab-players" hidden>Players</button>
       </div>
       <div class="dock-head" id="dock-head">
         <h2 id="dock-title">Unit Sheet</h2><span class="dock-tools" id="dock-unit-tools" hidden><button type="button" id="btn-unit-edit" title="Edit the selected unit">✎ Edit</button><button type="button" id="btn-unit-remove" class="danger" title="Remove the selected unit from the board">Remove</button></span><span class="dock-grow"></span>
@@ -1063,6 +1081,9 @@
             <button id="btn-import-combatant" type="button" title="Import a portable Unit/Hero JSON record onto the selected side">Import JSON…</button>
           </div>
           <div class="spawn-grid" id="spawn-grid"></div>
+        </div>
+        <div class="panel dock-content" id="players-panel">
+          <div id="players-pane"><span class="hintline">Players appear here once the battle is published.</span></div>
         </div>
       </div>
     </aside>
@@ -1139,7 +1160,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.69.0';
+const SIM_VERSION = '0.70.0';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -6476,14 +6497,16 @@ let selectedPopped = false;
 let conditionsOpen = false;                                            // v0.42.0 view-local drawer state
 function setDockTab(tab) {
   if (state.net.spectate) return;
-  if (state.net.player && tab === 'muster') tab = 'selected';
-  activeDockTab = tab === 'muster' ? 'muster' : 'selected';
+  if (state.net.player && (tab === 'muster' || tab === 'players')) tab = 'selected';
+  activeDockTab = tab === 'muster' ? 'muster' : tab === 'players' ? 'players' : 'selected';   // v0.70.0 Players tab
   document.querySelectorAll('[data-dock-tab]').forEach(b => b.classList.toggle('active', b.dataset.dockTab === activeDockTab));
-  const sp = $('#selected-panel'), mp = $('#muster-panel');
+  const sp = $('#selected-panel'), mp = $('#muster-panel'), pp = $('#players-panel');
   if (sp) sp.classList.toggle('active', activeDockTab === 'selected');
   if (mp) mp.classList.toggle('active', activeDockTab === 'muster');
-  const title = $('#dock-title'); if (title) title.textContent = activeDockTab === 'selected' ? 'Unit Sheet' : 'Muster';
+  if (pp) pp.classList.toggle('active', activeDockTab === 'players');
+  const title = $('#dock-title'); if (title) title.textContent = activeDockTab === 'selected' ? 'Unit Sheet' : activeDockTab === 'muster' ? 'Muster' : 'Players';
   const pop = $('#btn-pop-selected'); if (pop) pop.hidden = activeDockTab !== 'selected';
+  if (activeDockTab === 'players') { NET.refreshRoster(); NET.renderPlayersPanel(); }
 }
 function syncLogCount() {
   const badge = $('#log-count'), L = $('#log'); if (!badge || !L) return;
@@ -11811,7 +11834,7 @@ function syncUnitSheetTools() {                                      // v0.62.7:
     if (rb) { rb.hidden=isIndividual(u); rb.onclick=()=>{ pushUndo('remove'); state.units=state.units.filter(x=>x.id!==u.id); state.selId=null; renderAll(); }; }
   }
 }
-function renderAll() { syncMountedPairs(); pruneIndividualCombatCadence(); syncInvisibleContacts(); reseatAnchoredFigures(); syncUnitSheetTools(); if(state.net.player||state.net.spectate){const su=state.units.find(x=>x.id===state.selId),tu=state.units.find(x=>x.id===state.targetId);if(su&&!viewerCanRenderUnit(su))state.selId=null;if(tu&&!viewerCanRenderUnit(tu))state.targetId=null;} renderBoard(); renderRail(); renderSel(); syncActions(); syncPhaseFlowGuidance();
+function renderAll() { syncMountedPairs(); pruneIndividualCombatCadence(); syncInvisibleContacts(); reseatAnchoredFigures(); syncUnitSheetTools(); if(state.net.player||state.net.spectate){const su=state.units.find(x=>x.id===state.selId),tu=state.units.find(x=>x.id===state.targetId);if(su&&!viewerCanRenderUnit(su))state.selId=null;if(tu&&!viewerCanRenderUnit(tu))state.targetId=null;} renderBoard(); renderRail(); renderSel(); syncActions(); syncPhaseFlowGuidance(); if(activeDockTab==='players')NET.renderPlayersPanel();
   $('#btn-begin').style.display = state.setup ? '' : 'none';
   $('#btn-advance').style.display = state.setup ? 'none' : '';
   { const bs=$('#btn-back-setup'); if(bs){ bs.hidden=false; bs.classList.toggle('parked', state.setup || state.net.player || state.net.spectate); } }
@@ -12753,7 +12776,7 @@ const NET = (function () {
         name: state.net.name || 'Untitled battle', ownerUid: user.uid,
         simVersion: SIM_VERSION, transportVersion: 2, privacyTransport: 2,
         privateFeedsReady, viewerUids: viewers, seq: nextSeq,
-        status: state.setup ? 'setup' : 'live', snapshot: publishPayload(), _updated: updated,
+        status: state.setup ? 'setup' : 'live', stage: stageSummary(), snapshot: publishPayload(), _updated: updated,
       });
       let privateFeedsReady = false, privateError = null;
       try {
@@ -12797,6 +12820,7 @@ const NET = (function () {
       const share = $('#btn-net-share'); if (share) share.hidden = false;
       const pshare = $('#btn-net-share-player'); if (pshare) pshare.hidden = false;
       startCommandFeed();   // first publish may have just created the doc
+      startPresence();      // v0.70.0: GM heartbeat + players feed once the doc exists
     } catch (e) {
       state.net.error = e.message || String(e);
       chip('err', '⚠ publish error', state.net.error);
@@ -12833,6 +12857,94 @@ const NET = (function () {
   const canAssign = () => !!(db && user && state.net.campId && !state.net.spectate && !state.net.player);
   const ownsUnit = (u) => !!(user && u && u.controllerUid === user.uid);
   const controlsUnit = (u) => !!(user&&u&&(ownsUnit(u)||magicControlPlayerUid(u)===user.uid));
+
+  // ── v0.70.0 PRESENCE + PLAYERS PANEL ───────────────────────────────────
+  // Every connected board heartbeats battles/{bid}/presence/{uid}; the GM board
+  // listens and draws the Players tab from the campaign roster + presence, with
+  // assignment done from the player's row (unit picker) instead of per unit.
+  const PRESENCE_MS = 30000, PRESENCE_STALE_MS = 90000;
+  let presenceTimer = null, presenceUnsub = null, presence = new Map(), rosterCache = null, rosterAt = 0, rosterErr = '';
+  const presenceRef = () => battleRef().collection('presence');
+  const presenceRole = () => state.net.spectate ? 'spectator' : state.net.player ? 'player' : 'gm';
+  function stageSummary() {   // what the campaign page's Battles card shows
+    const people = [...presence.values()].filter(p => p.online);
+    return { setup: !!state.setup, round: state.round, phase: state.setup ? 'Deployment' : curPhase().label, moverSide: state.moverSide || null,
+      players: people.filter(p => p.role === 'player').length, spectators: people.filter(p => p.role === 'spectator').length };
+  }
+  async function beatPresence() {
+    if (!db || !user || !state.net.battleId) return;
+    try { await presenceRef().doc(user.uid).set({ uid: user.uid, name: me().name, role: presenceRole(), at: firebase.firestore.FieldValue.serverTimestamp(), build: SIM_VERSION }); }
+    catch (e) { console.warn('[NET] presence beat failed:', e.message); }
+  }
+  function startPresence() {
+    if (presenceTimer || !db || !user || !state.net.battleId) return;
+    beatPresence(); presenceTimer = setInterval(beatPresence, PRESENCE_MS);
+    addEventListener('pagehide', () => { try { presenceRef().doc(user.uid).delete(); } catch (e) {} });
+    presenceUnsub = presenceRef().onSnapshot(qs => {
+      const now = Date.now(), next = new Map();
+      qs.docs.forEach(d => { const x = d.data() || {}, at = x.at && x.at.toMillis ? x.at.toMillis() : 0;
+        next.set(d.id, { uid: d.id, name: x.name || d.id, role: x.role || 'player', at, online: at === 0 || now - at < PRESENCE_STALE_MS }); });
+      presence = next;
+      renderPlayersPanel();
+    }, err => console.warn('[NET] presence feed error:', err));
+    setInterval(() => { let changed = false; const now = Date.now(); for (const p of presence.values()) { const on = p.at === 0 || now - p.at < PRESENCE_STALE_MS; if (on !== p.online) { p.online = on; changed = true; } } if (changed) renderPlayersPanel(); }, PRESENCE_MS);
+  }
+  async function refreshRoster(force) {
+    if (!db || !state.net.campId || state.net.spectate || state.net.player) return rosterCache || [];
+    if (!force && rosterCache && Date.now() - rosterAt < 60000) return rosterCache;
+    try { rosterCache = await fetchPlayers(); rosterAt = Date.now(); rosterErr = ''; }
+    catch (e) { rosterCache = rosterCache || []; rosterErr = e.message || String(e); }
+    renderPlayersPanel(); return rosterCache;
+  }
+  function playersPanelModel() {   // pure, for tests: roster ∪ connected non-GM accounts, with their units
+    const roster = rosterCache || [], byUid = new Map(roster.map(p => [p.uid, { uid: p.uid, name: p.name, onRoster: true }]));
+    for (const p of presence.values()) { if (p.role === 'gm') continue; if (!byUid.has(p.uid)) byUid.set(p.uid, { uid: p.uid, name: p.name, onRoster: false }); }
+    const rows = [...byUid.values()].map(p => { const pr = presence.get(p.uid); return { ...p, online: !!pr?.online, role: pr?.role || 'player', units: state.units.filter(w => w.figures > 0 && w.controllerUid === p.uid) }; });
+    rows.sort((a, b) => (b.online - a.online) || a.name.localeCompare(b.name));
+    return { rows, rosterCount: roster.length, connected: rows.filter(r => r.online).length };
+  }
+  function renderPlayersPanel() {
+    const pane = $('#players-pane'); if (!pane || state.net.spectate || state.net.player) return;
+    if (!state.net.campId) { pane.innerHTML = '<span class="hintline">Open the board from a campaign page (?camp=) to see its players.</span>'; return; }
+    if (!state.net.battleId) { pane.innerHTML = '<span class="hintline">Players appear after the first publish names this battle.</span>'; return; }
+    const m = playersPanelModel();
+    pane.innerHTML = `<div class="pl-head"><span>${m.rosterCount} on roster \u00b7 ${m.connected} connected</span><button type="button" id="pl-refresh" title="Re-read the campaign roster">\u21bb</button></div>`
+      + (rosterErr ? `<div class="hintline">roster failed \u2014 ${esc(rosterErr)}</div>` : '')
+      + (m.rows.length ? m.rows.map(p => `<div class="pl-row"><span class="pl-dot ${p.online ? 'on' : ''}" title="${p.online ? 'connected' : 'not connected'}"></span>`
+          + `<span class="pl-name">${esc(p.name)}${p.onRoster ? '' : ' <span class="pl-note">not on roster \u2014 invite them from the campaign page</span>'}${p.online && p.role === 'spectator' ? ' <span class="pl-note">watching</span>' : ''}</span>`
+          + (p.onRoster ? `<button type="button" class="pl-assign" data-uid="${esc(p.uid)}" data-name="${esc(p.name)}">+ Assign\u2026</button>` : '<span></span>')
+          + `<span class="pl-units">${p.units.length ? p.units.map(w => `<span class="pl-unit">${esc(uName(w))} <small>${armyName(w.side)}</small><button type="button" data-clear="${w.id}" title="Clear player control">\u2715</button></span>`).join('') : '<span class="pl-note">no units</span>'}</span></div>`).join('')
+        : '<span class="hintline">No players on this campaign yet \u2014 invite them from the campaign page (Invite Players tab); they appear here once they accept.</span>');
+    pane.onclick = (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.id === 'pl-refresh') { refreshRoster(true); return; }
+      if (b.dataset.clear) { clearControl(Number(b.dataset.clear)); return; }
+      if (b.dataset.uid) openUnitPickMenu(b.dataset.uid, b.dataset.name, e.clientX, e.clientY);
+    };
+  }
+  function clearControl(unitId) {
+    const unit = state.units.find(w => w.id === unitId); if (!unit) return;
+    pushUndo('assign:' + unit.id);
+    const was = unit.controllerName || 'a player';
+    unit.controllerUid = null; unit.controllerName = '';
+    log('phase', `Player control cleared \u00b7 ${esc(uName(unit))} (${armyName(unit.side)})`, `${esc(was)} no longer controls it`);
+    renderAll();
+  }
+  function assignControl(unitId, uid, name) {
+    const unit = state.units.find(w => w.id === unitId); if (!unit || !uid) return false;
+    pushUndo('assign:' + unit.id);
+    unit.controllerUid = String(uid); unit.controllerName = String(name || '').slice(0, 60);
+    log('phase', `Player control \u00b7 ${esc(uName(unit))} (${armyName(unit.side)})`, `${esc(unit.controllerName)} now controls it from their own board`);
+    renderAll(); return true;
+  }
+  function openUnitPickMenu(uid, name, x, y) {
+    const m = $('#assign-menu'); if (!m) return;
+    const live = state.units.filter(w => w.figures > 0 && !isEmbeddedMember(w) && !isMountedMount(w));
+    m.innerHTML = `<div class="ctx-head">Assign a unit to ${esc(name)}</div>`
+      + (live.length ? live.map(w => `<button data-unit="${w.id}">${esc(uName(w))} <small>${armyName(w.side)}${w.controllerUid ? ` \u00b7 ${esc(w.controllerName || 'player')}` : ''}</small>${w.controllerUid === uid ? ' \u2713' : ''}</button>`).join('') : '<button disabled>no units on the board</button>');
+    m.style.left = Math.min(x, innerWidth - 240) + 'px'; m.style.top = Math.min(y, innerHeight - 300) + 'px'; m.hidden = false;
+    m.onclick = (e) => { const b = e.target.closest('button'); if (!b || b.disabled) return; m.hidden = true; assignControl(Number(b.dataset.unit), uid, name); };
+  }
 
   async function fetchPlayers() {   // campaigns/{cid}/players — the roster gcc-invite.js writes
     const qs = await db.collection('campaigns').doc(state.net.campId).collection('players').get();
@@ -13077,7 +13189,7 @@ const NET = (function () {
         const owned = state.units.filter(w => w.figures > 0 && controlsUnit(w));
         mine.innerHTML = owned.length
           ? 'Your units: ' + owned.map(w => `${esc(uName(w))} (${armyName(w.side)})${playerMayMoveNow(w) ? ' — may move' : ''}`).join(' · ')
-          : 'No units assigned to you yet — ask the GM.';
+          : `No units assigned to you yet — the GM sees you as ${esc(me().name)}; ask them to assign one.`;
       }
     }
     // Version/privacy status. The public parent is always the safe fallback;
@@ -13099,6 +13211,7 @@ const NET = (function () {
     if (unsub) return;   // onAuthChange can refire — subscribe once
     chip('busy', state.net.player ? '⟳ joining' : '⟳ spectating');
     console.info('[NET] subscribing to public battle feed', state.net.battleId);
+    startPresence();      // v0.70.0: the player/spectator announces itself to the GM's Players tab
     unsub = battleRef().onSnapshot(doc => {
       if (!doc.exists) { $('#sp-status').textContent = 'battle not found'; chip('err', '⚠ not found', 'No battle doc at this id'); console.warn('[NET] battle doc does not exist'); return; }
       publicRemote = doc.data();
@@ -13148,6 +13261,7 @@ const NET = (function () {
       document.body.classList.add('player');
       const h = $('#sp-head'); if (h) h.textContent = 'Playing';
     }
+    { const pt = $('#dock-tab-players'); if (pt) pt.hidden = !(state.net.campId && !state.net.spectate && !state.net.player); }   // v0.70.0
     if ((state.net.spectate || state.net.player) && !state.net.battleId) {   // a live view but nothing to watch
       chip('err', '⚠ link is missing &battle=', 'Ask the GM for a fresh share link');
       if ($('#sp-status')) $('#sp-status').textContent = 'this link has no battle id';
@@ -13208,6 +13322,7 @@ const NET = (function () {
         const pshare = $('#btn-net-share-player'); if (pshare && state.net.battleId) pshare.hidden = false;
         if (state.net.battleId) schedulePublish();   // announce the current board on (re)connect
         startCommandFeed();   // consume player move intents (no-op until battleId exists)
+        startPresence();      // v0.70.0 (no-op until battleId exists)
       }
     });
   }
@@ -13216,12 +13331,14 @@ const NET = (function () {
     init, schedulePublish, publishNow, publishPayload, publishPayloadForSides, publishPayloadFull, applyRemote,
     diagnosticAudience, privacyAudit,
     shareSpectateLink, sharePlayerLink, sendMove, sendAction, playerVerbsNow, ownsUnit, controlsUnit, canAssign, openAssignMenu,
+    refreshRoster, renderPlayersPanel, assignControl, clearControl,
     // self-test hooks — not for gameplay use
     _test: {
       get timerStarts() { return timerStarts; },
       get pending() { return !!timer; },
       cancel() { if (timer) clearTimeout(timer); timer = null; dirty = false; },
       validateMove, validateAction, applyAction, audienceSidesForUid, networkStateForSides, visibleToAudience,
+      playersPanelModel, stageSummary, setPresence(map) { presence = map; }, setRoster(list) { rosterCache = list; rosterAt = Date.now(); },
     },
   };
 })();
@@ -14827,6 +14944,22 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
     t('[NET/v0.69.0] applyAction resolves a contacted melee for the player', mel===true && /Player melee/.test($('#log')?.innerHTML||''));
     t('[NET/v0.69.0] playerVerbsNow lists nothing for an unowned selection and rally only for a routed unit in Rally', (()=>{state.phaseIdx=PHASES.findIndex(x=>x.id==='rally');const v=NET.playerVerbsNow(BY);return Array.isArray(v)&&!v.includes('fire');})());
     state.units=units0; state.setup=su; state.phaseIdx=ph; state.round=rd; state.enforce=en; state.selId=sel0; state.targetId=tar0; state.extraTargetIds=ex0; if($('#log'))$('#log').innerHTML=keepLog; syncLogCount(); })();
+  // v0.70.0 presence + Players tab model
+  (()=>{ const units0=state.units, su=state.setup, keepCamp=state.net.campId, keepBid=state.net.battleId, keepTab=activeDockTab;
+    const U1=mkUnit('ORC','A',12,10,10), U2=mkUnit('DWARF','B',12,30,10); U1.controllerUid='uidA'; U1.controllerName='Alice'; state.units=[U1,U2]; state.setup=true;
+    NET._test.setRoster([{uid:'uidA',name:'Alice'},{uid:'uidB',name:'Bob'}]);
+    NET._test.setPresence(new Map([['uidA',{uid:'uidA',name:'Alice',role:'player',at:Date.now(),online:true}],['uidZ',{uid:'uidZ',name:'Zed',role:'player',at:Date.now(),online:true}],['gm1',{uid:'gm1',name:'GM',role:'gm',at:Date.now(),online:true}]]));
+    const m=NET._test.playersPanelModel();
+    t('[NET/v0.70.0] Players model unions the roster with connected non-GM accounts and drops the GM', m.rows.length===3 && !m.rows.some(r=>r.uid==='gm1') && m.rosterCount===2 && m.connected===2);
+    t('[NET/v0.70.0] connected players sort first and carry their controlled units', m.rows[0].online===true && m.rows.find(r=>r.uid==='uidA').units[0]===U1 && m.rows.find(r=>r.uid==='uidB').online===false);
+    t('[NET/v0.70.0] a connected account off the roster is flagged, not hidden', m.rows.find(r=>r.uid==='uidZ').onRoster===false);
+    const st=NET._test.stageSummary();
+    t('[NET/v0.70.0] stage summary reports deployment and live player count for the campaign page', st.setup===true && st.phase==='Deployment' && st.players===2 && st.spectators===0);
+    t('[NET/v0.70.0] assignControl / clearControl write the seat and log it', NET.assignControl(U2.id,'uidB','Bob')===true && U2.controllerUid==='uidB' && (NET.clearControl(U2.id), U2.controllerUid===null));
+    state.net.campId='campX'; state.net.battleId='bidX'; setDockTab('players');
+    t('[NET/v0.70.0] Players tab renders a row per account with a dot and the GM assignment affordances', activeDockTab==='players' && $('#players-pane').querySelectorAll('.pl-row').length===3 && $('#players-pane').querySelectorAll('.pl-dot.on').length===2 && $('#players-pane').querySelectorAll('.pl-assign').length===2);
+    t('[NET/v0.70.0] not-on-roster account shows the invite hint instead of an Assign button', /not on roster/.test($('#players-pane').textContent));
+    NET._test.setPresence(new Map()); NET._test.setRoster(null); state.net.campId=keepCamp; state.net.battleId=keepBid; setDockTab(keepTab); state.units=units0; state.setup=su; })();
   // drag-undo FIX: the drop's undo entry is the PRE-drag snapshot
   state.setup = true; state.units = [mkUnit('ORC','A',12,10,10)];
   const MU = state.units[0], preS = snap();

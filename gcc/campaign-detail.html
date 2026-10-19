@@ -475,6 +475,7 @@ a.ses-row-title:hover{color:var(--accent)}
 .battle-row{display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid var(--border,#d8d0c0);border-radius:6px;font-size:13px}
 .battle-st{font-size:10px;letter-spacing:1.2px;font-weight:700;padding:2px 7px;border-radius:3px;border:1px solid var(--border,#d8d0c0);opacity:.75}
 .battle-st.live{color:var(--accent,#8b0000);border-color:var(--accent,#8b0000);opacity:1}
+.battle-who{font-size:11px;color:var(--text-muted,#8a7d60);white-space:nowrap}.battle-who.on{color:#2a7a36;font-weight:700}
 .battle-name{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .battle-when{font-size:11px;opacity:.6}
 .battle-lnk{font-size:12px;font-weight:600;text-decoration:none;color:var(--accent,#8b0000);border:1px solid var(--accent,#8b0000);border-radius:4px;padding:3px 10px;cursor:pointer}
@@ -2765,16 +2766,21 @@ function renderBattlesRow(){
   const row=document.getElementById('battles-row');if(!row)return;
   if(typeof GCCAuth==='undefined'||!GCCAuth.getUser()){row.innerHTML='<span class="battles-note">Sign in to see battles.</span>';return}
   if(_battles===null){row.innerHTML='<span class="battles-note">loading…</span>';return}
-  if(!_battles.length){row.innerHTML='<span class="battles-note">No battles yet — open Chainmail Battles above and load or build one.</span>';return}
+  if(!_battles.length){row.innerHTML='<span class="battles-note">No battles yet — open Chainmail or Battlesystem Battles above and load or build one.</span>';return}
   row.innerHTML=_battles.map(b=>{
     //const base='chainmail-board.html?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
     const board=(b.format==='battlesystem-board')?'battlesystem-board.html':'chainmail-board.html';
     const base=board+'?camp='+encodeURIComponent(campId)+'&battle='+encodeURIComponent(b.id);
-    const st=b.status==='live'?'<span class="battle-st live">LIVE</span>':'<span class="battle-st">SETUP</span>';
+    // v0.70.0: stage from the board (Deployment / Round N · Phase) plus who is connected right now
+    const sg=b.stage||null;
+    const stLabel=sg?(sg.setup?'DEPLOYING':'ROUND '+ESC(String(sg.round||0))+' · '+ESC(String(sg.phase||'').toUpperCase())):(b.status==='live'?'LIVE':'SETUP');
+    const st='<span class="battle-st'+(sg?(!sg.setup?' live':''):(b.status==='live'?' live':''))+'">'+stLabel+'</span>';
+    const pr=b._presence||{gm:0,players:0,spectators:0};
+    const who=pr.gm||pr.players||pr.spectators?'<span class="battle-who on" title="connected now">● '+(pr.gm?'GM':'')+(pr.players?(pr.gm?' · ':'')+pr.players+' playing':'')+(pr.spectators?((pr.gm||pr.players)?' · ':'')+pr.spectators+' watching':'')+'</span>':'<span class="battle-who" title="nobody connected">○ idle</span>';
     const when=b._updated?new Date(b._updated).toLocaleDateString():'';
     const gm=!_isPlayerMode?`<a class="battle-lnk" href="${ESC(base)}">Resume</a>`:'';
     const del=!_isPlayerMode?`<a class="battle-lnk battle-del" data-del="${ESC(b.id)}" data-name="${ESC(b.name||'Untitled battle')}">Delete</a>`:'';
-    return `<div class="battle-row">${st}<span class="battle-name" title="${ESC(b.name||'')}">${ESC(b.name||'Untitled battle')}</span><span class="battle-when">${ESC(when)}</span>${gm}<a class="battle-lnk" href="${ESC(base)}&player=1">Play</a><a class="battle-lnk" href="${ESC(base)}&spectate=1">Watch</a>${del}</div>`;
+    return `<div class="battle-row">${st}<span class="battle-name" title="${ESC(b.name||'')}">${ESC(b.name||'Untitled battle')}</span>${who}<span class="battle-when">${ESC(when)}</span>${gm}<a class="battle-lnk" href="${ESC(base)}&player=1">Play</a><a class="battle-lnk" href="${ESC(base)}&spectate=1">Watch</a>${del}</div>`;
   }).join('');
   row.onclick=(e)=>{const b=e.target.closest('[data-del]');if(!b)return;e.preventDefault();deleteBattle(b.dataset.del,b.dataset.name)};
 }
@@ -2787,6 +2793,7 @@ async function deleteBattle(battleId,name){
     const ref=db.collection('campaigns').doc(campId).collection('battles').doc(battleId);
     const cmds=await ref.collection('commands').get();   // subcollection docs are NOT auto-deleted with the parent
     await Promise.all(cmds.docs.map(d=>d.ref.delete()));
+    try{const pres=await ref.collection('presence').get();await Promise.all(pres.docs.map(d=>d.ref.delete()));}catch(e){}   // v0.70.0 heartbeats (own-doc writes only; GM may fail on others — harmless)
     await ref.delete();
   }catch(e){console.warn('[GCC] battle delete failed:',e);alert('Delete failed: '+(e.message||e))}
   loadBattles();
@@ -2797,6 +2804,14 @@ async function loadBattles(){
     if(!db||typeof GCCAuth==='undefined'||!GCCAuth.getUser()){_battles=[];renderBattlesRow();return}
     const qs=await db.collection('campaigns').doc(campId).collection('battles').orderBy('_updated','desc').limit(12).get();
     _battles=qs.docs.map(d=>Object.assign({id:d.id},d.data()));
+    // v0.70.0: who is connected to each battle right now (heartbeats are stale after 90 s)
+    const now=Date.now();
+    await Promise.all(_battles.map(async b=>{
+      try{const ps=await db.collection('campaigns').doc(campId).collection('battles').doc(b.id).collection('presence').get();
+        const c={gm:0,players:0,spectators:0};
+        ps.docs.forEach(d=>{const x=d.data()||{},at=x.at&&x.at.toMillis?x.at.toMillis():0;if(at&&now-at>90000)return;if(x.role==='gm')c.gm++;else if(x.role==='spectator')c.spectators++;else c.players++});
+        b._presence=c;}catch(e){}
+    }));
   }catch(e){console.warn('[GCC] battles load failed:',e);_battles=[]}
   renderBattlesRow();
 }
