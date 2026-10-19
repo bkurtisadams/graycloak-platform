@@ -1,4 +1,5 @@
 // Firestore Security Rules for GCC / Graycloak AD&D / Traveller v20
+// v22 update the rules
 // v20 lets a player join by link in one step, as D&D Beyond and Roll20 do:
 //   travellerCampaigns/{id}/players/{uid} — a player may create their own
 //     seat, carrying a join link's code that opens this campaign, when that
@@ -200,7 +201,8 @@ service cloud.firestore {
         allow write: if isAuthed() && isCampaignOwner(campaignId);
       }
 
-      // Battle board snapshots and legacy multiplayer command intents.
+            // Battle board snapshots, multiplayer command intents, per-player views,
+      // the GM authority snapshot, and connection heartbeats.
       match /battles/{battleId} {
         allow read: if isAuthed();
         allow write: if isAuthed()
@@ -227,6 +229,15 @@ service cloud.firestore {
         match /private/{docId} {
           allow read, write: if isAuthed()
             && (isCampaignOwner(campaignId) || isGM());
+        }
+
+        // v22: each connected board writes only its own heartbeat; the GM may
+        // clear stale ones when a battle is deleted.
+        match /presence/{uid} {
+          allow read: if isAuthed();
+          allow write: if isAuthed()
+            && (request.auth.uid == uid
+                || isCampaignOwner(campaignId) || isGM());
         }
       }
     }
