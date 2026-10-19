@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- battlesystem-board.html · v0.69.0 · PLAYER ACTION INTENTS. Player boards (&player=1) now fire, melee, declare charges and rally with the units they control: the four verbs light under the same fireState/meleeState/chargeState/rallyState grammar the GM sees, a click posts an intent to battles/{bid}/commands instead of resolving locally, and the GM board validates it against the live engine (ownership, phase, side sequence, contact, ammunition) and runs the ordinary resolver — dice, log and publish stay on the GM board; refusals echo as 'Player <verb> refused' log lines. Multi-target melee, Hero/figure and Individual Combat pairs (including ▶ Continue duel) and the targeted-figure override ride the same intent. Magic, pass-through, bombing and turning stay GM-resolved for now. -->
 <!-- battlesystem-board.html · v0.68.3 · ILLUSION COMMUNICATION + DISPEL WORKFLOW [PHB/14.14]. Allied disbelief unlocks retries, while the +4 save bonus now requires explicit communication; Dispel Magic targets illusion markers through normal timing, range/LOS, action, and spell-resource handling with referee-selected resolution. Engine v0.17.2. -->
 <!-- battlesystem-board.html · v0.67.0 · BOARD PERFORMANCE. Live drags (unit, figure, terrain, measure, magic aim) now coalesce to one SVG render per animation frame instead of one per mousemove; wheel zoom writes the viewBox only and rebuilds the SVG just when the fine 1″-grid threshold is crossed, the single zoom-dependent element; hover titles are built on first mouseover of a figure or card instead of a <title> per figure per render (the v0.62.9.1 hover system had been adding ~200 strings and nodes to every render of a 16-unit field); renderUnit hoists per-unit values (selection, facings, target set, commander predicate) out of the figure loop. No rules or visuals change. Baseline 1285 ok. -->
 <!-- battlesystem-board.html · v0.66.2 · ROSTER XP VALUES [16.2]. Every stock roster row now carries its DMG Appendix E XP kill value per creature at the row's average hit points (Orc 15, Goblin 14, Hobgoblin 31, Gnoll 46, Bugbear 193, Ogre 185, Skeleton 19, Zombie 38, Ghoul 83, Griffon 690, Pegasus 132, Hippogriff 126, Elf 31, Dwarf 15, Peasant 8); 0-level men and artillery crews use the DMG <1-1 row (10); cavalry is rider plus mount on its hit-dice bracket (light 39, medium 41, heavy 95, pegasus 142, hippogriff 136, griffon 700). Chariots and CUSTOM stay blank for the sheet, and a sheet value overrides the roster. ⚑ Result no longer reports missing values for stock units. Baseline 1285 ok. -->
@@ -13,7 +14,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Battlesystem — Battlefield · v0.68.3</title>
+<title>Battlesystem — Battlefield · v0.69.0</title>
 <style>
   :root {
     --bg:#ece0c4; --panel:#f5eedb; --field:#a8b094; --field-edge:#6d735a; --ink:#2c2316; --ink-soft:#6e6047; --rule:#b6a682;
@@ -801,7 +802,7 @@
   /* Player mode keeps the compact session banner plus the live Selected inspector. */
   body.player #btn-save, body.player #btn-load, body.player #btn-reset, body.player #btn-restart, body.player #btn-campaign, body.player #btn-board,
   body.player #btn-undo, body.player #btn-redo,
-  body.player #btn-melee, body.player #btn-melee-all, body.player #btn-charge, body.player #btn-aerial-pass, body.player #btn-rally, body.player #btn-magic, body.player #btn-fire, body.player #btn-pt,
+  body.player #btn-melee-all, body.player #btn-aerial-pass, body.player #btn-magic, body.player #btn-pt,
   body.player #btn-begin, body.player #btn-back-setup, body.player #btn-advance, body.player #btn-pass-move, body.player #btn-pass-flow, body.player #btn-elect-order, body.player #btn-automove,
   body.player #btn-net-share, body.player #btn-net-share-player, body.player #btn-privacy, body.player #btn-conditions { display:none !important; }
   body.player #spectate-panel { display:block; flex:0 0 auto; margin:8px 8px 0; }
@@ -1138,7 +1139,7 @@
 
 <script type="module">
 
-const SIM_VERSION = '0.68.3';
+const SIM_VERSION = '0.69.0';
 import {
   BattlesystemCombat, CombatResultsTable, BattlesystemMorale, BattlesystemMovement, BattlesystemCavalry,
   BattlesystemEffects, BattlesystemActions, BattlesystemItems, BattlesystemSpells, BattlesystemIndividualCombat, BattlesystemAttackRoutines, BattlesystemMagicDefenses, BattlesystemCreatureDefenses, BattlesystemMagicMovement, BattlesystemInnateActions, BattlesystemSecondaryEffects, BattlesystemAerial, EFFECT_MODES, CHARACTER_ACTION_KINDS,
@@ -10702,7 +10703,7 @@ function renderSel() {
 
   if (state.net.campId) pane.insertAdjacentHTML('beforeend', `<div class="hintline">Player: ${u.controllerName?`${esc(u.controllerName)}${state.net.player&&NET.controlsUnit(u)?' (you)':''}`:'—'}</div>`);
   if (state.net.spectate || state.net.player) {
-    if (state.net.player && NET.controlsUnit(u)) pane.insertAdjacentHTML('beforeend', `<div class="hintline">${playerMayMoveNow(u)?(magicMovementControlSide(u)!==u.side?'Temporarily controlled by your side [14.6A] — drag it to move.':'Your unit — drag it to move.'):'This unit waits for its controlling Movement Phase.'}</div>`);
+    if (state.net.player && NET.controlsUnit(u)) { const verbs=NET.playerVerbsNow(u); pane.insertAdjacentHTML('beforeend', `<div class="hintline">${playerMayMoveNow(u)?(magicMovementControlSide(u)!==u.side?'Temporarily controlled by your side [14.6A] — drag it to move.':'Your unit — drag it to move.'):(verbs.length?`Your unit — ${verbs.join(' / ')} now; the GM board resolves it.`:'This unit waits for its phase and side.')}</div>`); }
     return;
   }
 
@@ -11697,6 +11698,10 @@ function syncActions() {
       cb.classList.toggle('ready', cs.ok);
     }
   }
+  if (state.net.player) {                                             // v0.69.0: a player board lights a verb only on a unit it controls
+    const mine=!!a&&NET.controlsUnit(a);
+    for (const id of ['#btn-fire','#btn-melee','#btn-charge','#btn-rally']) { const b=$(id); if(!b) continue; if(!mine){ b.disabled=true; b.classList.remove('ready'); b.title=a?'not one of your units':'select one of your units'; } else if(!b.disabled) b.title=b.title||'posts the action to the GM board, which resolves it'; }
+  }
   syncSituationalDock(a);                                             // v0.61.4
 }
 /* v0.61.4 SITUATIONAL VERBS ON THE RAIL — the Movement column re-tiles by the selected unit's state (chainmail paradigm: the verb sits
@@ -12485,14 +12490,14 @@ $('#btn-fire-mm').onclick = () => $('#btn-fire').onclick && $('#btn-fire').oncli
 $('#btn-pass-rally').onclick = () => $('#btn-pass-flow').onclick && $('#btn-pass-flow').onclick();
 $('#btn-pass-mm').onclick = () => $('#btn-pass-flow').onclick && $('#btn-pass-flow').onclick();
 $('#btn-melee-all').onclick = () => { resolveAllPendingMelees(); };
-$('#btn-melee').onclick = () => { const [a, d] = selTarget(), pend=individualCombatPendingForPair(a,d); if(!pend&&targetIdsAll().length>1&&!isIndividual(a)&&selTargets()[1].every(x=>!isIndividual(x))){resolveMeleeAgainstTargets();return;} if(pend){const st=individualCombatContinuationState(pend);if(st.ok)continueIndividualCombat();else if(a)log('phase',`${esc(uName(a))} cannot continue Individual Combat`,st.reason);return;} const st = meleeState(a, d); if (st.ok) { advWarns(a, st.warns); resolveMelee(a, d); if(!state.setup&&!state.individualCombatPending&&curPhase().id==='melee'){markMeleeEngagementResolved(a,d);maybeFlushMeleeCasualties();renderAll();} } else if (a) log('phase', `${esc(uName(a))} cannot melee`, st.reason); };
+$('#btn-melee').onclick = () => { if(state.net.player){const [a,d]=selTarget();NET.sendAction('melee',a,d);return;} const [a, d] = selTarget(), pend=individualCombatPendingForPair(a,d); if(!pend&&targetIdsAll().length>1&&!isIndividual(a)&&selTargets()[1].every(x=>!isIndividual(x))){resolveMeleeAgainstTargets();return;} if(pend){const st=individualCombatContinuationState(pend);if(st.ok)continueIndividualCombat();else if(a)log('phase',`${esc(uName(a))} cannot continue Individual Combat`,st.reason);return;} const st = meleeState(a, d); if (st.ok) { advWarns(a, st.warns); resolveMelee(a, d); if(!state.setup&&!state.individualCombatPending&&curPhase().id==='melee'){markMeleeEngagementResolved(a,d);maybeFlushMeleeCasualties();renderAll();} } else if (a) log('phase', `${esc(uName(a))} cannot melee`, st.reason); };
 $('#btn-magic').onclick = () => { const [a,d]=selTarget(); if(a)openMagicUseDialog(a,d); };
-$('#btn-fire').onclick = fireAtTarget;
+$('#btn-fire').onclick = () => { if(state.net.player){const [a,d]=selTarget();NET.sendAction('fire',a,d);return;} fireAtTarget(); };
 $('#btn-bomb').onclick = dropBombsAtTarget;
 $('#btn-turn').onclick = turnUndeadAtTarget;
 $('#btn-pt').onclick = () => { const [a] = selTarget(); togglePassThrough(a); };
-$('#btn-charge').onclick = chargeToTarget;
-$('#btn-rally').onclick = () => { const [a] = selTarget(); if (rallyState(a).ok) attemptRallySelected(a); };
+$('#btn-charge').onclick = () => { if(state.net.player){const [a,d]=selTarget();NET.sendAction('charge',a,d);return;} chargeToTarget(); };
+$('#btn-rally').onclick = () => { const [a] = selTarget(); if(state.net.player){NET.sendAction('rally',a,null);return;} if (rallyState(a).ok) attemptRallySelected(a); };
 $('#btn-advance').onclick = advancePhase;
 (function buildMuster() {
   const grid = $('#spawn-grid');
@@ -12890,6 +12895,104 @@ const NET = (function () {
     }
   }
 
+  // v0.69.0 PLAYER ACTION INTENTS — fire / melee / charge / rally ride the same
+  // command pipe as moves. The player board never resolves: it posts the verb,
+  // its unit, its target(s) and any figure-target slots; the GM board stages that
+  // selection, re-checks legality with the live state functions and runs the
+  // ordinary resolver, so dice, log, casualties and publish stay GM-authoritative.
+  const ACTION_KINDS = Object.freeze(['fire','melee','charge','rally']);
+  const ACTION_LABEL = Object.freeze({ fire:'fire', melee:'melee', charge:'charge', rally:'rally' });
+  function playerVerbsNow(u) {   // which action verbs are legal for this unit right now (hint text + tests)
+    if (!u) return [];
+    const d = state.units.find(x => x.id === state.targetId) || null, out = [];
+    if (fireState(u, d).ok) out.push('fire');
+    if (meleeState(u, d).ok || !!individualCombatPendingForPair(u, d)) out.push('melee');
+    if (chargeState(u, d).ok) out.push('declare a charge');
+    if (rallyState(u).ok) out.push('rally');
+    return out;
+  }
+  async function sendAction(kind, a, d) {
+    if (!ACTION_KINDS.includes(kind)) return false;
+    if (!a) { log('phase', 'Select one of your units first'); renderAll(); return false; }
+    if (!controlsUnit(a)) { log('phase', `${esc(uName(a))} is not one of your units`); renderAll(); return false; }
+    const needsTarget = kind !== 'rally';
+    if (needsTarget && !d) { log('phase', `${esc(uName(a))} needs a target`, 'shift+click an enemy to target it'); renderAll(); return false; }
+    // local pre-check mirrors the GM gate so a dead verb reads its reason here instead of a round-trip
+    const pend = needsTarget ? individualCombatPendingForPair(a, d) : null;
+    const st = kind==='fire' ? fireState(a,d) : kind==='charge' ? chargeState(a,d) : kind==='rally' ? rallyState(a)
+      : pend ? individualCombatContinuationState(pend) : (targetIdsAll().length>1 && !isIndividual(a) ? {ok:meleeTargetPairs().some(p=>p.st.ok), reason:meleeTargetPairs()[0]?.st.reason} : meleeState(a,d));
+    if (!st.ok) { log('phase', `${esc(uName(a))} cannot ${ACTION_LABEL[kind]}`, st.reason || ''); renderAll(); return false; }
+    if (!db || !user || !state.net.battleId) { chip('err', '\u26a0 not connected', 'Sign in and reload the player link'); return false; }
+    const targetIds = needsTarget ? targetIdsAll().filter(id => id !== d.id) : [];
+    const fig = needsTarget && !isIndividual(d) ? figureTargetFor(d) : [];
+    try {
+      chip('busy', `\u27f3 ${ACTION_LABEL[kind]} sent`);
+      await cmdsRef().add({
+        uid: user.uid, name: me().name, action: kind,
+        unitId: a.id, targetId: needsTarget ? d.id : null, targetIds, figTarget: fig,
+        ts: firebase.firestore.FieldValue.serverTimestamp(), build: SIM_VERSION,
+      });
+      log('phase', `\u2192 ${esc(uName(a))} ${kind==='charge'?'declares a charge on':kind==='rally'?'attempts to rally':kind==='fire'?'fires at':'attacks'}${needsTarget?' '+esc(uName(d)):''}`, 'sent to the GM board \u2014 the result lands with the next publish');
+      chip('live', '\u2713 sent \u2014 awaiting the GM', 'The GM\u2019s board resolves the action; the echo lands here');
+      renderAll();
+      return true;
+    } catch (e) { chip('err', '\u26a0 send failed', e.message); return false; }
+  }
+  // GM side. Pure: stages nothing, reads state, returns the staged selection or the refusal.
+  function validateAction(c) {
+    const kind = String(c.action||'');
+    if (!ACTION_KINDS.includes(kind)) return { ok:false, why:`unknown action "${esc(kind)}"` };
+    const u = state.units.find(w => w.id === Number(c.unitId));
+    if (!u || u.figures <= 0) return { ok:false, why:'that unit is gone' };
+    if (!c.uid || !(u.controllerUid===c.uid || magicControlPlayerUid(u)===String(c.uid))) return { ok:false, why:`${esc(uName(u))} is not under that player\u2019s control`, u };
+    if (state.setup && !setupSandbox()) return { ok:false, why:'the battle has not begun', u };
+    const needsTarget = kind !== 'rally';
+    const d = needsTarget ? state.units.find(w => w.id === Number(c.targetId)) : null;
+    if (needsTarget && (!d || d.figures <= 0)) return { ok:false, why:'the target is gone', u };
+    if (needsTarget && !magicTacticalEnemy(u, d)) return { ok:false, why:`${esc(uName(d))} is not an enemy of ${esc(uName(u))}`, u };
+    const extra = Array.isArray(c.targetIds) ? c.targetIds.map(Number).filter(id => id !== (d?d.id:null) && state.units.some(w => w.id === id && w.figures > 0 && magicTacticalEnemy(u, w))) : [];
+    const fig = d && !isIndividual(d) && Array.isArray(c.figTarget) ? c.figTarget.map(Number).filter(n => Number.isInteger(n) && n >= 0 && n < d.figures) : [];
+    return { ok:true, kind, u, d, extra, fig };
+  }
+  function applyAction(c) {
+    const who = esc((c.name || 'A player').slice(0, 60)), kind = String(c.action||'');
+    const refuse = (why) => {
+      log('phase', `Player ${ACTION_LABEL[kind]||'action'} refused`, `${who} \u2014 ${why} (command dropped)`);
+      schedulePublish();   // no pushUndo to ride \u2014 the refusal line must still echo out
+      renderAll();
+    };
+    const v = validateAction(c);
+    if (!v.ok) { refuse(v.why); return false; }
+    const { u, d, extra, fig } = v;
+    const keep = { selId:state.selId, targetId:state.targetId, extra:state.extraTargetIds, figTarget:state.figTarget, figSel:state.figSel };
+    state.selId = u.id; state.targetId = d ? d.id : null; state.extraTargetIds = extra; state.figSel = null;
+    state.figTarget = d && fig.length ? { unitId:d.id, slots:fig } : null;
+    let ok = false, why = '';
+    try {
+      if (kind === 'fire') { const st = fireState(u, d); if (!st.ok) why = st.reason; else { log('phase', `Player fire \u00b7 ${esc(uName(u))} (${armyName(u.side)}) \u2192 ${esc(uName(d))}`, who); ok = fireAtTarget(); } }
+      else if (kind === 'charge') { const st = chargeState(u, d); if (!st.ok) why = st.reason; else { log('phase', `Player charge \u00b7 ${esc(uName(u))} (${armyName(u.side)}) \u2192 ${esc(uName(d))}`, who); ok = chargeToTarget(); } }
+      else if (kind === 'rally') { const st = rallyState(u); if (!st.ok) why = st.reason; else { log('phase', `Player rally \u00b7 ${esc(uName(u))} (${armyName(u.side)})`, who); attemptRallySelected(u); ok = true; } }
+      else if (kind === 'melee') {
+        const pend = individualCombatPendingForPair(u, d);
+        if (pend) { const st = individualCombatContinuationState(pend); if (!st.ok) why = st.reason; else { log('phase', `Player melee \u00b7 ${esc(uName(u))} continues Individual Combat with ${esc(uName(d))}`, who); ok = continueIndividualCombat(); } }
+        else if (extra.length && !isIndividual(u) && selTargets()[1].every(x => !isIndividual(x))) {
+          const pairs = meleeTargetPairs(); if (!pairs.some(p => p.st.ok)) why = pairs[0]?.st.reason || 'no legal engagement';
+          else { log('phase', `Player melee \u00b7 ${esc(uName(u))} (${armyName(u.side)}) \u00d7${pairs.length}`, who); ok = resolveMeleeAgainstTargets(); }
+        } else {
+          const st = meleeState(u, d); if (!st.ok) why = st.reason;
+          else { log('phase', `Player melee \u00b7 ${esc(uName(u))} (${armyName(u.side)}) \u2192 ${esc(uName(d))}`, who); advWarns(u, st.warns); resolveMelee(u, d);
+            if (!state.setup && !state.individualCombatPending && curPhase().id === 'melee') { markMeleeEngagementResolved(u, d); maybeFlushMeleeCasualties(); } ok = true; }
+        }
+      }
+    } finally {
+      const alive = id => id == null || state.units.some(w => w.id === id);
+      state.selId = alive(keep.selId) ? keep.selId : null; state.targetId = alive(keep.targetId) ? keep.targetId : null;
+      state.extraTargetIds = (keep.extra || []).filter(alive); state.figTarget = keep.figTarget && alive(keep.figTarget.unitId) ? keep.figTarget : null; state.figSel = keep.figSel && alive(keep.figSel.unitId) ? keep.figSel : null;
+    }
+    if (!ok) { refuse(why || 'not legal now'); return false; }
+    renderAll(); return true;
+  }
+
   // GM side. Pure-ish so the self-tests can exercise it: reads state, mutates nothing.
   function validateMove(c) {
     const u = state.units.find(w => w.id === Number(c.unitId));
@@ -12909,7 +13012,8 @@ const NET = (function () {
   }
 
   function applyCommand(c) {
-    if (!c || c.action !== 'move') return;
+    if (!c) return;
+    if (c.action !== 'move') { if (ACTION_KINDS.includes(String(c.action))) applyAction(c); return; }   // v0.69.0
     const who = esc((c.name || 'A player').slice(0, 60));
     const refuse = (why) => {
       log('phase', 'Player move refused', `${who} \u2014 ${why} (command dropped)`);
@@ -13111,13 +13215,13 @@ const NET = (function () {
   return {
     init, schedulePublish, publishNow, publishPayload, publishPayloadForSides, publishPayloadFull, applyRemote,
     diagnosticAudience, privacyAudit,
-    shareSpectateLink, sharePlayerLink, sendMove, ownsUnit, controlsUnit, canAssign, openAssignMenu,
+    shareSpectateLink, sharePlayerLink, sendMove, sendAction, playerVerbsNow, ownsUnit, controlsUnit, canAssign, openAssignMenu,
     // self-test hooks — not for gameplay use
     _test: {
       get timerStarts() { return timerStarts; },
       get pending() { return !!timer; },
       cancel() { if (timer) clearTimeout(timer); timer = null; dirty = false; },
-      validateMove, audienceSidesForUid, networkStateForSides, visibleToAudience,
+      validateMove, validateAction, applyAction, audienceSidesForUid, networkStateForSides, visibleToAudience,
     },
   };
 })();
@@ -14695,6 +14799,34 @@ window.addEventListener('mousedown', e => {   // assign menu closes on any outsi
   state.phaseIdx = PHASES.findIndex(x => x.id === 'melee');
   t('seat gate: non-Movement phase blocked', playerMayMoveNow(PU) === false);
   t('otherSide flips', otherSide('A') === 'B' && otherSide('B') === 'A');
+  // v0.69.0 player action intents: validateAction + applyAction ride the live state functions
+  (()=>{ const su=state.setup, ph=state.phaseIdx, rd=state.round, en=state.enforce, units0=state.units, sel0=state.selId, tar0=state.targetId, ex0=state.extraTargetIds, keepLog=$('#log')?.innerHTML||'';
+    state.setup=false; state.round=2; state.enforce=true; state.extraTargetIds=[];
+    const AR=mkUnit('MEN_HF','A',12,20,20), TG=mkUnit('ORC','B',12,20,20), BY=mkUnit('DWARF','A',12,60,40);
+    AR.facing=180; AR.prof.weapons=[{name:'longbow',hit:0,sm:'1d6',l:'',dmod:0,at:2},{name:'longsword',hit:0,sm:'1d8',l:'1d12',dmod:0,at:1}];
+    setUnitCenter(TG, centerPoint(AR).x, centerPoint(AR).y+12); TG.facing=0;
+    AR.controllerUid='uidP'; state.units=[AR,TG,BY]; state.phaseIdx=PHASES.findIndex(x=>x.id==='missileMagic');
+    state.selId=BY.id; state.targetId=null;
+    const V=NET._test.validateAction;
+    t('[NET/v0.69.0] validateAction rejects an unknown verb', V({action:'teleport',unitId:AR.id,uid:'uidP',targetId:TG.id}).ok===false);
+    t('[NET/v0.69.0] validateAction rejects a unit the player does not control', V({action:'fire',unitId:AR.id,uid:'other',targetId:TG.id}).ok===false);
+    t('[NET/v0.69.0] validateAction rejects a friendly target', V({action:'fire',unitId:AR.id,uid:'uidP',targetId:BY.id}).ok===false);
+    t('[NET/v0.69.0] validateAction accepts an owned unit on an enemy target', V({action:'fire',unitId:AR.id,uid:'uidP',targetId:TG.id}).ok===true);
+    t('[NET/v0.69.0] validateAction clamps figure-target slots to the target\u2019s figures', (()=>{const r=V({action:'fire',unitId:AR.id,uid:'uidP',targetId:TG.id,figTarget:[0,5,40,-1,'x']});return r.ok&&r.fig.length===2&&r.fig[0]===0&&r.fig[1]===5;})());
+    const _r=Math.random; Math.random=()=>0.99; const n0=$('#log')?.children.length||0;
+    const fired=NET._test.applyAction({action:'fire',unitId:AR.id,uid:'uidP',name:'Tester',targetId:TG.id,targetIds:[],figTarget:[]}); Math.random=_r;
+    t('[NET/v0.69.0] applyAction fires the volley through fireAtTarget (shot spent, no selection left behind)', fired===true && AR.shotsUsed===1 && state.selId===BY.id && state.targetId===null);
+    t('[NET/v0.69.0] applyAction logs the player\u2019s verb line', /Player fire/.test($('#log')?.innerHTML.slice(0)||''));
+    const n1=$('#log')?.children.length||0;
+    state.phaseIdx=PHASES.findIndex(x=>x.id==='movement');
+    const again=NET._test.applyAction({action:'fire',unitId:AR.id,uid:'uidP',name:'Tester',targetId:TG.id});
+    t('[NET/v0.69.0] an out-of-phase volley is refused by the live gate with a logged reason, not applied', again===false && AR.shotsUsed===1 && /Player fire refused/.test($('#log')?.innerHTML||''));
+    state.phaseIdx=PHASES.findIndex(x=>x.id==='melee'); AR.shotsUsed=0;
+    const ML=mkUnit('ORC','A',12,40,40), MD=mkUnit('DWARF','B',12,40,40); ML.controllerUid='uidP'; ML.facing=180; MD.facing=0; setUnitCenter(MD, centerPoint(ML).x, centerPoint(ML).y+unitRect(ML).h/2+unitRect(MD).h/2); state.units=[AR,TG,BY,ML,MD];
+    const mel=inContact(ML,MD) ? NET._test.applyAction({action:'melee',unitId:ML.id,uid:'uidP',name:'Tester',targetId:MD.id}) : null;
+    t('[NET/v0.69.0] applyAction resolves a contacted melee for the player', mel===true && /Player melee/.test($('#log')?.innerHTML||''));
+    t('[NET/v0.69.0] playerVerbsNow lists nothing for an unowned selection and rally only for a routed unit in Rally', (()=>{state.phaseIdx=PHASES.findIndex(x=>x.id==='rally');const v=NET.playerVerbsNow(BY);return Array.isArray(v)&&!v.includes('fire');})());
+    state.units=units0; state.setup=su; state.phaseIdx=ph; state.round=rd; state.enforce=en; state.selId=sel0; state.targetId=tar0; state.extraTargetIds=ex0; if($('#log'))$('#log').innerHTML=keepLog; syncLogCount(); })();
   // drag-undo FIX: the drop's undo entry is the PRE-drag snapshot
   state.setup = true; state.units = [mkUnit('ORC','A',12,10,10)];
   const MU = state.units[0], preS = snap();
