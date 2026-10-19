@@ -207,13 +207,26 @@ service cloud.firestore {
           && (isCampaignOwner(campaignId) || isGM());
 
         match /commands/{commandId} {
-          allow read: if isAuthed();
+          allow read: if isAuthed()
+            && (resource.data.uid == request.auth.uid
+                || isCampaignOwner(campaignId) || isGM());
           allow create: if isAuthed()
             && request.resource.data.uid == request.auth.uid;
           allow update: if false;
           allow delete: if isAuthed()
             && (isCampaignOwner(campaignId) || isGM()
                 || resource.data.uid == request.auth.uid);
+        }
+
+        match /views/{viewer} {
+          allow read: if isAuthed()
+            && (request.auth.uid == viewer || isCampaignOwner(campaignId) || isGM());
+          allow write: if isAuthed() && (isCampaignOwner(campaignId) || isGM());
+        }
+
+        match /private/{docId} {
+          allow read, write: if isAuthed()
+            && (isCampaignOwner(campaignId) || isGM());
         }
       }
     }
