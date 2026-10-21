@@ -15,6 +15,8 @@
 //                   pass 4): a roster character he owns, or null
 //   joinCode        the secret part of the join link; reset on removal
 //   invited[]       emails invited by name: such a person joins without the code
+//                   (so does anyone on the GCC campaign's own roster, campaigns/{cid}/players/{uid}:
+//                   "Launch game" on GCC takes its players straight in, pass 5)
 //   live            { fid, at } the fight open now, or null (the lobby)
 //   name, system, createdAt
 // oddCampaigns/{cid}/presence/{uid}: { seen } (a page says "here" every
@@ -29,6 +31,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const campaignPaths = (cid) => ({
   campaign: `oddCampaigns/${cid}`,
   gcc: `campaigns/${cid}`,
+  gccPlayer: (uid) => `campaigns/${cid}/players/${uid}`,
   presence: (uid) => `oddCampaigns/${cid}/presence/${uid}`,
   fight: (fid) => `oddCampaigns/${cid}/fights/${fid}`
 });
@@ -55,6 +58,8 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
     const myEmail = String(email ?? '').toLowerCase();
     return store.run(async (tx) => {
       const camp = await tx.get(p.campaign), gcc = await tx.get(p.gcc);
+      // on the GCC campaign's roster already (gcc-invite.js writes campaigns/{cid}/players/{uid})
+      const gccPlayer = await tx.get(p.gccPlayer(uid));
       const write = (c) => { tx.set(p.campaign, clean(c)); return { ok: true, game: summary(c, uid) }; };
 
       // The referee opens the game (the first time also makes it): its Creator is the GCC campaign's owner, if there is one.
@@ -71,14 +76,15 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
       if (!camp) return refuse('not-found', "this game hasn't been started yet: the referee opens it first");
       const member = (camp.members ?? []).includes(uid), ref = isReferee(camp, uid), creator = camp.refereeUid === uid;
 
-      // Following the join link, or the game URL by someone invited by email.
+      // Following the join link, the game URL by someone invited by email, or "Launch game" on GCC by a player of that campaign.
       if (op === 'join') {
         if (member) return { ok: true, game: summary(camp, uid) };
         const byCode = data.code && String(data.code).toUpperCase() === camp.joinCode;
         const byEmail = myEmail && (camp.invited ?? []).includes(myEmail);
-        if (!byCode && !byEmail) return refuse('forbidden', data.code ? 'that join link is out of date: ask the referee for the new one' : 'you are not in this game');
+        const byGcc = !!gccPlayer;
+        if (!byCode && !byEmail && !byGcc) return refuse('forbidden', data.code ? 'that join link is out of date: ask the referee for the new one' : 'you are not in this game');
         const people = { ...(camp.people ?? {}) };
-        people[uid] = { name: String(name || myEmail || 'Player').slice(0, 60), color: freeColour(people, uid), role: 'player' };
+        people[uid] = { name: String(name || gccPlayer?.displayName || myEmail || 'Player').slice(0, 60), color: freeColour(people, uid), role: 'player' };
         return { ...write({ ...camp, members: [...(camp.members ?? []), uid], people, invited: (camp.invited ?? []).filter((e) => e !== myEmail) }), joined: true };
       }
       if (!member) return refuse('forbidden', 'you are not in this game');

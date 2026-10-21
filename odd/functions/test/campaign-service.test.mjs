@@ -125,3 +125,18 @@ test("lobby chat: members talk without a fight; a player can tell the referee al
   assert.ok(lines("referee").some((e) => e.roll?.total === 6) && !lines("bob").some((e) => e.roll));
   assert.equal((await fs.chat({ uid: "carl", data: { cid: "c4", text: "hi" } })).code, "forbidden");
 });
+
+test("a player on the GCC campaign's roster joins from Launch game with no code or invite", async () => {
+  const store = memoryStore(), g = games(store);
+  store.docs.set("campaigns/c1", { ownerUid: "kurt", name: "Castle Blackrock" });
+  store.docs.set("campaigns/c1/players/dave", { displayName: "Dave", email: "dave@x.test", role: "player" });
+  assert.equal((await call(g, "dave", { op: "join", cid: "c1" })).code, "not-found", "not before the referee starts the game");
+  assert.equal((await call(g, "kurt", { op: "open", cid: "c1" }, { name: "Kurt" })).ok, true);
+  assert.equal((await call(g, "dave", { op: "open", cid: "c1" })).code, "forbidden", "open is the referee's (the page falls back to join)");
+  const j = await call(g, "dave", { op: "join", cid: "c1" }, { name: "" });
+  assert.equal(j.ok, true, j.error); assert.equal(j.joined, true);
+  assert.equal(j.game.people.dave.name, "Dave", "his GCC display name when the sign-in has none");
+  assert.equal(j.game.people.dave.role, "player");
+  assert.equal((await call(g, "eve", { op: "join", cid: "c1" })).code, "forbidden", "not on the GCC roster, no code, no invite");
+  assert.equal((await call(g, "dave", { op: "join", cid: "c1" })).joined, undefined, "a second visit: already a member");
+});
