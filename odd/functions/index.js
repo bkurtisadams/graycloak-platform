@@ -40,17 +40,21 @@ const store = {
   })),
   // A fight and everything under it (state, views, feeds, actions).
   deleteTree: (path) => db.recursiveDelete(db.doc(path)),
-  // The GCC campaigns (system 'odd') a user owns or is a player in: campaigns/{cid} and campaigns/{cid}/players/{uid}.
-  // One collection query plus a doc read per campaign; no collection-group index needed.
+  // The games this account may enter: GCC campaigns of system 'odd' he owns or is a player in (campaigns/{cid},
+  // campaigns/{cid}/players/{uid}): one query plus a read per campaign, no collection-group index.
+  // Also the games he's already a member of (joined by the link or an invite): oddCampaigns where members has him.
   myGccCampaigns: async (uid) => {
-    const camps = (await db.collection('campaigns').where('system', '==', 'odd').get()).docs;
-    const out = [];
-    for (const d of camps) {
+    const out = new Map();
+    for (const d of (await db.collection('campaigns').where('system', '==', 'odd').get()).docs) {
       const c = d.data(), owner = c.ownerUid === uid;
       if (!owner && !(await d.ref.collection('players').doc(uid).get()).exists) continue;
-      out.push({ cid: d.id, name: c.name ?? d.id, referee: owner });
+      out.set(d.id, { cid: d.id, name: c.name ?? d.id, referee: owner });
     }
-    return out;
+    for (const d of (await db.collection('oddCampaigns').where('members', 'array-contains', uid).get()).docs) {
+      const g = d.data();
+      if (!out.has(d.id)) out.set(d.id, { cid: d.id, name: g.name ?? d.id, referee: g.refereeUid === uid || (g.referees ?? []).includes(uid) });
+    }
+    return [...out.values()];
   }
 };
 // A player is named by the email he signs in with; the server finds his account.
