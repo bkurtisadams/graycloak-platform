@@ -1,4 +1,6 @@
-// gcc-data.js v1.7.1 — 2026-10-19
+// gcc-data.js v1.7.2 — 2026-10-21
+// v1.7.2: odd-game carries campaignParam 'c': the Tools menu appends the open
+//         campaign's id (gcc-header v2.2.0), so Launch game works from there too.
 // v1.7.1: Add battle-system id to add1e tools 
 // v1.7.0: New system 'traveller' (Classic Traveller): 'Launch game' →
 //         traveller/client/enter.html, the game's own lobby. A link only —
@@ -121,7 +123,7 @@ const GCC = (function() {
       icon: '⚔',
       color: '#8a5a30',
       tools: [
-        { id: 'odd-game', name: 'Launch game', href: 'odd/index.html' },
+        { id: 'odd-game', name: 'Launch game', href: 'odd/index.html', campaignParam: 'c' },
         { id: 'odd-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
       ]
     },
