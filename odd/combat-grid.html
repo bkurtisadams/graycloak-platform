@@ -195,6 +195,36 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage[hidden] { display: none; }
 .lobbystage .lcard { background: var(--card); border-radius: 10px; padding: 22px 26px; width: min(620px, 100%); display: flex; flex-direction: column; gap: 12px; }
 .lobbystage h2 { margin: 0; font-size: 1.3rem; }
+/* pass 5 (approved mockups 21 Oct 2026): the player's page on the stage */
+.lobbystage .lcard.wide { width: min(980px, 100%); }
+.lobbystage .lcard.gen { width: min(1100px, 100%); }
+.lobbystage .lcard.gen .rs-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
+.lobbystage .lcard.gen .rs-step { border-top: 0; padding: 0; }
+.lobbystage .lcard.gen .rs-err { grid-column: 1 / -1; }
+.lobbystage .lcard.gen .rs-step h4 { font-family: var(--type); border-bottom: 1px solid #c9d8e2; padding-bottom: 4px; }
+.lobbystage .lcard.gen .rs-shoplist { max-height: 160px; }
+.lobbystage .ls-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.lobbystage .ls-chars { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lobbystage .ls-ch { border: 1px solid #9fb2c0; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--floor); }
+.lobbystage .ls-ch.draft { border-style: dashed; background: var(--card); }
+.lobbystage .ls-ch.more { border-style: dotted; background: transparent; justify-content: center; align-items: flex-start; }
+.lobbystage .ls-ch h3 { margin: 0; font-size: 1.1rem; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lobbystage .ls-ch h3 small { font-family: var(--type); font-size: .8rem; font-weight: 400; color: var(--pencil); }
+.lobbystage .ls-stats { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--type); font-size: .82rem; }
+.lobbystage .ls-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.lobbystage .ls-acts button { min-height: 40px; }
+.lobbystage .ls-party { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; align-items: start; }
+.lobbystage .ls-party .who { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.lobbystage .ls-party .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.lobbystage .ls-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.lobbystage .ls-chips span { border: 1px solid #c9d8e2; border-radius: 3px; padding: 3px 8px; font-family: var(--type); font-size: .8rem; background: var(--floor); }
+.lobbystage .ls-chips span.draft { border-style: dashed; color: var(--pencil); }
+.lobbystage .ls-field { display: flex; flex-direction: column; gap: 5px; font-size: .95rem; }
+.lobbystage .ls-field input { height: 40px; border: 1px solid #9fb2c0; border-radius: 4px; padding: 0 10px; font: inherit; }
+.lobbystage .ls-sw { display: flex; gap: 8px; flex-wrap: wrap; }
+.lobbystage .ls-sw button { width: 44px; height: 44px; min-height: 0; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
+.lobbystage .ls-sw button.on { border-color: var(--ink); box-shadow: 0 0 0 3px var(--card) inset; }
+@media (max-width: 1000px) { .lobbystage .lcard.gen .rs-steps, .lobbystage .ls-chars { grid-template-columns: 1fr; } .lobbystage .ls-party { grid-template-columns: 1fr; } }
 /* floating windows: a figure's sheet (Details) */
 .floatwin { position: fixed; z-index: 30; width: min(460px, calc(100vw - 20px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); overflow: hidden; }
 .floatwin[hidden] { display: none; }
@@ -1040,7 +1070,7 @@ function startTable() {
   api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } });
   api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "settings") renderGamePlayers(); });
   api.watchFolders(table.cid, (list) => { table.folders = list; if (sbTab === "party") renderRoster(); });
-  api.watchCharacters(table.cid, (list) => { table.chars = list; renderPlayersList(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER });
+  api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER });
   const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
   here(); table.here = setInterval(here, 120000); document.addEventListener("visibilitychange", here);
   loadTableFights();
@@ -1097,18 +1127,93 @@ function renderPresence() {
   $("#hereDots").innerHTML = (g.members ?? []).map((u) => { const p = g.people?.[u] ?? {}; return `<span class="${on(u) ? "" : "away"}" style="background:${esc(p.color ?? "#999")};border-color:${esc(p.color ?? "#999")}" title="${esc(p.name ?? "Player")}${on(u) ? "" : ", away"}"></span>`; }).join("");
 }
 /** The stage between fights: who's here and what's next (and, for the referee, a way into Setup). */
+/* ---------- pass 5: the stage between fights is the player's page (approved mockups 21 Oct 2026) ---------- */
+const lobby = { welcome: new URLSearchParams(location.search).has("welcome"), busy: false, error: "", editing: null, rolling: false, colour: null };
+const clsAbbr = (c) => (rs.CLASS_LABEL[c.cls] ?? "").split(/[\s-]+/).map((w) => w[0]).join("");
+const myChars = (uid) => table.chars.filter((c) => rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER);
 function renderLobbyStage() {
   const el = $("#lobbyStage"); if (!el) return;
   const g = table.game, show = TABLE && !!g && !online.api?.fight && !table.setup;
   el.hidden = !show; if (!show) return;
+  const uid = meUid();
+  if (PLAYER) { renderPlayerStage(el, g, uid); return; }
   const party = (g.members ?? []).filter((u) => !isRefOf(g, u));
   const fights = (table.fights ?? []).slice(0, 5);
-  el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The table")}</h2>
-    <div>${PLAYER ? "<b>Waiting for the referee.</b> When he opens a fight, it appears here on its own." : "<b>Between fights.</b> Open a fight and every player's table switches to it."}</div>
-    ${PLAYER ? "" : `<div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="done" id="lsNew">Open a fight</button>${fights.length ? `<span class="note">or reopen one in the Fights tab</span>` : ""}</div>`}
-    <div><b>The party</b>: ${party.length ? party.map((u) => `<span style="color:${esc(g.people?.[u]?.color ?? "inherit")};font-weight:700">${esc(g.people?.[u]?.name ?? "Player")}</span>`).join(", ") : "no players yet \u2014 send them the join link from Settings, User Management."}</div>
+  const rows = party.map((u) => {
+    const p = g.people?.[u] ?? {}, cs = myChars(u);
+    const chips = cs.length ? cs.map((c) => c.status === "draft" ? `<span class="draft">a draft</span>` : `<span>${esc(c.name)} \u00b7 ${clsAbbr(c)} ${c.level ?? 1} \u00b7 hp ${c.hp}</span>`).join("") : `<span class="draft">no characters yet</span>`;
+    return `<div class="who"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(p.name ?? "Player")}</div><div class="ls-chips">${chips}</div>`;
+  }).join("");
+  el.innerHTML = `<div class="lcard wide"><h2>${esc(g.name ?? "The game")}</h2>
+    <div><b>Between fights.</b> Open a fight and every player's page switches to it.</div>
+    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="done" id="lsNew">Open a fight</button>${fights.length ? `<span class="note">or reopen one in the Fights tab</span>` : ""}</div>
+    <div class="ls-party"><div class="note">The party</div><div class="note">their characters, as in Actors</div>${rows || `<div class="note">no players yet \u2014 send the join link from the Players tab</div><div></div>`}</div>
     ${fights.length ? `<div class="note">Recent fights: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</div>` : ""}</div>`;
   $("#lsNew")?.addEventListener("click", () => { table.setup = true; renderLobbyStage(); openDrawer("setup"); });
+}
+function renderPlayerStage(el, g, uid) {
+  const me = g.people?.[uid] ?? {};
+  if (lobby.welcome) {
+    const taken = new Set(Object.entries(g.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
+    const colour = lobby.colour ?? me.color;
+    el.innerHTML = `<div class="lcard"><h2>Welcome to ${esc(g.name ?? "the game")}</h2>
+      <div>You're in Langstead, a village a day's walk from the ruin of Fosscraig. Before you roll a character, say who you are to the others.</div>
+      <label class="ls-field">Your name in the game <input id="lsName" maxlength="60" value="${esc(me.name ?? "")}"></label>
+      <div class="ls-field"><span>Your colour <span class="note">(taken ones are left out)</span></span>
+      <div class="ls-sw">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button type="button" data-ls-col="${c}" class="${c === colour ? "on" : ""}" style="background:${c}" aria-label="colour ${c}"></button>`).join("")}</div></div>
+      ${lobby.error ? `<div class="rs-err">${esc(lobby.error)}</div>` : ""}
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="done" id="lsGo" ${lobby.busy ? "disabled" : ""}>Continue to roll a character</button><span class="note">You can change these later from the Players tab.</span></div></div>`;
+    el.querySelectorAll("[data-ls-col]").forEach((b) => b.addEventListener("click", () => { lobby.colour = b.dataset.lsCol; el.querySelectorAll("[data-ls-col]").forEach((x) => x.classList.toggle("on", x === b)); }));
+    $("#lsGo")?.addEventListener("click", async () => {
+      const name = $("#lsName").value.trim(); if (!name) { lobby.error = "A name, please."; renderLobbyStage(); return; }
+      lobby.busy = true; lobby.error = ""; renderLobbyStage();
+      const r = await online.api.game("profile", table.cid, { name, color: lobby.colour ?? me.color ?? null });
+      lobby.busy = false;
+      if (!r.ok) { lobby.error = r.error ?? "That didn't work."; renderLobbyStage(); return; }
+      table.game = { ...table.game, ...r.game }; lobby.welcome = false;
+      const q = new URLSearchParams(location.search); q.delete("welcome"); history.replaceState(null, "", `?${q}`);
+      renderLobbyStage();
+    });
+    return;
+  }
+  if (!table.charsLoaded) { el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">Loading your characters\u2026</div></div>`; return; }
+  const mine = myChars(uid), finished = mine.filter((c) => c.status !== "draft"), drafts = mine.filter((c) => c.status === "draft");
+  if (!finished.length && !drafts.length) {
+    el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">${lobby.error ? esc(lobby.error) : "Rolling your first character\u2026"}</div></div>`;
+    if (!lobby.rolling && !lobby.error) { lobby.rolling = true; rollAnother(); }
+    return;
+  }
+  const editing = (lobby.editing && drafts.find((c) => c.id === lobby.editing)) || (!finished.length ? drafts[0] : null);
+  if (editing) {
+    el.innerHTML = `<div class="lcard gen"><div class="ls-head"><h2>${finished.length ? "Roll another character" : "Roll your first character"}</h2><span class="note">The dice are the server's. Don't like him? Reroll, or finish and roll another.</span>${finished.length ? `<a href="#" id="lsBack" style="margin-left:auto">Back to your characters</a>` : ""}</div>
+      <div class="rs-steps">${rui.chargenHtml(rs, editing, { error: lobby.error, busy: lobby.busy })}</div></div>`;
+    $("#lsBack")?.addEventListener("click", (e) => { e.preventDefault(); lobby.editing = null; lobby.error = ""; renderLobbyStage(); });
+    return;
+  }
+  const cards = finished.map((c) => { const sh = rs.sheetFor(c); return `<div class="ls-ch"><h3>${esc(c.name)} <small>${esc(sh.classLabel)} \u00b7 ${c.level ?? 1}${ordinal(c.level ?? 1)} level \u00b7 ${esc(sh.alignLabel)}</small></h3>
+    <div class="ls-stats"><span>hp <b>${c.hp}</b>/${c.maxHp}</span><span>AC <b>${sh.ac}</b>${sh.armour ? ` ${esc(sh.armour.label)}` : ""}</span>${sh.weapon ? `<span>${esc(sh.weapon)}</span>` : ""}<span><b>${c.coins?.gp ?? 0}</b> gp</span><span>xp <b>${c.xp ?? 0}</b></span></div>
+    <div class="ls-acts"><button data-ls-open="${esc(c.id)}">Open sheet</button><button class="done" disabled title="The road from Langstead to Fosscraig comes with the map">Set out</button></div></div>`; }).join("");
+  const draftCards = drafts.map((c) => `<div class="ls-ch draft"><h3>${esc(c.name || "Unnamed")} <small>draft \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")}?</small></h3>
+    <div class="ls-stats"><span>${["str", "int", "wis", "con", "dex", "cha"].map((k) => `${k.toUpperCase()} ${c.abilities?.[k] ?? "?"}`).join(" ")}</span><span><b>${c.coins?.gp ?? 0}</b> gp</span></div>
+    <div class="ls-acts"><button data-ls-edit="${esc(c.id)}">Finish rolling</button><button data-ls-discard="${esc(c.id)}">Throw away</button></div></div>`).join("");
+  el.innerHTML = `<div class="lcard wide"><div class="ls-head"><h2>Your characters</h2><span class="note">In Langstead, at the inn. When the referee opens a fight it takes this page over on its own.</span></div>
+    ${lobby.error ? `<div class="rs-err">${esc(lobby.error)}</div>` : ""}
+    <div class="ls-chars">${cards}${draftCards}<div class="ls-ch more"><button id="lsRoll" ${lobby.busy ? "disabled" : ""}>Roll another character</button><div class="note">As many as you like. Each is yours alone; the referee sees them all in Actors.</div></div></div>
+    <div class="note">Set out opens the map: the road from Langstead to Fosscraig, two hexes north-east. It comes with the next pass.</div></div>`;
+  el.querySelectorAll("[data-ls-open]").forEach((b) => b.addEventListener("click", () => openCharSheet(b.dataset.lsOpen)));
+  el.querySelectorAll("[data-ls-edit]").forEach((b) => b.addEventListener("click", () => { lobby.editing = b.dataset.lsEdit; lobby.error = ""; renderLobbyStage(); }));
+  el.querySelectorAll("[data-ls-discard]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.lsDiscard); if (c && confirm(`Throw ${c.name || "this character"} away? It can't be undone.`)) charOp(c.id, "delete", {}, lobby); }));
+  $("#lsRoll")?.addEventListener("click", rollAnother);
+}
+const ordinal = (n) => (n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th");
+async function rollAnother() {
+  lobby.busy = true; lobby.error = ""; renderLobbyStage();
+  const r = await online.api.character("roll", table.cid, {});
+  lobby.busy = false; lobby.rolling = false;
+  if (r.ok) { const i = table.chars.findIndex((c) => c.id === r.character.id); if (i >= 0) table.chars[i] = r.character; else table.chars.push(r.character); lobby.editing = r.character.id; }
+  else if (r.code === "draft") lobby.editing = myChars(meUid()).find((c) => c.status === "draft")?.id ?? null; // finish the open one first
+  else lobby.error = r.error ?? "The server didn't roll.";
+  renderLobbyStage(); if (sbTab === "party") renderRoster();
 }
 function renderGamePlayers() {
   const g = table.game, el = $("#gamePlayers"); if (!g || !el) return;
@@ -2290,7 +2395,7 @@ function titleSheet() {
   $("#sheetTitle").textContent = f ? f.name : "Figure"; $("#sheetSub").textContent = "";
 }
 /* ---------- the roster (pass 4): the Party tab's characters, chargen and the character sheet ---------- */
-const charSheet = { id: null, tab: "sheet", spells: false, error: "", busy: false, openCats: new Set(["weapon", "armor"]) };
+const charSheet = { id: null, tab: "sheet", spells: false, error: "", busy: false };
 const charOf = (id) => table.chars.find((c) => c.id === id) ?? null;
 const meUid = () => online.api?.user?.uid ?? null;
 const iRef = () => TABLE && isRefOf(table.game, meUid());
@@ -2319,44 +2424,64 @@ function renderCharSheet() {
   if (levelHere(ch) < 2) { charSheet.id = null; $("#sheetWin").hidden = true; return; } // Limited: his name only
   const keep = document.activeElement?.id === "rsNotes" ? $("#rsNotes").value : null;
   body.innerHTML = ch.status === "draft" && canEdit
-    ? rui.chargenHtml(rs, ch, { error: charSheet.error, busy: charSheet.busy, openCats: charSheet.openCats })
+    ? rui.chargenHtml(rs, ch, { error: charSheet.error, busy: charSheet.busy })
     : ch.status === "draft" ? `<div class="note">${esc(table.game?.people?.[ch.owner]?.name ?? "A player")} is still rolling this character.</div>`
     : rui.sheetHtml(rs, ch, { tab: charSheet.tab, canEdit, ref: iRef(), people: table.game?.people, me: meUid(), editingSpells: charSheet.spells, spellPick: charSheet.spellPick, error: charSheet.error });
   if (keep != null && $("#rsNotes")) { $("#rsNotes").value = keep; $("#rsNotes").focus(); }
 }
-/** One request to oddCharacter for the open character; the roster listener redraws, the answer is shown at once. */
-async function charCall(op, data = {}) {
-  const id = charSheet.id; charSheet.busy = true; charSheet.error = ""; renderCharSheet();
+/** One request to oddCharacter for a character; st holds busy/error for the card that asked (the sheet window or the stage). The roster listener redraws, the answer is shown at once. */
+async function charOp(id, op, data = {}, st = charSheet) {
+  st.busy = true; st.error = ""; redrawChars();
   const r = await online.api.character(op, table.cid, { id, ...data });
-  charSheet.busy = false;
-  if (!r.ok) charSheet.error = r.error ?? r.code ?? "That didn't work.";
+  st.busy = false;
+  if (!r.ok) st.error = r.error ?? r.code ?? "That didn't work.";
   else if (r.character) { const i = table.chars.findIndex((c) => c.id === r.character.id); if (i >= 0) table.chars[i] = r.character; else table.chars.push(r.character); }
-  if (r.ok && op === "finish") charSheet.tab = "sheet";
-  renderCharSheet(); if (sbTab === "party") renderRoster();
+  else if (r.deleted) { table.chars = table.chars.filter((c) => c.id !== r.deleted); if (charSheet.id === r.deleted) { charSheet.id = null; $("#sheetWin").hidden = true; } if (lobby.editing === r.deleted) lobby.editing = null; }
+  if (r.ok && op === "finish") { if (st === charSheet) charSheet.tab = "sheet"; if (lobby.editing === id) lobby.editing = null; }
+  redrawChars();
   return r;
 }
+const charCall = (op, data = {}) => charOp(charSheet.id, op, data, charSheet);
+function redrawChars() { renderCharSheet(); renderLobbyStage(); if (sbTab === "party") renderRoster(); }
+/** The chargen's buttons and fields, the same on the sheet window and on the stage. */
+async function chargenClick(root, b, ch, st) {
+  const d = b.dataset;
+  if (d.rsBuy) return charOp(ch.id, "buy", { key: d.rsBuy }, st);
+  if (d.rsSell != null) return charOp(ch.id, "sell", { index: Number(d.rsSell) }, st);
+  if (d.rsEx) { const cur = ch.exchange?.from === d.rsEx ? ch.exchange.steps : 0; return charOp(ch.id, "basics", { exchange: { from: d.rsEx, steps: Math.max(0, cur + Number(d.step)) } }, st); }
+  if ("rsFinish" in d) { const nm = root.querySelector("#rsName")?.value.trim(); if (nm && nm !== ch.name) { const r = await charOp(ch.id, "basics", { name: nm }, st); if (!r.ok) return r; } return charOp(ch.id, "finish", {}, st); }
+  if ("rsReroll" in d) return confirm("Throw the dice again? His scores and gold are rerolled and what he bought goes back; the name stays.") ? charOp(ch.id, "reroll", {}, st) : null;
+  if ("rsDiscard" in d) return confirm(`Throw ${ch.name || "this character"} away? It can't be undone.`) ? charOp(ch.id, "delete", {}, st) : null;
+  return undefined;
+}
+function chargenChange(t, ch, st) {
+  if (t.dataset.rsBasic) return charOp(ch.id, "basics", { [t.dataset.rsBasic]: t.value }, st);
+  if (t.id === "rsName" && t.value.trim() && t.value.trim() !== ch.name) return charOp(ch.id, "basics", { name: t.value.trim() }, st);
+  return undefined;
+}
+const stageDraft = () => (lobby.editing && charOf(lobby.editing)) || (PLAYER ? myChars(meUid()).find((c) => c.status === "draft") : null);
+$("#lobbyStage").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b || b.disabled) return;
+  const ch = stageDraft(); if (!ch || ch.status !== "draft") return;
+  chargenClick($("#lobbyStage"), b, ch, lobby);
+});
+$("#lobbyStage").addEventListener("change", (e) => { const ch = stageDraft(); if (ch && ch.status === "draft") chargenChange(e.target, ch, lobby); });
 $("#rsBody").addEventListener("click", async (e) => {
   const b = e.target.closest("button"); if (!b || b.disabled) return;
   const d = b.dataset, ch = charOf(charSheet.id); if (!ch) return;
   if (d.rsTab) { charSheet.tab = d.rsTab; charSheet.error = ""; renderCharSheet(); }
-  else if (d.rsBuy) charCall("buy", { key: d.rsBuy });
-  else if (d.rsSell != null) charCall("sell", { index: Number(d.rsSell) });
-  else if (d.rsEx) { const cur = ch.exchange?.from === d.rsEx ? ch.exchange.steps : 0; charCall("basics", { exchange: { from: d.rsEx, steps: Math.max(0, cur + Number(d.step)) } }); }
-  else if ("rsFinish" in d) { const nm = $("#rsName")?.value.trim(); if (nm && nm !== ch.name) { const r = await charCall("basics", { name: nm }); if (!r.ok) return; } charCall("finish"); }
+  else if ((await chargenClick($("#rsBody"), b, ch, charSheet)) !== undefined) return;
   else if ("rsSpells" in d) { charSheet.spells = true; charSheet.spellPick = [...(ch.remembered ?? [])]; renderCharSheet(); }
   else if ("rsSpellsCancel" in d) { charSheet.spells = false; charSheet.error = ""; renderCharSheet(); }
   else if ("rsSpellsSave" in d) { const r = await charCall("remember", { spells: charSheet.spellPick ?? [] }); if (r.ok) { charSheet.spells = false; renderCharSheet(); } }
   else if ("rsNotes" in d) charCall("notes", { notes: $("#rsNotes").value });
   else if ("rsRename" in d) { const nm = prompt("A new name", ch.name); if (nm && nm.trim()) charCall("rename", { name: nm.trim() }); }
-  else if ("rsDelete" in d) { if (confirm(`Delete ${ch.name || "this character"}? It can't be undone.`)) { const r = await online.api.character("delete", table.cid, { id: ch.id }); if (!r.ok) { charSheet.error = r.error; renderCharSheet(); } else { table.chars = table.chars.filter((c) => c.id !== ch.id); charSheet.id = null; $("#sheetWin").hidden = true; renderRoster(); } } }
+  else if ("rsDelete" in d) { if (confirm(`Delete ${ch.name || "this character"}? It can't be undone.`)) charOp(ch.id, "delete", {}, charSheet); }
 });
-// the shop's sections stay as the player left them across redraws
-$("#rsBody").addEventListener("toggle", (e) => { const c = e.target.dataset?.rsCat; if (c) { if (e.target.open) charSheet.openCats.add(c); else charSheet.openCats.delete(c); } }, true);
 $("#rsBody").addEventListener("change", (e) => {
   const t = e.target, ch = charOf(charSheet.id); if (!ch) return;
-  if (t.dataset.rsBasic) charCall("basics", { [t.dataset.rsBasic]: t.value });
-  else if (t.id === "rsName" && t.value.trim() && t.value.trim() !== ch.name) charCall("basics", { name: t.value.trim() });
-  else if (t.dataset.rsReady) charCall("ready", { [t.dataset.rsReady]: t.value || null });
+  if (chargenChange(t, ch, charSheet) !== undefined) return;
+  if (t.dataset.rsReady) charCall("ready", { [t.dataset.rsReady]: t.value || null });
   else if (t.dataset.rsSpell) { const k = t.dataset.rsSpell, pick = new Set(charSheet.spellPick ?? []); if (t.checked) pick.add(k); else pick.delete(k); charSheet.spellPick = [...pick]; }
 });
 /* ---------- the Actors directory (Foundry's): create, search, folders, right-click menus, drag into folders ---------- */

@@ -74,13 +74,23 @@ test("a player rolls, builds, shops and finishes a character; the server rolls e
   assert.equal((await call("bob", { op: "roll" })).ok, true, "finished, so he may roll another");
 });
 
-test("rolls stand: only the referee throws a character away", async () => {
+test("rerolls are free (ruling, Oct 2026): a player rerolls or throws away his draft; a finished character stands unless the referee says", async () => {
   const { store, svc, call } = game();
-  const id = (await call("bob", { op: "roll" })).character.id;
-  assert.equal((await call("bob", { op: "delete", id })).code, "forbidden");
-  assert.equal((await call("kurt", { op: "delete", id })).ok, true);
+  const r0 = await call("bob", { op: "roll" }), id = r0.character.id;
+  await call("bob", { op: "basics", id, name: "Brom" }); await call("bob", { op: "buy", id, key: "sword" });
+  const rr = await call("bob", { op: "reroll", id });
+  assert.equal(rr.ok, true, rr.error); assert.equal(rr.character.id, id, "the same character"); assert.equal(rr.character.name, "Brom", "the name stays");
+  assert.deepEqual(rr.character.items, [], "the purchases go back"); assert.equal(rr.character.coins.gp, rr.character.gold, "fresh gold");
+  assert.equal((await call("ann", { op: "reroll", id })).code, "forbidden", "not someone else's");
+  assert.equal((await call("bob", { op: "delete", id })).ok, true, "his own draft he may throw away");
   assert.equal(store.docs.has(characterPaths("c1").character(id)), false);
-  assert.equal((await call("bob", { op: "roll" })).ok, true, "and then he rolls again");
+  const id2 = (await call("bob", { op: "roll" })).character.id;
+  await call("bob", { op: "basics", id: id2, name: "Wyn" }); await call("bob", { op: "buy", id: id2, key: "sword" });
+  const fin = await call("bob", { op: "finish", id: id2 }); assert.equal(fin.ok, true, fin.error);
+  assert.equal((await call("bob", { op: "reroll", id: id2 })).code, "bad-request", "finished: the dice stand");
+  assert.equal((await call("bob", { op: "delete", id: id2 })).code, "forbidden", "finished: only the referee");
+  assert.equal((await call("ann", { op: "delete", id: id2 })).code, "forbidden");
+  assert.equal((await call("kurt", { op: "delete", id: id2 })).ok, true);
 });
 
 test("a roster character opens a fight with his own hit points and pack", async () => {

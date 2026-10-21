@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OD&amp;D game</title>
-<!-- odd/index.html v1.1.1 — 2026-10-21 · slice 5 pass 5: a player on the GCC campaign's roster joins by the game URL alone.
+<!-- odd/index.html v1.2.0 — 2026-10-21 · slice 5 pass 5: a player on the GCC campaign's roster joins by the game URL alone;
+     a first join goes straight to the stage (combat-grid.html?player&welcome=1), which holds the welcome card now.
+     v1.1.1 — 2026-10-21 · pass 5: the GCC roster join.
      v1.1.0 — 2026-10-08 · slice 5 pass 3: the game (approved mockups 8 Oct 2026).
      v1.1.0: once you're in, this page sends you to the table (combat-grid.html?c=), which now holds
      the lobby, players, fights and chat in its sidebar; this page keeps signing in and joining.
@@ -122,8 +124,10 @@ async function enter() {
     return;
   }
   if (code) history.replaceState(null, '', `?c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`);
-  S.game = r.game; S.welcome = !!r.joined;
-  if (!S.welcome) { onGame(); return; }
+  S.game = r.game; S.welcome = false;
+  // pass 5: a first join goes to the table's stage, which opens on the welcome card (name, colour) and then the roll
+  if (r.joined) { location.replace(`combat-grid.html?player&welcome=1&c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`); return; }
+  onGame(); return;
   S.unsubs.push(S.api.watchGame(cid, (g) => { if (g) { S.game = { ...S.game, ...g }; onGame(); } }, (e) => { S.error = e; }));
   S.unsubs.push(S.api.watchPresence(cid, (p) => { S.presence = p; render(); }));
   const here = () => { if (document.visibilityState === 'visible') S.api.game('here', cid); };

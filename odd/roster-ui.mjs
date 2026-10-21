@@ -1,5 +1,7 @@
 // ---------------------------------------------------------------------------
-// odd/roster-ui.mjs — slice 5, pass 4 (Oct 2026): the roster in the browser.
+// odd/roster-ui.mjs — slice 5, pass 5 (Oct 2026): the roster in the browser.
+// Pass 5 (approved mockups 21 Oct 2026): the chargen's shop is one scrolling
+// list (item, weight, cost); Reroll everything and Throw this one away.
 //
 // The Party tab's list of characters, chargen for a rolled character, and the
 // character sheet (approved mockup, "the table as a player": a dark title bar
@@ -14,7 +16,6 @@ const AB = { str: "STR", int: "INT", wis: "WIS", con: "CON", dex: "DEX", cha: "C
 const AB_NAME = { str: "Strength", int: "Intelligence", wis: "Wisdom", con: "Constitution", dex: "Dexterity", cha: "Charisma" };
 const RACE_LABEL = { human: "Human", dwarf: "Dwarf", elf: "Elf", halfling: "Halfling" };
 const SAVE_LABEL = [["deathPoison", "Death"], ["wands", "Wands"], ["stone", "Stone"], ["dragon", "Breath"], ["staves", "Spells"]];
-const CATS = [["weapon", "Weapons"], ["armor", "Armour"], ["ammo", "Ammunition"], ["gear", "Gear"], ["container", "Containers"]];
 const n = (x) => Number(x ?? 0).toLocaleString("en-US");
 const signed = (x) => (x > 0 ? `+${x}` : `${x}`);
 /** "common" → "Common"; an alignment tongue ("tongue-law") → "Lawful tongue". */
@@ -201,23 +202,21 @@ export function sheetHtml(rs, ch, { tab = "sheet", canEdit, ref, people, me, edi
 }
 
 /** Chargen for a rolled character the viewer may finish. */
-export function chargenHtml(rs, ch, { error = "", busy = false, openCats = new Set(["weapon", "armor"]) }) {
+export function chargenHtml(rs, ch, { error = "", busy = false }) {
   const sh = rs.sheetFor(ch), ch2 = rs.choicesFor(ch);
-  const cats = CATS.map(([cat, label]) => {
-    const list = rs.SHOP.filter((e) => (cat === "weapon" ? e.type === "weapon" : e.category === cat));
-    if (!list.length) return "";
-    return `<details data-rs-cat="${cat}" ${openCats.has(cat) ? "open" : ""}><summary>${label}</summary><div class="rs-shop">${list.map((e) => {
-      const why = rs.buyProblem(ch, e.key) ?? "";
-      return `<button type="button" data-rs-buy="${e.key}" ${why || busy ? "disabled" : ""} title="${esc(why || `Buy for ${e.cost} gp`)}"><span>${esc(e.name)}</span><span class="num">${e.cost} gp</span></button>`;
-    }).join("")}</div></details>`;
-  }).join("");
+  // one scrolling list in Book I's order: item, weight, cost (approved mockup 21 Oct 2026); a row the class may not buy greys with the reason
+  const shop = `<div class="rs-shoplist"><table><thead><tr><th>Item</th><th class="num">Weight</th><th class="num">Cost</th><th></th></tr></thead><tbody>${rs.SHOP.map((e) => {
+    const why = rs.buyProblem(ch, e.key) ?? "";
+    return `<tr${why ? ' class="no"' : ""} title="${esc(why)}"><td>${esc(e.name)}</td><td class="num">${e.system?.weight ?? 0}</td><td class="num">${e.cost} gp</td><td class="act"><button type="button" data-rs-buy="${e.key}" ${why || busy ? "disabled" : ""}>Buy</button></td></tr>`;
+  }).join("")}</tbody></table></div>`;
   const cart = ch.items.map((it, i) => { const e = rs.SHOP.find((x) => x.key === it.key); return `<div class="rs-cart"><span>${esc(e?.name ?? it.key)}${it.qty > 1 ? ` \u00d7${it.qty}` : ""}</span><span class="num">${(e?.cost ?? 0) * it.qty} gp</span><button type="button" class="linkish" data-rs-sell="${i}" ${busy ? "disabled" : ""}>return</button></div>`; }).join("");
   const donors = ch2.donors.filter((d) => d.max > 0 || ch.exchange.from === d.from).map((d) => {
     const steps = ch.exchange.from === d.from ? ch.exchange.steps : 0;
     return `<div class="rs-ex">${AB[d.from]} ${d.ratio} for 1 into ${AB[ch2.prime]}${d.xpOnly ? " <span class=\"note\">(for experience only)</span>" : ""}: <button type="button" data-rs-ex="${d.from}" data-step="-1" ${steps <= 0 || busy ? "disabled" : ""}>\u2212</button> <b>+${steps}</b> <button type="button" data-rs-ex="${d.from}" data-step="1" ${steps >= d.max || busy || (ch.exchange.from && ch.exchange.from !== d.from) ? "disabled" : ""}>+</button></div>`;
   }).join("");
   return `${error ? `<div class="rs-err">${esc(error)}</div>` : ""}
-    <div class="rs-step"><h4>1 \u00b7 Rolled 3d6 in order</h4>${abilityBoxes(rs, ch, sh, { rolled: true })}<div class="note">${n(ch.gold)} gp to start (3d6 \u00d7 10). The dice are the server's; they stand.</div></div>
+    <div class="rs-step"><h4>1 \u00b7 Rolled 3d6 in order</h4>${abilityBoxes(rs, ch, sh, { rolled: true })}<div class="note">${n(ch.gold)} gp to start (3d6 \u00d7 10). The dice are the server's. Don't like him? Reroll, or finish and roll another.</div>
+      <div class="row"><button type="button" data-rs-reroll ${busy ? "disabled" : ""}>Reroll everything</button></div></div>
     <div class="rs-step"><h4>2 \u00b7 Who he is</h4><div class="rs-form">
       <label>Name <input id="rsName" maxlength="${rs.NAME_MAX}" value="${esc(ch.name)}" placeholder="Brom"></label>
       <label>Race <select data-rs-basic="race">${opts(rs.RACES.map((r) => [r, RACE_LABEL[r]]), ch.race)}</select></label>
@@ -225,9 +224,9 @@ export function chargenHtml(rs, ch, { error = "", busy = false, openCats = new S
       <label>Alignment <select data-rs-basic="alignment">${opts(ch2.alignments.map((a) => [a, rs.ALIGN_LABEL[a]]), ch.alignment)}</select></label></div>
       <div class="note">${esc(rs.CLASS_LABEL[ch.cls])}: prime requisite ${AB_NAME[ch2.prime]} ${ch.abilities[ch2.prime]}${sh.xpBonus ? `, ${signed(sh.xpBonus)}% experience` : ""}.</div>
       ${donors ? `<div class="rs-exs"><div class="note">Trade points into the prime requisite (no score below 9):</div>${donors}</div>` : ""}</div>
-    <div class="rs-step"><h4>3 \u00b7 Shopping <span class="note">${n(ch.coins.gp)} gp left</span></h4>${cart ? `<div class="rs-carts">${cart}</div>` : `<div class="note">Nothing bought yet.</div>`}${cats}</div>
+    <div class="rs-step"><h4>3 \u00b7 Shopping <span class="note">${n(ch.coins.gp)} gp left \u00b7 carrying ${n(sh.load)} (${sh.move}\u2033 move)</span></h4>${cart ? `<div class="rs-carts">${cart}</div>` : `<div class="note">Nothing bought yet.</div>`}${shop}</div>
     <div class="rs-step"><h4>4 \u00b7 Finish</h4><div class="note">The server rolls his hit points (${esc(rs.CLASS_LABEL[ch.cls])} 1st level${ch.abilities.con >= 15 ? ", +1 for Constitution" : ch.abilities.con <= 6 ? ", \u22121 for Constitution" : ""}). After that his class, race and gear are fixed; buying more comes with towns.</div>
-      <div class="row"><button type="button" class="primary" data-rs-finish ${busy ? "disabled" : ""}>Roll hit points and finish</button></div></div>`;
+      <div class="row"><button type="button" class="primary" data-rs-finish ${busy ? "disabled" : ""}>Roll hit points and finish</button> <button type="button" data-rs-discard ${busy ? "disabled" : ""}>Throw this one away</button></div></div>`;
 }
 
 export const ROSTER_CSS = `
@@ -278,6 +277,15 @@ export const ROSTER_CSS = `
 .rs-form input, .rs-form select { font: inherit; padding: 3px 6px; }
 .rs-exs { margin-top: 6px; font-size: .85rem; }
 .rs-ex button { min-width: 26px; padding: 0 6px; }
+.rs-shoplist { max-height: 220px; overflow-y: auto; border: 1px solid #c9d8e2; border-radius: 4px; margin: 4px 0 6px; }
+.rs-shoplist table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.rs-shoplist th { position: sticky; top: 0; background: var(--floor); text-align: left; font-weight: 700; font-size: .72rem; color: var(--pencil); padding: 4px 8px; border-bottom: 1px solid #c9d8e2; }
+.rs-shoplist td { padding: 3px 8px; border-bottom: 1px solid #e5e9ef; vertical-align: middle; }
+.rs-shoplist .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rs-shoplist .act { text-align: right; width: 48px; }
+.rs-shoplist .act button { font: inherit; font-size: .74rem; padding: 2px 8px; min-height: 0; border: 1px solid #b7c7d2; border-radius: 4px; cursor: pointer; }
+.rs-shoplist tr.no td { color: var(--pencil); }
+.rs-shoplist .act button:disabled { opacity: .45; cursor: default; }
 .rs-shop { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: 4px 0 6px; }
 .rs-shop button { font: inherit; font-size: .78rem; display: flex; justify-content: space-between; gap: 6px; padding: 3px 8px; border: 1px solid #b7c7d2; border-radius: 4px; cursor: pointer; text-align: left; }
 .rs-shop button:disabled { opacity: .45; cursor: default; }
