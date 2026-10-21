@@ -39,7 +39,19 @@ const store = {
     list: async (path) => (await t.get(db.collection(path))).docs.map((d) => d.data())
   })),
   // A fight and everything under it (state, views, feeds, actions).
-  deleteTree: (path) => db.recursiveDelete(db.doc(path))
+  deleteTree: (path) => db.recursiveDelete(db.doc(path)),
+  // The GCC campaigns (system 'odd') a user owns or is a player in: campaigns/{cid} and campaigns/{cid}/players/{uid}.
+  // One collection query plus a doc read per campaign; no collection-group index needed.
+  myGccCampaigns: async (uid) => {
+    const camps = (await db.collection('campaigns').where('system', '==', 'odd').get()).docs;
+    const out = [];
+    for (const d of camps) {
+      const c = d.data(), owner = c.ownerUid === uid;
+      if (!owner && !(await d.ref.collection('players').doc(uid).get()).exists) continue;
+      out.push({ cid: d.id, name: c.name ?? d.id, referee: owner });
+    }
+    return out;
+  }
 };
 // A player is named by the email he signs in with; the server finds his account.
 const resolveUser = async (email) => {

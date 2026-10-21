@@ -140,3 +140,11 @@ test("a player on the GCC campaign's roster joins from Launch game with no code 
   assert.equal((await call(g, "eve", { op: "join", cid: "c1" })).code, "forbidden", "not on the GCC roster, no code, no invite");
   assert.equal((await call(g, "dave", { op: "join", cid: "c1" })).joined, undefined, "a second visit: already a member");
 });
+
+test("mine: the OD&D campaigns on GCC this account owns or plays in, no game named", async () => {
+  const store = memoryStore(); store.myGccCampaigns = async (uid) => [{ cid: "c1", name: "Castle Blackrock", referee: uid === "kurt" }];
+  const g = games(store);
+  const r = await call(g, "dave", { op: "mine" });
+  assert.equal(r.ok, true); assert.deepEqual(r.games, [{ cid: "c1", name: "Castle Blackrock", referee: false }]);
+  assert.equal((await call(g, "dave", { op: "join" })).code, "bad-request", "every other op still names a game");
+});

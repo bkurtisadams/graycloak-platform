@@ -9,7 +9,7 @@
 //   deleteFight(...)    oddDeleteFight (the referee removes a fight)
 //   chat(data)          oddChat: a line or a /roll, to everyone or privately
 //   roster(cid)         the game's members (else the GCC campaign's players)
-//   game(op, cid, data) oddCampaign: open, join, profile, here, invite, uninvite, live, reset, role, remove
+//   game(op, cid, data) oddCampaign: mine (no cid), open, join, profile, here, invite, uninvite, live, reset, role, remove
 //   watchGame(cid, cb)  the game document, live (members, people, the live fight); watchPresence(cid, cb)
 //   lobbyChat(cid, viewer, onChat) the lobby's chat; sayInLobby(cid, data)
 //   character(op, cid, data) oddCharacter (pass 4); watchCharacters(cid, cb) the roster, live;

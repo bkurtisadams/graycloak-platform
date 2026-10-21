@@ -1,5 +1,6 @@
-// gcc-header.js v2.2.0 — 2026-10-21
-// v2.2.0: a tool with campaignParam (odd's Launch game) links to the open campaign (?id= on this page), else shows disabled.
+// gcc-header.js v2.2.1 — 2026-10-21
+// v2.2.1: with no campaign open the campaignParam tool links bare (odd/index.html lists the user's games), not disabled.
+// v2.2.0: a tool with campaignParam (odd's Launch game) links to the open campaign (?id= on this page).
 // Shared site-wide header logic + theme system for all GCC pages
 // Requires gcc-data.js to be loaded first
 
@@ -51,12 +52,11 @@
       dd += `<div class="gcc-td-sys-hdr"><span class="gcc-td-sys-icon">${sys.icon}</span> ${ESC(sys.name)}</div>`;
       sys.tools.forEach(t => {
         const isActive = t.href && t.href === currentPage;
-        // a tool that needs the open campaign (odd's Launch game): its id from this page's ?id=, else the link is disabled
+        // a tool that takes the open campaign (odd's Launch game): its id from this page's ?id=; with none the bare link lists the user's games
         const needsCamp = !!t.campaignParam, campId = needsCamp ? new URLSearchParams(window.location.search).get('id') : null;
-        const href = t.href && needsCamp ? (campId ? t.href + '?' + t.campaignParam + '=' + encodeURIComponent(campId) : '') : t.href;
+        const href = t.href && needsCamp && campId ? t.href + '?' + t.campaignParam + '=' + encodeURIComponent(campId) : t.href;
         const cls = href ? ('gcc-td-link' + (isActive ? ' active' : '')) : 'gcc-td-link disabled';
-        const title = t.href && needsCamp && !campId ? ' title="Open a campaign page first"' : '';
-        dd += `<a class="${cls}"${href ? ' href="'+ESC(href)+'"' : ''}${title}><span class="bullet">◆</span> ${ESC(t.name)}</a>`;
+        dd += `<a class="${cls}"${href ? ' href="'+ESC(href)+'"' : ''}><span class="bullet">◆</span> ${ESC(t.name)}</a>`;
       });
     });
     dd += '</div><div class="gcc-td-section"><div class="gcc-td-section-title">SHARED TOOLS</div>';

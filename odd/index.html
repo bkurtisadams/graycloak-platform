@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OD&amp;D game</title>
-<!-- odd/index.html v1.2.0 — 2026-10-21 · slice 5 pass 5: a player on the GCC campaign's roster joins by the game URL alone;
+<!-- odd/index.html v1.3.0 — 2026-10-21 · pass 5: with no game named, lists the OD&D campaigns this account is in on GCC (op mine) with Open links.
+     v1.2.0 — 2026-10-21 · slice 5 pass 5: a player on the GCC campaign's roster joins by the game URL alone;
      a first join goes straight to the stage (combat-grid.html?player&welcome=1), which holds the welcome card now.
      v1.1.1 — 2026-10-21 · pass 5: the GCC roster join.
      v1.1.0 — 2026-10-08 · slice 5 pass 3: the game (approved mockups 8 Oct 2026).
@@ -23,7 +24,8 @@
   :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
   button, input, select { font: inherit; }
   button { border: 1px solid var(--ink); background: #fff; color: var(--ink); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
-  button.primary { background: var(--ink); color: #fff; font-weight: 700; }
+  button.primary, a.btn { background: var(--ink); color: #fff; font-weight: 700; }
+  a.btn { display: inline-block; border-radius: 6px; padding: 8px 12px; text-decoration: none; }
   button.danger { border-color: var(--bad); color: var(--bad); }
   button:disabled { opacity: .5; cursor: default; }
   input { padding: 8px 10px; border: 1px solid #9aa5b3; border-radius: 6px; }
@@ -83,12 +85,23 @@ const isRef = () => !!S.game && (S.game.refereeUid === me() || (S.game.referees 
 const isCreator = () => S.game?.refereeUid === me();
 const ago = (ms) => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : m < 2880 ? 'yesterday' : `${Math.round(m / 1440)} days ago`; };
 
-if (!cid) app.innerHTML = `<div class="centre"><div class="card"><h1 style="margin:0">No game named</h1><p class="note">Open a game from its campaign page on GCC, or from the link your referee sent you.</p></div></div>`;
-else boot();
+boot();
 
 async function boot() {
   S.api = await connectOnline({ emulators: q.has('emu') });
-  S.api.onUser(async (u) => { stop(); if (!u) return signInCard(); await enter(); });
+  S.api.onUser(async (u) => { stop(); if (!u) return signInCard(); await (cid ? enter() : myGames()); });
+}
+/* ---------- no game named (the Tools menu from the dashboard): the games this account may enter ---------- */
+async function myGames() {
+  app.innerHTML = `<div class="centre"><div class="card"><div class="note">Finding your games…</div></div></div>`;
+  const r = await S.api.game('mine', null);
+  const list = r.ok ? r.games : [];
+  const keep = q.has('emu') ? '&emu=1' : '';
+  const rows = list.map((g) => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #e5e9ef"><b style="flex:1">${esc(g.name)}</b><span class="note">${g.referee ? 'you are the referee' : 'player'}</span><a class="btn" href="?c=${encodeURIComponent(g.cid)}${keep}">Open</a></div>`).join('');
+  app.innerHTML = `<div class="centre"><div class="card"><h1 style="margin:0;font-size:22px">Your games</h1>
+    ${rows || `<p class="note">${r.ok ? "None of the campaigns you're in on GCC is an Original D&amp;D game yet. Ask your referee for an invite, or open the game from its campaign page." : esc(r.error ?? "Couldn't reach the server.")}</p>`}
+    <p class="note" style="margin:8px 0 0">Signed in as ${esc(S.api.user.email ?? S.api.user.displayName)} · <a href="#" id="so">sign in as someone else</a></p></div></div>`;
+  $('#so').onclick = (e) => { e.preventDefault(); S.api.signOut(); };
 }
 function stop() { for (const u of S.unsubs) u(); S.unsubs = []; S.chatOn = false; clearInterval(S.here); }
 

@@ -14,6 +14,7 @@
 //                   character: his assigned character (Foundry's User Configuration,
 //                   pass 4): a roster character he owns, or null
 //   joinCode        the secret part of the join link; reset on removal
+//   mine (no cid)   the GCC campaigns of system 'odd' this account owns or plays in
 //   invited[]       emails invited by name: such a person joins without the code
 //                   (so does anyone on the GCC campaign's own roster, campaigns/{cid}/players/{uid}:
 //                   "Launch game" on GCC takes its players straight in, pass 5)
@@ -53,6 +54,8 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
   async function handle({ uid, email, name, data }) {
     if (!uid) return refuse('auth', 'sign in first');
     const { op, cid } = data ?? {};
+    // the games this account may enter: his OD&D campaigns on GCC (odd/index.html with no game named lists them)
+    if (op === 'mine') return { ok: true, games: store.myGccCampaigns ? await store.myGccCampaigns(uid) : [] };
     if (!ID.test(cid ?? '')) return refuse('bad-request', 'no such game');
     const p = campaignPaths(cid);
     const myEmail = String(email ?? '').toLowerCase();
