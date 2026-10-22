@@ -277,8 +277,10 @@ export const ROSTER_CSS = `
 .rs-form input, .rs-form select { font: inherit; padding: 3px 6px; }
 .rs-exs { margin-top: 6px; font-size: .85rem; }
 .rs-ex button { min-width: 26px; padding: 0 6px; }
-.rs-shoplist { max-height: 220px; overflow-y: auto; border: 1px solid #c9d8e2; border-radius: 4px; margin: 4px 0 6px; }
-.rs-shoplist table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+.rs-shoplist { max-height: 220px; overflow-y: auto; overflow-x: hidden; border: 1px solid #c9d8e2; border-radius: 4px; margin: 4px 0 6px; }
+.rs-shoplist table { width: 100%; border-collapse: collapse; font-size: .8rem; table-layout: fixed; }
+.rs-shoplist th:nth-child(2), .rs-shoplist td:nth-child(2), .rs-shoplist th:nth-child(3), .rs-shoplist td:nth-child(3) { width: 58px; }
+.rs-shoplist td:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rs-shoplist th { position: sticky; top: 0; background: var(--floor); text-align: left; font-weight: 700; font-size: .72rem; color: var(--pencil); padding: 4px 8px; border-bottom: 1px solid #c9d8e2; }
 .rs-shoplist td { padding: 3px 8px; border-bottom: 1px solid #e5e9ef; vertical-align: middle; }
 .rs-shoplist .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

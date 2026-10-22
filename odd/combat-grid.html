@@ -197,14 +197,20 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage h2 { margin: 0; font-size: 1.3rem; }
 /* pass 5 (approved mockups 21 Oct 2026): the player's page on the stage */
 /* between fights the tester's chrome (round strip, phase pills, figure chips, Setup/Reset, the room subline) is off; it returns with a fight */
-body.table.lobby #strip, body.table.lobby #subline, body.table.lobby #openSetup, body.table.lobby #reset { display: none !important; }
+body.table.lobby #strip, body.table.lobby #subline, body.table.lobby #openSetup, body.table.lobby #reset, body.table.lobby #stepText, body.table.lobby #dragInfo { display: none !important; }
 .lobbystage .lcard.wide { width: min(980px, 100%); }
-.lobbystage .lcard.gen { width: min(1100px, 100%); }
-.lobbystage .lcard.gen .rs-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; }
+/* the chargen fills the stage: rolled and who-he-is side by side, the shop and Finish full width, the list tall enough to shop from */
+.lobbystage:has(.lcard.gen) { padding: 16px; align-items: stretch; }
+.lobbystage .lcard.gen { width: 100%; }
+.lobbystage .lcard.gen .rs-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
 .lobbystage .lcard.gen .rs-step { border-top: 0; padding: 0; }
-.lobbystage .lcard.gen .rs-err { grid-column: 1 / -1; }
+.lobbystage .lcard.gen .rs-err, .lobbystage .lcard.gen .rs-step:nth-last-of-type(2), .lobbystage .lcard.gen .rs-step:nth-last-of-type(1) { grid-column: 1 / -1; }
 .lobbystage .lcard.gen .rs-step h4 { font-family: var(--type); border-bottom: 1px solid #c9d8e2; padding-bottom: 4px; }
-.lobbystage .lcard.gen .rs-shoplist { max-height: 160px; }
+.lobbystage .lcard.gen .rs-step:nth-last-of-type(2) { display: grid; grid-template-columns: minmax(200px, 1fr) 2fr; gap: 6px 20px; }
+.lobbystage .lcard.gen .rs-step:nth-last-of-type(2) h4 { grid-column: 1 / -1; }
+.lobbystage .lcard.gen .rs-step:nth-last-of-type(2) .rs-shoplist { grid-row: 2 / span 2; grid-column: 2; max-height: 360px; margin: 0; }
+.lobbystage .lcard.gen .rs-step:nth-last-of-type(2) .rs-carts, .lobbystage .lcard.gen .rs-step:nth-last-of-type(2) > .note { grid-column: 1; }
+.lobbystage .lcard.gen .rs-cart { font-size: .9rem; padding: 3px 0; }
 .lobbystage .ls-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .lobbystage .ls-chars { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .lobbystage .ls-ch { border: 1px solid #9fb2c0; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--floor); }
