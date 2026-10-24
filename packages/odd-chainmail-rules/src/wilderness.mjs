@@ -144,6 +144,55 @@ export function wanderingMonster(terrain, roll, { optionalAnimals = false, water
   return { type, kind };
 }
 
+/* ---------- the meeting: how many, how far, who saw whom ---------- */
+/** Book II's No. Appearing ("4d10 × 10", "2d6", "1"): rolled, with the dice's maximum; null for "—", "summoned", "conjured". */
+export function rollNumberAppearing(str, roll) {
+  const t = String(str ?? "").trim().toLowerCase();
+  if (!t || t === "—" || t === "-" || t === "summoned" || t === "conjured") return null;
+  if (t === "one" || /^\d+$/.test(t)) return { n: t === "one" ? 1 : Number(t), max: t === "one" ? 1 : Number(t), dice: t };
+  const m = /^(\d+)d(\d+)(?:\s*[×x*]\s*(\d+))?$/.exec(t); if (!m) return null;
+  const count = Number(m[1]), sides = Number(m[2]), mult = m[3] ? Number(m[3]) : 1;
+  let n = 0; for (let i = 0; i < count; i++) n += roll(sides);
+  return { n: n * mult, max: count * sides * mult, dice: str };
+}
+/** Sighting: 40-240 yards unless surprised, then 10-30 (Book III; inches convert to tens of yards in the wilderness). */
+export function sightingYards(roll, surprised = false) { return surprised ? roll(3) * 10 : (roll(6) + roll(6) + roll(6) + roll(6)) * 10; }
+/** Surprise as in the underworld: each side on a 1-2. */
+export function surpriseOf(partyD6, monstersD6) { const p = partyD6 <= 2, m = monstersD6 <= 2; return p && m ? null : p ? "monsters" : m ? "party" : null; } // "party": the party surprised them
+/** Twice as fast one way or the other, else even (Book III EVADING). */
+export function speedCompare(partyInches, monsterInches) { if (monsterInches >= 2 * partyInches) return "slower"; if (partyInches >= 2 * monsterInches) return "faster"; return "even"; }
+
+/* ---------- Book III EVADING IN THE WILDERNESS ---------- */
+const EVASION = [[50, 70, 90], [30, 50, 70], [15, 30, 50], [5, 20, 35]];
+const sizeRow = (n) => (n <= 3 ? 0 : n <= 9 ? 1 : n <= 24 ? 2 : 3);
+const ratioCol = (r) => (r <= 0.25 ? 0 : r <= 0.6 ? 1 : 2);
+/**
+ * The chance of evading, 0-100: the party's size against the monsters' share of their possible number (metRatio,
+ * 0-1; unknown counts as the middle column); surprise by the party doubles it, surprise by the monsters negates it
+ * except in woods (10, plus the woods' 25); woods add 25; a party twice as fast gets 25 more, twice as slow 25 less.
+ */
+export function evasionChance({ partySize = 1, metRatio = null, surprise = null, woods = false, speed = "even" } = {}) {
+  let base = EVASION[sizeRow(partySize)][metRatio == null ? 1 : ratioCol(metRatio)];
+  const notes = [`party of ${partySize}, ${metRatio == null ? "their number unknown" : `they are ${Math.round(metRatio * 100)}% of their possible number`}: ${base}`];
+  if (surprise === "party") { base *= 2; notes.push("you surprised them: doubled"); }
+  if (surprise === "monsters") { base = woods ? 10 : 0; notes.push(woods ? "they surprised you: 10 in the woods" : "they surprised you: no evading"); }
+  if (woods) { base += 25; notes.push("woods +25"); }
+  if (speed === "faster") { base += 25; notes.push("twice as fast +25"); }
+  if (speed === "slower") { base -= 25; notes.push("half as fast -25"); }
+  return { chance: Math.max(0, Math.min(100, base)), notes };
+}
+/**
+ * One step of pursuit after a failed evasion: the pursuit goes a random direction (d6), a faster monster catches the party
+ * on 50% (25 in woods or swamp), and if not caught the pursuit goes on on a 1-3 (as castle folk pursue). Each hex run
+ * costs the party half a day's rest.
+ */
+export function pursuitStep({ faster = false, woodsOrSwamp = false, dirD6, catchD100, onD6 }) {
+  const direction = lostDirection(dirD6);
+  const chance = faster ? (woodsOrSwamp ? 25 : 50) : 0;
+  const caught = catchD100 <= chance;
+  return { direction, chance, caught, continues: !caught && onD6 <= 3, restOwed: 0.5 };
+}
+
 /* ---------- Book III HEALING WOUNDS and REST ---------- */
 /** Hit points regained by `days` of complete rest: none the first day, one every other day after. */
 export function healingAfter(days) { return Math.max(0, Math.floor((Math.max(0, Math.trunc(days)) - 1) / 2)); }
@@ -238,6 +287,19 @@ function runSelfTests() {
   ok(healingAfter(1) === 0 && healingAfter(2) === 0 && healingAfter(3) === 1 && healingAfter(7) === 3, "nothing the first day, a point every other day after");
   ok(!mustRest(5) && mustRest(6), "six days then rest");
   ok(rumourCost(6, 10) === 70 && rumourCost(1, 1) === 11, "a round and the barman");
+  const seq2 = (...v) => { let i = 0; return () => v[i++]; };
+  let na = rollNumberAppearing("4d10 × 10", seq2(3, 4, 5, 6)); ok(na.n === 180 && na.max === 400, "4d10 x 10: 18 x 10 of a possible 400");
+  ok(rollNumberAppearing("1", () => 1).n === 1 && rollNumberAppearing("—", () => 1) === null && rollNumberAppearing("2d6", seq2(2, 5)).n === 7, "number appearing forms");
+  ok(sightingYards(seq2(1, 2, 3, 4)) === 100 && sightingYards(seq2(2), true) === 20, "40-240 yards, 10-30 surprised");
+  ok(surpriseOf(1, 5) === "monsters" && surpriseOf(5, 2) === "party" && surpriseOf(1, 1) === null && surpriseOf(4, 4) === null, "who surprised whom");
+  ok(speedCompare(12, 24) === "slower" && speedCompare(12, 6) === "faster" && speedCompare(12, 18) === "even", "twice as fast or not");
+  ok(evasionChance({ partySize: 2, metRatio: 0.5 }).chance === 70 && evasionChance({ partySize: 6, metRatio: 0.1 }).chance === 30 && evasionChance({ partySize: 30, metRatio: 0.9 }).chance === 35, "the evasion table");
+  ok(evasionChance({ partySize: 2, metRatio: 0.5, surprise: "party" }).chance === 100 && evasionChance({ partySize: 2, metRatio: 0.5, surprise: "monsters" }).chance === 0, "surprise doubles or negates");
+  ok(evasionChance({ partySize: 2, metRatio: 0.5, surprise: "monsters", woods: true }).chance === 35 && evasionChance({ partySize: 2, metRatio: 0.5, woods: true, speed: "faster" }).chance === 100, "woods 10+25; speed +25");
+  ok(evasionChance({ partySize: 1, metRatio: null, speed: "slower" }).chance === 45, "unknown number: the middle column, half as fast -25");
+  const ps = pursuitStep({ faster: true, dirD6: 2, catchD100: 40, onD6: 1 }); ok(ps.direction === "NE" && ps.caught && !ps.continues, "a faster monster catches on 50");
+  ok(!pursuitStep({ faster: false, dirD6: 1, catchD100: 1, onD6: 2 }).caught && pursuitStep({ faster: false, dirD6: 1, catchD100: 1, onD6: 2 }).continues, "not faster: never caught; pursuit goes on on 1-3");
+  ok(pursuitStep({ faster: true, woodsOrSwamp: true, dirD6: 1, catchD100: 30, onD6: 6 }).caught === false, "woods or swamp: 25");
   const sk = startingKnowledge(); ok(Object.keys(sk).length === 7 && sk["0,0"].place === "Langstead" && sk["0,1"].t === "river" && !sk["2,-2"], "the home village and its ring of six, not the crag");
   const fm = fullMap(); ok(fm["2,-2"].place === "Fosscraig" && fm["-2,0"].place === "Kingwold" && fm["3,-3"].t === "mountains" && fm["-3,0"].t === "woods" && !fm["6,0"], "the Westmark's lie of the land");
   console.log(`wilderness.mjs — all self-tests passed (${pass} assertions).`);

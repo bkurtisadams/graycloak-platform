@@ -16,6 +16,10 @@
 //   shop   {id, buy|sell}  the market: buy at cost, sell at half (finished characters, in a village with a market)
 //   enter  {id, place}     into the village he stands in (where = place, doing = town) or out onto the road (doing = road)
 // Only the referee:
+//   evade   {ids}          Book III's evasion table (party size vs their share of their possible number, surprise, woods, speed), then pursuit
+//   parley  {id}           the reaction roll (2d6, the monster's mind); the referee puts words to it
+//   stand   {ids}          the party stands; the referee opens the fight
+//   adjust  {id, number}   the referee's option on No. Appearing (Book II: increase or decrease according to the party concerned)
 //   resolve {id}           an encounter dealt with (a fight opened or the party let go): doing back to road
 //   rumours {place, list}  set a settlement's rumour list
 // Rulings (Kurt, Oct 2026): a lone character walks as a party of one; the players start knowing the home village and its ring.
@@ -42,6 +46,17 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
   const hexOf = (ch) => ch.hex ?? { ...W.WESTMARK.places[W.WESTMARK.home] };
   const placeAt = (map, h) => map[W.key(h.q, h.r)]?.place ?? null;
   const placeInfo = (name) => (name && W.WESTMARK.places[name]) || null;
+  /** The monster record behind an encounter's kind ("Goblins" -> goblin), or null for men and the rest. */
+  const monsterOf = (kind) => { const low = String(kind ?? "").toLowerCase(), g = [low, low.replace(/s$/, ""), low.replace(/es$/, ""), low.replace(/ves$/, "f"), low.replace(/ies$/, "y")]; return rules.MONSTERS.find((m) => g.includes(m.name.toLowerCase())) ?? rules.MONSTERS.find((m) => g.includes(m.key)) ?? null; };
+  /** The meeting (pass 9): how many (Book II No. Appearing; the referee's option adjusts it), surprise, the distance, their speed against the party's. */
+  function meeting(enc, chars, terrain) {
+    const m = monsterOf(enc.kind), na = m ? W.rollNumberAppearing(m.reference?.numberAppearing, rollDie) : null;
+    const surprise = W.surpriseOf(d6(), d6());
+    const yards = W.sightingYards(rollDie, surprise === "monsters");
+    const partyMove = Math.min(...chars.map(({ ch }) => roster.sheetFor(ch).move || 12));
+    const speed = m ? W.speedCompare(partyMove, m.move?.ground ?? 12) : "even";
+    return { ...enc, terrain, number: na ? na.n : null, max: na ? na.max : null, dice: na ? na.dice : null, monsterKey: m?.key ?? null, surprise, yards, speed, partyMove, choice: null, outcome: null, log: [] };
+  }
 
   /** A line in the lobby chat for the referee and the named readers (or every player). */
   function log(tx, p, camp, text, readers = null, extra = {}) {
@@ -95,7 +110,8 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       }
 
       // the characters this op is about
-      const ids = op === "move" || op === "camp" ? (Array.isArray(data.ids) ? data.ids : []).filter((x) => ID.test(x ?? "")).slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];
+      const party = ["move", "camp", "evade", "stand"].includes(op);
+      const ids = party ? (Array.isArray(data.ids) ? data.ids : []).filter((x) => ID.test(x ?? "")).slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];
       if (!ids.length) return refuse("bad-request", "which character?");
       const chars = [];
       for (const id of ids) {
@@ -125,7 +141,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const days = Math.min(60, Math.max(1, Math.trunc(Number(data.days ?? 1)) || 1));
         const healed = Math.min(W.healingAfter(days), Math.max(0, (ch.maxHp ?? 0) - (ch.hp ?? 0)));
         const day = Math.max(ch.day ?? day0, day0) + days;
-        put(id, { ...ch, hex: h, where: place, doing: "town", day, daysWalked: 0, hp: (ch.hp ?? 0) + healed });
+        put(id, { ...ch, hex: h, where: place, doing: "town", day, daysWalked: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed });
         log(tx, p, camp, `Day ${day}. ${ch.name} rested ${days} day${days === 1 ? "" : "s"} at ${placeInfo(place).inn}${healed ? ` and healed ${healed} hit point${healed === 1 ? "" : "s"}` : ""}.`);
         return { ok: true, healed, day };
       }
@@ -159,6 +175,60 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         return { ok: true, character: { id, ...r.ch } };
       }
 
+      // the encounter prompt (pass 9, approved board 11): the party's choice, the dice, the referee's say
+      if (op === "evade" || op === "stand" || op === "parley" || op === "adjust") {
+        const enc0 = chars[0].ch.encounter;
+        if (!enc0 || chars.some(({ ch }) => ch.doing !== "encounter")) return refuse("bad-request", "no encounter waits");
+        const h0 = hexOf(chars[0].ch), terrain = enc0.terrain ?? "clear";
+        const every = (patch) => { for (const { id, ch } of chars) put(id, { ...ch, ...patch(ch) }); };
+        if (op === "adjust") {
+          if (!ref) return refuse("forbidden", "the number is the referee's option");
+          const number = Math.max(0, Math.min(5000, Math.trunc(Number(data.number)) || 0));
+          every((ch) => ({ encounter: { ...ch.encounter, number, adjusted: true } }));
+          log(tx, p, camp, `The referee makes it ${number} ${enc0.kind}.`);
+          return { ok: true, number };
+        }
+        if (enc0.choice && !ref) return refuse("bad-request", `the party already chose to ${enc0.choice}: the referee has it`);
+        if (op === "stand") {
+          every((ch) => ({ encounter: { ...ch.encounter, choice: "stand", outcome: "stand" } }));
+          log(tx, p, camp, `${names} stand to meet the ${enc0.kind}. The referee opens the fight.`);
+          return { ok: true, outcome: "stand" };
+        }
+        if (op === "parley") {
+          const m = monsterOf(enc0.kind);
+          const r = rules.encounterReaction({ intelligence: m?.mind?.intelligence ?? "average", surprisedParty: enc0.surprise === "monsters", monsterSurprised: enc0.surprise === "party", distanceFeet: (enc0.yards ?? 100) * 3 }, () => (rollDie(6) - 0.5) / 6);
+          const text = r.rolled ? `2d6 = ${r.dice.join("+")}${r.mods?.total ? ` ${r.mods.total > 0 ? "+" : ""}${r.mods.total}` : ""} = ${r.total}: ${r.result}` : `no roll: ${r.why}`;
+          every((ch) => ({ encounter: { ...ch.encounter, choice: "parley", outcome: "parley", reaction: { result: r.result, total: r.total ?? null, dice: r.dice ?? null, why: r.why ?? null } } }));
+          log(tx, p, camp, `${names} hail the ${enc0.kind}. Reaction ${text}. The referee puts words to it.`);
+          return { ok: true, outcome: "parley", reaction: r.result, text };
+        }
+        // evade: Book III's table, then pursuit if it fails
+        const woods = terrain === "woods", woodsOrSwamp = woods || terrain === "swamp";
+        const ev = W.evasionChance({ partySize: chars.length, metRatio: enc0.number && enc0.max ? enc0.number / enc0.max : null, surprise: enc0.surprise, woods, speed: enc0.speed ?? "even" });
+        const roll = rollDie(100), slipped = roll <= ev.chance;
+        const log2 = [`Evade: ${ev.notes.join("; ")} = ${ev.chance}%; rolled ${roll}: ${slipped ? "slipped away" : "they come after you"}.`];
+        if (slipped) {
+          every((ch) => ({ doing: "road", encounter: null, lastEncounter: { ...ch.encounter, choice: "evade", outcome: "evaded" } }));
+          log(tx, p, camp, `${names} evaded the ${enc0.kind}. ${log2[0]}`);
+          return { ok: true, outcome: "evaded", chance: ev.chance, roll };
+        }
+        let at = { ...h0 }, restOwed = 0, caught = false, steps = 0;
+        for (let i = 0; i < 3; i++) {
+          const st = W.pursuitStep({ faster: enc0.speed === "slower", woodsOrSwamp, dirD6: d6(), catchD100: rollDie(100), onD6: d6() });
+          const next = W.neighbour(at, st.direction), nh = map.hexes[W.key(next.q, next.r)];
+          if (nh) { at = next; learn(known, map, next); } // the party runs a hex in the pursuit's direction (the referee's map's edge stops it)
+          restOwed += st.restOwed; steps++;
+          log2.push(`Pursuit ${steps}: ${st.direction}${nh ? "" : " (the map ends; stood)"}, ${st.chance ? `caught on ${st.chance}: ` : "they cannot catch you: "}${st.caught ? "caught!" : "not yet"}${st.continues ? ", they keep on" : st.caught ? "" : ", they give up"}.`);
+          if (st.caught) { caught = true; break; }
+          if (!st.continues) break;
+        }
+        const endHex = map.hexes[W.key(at.q, at.r)], where = endHex?.place ?? W.TERRAIN[endHex?.t ?? terrain].label;
+        if (caught) every((ch) => ({ hex: at, where, restOwed: (ch.restOwed ?? 0) + restOwed, encounter: { ...ch.encounter, choice: "evade", outcome: "caught", terrain: endHex?.t ?? terrain, yards: 10, log: log2 } }));
+        else every((ch) => ({ hex: at, where, doing: "road", restOwed: (ch.restOwed ?? 0) + restOwed, encounter: null, lastEncounter: { ...ch.encounter, choice: "evade", outcome: "escaped", log: log2 } }));
+        save();
+        log(tx, p, camp, `${names} ran from the ${enc0.kind}. ${log2.join(" ")}${caught ? " The referee opens the fight." : ` Half a day's rest owed for each hex run (${restOwed}).`}`);
+        return { ok: true, outcome: caught ? "caught" : "escaped", chance: ev.chance, roll, end: at, restOwed, log: log2 };
+      }
       if (op === "resolve") {
         if (!ref) return refuse("forbidden", "only the referee resolves an encounter");
         for (const { id, ch } of chars) if (ch.doing === "encounter") put(id, { ...ch, doing: "road", encounter: null });
@@ -181,11 +251,13 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
           // a day at rest on the road: two dice for wandering monsters
           let enc = null;
           for (let i = 0; i < 2 && !enc; i++) if (W.hasEncounter(terrain0, d6())) enc = W.wanderingMonster(terrain0, rollDie);
-          for (const { id, ch } of chars) put(id, { ...ch, hex: h0, day, daysWalked: 0, doing: enc ? "encounter" : "road", encounter: enc ? { ...enc, terrain: terrain0, day } : null });
+          const met = enc ? meeting({ ...enc, day }, chars, terrain0) : null;
+          for (const { id, ch } of chars) put(id, { ...ch, hex: h0, day, daysWalked: 0, restOwed: 0, doing: enc ? "encounter" : "road", encounter: met });
           lines.push(`Day ${day}. ${names} rested a day in the ${W.TERRAIN[terrain0].label}${enc ? ` and were found by ${enc.kind} (${enc.type}).` : ". Nothing came."}`);
           log(tx, p, camp, lines.join(" ")); return { ok: true, day, encounter: enc };
         }
         if (chars.some((c) => W.mustRest(c.ch.daysWalked ?? 0))) return refuse("bad-request", "six days on the move: the party must rest a full day first (Camp, or an inn)");
+        if (chars.some((c) => (c.ch.restOwed ?? 0) >= 1)) return refuse("bad-request", "rest owed from the chase (half a day a hex): Camp a day first");
         let dir = typeof data.dir === "string" && W.DIRS[data.dir] ? data.dir : null;
         let to = data.to && Number.isInteger(data.to.q) && Number.isInteger(data.to.r) ? { q: data.to.q, r: data.to.r } : null;
         if (!dir && !to) return refuse("bad-request", "which way?");
@@ -199,12 +271,13 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (endPlace && placeInfo(endPlace)?.kind === "village") learnRing(known, map, end);
         let enc = null;
         if (W.hasEncounter(endHex?.t ?? "clear", d6())) enc = W.wanderingMonster(endHex?.t ?? "clear", rollDie);
+        const met = enc ? meeting({ ...enc, day }, chars, endHex?.t ?? "clear") : null;
         const where = endPlace ?? W.TERRAIN[endHex?.t ?? "clear"].label;
-        for (const { id, ch } of chars) put(id, { ...ch, hex: { q: end.q, r: end.r }, where, doing: enc ? "encounter" : endPlace && placeInfo(endPlace)?.kind === "village" ? "town" : "road", day, daysWalked: (ch.daysWalked ?? 0) + 1, encounter: enc ? { ...enc, terrain: endHex?.t ?? "clear", day } : null });
+        for (const { id, ch } of chars) put(id, { ...ch, hex: { q: end.q, r: end.r }, where, doing: enc ? "encounter" : endPlace && placeInfo(endPlace)?.kind === "village" ? "town" : "road", day, daysWalked: (ch.daysWalked ?? 0) + 1, encounter: met });
         save();
         const walked = plan.path.map((s) => s.t).join(", ");
         lines.push(`Day ${day}. ${names} ${lost ? "lost their way and " : ""}walked ${dir ?? "toward " + (endPlace ?? "the " + where)} (${walked})${endPlace ? ` and reached ${endPlace}` : ""}.`);
-        if (enc) lines.push(`At the day's end: ${enc.kind} (${enc.type}). The referee decides what happens.`);
+        if (met) lines.push(`At the day's end: ${met.kind} (${met.type})${met.number ? `, about ${met.number}` : ""}, ${met.yards} yards off${met.surprise === "monsters" ? ", and they have the drop on you" : met.surprise === "party" ? ", unaware of you" : ""}. Evade, parley or stand.`);
         log(tx, p, camp, lines.join(" "));
         return { ok: true, day, lost, path: plan.path, end, reason: plan.reason, place: endPlace, encounter: enc };
       }

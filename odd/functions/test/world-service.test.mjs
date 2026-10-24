@@ -128,3 +128,44 @@ test("the market: a finished character buys at cost and sells at half, only wher
   assert.equal((await g.call("bob", { op: "rest", id, days: 2 })).code, "bad-request", "no inn either");
   r = await g.call("bob", { op: "enter", id, place: "road" }); assert.equal(r.ok, true); assert.equal(ch().doing, "road");
 });
+
+test("the meeting (pass 9): the day's end rolls how many, surprise and the distance; evade uses Book III's table, then pursuit", async () => {
+  const g = game(); const id = await brom(g);
+  // walk NE: lost no (clear never) · encounter d6=6 on mountains · d8=3 giant · d12=2 Goblins · number 4d10: 3,4,5,6 = 18 x 10 · surprise 5,5 none · sighting 4d6: 1,2,3,4 = 100 yards
+  g.setDice(1, 6, 3, 2, 3, 4, 5, 6, 5, 5, 1, 2, 3, 4);
+  const r = await g.call("bob", { op: "move", ids: [id], dir: "NE" });
+  assert.equal(r.ok, true, r.error); assert.equal(r.encounter.kind, "Goblins");
+  const ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  const e = ch().encounter;
+  assert.equal(e.number, 180); assert.equal(e.max, 400); assert.equal(e.yards, 100); assert.equal(e.surprise, null); assert.equal(e.monsterKey, "goblin");
+  assert.equal(e.speed, "faster", "Brom at 12 against goblins at 6");
+  assert.equal((await g.call("bob", { op: "adjust", id, number: 8 })).code, "forbidden");
+  assert.equal((await g.call("kurt", { op: "adjust", id, number: 8 })).ok, true); assert.equal(ch().encounter.number, 8);
+  // evade: party of 1, 8 of 400 = 2% (<=25%): 50, +25 faster = 75; rolled 40: slipped
+  g.setDice(40);
+  const ev = await g.call("bob", { op: "evade", ids: [id] });
+  assert.equal(ev.ok, true, JSON.stringify(ev)); assert.equal(ev.outcome, "evaded"); assert.equal(ev.chance, 75);
+  assert.equal(ch().doing, "road"); assert.equal(ch().encounter, null); assert.equal(ch().lastEncounter.outcome, "evaded");
+  assert.ok(chat(g.store, "ann").some((x) => /evaded the Goblins/.test(x.text)));
+});
+
+test("the meeting: a failed evasion is pursued; parley rolls the reaction; stand waits on the referee", async () => {
+  const g = game(); const id = await brom(g);
+  g.setDice(1, 6, 3, 2, 3, 4, 5, 6, 5, 5, 1, 2, 3, 4); await g.call("bob", { op: "move", ids: [id], dir: "NE" });
+  const ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  // evade: 180/400 = 45%: 70 base +25 faster = 95; rolled 99: fails. pursuit: dir d6=4 (S), goblins not faster so never caught; on d6=5: give up
+  g.setDice(99, 4, 50, 5);
+  const ev = await g.call("bob", { op: "evade", ids: [id] });
+  assert.equal(ev.ok, true, JSON.stringify(ev)); assert.equal(ev.outcome, "escaped"); assert.equal(ev.restOwed, 0.5);
+  assert.deepEqual(ch().hex, { q: 2, r: -1 }, "ran a hex S from the crag"); assert.equal(ch().doing, "road");
+  // another meeting, this time parley: reaction 2d6 = 4 + 5 = 9 positive
+  g.setDice(6, 6, 3, 2, 3, 4, 5, 6, 5, 5, 1, 2, 3, 4); let r = await g.call("bob", { op: "move", ids: [id], dir: "N" }); assert.equal(r.encounter?.kind, "Goblins", r.error);
+  g.setDice(4, 5);
+  r = await g.call("bob", { op: "parley", id }); assert.equal(r.ok, true, r.error); assert.equal(r.reaction, "positive");
+  assert.equal(ch().doing, "encounter", "still the referee's to resolve"); assert.equal(ch().encounter.outcome, "parley");
+  assert.equal((await g.call("bob", { op: "evade", ids: [id] })).code, "bad-request", "one choice");
+  assert.equal((await g.call("kurt", { op: "resolve", id })).ok, true); assert.equal(ch().doing, "road");
+  // stand
+  g.setDice(6, 6, 3, 2, 3, 4, 5, 6, 5, 5, 1, 2, 3, 4); r = await g.call("bob", { op: "move", ids: [id], dir: "N" }); assert.equal(r.encounter?.kind, "Goblins", r.error);
+  r = await g.call("bob", { op: "stand", ids: [id] }); assert.equal(r.outcome, "stand"); assert.equal(ch().encounter.choice, "stand");
+});
