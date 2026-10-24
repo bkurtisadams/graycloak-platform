@@ -193,6 +193,52 @@ export function pursuitStep({ faster = false, woodsOrSwamp = false, dirD6, catch
   return { direction, chance, caught, continues: !caught && onD6 <= 3, restOwed: 0.5 };
 }
 
+/* ---------- Book III's named Men: a leader and his following ---------- */
+/**
+ * The Men tables' titled entries are Book I's level titles. Each comes with 2-12 men of the 1st to 4th level of the
+ * same class, and chances of magic (Book III NOTES). Rulings (Kurt, Oct 2026): arms are the best of Book I's list for
+ * the class (fighters plate, shield and sword; magic-users a dagger; clerics plate, shield and mace), the men the same
+ * as their class allows; a travelling Lord and his men ride (medium warhorses). Patriarchs are Lawful, Evil High
+ * Priests Chaotic; the rest are hostile on 1-3, neutral on 4-6 (the castle rule, applied on the road).
+ */
+export const LEADERS = Object.freeze({
+  Lord: { cls: "fighter", level: 9 }, Superhero: { cls: "fighter", level: 8 },
+  Wizard: { cls: "magic-user", level: 11 }, Necromancer: { cls: "magic-user", level: 10 },
+  Patriarch: { cls: "cleric", level: 8, alignment: "law" }, "Evil High Priest": { cls: "cleric", level: 8, alignment: "chaos" },
+});
+export const LEADER_MAGIC = Object.freeze({
+  fighter: [["sword", 50], ["shield", 25], ["armour", 25]],
+  "magic-user": [["wand", 60], ["ring", 30], ["misc. magic", 20]],
+  cleric: [["weapon", 40], ["staff", 30], ["shield", 20], ["armour", 10]],
+});
+const KIT = Object.freeze({
+  fighter: { items: [["plate", 1], ["shield", 1], ["sword", 1]], weapon: "sword" },
+  "magic-user": { items: [["dagger", 1]], weapon: "dagger" },
+  cleric: { items: [["plate", 1], ["shield", 1], ["mace", 1]], weapon: "mace" },
+});
+/**
+ * Build the band: `roll(n)` gives 1..n; `hitDiceFor(cls, level)` and `nameFor(style)` come from the caller so this
+ * module stays free of the others. Returns character-shaped records (toFigure takes them) with no ids.
+ */
+export function leaderParty(kind, { roll, hitDiceFor, nameFor = () => "", mounted = null } = {}) {
+  const spec = LEADERS[kind]; if (!spec) return null;
+  const ride = mounted ?? spec.cls === "fighter";
+  const disposition = spec.alignment ? (spec.alignment === "law" ? "neutral" : "hostile") : roll(6) <= 3 ? "hostile" : "neutral";
+  const alignment = spec.alignment ?? (disposition === "hostile" ? "chaos" : "neutral");
+  const abilities = () => ({ str: roll(6) + roll(6) + roll(6), int: roll(6) + roll(6) + roll(6), wis: roll(6) + roll(6) + roll(6), con: roll(6) + roll(6) + roll(6), dex: roll(6) + roll(6) + roll(6), cha: roll(6) + roll(6) + roll(6) });
+  const hpFor = (level) => { const { dice, bonus } = hitDiceFor(spec.cls, level); let hp = bonus; for (let i = 0; i < dice; i++) hp += roll(6); return Math.max(1, hp); };
+  const make = (name, level, magic) => {
+    const kit = KIT[spec.cls], items = kit.items.map(([key, qty]) => ({ key, qty })); if (ride) items.push({ key: "warhorsem", qty: 1 });
+    const hp = hpFor(level);
+    return { name, cls: spec.cls, level, race: "human", alignment, abilities: abilities(), items, ready: { weapon: kit.weapon, missile: null }, coins: { gp: 0 }, hp, maxHp: hp, status: "ready", npc: true, magic };
+  };
+  const magic = LEADER_MAGIC[spec.cls].filter(([, pct]) => roll(100) <= pct).map(([what]) => what);
+  const leader = make(nameFor("noble") || `the ${kind}`, spec.level, magic);
+  const count = roll(6) + roll(6), men = [];
+  for (let i = 0; i < count; i++) men.push(make(nameFor("commoner") || `${kind}'s man ${i + 1}`, roll(4), []));
+  return { kind, leader, men, mounted: ride, disposition, alignment, number: 1 + count, max: 13 };
+}
+
 /* ---------- Book III HEALING WOUNDS and REST ---------- */
 /** Hit points regained by `days` of complete rest: none the first day, one every other day after. */
 export function healingAfter(days) { return Math.max(0, Math.floor((Math.max(0, Math.trunc(days)) - 1) / 2)); }
@@ -300,6 +346,16 @@ function runSelfTests() {
   const ps = pursuitStep({ faster: true, dirD6: 2, catchD100: 40, onD6: 1 }); ok(ps.direction === "NE" && ps.caught && !ps.continues, "a faster monster catches on 50");
   ok(!pursuitStep({ faster: false, dirD6: 1, catchD100: 1, onD6: 2 }).caught && pursuitStep({ faster: false, dirD6: 1, catchD100: 1, onD6: 2 }).continues, "not faster: never caught; pursuit goes on on 1-3");
   ok(pursuitStep({ faster: true, woodsOrSwamp: true, dirD6: 1, catchD100: 30, onD6: 6 }).caught === false, "woods or swamp: 25");
+  { const hd = (cls, lv) => ({ dice: lv, bonus: 0 }), seq3 = (...v) => { let i = 0; return () => v[i++] ?? 3; };
+    let lp = leaderParty("Lord", { roll: seq3(2, 60, 10, 90), hitDiceFor: hd });
+    ok(lp.leader.level === 9 && lp.leader.cls === "fighter" && lp.disposition === "hostile" && lp.alignment === "chaos", "a Lord: 9th level, hostile on 1-3");
+    ok(lp.leader.magic.includes("shield") && !lp.leader.magic.includes("sword") && !lp.leader.magic.includes("armour"), "magic: sword 50 (60 no), shield 25 (10 yes), armour 25 (90 no)");
+    ok(lp.leader.items.some((i) => i.key === "plate") && lp.leader.items.some((i) => i.key === "warhorsem") && lp.leader.ready.weapon === "sword", "plate, shield, sword, and his horse");
+    ok(lp.men.length >= 2 && lp.men.length <= 12 && lp.men.every((m) => m.level >= 1 && m.level <= 4 && m.cls === "fighter" && m.items.some((i) => i.key === "warhorsem")), "2-12 men of 1st-4th level, mounted with their Lord");
+    ok(lp.number === 1 + lp.men.length && lp.max === 13, "the band's number against the table's maximum");
+    lp = leaderParty("Patriarch", { roll: seq3(), hitDiceFor: hd }); ok(lp.alignment === "law" && lp.disposition === "neutral" && lp.leader.ready.weapon === "mace" && !lp.mounted, "a Patriarch: Lawful, mace, afoot");
+    lp = leaderParty("Wizard", { roll: seq3(), hitDiceFor: hd }); ok(lp.leader.level === 11 && lp.leader.items.length === 1 && lp.leader.items[0].key === "dagger", "a Wizard: 11th, a dagger and robes");
+    ok(leaderParty("Goblins", { roll: seq3(), hitDiceFor: hd }) === null, "not a leader kind"); }
   const sk = startingKnowledge(); ok(Object.keys(sk).length === 7 && sk["0,0"].place === "Langstead" && sk["0,1"].t === "river" && !sk["2,-2"], "the home village and its ring of six, not the crag");
   const fm = fullMap(); ok(fm["2,-2"].place === "Fosscraig" && fm["-2,0"].place === "Kingwold" && fm["3,-3"].t === "mountains" && fm["-3,0"].t === "woods" && !fm["6,0"], "the Westmark's lie of the land");
   console.log(`wilderness.mjs — all self-tests passed (${pass} assertions).`);

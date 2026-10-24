@@ -50,10 +50,16 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
   const monsterOf = (kind) => { const low = String(kind ?? "").toLowerCase(), g = [low, low.replace(/s$/, ""), low.replace(/es$/, ""), low.replace(/ves$/, "f"), low.replace(/ies$/, "y")]; return rules.MONSTERS.find((m) => g.includes(m.name.toLowerCase())) ?? rules.MONSTERS.find((m) => g.includes(m.key)) ?? null; };
   /** The meeting (pass 9): how many (Book II No. Appearing; the referee's option adjusts it), surprise, the distance, their speed against the party's. */
   function meeting(enc, chars, terrain) {
-    const m = monsterOf(enc.kind), na = m ? W.rollNumberAppearing(m.reference?.numberAppearing, rollDie) : null;
     const surprise = W.surpriseOf(d6(), d6());
     const yards = W.sightingYards(rollDie, surprise === "monsters");
     const partyMove = Math.min(...chars.map(({ ch }) => roster.sheetFor(ch).move || 12));
+    // a titled man (Lord, Wizard, Patriarch...): his band is rolled now, Book III's way, and rides into the fight as it is
+    if (W.LEADERS[enc.kind]) {
+      const band = W.leaderParty(enc.kind, { roll: rollDie, hitDiceFor: rules.hitDiceFor, nameFor: (style) => rules.generateMedievalName({ style, culture: "generic" }) });
+      const speed = W.speedCompare(partyMove, band.mounted ? 18 : 12);
+      return { ...enc, terrain, number: band.number, max: band.max, dice: "2d6 men", monsterKey: null, band: { kind: band.kind, mounted: band.mounted, disposition: band.disposition, alignment: band.alignment, leader: band.leader, men: band.men }, surprise, yards, speed, partyMove, choice: null, outcome: null, log: [] };
+    }
+    const m = monsterOf(enc.kind), na = m ? W.rollNumberAppearing(m.reference?.numberAppearing, rollDie) : null;
     const speed = m ? W.speedCompare(partyMove, m.move?.ground ?? 12) : "even";
     return { ...enc, terrain, number: na ? na.n : null, max: na ? na.max : null, dice: na ? na.dice : null, monsterKey: m?.key ?? null, surprise, yards, speed, partyMove, choice: null, outcome: null, log: [] };
   }
@@ -196,7 +202,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         }
         if (op === "parley") {
           const m = monsterOf(enc0.kind);
-          const r = rules.encounterReaction({ intelligence: m?.mind?.intelligence ?? "average", surprisedParty: enc0.surprise === "monsters", monsterSurprised: enc0.surprise === "party", distanceFeet: (enc0.yards ?? 100) * 3 }, () => (rollDie(6) - 0.5) / 6);
+          const r = rules.encounterReaction({ intelligence: enc0.band ? "intelligent" : m?.mind?.intelligence ?? "average", surprisedParty: enc0.surprise === "monsters", monsterSurprised: enc0.surprise === "party", distanceFeet: (enc0.yards ?? 100) * 3 }, () => (rollDie(6) - 0.5) / 6);
           const text = r.rolled ? `2d6 = ${r.dice.join("+")}${r.mods?.total ? ` ${r.mods.total > 0 ? "+" : ""}${r.mods.total}` : ""} = ${r.total}: ${r.result}` : `no roll: ${r.why}`;
           every((ch) => ({ encounter: { ...ch.encounter, choice: "parley", outcome: "parley", reaction: { result: r.result, total: r.total ?? null, dice: r.dice ?? null, why: r.why ?? null } } }));
           log(tx, p, camp, `${names} hail the ${enc0.kind}. Reaction ${text}. The referee puts words to it.`);
@@ -277,7 +283,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         save();
         const walked = plan.path.map((s) => s.t).join(", ");
         lines.push(`Day ${day}. ${names} ${lost ? "lost their way and " : ""}walked ${dir ?? "toward " + (endPlace ?? "the " + where)} (${walked})${endPlace ? ` and reached ${endPlace}` : ""}.`);
-        if (met) lines.push(`At the day's end: ${met.kind} (${met.type})${met.number ? `, about ${met.number}` : ""}, ${met.yards} yards off${met.surprise === "monsters" ? ", and they have the drop on you" : met.surprise === "party" ? ", unaware of you" : ""}. Evade, parley or stand.`);
+        if (met) lines.push(`At the day's end: ${met.band ? `${met.band.leader.name}, a ${met.kind}, with ${met.band.men.length} men${met.band.mounted ? ", mounted" : ""}` : `${met.kind} (${met.type})${met.number ? `, about ${met.number}` : ""}`}, ${met.yards} yards off${met.surprise === "monsters" ? ", and they have the drop on you" : met.surprise === "party" ? ", unaware of you" : ""}. Evade, parley or stand.`);
         log(tx, p, camp, lines.join(" "));
         return { ok: true, day, lost, path: plan.path, end, reason: plan.reason, place: endPlace, encounter: enc };
       }

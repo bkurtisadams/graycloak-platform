@@ -1341,15 +1341,16 @@ function openFightForEncounter(ch) {
   const k = hexKeyOf(ch), party = table.chars.filter((x) => x.status === "ready" && x.doing === "encounter" && hexKeyOf(x) === k);
   const e = ch.encounter ?? {}, kind = String(e.kind ?? "");
   const low = kind.toLowerCase(), guesses = [low, low.replace(/s$/, ""), low.replace(/es$/, ""), low.replace(/ves$/, "f"), low.replace(/ies$/, "y")];
-  const m = MONSTERS.find((x) => guesses.includes(x.name.toLowerCase())) ?? MONSTERS.find((x) => guesses.includes(x.key));
+  const m = e.band ? null : MONSTERS.find((x) => guesses.includes(x.name.toLowerCase())) ?? MONSTERS.find((x) => guesses.includes(x.key));
   let count = 0;
   if (m) { const n = prompt(`How many ${kind} come to the fight? Book II says ${m.reference?.numberAppearing ?? "?"}; the dice said ${e.number ?? "?"}.`, String(Math.min(e.number ?? 6, 20))); if (n == null) return; count = Math.max(0, Math.min(60, Math.trunc(Number(n)) || 0)); }
-  else alert(`${kind} isn't in the monster list yet: the party is set up on side A, add side B yourself.`);
+  else if (!e.band) alert(`${kind} isn't in the monster list yet: the party is set up on side A, add side B yourself.`);
   lobby.view = null; table.setup = true;
   $("#layout").value = "open"; $("#layout").dispatchEvent(new Event("change"));
   resetFight(); state.figures = []; state.nextId = 1;
   for (const c of party) { const f = rs.toFigure(c, { id: state.nextId++, side: "A" }); if (c.owner && !isRefOf(table.game, c.owner)) f.playerUid = c.owner; state.figures.push(f); }
   if (m && count) addMonsters("B", m.key, count);
+  if (e.band) for (const npc of [e.band.leader, ...e.band.men]) { const f = rs.toFigure(npc, { id: state.nextId++, side: "B" }); f.charId = null; f.placed = false; state.figures.push(f); } // Book III's band as rolled at the meeting
   deploy();
   // Book III: sighted at 40-240 yards; outdoors 1" = 10 yards, so 4d6 inches between the lines
   const dist = e.yards ? Math.max(1, Math.round(e.yards / 10)) : [1, 2, 3, 4].reduce((t) => t + 1 + Math.floor(Math.random() * 6), 0), left = Math.max(...state.figures.filter((f) => f.side === "A").map((f) => f.x + sz(f)), 2);
@@ -1527,7 +1528,7 @@ function encounterFacts(e) {
 function encounterPromptHtml(c, uid, hex) {
   const e = c.encounter ?? {}, k = hexKeyOf(c);
   const party = table.chars.filter((x) => x.status === "ready" && x.doing === "encounter" && hexKeyOf(x) === k), mine = party.filter((x) => rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER);
-  const head = `<h3>At day's end: ${esc(e.kind ?? "something")} <small>${esc(e.type ?? "")} \u00b7 ${esc(e.terrain ?? hex.t)} \u00b7 day ${e.day ?? c.day}</small></h3>${encounterFacts(e)}`;
+  const head = `<h3>At day's end: ${esc(e.band ? `a ${e.kind} and his men` : e.kind ?? "something")} <small>${esc(e.type ?? "")} \u00b7 ${esc(e.terrain ?? hex.t)} \u00b7 day ${e.day ?? c.day}</small></h3>${encounterFacts(e)}${e.band ? `<div class="note">A ${esc(rs.CLASS_LABEL[e.band.leader.cls] ?? "")} of rank with ${e.band.men.length} armed men${e.band.mounted ? " on horseback" : ""}.</div>` : ""}`;
   if (e.choice) {
     const what = e.outcome === "parley" ? `You hailed them. Reaction: <b>${esc(e.reaction?.result ?? "")}</b>${e.reaction?.total != null ? ` (${e.reaction.total})` : e.reaction?.why ? ` (${esc(e.reaction.why)})` : ""}. The referee puts words to it.`
       : e.outcome === "caught" ? `You ran and they caught you. ${esc((e.log ?? []).at(-1) ?? "")} The referee opens the fight at close quarters.`
@@ -1547,8 +1548,9 @@ function refereeMapCard() {
   const rows = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead").map((x) => { const k = hexKeyOf(x), h = world.hexes[k] ?? {}; return `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(h.place ?? h.t ?? "?")} \u00b7 ${esc(doingOf(x))}</span></div>`; }).join("");
   return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3><div class="note">${world.full ? "Every party, and what waits on you. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the board."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
     ${pending.length && !PLAYER ? `<div class="w-act"><h4>Encounters</h4>${(() => { const seen = new Set(); return pending.filter((x) => { const k = hexKeyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }).map((x) => { const k = hexKeyOf(x), e = x.encounter ?? {}, who = pending.filter((y) => hexKeyOf(y) === k).map((y) => esc(y.name)).join(", ");
+      const bandLine = e.band ? `${esc(e.band.leader.name)}, ${esc(e.kind)} (${esc(rs.CLASS_LABEL[e.band.leader.cls] ?? e.band.leader.cls)} ${e.band.leader.level}${e.band.leader.magic?.length ? `, magic: ${esc(e.band.leader.magic.join(", "))}` : ""}), ${e.band.men.length} men of 1st\u20134th level${e.band.mounted ? ", mounted" : ""}, ${esc(e.band.disposition)}. ` : "";
       const said = e.outcome === "parley" ? `They hailed them: reaction <b>${esc(e.reaction?.result ?? "")}</b>${e.reaction?.total != null ? ` (2d6 ${e.reaction.dice?.join("+") ?? ""} = ${e.reaction.total})` : e.reaction?.why ? ` (${esc(e.reaction.why)})` : ""}.` : e.outcome === "caught" ? `They ran and were caught. ${esc((e.log ?? []).join(" "))}` : e.outcome === "stand" ? "They stand and fight." : "No choice yet.";
-      return `<div class="w-act"><div><b>${who}</b> \u00b7 ${esc(e.kind ?? "")} (${esc(e.type ?? "")}) in the ${esc(e.terrain ?? "")}, day ${e.day ?? ""}</div>${encounterFacts(e)}<div class="note">${e.dice ? `${esc(e.kind)}: ${esc(e.dice)} rolled ${e.number} of a possible ${e.max}. ` : ""}${said}</div><div class="row"><button data-w-adjust="${esc(x.id)}" ${world.busy ? "disabled" : ""}>How many</button><button class="done" data-w-fight="${esc(x.id)}" ${world.busy ? "disabled" : ""}>Open a fight</button><button data-w-resolve="${esc(x.id)}" ${world.busy ? "disabled" : ""}>Let them go on</button></div></div>`; }).join(""); })()}<div class="note">How many is Book II's referee's option. Open a fight sets the party up on side A and the kind on side B at sighting distance; End the fight writes hp, coins and xp back to them.</div></div>` : ""}`;
+      return `<div class="w-act"><div><b>${who}</b> \u00b7 ${esc(e.kind ?? "")} (${esc(e.type ?? "")}) in the ${esc(e.terrain ?? "")}, day ${e.day ?? ""}</div>${encounterFacts(e)}<div class="note">${bandLine}${e.dice && !e.band ? `${esc(e.kind)}: ${esc(e.dice)} rolled ${e.number} of a possible ${e.max}. ` : ""}${said}</div><div class="row"><button data-w-adjust="${esc(x.id)}" ${world.busy ? "disabled" : ""}>How many</button><button class="done" data-w-fight="${esc(x.id)}" ${world.busy ? "disabled" : ""}>Open a fight</button><button data-w-resolve="${esc(x.id)}" ${world.busy ? "disabled" : ""}>Let them go on</button></div></div>`; }).join(""); })()}<div class="note">How many is Book II's referee's option. Open a fight sets the party up on side A and the kind on side B at sighting distance; End the fight writes hp, coins and xp back to them.</div></div>` : ""}`;
 }
 function bindHexMap(el, c, uid) {
   const v = lobby.view, svg = $("#wHexSvg");
