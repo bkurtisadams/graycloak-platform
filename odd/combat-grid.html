@@ -607,7 +607,7 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as W
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 import * as rui from "./roster-ui.mjs";
@@ -1316,7 +1316,7 @@ async function worldOp(op, data) {
   if (r.ok && (op === "move" || op === "camp" || op === "rumour")) await loadWorld(true); else renderLobbyStage();
   return r;
 }
-const hexKeyOf = (c) => { const h = c.hex ?? world.places[world.home]; return h ? W.key(h.q, h.r) : null; };
+const hexKeyOf = (c) => { const h = c.hex ?? world.places[world.home]; return h ? wl.key(h.q, h.r) : null; };
 function renderWorldStage(el, g, uid) {
   const v = lobby.view, c = v.id ? charOf(v.id) : null;
   if (v.id && !c) { lobby.view = null; renderLobbyStage(); return; }
@@ -1383,14 +1383,14 @@ function bindVillage(el, c, uid) {
 function hexMapHtml(c, uid) {
   const v = lobby.view, SZ = 42, keys = Object.keys(world.hexes);
   if (!keys.length) return `<div class="note">No map yet.</div>`;
-  const pts = keys.map((k) => W.toPixel(W.parse(k), SZ));
+  const pts = keys.map((k) => wl.toPixel(wl.parse(k), SZ));
   const minX = Math.min(...pts.map((p) => p.x)) - SZ - 10, maxX = Math.max(...pts.map((p) => p.x)) + SZ + 10, minY = Math.min(...pts.map((p) => p.y)) - SZ - 10, maxY = Math.max(...pts.map((p) => p.y)) + SZ + 10;
-  const hexes = keys.map((k) => { const h = world.hexes[k], { x, y } = W.toPixel(W.parse(k), SZ), poly = W.hexCorners(x, y, SZ).map((p) => p.join(",")).join(" ");
+  const hexes = keys.map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), poly = wl.hexCorners(x, y, SZ).map((p) => p.join(",")).join(" ");
     return `<polygon points="${poly}" fill="${TERRAIN_FILL[h.t] ?? TERRAIN_FILL.clear}" stroke="#5c6e4f" stroke-width="1.2" ${h.rumoured ? 'stroke-dasharray="4 4" opacity=".75"' : ""} data-w-hex="${k}" class="${v.dest === k ? "dest" : ""}"><title>${esc(h.place ? `${h.place}${h.rumoured ? "?" : ""} \u00b7 ` : "")}${esc(h.t)}${h.ford ? " \u00b7 ford" : ""}${h.track ? " \u00b7 track" : ""}</title></polygon>${h.ford ? `<text x="${x}" y="${y + 4}" font-size="10" text-anchor="middle" font-family="Courier Prime, monospace" fill="#1f2b38">ford</text>` : ""}`; }).join("");
-  const tracks = keys.filter((k) => world.hexes[k].track).flatMap((k) => { const h = W.parse(k), a = W.toPixel(h, SZ); return W.DIR_NAMES.map((d) => { const n = W.neighbour(h, d), nk = W.key(n.q, n.r); if (!world.hexes[nk]?.track || nk < k) return ""; const b = W.toPixel(n, SZ); return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#9f8d66" stroke-width="4" stroke-dasharray="8 6"/>`; }); }).join("");
-  const places = keys.filter((k) => world.hexes[k].place).map((k) => { const h = world.hexes[k], { x, y } = W.toPixel(W.parse(k), SZ), pl = world.places[h.place] ?? {}; return `${pl.kind === "ruin" ? `<path d="M${x - 8} ${y + 2} l8 -14 8 14z" fill="#4a3418"/>` : `<circle cx="${x}" cy="${y - 6}" r="${pl.kind === "village" && h.place === world.home ? 8 : 5}" fill="#1f2b38"/>`}<text x="${x}" y="${y + 22}" font-size="11" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
+  const tracks = keys.filter((k) => world.hexes[k].track).flatMap((k) => { const h = wl.parse(k), a = wl.toPixel(h, SZ); return wl.DIR_NAMES.map((d) => { const n = wl.neighbour(h, d), nk = wl.key(n.q, n.r); if (!world.hexes[nk]?.track || nk < k) return ""; const b = wl.toPixel(n, SZ); return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#9f8d66" stroke-width="4" stroke-dasharray="8 6"/>`; }); }).join("");
+  const places = keys.filter((k) => world.hexes[k].place).map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), pl = world.places[h.place] ?? {}; return `${pl.kind === "ruin" ? `<path d="M${x - 8} ${y + 2} l8 -14 8 14z" fill="#4a3418"/>` : `<circle cx="${x}" cy="${y - 6}" r="${pl.kind === "village" && h.place === world.home ? 8 : 5}" fill="#1f2b38"/>`}<text x="${x}" y="${y + 22}" font-size="11" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
   const byHex = {}; for (const x of table.chars) { if (x.status !== "ready" || x.doing === "dead") continue; const k = hexKeyOf(x); if (k && world.hexes[k]) (byHex[k] ??= []).push(x); }
-  const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((x, i) => { const { x: px, y: py } = W.toPixel(W.parse(k), SZ), p = table.game.people?.[x.owner] ?? {}; return `<g><circle cx="${px - 14 + i * 14}" cy="${py - 18}" r="9" fill="${esc(p.color ?? "#2f5c8a")}" stroke="#fbfdfe" stroke-width="2"/><text x="${px - 14 + i * 14}" y="${py - 15}" font-size="9" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${esc((x.name ?? "?")[0])}</text><title>${esc(x.name)}${x.doing === "encounter" ? " \u00b7 encounter!" : ""}</title></g>`; })).join("");
+  const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((x, i) => { const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), p = table.game.people?.[x.owner] ?? {}; return `<g><circle cx="${px - 14 + i * 14}" cy="${py - 18}" r="9" fill="${esc(p.color ?? "#2f5c8a")}" stroke="#fbfdfe" stroke-width="2"/><text x="${px - 14 + i * 14}" y="${py - 15}" font-size="9" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${esc((x.name ?? "?")[0])}</text><title>${esc(x.name)}${x.doing === "encounter" ? " \u00b7 encounter!" : ""}</title></g>`; })).join("");
   const svg = `<svg viewBox="${minX} ${minY} ${maxX - minX} ${maxY - minY}" xmlns="http://www.w3.org/2000/svg">${hexes}${tracks}${places}${counters}</svg>`;
   const key = `<div class="w-key"><span><i style="background:${TERRAIN_FILL.clear}"></i> clear</span><span><i style="background:${TERRAIN_FILL.woods}"></i> woods</span><span><i style="background:${TERRAIN_FILL.mountains}"></i> hills, mountains</span><span><i style="background:${TERRAIN_FILL.river}"></i> river</span><span><i style="background:${TERRAIN_FILL.swamp}"></i> swamp</span><span><i style="border-style:dashed"></i> rumoured</span><span>\u2014 track</span></div>`;
   return `<div class="w-map hex">${svg}${key}<div class="w-crumb">a hex is about 5 miles across \u00b7 a move is a day${world.full ? " \u00b7 the referee's map" : ` \u00b7 ${keys.length} hexes known`}</div></div><div class="w-card">${c ? setOutCard(c, uid) : refereeMapCard()}</div>`;
@@ -1407,11 +1407,11 @@ function setOutCard(c, uid) {
   const known = Object.keys(world.hexes).filter((x) => world.hexes[x].place && x !== k);
   const whoHtml = mine.map((x) => `<label class="chk"><input type="checkbox" data-w-who="${esc(x.id)}" ${v.who.includes(x.id) ? "checked" : ""} ${x.doing === "encounter" ? "disabled" : ""}> ${esc(x.name)}${x.doing === "encounter" ? " (encounter)" : ""}</label>`).join("");
   const others = here.filter((x) => !mine.includes(x)).map((x) => esc(x.name)).join(", ");
-  const dests = `<div class="row">${known.map((x) => `<button data-w-dest="${x}" class="${v.dest === x ? "on" : ""}">${esc(world.hexes[x].place)}${world.hexes[x].rumoured ? "?" : ""}</button>`).join("")}</div><div class="row">${W.DIR_NAMES.map((d) => `<button data-w-dir="${d}" class="${v.dest === "dir:" + d ? "on" : ""}">${d}</button>`).join("")}</div>`;
+  const dests = `<div class="row">${known.map((x) => `<button data-w-dest="${x}" class="${v.dest === x ? "on" : ""}">${esc(world.hexes[x].place)}${world.hexes[x].rumoured ? "?" : ""}</button>`).join("")}</div><div class="row">${wl.DIR_NAMES.map((d) => `<button data-w-dir="${d}" class="${v.dest === "dir:" + d ? "on" : ""}">${d}</button>`).join("")}</div>`;
   let plan = "";
   if (v.dest) {
-    const from = W.parse(k), hexAt = (h) => { const hk = W.key(h.q, h.r); return world.hexes[hk] ? world.hexes[hk] : { t: "clear", unknown: true }; };
-    const p = W.planDay(v.dest.startsWith("dir:") ? { from, dir: v.dest.slice(4), hexAt } : { from, to: W.parse(v.dest), hexAt });
+    const from = wl.parse(k), hexAt = (h) => { const hk = wl.key(h.q, h.r); return world.hexes[hk] ? world.hexes[hk] : { t: "clear", unknown: true }; };
+    const p = wl.planDay(v.dest.startsWith("dir:") ? { from, dir: v.dest.slice(4), hexAt } : { from, to: wl.parse(v.dest), hexAt });
     const unknown = p.path.some((s) => hexAt(s).unknown);
     plan = `<div class="note">${p.path.map((s) => `${esc(s.t)} (${s.cost})`).join(" \u2192 ") || "no move"}${p.reason === "arrived" ? ` \u2192 ${esc(p.path.at(-1)?.place ?? "there")}` : ""} \u00b7 ${p.spent} of ${p.allowance} factors${unknown ? " \u00b7 unknown hexes guessed as clear" : ""}. At day's end the server checks for a wandering monster and, from ${esc(hex.t)}, whether you were lost.</div>`;
   }
@@ -1434,7 +1434,7 @@ function bindHexMap(el, c, uid) {
   el.querySelectorAll("[data-w-dir]").forEach((b) => b.addEventListener("click", () => { v.dest = "dir:" + b.dataset.wDir; renderLobbyStage(); }));
   el.querySelectorAll("[data-w-hex]").forEach((h) => h.addEventListener("click", () => { if (!c) return; const k = h.dataset.wHex; if (world.hexes[k]?.place && k !== hexKeyOf(c)) { v.dest = k; renderLobbyStage(); } }));
   $("#wWalk")?.addEventListener("click", async () => {
-    const data = v.dest.startsWith("dir:") ? { ids: v.who, dir: v.dest.slice(4) } : { ids: v.who, to: W.parse(v.dest) };
+    const data = v.dest.startsWith("dir:") ? { ids: v.who, dir: v.dest.slice(4) } : { ids: v.who, to: wl.parse(v.dest) };
     const r = await worldOp("move", data);
     if (r.ok) { world.msg = `Day ${r.day}. ${r.lost ? "Lost your way! " : ""}Walked ${r.path.map((s) => s.t).join(", ")}${r.place ? ` and reached ${r.place}` : ""}.${r.encounter ? ` At day's end: ${r.encounter.kind} (${r.encounter.type}). The referee decides.` : ""}`; v.dest = null; v.who = null; renderLobbyStage(); }
   });
