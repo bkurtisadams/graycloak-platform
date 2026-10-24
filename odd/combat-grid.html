@@ -196,6 +196,33 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .lcard { background: var(--card); border-radius: 10px; padding: 22px 26px; width: min(620px, 100%); display: flex; flex-direction: column; gap: 12px; }
 .lobbystage h2 { margin: 0; font-size: 1.3rem; }
 /* pass 5 (approved mockups 21 Oct 2026): the player's page on the stage */
+/* pass 6: the campaign board */
+.lobbystage:has(.lcard.board) { padding: 16px; align-items: flex-start; }
+.lobbystage .lcard.board { width: 100%; }
+.lobbystage .ls-day { font-family: var(--type); font-size: .82rem; color: var(--pencil); }
+.lobbystage .ls-here { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; font-size: .82rem; color: var(--pencil); }
+.lobbystage .ls-here .dot, .lobbystage .ls-tbl .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 4px; box-sizing: border-box; }
+.lobbystage .dot.off { background: transparent; border: 2px solid; }
+.lobbystage .ls-ctl { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.lobbystage .ls-ctl button { min-height: 40px; }
+.lobbystage .ls-tblwrap { overflow-x: auto; }
+.lobbystage .ls-tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.lobbystage .ls-tbl th { text-align: left; font-family: var(--type); font-size: .72rem; font-weight: 700; color: var(--pencil); padding: 6px 8px; border-bottom: 1px solid #c9d8e2; white-space: nowrap; }
+.lobbystage .ls-tbl td { padding: 7px 8px; border-bottom: 1px solid #e5e9ef; vertical-align: middle; }
+.lobbystage .ls-tbl td.num { font-family: var(--type); font-size: .82rem; white-space: nowrap; }
+.lobbystage .ls-tbl td.who { white-space: nowrap; }
+.lobbystage .ls-tbl td.ch b { font-size: .95rem; }
+.lobbystage .ls-tbl td.ch small { display: block; font-family: var(--type); font-size: .74rem; color: var(--pencil); }
+.lobbystage .ls-tbl tr[data-ls-row]:not(.draft) { cursor: pointer; }
+.lobbystage .ls-tbl tr.mine td { background: var(--floor); }
+.lobbystage .ls-tbl tr.draft td { color: var(--pencil); }
+.lobbystage .ls-tbl tr.draft td.ch b { font-style: italic; color: var(--pencil); }
+.lobbystage .ls-tbl .st { display: inline-block; padding: 2px 8px; border: 1px solid #c9d8e2; border-radius: 3px; font-family: var(--type); font-size: .74rem; background: var(--card); white-space: nowrap; }
+.lobbystage .ls-tbl .st.rest { border-color: #d9a85a; }
+.lobbystage .ls-tbl .acts { display: flex; gap: 6px; white-space: nowrap; }
+.lobbystage .ls-tbl .acts button { min-height: 32px; padding: 0 10px; font-size: .82rem; }
+.lobbystage .ls-tbl .acts button.go { background: var(--ink); color: var(--card); border-color: var(--ink); font-weight: 600; }
+.lobbystage .ls-tbl .acts button.go:disabled { background: #9aa7b3; border-color: #9aa7b3; opacity: 1; }
 /* between fights the tester's chrome (round strip, phase pills, figure chips, Setup/Reset, the room subline) is off; it returns with a fight */
 body.table.lobby #strip, body.table.lobby #subline, body.table.lobby #openSetup, body.table.lobby #reset, body.table.lobby #stepText, body.table.lobby #dragInfo { display: none !important; }
 .lobbystage .lcard.wide { width: min(980px, 100%); }
@@ -212,27 +239,12 @@ body.table.lobby #strip, body.table.lobby #subline, body.table.lobby #openSetup,
 .lobbystage .lcard.gen .rs-step:nth-last-of-type(2) .rs-carts, .lobbystage .lcard.gen .rs-step:nth-last-of-type(2) > .note { grid-column: 1; }
 .lobbystage .lcard.gen .rs-cart { font-size: .9rem; padding: 3px 0; }
 .lobbystage .ls-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
-.lobbystage .ls-chars { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.lobbystage .ls-ch { border: 1px solid #9fb2c0; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--floor); }
-.lobbystage .ls-ch.draft { border-style: dashed; background: var(--card); }
-.lobbystage .ls-ch.more { border-style: dotted; background: transparent; justify-content: center; align-items: flex-start; }
-.lobbystage .ls-ch h3 { margin: 0; font-size: 1.1rem; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.lobbystage .ls-ch h3 small { font-family: var(--type); font-size: .8rem; font-weight: 400; color: var(--pencil); }
-.lobbystage .ls-stats { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--type); font-size: .82rem; }
-.lobbystage .ls-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-.lobbystage .ls-acts button { min-height: 40px; }
-.lobbystage .ls-party { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; align-items: start; }
-.lobbystage .ls-party .who { font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.lobbystage .ls-party .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
-.lobbystage .ls-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.lobbystage .ls-chips span { border: 1px solid #c9d8e2; border-radius: 3px; padding: 3px 8px; font-family: var(--type); font-size: .8rem; background: var(--floor); }
-.lobbystage .ls-chips span.draft { border-style: dashed; color: var(--pencil); }
 .lobbystage .ls-field { display: flex; flex-direction: column; gap: 5px; font-size: .95rem; }
 .lobbystage .ls-field input { height: 40px; border: 1px solid #9fb2c0; border-radius: 4px; padding: 0 10px; font: inherit; }
 .lobbystage .ls-sw { display: flex; gap: 8px; flex-wrap: wrap; }
 .lobbystage .ls-sw button { width: 44px; height: 44px; min-height: 0; border-radius: 50%; border: 2px solid transparent; padding: 0; cursor: pointer; }
 .lobbystage .ls-sw button.on { border-color: var(--ink); box-shadow: 0 0 0 3px var(--card) inset; }
-@media (max-width: 1000px) { .lobbystage .lcard.gen .rs-steps, .lobbystage .ls-chars { grid-template-columns: 1fr; } .lobbystage .ls-party { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .lobbystage .lcard.gen .rs-steps { grid-template-columns: 1fr; } }
 /* floating windows: a figure's sheet (Details) */
 .floatwin { position: fixed; z-index: 30; width: min(460px, calc(100vw - 20px)); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.35); overflow: hidden; }
 .floatwin[hidden] { display: none; }
@@ -1145,19 +1157,60 @@ function renderLobbyStage() {
   el.hidden = !show; document.body.classList.toggle("lobby", show); if (!show) return;
   const uid = meUid();
   if (PLAYER) { renderPlayerStage(el, g, uid); return; }
-  const party = (g.members ?? []).filter((u) => !isRefOf(g, u));
-  const fights = (table.fights ?? []).slice(0, 5);
-  const rows = party.map((u) => {
-    const p = g.people?.[u] ?? {}, cs = myChars(u);
-    const chips = cs.length ? cs.map((c) => c.status === "draft" ? `<span class="draft">a draft</span>` : `<span>${esc(c.name)} \u00b7 ${clsAbbr(c)} ${c.level ?? 1} \u00b7 hp ${c.hp}</span>`).join("") : `<span class="draft">no characters yet</span>`;
-    return `<div class="who"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(p.name ?? "Player")}</div><div class="ls-chips">${chips}</div>`;
+  renderBoard(el, g, uid, true);
+}
+/* ---------- pass 6 (approved boards 5-7, 24 Oct 2026): the campaign board, one row per character ---------- */
+const DOING = { town: "in town", rest: "resting", road: "on the road", fight: "in a fight", dead: "dead" };
+function doingOf(c) {
+  if (c.status === "draft") return "rolling";
+  if (c.doing === "dead" || (c.hp ?? 1) <= 0) return "dead" + (c.diedIn ? ` \u00b7 ${c.diedIn}` : "");
+  const base = DOING[c.doing] ?? DOING.town;
+  return c.doing === "rest" && c.backOn ? `${base} \u00b7 back day ${c.backOn}` : base;
+}
+function boardRows(g, uid, ref) {
+  const on = (u) => u === uid || (table.presence?.[u] && Date.now() - table.presence[u] < ONLINE_MS);
+  const chars = table.chars.slice().sort((a, b) => (a.owner ?? "").localeCompare(b.owner ?? "") || (a.status === "draft") - (b.status === "draft") || (a.name ?? "").localeCompare(b.name ?? ""));
+  return chars.map((c) => {
+    const p = g.people?.[c.owner] ?? {}, mine = rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER, draft = c.status === "draft";
+    const dot = `<span class="dot${on(c.owner) ? "" : " off"}" style="${on(c.owner) ? "background" : "border-color"}:${esc(p.color ?? "#888")}"></span>`;
+    const who = `${dot}${esc(p.name ?? "Player")}${c.owner === uid ? ' <span class="note">(you)</span>' : ""}`;
+    let ch, hp, xp, gp, where;
+    if (draft) { ch = `<b>${esc(c.name || "Unnamed")}</b><small>draft</small>`; hp = xp = where = "\u2014"; gp = String(c.coins?.gp ?? 0); }
+    else { const sh = rs.sheetFor(c); ch = `<b>${esc(c.name)}</b><small>${esc(sh.classLabel)} ${c.level ?? 1} \u00b7 ${esc(sh.alignLabel)} \u00b7 ${esc(sh.title)}</small>`; hp = `<b>${c.hp}</b>/${c.maxHp}`; xp = `${(c.xp ?? 0).toLocaleString()} \u00b7 ${sh.nextXp ? sh.nextXp.toLocaleString() : "\u2014"}`; gp = String(c.coins?.gp ?? 0); where = esc(c.where ?? "Langstead"); }
+    const acts = !mine ? "" : draft
+      ? `<span class="acts"><button data-ls-edit="${esc(c.id)}">Finish rolling</button><button data-ls-discard="${esc(c.id)}">Throw away</button></span>`
+      : `<span class="acts"><button data-ls-open="${esc(c.id)}">Sheet</button>${ref ? "" : `<button class="go" disabled title="The road from Langstead to Fosscraig comes with the map">Set out</button>`}</span>`;
+    return `<tr class="${mine ? "mine" : ""}${draft ? " draft" : ""}" data-ls-row="${esc(c.id)}"><td class="who">${who}</td><td class="ch">${ch}</td><td class="num">${hp}</td><td class="num">${xp}</td><td class="num">${gp}</td><td>${where}</td><td><span class="st${c.doing === "rest" ? " rest" : ""}">${esc(doingOf(c))}</span></td><td>${acts}</td></tr>`;
   }).join("");
-  el.innerHTML = `<div class="lcard wide"><h2>${esc(g.name ?? "The game")}</h2>
-    <div><b>Between fights.</b> Open a fight and every player's page switches to it.</div>
-    <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="done" id="lsNew">Open a fight</button>${fights.length ? `<span class="note">or reopen one in the Fights tab</span>` : ""}</div>
-    <div class="ls-party"><div class="note">The party</div><div class="note">their characters, as in Actors</div>${rows || `<div class="note">no players yet \u2014 send the join link from the Players tab</div><div></div>`}</div>
-    ${fights.length ? `<div class="note">Recent fights: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</div>` : ""}</div>`;
+}
+function renderBoard(el, g, uid, ref) {
+  const on = (u) => u === uid || (table.presence?.[u] && Date.now() - table.presence[u] < ONLINE_MS);
+  const here = (g.members ?? []).map((u) => { const p = g.people?.[u] ?? {}; return `<span><span class="dot${on(u) ? "" : " off"}" style="${on(u) ? "background" : "border-color"}:${esc(p.color ?? "#888")}"></span>${esc(p.name ?? "Player")}${isRefOf(g, u) ? ", referee" : ""}</span>`; }).join("");
+  const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1;
+  const fights = (table.fights ?? []).slice(0, 5);
+  const ctl = ref
+    ? `<button class="done" id="lsNew">Open a fight</button><button id="lsDay">Advance the day</button><button id="lsLink">Join link</button><button id="lsInvite">Invite by email</button>${fights.length ? `<span class="note">Recent: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</span>` : ""}`
+    : `<button id="lsRoll" ${lobby.busy ? "disabled" : ""}>Roll another character</button><span class="note">The referee opens fights; when he does, this page switches to it.</span>`;
+  const rows = boardRows(g, uid, ref);
+  el.innerHTML = `<div class="lcard board"><div class="ls-head"><h2>${esc(g.name ?? "The game")}</h2><span class="ls-day">Day ${day} \u00b7 ${week}${ordinal(week)} week of the campaign</span><span class="ls-here">${here}</span></div>
+    <div class="ls-ctl">${ctl}</div>
+    ${lobby.error ? `<div class="rs-err">${esc(lobby.error)}</div>` : ""}
+    <div class="ls-tblwrap"><table class="ls-tbl"><thead><tr><th>Player</th><th>Character</th><th>hp</th><th>xp \u00b7 next</th><th>gp</th><th>Where</th><th>Doing</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="8" class="note">${ref ? "No characters yet. Players roll their own; the join link is in the Players tab." : "No characters yet."}</td></tr>`}</tbody></table></div>
+    <div class="note">${ref ? "A row opens the sheet. Where and Doing are the map's columns: everyone starts in Langstead, in town; Set out, rest and a fight change them." : "A row opens the sheet. Your own rows carry the buttons; the others show what the referee shares."}</div></div>`;
+  el.querySelectorAll("[data-ls-row]").forEach((tr) => tr.addEventListener("click", (e) => { if (e.target.closest("button")) return; const c = charOf(tr.dataset.lsRow); if (c && c.status !== "draft") openCharSheet(c.id); }));
+  el.querySelectorAll("[data-ls-open]").forEach((b) => b.addEventListener("click", () => openCharSheet(b.dataset.lsOpen)));
+  el.querySelectorAll("[data-ls-edit]").forEach((b) => b.addEventListener("click", () => { lobby.editing = b.dataset.lsEdit; lobby.error = ""; renderLobbyStage(); }));
+  el.querySelectorAll("[data-ls-discard]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.lsDiscard); if (c && confirm(`Throw ${c.name || "this character"} away? It can't be undone.`)) charOp(c.id, "delete", {}, lobby); }));
+  $("#lsRoll")?.addEventListener("click", rollAnother);
   $("#lsNew")?.addEventListener("click", () => { table.setup = true; renderLobbyStage(); openDrawer("setup"); });
+  $("#lsDay")?.addEventListener("click", async () => {
+    const n = prompt("Advance the campaign by how many days? (a wilderness move is a day, a dungeon expedition a week)", "1"); if (n == null) return;
+    const r = await online.api.game("advance", table.cid, { days: Number(n) });
+    if (r.ok) { table.game = { ...table.game, ...r.game }; lobby.error = ""; } else lobby.error = r.error ?? "That didn't work.";
+    renderLobbyStage();
+  });
+  $("#lsLink")?.addEventListener("click", async (e) => { try { await navigator.clipboard.writeText(joinUrl()); e.target.textContent = "Copied"; setTimeout(() => { e.target.textContent = "Join link"; }, 1500); } catch { showTab("settings"); } });
+  $("#lsInvite")?.addEventListener("click", () => showTab("settings"));
 }
 function renderPlayerStage(el, g, uid) {
   const me = g.people?.[uid] ?? {};
@@ -1193,25 +1246,12 @@ function renderPlayerStage(el, g, uid) {
   }
   const editing = (lobby.editing && drafts.find((c) => c.id === lobby.editing)) || (!finished.length ? drafts[0] : null);
   if (editing) {
-    el.innerHTML = `<div class="lcard gen"><div class="ls-head"><h2>${finished.length ? "Roll another character" : "Roll your first character"}</h2><span class="note">The dice are the server's. Don't like him? Reroll, or finish and roll another.</span>${finished.length ? `<a href="#" id="lsBack" style="margin-left:auto">Back to your characters</a>` : ""}</div>
+    el.innerHTML = `<div class="lcard gen"><div class="ls-head"><h2>${finished.length ? "Roll another character" : "Roll your first character"}</h2><span class="note">The dice are the server's. Don't like him? Reroll, or finish and roll another.</span>${finished.length ? `<a href="#" id="lsBack" style="margin-left:auto">Back to the board</a>` : ""}</div>
       <div class="rs-steps">${rui.chargenHtml(rs, editing, { error: lobby.error, busy: lobby.busy })}</div></div>`;
     $("#lsBack")?.addEventListener("click", (e) => { e.preventDefault(); lobby.editing = null; lobby.error = ""; renderLobbyStage(); });
     return;
   }
-  const cards = finished.map((c) => { const sh = rs.sheetFor(c); return `<div class="ls-ch"><h3>${esc(c.name)} <small>${esc(sh.classLabel)} \u00b7 ${c.level ?? 1}${ordinal(c.level ?? 1)} level \u00b7 ${esc(sh.alignLabel)}</small></h3>
-    <div class="ls-stats"><span>hp <b>${c.hp}</b>/${c.maxHp}</span><span>AC <b>${sh.ac}</b>${sh.armour ? ` ${esc(sh.armour.label)}` : ""}</span>${sh.weapon ? `<span>${esc(sh.weapon)}</span>` : ""}<span><b>${c.coins?.gp ?? 0}</b> gp</span><span>xp <b>${c.xp ?? 0}</b></span></div>
-    <div class="ls-acts"><button data-ls-open="${esc(c.id)}">Open sheet</button><button class="done" disabled title="The road from Langstead to Fosscraig comes with the map">Set out</button></div></div>`; }).join("");
-  const draftCards = drafts.map((c) => `<div class="ls-ch draft"><h3>${esc(c.name || "Unnamed")} <small>draft \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")}?</small></h3>
-    <div class="ls-stats"><span>${["str", "int", "wis", "con", "dex", "cha"].map((k) => `${k.toUpperCase()} ${c.abilities?.[k] ?? "?"}`).join(" ")}</span><span><b>${c.coins?.gp ?? 0}</b> gp</span></div>
-    <div class="ls-acts"><button data-ls-edit="${esc(c.id)}">Finish rolling</button><button data-ls-discard="${esc(c.id)}">Throw away</button></div></div>`).join("");
-  el.innerHTML = `<div class="lcard wide"><div class="ls-head"><h2>Your characters</h2><span class="note">In Langstead, at the inn. When the referee opens a fight it takes this page over on its own.</span></div>
-    ${lobby.error ? `<div class="rs-err">${esc(lobby.error)}</div>` : ""}
-    <div class="ls-chars">${cards}${draftCards}<div class="ls-ch more"><button id="lsRoll" ${lobby.busy ? "disabled" : ""}>Roll another character</button><div class="note">As many as you like. Each is yours alone; the referee sees them all in Actors.</div></div></div>
-    <div class="note">Set out opens the map: the road from Langstead to Fosscraig, two hexes north-east. It comes with the next pass.</div></div>`;
-  el.querySelectorAll("[data-ls-open]").forEach((b) => b.addEventListener("click", () => openCharSheet(b.dataset.lsOpen)));
-  el.querySelectorAll("[data-ls-edit]").forEach((b) => b.addEventListener("click", () => { lobby.editing = b.dataset.lsEdit; lobby.error = ""; renderLobbyStage(); }));
-  el.querySelectorAll("[data-ls-discard]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.lsDiscard); if (c && confirm(`Throw ${c.name || "this character"} away? It can't be undone.`)) charOp(c.id, "delete", {}, lobby); }));
-  $("#lsRoll")?.addEventListener("click", rollAnother);
+  renderBoard(el, g, uid, false);
 }
 const ordinal = (n) => (n === 1 ? "st" : n === 2 ? "nd" : n === 3 ? "rd" : "th");
 async function rollAnother() {

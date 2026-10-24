@@ -15,6 +15,7 @@
 //                   pass 4): a roster character he owns, or null
 //   joinCode        the secret part of the join link; reset on removal
 //   mine (no cid)   the GCC campaigns of system 'odd' this account owns or plays in
+//   day             the campaign day, from 1; op advance (referee) adds 1..30 days
 //   invited[]       emails invited by name: such a person joins without the code
 //                   (so does anyone on the GCC campaign's own roster, campaigns/{cid}/players/{uid}:
 //                   "Launch game" on GCC takes its players straight in, pass 5)
@@ -46,7 +47,7 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
   const freeColour = (people, except) => palette.find((c) => !Object.entries(people ?? {}).some(([u, p]) => u !== except && p?.color === c)) ?? palette[0];
   /** What the caller gets back: the game as he may see it (the join code only for referees). */
   const summary = (camp, uid) => ({
-    name: camp.name ?? null, refereeUid: camp.refereeUid, referees: camp.referees ?? [], members: camp.members ?? [], people: camp.people ?? {},
+    name: camp.name ?? null, day: camp.day ?? 1, refereeUid: camp.refereeUid, referees: camp.referees ?? [], members: camp.members ?? [], people: camp.people ?? {},
     live: camp.live ?? null, invited: isReferee(camp, uid) ? camp.invited ?? [] : undefined, joinCode: isReferee(camp, uid) ? camp.joinCode : undefined,
     you: { uid, referee: isReferee(camp, uid), creator: camp.refereeUid === uid }
   });
@@ -139,6 +140,12 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
       }
 
       if (!creator) return refuse('forbidden', 'only the Creator does that');
+      // the campaign day (Book III: a wilderness move is a day, a dungeon expedition a week); the referee advances it
+      if (op === 'advance') {
+        if (!isReferee(camp, uid)) return refuse('forbidden', 'only the referee advances the day');
+        const days = Math.min(30, Math.max(1, Math.trunc(Number(data.days ?? 1)) || 1));
+        return write({ ...camp, day: (camp.day ?? 1) + days });
+      }
       if (op === 'reset') return write({ ...camp, joinCode: newCode() });
       if (op === 'role') {
         if (!(camp.members ?? []).includes(data.uid) || data.uid === camp.refereeUid) return refuse('bad-request', 'not a player in this game');

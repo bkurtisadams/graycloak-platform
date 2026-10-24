@@ -1,4 +1,5 @@
-// gcc-data.js v1.7.2 — 2026-10-21
+// gcc-data.js v1.7.3 — 2026-10-24
+// v1.7.3: the OD&D tool reads 'Open the game'.
 // v1.7.2: odd-game carries campaignParam 'c': the Tools menu appends the open
 //         campaign's id (gcc-header v2.2.0), so Launch game works from there too.
 // v1.7.1: Add battle-system id to add1e tools 
@@ -123,7 +124,7 @@ const GCC = (function() {
       icon: '⚔',
       color: '#8a5a30',
       tools: [
-        { id: 'odd-game', name: 'Launch game', href: 'odd/index.html', campaignParam: 'c' },
+        { id: 'odd-game', name: 'Open the game', href: 'odd/index.html', campaignParam: 'c' },
         { id: 'odd-chainmail', name: 'Chainmail Battles', href: 'chainmail-board.html' },
       ]
     },

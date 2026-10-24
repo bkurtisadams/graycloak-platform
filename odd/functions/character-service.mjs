@@ -9,6 +9,7 @@
 // the package's roster.mjs; this file checks who may do what.
 //
 //   roll      a member rolls a new character (one unfinished at a time); he owns it
+//   where/doing  the campaign board: set on finish (home village, "town"); the map and rest rules move them
 //   reroll    his owner throws the dice again for an unfinished character (abilities, gold; the
 //             purchases go back); the name stays. Ruling, Kurt Oct 2026: scores matter little, so
 //             rerolling and rolling more characters are free. A finished character still stands.
@@ -29,6 +30,7 @@
 
 import { isReferee } from "./campaign-service.mjs";
 
+const HOME = "Langstead"; // the Westmark's starting village (Kurt, Oct 2026)
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const MAX_CHARACTERS = 200, MAX_FOLDERS = 100, FOLDER_DEPTH = 4;
 const COLOUR = /^#[0-9a-fA-F]{6}$/;
@@ -145,7 +147,7 @@ export function createCharacterService({ rules, store, now = () => Date.now(), r
       else if (op === "buy") r = roster.buy(ch, String(data.key ?? ""));
       else if (op === "sell") r = roster.sell(ch, Number(data.index));
       else if (op === "reroll") r = ch.status === "draft" ? { ok: true, ch: { ...ch, ...roster.rollCharacter(d6), name: ch.name } } : { ok: false, error: "he is finished: the dice stand" };
-      else if (op === "finish") r = roster.finish(ch, d6);
+      else if (op === "finish") { r = roster.finish(ch, d6); if (r.ok) r.ch = { ...r.ch, where: HOME, doing: "town" }; } // the campaign board (pass 6): he starts in the home village, in town
       else if (op === "ready") r = roster.setReady(ch, Object.fromEntries(["weapon", "missile"].filter((k) => k in (data ?? {})).map((k) => [k, data[k] || null])));
       else if (op === "remember") r = roster.remember(ch, data.spells);
       else if (op === "rename") r = roster.rename(ch, data.name);

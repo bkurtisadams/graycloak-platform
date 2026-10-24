@@ -148,3 +148,15 @@ test("mine: the OD&D campaigns on GCC this account owns or plays in, no game nam
   assert.equal(r.ok, true); assert.deepEqual(r.games, [{ cid: "c1", name: "Castle Blackrock", referee: false }]);
   assert.equal((await call(g, "dave", { op: "join" })).code, "bad-request", "every other op still names a game");
 });
+
+test("the campaign day: 1 to begin with; the referee advances it, a player may not", async () => {
+  const store = memoryStore(), g = games(store);
+  store.docs.set("campaigns/c1", { ownerUid: "kurt", name: "Castle Blackrock" });
+  const o = await call(g, "kurt", { op: "open", cid: "c1" }, { name: "Kurt" });
+  assert.equal(o.game.day, 1);
+  const a = await call(g, "kurt", { op: "advance", cid: "c1", days: 7 });
+  assert.equal(a.ok, true, a.error); assert.equal(a.game.day, 8); assert.equal(a.game.joinCode, o.game.joinCode, "nothing else changes");
+  assert.equal((await call(g, "kurt", { op: "advance", cid: "c1", days: 0 })).game.day, 9, "at least a day");
+  await call(g, "dave", { op: "join", cid: "c1", code: o.game.joinCode }, { name: "Dave" });
+  assert.equal((await call(g, "dave", { op: "advance", cid: "c1" })).code, "forbidden");
+});

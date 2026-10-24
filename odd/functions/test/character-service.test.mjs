@@ -87,6 +87,7 @@ test("rerolls are free (ruling, Oct 2026): a player rerolls or throws away his d
   const id2 = (await call("bob", { op: "roll" })).character.id;
   await call("bob", { op: "basics", id: id2, name: "Wyn" }); await call("bob", { op: "buy", id: id2, key: "sword" });
   const fin = await call("bob", { op: "finish", id: id2 }); assert.equal(fin.ok, true, fin.error);
+  assert.equal(fin.character.where, "Langstead", "finished: he starts in the home village"); assert.equal(fin.character.doing, "town");
   assert.equal((await call("bob", { op: "reroll", id: id2 })).code, "bad-request", "finished: the dice stand");
   assert.equal((await call("bob", { op: "delete", id: id2 })).code, "forbidden", "finished: only the referee");
   assert.equal((await call("ann", { op: "delete", id: id2 })).code, "forbidden");

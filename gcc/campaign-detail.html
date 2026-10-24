@@ -482,6 +482,25 @@ a.ses-row-title:hover{color:var(--accent)}
 .battle-lnk:hover{filter:brightness(1.2)}
 .battle-del{color:#a03030;border-color:#a03030}
 .battles-note{font-size:12px;opacity:.6;font-style:italic}
+/* the OD&D game card (pass 6, approved board 7, 24 Oct 2026): read from the game, one row per character */
+.odd-game{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border,#d8d0c0);border-radius:8px}
+.odd-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.odd-head b{font-size:17px}
+.odd-day{font-size:12px;opacity:.65;letter-spacing:.3px}
+.odd-open{margin-left:auto;font-size:13px;font-weight:700;text-decoration:none;color:var(--bg,#fff);background:var(--accent,#8b0000);border-radius:4px;padding:8px 14px}
+.odd-open:hover{filter:brightness(1.15)}
+.odd-tblwrap{overflow-x:auto}
+.odd-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.odd-tbl th{text-align:left;font-family:var(--fsc);font-size:10px;letter-spacing:1.2px;color:var(--tx3);padding:5px 6px;border-bottom:1px solid var(--border,#d8d0c0);white-space:nowrap}
+.odd-tbl td{padding:6px;border-bottom:1px solid var(--border,#d8d0c0);vertical-align:middle}
+.odd-tbl td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.odd-tbl td.ch b{font-size:14px}
+.odd-tbl td.ch small{display:block;font-size:11px;opacity:.65}
+.odd-tbl tr.draft td{opacity:.65}
+.odd-dot{width:9px;height:9px;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:5px;box-sizing:border-box}
+.odd-dot.off{background:transparent!important;border:2px solid}
+.odd-st{display:inline-block;padding:1px 7px;border:1px solid var(--border,#d8d0c0);border-radius:3px;font-size:11px;white-space:nowrap}
+.odd-fights{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px}
 </style>
 </head>
 <body>
@@ -1174,7 +1193,7 @@ async function render(){
     }
   }
 
-  const overviewHtml=`${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';let href=t.href||'';if(href&&campId&&/map\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'campaign='+encodeURIComponent(campId);if(href&&campId&&/(chainmail|battlesystem)-board\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'camp='+encodeURIComponent(campId);if(href&&campId&&/^odd\/index\.html$/i.test(href.split('?')[0])){href=oddBase()+'index.html?c='+encodeURIComponent(campId);}if(href&&/^traveller\//i.test(href))href=travBase()+href;return`<a class="${cls}"${href?' href="'+ESC(href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}</div><div class="sec-hdr"><div class="sec-title">BATTLES</div></div><div class="battles-list" id="battles-row"><span class="battles-note">loading…</span></div>${camp.system==='odd'?`<div class="sec-hdr"><div class="sec-title">FIGHTS</div></div><div class="battles-list" id="fights-row"><span class="battles-note">loading…</span></div>`:''}`;
+  const overviewHtml=`${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';let href=t.href||'';if(href&&campId&&/map\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'campaign='+encodeURIComponent(campId);if(href&&campId&&/(chainmail|battlesystem)-board\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'camp='+encodeURIComponent(campId);if(href&&campId&&/^odd\/index\.html$/i.test(href.split('?')[0])){href=oddBase()+'index.html?c='+encodeURIComponent(campId);}if(href&&/^traveller\//i.test(href))href=travBase()+href;return`<a class="${cls}"${href?' href="'+ESC(href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}</div><div class="sec-hdr"><div class="sec-title">BATTLES</div></div><div class="battles-list" id="battles-row"><span class="battles-note">loading…</span></div>${camp.system==='odd'?`<div class="sec-hdr"><div class="sec-title">OD&amp;D GAME</div></div><div class="odd-game" id="fights-row"><span class="battles-note">loading…</span></div>`:''}`;
 
   // Party tab — helper to build a single entity card
   function buildEntityCard(resolved,ch,refKey,idx,camp,opts){
@@ -2823,24 +2842,36 @@ async function loadBattles(){
 // on graycloak.net (Pages assembles gcc/odd/).
 function oddBase(){return /\/gcc\//.test(location.pathname)?'../odd/':'odd/'}
 function travBase(){return /\/gcc\//.test(location.pathname)?'../':''}
-let _fights=null;
+let _fights=null,_game=null,_chars=null,_presence=null;
+const ODD_DOING={town:'in town',rest:'resting',road:'on the road',fight:'in a fight',dead:'dead'};
+const ODD_CLASS={fighter:'Fighting-Man','magic-user':'Magic-User',cleric:'Cleric',thief:'Thief'};
 function renderFightsRow(){
   const row=document.getElementById('fights-row');if(!row)return;
   const user=(typeof GCCAuth!=='undefined')?GCCAuth.getUser():null;
-  if(!user){row.innerHTML='<span class="battles-note">Sign in to see fights.</span>';return}
+  if(!user){row.innerHTML='<span class="battles-note">Sign in to see the game.</span>';return}
   const page=oddBase()+'combat-grid.html?cid='+encodeURIComponent(campId);
-  // the game (pass 3): its lobby has the join link, the players and every fight
-  const open=`<a class="battle-lnk" href="${ESC(oddBase()+'index.html?c='+encodeURIComponent(campId))}">Launch game</a>`;
-  if(_fights===null){row.innerHTML='<span class="battles-note">loading…</span>'+open;return}
-  if(!_fights.length){row.innerHTML=(_isPlayerMode?'<span class="battles-note">No fights you are in yet — the referee opens them.</span>':'<span class="battles-note">No fights yet.</span>')+open;return}
-  row.innerHTML=_fights.map(f=>{
-    const st=f.phase==='over'?'<span class="battle-st">OVER</span>':(f.phase==='fight'?'<span class="battle-st live">ROUND '+ESC(String(f.round||0))+'</span>':'<span class="battle-st">SETUP</span>');
-    const when=f.createdAt?new Date(f.createdAt).toLocaleDateString():'';
-    const names=f.people?Object.values(f.people).filter(p=>p&&p.name).map(p=>p.name).join(', '):'';
-    const ref=!_isPlayerMode?`<a class="battle-lnk" href="${ESC(page+'&fid='+encodeURIComponent(f.id))}">Referee</a>`:'';
-    const me=user.uid&&Array.isArray(f.players)&&f.players.includes(user.uid)?`<a class="battle-lnk" href="${ESC(page+'&fid='+encodeURIComponent(f.id)+'&player')}">Play</a>`:'';
-    return `<div class="battle-row">${st}<span class="battle-name" title="${ESC(names)}">${ESC(f.title||f.id)}</span><span class="battle-when">${ESC(when)}</span>${ref}${me}</div>`;
-  }).join('')+open;
+  const open=`<a class="odd-open" href="${ESC(oddBase()+'index.html?c='+encodeURIComponent(campId))}">Open the game</a>`;
+  if(_fights===null){row.innerHTML='<div class="odd-head"><span class="battles-note">loading…</span>'+open+'</div>';return}
+  const g=_game||{},people=g.people||{},members=g.members||[],now=Date.now();
+  const on=u=>u===user.uid||(_presence&&_presence[u]&&now-_presence[u]<3*60*1000);
+  const online=members.filter(on).length;
+  const head=`<div class="odd-head"><b>${ESC(g.name||getCamp().name||'The game')}</b><span class="odd-day">Day ${ESC(String(g.day||1))} · ${members.length} player${members.length===1?'':'s'} · ${online} online</span>${open}</div>`;
+  const chars=(_chars||[]).slice().sort((a,b)=>(a.owner||'').localeCompare(b.owner||'')||((a.status==='draft')-(b.status==='draft'))||(a.name||'').localeCompare(b.name||''));
+  const rows=chars.map(c=>{
+    const p=people[c.owner]||{},draft=c.status==='draft';
+    const dot=`<span class="odd-dot${on(c.owner)?'':' off'}" style="${on(c.owner)?'background':'border-color'}:${ESC(p.color||'#888')}"></span>`;
+    const doing=draft?'rolling':(c.doing==='dead'||(c.hp!=null&&c.hp<=0))?'dead':(ODD_DOING[c.doing]||ODD_DOING.town);
+    const ch=draft?`<b>${ESC(c.name||'Unnamed')}</b><small>draft</small>`:`<b>${ESC(c.name||'')}</b><small>${ESC(ODD_CLASS[c.cls]||c.cls||'')} ${ESC(String(c.level||1))}</small>`;
+    return `<tr class="${draft?'draft':''}"><td>${dot}${ESC(p.name||'Player')}</td><td class="ch">${ch}</td><td class="num">${draft?'—':ESC(String(c.hp))+'/'+ESC(String(c.maxHp))}</td><td>${draft?'—':ESC(c.where||'Langstead')}</td><td><span class="odd-st">${ESC(doing)}</span></td></tr>`;
+  }).join('');
+  const tbl=`<div class="odd-tblwrap"><table class="odd-tbl"><thead><tr><th>PLAYER</th><th>CHARACTER</th><th>HP</th><th>WHERE</th><th>DOING</th></tr></thead><tbody>${rows||`<tr><td colspan="5" class="battles-note">${_isPlayerMode?'No characters you can see yet.':'No characters yet. Players roll their own in the game.'}</td></tr>`}</tbody></table></div>`;
+  const fl=_fights.slice(0,4).map(f=>{
+    const live=f.phase==='fight'?' (round '+ESC(String(f.round||0))+')':f.phase==='over'?' (over)':'';
+    const href=!_isPlayerMode?page+'&fid='+encodeURIComponent(f.id):(user.uid&&Array.isArray(f.players)&&f.players.includes(user.uid)?page+'&fid='+encodeURIComponent(f.id)+'&player':'');
+    return href?`<a class="battle-lnk" href="${ESC(href)}">${ESC(f.title||f.id)}${live}</a>`:`<span>${ESC(f.title||f.id)}${live}</span>`;
+  }).join('');
+  const fights=`<div class="odd-fights"><span class="battles-note">Fights:</span>${fl||'<span class="battles-note">none yet</span>'}${_fights.length>4?`<span class="battles-note">· ${_fights.length-4} more in the game</span>`:''}</div>`;
+  row.innerHTML=head+tbl+fights;
 }
 async function loadFights(){
   const camp=getCamp();if(!camp||camp.system!=='odd')return;
@@ -2848,10 +2879,18 @@ async function loadFights(){
     const db=(typeof firebase!=='undefined'&&firebase.firestore)?firebase.firestore():null;
     const user=(typeof GCCAuth!=='undefined')?GCCAuth.getUser():null;
     if(!db||!user){_fights=[];renderFightsRow();return}
-    const col=db.collection('oddCampaigns').doc(campId).collection('fights');
-    const qs=await (_isPlayerMode?col.where('players','array-contains',user.uid):col).get();
-    _fights=qs.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,20);
-  }catch(e){console.warn('[GCC] fights load failed:',e);_fights=[]}
+    const base=db.collection('oddCampaigns').doc(campId);
+    // the game record (members read it), the characters (the referee all of them; a player those he may see), who's here, the fights
+    const [gd,fq,pq]=await Promise.all([base.get(),(_isPlayerMode?base.collection('fights').where('players','array-contains',user.uid):base.collection('fights')).get(),base.collection('presence').get().catch(()=>null)]);
+    _game=gd.exists?gd.data():null;
+    _presence=pq?Object.fromEntries(pq.docs.map(d=>[d.id,(d.data()||{}).seen||0])):null;
+    const cc=base.collection('characters');
+    let cdocs;
+    if(_isPlayerMode){const [a,b]=await Promise.all([cc.where('viewers','array-contains',user.uid).get(),cc.where('viewers','array-contains','*').get()]);const m=new Map();[...a.docs,...b.docs].forEach(d=>m.set(d.id,d));cdocs=[...m.values()]}
+    else cdocs=(await cc.get()).docs;
+    _chars=cdocs.map(d=>Object.assign({id:d.id},d.data()));
+    _fights=fq.docs.map(d=>Object.assign({id:d.id},d.data())).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)).slice(0,20);
+  }catch(e){console.warn('[GCC] game load failed:',e);_fights=_fights||[];_chars=_chars||[]}
   renderFightsRow();
 }
 // render() rebuilds the overview innerHTML, emptying #battles-row — repopulate
