@@ -297,7 +297,7 @@ export function fullMap(world = WESTMARK) {
 /** What the players know at the start: the home village and its ring of six (the immediate surroundings). */
 export function startingKnowledge(world = WESTMARK) {
   const home = world.places[world.home], out = {};
-  for (const h of [home, ...ring(home)]) { const k = key(h.q, h.r), t = terrainAt(k, world); if (t) out[k] = { t: t.t, ...(t.place ? { place: t.place } : {}), ...(t.ford ? { ford: true } : {}) }; }
+  for (const h of [home, ...ring(home)]) { const k = key(h.q, h.r), t = terrainAt(k, world); if (t) out[k] = { t: t.t, ...(t.place ? { place: t.place } : {}), ...(t.ford ? { ford: true } : {}), ...(t.track ? { track: true } : {}) }; }
   return out;
 }
 

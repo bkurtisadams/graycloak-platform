@@ -22,6 +22,7 @@
 //   adjust  {id, number}   the referee's option on No. Appearing (Book II: increase or decrease according to the party concerned)
 //   resolve {id}           an encounter dealt with (a fight opened or the party let go): doing back to road
 //   rumours {place, list}  set a settlement's rumour list
+//   paint {q, r, t?, track?, ford?, place?, kind?}  edit the referee's key in place; a hex the players know is updated too (pass 10)
 // Rulings (Kurt, Oct 2026): a lone character walks as a party of one; the players start knowing the home village and its ring.
 
 import { isReferee } from "./campaign-service.mjs";
@@ -103,7 +104,9 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       if (op === "map") {
         const rumours = ref ? (await tx.get(p.rumours)) ?? {} : undefined;
         if (seeded) save();
-        return { ok: true, home: W.WESTMARK.home, places: W.WESTMARK.places, hexes: ref ? map.hexes : known.hexes, full: ref, ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}) };
+        const places = { ...W.WESTMARK.places };
+        for (const [k, h] of Object.entries(map.hexes)) if (h.place && !places[h.place]) { const { q, r } = W.parse(k); places[h.place] = { q, r, kind: h.kind ?? "village", desc: "" }; }
+        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}) };
       }
 
       if (op === "rumours") {
@@ -115,6 +118,20 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         return { ok: true, count: list.length };
       }
 
+      if (op === "paint") {
+        if (!ref) return refuse("forbidden", "only the referee paints the map");
+        const q = Math.trunc(Number(data.q)), r = Math.trunc(Number(data.r)); if (!Number.isInteger(q) || !Number.isInteger(r) || Math.abs(q) > 60 || Math.abs(r) > 60) return refuse("bad-request", "which hex?");
+        const k = W.key(q, r), cur = map.hexes[k] ?? { t: "clear" }, next = { ...cur };
+        if (data.t != null) { if (!W.TERRAIN[data.t]) return refuse("bad-request", "no such terrain"); next.t = data.t; }
+        if (data.track != null) next.track = !!data.track;
+        if (data.ford != null) next.ford = !!data.ford;
+        if (data.place !== undefined) { if (data.place) { next.place = String(data.place).slice(0, 40); next.kind = ["village", "ruin", "castle", "city"].includes(data.kind) ? data.kind : "village"; } else { delete next.place; delete next.kind; } }
+        if (!next.track) delete next.track; if (!next.ford) delete next.ford;
+        map.hexes[k] = next; map.paintedAt = now();
+        if (known.hexes[k]) known.hexes[k] = { t: next.t, ...(next.place ? { place: next.place } : {}), ...(next.ford ? { ford: true } : {}), ...(next.track ? { track: true } : {}), ...(known.hexes[k].rumoured ? { rumoured: true } : {}) };
+        tx.set(p.map, clean(map)); tx.set(p.known, clean(known));
+        return { ok: true, hex: next };
+      }
       // the characters this op is about
       const party = ["move", "camp", "evade", "stand"].includes(op);
       const ids = party ? (Array.isArray(data.ids) ? data.ids : []).filter((x) => ID.test(x ?? "")).slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];

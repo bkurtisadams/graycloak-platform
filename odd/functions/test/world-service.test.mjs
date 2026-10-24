@@ -185,3 +185,14 @@ test("a titled man on the road (Book III): the Lord's band is rolled at the meet
   const fig = rules.roster.toFigure(e.band.leader, { id: 1, side: "B" });
   assert.equal(fig.level, 9); assert.equal(fig.ac, 2, "plate and shield"); assert.ok(fig.hp >= 9, "9 hit dice");
 });
+
+test("paint (pass 10): the referee edits the key in place; a hex the players know follows", async () => {
+  const g = game(); await g.call("bob", { op: "map" });
+  assert.equal((await g.call("bob", { op: "paint", q: 1, r: -1, t: "woods" })).code, "forbidden");
+  let r = await g.call("kurt", { op: "paint", q: 1, r: -1, t: "woods", track: false }); assert.equal(r.ok, true, r.error); assert.equal(r.hex.t, "woods"); assert.equal(r.hex.track, undefined);
+  assert.equal((await g.call("bob", { op: "map" })).hexes["1,-1"].t, "woods", "known already: the players see it");
+  r = await g.call("kurt", { op: "paint", q: 3, r: -3, place: "Hoarfell", kind: "castle" }); assert.equal(r.ok, true, r.error);
+  const m = await g.call("kurt", { op: "map" }); assert.equal(m.hexes["3,-3"].place, "Hoarfell"); assert.equal(m.places.Hoarfell.kind, "castle");
+  assert.equal((await g.call("bob", { op: "map" })).hexes["3,-3"], undefined, "not known: nothing to the players");
+  assert.equal((await g.call("kurt", { op: "paint", q: 3, r: -3, t: "lava" })).code, "bad-request");
+});
