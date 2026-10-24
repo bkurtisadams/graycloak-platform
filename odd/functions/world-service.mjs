@@ -80,8 +80,9 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       const save = () => { if (seeded) { tx.set(p.map, clean(map)); } tx.set(p.known, clean(known)); };
 
       if (op === "map") {
+        const rumours = ref ? (await tx.get(p.rumours)) ?? {} : undefined;
         if (seeded) save();
-        return { ok: true, home: W.WESTMARK.home, places: W.WESTMARK.places, hexes: ref ? map.hexes : known.hexes, full: ref };
+        return { ok: true, home: W.WESTMARK.home, places: W.WESTMARK.places, hexes: ref ? map.hexes : known.hexes, full: ref, ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}) };
       }
 
       if (op === "rumours") {

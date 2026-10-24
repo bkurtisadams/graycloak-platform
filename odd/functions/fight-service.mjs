@@ -174,6 +174,45 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     return { ok: true, rev: next, events: [{ type: "undo", rev: last.rev, what }] };
   }
 
+  /**
+   * Settle (pass 8, Oct 2026): the fight's outcome goes back to the roster characters in it. For each
+   * side-A figure with a charId: his hit points as they stand (0 or less: dead, with the fight's title),
+   * his coins as the fight left them (loot taken), his encounter cleared (back on the road), and his share
+   * of the experience: the kill pool of the side-B monsters down, plus the treasure's gold value, split by
+   * encounter-settlement (individual ratio), then the prime-requisite bonus and the one-level cap. Items
+   * picked up stay with the fight for now (fight items and pack items have different shapes). Once per
+   * fight; the referee's End the fight does it. A fight may be settled before it is over (the party fled).
+   */
+  async function settle(tx, p, cid, uid, camp, header, state) {
+    if (header.settled) return refuse("settled", "this fight was settled already");
+    const party = state.figures.filter((f) => f.charId && f.side === "A");
+    const chars = [];
+    for (const f of party) { const ch = await tx.get(`oddCampaigns/${cid}/characters/${f.charId}`); if (ch) chars.push({ f, ch }); }
+    const down = (f) => f.hp != null && f.hp <= 0;
+    const monsters = state.figures.filter((f) => f.side === "B" && f.monsterKey && down(f)).map((f) => { const m = rules.MONSTERS.find((x) => x.key === f.monsterKey); return m ? { count: m.hd.count, bonus: m.hd.bonus ?? 0 } : null; }).filter(Boolean);
+    const gpOf = (coins) => rules.coinsToGp(coins ?? {});
+    const treasureValue = chars.reduce((s, { f, ch }) => s + Math.max(0, gpOf(f.inv?.coins) - gpOf(ch.coins)), 0);
+    const settled = rules.settleEncounter({ monsters, treasureValue, members: chars.map(({ f, ch }) => ({ id: f.charId, level: ch.level ?? 1, fought: true, lootCut: 1 })), mode: "individual" });
+    const title = header.title || "the fight", out = [], lines = [];
+    for (const { f, ch } of chars) {
+      const m = settled.members.find((x) => x.id === f.charId), sh = rules.roster.sheetFor(ch);
+      const amount = Math.floor((m?.award ?? 0) * (1 + (sh.xpBonus ?? 0) / 100));
+      const gained = rules.cappedAward(ch.cls, ch.level ?? 1, ch.xp ?? 0, amount);
+      const hp = Math.max(0, Math.trunc(Number(f.hp ?? ch.hp)) || 0), dead = hp <= 0;
+      const next = { ...ch, hp, xp: (ch.xp ?? 0) + gained, coins: { ...ch.coins, ...(f.inv?.coins ?? {}) }, encounter: null, doing: dead ? "dead" : ch.doing === "encounter" ? "road" : ch.doing ?? "road", ...(dead ? { diedIn: title } : {}), updatedAt: now() };
+      tx.set(`oddCampaigns/${cid}/characters/${f.charId}`, clean(next));
+      out.push({ id: f.charId, name: ch.name, hp, maxHp: ch.maxHp, xp: gained, dead });
+      lines.push(`${ch.name}: ${dead ? "slain" : `hp ${hp}/${ch.maxHp}`}${gained ? `, +${gained} xp` : ""}`);
+    }
+    tx.set(p.fight, clean({ ...header, settled: { at: now(), by: uid, awards: out } }));
+    // the lobby chat hears how it ended
+    const members = (camp?.members ?? []).filter((u) => !isReferee(camp, u));
+    const at = now(), id = `${String(at).padStart(14, "0")}-fight-${Math.floor(Math.random() * 1e6)}`;
+    const entry = clean({ id, at, uid: "world", person: "The fight", color: null, as: null, side: null, to: "all", toName: null, text: `${title}: ${lines.join("; ") || "no roster characters in it"}.` });
+    for (const r of ["referee", ...members]) tx.set(`oddCampaigns/${cid}/chat/${r}/entries/${id}`, entry);
+    return { ok: true, rev: header.rev, settled: out };
+  }
+
   /** One action: data { cid, fid, rev, rules, action }. */
   async function act({ uid, data }) {
     if (!uid) return refuse("auth", "sign in first");
@@ -190,6 +229,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       const who = whoIs(state, camp, uid);
       if (!who) return refuse("forbidden", "you are not in this fight");
       if (action.type === "undo") return who.referee ? undo(tx, p, uid, camp, header) : refuse("forbidden", "only the referee undoes");
+      if (action.type === "settle") return who.referee ? settle(tx, p, cid, uid, camp, header, state) : refuse("forbidden", "only the referee settles a fight");
       const r = session.applyAs(state, who, action, fightStore.rngOf(state));
       if (!r.ok) return refuse("refused", r.error, { rev: header.rev });
       const next = header.rev + 1;

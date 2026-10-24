@@ -160,3 +160,37 @@ test("the Actors directory's folders: the referee makes, nests, moves into and r
   const dup = await call("kurt", { op: "duplicate", id });
   assert.equal(dup.ok, true); assert.match(dup.character.name, /\(Copy\)$/); assert.notEqual(dup.character.id, id);
 });
+
+test("settle (pass 8): the fight's outcome goes back to the characters: hp, coins, the dead, and xp with the prime bonus and the cap", async () => {
+  const { store, call } = game();
+  const mk = async (name, cls) => { const id = (await call("bob", { op: "roll" })).character.id; await call("bob", { op: "basics", id, name, cls }); await call("bob", { op: "buy", id, key: cls === "cleric" ? "mace" : "sword" }); return (await call("bob", { op: "finish", id })).character; };
+  const brom = await mk("Brom", "fighter");
+  store.docs.set(characterPaths("c1").character(brom.id), { ...store.docs.get(characterPaths("c1").character(brom.id)), doing: "encounter", encounter: { kind: "Goblins" } });
+  const fights = createFightService({ rules, store, now: () => 2000, newSeed: () => 7 });
+  const walls = Array.from({ length: 10 }, () => Array(20).fill(false));
+  const fig = { ...rules.roster.toFigure(brom, { id: 1, side: "A" }), x: 2, y: 5, placed: true };
+  const gob = (id, x) => ({ id, side: "B", kind: "monster", monsterKey: "goblin", name: `Goblin ${id}`, ac: 6, x, y: 5, placed: true, stance: "attack", target: null, action: "melee" });
+  const state = { phase: "setup", width: 20, height: 10, walls, chests: [], figures: [fig, gob(2, 15), gob(3, 16)], nextId: 4 };
+  const res = await fights.create({ uid: "kurt", name: "Kurt", data: { cid: "c1", fid: "f1", title: "Goblins on the track", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(state), control: { 1: "bob", 2: "referee", 3: "referee" } } });
+  assert.equal(res.ok, true, res.error);
+  // the fight as it stands: Brom hurt, both goblins down, 30 gp picked up
+  const p = fightPaths("c1", "f1"), st = fightStore.fromStored(store.docs.get(p.state));
+  st.figures[0].hp = 2; st.figures[0].inv.coins.gp = (st.figures[0].inv.coins.gp ?? 0) + 30; st.figures[1].hp = 0; st.figures[2].hp = -2;
+  store.docs.set(p.state, fightStore.toStored(st));
+  assert.equal((await fights.act({ uid: "bob", data: { cid: "c1", fid: "f1", rev: 1, rules: fightStore.RULES_VERSION, action: { type: "settle" } } })).code, "forbidden");
+  const r = await fights.act({ uid: "kurt", data: { cid: "c1", fid: "f1", rev: 1, rules: fightStore.RULES_VERSION, action: { type: "settle" } } });
+  assert.equal(r.ok, true, r.error); assert.equal(r.settled.length, 1);
+  const after = store.docs.get(characterPaths("c1").character(brom.id));
+  assert.equal(after.hp, 2); assert.equal(after.coins.gp, brom.coins.gp + 30); assert.equal(after.doing, "road"); assert.equal(after.encounter, null);
+  const expected = rules.settleEncounter({ monsters: [{ count: 1, bonus: -1 }, { count: 1, bonus: -1 }], treasureValue: 30, members: [{ id: brom.id, level: 1 }] }).members[0].award;
+  assert.ok(expected > 0 && after.xp === Math.floor(expected * (1 + rules.roster.sheetFor(brom).xpBonus / 100)), `xp ${after.xp} from ${expected}`);
+  assert.equal((await fights.act({ uid: "kurt", data: { cid: "c1", fid: "f1", rev: 1, rules: fightStore.RULES_VERSION, action: { type: "settle" } } })).code, "settled", "once");
+  assert.ok([...store.docs.keys()].some((k) => k.startsWith("oddCampaigns/c1/chat/bob/")), "the lobby chat hears it");
+  // a death
+  const wyn = await mk("Wyn", "cleric");
+  const st2 = { ...state, figures: [{ ...rules.roster.toFigure(wyn, { id: 1, side: "A" }), x: 2, y: 5, placed: true }, gob(2, 15)] };
+  assert.equal((await fights.create({ uid: "kurt", name: "Kurt", data: { cid: "c1", fid: "f2", title: "The cellar", rules: fightStore.RULES_VERSION, fight: fightStore.toStored(st2), control: { 1: "bob", 2: "referee" } } })).ok, true);
+  const p2 = fightPaths("c1", "f2"), s2 = fightStore.fromStored(store.docs.get(p2.state)); s2.figures[0].hp = -3; store.docs.set(p2.state, fightStore.toStored(s2));
+  assert.equal((await fights.act({ uid: "kurt", data: { cid: "c1", fid: "f2", rev: 1, rules: fightStore.RULES_VERSION, action: { type: "settle" } } })).ok, true);
+  const w = store.docs.get(characterPaths("c1").character(wyn.id)); assert.equal(w.hp, 0); assert.equal(w.doing, "dead"); assert.equal(w.diedIn, "The cellar"); assert.equal(w.xp, 0, "no kills, no treasure");
+});
