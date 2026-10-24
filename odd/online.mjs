@@ -13,6 +13,7 @@
 //   watchGame(cid, cb)  the game document, live (members, people, the live fight); watchPresence(cid, cb)
 //   lobbyChat(cid, viewer, onChat) the lobby's chat; sayInLobby(cid, data)
 //   character(op, cid, data) oddCharacter (pass 4); watchCharacters(cid, cb) the roster, live;
+//   world(op, cid, data) oddWorld (pass 7): map, move, camp, rest, rumour, shop, enter, resolve, rumours
 //                       watchFolders(cid, cb) the Actors directory's folders
 //   send(action)        oddAction, one at a time, each carrying the newest
 //                       rev the page knows (from the last answer or listener)
@@ -47,6 +48,7 @@ export async function connectOnline({ emulators = false } = {}) {
   const chatCall = fnSdk.httpsCallable(fns, 'oddChat');
   const gameCall = fnSdk.httpsCallable(fns, 'oddCampaign');
   const characterCall = fnSdk.httpsCallable(fns, 'oddCharacter');
+  const worldCall = fnSdk.httpsCallable(fns, 'oddWorld');
 
   let open = null;      // { cid, fid, viewer, rev, unsubs, seen }
   let queue = Promise.resolve();
@@ -147,6 +149,7 @@ export async function connectOnline({ emulators = false } = {}) {
     },
     /** The roster (pass 4): one request to oddCharacter (roll, basics, buy, sell, finish, ready, remember, rename, notes, delete). */
     character: (op, cid, data = {}) => call(characterCall, { ...data, op, cid }),
+    world: (op, cid, data = {}) => call(worldCall, { ...data, op, cid }),
     /**
      * Follow the characters this viewer may see: cb([character]), oldest first. The referee
      * (all) reads them all; a player reads those whose viewers name him or "*" (Foundry's

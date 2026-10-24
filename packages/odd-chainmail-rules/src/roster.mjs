@@ -160,8 +160,9 @@ export function setBasics(ch, o = {}) {
 }
 
 /** Why the draft can't buy this now (class, gold, a second suit or shield), or null. */
-export function buyProblem(ch, key) {
-  if (ch.status !== "draft") return "buying after the start comes with towns";
+export function buyProblem(ch, key, { town = false } = {}) {
+  if (ch.status !== "draft" && !town) return "buying after the start comes with towns";
+  if (ch.status !== "draft" && ch.status !== "ready") return "he is in no state to shop";
   const e = EQUIPMENT_BY_KEY[key]; if (!e || e.category === "mount") return "the shop doesn't sell that";
   const why = gearProblem(ch.cls, key); if (why) return why;
   if (isArmour(e) && ch.items.some((i) => EQUIPMENT_BY_KEY[i.key]?.system?.slot === e.system?.slot && isArmour(EQUIPMENT_BY_KEY[i.key]))) return e.system?.slot === "shield" ? "he already has a shield" : "he already has body armour";
@@ -170,8 +171,8 @@ export function buyProblem(ch, key) {
 }
 
 /** Buy one of an item from the shop with the draft's gold. */
-export function buy(ch, key) {
-  const why = buyProblem(ch, key); if (why) return fail(why);
+export function buy(ch, key, opts = {}) {
+  const why = buyProblem(ch, key, opts); if (why) return fail(why);
   const e = EQUIPMENT_BY_KEY[key];
   const next = copy(ch);
   next.coins.gp -= e.cost;
@@ -181,11 +182,12 @@ export function buy(ch, key) {
 }
 
 /** Take back one of the draft's purchases at the price paid (before he is finished). */
-export function sell(ch, index) {
-  if (ch.status !== "draft") return fail("selling comes with towns");
+/** Sell one of an item: a draft returns it at cost; in town a finished character gets half (ruling, Kurt Oct 2026). */
+export function sell(ch, index, { town = false } = {}) {
+  if (ch.status !== "draft" && !town) return fail("selling comes with towns");
   const it = ch.items[index]; if (!it) return fail("no such item");
   const next = copy(ch), e = EQUIPMENT_BY_KEY[it.key];
-  next.coins.gp += e.cost;
+  next.coins.gp += ch.status === "draft" ? e.cost : Math.floor(e.cost / 2);
   if (it.qty > 1) next.items[index].qty -= 1; else next.items.splice(index, 1);
   for (const k of ["weapon", "missile"]) if (next.ready[k] && !next.items.some((i) => i.key === next.ready[k])) next.ready[k] = null;
   return { ok: true, ch: next };
@@ -337,6 +339,9 @@ function runSelfTests() {
     ok(!setOwnership(c0, { eve: 3 }, ["bob"]).ok && !setOwnership(c0, { default: 7 }, ["bob"]).ok, "only members, only the four levels");
   }
   ok(gearProblem("fighter", "twohanded") === null && SHOP.every((e) => e.category !== "mount"), "a fighter buys anything; no mounts in the shop yet");
+  { const f2 = finish({ ...rollCharacter(dice(4)), name: "Tam", items: [{ key: "sword", qty: 1 }], coins: { gp: 50 } }, dice(4)).ch;
+    ok(!buy(f2, "dagger").ok && buy(f2, "dagger", { town: true }).ok, "a finished character buys only in town");
+    const sold = sell(f2, 0, { town: true }); ok(sold.ok && sold.ch.coins.gp === 50 + 5 && sold.ch.ready.weapon === null, "in town a finished character sells at half and the sword leaves his hand"); }
   console.log(`roster.mjs — all self-tests passed (${pass} assertions).`);
 }
 

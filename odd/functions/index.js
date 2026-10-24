@@ -6,6 +6,7 @@
 //   oddAction       one action from a player or the referee
 //   oddDeleteFight  the referee deletes a fight (old test fights)
 //   oddChat         a chat line or a /roll, to everyone or privately (no fid: the lobby)
+//   oddWorld        the map (pass 7): the players' hex sheet, a day's walk, camp, an inn's rest and rumours, the market
 //   oddCampaign     the game: open, join, profile, here, invite, live, reset, role, remove
 //   oddCharacter    the roster (pass 4): roll, basics, buy, sell, finish, ready, remember, rename, notes, delete
 // Both return { ok, rev, ... } or { ok: false, code, error }; only a call
@@ -25,6 +26,7 @@ import * as rules from './app/rules/index.js';
 import { createFightService } from './fight-service.mjs';
 import { createCampaignService } from './campaign-service.mjs';
 import { createCharacterService } from './character-service.mjs';
+import { createWorldService } from './world-service.mjs';
 
 // Same region as the Firestore database (nam5) and the Traveller function.
 setGlobalOptions({ region: 'us-central1', maxInstances: 2 });
@@ -77,3 +79,5 @@ const games = createCampaignService({ palette: rules.fightView.PLAYER_COLOURS, r
 export const oddCampaign = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => games.handle({ uid: signedIn(request), email: request.auth.token.email, name: request.auth.token.name || request.auth.token.email, data: request.data }));
 const roster = createCharacterService({ rules, store, rollDie: (n) => randomInt(1, n + 1), newId: () => `ch${Date.now().toString(36)}${randomInt(36 ** 4).toString(36)}` });
 export const oddCharacter = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => roster.handle({ uid: signedIn(request), data: request.data }));
+const world = createWorldService({ rules, store, rollDie: (n) => randomInt(1, n + 1) });
+export const oddWorld = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => world.handle({ uid: signedIn(request), data: request.data }));

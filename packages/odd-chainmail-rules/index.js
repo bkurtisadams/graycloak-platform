@@ -31,6 +31,7 @@ export * from "./src/race.mjs";
 export * from "./src/reactions.mjs";
 export * from "./src/charge-morale.mjs";
 export * from "./src/exploration.mjs";
+export * as wilderness from "./src/wilderness.mjs";
 export * as fightRunner from "./src/runner.mjs";
 export * as board from "./src/board.mjs";
 export * as movement from "./src/movement.mjs";
