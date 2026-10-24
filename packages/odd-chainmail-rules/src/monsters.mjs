@@ -46,6 +46,7 @@ const MINDS = Object.freeze({
   skeleton: [M], zombie: [M], ghoul: [B], wight: [C], gargoyle: [B], minotaur: [B],
   "ochre-jelly": [M], "black-pudding": [M],
   bandit: [C, "common", "always"], berserker: [C, "common", "always"], brigand: [C, "common", "always"], caveman: [C, "caveman"],
+  dervish: [C, "common", "always"], nomad: [C, "common", "always"], buccaneer: [C, "common", "always"], pirate: [C, "common", "always"],
   merman: [C, "merman"], gnome: [C, "gnome"], dwarf: [C, "dwarvish"], elf: [C, "elvish"],
   pixie: [I, "pixie"], nixie: [I, "nixie"], dryad: [I, "dryad"],
   wraith: [C], mummy: [C], spectre: [I], vampire: [I, "common", "always"],
@@ -371,6 +372,49 @@ export const MONSTERS = Object.freeze([
     description: "As bandits, but chaotic and +1 morale."
   }),
 
+  // Book II MEN, the rest (added Oct 2026 for the wilderness tables): Dervishes, Nomads, Buccaneers, Pirates
+  monster({
+    key: "dervish", name: "Dervish", folder: "humanoids", ac: 7,
+    hd: { count: 1, bonus: 1 }, move: { ground: 12 }, alignment: "law", size: 1,
+    attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LF", 1, "LF", 1, 0) },
+    morale: { rating: 5, never: true }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
+    abilities: [
+      ability("other", "Fanatics", "Fight as Berserkers: never check morale, +1 on hit dice; +2 to hit normal men."),
+      ability("other", "Leader", "Always led by an 8th–10th level Cleric.")
+    ],
+    description: "Fanatically religious nomads who fight as Berserkers and are otherwise as Nomads (desert horse: light horse lancers 50%, light horse bowmen 20%, medium horse lancers 30%). Lawful."
+  }),
+  monster({
+    key: "nomad", name: "Nomad", folder: "humanoids", ac: 6,
+    hd: { count: 1 }, move: { ground: 24 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LH", 1, "LH", 1, 0) },
+    morale: { rating: 5 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
+    abilities: [
+      ability("other", "Leaders", "As Bandits: per 30 a 4th-level fighter; per 50 a 5th–6th; per 100 an 8th–9th; over 200, chances of a Magic-User and Cleric."),
+      ability("other", "Mounted", "All horse: the force moves at light horse speed (24\").")
+    ],
+    description: "Raiders of the deserts or steppes, as Bandits in leaders and most else. Desert: light horse lancers 50%, light horse bowmen 20%, medium horse lancers 30%. Steppes: light horse lancers 20%, light horse bowmen 50%, medium horse lancers 10%, medium horse bowmen 20%. Encampments guarded by 20–40 medium foot with composite bows."
+  }),
+  monster({
+    key: "buccaneer", name: "Buccaneer", folder: "humanoids", ac: 7,
+    hd: { count: 1 }, move: { ground: 12 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LF", 1, "LF", 1, 0) },
+    morale: { rating: 5 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
+    abilities: [
+      ability("other", "Leaders", "As Bandits: per 30 a 4th-level fighter; per 50 a 5th–6th; per 100 an 8th–9th; over 200, chances of a Magic-User and Cleric.")
+    ],
+    description: "Water-going Bandits in all respects except the force: light foot 60%, light crossbow 30%, heavy crossbow (chain mail) 10%. Neutral."
+  }),
+  monster({
+    key: "pirate", name: "Pirate", folder: "humanoids", ac: 7,
+    hd: { count: 1 }, move: { ground: 12 }, alignment: "chaos", size: 1,
+    attack: { method: MonsterAttackMethod.WEAPON, description: "Weapon", weaponClass: 4, damage: { dice: 1, bonus: 0 }, chainmail: chainmail("LF", 1, "LF", 1, 0) },
+    morale: { rating: 5 }, reference: { numberAppearing: "3d10 × 10", inLairPct: 15, treasureType: "A" },
+    abilities: [
+      ability("other", "Leaders", "As Bandits: per 30 a 4th-level fighter; per 50 a 5th–6th; per 100 an 8th–9th; over 200, chances of a Magic-User and Cleric.")
+    ],
+    description: "As Buccaneers, but Chaotic. Force: light foot 60%, light crossbow 30%, heavy crossbow (chain mail) 10%."
+  }),
   monster({
     key: "caveman", name: "Caveman", folder: "humanoids", ac: 9,
     hd: { count: 2 }, move: { ground: 12 }, alignment: "neutral", size: 1,
@@ -1118,7 +1162,7 @@ function runSelfTests() {
     pass++;
   };
 
-  ok(MONSTERS.length === 76, "seventy-six Book II monsters");
+  ok(MONSTERS.length === 80, "eighty Book II monsters (the four more Men, Oct 2026)");
   ok(MONSTERS.every((m) => Number.isInteger(m.size) && m.size >= 1 && m.size <= 4), "every monster has a grid size");
   ok(MONSTERS.find((m) => m.key === "ogre")?.size === 2 && MONSTERS.find((m) => m.key === "giant-hill")?.size === 3, "ogre 2x2, giant 3x3");
   ok(MONSTERS.find((m) => m.key === "spectre")?.specialAbilities.entries.some((a) => a.tag === "drain" && a.value === 2), "spectre drains two levels");
