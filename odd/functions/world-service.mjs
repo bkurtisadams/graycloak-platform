@@ -39,14 +39,15 @@ export const worldPaths = (cid) => ({
 });
 
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n) }) {
-  const { roster, wilderness: W } = rules;
+  const { roster, wilderness: W, westmark: WM } = rules;
+  const PLACES = WM?.PLACES ?? W.WESTMARK.places;
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
   const d6 = () => rollDie(6);
   const owns = (ch, uid) => roster.levelOf(ch, uid) >= roster.OWNERSHIP.OWNER;
-  const hexOf = (ch) => ch.hex ?? { ...W.WESTMARK.places[W.WESTMARK.home] };
+  const hexOf = (ch) => ch.hex ?? { q: PLACES[W.WESTMARK.home].q, r: PLACES[W.WESTMARK.home].r };
   const placeAt = (map, h) => map[W.key(h.q, h.r)]?.place ?? null;
-  const placeInfo = (name) => (name && W.WESTMARK.places[name]) || null;
+  const placeInfo = (name) => (name && PLACES[name]) || null;
   /** The monster record behind an encounter's kind ("Goblins" -> goblin), or null for men and the rest. */
   const monsterOf = (kind) => { const low = String(kind ?? "").toLowerCase(), g = [low, low.replace(/s$/, ""), low.replace(/es$/, ""), low.replace(/ves$/, "f"), low.replace(/ies$/, "y")]; return rules.MONSTERS.find((m) => g.includes(m.name.toLowerCase())) ?? rules.MONSTERS.find((m) => g.includes(m.key)) ?? null; };
   /** The meeting (pass 9): how many (Book II No. Appearing; the referee's option adjusts it), surprise, the distance, their speed against the party's. */
@@ -77,10 +78,15 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
   async function loadMaps(tx, p) {
     let map = await tx.get(p.map), known = await tx.get(p.known);
     let seeded = false;
-    if (!map) { map = { hexes: W.fullMap(), seededAt: now() }; seeded = true; }
-    if (!known) { known = { hexes: W.startingKnowledge() }; seeded = true; }
+    if (!map) { map = { hexes: layOut({}), seededAt: now(), laidOut: true, painted: {} }; seeded = true; }
+    if (!known) { known = { hexes: startingKnowledge(map.hexes) }; seeded = true; }
     return { map, known, seeded };
   }
+  /** The kingdom from the generator (pass 14), the referee's painting on top; the old radius-5 key if the generator isn't there. */
+  const layOut = (painted) => (WM ? WM.generateWestmark({ seed: 1, overrides: painted ?? {} }).hexes : W.fullMap());
+  /** What the players know at the start: the home village and its ring of six, from the map as laid out. */
+  const knownOf = (h, rumoured = false) => ({ t: h.t, ...(h.place ? { place: h.place } : {}), ...(h.ford ? { ford: true } : {}), ...(h.track ? { track: true } : {}), ...(rumoured ? { rumoured: true } : {}) });
+  const startingKnowledge = (hexes) => { const home = PLACES[W.WESTMARK.home], out = {}; for (const h of [home, ...W.ring(home)]) { const k = W.key(h.q, h.r); if (hexes[k]) out[k] = knownOf(hexes[k]); } return out; };
   const learn = (known, map, h, { rumoured = false } = {}) => {
     const k = W.key(h.q, h.r), real = map.hexes[k]; if (!real) return;
     const cur = known.hexes[k];
@@ -104,9 +110,9 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       if (op === "map") {
         const rumours = ref ? (await tx.get(p.rumours)) ?? {} : undefined;
         if (seeded) save();
-        const places = { ...W.WESTMARK.places };
+        const places = { ...PLACES };
         for (const [k, h] of Object.entries(map.hexes)) if (h.place && !places[h.place]) { const { q, r } = W.parse(k); places[h.place] = { q, r, kind: h.kind ?? "village", desc: "" }; }
-        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}) };
+        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}) };
       }
 
       if (op === "rumours") {
@@ -120,17 +126,34 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
 
       if (op === "paint") {
         if (!ref) return refuse("forbidden", "only the referee paints the map");
-        const q = Math.trunc(Number(data.q)), r = Math.trunc(Number(data.r)); if (!Number.isInteger(q) || !Number.isInteger(r) || Math.abs(q) > 60 || Math.abs(r) > 60) return refuse("bad-request", "which hex?");
-        const k = W.key(q, r), cur = map.hexes[k] ?? { t: "clear" }, next = { ...cur };
-        if (data.t != null) { if (!W.TERRAIN[data.t]) return refuse("bad-request", "no such terrain"); next.t = data.t; }
-        if (data.track != null) next.track = !!data.track;
-        if (data.ford != null) next.ford = !!data.ford;
-        if (data.place !== undefined) { if (data.place) { next.place = String(data.place).slice(0, 40); next.kind = ["village", "ruin", "castle", "city"].includes(data.kind) ? data.kind : "village"; } else { delete next.place; delete next.kind; } }
-        if (!next.track) delete next.track; if (!next.ford) delete next.ford;
-        map.hexes[k] = next; map.paintedAt = now();
-        if (known.hexes[k]) known.hexes[k] = { t: next.t, ...(next.place ? { place: next.place } : {}), ...(next.ford ? { ford: true } : {}), ...(next.track ? { track: true } : {}), ...(known.hexes[k].rumoured ? { rumoured: true } : {}) };
+        const list = Array.isArray(data.hexes) ? data.hexes.slice(0, 600) : [{ q: data.q, r: data.r }];
+        if (!list.length) return refuse("bad-request", "which hex?");
+        if (data.t != null && !W.TERRAIN[data.t]) return refuse("bad-request", "no such terrain");
+        map.painted ??= {};
+        let last = null;
+        for (const at of list) {
+          const q = Math.trunc(Number(at.q)), r = Math.trunc(Number(at.r)); if (!Number.isInteger(q) || !Number.isInteger(r) || Math.abs(q) > 60 || Math.abs(r) > 60) return refuse("bad-request", "which hex?");
+          const k = W.key(q, r), cur = map.hexes[k] ?? { t: "clear" }, next = { ...cur }, patch = { ...(map.painted[k] ?? {}) };
+          if (data.t != null) { next.t = data.t; patch.t = data.t; }
+          if (data.track != null) { next.track = !!data.track; patch.track = !!data.track; }
+          if (data.ford != null) { next.ford = !!data.ford; patch.ford = !!data.ford; }
+          if (data.place !== undefined) { if (data.place) { next.place = String(data.place).slice(0, 40); next.kind = ["village", "town", "ruin", "castle", "city", "abbey"].includes(data.kind) ? data.kind : "village"; } else { delete next.place; delete next.kind; } patch.place = next.place ?? ""; patch.kind = next.kind ?? ""; }
+          if (!next.track) delete next.track; if (!next.ford) delete next.ford;
+          map.hexes[k] = next; map.painted[k] = patch; last = next;
+          if (known.hexes[k]) known.hexes[k] = knownOf(next, !!known.hexes[k].rumoured);
+        }
+        map.paintedAt = now();
         tx.set(p.map, clean(map)); tx.set(p.known, clean(known));
-        return { ok: true, hex: next };
+        return { ok: true, hex: last, count: list.length };
+      }
+      if (op === "layout") {
+        // the referee lays the kingdom out over an old radius-5 map (or again): the generator's sheet, his painting kept, the players' known hexes refreshed
+        if (!ref) return refuse("forbidden", "only the referee lays out the map");
+        if (!WM) return refuse("bad-request", "the generator isn't deployed");
+        map.hexes = layOut(map.painted ?? {}); map.laidOut = true; map.laidOutAt = now();
+        for (const k of Object.keys(known.hexes)) { if (map.hexes[k]) known.hexes[k] = knownOf(map.hexes[k], !!known.hexes[k].rumoured); else delete known.hexes[k]; }
+        tx.set(p.map, clean(map)); tx.set(p.known, clean(known));
+        return { ok: true, hexes: Object.keys(map.hexes).length };
       }
       // the characters this op is about
       const party = ["move", "camp", "evade", "stand"].includes(op);
@@ -288,7 +311,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const lost = W.isLost(terrain0, d6());
         if (lost) { dir = W.lostDirection(d6()); to = null; }
         const plan = W.planDay({ from: h0, dir, to, hexAt: (h) => map.hexes[W.key(h.q, h.r)] ?? null });
-        if (!plan.path.length) return refuse("bad-request", plan.reason === "unmapped" ? "the referee hasn't mapped that far" : "no move that way");
+        if (!plan.path.length) return refuse("bad-request", plan.reason === "unmapped" ? "the referee hasn't mapped that far" : plan.reason === "water" ? "the sea: no crossing on foot" : "no move that way");
         for (const step of plan.path) learn(known, map, step);
         const end = plan.end, endHex = map.hexes[W.key(end.q, end.r)], endPlace = endHex?.place ?? null;
         if (endPlace && placeInfo(endPlace)?.kind === "village") learnRing(known, map, end);

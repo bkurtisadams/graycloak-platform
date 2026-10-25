@@ -35,6 +35,7 @@ export const TERRAIN = Object.freeze({
   mountains: { label: "mountains", cost: 3, lost: 3, encounter: 4 },
   desert: { label: "desert", cost: 2, lost: 2, encounter: 5 },
   city: { label: "city", cost: 1, lost: 0, encounter: 6 },
+  sea: { label: "sea", cost: Infinity, lost: 0, encounter: 6, impassable: true }, // the Grey Water: no crossing on foot (boats come later)
 });
 
 /** Cost to enter a hex; a track through it, or a ford across a river, lowers it. */
@@ -91,6 +92,7 @@ export function planDay({ from, dir = null, to = null, mode = "foot", hexAt, lar
     const next = neighbour(at, d), hex = hexAt(next);
     if (!hex) { reason = "unmapped"; break; }
     const cost = hexCost(hex);
+    if (!Number.isFinite(cost)) { reason = "water"; break; }
     if (spent + cost > allowance && path.length) { reason = "spent"; break; }
     path.push({ ...next, t: hex.t ?? "clear", cost, place: hex.place ?? null }); spent += cost; at = next;
     if (to && distance(at, to) === 0) { reason = "arrived"; break; }
@@ -358,6 +360,7 @@ function runSelfTests() {
     ok(leaderParty("Goblins", { roll: seq3(), hitDiceFor: hd }) === null, "not a leader kind"); }
   const sk = startingKnowledge(); ok(Object.keys(sk).length === 7 && sk["0,0"].place === "Langstead" && sk["0,1"].t === "river" && !sk["2,-2"], "the home village and its ring of six, not the crag");
   const fm = fullMap(); ok(fm["2,-2"].place === "Fosscraig" && fm["-2,0"].place === "Kingwold" && fm["3,-3"].t === "mountains" && fm["-3,0"].t === "woods" && !fm["6,0"], "the Westmark's lie of the land");
+  { const sea = planDay({ from: { q: 0, r: 0 }, dir: "S", hexAt: (h) => (h.r >= 2 ? { t: "sea" } : { t: "clear" }) }); ok(sea.path.length === 1 && sea.reason === "water" && !Number.isFinite(hexCost({ t: "sea" })), "the sea stops a party on foot"); }
   console.log(`wilderness.mjs — all self-tests passed (${pass} assertions).`);
 }
 

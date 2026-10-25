@@ -260,6 +260,8 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .w-map polygon { cursor: default; }
 .lobbystage .w-map polygon.dest { stroke: var(--red); stroke-width: 3; }
 .lobbystage .w-map polygon.sel { stroke: #c8941a; stroke-width: 3; }
+.lobbystage .w-map polygon.unk { cursor: default; }
+.lobbystage .w-map polygon.unk.sel { stroke: #c8941a; stroke-width: 2; }
 .lobbystage .w-map polygon.hover { filter: brightness(1.08); }
 .lobbystage .w-map.hex svg { background: #efe6cf; }
 .lobbystage .w-tip { position: absolute; background: var(--ink); color: var(--card); border-radius: 4px; padding: 4px 8px; font-family: var(--type); font-size: .74rem; white-space: nowrap; pointer-events: none; z-index: 4; }
@@ -673,9 +675,10 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl, westmark as wm
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
+import * as wmap from "./world-map.mjs";
 import * as rui from "./roster-ui.mjs";
 { const st = document.createElement("style"); st.textContent = rui.ROSTER_CSS + rui.DIRECTORY_CSS; document.head.appendChild(st); }
 
@@ -1478,16 +1481,16 @@ function renderRumourEditor(tab) {
   });
 }
 /* ---------- pass 7 (approved boards 8-9, 24 Oct 2026): Langstead and the hex map ---------- */
-const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Langstead", full: false, busy: false, error: "", msg: "" };
+const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Langstead", full: false, laidOut: true, busy: false, error: "", msg: "", paint: { mode: "hex", t: null } };
 // where the village's places sit on the stage drawing (the art is a placeholder; a key from the map tools can replace it)
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
-const TERRAIN_FILL = { clear: "#cfe0a8", woods: "#4f7a3a", mountains: "#a98c66", swamp: "#9fb3a0", river: "#9fbad4", desert: "#e3d3a3", city: "#c9b9a0" };
+const TERRAIN_FILL = wmap.TERRAIN_FILL;
 async function loadWorld(force = false) {
   if (world.loading || (world.loaded && !force)) return;
   world.loading = true; renderLobbyStage();
   const r = await online.api.world("map", table.cid);
   world.loading = false;
-  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.error = ""; }
+  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.error = ""; }
   else world.error = r.error ?? "Couldn't load the map.";
   renderLobbyStage();
 }
@@ -1573,56 +1576,36 @@ function bindVillage(el, c, uid) {
 }
 /* the hex map */
 /* ---------- pass 10 (approved board 12): the hex map redrawn: flat terrain, place symbols, rivers and tracks as courses, hover and select ---------- */
-const HEX_SZ = 42;
-const hexNo = (k) => { const { q, r } = wl.parse(k); return `${String(50 + q).padStart(2, "0")}${String(50 + r + Math.floor(q / 2)).padStart(2, "0")}`; };
-/** Chains of adjacent hexes that share a flag (track, river) as smooth SVG paths through their centres. */
-function coursePaths(flagOf) {
-  const keys = Object.keys(world.hexes).filter((k) => flagOf(world.hexes[k])), set = new Set(keys), seen = new Set(), chains = [];
-  const adj = (k) => { const h = wl.parse(k); return wl.DIR_NAMES.map((d) => { const n = wl.neighbour(h, d); return wl.key(n.q, n.r); }).filter((x) => set.has(x)); };
-  const edgeDone = new Set(), edge = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
-  for (const start of keys.slice().sort((a, b) => adj(a).length - adj(b).length)) {
-    for (const first of adj(start)) {
-      if (edgeDone.has(edge(start, first))) continue;
-      const chain = [start, first]; edgeDone.add(edge(start, first));
-      for (;;) { const last = chain.at(-1), prev = chain.at(-2); const next = adj(last).find((x) => x !== prev && !edgeDone.has(edge(last, x))); if (!next) break; edgeDone.add(edge(last, next)); chain.push(next); if (chain.length > 200) break; }
-      chains.push(chain);
-    }
-    seen.add(start);
-  }
-  const lone = keys.filter((k) => adj(k).length === 0);
-  const toD = (chain) => { const pts = chain.map((k) => wl.toPixel(wl.parse(k), HEX_SZ)); if (pts.length === 2) return `M${pts[0].x} ${pts[0].y} L${pts[1].x} ${pts[1].y}`;
-    let d = `M${pts[0].x} ${pts[0].y}`; for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]; const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 }, c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 }; d += ` C${c1.x} ${c1.y} ${c2.x} ${c2.y} ${p2.x} ${p2.y}`; } return d; };
-  return { paths: chains.map(toD), lone };
-}
-const HEX_SYMBOLS = `<g id="symVillage"><rect x="-7" y="-3" width="6" height="6" fill="#1f2b38"/><rect x="1" y="-5" width="6" height="8" fill="#1f2b38"/><path d="M-8 -3 L-4 -8 L0 -3 M0 -5 L4 -10 L8 -5" fill="none" stroke="#1f2b38" stroke-width="1.5"/></g>
-<g id="symRuin"><path d="M-8 6 L-8 -2 L-5 -2 L-5 1 L-2 1 L-2 -6 L2 -6 L2 -1 L5 -1 L5 -4 L8 -4 L8 6Z" fill="#4a3418"/></g>
-<g id="symFord"><path d="M-5 5 L0 -5 M1 5 L6 -5" stroke="#4e7391" stroke-width="1.6" opacity=".8"/></g>`;
+const HEX_SZ = wmap.HEX_SZ, hexNo = wmap.hexNo, HEX_SYMBOLS = wmap.HEX_SYMBOLS;
+const coursePaths = (flagOf) => wmap.coursePaths(world.hexes, flagOf);
 function hexMapHtml(c, uid) {
   const v = lobby.view, SZ = HEX_SZ, keys = Object.keys(world.hexes);
   if (!keys.length) return `<div class="note">No map yet.</div>`;
-  const pts = keys.map((k) => wl.toPixel(wl.parse(k), SZ));
-  const minX = Math.min(...pts.map((p) => p.x)) - SZ - 10, maxX = Math.max(...pts.map((p) => p.x)) + SZ + 10, minY = Math.min(...pts.map((p) => p.y)) - SZ - 10, maxY = Math.max(...pts.map((p) => p.y)) + SZ + 10;
+  // the referee's map is the hexes he has; a player's is the whole sheet, dark where he hasn't been
+  const extentKeys = world.full || !world.laidOut ? keys : wm.sheetKeys();
+  const { minX, maxX, minY, maxY } = wmap.extentOf(extentKeys, SZ);
   if (!world.vb) world.vb = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  const fill = (h) => TERRAIN_FILL[h.t === "river" ? "clear" : h.t] ?? TERRAIN_FILL.clear;
-  const hexes = keys.map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), poly = wl.hexCorners(x, y, SZ).map((p) => p.join(",")).join(" ");
-    return `<polygon points="${poly}" fill="${fill(h)}" stroke="#8a7a5a" stroke-width="1.2" ${h.rumoured ? 'stroke-dasharray="4 3" opacity=".8"' : ""} data-w-hex="${k}" class="${v.sel === k ? "sel" : ""}"/>`; }).join("");
+  const sheet = world.full || !world.laidOut ? "" : wmap.unknownSheetSvg(world.hexes, SZ);
+  const hexes = keys.map((k) => { const h = world.hexes[k];
+    return `<polygon points="${wmap.polyOf(k, SZ)}" fill="${wmap.fillOf(h)}" stroke="${h.t === "sea" ? "#4e7391" : "#8a7a5a"}" stroke-width="1.2" ${h.rumoured ? 'stroke-dasharray="4 3" opacity=".8"' : ""} data-w-hex="${k}" class="${v.sel === k ? "sel" : ""}"/>`; }).join("");
   const riv = coursePaths((h) => h.t === "river"), trk = coursePaths((h) => !!h.track);
   const rivers = riv.paths.map((d) => `<path d="${d}" fill="none" stroke="#4e7391" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#8fb2cf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`).join("") + riv.lone.map((k) => { const { x, y } = wl.toPixel(wl.parse(k), SZ); return `<circle cx="${x}" cy="${y}" r="6" fill="#8fb2cf" stroke="#4e7391" stroke-width="1.5"/>`; }).join("");
   const tracks = trk.paths.map((d) => `<path d="${d}" fill="none" stroke="rgba(255,250,235,.85)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#8a6a3c" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
   const fords = keys.filter((k) => world.hexes[k].ford).map((k) => { const { x, y } = wl.toPixel(wl.parse(k), SZ); return `<use href="#symFord" x="${x + 14}" y="${y + 14}"/>`; }).join("");
-  const places = keys.filter((k) => world.hexes[k].place).map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), pl = world.places[h.place] ?? {}; return `<use href="${pl.kind === "ruin" ? "#symRuin" : "#symVillage"}" x="${x}" y="${y - 8}"/><text x="${x}" y="${y + 22}" font-size="12" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3" paint-order="stroke">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
+  const places = keys.filter((k) => world.hexes[k].place).map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), pl = world.places[h.place] ?? {}; return `<use href="${wmap.symbolFor(pl.kind ?? h.kind)}" x="${x}" y="${y - 8}"/><text x="${x}" y="${y + 22}" font-size="12" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3" paint-order="stroke">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
+  const realms = world.full && world.laidOut ? wmap.realmLabelsSvg(SZ) : "";
   const byHex = {}; for (const x of table.chars) { if (x.status !== "ready" || x.doing === "dead") continue; const k = hexKeyOf(x); if (k && world.hexes[k]) (byHex[k] ??= []).push(x); }
   const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((x, i) => { const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), p = table.game.people?.[x.owner] ?? {}; const openable = !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER; return `<g${openable ? ` data-w-party="${esc(x.id)}" style="cursor:pointer" role="button" aria-label="Open ${esc(x.name)}"` : ""}><title>${esc(x.name)} \u00b7 ${esc(doingOf(x))}</title><circle cx="${px - 16 + i * 16}" cy="${py - 16}" r="11" fill="${esc(p.color ?? "#2f5c8a")}" stroke="#fbfdfe" stroke-width="2"/><text x="${px - 16 + i * 16}" y="${py - 12}" font-size="11" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${esc((x.name ?? "?")[0])}</text></g>`; })).join("");
-  const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${places}<g id="wPlan"></g>${counters}</svg>`;
-  const key = `<div class="w-key"><span><i style="background:${TERRAIN_FILL.clear}"></i> clear</span><span><i style="background:${TERRAIN_FILL.woods}"></i> woods</span><span><i style="background:${TERRAIN_FILL.mountains}"></i> hills, mountains</span><span><i style="background:${TERRAIN_FILL.swamp}"></i> swamp</span><span><span style="color:#4e7391">\u2501</span> river</span><span><span style="color:#8a6a3c">\u254c</span> track</span><span><i style="border-style:dashed;background:transparent"></i> rumoured</span><span><i style="border-color:#c8941a;border-width:2px;background:transparent"></i> selected</span></div>`;
+  const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wSheet">${sheet}</g><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${realms}${places}<g id="wPlan"></g>${counters}</svg>`;
+  const key = wmap.legendHtml({ full: world.full });
   return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">5 miles a hex \u00b7 a move is a day${world.full ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 wheel zooms, right-drag pans, <a href="#" id="wFit">fit</a></div></div><div class="w-card${c?.doing === "encounter" ? " enc" : ""}">${c ? setOutCard(c, uid) : refereeMapCard(uid)}${hexPanelHtml(c, uid)}</div>`;
 }
-/** The selected hex, Greyhawk-style: its facts, who's there, and the referee's paint row. */
 function hexPanelHtml(c, uid) {
   const v = lobby.view, k = v.sel; if (!k || !world.hexes[k]) return "";
   const h = world.hexes[k], t = wl.TERRAIN[h.t] ?? wl.TERRAIN.clear, here = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead" && hexKeyOf(x) === k).map((x) => esc(x.name)).join(", ");
-  const facts = `<div class="w-fact"><span>cost</span><b>${wl.hexCost(h)}${h.track ? " (track)" : h.ford ? " (ford)" : ""}</b><span>lost</span><b>${t.lost ? `on 1\u2013${t.lost}` : "never"}</b><span>monster</span><b>on ${t.encounter === 6 ? "a 6" : `${t.encounter}\u20136`}</b><span>here</span><b>${here || "\u2014"}</b>${h.rumoured ? `<span>known</span><b>by rumour only</b>` : ""}</div>`;
-  const paint = !PLAYER ? `<div class="w-act"><h4>Paint this hex <small class="note">(the referee's key; players see it when they walk it)</small></h4><div class="row">${Object.keys(TERRAIN_FILL).filter((x) => x !== "city").map((x) => `<button data-w-paint="${x}" class="${h.t === x ? "on" : ""}">${x}</button>`).join("")}</div><div class="row"><button data-w-paint="track" class="${h.track ? "on" : ""}">track</button><button data-w-paint="ford" class="${h.ford ? "on" : ""}">ford</button><button data-w-paint="place">${h.place ? `place: ${esc(h.place)}` : "name a place"}</button></div></div>` : "";
+  const facts = `<div class="w-fact"><span>cost</span><b>${Number.isFinite(wl.hexCost(h)) ? wl.hexCost(h) : "\u2014"}${h.track ? " (track)" : h.ford ? " (ford)" : ""}</b><span>lost</span><b>${t.lost ? `on 1\u2013${t.lost}` : "never"}</b><span>monster</span><b>on ${t.encounter === 6 ? "a 6" : `${t.encounter}\u20136`}</b><span>here</span><b>${here || "\u2014"}</b>${h.rumoured ? `<span>known</span><b>by rumour only</b>` : ""}</div>`;
+  const pm = world.paint.mode, armed = world.paint.t;
+  const paint = !PLAYER ? `<div class="w-act"><h4>Paint <small class="note">(the referee's key; players see it when they walk it)</small></h4><div class="row"><button data-w-mode="hex" class="${pm === "hex" ? "on" : ""}" title="Paint the selected hex">This hex</button><button data-w-mode="brush" class="${pm === "brush" ? "on" : ""}" title="Pick a terrain, then drag over the map">Brush</button><button data-w-mode="fill" class="${pm === "fill" ? "on" : ""}" title="Pick a terrain, then click a hex to fill its region">Fill</button></div><div class="row">${Object.keys(TERRAIN_FILL).filter((x) => x !== "city" && x !== "unknown").map((x) => `<button data-w-paint="${x}" class="${pm === "hex" ? (h.t === x ? "on" : "") : (armed === x ? "on" : "")}">${x}</button>`).join("")}</div>${pm !== "hex" ? `<div class="note">${armed ? `${pm === "brush" ? "Drag over the map to paint" : "Click a hex to fill its region with"} ${armed}.` : "Pick a terrain."}</div>` : ""}<div class="row"><button data-w-paint="track" class="${h.track ? "on" : ""}">track</button><button data-w-paint="ford" class="${h.ford ? "on" : ""}">ford</button><button data-w-paint="place">${h.place ? `place: ${esc(h.place)}` : "name a place"}</button></div></div>` : "";
   return `<div class="w-act"><h3>${hexNo(k)} <small>${esc(h.t)}${h.track ? " \u00b7 track" : ""}${h.ford ? " \u00b7 ford" : ""}${h.place ? ` \u00b7 ${esc(h.place)}` : ""}</small></h3>${facts}${paint}</div>`;
 }
 function setOutCard(c, uid) {
@@ -1640,7 +1623,7 @@ function setOutCard(c, uid) {
     const from = wl.parse(k), hexAt = (h) => { const hk = wl.key(h.q, h.r); return world.hexes[hk] ? world.hexes[hk] : { t: "clear", unknown: true }; };
     const p = wl.planDay(v.dest.startsWith("dir:") ? { from, dir: v.dest.slice(4), hexAt } : { from, to: wl.parse(v.dest), hexAt });
     const unknown = p.path.some((s) => hexAt(s).unknown);
-    plan = `<div class="note">${p.path.map((s) => `${esc(s.t)} (${s.cost})`).join(" \u2192 ") || "no move"}${p.reason === "arrived" ? ` \u2192 ${esc(p.path.at(-1)?.place ?? "there")}` : ""} \u00b7 ${p.spent} of ${p.allowance} factors${unknown ? " \u00b7 unknown hexes guessed as clear" : ""}. At day's end the server checks for a wandering monster and, from ${esc(hex.t)}, whether you were lost.</div>`;
+    plan = `<div class="note">${p.path.map((s) => `${esc(s.t)} (${s.cost})`).join(" \u2192 ") || "no move"}${p.reason === "arrived" ? ` \u2192 ${esc(p.path.at(-1)?.place ?? "there")}` : p.reason === "water" ? " \u2192 the sea; no crossing on foot" : ""} \u00b7 ${p.spent} of ${p.allowance} factors${unknown ? " \u00b7 unknown hexes guessed as clear" : ""}. At day's end the server checks for a wandering monster and, from ${esc(hex.t)}, whether you were lost.</div>`;
   }
   const walked = Math.max(0, ...v.who.map((id) => charOf(id)?.daysWalked ?? 0));
   return `<h3>Set out <small>from ${esc(hex.place ?? hex.t)} ${hexNo(k)}</small></h3><div class="note">Click a hex on the map, or pick a place the party knows of or a direction. A day at a time: 3 hexes on foot, less through woods, hills and swamp; the map fills in as you go.</div>
@@ -1674,7 +1657,8 @@ function encounterPromptHtml(c, uid, hex) {
 function refereeMapCard(uid) {
   const pending = table.chars.filter((x) => x.status === "ready" && x.doing === "encounter");
   const rows = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead").map((x) => { const k = hexKeyOf(x), h = world.hexes[k] ?? {}; return `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(h.place ?? h.t ?? "?")} \u00b7 ${esc(doingOf(x))}${PLAYER && rs.levelOf(x, uid) < rs.OWNERSHIP.OWNER ? "" : ` <button data-w-open="${esc(x.id)}" title="Walk, camp or enter a village with this party">Open</button>`}</span></div>`; }).join("");
-  return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3><div class="note">${world.full ? "Every party, and what waits on you; Open a row or click a party on the map to walk it. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the board."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
+  const layout = world.full && !world.laidOut ? `<div class="w-act"><h4>The kingdom</h4><div class="note">This map is the old 91-hex key. Lay out the whole Westmark (28 \u00d7 22, the Grey Water to the south-west, the Fells, four neighbours); what you have painted stays, and the players' known hexes are refreshed to match.</div><div class="row"><button class="done" id="wLayout" ${world.busy ? "disabled" : ""}>Lay out the kingdom</button></div></div>` : "";
+  return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3>${layout}<div class="note">${world.full ? "Every party, and what waits on you; Open a row or click a party on the map to walk it. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the board."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
     ${pending.length && !PLAYER ? `<div class="w-act"><h4>Encounters</h4>${(() => { const seen = new Set(); return pending.filter((x) => { const k = hexKeyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }).map((x) => { const k = hexKeyOf(x), e = x.encounter ?? {}, who = pending.filter((y) => hexKeyOf(y) === k).map((y) => esc(y.name)).join(", ");
       const bandLine = e.band ? `${esc(e.band.leader.name)}, ${esc(e.kind)} (${esc(rs.CLASS_LABEL[e.band.leader.cls] ?? e.band.leader.cls)} ${e.band.leader.level}${e.band.leader.magic?.length ? `, magic: ${esc(e.band.leader.magic.join(", "))}` : ""}), ${e.band.men.length} men of 1st\u20134th level${e.band.mounted ? ", mounted" : ""}, ${esc(e.band.disposition)}. ` : "";
       const said = e.outcome === "parley" ? `They hailed them: reaction <b>${esc(e.reaction?.result ?? "")}</b>${e.reaction?.total != null ? ` (2d6 ${e.reaction.dice?.join("+") ?? ""} = ${e.reaction.total})` : e.reaction?.why ? ` (${esc(e.reaction.why)})` : ""}.` : e.outcome === "caught" ? `They ran and were caught. ${esc((e.log ?? []).join(" "))}` : e.outcome === "stand" ? "They stand and fight." : "No choice yet.";
@@ -1701,19 +1685,44 @@ function bindHexMap(el, c, uid) {
         let days = "";
         if (from && c && c.doing !== "encounter" && k !== wl.key(from.q, from.r)) { const p = wl.planDay({ from, to: wl.parse(k), hexAt }); days = p.reason === "arrived" ? " \u00b7 a day from here" : p.path.length ? ` \u00b7 ${p.path.length} hex${p.path.length === 1 ? "" : "es"} the first day` : "";
           plan.innerHTML = p.path.length ? `<polyline points="${[from, ...p.path].map((s) => { const q = wl.toPixel(s, HEX_SZ); return `${q.x},${q.y}`; }).join(" ")}" fill="none" stroke="#b3362b" stroke-width="2" stroke-dasharray="3 3"/>` : ""; }
-        tip.textContent = `${hexNo(k)} \u00b7 ${h.t}${h.track ? ", track" : ""}${h.ford ? ", ford" : ""}${h.place ? ` \u00b7 ${h.place}${h.rumoured ? "?" : ""}` : ""} \u00b7 cost ${wl.hexCost(h)}${days}`; tip.hidden = false;
+        tip.textContent = `${hexNo(k)} \u00b7 ${h.t}${h.track ? ", track" : ""}${h.ford ? ", ford" : ""}${h.place ? ` \u00b7 ${h.place}${h.rumoured ? "?" : ""}` : ""} \u00b7 ${Number.isFinite(wl.hexCost(h)) ? `cost ${wl.hexCost(h)}` : "no crossing on foot"}${days}`; tip.hidden = false;
         poly.classList.add("hover");
       });
       poly.addEventListener("pointermove", (ev) => { const r = wrap.getBoundingClientRect(); tip.style.left = `${ev.clientX - r.left + 12}px`; tip.style.top = `${ev.clientY - r.top - 30}px`; });
       poly.addEventListener("pointerleave", () => { tip.hidden = true; plan.innerHTML = ""; poly.classList.remove("hover"); });
-      poly.addEventListener("click", () => { const k = poly.dataset.wHex; v.sel = k; if (c && c.doing !== "encounter" && from && k !== wl.key(from.q, from.r)) v.dest = world.hexes[k]?.place ? k : "dir:" + wl.toward(from, wl.parse(k)); renderLobbyStage(); });
+      poly.addEventListener("click", async () => { const k = poly.dataset.wHex;
+        if (!PLAYER && world.paint.mode === "brush") return; // the stroke painted; nothing to select
+        if (!PLAYER && world.paint.mode === "fill" && world.paint.t && world.hexes[k]) { const ks = wmap.floodKeys(world.hexes, k); if (ks.length > 1 && !confirm(`Fill ${ks.length} hexes of ${world.hexes[k].t} with ${world.paint.t}?`)) return; const res = await worldOp("paint", { hexes: ks.map((kk) => wl.parse(kk)), t: world.paint.t }); if (res.ok) await loadWorld(true); return; }
+        v.sel = k; if (c && c.doing !== "encounter" && from && k !== wl.key(from.q, from.r)) v.dest = world.hexes[k]?.place ? k : "dir:" + wl.toward(from, wl.parse(k)); renderLobbyStage(); });
     });
     svg.querySelectorAll("[data-w-party]").forEach((g) => g.addEventListener("click", (ev) => { ev.stopPropagation(); openWorld(g.dataset.wParty); }));
     el.querySelectorAll("[data-w-open]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.wOpen)));
+    $("#wLayout")?.addEventListener("click", async () => { if (!confirm("Lay out the whole kingdom over this map? Hexes you painted stay as painted.")) return; const res = await worldOp("layout", {}); if (res.ok) { world.vb = null; await loadWorld(true); } });
+    el.querySelectorAll("[data-w-mode]").forEach((b) => b.addEventListener("click", () => { world.paint.mode = b.dataset.wMode; if (world.paint.mode === "hex") world.paint.t = null; renderLobbyStage(); }));
+    // the brush: a left drag over the map with a terrain armed paints every hex it crosses, then sends them as one op
+    if (!PLAYER) {
+      let stroke = null;
+      const hexUnder = (ev) => { const t = document.elementFromPoint(ev.clientX, ev.clientY); return t?.dataset?.wHex ?? null; };
+      svg.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0 || world.paint.mode !== "brush" || !world.paint.t) return;
+        const k = hexUnder(ev); if (!k) return;
+        ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
+        stroke = { keys: new Set([k]), t: world.paint.t };
+        svg.querySelector(`[data-w-hex="${k}"]`)?.setAttribute("fill", TERRAIN_FILL[stroke.t]);
+        const move = (m) => { const kk = hexUnder(m); if (!kk || stroke.keys.has(kk)) return; stroke.keys.add(kk); svg.querySelector(`[data-w-hex="${kk}"]`)?.setAttribute("fill", TERRAIN_FILL[stroke.t]); };
+        const up = async () => {
+          svg.removeEventListener("pointermove", move); svg.removeEventListener("pointerup", up); svg.removeEventListener("pointercancel", up);
+          const done = stroke; stroke = null; world.brushed = Date.now();
+          const res = await worldOp("paint", { hexes: [...done.keys].map((kk) => wl.parse(kk)), t: done.t }); if (res.ok) await loadWorld(true);
+        };
+        svg.addEventListener("pointermove", move); svg.addEventListener("pointerup", up); svg.addEventListener("pointercancel", up);
+      });
+    }
     el.querySelectorAll("[data-w-paint]").forEach((b) => b.addEventListener("click", async () => {
+      if (world.paint.mode !== "hex" && ["track", "ford", "place"].includes(b.dataset.wPaint) === false) { world.paint.t = b.dataset.wPaint; renderLobbyStage(); return; } // arm the brush or the fill
       const k = v.sel, h = world.hexes[k] ?? {}, what = b.dataset.wPaint, { q, r } = wl.parse(k); let patch;
       if (what === "track") patch = { track: !h.track }; else if (what === "ford") patch = { ford: !h.ford };
-      else if (what === "place") { const name = prompt("Name the place here (blank to remove):", h.place ?? ""); if (name == null) return; const kind = name.trim() ? (prompt("village, ruin, castle or city?", world.places[name.trim()]?.kind ?? "village") ?? "village") : null; patch = { place: name.trim() || null, kind }; }
+      else if (what === "place") { const name = prompt("Name the place here (blank to remove):", h.place ?? ""); if (name == null) return; const kind = name.trim() ? (prompt("village, town, city, abbey, castle or ruin?", world.places[name.trim()]?.kind ?? "village") ?? "village") : null; patch = { place: name.trim() || null, kind }; }
       else patch = { t: what };
       const res = await worldOp("paint", { q, r, ...patch }); if (res.ok) await loadWorld(true);
     }));
