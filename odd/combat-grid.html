@@ -667,8 +667,10 @@ const state = {
 };
 /** Online play (slice 5): the server runs the fight; this page draws the referee's view and sends actions. */
 const online = { on: false, api: null, header: null, lastStep: null, connecting: null };
-/** The player's page: the same tester, opened with ?player, drawing one player's view of a fight on the server. */
-const PLAYER = new URLSearchParams(location.search).has("player");
+/** The player's page: the same tester, drawing one player's view of a fight on the server. A standalone fight link
+    (?player&cid=&fid=) still says so in the URL; the table (?c=) decides from the game record once it is open
+    (startTable -> setTableRole), so one link serves referee and player alike (pass 11, 25 Oct 2026). */
+let PLAYER = new URLSearchParams(location.search).has("player");
 if (PLAYER) online.on = true;
 /** On the player's page, only his own figures take orders and move. */
 const mineOk = (f) => !PLAYER || !!f?.mine;
@@ -1092,7 +1094,11 @@ async function goOnline() {
     $("#onlineNote").textContent = `Can't reach Firebase (${e.message}). Online play needs the page served from your machine or graycloak.net; the hosted artifact blocks it.`;
     return null;
   }
-  online.api.onUser(() => { $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote(); if (TABLE && online.api.user) startTable(); else if (TABLE) { location.replace(`index.html?c=${encodeURIComponent(table.cid)}`); return; } if (PLAYER) playerSignedIn(); else { refreshRefFights(); loadRoster(); refereeFromGcc(); } });
+  online.api.onUser(() => {
+    $("#signIn").textContent = online.api.user ? "Sign out" : "Sign in"; renderOnlineNote();
+    if (TABLE) { if (online.api.user) startTable(); else { stopTable(); location.replace(`index.html?c=${encodeURIComponent(table.cid)}`); } return; } // the table's loaders wait for the role (setTableRole)
+    if (PLAYER) playerSignedIn(); else { refreshRefFights(); loadRoster(); refereeFromGcc(); }
+  });
   return online.api;
 }
 /** Send an action to the server. The answer's events arrive through the feed; a refusal shows here. */
@@ -1127,10 +1133,10 @@ function adoptView(v) {
   state.group = new Set([...state.group].filter((id) => byId(id)));
 }
 /* ---------- the table (approved mockup 8 Oct 2026): one page per game, the stage in the middle, the sidebar on the right.
-   combat-grid.html?c=<game> (the referee) or ?player&c=<game>; odd/?c= sends you here once you're in.
+   combat-grid.html?c=<game> for everyone: the game record says who is a referee; odd/?c= sends you here once you're in.
    The game document says which fight is live; every page opens it in place, and shows the lobby on the stage when none is. */
 const TABLE = new URLSearchParams(location.search).has("c");
-if (TABLE) { document.body.classList.add("table"); if (PLAYER) $("#openSetup").hidden = true; } // a player's table has no Setup
+if (TABLE) document.body.classList.add("table"); // a player's table has no Setup: setTableRole hides it once the role is known
 const table = { cid: new URLSearchParams(location.search).get("c") ?? "", chars: [], folders: [], adSearch: "", adSort: (() => { try { return localStorage.getItem("odd.adSort") || "name"; } catch { return "name"; } })(), adClosed: (() => { try { return new Set(JSON.parse(localStorage.getItem("odd.adClosed") || "[]")); } catch { return new Set(); } })(), game: null, presence: {}, fights: null, menuFor: null, setup: false, lobbyChat: null, here: null };
 const isRefOf = (g, uid) => !!g && !!uid && (g.refereeUid === uid || (g.referees ?? []).includes(uid));
 const ONLINE_MS = 3 * 60 * 1000;
@@ -1142,23 +1148,60 @@ function startTable() {
   table.started = true;
   $("#cid").value = table.cid;
   api.game("open", table.cid).then((r) => {
-    if (!r.ok) { logAppend(`<div class="card note"><span class="bad">${esc(r.error ?? "Not in this game.")}</span> <a href="index.html?c=${encodeURIComponent(table.cid)}">Join it here.</a></div>`); return; }
+    if (!r.ok) { table.started = false; logAppend(`<div class="card note"><span class="bad">${esc(r.error ?? "Not in this game.")}</span> <a href="index.html?c=${encodeURIComponent(table.cid)}">Join it here.</a></div>`); return; }
     table.game = { ...r.game };
-    if (isRefOf(r.game, uid) === PLAYER) { location.replace(`combat-grid.html?${PLAYER ? "" : "player&"}c=${encodeURIComponent(table.cid)}`); return; } // wrong page for his role
+    setTableRole(!isRefOf(r.game, uid)); // the game record says who you are, not the link
+    startTableWatchers();
     applyGame();
+    const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
+    here(); table.here = setInterval(here, 120000); table.hereFn = here; document.addEventListener("visibilitychange", here);
+    loadTableFights();
   });
-  api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } });
-  api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "settings") renderGamePlayers(); });
-  api.watchFolders(table.cid, (list) => { table.folders = list; if (sbTab === "party") renderRoster(); });
-  api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER });
-  const here = () => { if (document.visibilityState === "visible") api.game("here", table.cid); };
-  here(); table.here = setInterval(here, 120000); document.addEventListener("visibilitychange", here);
+}
+/** Referee or player, from the game record. The chrome follows; the subscriptions that differ by role are the caller's (startTableWatchers). */
+function setTableRole(player) {
+  PLAYER = player;
+  document.body.classList.toggle("player-mode", player);
+  $("#openSetup").hidden = player; $("#playerPane").hidden = !player; $("#tabSetup").textContent = player ? "Fight" : "Setup";
+  if (player) { if (!online.api?.fight) { Object.assign(state, { figures: [], selected: null }); render(); } $("#drawer").hidden = true; }
+  else { refreshRefFights(); loadRoster(); }
+  renderOnlineNote();
+}
+/** The game's listeners: the game itself, presence, folders and the roster (players see only their own). Restartable, for a role change. */
+function startTableWatchers() {
+  stopTableWatchers();
+  const api = online.api; if (!api) return;
+  table.unsubs = [
+    api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } }),
+    api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "settings") renderGamePlayers(); }),
+    api.watchFolders(table.cid, (list) => { table.folders = list; if (sbTab === "party") renderRoster(); }),
+    api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER })
+  ].filter((u) => typeof u === "function");
+}
+function stopTableWatchers() { for (const u of table.unsubs ?? []) u(); table.unsubs = []; }
+/** Leaving the table (sign-out): every listener and the presence heartbeat go with it. */
+function stopTable() {
+  stopTableWatchers(); stopLobbyChat();
+  if (table.here) clearInterval(table.here); table.here = null;
+  if (table.hereFn) document.removeEventListener("visibilitychange", table.hereFn); table.hereFn = null;
+  table.started = false;
+}
+/** Promoted or demoted while the page is open: the role, its watchers, the fights list, the chat and any open fight all switch in place. */
+function changeTableRole(player) {
+  const api = online.api, fid = api?.fight?.fid ?? null;
+  setTableRole(player);
+  table.chars = []; table.charsLoaded = false; table.fights = null;
+  startTableWatchers();
+  stopLobbyChat();
+  if (fid) { api.closeFight(); $("#log").innerHTML = ""; openOnline(table.cid, fid); }
   loadTableFights();
 }
 async function loadTableFights() { try { table.fights = await online.api.listFightsOf(table.cid, PLAYER); } catch { table.fights = []; } if (sbTab === "fights") renderGameFights(); renderLobbyStage(); }
 /** The game changed: names, presence, roles, and which fight is live. */
 function applyGame() {
   const g = table.game, api = online.api; if (!g || !api) return;
+  const nowPlayer = !isRefOf(g, api.user.uid);
+  if (nowPlayer !== PLAYER) { changeTableRole(nowPlayer); return; } // its watchers call back here with the new role
   document.querySelector("header.top h1").textContent = g.name ?? "OD&D game";
   const me = g.people?.[api.user.uid];
   $("#subline").textContent = PLAYER ? `Original D&D \u00b7 you are ${me?.name ?? "a player"}` : `Original D&D \u00b7 ${g.refereeUid === api.user.uid ? "you are the Creator" : "you are a referee"}`;
@@ -1217,8 +1260,8 @@ function renderLobbyStage() {
   el.hidden = !show; document.body.classList.toggle("lobby", show); if (!show) return;
   const uid = meUid();
   if (lobby.view) { renderWorldStage(el, g, uid); return; }
-  if (PLAYER) { renderPlayerStage(el, g, uid); return; }
-  renderBoard(el, g, uid, true);
+  if (PLAYER && renderPlayerOnboarding(el, g, uid)) return; // the welcome card, the first roll, a draft being finished
+  renderBoard(el, g, uid, !PLAYER); // the same campaign board for everyone; the referee's controls when he is one
 }
 /* ---------- pass 6 (approved boards 5-7, 24 Oct 2026): the campaign board, one row per character ---------- */
 const DOING = { town: "in town", rest: "resting", road: "on the road", fight: "in a fight", dead: "dead" };
@@ -1276,7 +1319,8 @@ function renderBoard(el, g, uid, ref) {
   $("#lsLink")?.addEventListener("click", async (e) => { try { await navigator.clipboard.writeText(joinUrl()); e.target.textContent = "Copied"; setTimeout(() => { e.target.textContent = "Join link"; }, 1500); } catch { showTab("settings"); } });
   $("#lsInvite")?.addEventListener("click", () => showTab("settings"));
 }
-function renderPlayerStage(el, g, uid) {
+/** A player's way onto the board: his name and colour, then his first character. True while one of those holds the stage. */
+function renderPlayerOnboarding(el, g, uid) {
   const me = g.people?.[uid] ?? {};
   if (lobby.welcome) {
     const taken = new Set(Object.entries(g.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
@@ -1299,14 +1343,14 @@ function renderPlayerStage(el, g, uid) {
       const q = new URLSearchParams(location.search); q.delete("welcome"); history.replaceState(null, "", `?${q}`);
       renderLobbyStage();
     });
-    return;
+    return true;
   }
-  if (!table.charsLoaded) { el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">Loading your characters\u2026</div></div>`; return; }
+  if (!table.charsLoaded) { el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">Loading your characters\u2026</div></div>`; return true; }
   const mine = myChars(uid), finished = mine.filter((c) => c.status !== "draft"), drafts = mine.filter((c) => c.status === "draft");
   if (!finished.length && !drafts.length) {
     el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">${lobby.error ? esc(lobby.error) : "Rolling your first character\u2026"}</div></div>`;
     if (!lobby.rolling && !lobby.error) { lobby.rolling = true; rollAnother(); }
-    return;
+    return true;
   }
   const editing = (lobby.editing && drafts.find((c) => c.id === lobby.editing)) || (!finished.length ? drafts[0] : null);
   if (editing) {
@@ -1314,9 +1358,9 @@ function renderPlayerStage(el, g, uid) {
       <div class="rs-steps">${rui.chargenHtml(rs, editing, { error: lobby.error, busy: lobby.busy })}</div>${partyStripHtml(uid)}</div>`;
     bindPartyStrip(el);
     $("#lsBack")?.addEventListener("click", (e) => { e.preventDefault(); lobby.editing = null; lobby.error = ""; renderLobbyStage(); });
-    return;
+    return true;
   }
-  renderBoard(el, g, uid, false);
+  return false;
 }
 
 /* ---------- pass 9 (approved board 10): the party strip, in every mode ---------- */
@@ -1335,10 +1379,19 @@ function bindPartyStrip(el) { el.querySelectorAll("[data-ps-open]").forEach((b) 
 /* ---------- pass 8: the fight bridge ---------- */
 /** The referee ending a fight: its outcome goes back to the roster characters first (hp, coins, xp, the dead). Once; a settled fight says so and that's fine. */
 async function settleFight() {
-  if (PLAYER || !online.api?.fight) return;
+  if (PLAYER || !online.api?.fight) return { ok: true, skipped: true };
   const r = await online.api.send({ type: "settle" }, fightStore.RULES_VERSION);
   if (r.ok && r.settled?.length) world.msg = `Settled: ${r.settled.map((x) => `${x.name} ${x.dead ? "slain" : `hp ${x.hp}/${x.maxHp}`}${x.xp ? ` +${x.xp} xp` : ""}`).join("; ")}.`;
-  else if (!r.ok && r.code !== "settled") console.warn("settle:", r.error);
+  if (r.ok || r.code === "settled") return { ok: true };
+  return { ok: false, error: r.error ?? r.code ?? "The fight couldn't be settled." };
+}
+/** The referee ending the live fight: settle first; if that fails the fight stays live and the reason is shown, so no character's outcome is lost. */
+async function endLiveFight() {
+  const r = await settleFight();
+  if (!r.ok) { const why = `Not ended: ${r.error}. The fight stays open; try again, or fix it in the fight.`; lobby.error = why; $("#dragInfo").innerHTML = `<span class="bad">${esc(why)}</span>`; renderLobbyStage(); return false; }
+  lobby.error = "";
+  await online.api.game("live", table.cid, { fid: null });
+  return true;
 }
 /** From an encounter on the map: Setup with the party on side A and the rolled kind on side B at Book III's sighting distance (4d6 × 10 yards). */
 function openFightForEncounter(ch) {
@@ -1705,8 +1758,7 @@ function renderGamePlaces() {
     })()}</div>`;
   el.querySelectorAll("[data-pl-open]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.plOpen); openWorld(!PLAYER ? null : c && rs.levelOf(c, meUid()) >= rs.OWNERSHIP.OWNER ? c.id : null); }));
   if (!PLAYER) renderRumourEditor(el);
-  const end = async () => { await settleFight(); await online.api.game("live", table.cid, { fid: null }); };
-  $("#plBack")?.addEventListener("click", end); $("#plEnd")?.addEventListener("click", end);
+  $("#plBack")?.addEventListener("click", endLiveFight); $("#plEnd")?.addEventListener("click", endLiveFight);
 }
 function renderGameFights() {
   const el = $("#gameFights"); if (!el || !table.game) return;
@@ -2125,7 +2177,7 @@ $("#cid").addEventListener("change", () => { refreshRefFights(); loadRoster(); }
 $("#toLobby").addEventListener("click", async (e) => {
   const cid = online.api?.fight?.cid ?? $("#cid").value.trim(); if (!cid) return;
   e.preventDefault();
-  if (TABLE) { await settleFight(); await online.api.game("live", cid, { fid: null }); return; } // the table leaves the fight in place
+  if (TABLE) { await endLiveFight(); return; } // the table leaves the fight in place, and only once it is settled
   // the referee going back to the lobby takes everyone with him
   if (!PLAYER) await online.api.game("live", cid, { fid: null });
   location.href = lobbyUrl(cid);
@@ -3816,7 +3868,7 @@ addCharacter("A", "cleric", 1, "chain+shield", "mace", 9);
 addCharacter("A", "magic-user", 1, "none", "dagger", 13);
 addMonsters("B", "orc", 6);
 deploy(); render(); initialView();
-if (PLAYER) {
+if (PLAYER && !TABLE) { // a standalone fight link; on the table the role is the game's (setTableRole)
   document.body.classList.add("player-mode");
   document.querySelector("header.top h1").textContent = "OD\u0026D fight \u00b7 player";
   $("#playerPane").hidden = false; $("#tabSetup").textContent = "Fight";

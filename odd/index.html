@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OD&amp;D game</title>
-<!-- odd/index.html v1.3.1 — 2026-10-21 · pass 5: enter() ends at the redirect; the unreachable lobby watchers below it are gone.
+<!-- odd/index.html v1.4.0 — 2026-10-25 · one table link (combat-grid.html?c=) for every role; the table decides who you are.
+     v1.3.1 — 2026-10-21 · pass 5: enter() ends at the redirect; the unreachable lobby watchers below it are gone.
      v1.3.0 — 2026-10-21 · pass 5: with no game named, lists the OD&D campaigns this account is in on GCC (op mine) with Open links.
      v1.2.0 — 2026-10-21 · slice 5 pass 5: a player on the GCC campaign's roster joins by the game URL alone;
      a first join goes straight to the stage (combat-grid.html?player&welcome=1), which holds the welcome card now.
@@ -140,12 +141,12 @@ async function enter() {
   if (code) history.replaceState(null, '', `?c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`);
   S.game = r.game; S.welcome = false;
   // pass 5: a first join goes to the table's stage, which opens on the welcome card (name, colour) and then the roll
-  if (r.joined) { location.replace(`combat-grid.html?player&welcome=1&c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`); return; }
+  if (r.joined) { location.replace(`combat-grid.html?welcome=1&c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`); return; }
   onGame();
 }
 function onGame() {
   // in: go to the table (one page per game; it shows the live fight or the lobby on its stage)
-  if (!S.welcome) { location.replace(`combat-grid.html?${isRef() ? '' : 'player&'}c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`); return; }
+  if (!S.welcome) { location.replace(`combat-grid.html?c=${encodeURIComponent(cid)}${q.has('emu') ? '&emu=1' : ''}`); return; } // one link for referee and player; the table reads the role from the game
   render();
 }
 async function loadFights() {
