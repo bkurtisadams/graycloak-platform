@@ -1513,10 +1513,11 @@ function renderWorldStage(el, g, uid) {
   if (!world.loaded) { el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">${world.error ? esc(world.error) : "Unrolling the map\u2026"}</div><div><button id="wBack">Back to the board</button></div></div>`; $("#wBack")?.addEventListener("click", () => { lobby.view = null; renderLobbyStage(); }); return; }
   // a character in town is shown the village; one on the road, the hex map; the referee, the hex map
   v.kind = c && c.doing === "town" && world.places[c.where ?? world.home] ? "village" : "hex";
-  const head = `<div class="ls-head"><h2>${esc(v.kind === "village" ? (c?.where ?? world.home) : "The Westmark")}</h2><span class="ls-day">${v.kind === "village" ? "village" : "the road"} \u00b7 Day ${c?.day ?? g.day ?? 1}</span>${c ? `<span class="note">${esc(c.name)} \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")} ${c.level ?? 1} \u00b7 hp ${c.hp}/${c.maxHp} \u00b7 ${c.coins?.gp ?? 0} gp</span>` : `<span class="note">the referee's map</span>`}<a href="#" id="wBack" style="margin-left:auto">Back to the board</a></div>`;
+  const head = `<div class="ls-head"><h2>${esc(v.kind === "village" ? (c?.where ?? world.home) : "The Westmark")}</h2><span class="ls-day">${v.kind === "village" ? "village" : "the road"} \u00b7 Day ${c?.day ?? g.day ?? 1}</span>${c ? `<span class="note">${esc(c.name)} \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")} ${c.level ?? 1} \u00b7 hp ${c.hp}/${c.maxHp} \u00b7 ${c.coins?.gp ?? 0} gp</span>` : `<span class="note">the referee's map</span>`}${!PLAYER && c ? `<a href="#" id="wAll" style="margin-left:auto">The referee's map</a><a href="#" id="wBack">Back to the board</a>` : `<a href="#" id="wBack" style="margin-left:auto">Back to the board</a>`}</div>`;
   el.innerHTML = `<div class="lcard world">${head}${world.error ? `<div class="rs-err">${esc(world.error)}</div>` : ""}${world.msg ? `<div class="ls-msg">${esc(world.msg)}</div>` : ""}<div class="w-wrap">${v.kind === "village" ? villageHtml(c, uid) : hexMapHtml(c, uid)}</div>${partyStripHtml(uid, { acting: c?.id ?? null, nearKey: c ? hexKeyOf(c) : null })}</div>`;
   bindPartyStrip(el);
   $("#wBack").addEventListener("click", (e) => { e.preventDefault(); lobby.view = null; renderLobbyStage(); });
+  $("#wAll")?.addEventListener("click", (e) => { e.preventDefault(); openWorld(null); });
   if (v.kind === "village") bindVillage(el, c, uid); else bindHexMap(el, c, uid);
 }
 /* the village */
@@ -1611,10 +1612,10 @@ function hexMapHtml(c, uid) {
   const fords = keys.filter((k) => world.hexes[k].ford).map((k) => { const { x, y } = wl.toPixel(wl.parse(k), SZ); return `<use href="#symFord" x="${x + 14}" y="${y + 14}"/>`; }).join("");
   const places = keys.filter((k) => world.hexes[k].place).map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), pl = world.places[h.place] ?? {}; return `<use href="${pl.kind === "ruin" ? "#symRuin" : "#symVillage"}" x="${x}" y="${y - 8}"/><text x="${x}" y="${y + 22}" font-size="12" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3" paint-order="stroke">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
   const byHex = {}; for (const x of table.chars) { if (x.status !== "ready" || x.doing === "dead") continue; const k = hexKeyOf(x); if (k && world.hexes[k]) (byHex[k] ??= []).push(x); }
-  const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((x, i) => { const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), p = table.game.people?.[x.owner] ?? {}; return `<g><circle cx="${px - 16 + i * 16}" cy="${py - 16}" r="11" fill="${esc(p.color ?? "#2f5c8a")}" stroke="#fbfdfe" stroke-width="2"/><text x="${px - 16 + i * 16}" y="${py - 12}" font-size="11" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${esc((x.name ?? "?")[0])}</text></g>`; })).join("");
+  const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((x, i) => { const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), p = table.game.people?.[x.owner] ?? {}; const openable = !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER; return `<g${openable ? ` data-w-party="${esc(x.id)}" style="cursor:pointer" role="button" aria-label="Open ${esc(x.name)}"` : ""}><title>${esc(x.name)} \u00b7 ${esc(doingOf(x))}</title><circle cx="${px - 16 + i * 16}" cy="${py - 16}" r="11" fill="${esc(p.color ?? "#2f5c8a")}" stroke="#fbfdfe" stroke-width="2"/><text x="${px - 16 + i * 16}" y="${py - 12}" font-size="11" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${esc((x.name ?? "?")[0])}</text></g>`; })).join("");
   const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${places}<g id="wPlan"></g>${counters}</svg>`;
   const key = `<div class="w-key"><span><i style="background:${TERRAIN_FILL.clear}"></i> clear</span><span><i style="background:${TERRAIN_FILL.woods}"></i> woods</span><span><i style="background:${TERRAIN_FILL.mountains}"></i> hills, mountains</span><span><i style="background:${TERRAIN_FILL.swamp}"></i> swamp</span><span><span style="color:#4e7391">\u2501</span> river</span><span><span style="color:#8a6a3c">\u254c</span> track</span><span><i style="border-style:dashed;background:transparent"></i> rumoured</span><span><i style="border-color:#c8941a;border-width:2px;background:transparent"></i> selected</span></div>`;
-  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">5 miles a hex \u00b7 a move is a day${world.full ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 wheel zooms, right-drag pans, <a href="#" id="wFit">fit</a></div></div><div class="w-card${c?.doing === "encounter" ? " enc" : ""}">${c ? setOutCard(c, uid) : refereeMapCard()}${hexPanelHtml(c, uid)}</div>`;
+  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">5 miles a hex \u00b7 a move is a day${world.full ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 wheel zooms, right-drag pans, <a href="#" id="wFit">fit</a></div></div><div class="w-card${c?.doing === "encounter" ? " enc" : ""}">${c ? setOutCard(c, uid) : refereeMapCard(uid)}${hexPanelHtml(c, uid)}</div>`;
 }
 /** The selected hex, Greyhawk-style: its facts, who's there, and the referee's paint row. */
 function hexPanelHtml(c, uid) {
@@ -1626,7 +1627,7 @@ function hexPanelHtml(c, uid) {
 }
 function setOutCard(c, uid) {
   const v = lobby.view, k = hexKeyOf(c), hex = world.hexes[k] ?? { t: "clear" }, here = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead" && hexKeyOf(x) === k);
-  const mine = here.filter((x) => rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER && x.doing !== "town");
+  const mine = here.filter((x) => (!PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER) && x.doing !== "town"); // the referee walks any party (the server allows it)
   if (!v.who) v.who = mine.filter((x) => x.doing !== "encounter").map((x) => x.id);
   if (c.doing === "encounter") return encounterPromptHtml(c, uid, hex);
   const inVillage = hex.place && world.places[hex.place]?.kind === "village";
@@ -1670,10 +1671,10 @@ function encounterPromptHtml(c, uid, hex) {
     <div class="w-act"><h4>Stand</h4><div class="note">Make ready; the referee opens the fight with you on side A and them at this distance.</div><div class="row"><button class="red" data-w-stand ${cannot || world.busy ? "disabled" : ""}>Stand and fight</button></div></div>
     ${cannot ? `<div class="note">None of yours is in this party; you're watching.</div>` : ""}`;
 }
-function refereeMapCard() {
+function refereeMapCard(uid) {
   const pending = table.chars.filter((x) => x.status === "ready" && x.doing === "encounter");
-  const rows = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead").map((x) => { const k = hexKeyOf(x), h = world.hexes[k] ?? {}; return `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(h.place ?? h.t ?? "?")} \u00b7 ${esc(doingOf(x))}</span></div>`; }).join("");
-  return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3><div class="note">${world.full ? "Every party, and what waits on you. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the board."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
+  const rows = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead").map((x) => { const k = hexKeyOf(x), h = world.hexes[k] ?? {}; return `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(h.place ?? h.t ?? "?")} \u00b7 ${esc(doingOf(x))}${PLAYER && rs.levelOf(x, uid) < rs.OWNERSHIP.OWNER ? "" : ` <button data-w-open="${esc(x.id)}" title="Walk, camp or enter a village with this party">Open</button>`}</span></div>`; }).join("");
+  return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3><div class="note">${world.full ? "Every party, and what waits on you; Open a row or click a party on the map to walk it. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the board."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
     ${pending.length && !PLAYER ? `<div class="w-act"><h4>Encounters</h4>${(() => { const seen = new Set(); return pending.filter((x) => { const k = hexKeyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }).map((x) => { const k = hexKeyOf(x), e = x.encounter ?? {}, who = pending.filter((y) => hexKeyOf(y) === k).map((y) => esc(y.name)).join(", ");
       const bandLine = e.band ? `${esc(e.band.leader.name)}, ${esc(e.kind)} (${esc(rs.CLASS_LABEL[e.band.leader.cls] ?? e.band.leader.cls)} ${e.band.leader.level}${e.band.leader.magic?.length ? `, magic: ${esc(e.band.leader.magic.join(", "))}` : ""}), ${e.band.men.length} men of 1st\u20134th level${e.band.mounted ? ", mounted" : ""}, ${esc(e.band.disposition)}. ` : "";
       const said = e.outcome === "parley" ? `They hailed them: reaction <b>${esc(e.reaction?.result ?? "")}</b>${e.reaction?.total != null ? ` (2d6 ${e.reaction.dice?.join("+") ?? ""} = ${e.reaction.total})` : e.reaction?.why ? ` (${esc(e.reaction.why)})` : ""}.` : e.outcome === "caught" ? `They ran and were caught. ${esc((e.log ?? []).join(" "))}` : e.outcome === "stand" ? "They stand and fight." : "No choice yet.";
@@ -1707,6 +1708,8 @@ function bindHexMap(el, c, uid) {
       poly.addEventListener("pointerleave", () => { tip.hidden = true; plan.innerHTML = ""; poly.classList.remove("hover"); });
       poly.addEventListener("click", () => { const k = poly.dataset.wHex; v.sel = k; if (c && c.doing !== "encounter" && from && k !== wl.key(from.q, from.r)) v.dest = world.hexes[k]?.place ? k : "dir:" + wl.toward(from, wl.parse(k)); renderLobbyStage(); });
     });
+    svg.querySelectorAll("[data-w-party]").forEach((g) => g.addEventListener("click", (ev) => { ev.stopPropagation(); openWorld(g.dataset.wParty); }));
+    el.querySelectorAll("[data-w-open]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.wOpen)));
     el.querySelectorAll("[data-w-paint]").forEach((b) => b.addEventListener("click", async () => {
       const k = v.sel, h = world.hexes[k] ?? {}, what = b.dataset.wPaint, { q, r } = wl.parse(k); let patch;
       if (what === "track") patch = { track: !h.track }; else if (what === "ford") patch = { ford: !h.ford };
@@ -1792,7 +1795,7 @@ function renderGamePlaces() {
       const keys = Object.keys(byPlace); if (!keys.length) return `<div class="note">No one on the map yet.</div>`;
       return keys.map((k) => `<div class="row" style="align-items:flex-start"><b style="min-width:7em">${esc(k)}</b><span class="note">${byPlace[k].map((c) => `${esc(c.name)} (${esc(doingOf(c))})`).join(", ")}</span>${byPlace[k].some((c) => rs.levelOf(c, meUid()) >= rs.OWNERSHIP.OWNER) || !PLAYER ? `<button data-pl-open="${esc(byPlace[k][0].id)}" style="margin-left:auto">Open</button>` : ""}</div>`).join("");
     })()}</div>`;
-  el.querySelectorAll("[data-pl-open]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.plOpen); openWorld(!PLAYER ? null : c && rs.levelOf(c, meUid()) >= rs.OWNERSHIP.OWNER ? c.id : null); }));
+  el.querySelectorAll("[data-pl-open]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.plOpen); openWorld(c && (!PLAYER || rs.levelOf(c, meUid()) >= rs.OWNERSHIP.OWNER) ? c.id : null); }));
   if (!PLAYER) renderRumourEditor(el);
   $("#plBack")?.addEventListener("click", endLiveFight); $("#plEnd")?.addEventListener("click", endLiveFight);
 }
