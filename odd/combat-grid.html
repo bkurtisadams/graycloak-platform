@@ -422,6 +422,38 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 .readybox[hidden] { display: none; }
 .readybox .count { font-weight: 700; border: 1px solid var(--ink); border-radius: 999px; padding: 4px 12px; }
 .readybox .why { color: var(--pencil); }
+/* the Tracker tab (approved mockup 25 Oct 2026): the fight's figures by side, with readiness marks */
+.tk-filters { display: flex; gap: 6px; padding: 8px 12px 0; flex-wrap: wrap; }
+.tk-filters button { font: inherit; font-size: .8rem; padding: 3px 10px; min-height: 26px; border: 1px solid #b7c7d2; border-radius: 999px; background: var(--card); color: var(--ink); cursor: pointer; }
+.tk-filters button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.tk-group { display: flex; flex-direction: column; gap: 6px; }
+.tk-head { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 2px 0; }
+.tk-head b { font-size: .7rem; letter-spacing: .08em; }
+.tk-head b.a { color: var(--side-a); } .tk-head b.b { color: var(--side-b); } .tk-head b.d { color: var(--pencil); }
+.tk-head span { font-size: .78rem; color: var(--pencil); }
+.tk-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 5px 8px; border: 1px solid #d5dbe3; border-radius: 6px; background: var(--card); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; color: var(--ink); }
+.tk-row.sel { border: 2px solid var(--red); background: #f1f5fb; padding: 4px 7px; }
+.tk-row.down { opacity: .55; }
+.tk-mark { width: 16px; height: 16px; border-radius: 50%; flex: none; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
+.tk-mark.ready { background: var(--ink); color: #fff; }
+.tk-mark.todo { border: 2px solid var(--ink); }
+.tk-mark.next { border: 2px dashed #8a96a1; }
+.tk-mark.auto { border: 2px solid #8a96a1; background: #d8e1e8; }
+.tk-mark.none { border: 1px solid #c5d1d9; }
+.tk-mark.down { color: var(--pencil); }
+.tk-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.tk-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
+.tk-name { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .9rem; }
+.tk-name.a { color: var(--side-a); } .tk-name.b { color: var(--side-b); }
+.tk-tag { font-size: .62rem; font-weight: 400; border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; color: var(--pencil); line-height: 15px; }
+.tk-sub { font-family: var(--type); font-size: .74rem; color: var(--ink); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.tk-sub .hpbar { width: 52px; height: 6px; display: inline-block; vertical-align: middle; }
+.tk-sub .hpbar > div { height: 6px; }
+.tk-right { font-size: .76rem; color: var(--pencil); flex: none; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tk-st { font-family: var(--type); font-size: .68rem; border: 1px solid #b7c7d2; border-radius: 3px; padding: 0 4px; }
+.tk-st.bad { color: var(--red); border-color: var(--red); }
+:root[data-theme="dark"] .tk-row.sel, :root[data-theme="dark"] .tk-mark.auto { background: #24323f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tk-row.sel, :root:not([data-theme="light"]) .tk-mark.auto { background: #24323f; } }
 .people { border-bottom: 1px solid #c9d8e2; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .people[hidden] { display: none; }
 .people h2 { margin: 0; font-size: 1rem; }
@@ -539,7 +571,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <p class="step" id="stepText"></p>
  </div>
  <aside class="logpanel sidebar" id="logpanel" aria-label="Sidebar">
-  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
+  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="tracker" title="Tracker" aria-label="Tracker" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2"/></svg><span>Tracker</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
   <div class="sb-panes">
    <section class="sb-pane on" data-sbpane="chat" aria-label="Log and chat">
   <div class="logpanel-head"><h2>Chat</h2><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
@@ -555,6 +587,10 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <div id="rosterPanel"></div>
   <section class="people" id="peoplePanel" hidden aria-label="Who runs what"><div id="peopleList"></div></section>
     <div id="partyNote" class="note"></div></div></section>
+   <section class="sb-pane" data-sbpane="tracker" aria-label="Tracker"><div class="logpanel-head"><h2>Tracker</h2><span class="note" id="tkWhen"></span></div>
+    <div class="tk-filters" id="tkFilters"><button type="button" data-tkf="all" class="on">All</button><button type="button" data-tkf="waiting">Waiting</button><button type="button" data-tkf="mine">Mine</button></div>
+    <div class="sb-body" id="tracker" style="gap:14px"></div>
+    <div class="sb-players" id="tkNote">A row selects the figure and pings it on the map; double-click opens the sheet. Hollow mark = still to act this step, filled = ready, dashed = moves next step.</div></section>
    <section class="sb-pane" data-sbpane="places" aria-label="Places"><div class="logpanel-head"><h2>Places</h2><span class="note">referee only</span></div><div class="sb-body" id="gamePlaces"></div></section>
    <section class="sb-pane" data-sbpane="fights" aria-label="Fights"><div class="logpanel-head"><h2>Fights</h2></div><div class="sb-body" id="gameFights"></div></section>
    <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="logpanel-head"><h2>Settings</h2></div><div class="sb-body"><div id="gamePlayers" class="sb-stack"></div><div id="gameSettings" class="sb-stack"></div></div></section>
@@ -2368,6 +2404,7 @@ function renderMap() {
     parts.push(`<g data-fig="${f.id}" role="img" aria-label="${esc(f.name)}${hpText(f) ? `: ${hpText(f)} hp` : f.hpScaled ? (alive(f) ? "" : ": down") : ""}" style="cursor:pointer"${f.status === "surrendered" ? ' opacity=".45"' : ""}>
       ${ringOf(f) ? `<circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2 + 0.6}" fill="none" stroke="${ringOf(f)}" stroke-width="1.2" pointer-events="none"/>${PLAYER && f.mine ? `<g pointer-events="none"><rect x="${cx - 4.4}" y="${cy - 7.4 * S - 4.4}" width="8.8" height="3.6" rx=".6" fill="${ringOf(f)}"/><text x="${cx}" y="${cy - 7.4 * S - 1.8}" text-anchor="middle" font-size="2.8" font-family="var(--type)" font-weight="700" fill="#fbfdfe">YOU</text></g>` : ""}` : ""}
       ${isSel ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.1"/>` : ""}
+      ${state.ping === f.id ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--red)" stroke-width="1.4" pointer-events="none"><animate attributeName="r" from="${7.4 * S}" to="${18 * S}" dur="0.8s" fill="freeze"/><animate attributeName="opacity" from="1" to="0" dur="0.8s" fill="freeze"/></circle>` : ""}
       ${isTgt ? `<circle cx="${cx}" cy="${cy}" r="${7.4 * S}" fill="none" stroke="var(--target)" stroke-width="1" stroke-dasharray="2.4 1.6" pointer-events="none"/>` : ""}
       <circle cx="${cx}" cy="${cy}" r="${6.4 * S + (S - 1) * 1.2}" fill="${col}" stroke="#fff" stroke-width=".7"/>
       <polygon points="${wedge}" fill="#fff" pointer-events="none"/>
@@ -2708,6 +2745,86 @@ function moveText(f) {
   if (!f.moved) return state.step === "missiles" || state.step === "melee" ? "stationary" : "not moved";
   return left <= 0 ? `${used}\u2033 used \u00b7 done` : `${used}\u2033 used \u00b7 ${left}\u2033 left`;
 }
+/* ---------- the Tracker tab (approved mockup 25 Oct 2026): Foundry's combat tracker, by side, for move/counter-move ---------- */
+let tkFilter = "all";
+const CLS_SHORT = { fighter: "F-M", cleric: "Cleric", "magic-user": "M-U", thief: "Thief" };
+/** A figure's mark: ready or still to act when the step waits on it; held when helpless; dashed when its side moves next. */
+function trackerMark(f) {
+  if (!present(f)) return "down";
+  if (needsReady(f)) return isReadyFig(f) ? "ready" : "todo";
+  if (helpless(f)) return "held";
+  const st = state.step ?? "";
+  if (state.phase === "fight" && (st.startsWith("move-") || st === "orders")) return controllerOfFig(f) === "game" && (f.side === movingSide() || st === "orders") ? "auto" : "next";
+  return "none";
+}
+/** Tags beside the name: whose figure it is, as this page sees it. */
+function trackerTag(f) {
+  if (!online.on) return "";
+  const c = controllerOfFig(f);
+  if (PLAYER) return f.mine ? "you" : c === "referee" ? "referee" : "";
+  return c === "referee" ? "you" : c === "game" ? "game" : "";
+}
+function trackerStatus(f) {
+  const out = [];
+  if (f.status && f.status !== "ok") out.push([f.status, GONE.includes(f.status) || !alive(f) ? "bad" : ""]);
+  if (f.stance === "parry" && present(f)) out.push(["parry", ""]);
+  if (f.charging || f.chargedRound === state.round) out.push(["charge", ""]);
+  if (f.action === "fire" || f.action === "passthrough") out.push(["fire", ""]);
+  if (f.action?.startsWith("cast:")) out.push(["cast", ""]);
+  if (f.action === "hold") out.push(["hold", ""]);
+  return out.map(([t, c]) => `<span class="tk-st ${c}">${esc(t)}</span>`).join("");
+}
+function trackerRow(f) {
+  const mark = trackerMark(f), own = PLAYER ? !!f.mine : true, sel = state.selected === f.id || state.group.has(f.id);
+  const p = personOf(f), col = p?.color ?? null, tag = trackerTag(f);
+  const kind = f.kind === "pc" ? `${CLS_SHORT[f.cls] ?? ""} ${f.level ?? 1}` : `HD ${f.hd ?? mon(f)?.hd?.count ?? "?"}`;
+  const hp = hpText(f) ? `${hpText(f)} hp` : f.hpScaled ? `<span class="hpbar"><div style="width:${Math.round(Math.max(0, f.hp) / f.maxHp * 100)}%;background:${f.hp / f.maxHp > 0.5 ? "#4caf50" : f.hp / f.maxHp > 0.25 ? "#e0a100" : "#e0453a"}"></div></span>` : "";
+  const mv = state.phase === "fight" && own && present(f) ? esc(moveText(f)) : "";
+  const sub = [esc(kind), hp, mv].filter(Boolean).join(" \u00b7 ");
+  const word = mark === "ready" ? "ready" : mark === "todo" ? (state.step === "orders" ? "to order" : (f.moved ?? 0) > 0 ? "moving" : "to act") : mark === "auto" ? "behaviour" : "";
+  const markSvg = mark === "ready" ? `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2"/></svg>`
+    : mark === "down" ? `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="2"/></svg>` : "";
+  const title = { ready: "Ready", todo: "Still to act", next: "Moves next step", auto: "Moved by its behaviour", held: "Can't act", down: "Down", none: "" }[mark];
+  return `<button type="button" class="tk-row ${sel ? "sel" : ""} ${present(f) ? "" : "down"}" data-tk="${f.id}" title="${esc(f.name)}: select and ping">
+    <span class="tk-mark ${mark === "held" ? "none" : mark}" title="${title}">${markSvg}</span>${col ? `<span class="tk-dot" style="background:${esc(col)}"></span>` : `<span class="tk-dot"></span>`}
+    <span class="tk-body"><span class="tk-name ${f.side === "A" ? "a" : "b"}"><span>${esc(tokenLabel(f))}</span>${tag ? `<span class="tk-tag">${tag}</span>` : ""}</span><span class="tk-sub">${sub}</span></span>
+    <span class="tk-right">${word ? `<span>${word}</span>` : ""}${trackerStatus(f)}</span></button>`;
+}
+function renderTracker() {
+  const el = $("#tracker"); if (!el) return;
+  const figs = state.figures.filter((f) => f.placed || state.phase !== "setup");
+  const mine = new Set(myFigs().map((f) => f.id));
+  const keep = (f) => tkFilter === "all" ? true : tkFilter === "mine" ? mine.has(f.id) : trackerMark(f) === "todo";
+  const ms = movingSide(), st = state.step ?? "";
+  const count = (side) => {
+    const need = figs.filter((f) => f.side === side && needsReady(f)), left = need.filter((f) => !isReadyFig(f)).length;
+    if (need.length) return left ? `${left} of ${need.length} still to act` : "all ready";
+    if (state.phase !== "fight") return "";
+    if (st.startsWith("move-")) return ms === side ? "moving" : "moves next";
+    return st === "orders" ? "orders" : st === "init" || st === "elect" ? "" : "resolving";
+  };
+  const group = (label, cls, note, rows) => rows.length ? `<div class="tk-group"><div class="tk-head"><b class="${cls}">${label}</b><span>${note}</span></div>${rows.join("")}</div>` : "";
+  const up = (side) => figs.filter((f) => f.side === side && present(f) && keep(f)).map(trackerRow);
+  const down = figs.filter((f) => !present(f) && keep(f)).map(trackerRow);
+  const first = PLAYER && figs.some((f) => f.mine && f.side === "B") ? "B" : "A", second = other(first);
+  const html = group(`SIDE ${first}`, first.toLowerCase(), count(first), up(first)) + group(`SIDE ${second}`, second.toLowerCase(), count(second), up(second)) + group("DOWN", "d", String(down.length), down);
+  el.innerHTML = html || `<div class="note">${tkFilter === "waiting" ? "No one is waiting." : tkFilter === "mine" ? "None of your figures are in this fight." : "No figures yet."}</div>`;
+  $("#tkWhen").textContent = state.phase === "fight" ? `Round ${state.round} \u00b7 ${$("#phaseNow").textContent}` : state.phase === "over" ? "Fight over" : "";
+  el.querySelectorAll("[data-tk]").forEach((b) => {
+    const f = byId(Number(b.dataset.tk));
+    b.addEventListener("click", () => { if (!f) return; setGroup([f.id]); ensureVisible(f); pingFig(f); });
+    b.addEventListener("dblclick", () => { if (!f) return; if (f.charId && TABLE && charOf(f.charId)) openCharSheet(f.charId); else if (!PLAYER || f.mine) openDrawer("figure"); });
+  });
+}
+/** Flash a ring round a figure on the map for a moment (the tracker's click). */
+function pingFig(f) {
+  state.ping = f.id; renderMap();
+  setTimeout(() => { if (state.ping === f.id) { state.ping = null; renderMap(); } }, 900);
+}
+$("#tkFilters")?.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tkf]"); if (!b) return;
+  tkFilter = b.dataset.tkf; $("#tkFilters").querySelectorAll("[data-tkf]").forEach((x) => x.classList.toggle("on", x === b)); renderTracker();
+});
 function renderChips() {
   if (state.phase === "fight" && state.step === "elect") {
     const w = state.init.winner;
@@ -3166,13 +3283,14 @@ document.querySelectorAll("[data-logf]").forEach((b) => b.addEventListener("clic
 /** Which tabs show: Party once online, Players and Fights in a game, Places for its referees. */
 function sidebarTabs() {
   const inGame = TABLE && !!table.game, ref = inGame && isRefOf(table.game, online.api?.user?.uid);
-  const vis = { chat: true, party: online.on, places: ref, fights: inGame, settings: true };
+  const vis = { chat: true, party: online.on, tracker: state.phase !== "setup", places: ref, fights: inGame, settings: true };
   document.querySelectorAll(".sb-icon").forEach((b) => (b.hidden = !vis[b.dataset.sbtab]));
   if (!vis[sbTab]) showTab("chat");
 }
 function renderSidebar() {
   sidebarTabs();
   if (sbTab === "places") renderGamePlaces();
+  else if (sbTab === "tracker") renderTracker();
   else if (sbTab === "fights") renderGameFights();
   else if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); }
   else if (sbTab === "party") { renderRoster(); $("#partyNote").textContent = online.api?.fight || !TABLE ? "" : "Who runs which character shows here during a fight."; }
@@ -3312,6 +3430,7 @@ function render() {
   refreshChatAs(); refreshChatTo();
   if (state.phase === "fight") refreshFacing();
   renderMap(); renderSide("A"); renderSide("B"); renderDetail(); renderStrip(); renderChips(); renderActionBar(); renderBanner();
+  sidebarTabs(); if (sbTab === "tracker") renderTracker();
   const fight = state.phase === "fight";
   $("#start").disabled = state.phase !== "setup"; $("#reset").disabled = state.phase === "setup";
   $("#seed").disabled = !( state.phase === "setup"); $("#layout").disabled = state.phase !== "setup";
