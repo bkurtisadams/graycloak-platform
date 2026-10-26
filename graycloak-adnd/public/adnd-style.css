@@ -193,3 +193,7 @@ button:hover { background: #e4b027; }
   font-variant: small-caps; letter-spacing: .03em; }
 .mv-marker.mv-party polygon { fill: #c9a227; stroke: #fff; stroke-width: .25; }
 .mv-marker.mv-party text { fill: #4a3510; }
+.mv-marker.mv-party.mv-travelling polygon { fill: #d9c15a; stroke: #7a5c10; stroke-dasharray: .5 .3; }
+.map-travel-result { font-size: 11px; color: #555; }
+.map-travel-result-ok { color: #2d6a2d; font-weight: bold; }
+.map-travel-result-err { color: #8b0000; }

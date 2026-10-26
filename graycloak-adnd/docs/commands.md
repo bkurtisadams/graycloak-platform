@@ -171,9 +171,9 @@ Until Actor movement is fully modeled, the trusted runtime may supply a `movemen
 
 v1.2 still does not provide:
 
-- an HTTP/network endpoint;
-- Cloud Run/Firebase Functions deployment glue;
-- a Begin Travel UI button;
+- an HTTP/network endpoint (added in v1.3, see `docs/http-command-endpoint.md`);
+- Cloud Run/Firebase Functions deployment glue (added in v1.4, `firebase-functions.mjs`);
+- a Begin Travel UI button (added in map-view v1.6.0, below);
 - Firestore Security Rules for the new authoritative collections;
 - multi-owner party consent/leadership policy;
 - world-clock advancement;
@@ -249,3 +249,25 @@ The existing v1.1 `applyCommitBundle()` adapter is Travel-specific and must not
 be used with this creation plan. A later v1.6 slice will add an atomic
 character-creation transaction and starting Item instances after the focused
 OSRIC chargen provenance audit.
+
+## map-view v1.6.0 Begin Travel submit
+
+The world map's Travel Party panel now carries a **Begin Travel** button. It is
+enabled only when the campaign has a `worldTick`, the route previews cleanly,
+and the v1.5 intent builder accepts the selection. On click the browser:
+
+1. mints one `commandId` / `activityId` pair for the attempt (kept across
+   retries so the endpoint's idempotency check replays rather than duplicates;
+   dropped when the route changes or the commit succeeds);
+2. fetches the signed-in user's Firebase ID token;
+3. `POST`s the client-safe intent to the same-origin
+   `/api/commands/begin-travel` rewrite as `Authorization: Bearer <token>`;
+4. renders the endpoint's public result (activity id, duration, arrival tick,
+   or the service error code and stage), reloads `campaigns/{cid}` and the
+   campaign's Actors, clears the route, and marks reserved Actors
+   (`runtime.activityId` set) as travelling on the party marker.
+
+Nothing authoritative is computed in the browser; every value shown comes back
+from the endpoint. Actors still stay at the route origin until a later
+resolve-travel command moves them and advances the clock.
+
