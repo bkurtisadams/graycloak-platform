@@ -424,6 +424,25 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 .readybox[hidden] { display: none; }
 .readybox .count { font-weight: 700; border: 1px solid var(--ink); border-radius: 999px; padding: 4px 12px; }
 .readybox .why { color: var(--pencil); }
+/* the scene frame (approved mockup 25 Oct 2026): the stage is always a scene; the breadcrumb says which */
+header.top .crumb { font-size: .9rem; color: var(--ink); margin-left: 14px; }
+header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
+.sb-board .lcard.board { padding: 8px; box-shadow: none; border: 0; background: transparent; }
+.sb-board .lcard.board .ls-head h2 { font-size: 1rem; }
+.sb-board .lcard.board .ls-here { display: none; }
+.sb-board .lcard.board table { font-size: .78rem; }
+.sb-board .lcard.board .ls-ctl { flex-wrap: wrap; }
+.sb-board .lcard.board .strip { display: none; }
+.sc-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 5px 8px; border: 1px solid #d5dbe3; border-radius: 6px; background: var(--card); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; color: var(--ink); }
+.sc-row.sub { margin-left: 16px; width: calc(100% - 16px); }
+.sc-row.on { border: 2px solid var(--red); background: #f1f5fb; padding: 4px 7px; }
+.sc-row b { font-size: .9rem; } .sc-row b small { font-weight: 400; font-size: .7rem; color: var(--pencil); margin-left: 4px; }
+.sc-row .sc-who { font-family: var(--type); font-size: .72rem; color: var(--pencil); }
+.sc-row .sc-body { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
+.sc-row .sc-open { font-size: .72rem; color: var(--pencil); flex: none; }
+.w-asplayers { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+:root[data-theme="dark"] .sc-row.on { background: #24323f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sc-row.on { background: #24323f; } }
 /* the Tracker tab (approved mockup 25 Oct 2026): the fight's figures by side, with readiness marks */
 .tk-filters { display: flex; gap: 6px; padding: 8px 12px 0; flex-wrap: wrap; }
 .tk-filters button { font: inherit; font-size: .8rem; padding: 3px 10px; min-height: 26px; border: 1px solid #b7c7d2; border-radius: 999px; background: var(--card); color: var(--ink); cursor: pointer; }
@@ -534,7 +553,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
 <body>
 <header class="top">
   <h1>OD&amp;D combat tester</h1>
-  <span class="sub" id="subline">40' room with corridors · seed 1974</span>
+  <span class="crumb" id="crumb" hidden></span><span class="sub" id="subline">40' room with corridors · seed 1974</span>
   <div class="grow"></div>
   <span class="presence" id="hereDots" aria-label="Here now"></span>
   <a id="toLobby" class="btn" hidden href="#" title="End the fight: everyone goes back to the table between fights">End the fight</a>
@@ -573,7 +592,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <p class="step" id="stepText"></p>
  </div>
  <aside class="logpanel sidebar" id="logpanel" aria-label="Sidebar">
-  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="tracker" title="Tracker" aria-label="Tracker" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2"/></svg><span>Tracker</span></button><button type="button" class="sb-icon" data-sbtab="places" title="Places" aria-label="Places"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Places</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
+  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="tracker" title="Tracker" aria-label="Tracker" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2"/></svg><span>Tracker</span></button><button type="button" class="sb-icon" data-sbtab="scenes" title="Scenes" aria-label="Scenes"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 4v14M15 6v14" stroke="currentColor" stroke-width="2"/></svg><span>Scenes</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
   <div class="sb-panes">
    <section class="sb-pane on" data-sbpane="chat" aria-label="Log and chat">
   <div class="logpanel-head"><h2>Chat</h2><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
@@ -585,7 +604,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
    <button type="submit">Send</button>
   </form>
    </section>
-   <section class="sb-pane" data-sbpane="party" aria-label="Actors"><div class="logpanel-head"><h2>Actors</h2></div><div class="sb-body">
+   <section class="sb-pane" data-sbpane="party" aria-label="Actors"><div class="logpanel-head"><h2>Actors</h2></div><div class="sb-body"><div class="sb-board" id="boardPanel"></div>
   <div id="rosterPanel"></div>
   <section class="people" id="peoplePanel" hidden aria-label="Who runs what"><div id="peopleList"></div></section>
     <div id="partyNote" class="note"></div></div></section>
@@ -593,7 +612,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
     <div class="tk-filters" id="tkFilters"><button type="button" data-tkf="all" class="on">All</button><button type="button" data-tkf="waiting">Waiting</button><button type="button" data-tkf="mine">Mine</button></div>
     <div class="sb-body" id="tracker" style="gap:14px"></div>
     <div class="sb-players" id="tkNote">A row selects the figure and pings it on the map; double-click opens the sheet. Hollow mark = still to act this step, filled = ready, dashed = moves next step.</div></section>
-   <section class="sb-pane" data-sbpane="places" aria-label="Places"><div class="logpanel-head"><h2>Places</h2><span class="note">referee only</span></div><div class="sb-body" id="gamePlaces"></div></section>
+   <section class="sb-pane" data-sbpane="scenes" aria-label="Scenes"><div class="logpanel-head"><h2>Scenes</h2><span class="note" id="scNote"></span></div><div class="sb-body" id="gamePlaces"></div></section>
    <section class="sb-pane" data-sbpane="fights" aria-label="Fights"><div class="logpanel-head"><h2>Fights</h2></div><div class="sb-body" id="gameFights"></div></section>
    <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="logpanel-head"><h2>Settings</h2></div><div class="sb-body"><div id="gamePlayers" class="sb-stack"></div><div id="gameSettings" class="sb-stack"></div></div></section>
   </div>
@@ -1296,11 +1315,32 @@ const myChars = (uid) => table.chars.filter((c) => rs.levelOf(c, uid) >= rs.OWNE
 function renderLobbyStage() {
   const el = $("#lobbyStage"); if (!el) return;
   const g = table.game, show = TABLE && !!g && !online.api?.fight && !table.setup;
-  el.hidden = !show; document.body.classList.toggle("lobby", show); if (!show) return;
+  el.hidden = !show; document.body.classList.toggle("lobby", show);
+  if (sbTab === "scenes") renderScenes();
+  if (!show) { if (TABLE && online.api?.fight) setCrumb(["The Westmark", (table.fights ?? []).find((f) => f.fid === online.api.fight.fid)?.title || "the fight"]); return; }
   const uid = meUid();
-  if (lobby.view) { renderWorldStage(el, g, uid); return; }
-  if (PLAYER && renderPlayerOnboarding(el, g, uid)) return; // the welcome card, the first roll, a draft being finished
-  renderBoard(el, g, uid, !PLAYER); // the same campaign board for everyone; the referee's controls when he is one
+  if (PLAYER && renderPlayerOnboarding(el, g, uid)) { setCrumb(["The Westmark"]); return; } // the welcome card, the first roll, a draft being finished: cards before the scene
+  if (!lobby.view) lobby.view = defaultScene(uid);
+  if (lobby.view) { renderWorldStage(el, g, uid); renderBoardPanel(); return; }
+  renderBoard(el, g, uid, !PLAYER); // no scene to show (a player with nothing on the map): the board
+}
+/** The scene the stage opens on: the referee's kingdom map; a player's selected (or first) character's scene. */
+function defaultScene(uid) {
+  if (!PLAYER) return { id: null, at: null, dest: null, who: null };
+  const mine = myChars(uid).filter((c) => c.status === "ready" && c.doing !== "dead");
+  const pick = mine.find((c) => c.id === lobby.lastChar) ?? mine[0];
+  return pick ? { id: pick.id, at: null, dest: null, who: null } : null;
+}
+/** The campaign board, in the Actors pane: the same rows and controls, beside the scene instead of in place of it. */
+function renderBoardPanel() {
+  const el = $("#boardPanel"), g = table.game; if (!el || !g) return;
+  if (sbTab !== "party") return;
+  renderBoard(el, g, meUid(), !PLAYER);
+}
+/** The breadcrumb in the header. */
+function setCrumb(parts) {
+  const el = $("#crumb"); if (!el) return;
+  el.hidden = !parts?.length; el.innerHTML = (parts ?? []).map((t) => esc(t)).join("<i>\u203a</i>");
 }
 /* ---------- pass 6 (approved boards 5-7, 24 Oct 2026): the campaign board, one row per character ---------- */
 const DOING = { town: "in town", rest: "resting", road: "on the road", fight: "in a fight", dead: "dead" };
@@ -1332,7 +1372,7 @@ function renderBoard(el, g, uid, ref) {
   const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1;
   const fights = (table.fights ?? []).slice(0, 5);
   const ctl = ref
-    ? `<button class="done" id="lsNew">Open a fight</button><button id="lsMap">The map</button><button id="lsDay">Advance the day</button><button id="lsLink">Join link</button><button id="lsInvite">Invite by email</button>${fights.length ? `<span class="note">Recent: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</span>` : ""}`
+    ? `<button class="done" id="lsNew">Open a fight</button><button id="lsDay">Advance the day</button><button id="lsLink">Join link</button><button id="lsInvite">Invite by email</button>${fights.length ? `<span class="note">Recent: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</span>` : ""}`
     : `<button id="lsRoll" ${lobby.busy ? "disabled" : ""}>Roll another character</button><span class="note">The referee opens fights; when he does, this page switches to it.</span>`;
   const rows = boardRows(g, uid, ref);
   el.innerHTML = `<div class="lcard board"><div class="ls-head"><h2>${esc(g.name ?? "The game")}</h2><span class="ls-day">Day ${day} \u00b7 ${week}${ordinal(week)} week of the campaign</span><span class="ls-here">${here}</span></div>
@@ -1347,7 +1387,6 @@ function renderBoard(el, g, uid, ref) {
   el.querySelectorAll("[data-ls-discard]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.lsDiscard); if (c && confirm(`Throw ${c.name || "this character"} away? It can't be undone.`)) charOp(c.id, "delete", {}, lobby); }));
   $("#lsRoll")?.addEventListener("click", rollAnother);
   el.querySelectorAll("[data-ls-out]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.lsOut)));
-  $("#lsMap")?.addEventListener("click", () => openWorld(null));
   $("#lsNew")?.addEventListener("click", () => { table.setup = true; renderLobbyStage(); openDrawer("setup"); });
   $("#lsDay")?.addEventListener("click", async () => {
     const n = prompt("Advance the campaign by how many days? (a wilderness move is a day, a dungeon expedition a week)", "1"); if (n == null) return;
@@ -1457,7 +1496,7 @@ function openFightForEncounter(ch) {
 /* ---------- pass 8: the referee's rumours, one settlement at a time (Places tab) ---------- */
 const rumourEd = { place: null, rows: null, busy: false, msg: "" };
 function renderRumourEditor(tab) {
-  if (!world.loaded) { if (!world.loading) loadWorld().then(() => { if (sbTab === "places") renderGamePlaces(); }); tab.insertAdjacentHTML("beforeend", `<div class="sbcard"><h3>Rumours</h3><div class="note">loading the map\u2026</div></div>`); return; }
+  if (!world.loaded) { if (!world.loading) loadWorld().then(() => { if (sbTab === "scenes") renderScenes(); }); tab.insertAdjacentHTML("beforeend", `<div class="sbcard"><h3>Rumours</h3><div class="note">loading the map\u2026</div></div>`); return; }
   const inns = Object.entries(world.places).filter(([, p]) => p.inn).map(([k]) => k);
   if (!rumourEd.place || !inns.includes(rumourEd.place)) rumourEd.place = inns[0] ?? null;
   if (rumourEd.rows === null || rumourEd.rows.place !== rumourEd.place) { const own = world.rumours?.[rumourEd.place]; rumourEd.rows = { place: rumourEd.place, list: (own?.length ? own : world.defaults?.[rumourEd.place] ?? []).map((r) => ({ text: r.text ?? "", truth: !!r.truth, hex: r.reveals ? `${r.reveals.q},${r.reveals.r}` : "" })), own: !!own?.length }; }
@@ -1467,17 +1506,17 @@ function renderRumourEditor(tab) {
     <div class="rm-rows">${rows || `<div class="note">No rumours yet.</div>`}</div>
     <div class="row"><button id="rmAdd">Add a rumour</button><button class="done" id="rmSave" ${rumourEd.busy ? "disabled" : ""}>Save</button>${rumourEd.msg ? `<span class="note">${esc(rumourEd.msg)}</span>` : ""}</div></div>`);
   const card = $("#rumourCard"), read = () => { rumourEd.rows.list = [...card.querySelectorAll(".rm-row")].map((row) => ({ text: row.querySelector("textarea").value, truth: row.querySelector("[data-rm-truth]").checked, hex: row.querySelector("[data-rm-hex]").value.trim() })); };
-  $("#rmPlace").addEventListener("change", (e) => { rumourEd.place = e.target.value; rumourEd.rows = null; rumourEd.msg = ""; renderGamePlaces(); });
-  $("#rmAdd").addEventListener("click", () => { read(); rumourEd.rows.list.push({ text: "", truth: true, hex: "" }); renderGamePlaces(); });
-  card.querySelectorAll("[data-rm-del]").forEach((b) => b.addEventListener("click", () => { read(); rumourEd.rows.list.splice(Number(b.dataset.rmDel), 1); renderGamePlaces(); }));
+  $("#rmPlace").addEventListener("change", (e) => { rumourEd.place = e.target.value; rumourEd.rows = null; rumourEd.msg = ""; renderScenes(); });
+  $("#rmAdd").addEventListener("click", () => { read(); rumourEd.rows.list.push({ text: "", truth: true, hex: "" }); renderScenes(); });
+  card.querySelectorAll("[data-rm-del]").forEach((b) => b.addEventListener("click", () => { read(); rumourEd.rows.list.splice(Number(b.dataset.rmDel), 1); renderScenes(); }));
   $("#rmSave").addEventListener("click", async () => {
     read();
     const list = rumourEd.rows.list.filter((r) => r.text.trim()).map((r) => { const m = /^(-?\d+)\s*,\s*(-?\d+)$/.exec(r.hex); return { text: r.text.trim(), truth: r.truth, ...(m ? { reveals: { q: Number(m[1]), r: Number(m[2]) } } : {}) }; });
-    rumourEd.busy = true; rumourEd.msg = ""; renderGamePlaces();
+    rumourEd.busy = true; rumourEd.msg = ""; renderScenes();
     const r = await online.api.world("rumours", table.cid, { place: rumourEd.place, list });
     rumourEd.busy = false; rumourEd.msg = r.ok ? `Saved ${r.count}.` : r.error ?? "That didn't work.";
     if (r.ok) { world.rumours = { ...(world.rumours ?? {}), [rumourEd.place]: list }; rumourEd.rows = null; }
-    renderGamePlaces();
+    renderScenes();
   });
 }
 /* ---------- pass 7 (approved boards 8-9, 24 Oct 2026): Langstead and the hex map ---------- */
@@ -1490,13 +1529,14 @@ async function loadWorld(force = false) {
   world.loading = true; renderLobbyStage();
   const r = await online.api.world("map", table.cid);
   world.loading = false;
-  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.error = ""; }
+  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.known = r.known ?? null; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.error = ""; }
   else world.error = r.error ?? "Couldn't load the map.";
   renderLobbyStage();
 }
-function openWorld(id) {
+function openWorld(id, place = null) {
   const c = id ? charOf(id) : null;
-  lobby.view = { id, at: null, dest: null, who: null }; // village or road: decided from the character each time it draws
+  if (id) lobby.lastChar = id;
+  lobby.view = { id, place, at: null, dest: null, who: null }; // village or road: decided from the character each time it draws; a place with no character is the referee looking in
   lobby.error = ""; world.msg = "";
   if (!world.loaded) loadWorld(); else renderLobbyStage();
 }
@@ -1513,19 +1553,21 @@ const hexKeyOf = (c) => { const h = c.hex ?? world.places[world.home]; return h 
 function renderWorldStage(el, g, uid) {
   const v = lobby.view, c = v.id ? charOf(v.id) : null;
   if (v.id && !c) { lobby.view = null; renderLobbyStage(); return; }
-  if (!world.loaded) { el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">${world.error ? esc(world.error) : "Unrolling the map\u2026"}</div><div><button id="wBack">Back to the board</button></div></div>`; $("#wBack")?.addEventListener("click", () => { lobby.view = null; renderLobbyStage(); }); return; }
+  if (!world.loaded) { el.innerHTML = `<div class="lcard"><h2>${esc(g.name ?? "The game")}</h2><div class="note">${world.error ? esc(world.error) : "Unrolling the map\u2026"}</div></div>`; return; }
   // a character in town is shown the village; one on the road, the hex map; the referee, the hex map
-  v.kind = c && c.doing === "town" && world.places[c.where ?? world.home] ? "village" : "hex";
-  const head = `<div class="ls-head"><h2>${esc(v.kind === "village" ? (c?.where ?? world.home) : "The Westmark")}</h2><span class="ls-day">${v.kind === "village" ? "village" : "the road"} \u00b7 Day ${c?.day ?? g.day ?? 1}</span>${c ? `<span class="note">${esc(c.name)} \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")} ${c.level ?? 1} \u00b7 hp ${c.hp}/${c.maxHp} \u00b7 ${c.coins?.gp ?? 0} gp</span>` : `<span class="note">the referee's map</span>`}${!PLAYER && c ? `<a href="#" id="wAll" style="margin-left:auto">The referee's map</a><a href="#" id="wBack">Back to the board</a>` : `<a href="#" id="wBack" style="margin-left:auto">Back to the board</a>`}</div>`;
+  v.kind = (c && c.doing === "town" && world.places[c.where ?? world.home]) || (!c && v.place && world.places[v.place]) ? "village" : "hex";
+  const placeName = v.kind === "village" ? (c ? (c.where ?? world.home) : v.place) : null;
+  setCrumb(online.api?.fight ? null : v.kind === "village" ? ["The Westmark", placeName, ...(v.at === "inn" ? [world.places[placeName]?.inn ?? "the inn"] : v.at === "market" ? ["the market"] : [])] : world.full && world.asPlayers ? ["The Westmark", "as the players see it"] : c ? ["The Westmark", `${hexNo(hexKeyOf(c) ?? "0,0")} \u00b7 ${c.name}`] : ["The Westmark"]);
+  const head = `<div class="ls-head"><h2>${esc(v.kind === "village" ? placeName : "The Westmark")}</h2><span class="ls-day">${v.kind === "village" ? "village" : "the road"} \u00b7 Day ${c?.day ?? g.day ?? 1}</span>${c ? `<span class="note">${esc(c.name)} \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")} ${c.level ?? 1} \u00b7 hp ${c.hp}/${c.maxHp} \u00b7 ${c.coins?.gp ?? 0} gp</span>` : `<span class="note">the referee's map</span>`}${!PLAYER && (c || v.place) ? `<a href="#" id="wAll" style="margin-left:auto">The referee's map</a>` : ""}</div>`;
   el.innerHTML = `<div class="lcard world">${head}${world.error ? `<div class="rs-err">${esc(world.error)}</div>` : ""}${world.msg ? `<div class="ls-msg">${esc(world.msg)}</div>` : ""}<div class="w-wrap">${v.kind === "village" ? villageHtml(c, uid) : hexMapHtml(c, uid)}</div>${partyStripHtml(uid, { acting: c?.id ?? null, nearKey: c ? hexKeyOf(c) : null })}</div>`;
   bindPartyStrip(el);
-  $("#wBack").addEventListener("click", (e) => { e.preventDefault(); lobby.view = null; renderLobbyStage(); });
   $("#wAll")?.addEventListener("click", (e) => { e.preventDefault(); openWorld(null); });
   if (v.kind === "village") bindVillage(el, c, uid); else bindHexMap(el, c, uid);
 }
 /* the village */
 function villageHtml(c, uid) {
-  const v = lobby.view, place = world.places[c.where ?? world.home] ?? {}, here = table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === (c.where ?? world.home));
+  const v = lobby.view, placeName = c ? (c.where ?? world.home) : v.place, place = world.places[placeName] ?? {}, here = table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === placeName);
+  if (!c) return villageLookHtml(placeName, place, here, uid);
   const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
   const markers = spots.map(([k, sp]) => `<div class="w-marker${v.at === k ? " on" : ""}" data-w-spot="${k}" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
   const me = VILLAGE_SPOTS[v.at ?? "inn"] ?? VILLAGE_SPOTS.inn;
@@ -1553,6 +1595,19 @@ function villageHtml(c, uid) {
   }
   return `<div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb" style="top:auto;bottom:10px">${esc(c.name)} is ${v.at === "inn" ? `at ${esc(place.inn)}` : v.at === "market" ? "at the market" : "in the street"}</div></div><div class="w-card">${card}</div>`;
 }
+/** The referee looking into a settlement with no character: the map, who is there, and a way to walk any of them. */
+function villageLookHtml(placeName, place, here, uid) {
+  const v = lobby.view;
+  const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
+  const markers = spots.map(([k, sp]) => `<div class="w-marker" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
+  const me = VILLAGE_SPOTS.inn;
+  const counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me" title="${esc(x.name)}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
+  const rows = here.map((x) => `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(doingOf(x))} <button data-w-open="${esc(x.id)}">Open</button></span></div>`).join("");
+  const card = `<h3>${esc(placeName)} <small>${esc(place.kind ?? "village")}</small></h3><div class="note">${esc(place.desc ?? "")}</div>
+    <div class="w-act"><h4>Who is here</h4><div class="rs-carts">${rows || `<div class="note">No one of the party.</div>`}</div><div class="note">Open a character to act for him: rest, rumours, the market, the road.</div></div>
+    ${place.inn ? `<div class="note">${esc(place.inn)}${place.market ? " \u00b7 a market" : ""}${place.shrine ? " \u00b7 a shrine" : ""}</div>` : ""}`;
+  return `<div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb" style="top:auto;bottom:10px">${esc(placeName)} \u00b7 the referee looking in</div></div><div class="w-card">${card}</div>`;
+}
 const VILLAGE_SVG = `<defs><pattern id="vg" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#7d9060" stroke-width=".7"/></pattern></defs><rect width="860" height="680" fill="#8fa36b"/><rect width="860" height="680" fill="url(#vg)"/>
 <path d="M0 560 C120 520 180 600 300 560 S520 500 640 560 S800 620 860 580 L860 680 L0 680Z" fill="#6f93b4"/><path d="M0 560 C120 520 180 600 300 560 S520 500 640 560 S800 620 860 580" fill="none" stroke="#5c7f9f" stroke-width="3"/>
 <path d="M150 532 L190 592" stroke="#b8a77a" stroke-width="14" stroke-linecap="round" opacity=".8"/>
@@ -1563,6 +1618,8 @@ const VILLAGE_SVG = `<defs><pattern id="vg" width="40" height="40" patternUnits=
 <text x="20" y="640" font-family="Courier Prime, monospace" font-size="12" fill="#2b3b4a">the ford \u00b7 the river</text><text x="700" y="80" font-family="Courier Prime, monospace" font-size="12" fill="#2b3b4a">north-east \u00b7 the track to Fosscraig</text><text x="30" y="110" font-family="Courier Prime, monospace" font-size="12" fill="#1f2b38">west \u00b7 Kingwold</text>
 <line x1="40" y1="660" x2="120" y2="660" stroke="#1f2b38" stroke-width="2"/><text x="124" y="664" font-family="Courier Prime, monospace" font-size="11" fill="#1f2b38">2\u2033 = 20 yards</text>`;
 function bindVillage(el, c, uid) {
+  el.querySelectorAll("[data-w-open]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.wOpen)));
+  if (!c) return;
   el.querySelectorAll("[data-w-spot]").forEach((b) => b.addEventListener("click", async () => {
     const k = b.dataset.wSpot;
     if (k === "road") { const r = await worldOp("enter", { id: c.id, place: "road" }); if (r.ok) { lobby.view = { id: c.id, at: null, dest: null, who: null }; renderLobbyStage(); } return; }
@@ -1577,35 +1634,39 @@ function bindVillage(el, c, uid) {
 /* the hex map */
 /* ---------- pass 10 (approved board 12): the hex map redrawn: flat terrain, place symbols, rivers and tracks as courses, hover and select ---------- */
 const HEX_SZ = wmap.HEX_SZ, hexNo = wmap.hexNo, HEX_SYMBOLS = wmap.HEX_SYMBOLS;
-const coursePaths = (flagOf) => wmap.coursePaths(world.hexes, flagOf);
+/** The hexes the stage draws: the referee's own, or, with the toggle on, exactly what the players have. */
+const viewHexes = () => (world.full && world.asPlayers && world.known ? world.known : world.hexes);
+const coursePaths = (flagOf) => wmap.coursePaths(viewHexes(), flagOf);
 function hexMapHtml(c, uid) {
-  const v = lobby.view, SZ = HEX_SZ, keys = Object.keys(world.hexes);
-  if (!keys.length) return `<div class="note">No map yet.</div>`;
-  // the referee's map is the hexes he has; a player's is the whole sheet, dark where he hasn't been
-  const extentKeys = world.full || !world.laidOut ? keys : wm.sheetKeys();
+  const v = lobby.view, SZ = HEX_SZ, H = viewHexes(), keys = Object.keys(H), asPlayers = world.full && world.asPlayers && !!world.known;
+  if (!keys.length && !asPlayers) return `<div class="note">No map yet.</div>`;
+  // the referee's map is the hexes he has; a player's (or the referee's with the toggle on) is the whole sheet, dark where he hasn't been
+  const playersSheet = (!world.full || asPlayers) && world.laidOut;
+  const extentKeys = playersSheet ? wm.sheetKeys() : keys;
   const { minX, maxX, minY, maxY } = wmap.extentOf(extentKeys, SZ);
   if (!world.vb) world.vb = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  const sheet = world.full || !world.laidOut ? "" : wmap.unknownSheetSvg(world.hexes, SZ);
-  const hexes = keys.map((k) => { const h = world.hexes[k];
+  const sheet = playersSheet ? wmap.unknownSheetSvg(H, SZ) : "";
+  const hexes = keys.map((k) => { const h = H[k];
     return `<polygon points="${wmap.polyOf(k, SZ)}" fill="${wmap.fillOf(h)}" stroke="${h.t === "sea" ? "#4e7391" : "#8a7a5a"}" stroke-width="1.2" ${h.rumoured ? 'stroke-dasharray="4 3" opacity=".8"' : ""} data-w-hex="${k}" class="${v.sel === k ? "sel" : ""}"/>`; }).join("");
   const riv = coursePaths((h) => h.t === "river"), trk = coursePaths((h) => !!h.track);
   const rivers = riv.paths.map((d) => `<path d="${d}" fill="none" stroke="#4e7391" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#8fb2cf" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`).join("") + riv.lone.map((k) => { const { x, y } = wl.toPixel(wl.parse(k), SZ); return `<circle cx="${x}" cy="${y}" r="6" fill="#8fb2cf" stroke="#4e7391" stroke-width="1.5"/>`; }).join("");
   const tracks = trk.paths.map((d) => `<path d="${d}" fill="none" stroke="rgba(255,250,235,.85)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#8a6a3c" stroke-width="2.4" stroke-dasharray="7 5" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
-  const fords = keys.filter((k) => world.hexes[k].ford).map((k) => { const { x, y } = wl.toPixel(wl.parse(k), SZ); return `<use href="#symFord" x="${x + 14}" y="${y + 14}"/>`; }).join("");
-  const places = keys.filter((k) => world.hexes[k].place).map((k) => { const h = world.hexes[k], { x, y } = wl.toPixel(wl.parse(k), SZ), pl = world.places[h.place] ?? {}; return `<use href="${wmap.symbolFor(pl.kind ?? h.kind)}" x="${x}" y="${y - 8}"/><text x="${x}" y="${y + 22}" font-size="12" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3" paint-order="stroke">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
-  const realms = world.full && world.laidOut ? wmap.realmLabelsSvg(SZ) : "";
-  const byHex = {}; for (const x of table.chars) { if (x.status !== "ready" || x.doing === "dead") continue; const k = hexKeyOf(x); if (k && world.hexes[k]) (byHex[k] ??= []).push(x); }
+  const fords = keys.filter((k) => H[k].ford).map((k) => { const { x, y } = wl.toPixel(wl.parse(k), SZ); return `<use href="#symFord" x="${x + 14}" y="${y + 14}"/>`; }).join("");
+  const places = keys.filter((k) => H[k].place).map((k) => { const h = H[k], { x, y } = wl.toPixel(wl.parse(k), SZ), pl = world.places[h.place] ?? {}; return `<use href="${wmap.symbolFor(pl.kind ?? h.kind)}" x="${x}" y="${y - 8}"/><text x="${x}" y="${y + 22}" font-size="12" text-anchor="middle" font-family="Courier Prime, monospace" font-weight="700" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3" paint-order="stroke">${esc(h.place)}${h.rumoured ? "?" : ""}</text>`; }).join("");
+  const realms = world.full && world.laidOut && !asPlayers ? wmap.realmLabelsSvg(SZ) : "";
+  const byHex = {}; for (const x of table.chars) { if (x.status !== "ready" || x.doing === "dead") continue; const k = hexKeyOf(x); if (k && H[k]) (byHex[k] ??= []).push(x); }
   const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((x, i) => { const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), p = table.game.people?.[x.owner] ?? {}; const openable = !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER; return `<g${openable ? ` data-w-party="${esc(x.id)}" style="cursor:pointer" role="button" aria-label="Open ${esc(x.name)}"` : ""}><title>${esc(x.name)} \u00b7 ${esc(doingOf(x))}</title><circle cx="${px - 16 + i * 16}" cy="${py - 16}" r="11" fill="${esc(p.color ?? "#2f5c8a")}" stroke="#fbfdfe" stroke-width="2"/><text x="${px - 16 + i * 16}" y="${py - 12}" font-size="11" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${esc((x.name ?? "?")[0])}</text></g>`; })).join("");
   const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wSheet">${sheet}</g><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${realms}${places}<g id="wPlan"></g>${counters}</svg>`;
-  const key = wmap.legendHtml({ full: world.full });
-  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">5 miles a hex \u00b7 a move is a day${world.full ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 wheel zooms, right-drag pans, <a href="#" id="wFit">fit</a></div></div><div class="w-card${c?.doing === "encounter" ? " enc" : ""}">${c ? setOutCard(c, uid) : refereeMapCard(uid)}${hexPanelHtml(c, uid)}</div>`;
+  const key = wmap.legendHtml({ full: world.full && !asPlayers });
+  const toggle = world.full && world.known ? ` \u00b7 <label class="w-asplayers"><input type="checkbox" id="wAsPlayers" ${asPlayers ? "checked" : ""}> as the players see it</label>` : "";
+  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 wheel zooms, right-drag pans, <a href="#" id="wFit">fit</a>${toggle}</div></div><div class="w-card${c?.doing === "encounter" ? " enc" : ""}">${c ? setOutCard(c, uid) : refereeMapCard(uid)}${hexPanelHtml(c, uid)}</div>`;
 }
 function hexPanelHtml(c, uid) {
   const v = lobby.view, k = v.sel; if (!k || !world.hexes[k]) return "";
   const h = world.hexes[k], t = wl.TERRAIN[h.t] ?? wl.TERRAIN.clear, here = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead" && hexKeyOf(x) === k).map((x) => esc(x.name)).join(", ");
   const facts = `<div class="w-fact"><span>cost</span><b>${Number.isFinite(wl.hexCost(h)) ? wl.hexCost(h) : "\u2014"}${h.track ? " (track)" : h.ford ? " (ford)" : ""}</b><span>lost</span><b>${t.lost ? `on 1\u2013${t.lost}` : "never"}</b><span>monster</span><b>on ${t.encounter === 6 ? "a 6" : `${t.encounter}\u20136`}</b><span>here</span><b>${here || "\u2014"}</b>${h.rumoured ? `<span>known</span><b>by rumour only</b>` : ""}</div>`;
   const pm = world.paint.mode, armed = world.paint.t;
-  const paint = !PLAYER ? `<div class="w-act"><h4>Paint <small class="note">(the referee's key; players see it when they walk it)</small></h4><div class="row"><button data-w-mode="hex" class="${pm === "hex" ? "on" : ""}" title="Paint the selected hex">This hex</button><button data-w-mode="brush" class="${pm === "brush" ? "on" : ""}" title="Pick a terrain, then drag over the map">Brush</button><button data-w-mode="fill" class="${pm === "fill" ? "on" : ""}" title="Pick a terrain, then click a hex to fill its region">Fill</button></div><div class="row">${Object.keys(TERRAIN_FILL).filter((x) => x !== "city" && x !== "unknown").map((x) => `<button data-w-paint="${x}" class="${pm === "hex" ? (h.t === x ? "on" : "") : (armed === x ? "on" : "")}">${x}</button>`).join("")}</div>${pm !== "hex" ? `<div class="note">${armed ? `${pm === "brush" ? "Drag over the map to paint" : "Click a hex to fill its region with"} ${armed}.` : "Pick a terrain."}</div>` : ""}<div class="row"><button data-w-paint="track" class="${h.track ? "on" : ""}">track</button><button data-w-paint="ford" class="${h.ford ? "on" : ""}">ford</button><button data-w-paint="place">${h.place ? `place: ${esc(h.place)}` : "name a place"}</button></div></div>` : "";
+  const paint = !PLAYER && !world.asPlayers ? `<div class="w-act"><h4>Paint <small class="note">(the referee's key; players see it when they walk it)</small></h4><div class="row"><button data-w-mode="hex" class="${pm === "hex" ? "on" : ""}" title="Paint the selected hex">This hex</button><button data-w-mode="brush" class="${pm === "brush" ? "on" : ""}" title="Pick a terrain, then drag over the map">Brush</button><button data-w-mode="fill" class="${pm === "fill" ? "on" : ""}" title="Pick a terrain, then click a hex to fill its region">Fill</button></div><div class="row">${Object.keys(TERRAIN_FILL).filter((x) => x !== "city" && x !== "unknown").map((x) => `<button data-w-paint="${x}" class="${pm === "hex" ? (h.t === x ? "on" : "") : (armed === x ? "on" : "")}">${x}</button>`).join("")}</div>${pm !== "hex" ? `<div class="note">${armed ? `${pm === "brush" ? "Drag over the map to paint" : "Click a hex to fill its region with"} ${armed}.` : "Pick a terrain."}</div>` : ""}<div class="row"><button data-w-paint="track" class="${h.track ? "on" : ""}">track</button><button data-w-paint="ford" class="${h.ford ? "on" : ""}">ford</button><button data-w-paint="place">${h.place ? `place: ${esc(h.place)}` : "name a place"}</button></div></div>` : "";
   return `<div class="w-act"><h3>${hexNo(k)} <small>${esc(h.t)}${h.track ? " \u00b7 track" : ""}${h.ford ? " \u00b7 ford" : ""}${h.place ? ` \u00b7 ${esc(h.place)}` : ""}</small></h3>${facts}${paint}</div>`;
 }
 function setOutCard(c, uid) {
@@ -1697,6 +1758,7 @@ function bindHexMap(el, c, uid) {
     });
     svg.querySelectorAll("[data-w-party]").forEach((g) => g.addEventListener("click", (ev) => { ev.stopPropagation(); openWorld(g.dataset.wParty); }));
     el.querySelectorAll("[data-w-open]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.wOpen)));
+    $("#wAsPlayers")?.addEventListener("change", (ev) => { world.asPlayers = ev.target.checked; world.vb = null; renderLobbyStage(); });
     $("#wLayout")?.addEventListener("click", async () => { if (!confirm("Lay out the whole kingdom over this map? Hexes you painted stay as painted.")) return; const res = await worldOp("layout", {}); if (res.ok) { world.vb = null; await loadWorld(true); } });
     el.querySelectorAll("[data-w-mode]").forEach((b) => b.addEventListener("click", () => { world.paint.mode = b.dataset.wMode; if (world.paint.mode === "hex") world.paint.t = null; renderLobbyStage(); }));
     // the brush: a left drag over the map with a terrain armed paints every hex it crosses, then sends them as one op
@@ -1793,20 +1855,39 @@ function renderGamePlayers() {
   el.querySelectorAll("[data-gchar]").forEach((sel) => sel.addEventListener("change", async () => { const r = await api.game("profile", cid, { uid: sel.dataset.gchar, character: sel.value || null }); if (!r.ok) $("#gErr").textContent = r.error; }));
   el.querySelectorAll("[data-gremove]").forEach((b) => b.addEventListener("click", () => { const nm = g.people?.[b.dataset.gremove]?.name ?? "this player"; if (confirm(`Remove ${nm} from the game? The join link is reset.`)) { table.menuFor = null; api.game("remove", cid, { uid: b.dataset.gremove }); } }));
 }
-function renderGamePlaces() {
+function renderScenes() {
   const g = table.game, el = $("#gamePlaces"); if (!g || !el) return;
+  const uid = meUid(), v = lobby.view, inFight = !!online.api?.fight;
   const live = g.live?.fid, lf = (table.fights ?? []).find((f) => f.fid === live);
-  el.innerHTML = `<div class="sbcard ${live ? "" : "live"}"><h3>Between fights${live ? "" : ` <span class="livebadge">the party is here</span>`}</h3><div class="note">The table: the party, the chat, who's here.</div>${live ? `<div class="row"><button id="plBack">Go here \u00b7 ends the fight</button></div>` : ""}</div>
-    ${live ? `<div class="sbcard live"><h3>${esc(lf?.title ?? "The fight")} <span class="livebadge">LIVE</span></h3><div class="note">${lf ? `round ${lf.round ?? 0}` : ""}</div><div class="row"><button id="plEnd">End the fight</button></div></div>` : ""}
-    <div class="sbcard"><h3>The Westmark</h3><div class="note">Where everyone is. A row opens the map there.</div>${(() => {
-      const byPlace = {};
-      for (const c of table.chars) { if (c.status !== "ready") continue; const k = c.where ?? "Langstead"; (byPlace[k] ??= []).push(c); }
-      const keys = Object.keys(byPlace); if (!keys.length) return `<div class="note">No one on the map yet.</div>`;
-      return keys.map((k) => `<div class="row" style="align-items:flex-start"><b style="min-width:7em">${esc(k)}</b><span class="note">${byPlace[k].map((c) => `${esc(c.name)} (${esc(doingOf(c))})`).join(", ")}</span>${byPlace[k].some((c) => rs.levelOf(c, meUid()) >= rs.OWNERSHIP.OWNER) || !PLAYER ? `<button data-pl-open="${esc(byPlace[k][0].id)}" style="margin-left:auto">Open</button>` : ""}</div>`).join("");
-    })()}</div>`;
-  el.querySelectorAll("[data-pl-open]").forEach((b) => b.addEventListener("click", () => { const c = charOf(b.dataset.plOpen); openWorld(c && (!PLAYER || rs.levelOf(c, meUid()) >= rs.OWNERSHIP.OWNER) ? c.id : null); }));
+  const ready = table.chars.filter((c) => c.status === "ready" && c.doing !== "dead");
+  const mine = (c) => !PLAYER || rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER;
+  const names = (list) => list.map((c) => esc(c.name)).join(", ");
+  const row = ({ title, kind, who, on, sub, act }) => `<button type="button" class="sc-row${sub ? " sub" : ""}${on ? " on" : ""}" ${act}><span class="sc-body"><b>${esc(title)}<small>${esc(kind)}</small></b>${who ? `<span class="sc-who">${who}</span>` : ""}</span>${on ? `<span class="sc-open">open</span>` : ""}</button>`;
+  // the kingdom
+  const onKingdom = !inFight && v && !v.place && (!v.id || charOf(v.id)?.doing !== "town");
+  const byPlace = {}; for (const c of ready) { if (c.doing === "town") (byPlace[c.where ?? world.home] ??= []).push(c); }
+  const roadFolk = ready.filter((c) => c.doing !== "town");
+  const kingdomWho = PLAYER ? names(roadFolk.filter(mine).length ? roadFolk.filter(mine) : []) : roadFolk.map((c) => `${esc(c.name)} \u00b7 ${esc(doingOf(c))}`).join("; ");
+  let html = row({ title: "The Westmark", kind: "kingdom", who: kingdomWho || (PLAYER ? "" : "no one on the road"), on: onKingdom, act: `data-sc-kingdom` });
+  // settlements: every village, town and city for the referee; for a player, where his characters are
+  const settlements = Object.entries(world.places ?? {}).filter(([, p]) => ["village", "town", "city"].includes(p.kind)).sort(([a], [b]) => a.localeCompare(b));
+  for (const [name, p] of settlements) {
+    const here = byPlace[name] ?? [];
+    if (PLAYER && !here.some(mine)) continue;
+    const onHere = !inFight && v && ((v.place === name && !v.id) || (v.id && charOf(v.id)?.doing === "town" && (charOf(v.id)?.where ?? world.home) === name));
+    html += row({ title: name, kind: p.kind, who: names(here) || (PLAYER ? "" : "no one"), on: onHere, sub: true, act: `data-sc-place="${esc(name)}" data-sc-char="${esc(here.find(mine)?.id ?? "")}"` });
+  }
+  // dungeons: Fosscraig, not yet
+  if (!PLAYER) for (const [name, p] of Object.entries(world.places ?? {})) if (p.kind === "ruin" && name === "Fosscraig") html += row({ title: `${name} \u00b7 Level 1`, kind: "dungeon", who: "not yet mapped", on: false, sub: true, act: "disabled" });
+  // the live fight
+  if (live) html += row({ title: lf?.title ?? "The fight", kind: `battle \u00b7 live${lf?.round ? ` \u00b7 round ${lf.round}` : ""}`, who: PLAYER ? "" : "the page is in it when it is open", on: inFight, act: `data-sc-fight="${esc(live)}"` });
+  el.innerHTML = html + (!PLAYER && live ? `<div class="row"><button id="plEnd">End the fight</button></div>` : "");
+  $("#scNote").textContent = PLAYER ? "where your characters are" : "settlements and dungeons under the kingdom; a live fight is a scene too";
+  el.querySelector("[data-sc-kingdom]")?.addEventListener("click", () => { if (PLAYER) { const c = roadFolk.find(mine) ?? myChars(uid)[0]; if (c) openWorld(c.id); } else openWorld(null); });
+  el.querySelectorAll("[data-sc-place]").forEach((b) => b.addEventListener("click", () => { const cid = b.dataset.scChar; if (PLAYER) { if (cid) openWorld(cid); } else openWorld(null, b.dataset.scPlace); }));
+  el.querySelector("[data-sc-fight]")?.addEventListener("click", () => { if (!online.api?.fight) openOnline(table.cid, live); });
   if (!PLAYER) renderRumourEditor(el);
-  $("#plBack")?.addEventListener("click", endLiveFight); $("#plEnd")?.addEventListener("click", endLiveFight);
+  $("#plEnd")?.addEventListener("click", endLiveFight);
 }
 function renderGameFights() {
   const el = $("#gameFights"); if (!el || !table.game) return;
@@ -3029,6 +3110,7 @@ const charOf = (id) => table.chars.find((c) => c.id === id) ?? null;
 const meUid = () => online.api?.user?.uid ?? null;
 const iRef = () => TABLE && isRefOf(table.game, meUid());
 function renderRoster() {
+  renderBoardPanel();
   const el = $("#rosterPanel"); if (!el) return;
   if (!TABLE || !table.game) { el.innerHTML = ""; return; }
   const focus = document.activeElement?.id === "adSearch", caret = focus ? $("#adSearch").selectionStart : 0;
@@ -3295,13 +3377,13 @@ document.querySelectorAll("[data-logf]").forEach((b) => b.addEventListener("clic
 /** Which tabs show: Party once online, Players and Fights in a game, Places for its referees. */
 function sidebarTabs() {
   const inGame = TABLE && !!table.game, ref = inGame && isRefOf(table.game, online.api?.user?.uid);
-  const vis = { chat: true, party: online.on, tracker: state.phase !== "setup", places: ref, fights: inGame, settings: true };
+  const vis = { chat: true, party: online.on, tracker: state.phase !== "setup", scenes: inGame, fights: inGame, settings: true };
   document.querySelectorAll(".sb-icon").forEach((b) => (b.hidden = !vis[b.dataset.sbtab]));
   if (!vis[sbTab]) showTab("chat");
 }
 function renderSidebar() {
   sidebarTabs();
-  if (sbTab === "places") renderGamePlaces();
+  if (sbTab === "scenes") renderScenes();
   else if (sbTab === "tracker") renderTracker();
   else if (sbTab === "fights") renderGameFights();
   else if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); }
