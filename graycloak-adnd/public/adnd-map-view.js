@@ -1,4 +1,10 @@
-// adnd-map-view.js v1.6.0 — 2026-10-26
+// adnd-map-view.js v1.7.0 — 2026-10-26
+// v1.7.0 — Resolve Travel. Every active journey (Actors sharing a
+//          runtime.activityId) gets a Resolve Travel button that POSTs the
+//          client-safe resolve intent to /api/commands/resolve-travel; the
+//          endpoint moves the Actors, clears the reservation, advances the
+//          campaign worldTick to the arrival tick, and the map reloads. The
+//          MR box is labelled in feet (OSRIC Movement Rate, 120 = 12").
 // v1.6.0 — Begin Travel submit. The Travel Party panel gains a Begin Travel
 //          button that POSTs the v1.5 client-safe intent to the same-origin
 //          /api/commands/begin-travel endpoint with the signed-in user's
@@ -84,6 +90,7 @@ const ADNDMapView = (function(){
   const GRID_COLS = 146, GRID_ROWS = 97;
   const CLICK_SLOP_PX = 4;
   const BEGIN_TRAVEL_URL = '/api/commands/begin-travel';
+  const RESOLVE_TRAVEL_URL = '/api/commands/resolve-travel';
   let ME = null;              // map-engine module
   let _ready = null;
 
@@ -109,6 +116,7 @@ const ADNDMapView = (function(){
     route: newRouteSelection(),
     travelParty: newTravelPartyState(),
     travelSubmit: { inFlight: false, result: null, ids: null },
+    resolveSubmit: { inFlight: false, result: null, ids: {} },
   };
   function ready(url){
     if (_ready) return _ready;
@@ -543,6 +551,171 @@ const ADNDMapView = (function(){
     return result;
   }
 
+  // ── Resolve Travel (v1.7.0) ──────────────────────────────────────
+  function activeJourneys(){
+    const out = {};
+    for (const id of Object.keys((state.data && state.data.characters) || {})){
+      const ch = state.data.characters[id];
+      const activityId = ch && ch.runtime && ch.runtime.activityId ? String(ch.runtime.activityId) : null;
+      if (!activityId) continue;
+      const j = out[activityId] || (out[activityId] = { activityId, actorIds: [], names: [], availableAtTick: null });
+      j.actorIds.push(String(ch.id || id));
+      j.names.push(ch.name || id);
+      const at = ch.runtime.availableAtTick;
+      if (Number.isInteger(at) && (j.availableAtTick === null || at > j.availableAtTick)) j.availableAtTick = at;
+    }
+    return Object.values(out);
+  }
+  function resolveTravelRequest(intent, idToken){
+    if (!intent || !intent.ok || !intent.command) return { ok: false, code: 'invalid-intent' };
+    if (!idToken) return { ok: false, code: 'unauthenticated' };
+    return {
+      ok: true,
+      url: RESOLVE_TRAVEL_URL,
+      init: {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(intent.command),
+      },
+    };
+  }
+  function resolveResultText(result){
+    if (!result) return '';
+    if (result.ok){
+      const parts = [result.idempotentReplay ? 'journey already resolved' : 'journey resolved'];
+      const d = result.destination && Array.isArray(result.destination.subHexCoord)
+        ? result.destination.subHexCoord : null;
+      if (d) parts.push(`arrived ${d[0]},${d[1]}`);
+      if (result.worldTick != null) parts.push(result.clockAdvanced ? `clock → tick ${result.worldTick}` : `tick ${result.worldTick}`);
+      return parts.join(' · ');
+    }
+    const code = result.code || 'unknown-error';
+    const where = [];
+    if (result.actorId) where.push(`actor ${result.actorId}`);
+    if (result.stage) where.push(`stage ${result.stage}`);
+    const suffix = where.length ? ` (${where.join(', ')})` : '';
+    if (result.httpStatus === 401 || code === 'unauthenticated') return 'sign in again to resolve travel';
+    if (code === 'stale-world-tick') return `world clock moved on — reload and try again${suffix}`;
+    if (code === 'activity-not-active') return `journey is no longer active — reload${suffix}`;
+    if (code === 'activity-not-found') return `journey record not found${suffix}`;
+    if (code === 'actor-not-reserved' || code === 'actor-precondition-failed' || code === 'activity-precondition-failed') {
+      return `traveler state changed — reload and try again${suffix}`;
+    }
+    if (code === 'actor-forbidden') return `you do not control a traveler on that journey${suffix}`;
+    if (code === 'network-error') return 'could not reach the command endpoint';
+    if (code === 'invalid-response') return 'command endpoint returned an unreadable reply';
+    return `resolve refused: ${code}${suffix}`;
+  }
+  function ensureResolveId(activityId){
+    const ids = state.resolveSubmit.ids || (state.resolveSubmit.ids = {});
+    if (!ids[activityId]) ids[activityId] = mintId('command-resolve');
+    return ids[activityId];
+  }
+  function buildResolveTravelIntent(activityId, input){
+    if (typeof ADNDCommands === 'undefined' || !ADNDCommands ||
+        typeof ADNDCommands.createResolveTravelIntent !== 'function') {
+      return { ok: false, code: 'commands-unavailable' };
+    }
+    input = input || {};
+    return ADNDCommands.createResolveTravelIntent({
+      commandId: input.commandId,
+      activityId,
+      campaignId: input.campaignId || campaignId(),
+      expectedWorldTick: input.expectedWorldTick == null ? campaignWorldTick() : input.expectedWorldTick,
+    });
+  }
+  async function submitResolveTravel(activityId){
+    if (state.resolveSubmit.inFlight) return null;
+    activityId = activityId == null ? null : String(activityId);
+    if (!activityId) return { ok: false, code: 'invalid-intent' };
+    const intent = buildResolveTravelIntent(activityId, { commandId: ensureResolveId(activityId) });
+    if (!intent.ok){
+      state.resolveSubmit.result = { ok: false, code: intent.code || 'invalid-intent' };
+      refreshTravelPartyControls();
+      return state.resolveSubmit.result;
+    }
+    const user = (typeof ADNDAuth !== 'undefined' && ADNDAuth && ADNDAuth.getUser) ? ADNDAuth.getUser() : null;
+    let token = null;
+    try { token = user && typeof user.getIdToken === 'function' ? await user.getIdToken() : null; }
+    catch(e){ console.error('[map-view] id token failed:', e); }
+    const request = resolveTravelRequest(intent, token);
+    if (!request.ok){
+      state.resolveSubmit.result = request;
+      refreshTravelPartyControls();
+      return request;
+    }
+    state.resolveSubmit.inFlight = true;
+    state.resolveSubmit.result = null;
+    refreshTravelPartyControls();
+    let result;
+    try {
+      const res = await fetch(request.url, request.init);
+      let body = null;
+      try { body = await res.json(); } catch(_){ body = null; }
+      if (!body || typeof body !== 'object') result = { ok: false, code: 'invalid-response', httpStatus: res.status };
+      else result = Object.assign({ httpStatus: res.status }, body);
+    } catch(e){
+      console.error('[map-view] resolve travel failed:', e);
+      result = { ok: false, code: 'network-error' };
+    }
+    state.resolveSubmit.inFlight = false;
+    state.resolveSubmit.result = result;
+    if (result.ok){
+      delete state.resolveSubmit.ids[activityId];
+      try {
+        const db = ADNDAuth.getDb();
+        if (db) await reloadCampaignState(db);
+      } catch(e){ console.error('[map-view] reload after resolve failed:', e); }
+      state.route = newRouteSelection();
+      state.travelParty = newTravelPartyState();
+      state.travelSubmit = { inFlight: false, result: null, ids: null };
+      refreshRouteControls();
+      refreshClock();
+    } else if (result.code === 'stale-world-tick' || result.code === 'activity-not-active' ||
+               result.code === 'actor-not-reserved' || result.code === 'actor-precondition-failed') {
+      delete state.resolveSubmit.ids[activityId];
+    }
+    refreshTravelPartyControls();
+    scheduleRender();
+    return result;
+  }
+  function refreshJourneyControls(){
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('map-journeys');
+    if (!el) return;
+    const journeys = activeJourneys();
+    const result = state.resolveSubmit && state.resolveSubmit.result;
+    const resultText = resolveResultText(result);
+    const resultCls = result ? (result.ok ? ' map-travel-result-ok' : ' map-travel-result-err') : '';
+    if (!journeys.length){
+      el.innerHTML = resultText
+        ? `<span class="map-travel-result${resultCls}">${esc(resultText)}</span>` : '';
+      el.style.display = resultText ? '' : 'none';
+      return;
+    }
+    const busy = !!(state.resolveSubmit && state.resolveSubmit.inFlight);
+    const tick = campaignWorldTick();
+    el.style.display = '';
+    el.innerHTML = journeys.map(j => {
+      const eta = j.availableAtTick == null ? '' : (tick != null && j.availableAtTick <= tick
+        ? ' · arrived' : ` · arrives tick ${j.availableAtTick}`);
+      return `<div style="display:flex;align-items:center;gap:8px;margin:2px 0;">`
+        + `<span style="font-size:11px;">⟶ ${esc(j.names.join(', '))}${esc(eta)}</span>`
+        + `<button type="button" data-resolve-activity="${esc(j.activityId)}" style="padding:3px 8px;margin:0;font-size:11px;"${busy ? ' disabled' : ''}>${busy ? 'Resolving…' : 'Resolve Travel'}</button>`
+        + `</div>`;
+    }).join('') + (resultText ? `<span class="map-travel-result${resultCls}">${esc(resultText)}</span>` : '');
+  }
+  function refreshClock(){
+    if (typeof document === 'undefined') return;
+    const clockEl = document.getElementById('map-clock');
+    if (!clockEl || !state.data) return;
+    const date = formatWorldDate(state.data.campaign && state.data.campaign.currentDate);
+    const tick = campaignWorldTick();
+    if (date) clockEl.textContent = tick == null ? date : `${date} · tick ${tick}`;
+    else if (campaignId()) clockEl.textContent = tick == null ? 'world date not set' : `tick ${tick}`;
+    else clockEl.style.display = 'none';
+  }
+
   function travelPreviewText(preview){
     if (!preview || !preview.ok){
       const code = preview && preview.code;
@@ -588,6 +761,7 @@ const ADNDMapView = (function(){
       resultEl.classList.toggle('map-travel-result-ok', !!(result && result.ok));
       resultEl.classList.toggle('map-travel-result-err', !!(result && !result.ok));
     }
+    refreshJourneyControls();
   }
   function refreshTravelPartyControls(){
     if (typeof document === 'undefined') return;
@@ -625,8 +799,8 @@ const ADNDMapView = (function(){
         + `<input type="checkbox" data-travel-actor="${esc(c.actorId)}"${checked}>`
         + `<span>${esc(c.name)}</span>`
         + `<span style="color:#777;">${esc(status)}</span>`
-        + `<span>MR</span>`
-        + `<input type="number" min="0" step="1" data-travel-mr="${esc(c.actorId)}" value="${esc(value)}" placeholder="rate" style="width:58px;padding:2px 4px;font-size:11px;">`
+        + `<span title="OSRIC Movement Rate in feet per turn (120 ft = 12&quot;)">MR ft</span>`
+        + `<input type="number" min="0" step="10" data-travel-mr="${esc(c.actorId)}" value="${esc(value)}" placeholder="120" style="width:58px;padding:2px 4px;font-size:11px;">`
         + `</label>`;
     }).join('');
     previewEl.textContent = travelPreviewText(previewSelectedPartyTravel());
@@ -900,6 +1074,12 @@ const ADNDMapView = (function(){
     refreshRouteControls();
   }
   function wireTravelPartyControls(){
+    const journeys = document.getElementById('map-journeys');
+    if (journeys) journeys.addEventListener('click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('[data-resolve-activity]') : null;
+      if (!btn) return;
+      submitResolveTravel(btn.getAttribute('data-resolve-activity'));
+    });
     const list = document.getElementById('map-travel-party-list');
     if (!list) return;
     list.addEventListener('change', (e) => {
@@ -990,6 +1170,7 @@ const ADNDMapView = (function(){
             <button id="map-travel-begin" type="button" style="padding:5px 9px;margin:0;font-size:12px;" disabled>Begin Travel</button>
             <span id="map-travel-result" class="map-travel-result"></span>
           </div>
+          <div id="map-journeys" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);display:none;"></div>
         </div>
         <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>`;
@@ -1035,16 +1216,11 @@ const ADNDMapView = (function(){
     state.route = newRouteSelection();
     state.travelParty = newTravelPartyState();
     state.travelSubmit = { inFlight: false, result: null, ids: null };
+    state.resolveSubmit = { inFlight: false, result: null, ids: {} };
     const c = pickCenter();
     state.view.cx = c.x; state.view.cy = c.y; state.view.zoom = 1.6;
     state.svg = shell();
-    const clockEl = document.getElementById('map-clock');
-    if (clockEl){
-      const date = formatWorldDate(state.data.campaign && state.data.campaign.currentDate);
-      if (date) clockEl.textContent = date;
-      else if (campaignId()) clockEl.textContent = 'world date not set';
-      else clockEl.style.display = 'none';
-    }
+    refreshClock();
     wireRouteControls();
     wireTravelPartyControls();
     wireInput(state.svg);
@@ -1069,7 +1245,8 @@ const ADNDMapView = (function(){
     ensureTravelPartySelection, selectedTravelActors, previewSelectedPartyTravel,
     buildSelectedPartyTravelPlan, buildBeginTravelIntent, travelPreviewText, routeStatusText,
     beginTravelRequest, travelResultText, beginTravelDisabledReason, submitBeginTravel,
-    reloadCampaignState, addRouteCell, clientToSubhex,
+    reloadCampaignState, activeJourneys, resolveTravelRequest, resolveResultText,
+    buildResolveTravelIntent, submitResolveTravel, addRouteCell, clientToSubhex,
     state,
   };
 })();

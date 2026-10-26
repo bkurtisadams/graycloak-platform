@@ -1,4 +1,4 @@
-// command-runtime.mjs v1.2.0 — 2026-08-30
+// command-runtime.mjs v1.3.0 — 2026-10-26
 // Trusted Node-side loader for Graycloak's pure browser command modules.
 //
 // The current command/rules files are classic browser scripts rather than ESM.
@@ -24,7 +24,9 @@ let cachedRuntime = null;
 function validRuntime(runtime) {
   return !!(runtime && runtime.Documents && runtime.Clock && runtime.Activities && runtime.Commands &&
     typeof runtime.Commands.normalizeBeginTravelCommand === 'function' &&
-    typeof runtime.Commands.executeBeginTravelCommand === 'function');
+    typeof runtime.Commands.executeBeginTravelCommand === 'function' &&
+    typeof runtime.Commands.normalizeResolveTravelCommand === 'function' &&
+    typeof runtime.Commands.executeResolveTravelCommand === 'function');
 }
 
 export function loadCommandRuntime(options = {}) {

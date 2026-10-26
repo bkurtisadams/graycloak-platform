@@ -1,5 +1,9 @@
-// command-service.mjs v1.2.0 — 2026-08-30
-// Trusted command-service shell for Graycloak Begin Travel.
+// command-service.mjs v1.3.0 — 2026-10-26
+// Trusted command-service shell for Graycloak Begin Travel and Resolve Travel.
+//
+// v1.3.0 adds handleResolveTravel(): reads the Activity named by the intent,
+// authorizes the principal for every Actor the Activity reserved, executes the
+// pure Resolve Travel command, and commits through applyResolveBundle().
 //
 // Responsibilities:
 //   1. normalize the client intent through the authoritative command runtime;
@@ -16,6 +20,7 @@ import {
   DEFAULT_COLLECTIONS as DEFAULT_TRANSACTION_COLLECTIONS,
   TRANSACTION_STATUS,
   applyCommitBundle,
+  applyResolveBundle,
 } from './firestore-transaction.mjs';
 import { loadCommandRuntime } from './command-runtime.mjs';
 
@@ -36,6 +41,7 @@ export const SERVICE_ERROR = Object.freeze({
   ACTOR_FORBIDDEN: 'actor-forbidden',
   CAMPAIGN_NOT_FOUND: 'campaign-not-found',
   ACTOR_NOT_FOUND: 'actor-not-found',
+  ACTIVITY_NOT_FOUND: 'activity-not-found',
   REGION_NOT_FOUND: 'region-not-found',
   MOVEMENT_RESOLUTION_FAILED: 'movement-resolution-failed',
   IDEMPOTENCY_CONFLICT: 'idempotency-conflict',
@@ -180,6 +186,9 @@ export function createCommandService(options = {}) {
   const commitBundle = typeof options.applyCommitBundle === 'function'
     ? options.applyCommitBundle
     : applyCommitBundle;
+  const commitResolveBundle = typeof options.applyResolveBundle === 'function'
+    ? options.applyResolveBundle
+    : applyResolveBundle;
 
   const configurationError = !db || typeof db.collection !== 'function' || typeof db.runTransaction !== 'function'
     ? SERVICE_ERROR.INVALID_FIRESTORE
@@ -320,8 +329,111 @@ export function createCommandService(options = {}) {
     }
   }
 
+  async function handleResolveTravel(rawIntent, request = {}) {
+    if (configurationError) return resultError(configurationError);
+    const principal = normalizePrincipal(request.principal || request.auth);
+    if (!principal) return resultError(SERVICE_ERROR.UNAUTHENTICATED);
+
+    const normalized = commandRuntime.Commands.normalizeResolveTravelCommand(rawIntent);
+    if (!normalized.ok) return Object.assign({ stage: 'normalize' }, normalized);
+    const command = normalized.command;
+
+    try {
+      const campaignRef = db.collection(collections.campaigns).doc(command.campaignId);
+      const eventRef = db.collection(collections.events).doc(command.commandId);
+      const activityRef = db.collection(collections.activities).doc(command.activityId);
+      const [campaignSnapshot, eventSnapshot, activitySnapshot] = await Promise.all([
+        readDoc(campaignRef),
+        readDoc(eventRef),
+        readDoc(activityRef),
+      ]);
+      if (!snapshotExists(campaignSnapshot)) {
+        return resultError(SERVICE_ERROR.CAMPAIGN_NOT_FOUND, { campaignId: command.campaignId });
+      }
+      const campaign = snapshotData(campaignSnapshot) || {};
+      if (!snapshotExists(activitySnapshot)) {
+        return resultError(SERVICE_ERROR.ACTIVITY_NOT_FOUND, { activityId: command.activityId });
+      }
+      const activity = Object.assign({}, snapshotData(activitySnapshot) || {}, { id: command.activityId });
+
+      // The Activity names its party. Authorize every reserved Actor before
+      // looking at the idempotency marker so an event id is never an oracle.
+      const actorIds = Array.isArray(activity.actorIds) ? activity.actorIds.map(String) : [];
+      const actors = [];
+      for (const actorId of actorIds) {
+        const actorSnapshot = await readDoc(db.collection(collections.actors).doc(actorId));
+        if (!snapshotExists(actorSnapshot)) {
+          return resultError(SERVICE_ERROR.ACTOR_NOT_FOUND, { actorId });
+        }
+        const actor = Object.assign({}, snapshotData(actorSnapshot) || {}, { id: actorId });
+        const allowed = await authorizeActor(actor, principal, { command, campaign, activity, db, request });
+        if (!allowed) return resultError(SERVICE_ERROR.ACTOR_FORBIDDEN, { actorId });
+        actors.push(actor);
+      }
+
+      if (snapshotExists(eventSnapshot)) {
+        const existingEvent = snapshotData(eventSnapshot) || {};
+        if (cleanId(existingEvent.commandId) === command.commandId &&
+            cleanId(existingEvent.campaignId) === command.campaignId &&
+            cleanId(existingEvent.data && existingEvent.data.activityId) === command.activityId) {
+          return {
+            ok: true,
+            status: TRANSACTION_STATUS.ALREADY_COMMITTED,
+            idempotentReplay: true,
+            commandId: command.commandId,
+            activityId: command.activityId,
+            actorIds: actorIds.slice(),
+          };
+        }
+        return resultError(SERVICE_ERROR.IDEMPOTENCY_CONFLICT, { commandId: command.commandId });
+      }
+
+      const timestamp = now();
+      const rulesVersion = await resolveRulesVersion(options.rulesVersion, {
+        command, campaign, actors, principal,
+      });
+      const execution = commandRuntime.Commands.executeResolveTravelCommand(command, {
+        campaignId: command.campaignId,
+        campaign,
+        activity,
+        actors,
+        advanceClock: options.advanceClockOnResolve !== false,
+        rulesVersion,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      if (!execution.ok) return Object.assign({ stage: 'execute' }, execution);
+      annotateCommitBundle(execution, principal);
+
+      const committed = await commitResolveBundle(db, execution.commitBundle, {
+        collections: transactionCollections(collections),
+      });
+      if (!committed.ok) return Object.assign({ stage: 'commit' }, committed);
+
+      return {
+        ok: true,
+        status: committed.status,
+        idempotentReplay: !!committed.idempotentReplay,
+        commandId: command.commandId,
+        activityId: command.activityId,
+        actorIds: execution.actorIds.slice(),
+        destination: execution.destination,
+        resolvedTick: execution.resolvedTick,
+        worldTick: execution.resolvedTick > command.expectedWorldTick
+          ? execution.resolvedTick : command.expectedWorldTick,
+        clockAdvanced: execution.clockAdvanced,
+        eventId: execution.event && execution.event.id,
+      };
+    } catch (error) {
+      return resultError(error && error.serviceCode ? error.serviceCode : SERVICE_ERROR.READ_FAILED, {
+        message: error && error.message ? String(error.message) : String(error),
+      });
+    }
+  }
+
   return Object.freeze({
     version: COMMAND_SERVICE_VERSION,
     handleBeginTravel,
+    handleResolveTravel,
   });
 }

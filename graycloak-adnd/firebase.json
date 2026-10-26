@@ -60,6 +60,14 @@
           }
         },
         {
+          "source": "/api/commands/resolve-travel",
+          "function": {
+            "functionId": "resolveTravel",
+            "region": "us-central1",
+            "pinTag": true
+          }
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }

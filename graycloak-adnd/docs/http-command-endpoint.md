@@ -33,11 +33,16 @@ only the existing client-safe Begin Travel intent.
 
 ## HTTP contract
 
-Recommended path:
+Recommended paths:
 
 ```text
-POST /api/commands/begin-travel
+POST /api/commands/begin-travel     → commandService.handleBeginTravel
+POST /api/commands/resolve-travel   → commandService.handleResolveTravel   (v1.4)
 ```
+
+Both are produced by `createCommandHttpHandler({ method })`; the two named
+factories (`createBeginTravelHttpHandler`, `createResolveTravelHttpHandler`)
+just bind the method. Everything below applies to both.
 
 Required headers:
 

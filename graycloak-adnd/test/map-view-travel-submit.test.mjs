@@ -195,3 +195,77 @@ test('beginTravelDisabledReason names the blocking condition', async () => {
   View.state.travelSubmit.inFlight = true;
   assert.equal(View.beginTravelDisabledReason(), 'in-flight');
 });
+
+test('activeJourneys groups reserved Actors by activity with the latest arrival tick', async () => {
+  const { context, View } = loadRuntime();
+  await seedParty(context, View);
+  View.state.data.characters.a.runtime = { lastResolvedTick: 100, availableAtTick: 3700, activityId: 'act-1' };
+  context.__json = JSON.stringify({
+    id: 'b', type: 'character', campaignId: 'camp-1', name: 'Beta',
+    currentLocation: { subHexCoord: [10, 20] },
+    runtime: { lastResolvedTick: 100, availableAtTick: 3900, activityId: 'act-1' },
+  });
+  View.state.data.characters.b = vm.runInContext('ADNDDocuments.createActor(JSON.parse(__json))', context);
+  const journeys = View.activeJourneys();
+  assert.equal(journeys.length, 1);
+  assert.deepEqual([...journeys[0].actorIds], ['a', 'b']);
+  assert.deepEqual([...journeys[0].names], ['Alpha', 'Beta']);
+  assert.equal(journeys[0].availableAtTick, 3900);
+});
+
+test('submitResolveTravel POSTs the resolve intent, reloads, and reports the moved party', async () => {
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push({ url, init });
+    return { status: 200, json: async () => ({ ok: true, status: 'committed', commandId: JSON.parse(init.body).commandId,
+      activityId: 'act-1', actorIds: ['a'], destination: { subHexCoord: [11, 20] }, resolvedTick: 3700, worldTick: 3700, clockAdvanced: true }) };
+  };
+  const reloaded = { campaign: { worldTick: 3700 }, character: {
+    id: 'a', type: 'character', campaignId: 'camp-1', name: 'Alpha',
+    currentLocation: { subHexCoord: [11, 20] },
+    runtime: { lastResolvedTick: 3700, availableAtTick: 3700, activityId: null },
+  } };
+  const db = {
+    collection: () => ({
+      doc: () => ({ get: async () => ({ exists: true, data: () => reloaded.campaign }) }),
+      where: () => ({ get: async () => ({ forEach: fn => fn({ id: 'a', data: () => reloaded.character }) }) }),
+    }),
+  };
+  const { context, View } = loadRuntime({ fetch, db });
+  await seedParty(context, View);
+  View.state.data.characters.a.runtime = { lastResolvedTick: 100, availableAtTick: 3700, activityId: 'act-1' };
+
+  const result = await View.submitResolveTravel('act-1');
+  assert.equal(result.ok, true);
+  assert.equal(calls[0].url, '/api/commands/resolve-travel');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer tok-1');
+  const sent = JSON.parse(calls[0].init.body);
+  assert.deepEqual(Object.keys(sent).sort(), ['activityId', 'campaignId', 'commandId', 'expectedWorldTick', 'schemaVersion', 'type']);
+  assert.equal(sent.type, 'resolveTravel');
+  assert.equal(sent.activityId, 'act-1');
+  assert.equal(sent.expectedWorldTick, 100);
+  assert.match(sent.commandId, /^command-resolve-/);
+
+  assert.equal(View.state.data.campaign.worldTick, 3700, 'campaign reloaded');
+  assert.deepEqual(View.state.data.characters.a.currentLocation, { subHexCoord: [11, 20] });
+  assert.equal(View.activeJourneys().length, 0, 'no journeys left');
+  assert.equal(View.routeCells().length, 0, 'route reset');
+  assert.match(View.resolveResultText(result), /journey resolved · arrived 11,20 · clock → tick 3700/);
+});
+
+test('submitResolveTravel keeps the command id on transient failure and drops it on a state conflict', async () => {
+  let status = 502;
+  const fetch = async () => ({ status, json: async () => (status === 502 ? null : { ok: false, code: 'activity-not-active', stage: 'execute' }) });
+  const { context, View } = loadRuntime({ fetch });
+  await seedParty(context, View);
+  View.state.data.characters.a.runtime = { lastResolvedTick: 100, availableAtTick: 3700, activityId: 'act-1' };
+  const first = await View.submitResolveTravel('act-1');
+  assert.equal(first.code, 'invalid-response');
+  const id = View.state.resolveSubmit.ids['act-1'];
+  assert.ok(id, 'id kept for retry');
+  status = 409;
+  const second = await View.submitResolveTravel('act-1');
+  assert.equal(second.code, 'activity-not-active');
+  assert.equal(View.state.resolveSubmit.ids['act-1'], undefined, 'conflict drops the attempt id');
+  assert.match(View.resolveResultText(second), /no longer active/);
+});

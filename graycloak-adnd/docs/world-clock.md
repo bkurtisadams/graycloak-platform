@@ -73,3 +73,13 @@ This version intentionally does **not**:
 - write to Firestore
 
 v0.4 can construct a Travel Activity and Actor reservation patches as pure data. Committing those patches, resolving the Activity, moving Actors, or advancing the clock still requires an authoritative command layer rather than a browser-side helper.
+
+## Clock advancement (v0.5 note)
+
+The first command that moves `worldTick` is Resolve Travel (commands v1.7.0):
+resolving a Travel Activity whose arrival lies ahead of the frontier sets
+`campaigns/{cid}.worldTick` to the arrival tick inside the same transaction
+that moves and releases the Actors. See the single-party clock policy in
+`docs/commands.md`. `currentDate` is still not derived from `worldTick`; that
+calendar adapter remains future work.
+

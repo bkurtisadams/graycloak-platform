@@ -176,8 +176,8 @@ v1.2 still does not provide:
 - a Begin Travel UI button (added in map-view v1.6.0, below);
 - Firestore Security Rules for the new authoritative collections;
 - multi-owner party consent/leadership policy;
-- world-clock advancement;
-- Activity completion/resolution;
+- world-clock advancement (added in v1.7.0 Resolve Travel, below);
+- Activity completion/resolution (added in v1.7.0 Resolve Travel, below);
 - encounters, provisions, navigation, weather, crossings, or mounts;
 - transaction fingerprints for authored map terrain or external movement-policy revisions.
 
@@ -270,4 +270,79 @@ and the v1.5 intent builder accepts the selection. On click the browser:
 Nothing authoritative is computed in the browser; every value shown comes back
 from the endpoint. Actors still stay at the route origin until a later
 resolve-travel command moves them and advances the clock.
+
+## v1.7.0 Resolve Travel command boundary
+
+Resolve Travel is the mirror of Begin Travel. The browser may ask for one
+active Travel Activity to be resolved; everything that happens is recomputed
+from trusted state.
+
+### Client-safe intent
+
+```js
+{
+  schemaVersion: 1,
+  commandId: 'command-resolve-...',
+  type: 'resolveTravel',
+  campaignId: 'campaign-1',
+  activityId: 'activity-travel-...',
+  expectedWorldTick: 1200
+}
+```
+
+Actor ids are deliberately absent: the Activity names its own party. Any other
+field a client appends is dropped during normalization.
+
+### Trusted execution (`executeResolveTravelCommand`)
+
+Rechecks, in order: campaign identity and `expectedWorldTick` against the
+frontier; the Activity exists, belongs to the campaign, is a Travel Activity,
+and is `active`; its `availableAtTick` and `system.destination` are valid;
+every Actor it names exists, is in the campaign, and is reserved by exactly
+this Activity with the matching `availableAtTick`.
+
+On success it returns a `resolveTravel` commit bundle:
+
+- `updateActivity` — `status: completed`, `completedAtTick`;
+- `patchActors` — each Actor's `currentLocation` becomes the Activity's
+  destination and its `runtime` becomes `{ lastResolvedTick: T, availableAtTick: T, activityId: null }`;
+- `updateCampaign` — `{ worldTick: T }` when the clock moved, else `null`;
+- `createEvent` — a `travel.completed` GameEvent keyed by the command id;
+- `preconditions` — campaign `worldTick`, Activity `status`/`availableAtTick`,
+  and the Actor snapshots, all re-verified inside the transaction.
+
+### v1 single-party clock policy
+
+`T` is the Activity's arrival tick when that lies ahead of the campaign
+`worldTick`, otherwise the current `worldTick`. In other words resolving a
+journey pulls the one campaign clock forward to the moment of arrival. This is
+the right behaviour while a campaign has one travelling party; once several
+parties share a clock, advancing it becomes a GM or scheduler decision. The
+service exposes `advanceClockOnResolve: false` for that future: with it off, a
+resolve before the arrival tick is refused as `activity-not-active` with
+`reason: 'not-yet-due'`.
+
+### Storage and transport
+
+`applyResolveBundle()` (firestore-transaction v1.2) commits the bundle
+atomically with the same idempotency-marker pattern as Begin Travel.
+`handleResolveTravel()` (command-service v1.3) reads the campaign, event marker
+and Activity, authorizes the principal for every reserved Actor, executes, and
+commits. `createResolveTravelHttpHandler()` (http-command-endpoint v1.4) binds
+it at `POST /api/commands/resolve-travel`, deployed as the `resolveTravel`
+function beside `beginTravel`. Public success fields add `destination`,
+`resolvedTick`, `worldTick`, and `clockAdvanced`.
+
+### map-view v1.7.0
+
+The Travel Party panel lists every active journey (Actors sharing a
+`runtime.activityId`) with its arrival tick and a **Resolve Travel** button.
+The map mints one command id per Activity attempt, POSTs the intent, then
+reloads the campaign and Actors so the party marker moves and the clock line
+shows the new tick. The MR box is labelled in feet (OSRIC Movement Rate, 120
+ft = 12") because the stored `movementRate` is what the outdoor travel table
+divides by five.
+
+Still outside this slice: encounter checks during travel, provisions, weather,
+crossings, mounts, and multi-party clock arbitration.
 

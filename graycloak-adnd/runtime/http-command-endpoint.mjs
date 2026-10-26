@@ -1,10 +1,14 @@
-// http-command-endpoint.mjs v1.3.0 — 2026-08-30
+// http-command-endpoint.mjs v1.4.0 — 2026-10-26
 // Thin authenticated HTTP transport for Graycloak authoritative commands.
+//
+// v1.4.0 generalizes the handler factory: createCommandHttpHandler() binds one
+// command-service method; createBeginTravelHttpHandler() and
+// createResolveTravelHttpHandler() are the two bound transports.
 //
 // This file is deployment-neutral. It does not import firebase-admin,
 // firebase-functions, Express, or any browser code. A trusted host injects:
 //   - verifyIdToken(token, context)
-//   - commandService.handleBeginTravel(intent, requestContext)
+//   - commandService.handleBeginTravel / handleResolveTravel(intent, requestContext)
 //
 // The handler uses the ordinary Node/Express/Cloud Functions (req, res) shape.
 
@@ -40,6 +44,7 @@ const NOT_FOUND_CODES = new Set([
   'campaign-not-found',
   'actor-not-found',
   'region-not-found',
+  'activity-not-found',
 ]);
 
 const CONFLICT_CODES = new Set([
@@ -50,6 +55,12 @@ const CONFLICT_CODES = new Set([
   'invalid-authoritative-movement',
   'actor-precondition-failed',
   'activity-already-exists',
+  'activity-not-active',
+  'activity-not-travel',
+  'activity-mismatch',
+  'activity-precondition-failed',
+  'actor-not-reserved',
+  'invalid-activity-destination',
   'idempotency-conflict',
 ]);
 
@@ -217,6 +228,7 @@ function publicCommandResult(result, status) {
     for (const key of [
       'status', 'idempotentReplay', 'commandId', 'activityId', 'actorIds',
       'availableAtTick', 'durationTicks', 'eventId',
+      'destination', 'resolvedTick', 'worldTick', 'clockAdvanced',
     ]) {
       if (result[key] !== undefined) out[key] = result[key];
     }
@@ -269,22 +281,24 @@ function requestMetadata(req) {
 function configurationValid(options) {
   return !!(
     options &&
-    options.commandService && typeof options.commandService.handleBeginTravel === 'function' &&
+    options.commandService && typeof options.commandService[options.method] === 'function' &&
     typeof options.verifyIdToken === 'function' &&
     Number.isSafeInteger(options.maxBodyBytes) && options.maxBodyBytes > 0
   );
 }
 
-export function createBeginTravelHttpHandler(options = {}) {
+export function createCommandHttpHandler(options = {}) {
   const config = {
     commandService: options.commandService,
+    method: options.method,
+    label: options.label || options.method || 'command',
     verifyIdToken: options.verifyIdToken,
     maxBodyBytes: options.maxBodyBytes == null ? DEFAULT_MAX_BODY_BYTES : options.maxBodyBytes,
     logger: options.logger && typeof options.logger.error === 'function' ? options.logger : null,
   };
   const valid = configurationValid(config);
 
-  return async function beginTravelHttpHandler(req, res) {
+  return async function commandHttpHandler(req, res) {
     if (!valid) {
       sendJson(res, 500, { ok: false, code: HTTP_ERROR.INVALID_CONFIGURATION });
       return;
@@ -343,12 +357,12 @@ export function createBeginTravelHttpHandler(options = {}) {
 
     let result;
     try {
-      result = await config.commandService.handleBeginTravel(intent, {
+      result = await config.commandService[config.method](intent, {
         principal,
         transport: requestMetadata(req),
       });
     } catch (error) {
-      if (config.logger) config.logger.error('Graycloak Begin Travel service failed', { error });
+      if (config.logger) config.logger.error(`Graycloak ${config.label} service failed`, { error });
       sendJson(res, 500, { ok: false, code: HTTP_ERROR.INTERNAL_ERROR });
       return;
     }
@@ -356,4 +370,18 @@ export function createBeginTravelHttpHandler(options = {}) {
     const status = statusForCommandResult(result);
     sendJson(res, status, publicCommandResult(result, status));
   };
+}
+
+export function createBeginTravelHttpHandler(options = {}) {
+  return createCommandHttpHandler(Object.assign({}, options, {
+    method: 'handleBeginTravel',
+    label: 'Begin Travel',
+  }));
+}
+
+export function createResolveTravelHttpHandler(options = {}) {
+  return createCommandHttpHandler(Object.assign({}, options, {
+    method: 'handleResolveTravel',
+    label: 'Resolve Travel',
+  }));
 }

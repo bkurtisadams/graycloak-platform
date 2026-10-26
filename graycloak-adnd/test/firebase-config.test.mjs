@@ -21,19 +21,28 @@ test('Functions package is ESM on Node 22+ with current Firebase server dependen
 
 test('Firebase config deploys graycloak-adnd itself as a Node 22 Functions source', () => {
   const config = readJson(firebasePath);
-  assert.equal(config.functions.source, '.');
-  assert.equal(config.functions.runtime, 'nodejs22');
-  assert.ok(config.functions.ignore.includes('test'));
-  assert.ok(config.functions.ignore.includes('docs'));
+  const codebases = Array.isArray(config.functions) ? config.functions : [config.functions];
+  const adnd = codebases.find(entry => entry.source === '.');
+  assert.ok(adnd, 'graycloak-adnd codebase present');
+  assert.equal(adnd.codebase, 'default');
+  assert.equal(adnd.runtime, 'nodejs22');
+  assert.ok(adnd.ignore.includes('test'));
+  assert.ok(adnd.ignore.includes('docs'));
 });
 
-test('Begin Travel Hosting rewrite precedes the SPA catch-all and pins the function revision', () => {
+test('command Hosting rewrites precede the SPA catch-all and pin the function revisions', () => {
   const config = readJson(firebasePath);
   const hosting = config.hosting.find(entry => entry.target === 'adnd');
   assert.ok(hosting);
-  assert.equal(hosting.rewrites[0].source, '/api/commands/begin-travel');
-  assert.equal(hosting.rewrites[0].function.functionId, 'beginTravel');
-  assert.equal(hosting.rewrites[0].function.region, 'us-central1');
-  assert.equal(hosting.rewrites[0].function.pinTag, true);
-  assert.deepEqual(hosting.rewrites[1], { source: '**', destination: '/index.html' });
+  const expected = [
+    ['/api/commands/begin-travel', 'beginTravel'],
+    ['/api/commands/resolve-travel', 'resolveTravel'],
+  ];
+  expected.forEach(([source, functionId], i) => {
+    assert.equal(hosting.rewrites[i].source, source);
+    assert.equal(hosting.rewrites[i].function.functionId, functionId);
+    assert.equal(hosting.rewrites[i].function.region, 'us-central1');
+    assert.equal(hosting.rewrites[i].function.pinTag, true);
+  });
+  assert.deepEqual(hosting.rewrites[expected.length], { source: '**', destination: '/index.html' });
 });

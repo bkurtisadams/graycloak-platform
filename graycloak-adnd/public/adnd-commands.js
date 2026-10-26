@@ -1,5 +1,13 @@
-// adnd-commands.js v1.6.0 — 2026-08-30
+// adnd-commands.js v1.7.0 — 2026-10-26
 // Graycloak authoritative game-command boundary.
+//
+// v1.7.0 adds Resolve Travel: the mirror of Begin Travel. The browser may ask
+// for an active Travel Activity to be resolved; the trusted runtime rechecks
+// that the Activity is active and every reserved Actor still matches it, then
+// returns a commit bundle that completes the Activity, moves each Actor to the
+// Activity's destination, releases its reservation, advances the campaign
+// worldTick to the arrival tick when the clock is behind it (v1 single-party
+// clock policy, see docs/commands.md), and records a travel.completed event.
 //
 // v1.6.0 adds the Create Character intent and pure trusted creation plan.
 // It deliberately supports only fixed-order Method III until the arrangeable
@@ -15,10 +23,12 @@ const ADNDCommands = (function(){
   const COMMAND_VERSION = 1;
   const COMMAND_TYPES = Object.freeze({
     BEGIN_TRAVEL: 'beginTravel',
+    RESOLVE_TRAVEL: 'resolveTravel',
     CREATE_CHARACTER: 'createCharacter',
   });
   const EVENT_TYPES = Object.freeze({
     TRAVEL_STARTED: 'travel.started',
+    TRAVEL_COMPLETED: 'travel.completed',
     CHARACTER_CREATED: 'character.created',
   });
   const AUTHORITATIVE_CHARGEN_METHODS = Object.freeze(['III']);
@@ -49,6 +59,12 @@ const ADNDCommands = (function(){
     INVALID_AUTHORITATIVE_MOVEMENT: 'invalid-authoritative-movement',
     INVALID_ROUTE_SCALE: 'invalid-route-scale',
     TRAVEL_REJECTED: 'travel-rejected',
+    ACTIVITY_NOT_FOUND: 'activity-not-found',
+    ACTIVITY_NOT_ACTIVE: 'activity-not-active',
+    ACTIVITY_NOT_TRAVEL: 'activity-not-travel',
+    ACTIVITY_MISMATCH: 'activity-mismatch',
+    ACTOR_NOT_RESERVED: 'actor-not-reserved',
+    INVALID_ACTIVITY_DESTINATION: 'invalid-activity-destination',
     MISSING_AUTHORITATIVE_OWNER: 'missing-authoritative-owner',
     INVALID_CHARACTER_ID: 'invalid-character-id',
     INVALID_CHARACTER_BUILDER: 'invalid-character-builder',
@@ -394,6 +410,45 @@ const ADNDCommands = (function(){
     return createBeginTravelIntent(raw);
   }
 
+  // ── Resolve Travel ───────────────────────────────────────────────
+  // Client-safe intent: which Activity, in which campaign, at which clock.
+  // Actor ids are not part of the intent; the Activity names its own party.
+  function createResolveTravelIntent(input){
+    if (!dependenciesReady()) return { ok: false, code: COMMAND_ERROR.DEPENDENCY_UNAVAILABLE };
+    input = input || {};
+
+    const commandId = cleanId(input.commandId || input.id);
+    if (!commandId) return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_ID };
+    const activityId = cleanId(input.activityId);
+    if (!activityId) return { ok: false, code: COMMAND_ERROR.INVALID_ACTIVITY_ID };
+    const campaignId = cleanId(input.campaignId);
+    if (!campaignId) return { ok: false, code: COMMAND_ERROR.INVALID_CAMPAIGN_ID };
+    const expectedWorldTick = ADNDWorldClock.normalizeTick(input.expectedWorldTick);
+    if (expectedWorldTick === null) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_EXPECTED_WORLD_TICK };
+    }
+
+    return {
+      ok: true,
+      command: {
+        schemaVersion: COMMAND_VERSION,
+        commandId,
+        type: COMMAND_TYPES.RESOLVE_TRAVEL,
+        campaignId,
+        activityId,
+        expectedWorldTick,
+      },
+    };
+  }
+
+  function normalizeResolveTravelCommand(raw){
+    if (!raw || typeof raw !== 'object') return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND };
+    if (raw.type !== COMMAND_TYPES.RESOLVE_TRAVEL) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_TYPE };
+    }
+    return createResolveTravelIntent(raw);
+  }
+
   function contextCampaignId(context){
     context = context || {};
     return cleanId(context.campaignId ||
@@ -633,6 +688,190 @@ const ADNDCommands = (function(){
     };
   }
 
+  function executeResolveTravelCommand(rawCommand, context){
+    if (!dependenciesReady()) return { ok: false, code: COMMAND_ERROR.DEPENDENCY_UNAVAILABLE };
+    const normalized = normalizeResolveTravelCommand(rawCommand);
+    if (!normalized.ok) return normalized;
+    const command = normalized.command;
+    context = context || {};
+
+    const campaign = context.campaign;
+    if (!campaign || typeof campaign !== 'object') {
+      return { ok: false, code: COMMAND_ERROR.CAMPAIGN_NOT_FOUND };
+    }
+    const authoritativeCampaignId = contextCampaignId(context);
+    if (!authoritativeCampaignId || authoritativeCampaignId !== command.campaignId){
+      return {
+        ok: false,
+        code: COMMAND_ERROR.CAMPAIGN_MISMATCH,
+        commandCampaignId: command.campaignId,
+        authoritativeCampaignId,
+      };
+    }
+
+    const worldTick = ADNDWorldClock.campaignWorldTick(campaign);
+    if (worldTick === null) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_EXPECTED_WORLD_TICK };
+    }
+    if (worldTick !== command.expectedWorldTick){
+      return {
+        ok: false,
+        code: COMMAND_ERROR.STALE_WORLD_TICK,
+        expectedWorldTick: command.expectedWorldTick,
+        authoritativeWorldTick: worldTick,
+      };
+    }
+
+    const activity = context.activity;
+    if (!activity || typeof activity !== 'object') {
+      return { ok: false, code: COMMAND_ERROR.ACTIVITY_NOT_FOUND, activityId: command.activityId };
+    }
+    const activityId = cleanId(activity.id || context.activityId) || command.activityId;
+    if (activityId !== command.activityId ||
+        cleanId(activity.campaignId) !== command.campaignId) {
+      return { ok: false, code: COMMAND_ERROR.ACTIVITY_MISMATCH, activityId: command.activityId };
+    }
+    if (!ADNDActivities.isTravelActivity(Object.assign({}, activity, { id: activityId }))) {
+      return { ok: false, code: COMMAND_ERROR.ACTIVITY_NOT_TRAVEL, activityId };
+    }
+    if (activity.status !== ADNDActivities.ACTIVITY_STATUS.ACTIVE) {
+      return {
+        ok: false,
+        code: COMMAND_ERROR.ACTIVITY_NOT_ACTIVE,
+        activityId,
+        activityStatus: activity.status == null ? null : String(activity.status),
+      };
+    }
+    const arrivalTick = ADNDActivities.activityCompletionTick(activity);
+    if (arrivalTick === null) {
+      return { ok: false, code: COMMAND_ERROR.ACTIVITY_MISMATCH, activityId, field: 'availableAtTick' };
+    }
+    const destination = ADNDActivities.normalizeAxialCoord(activity.system && activity.system.destination);
+    if (!destination) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_ACTIVITY_DESTINATION, activityId };
+    }
+    const actorIds = normalizeActorIds(activity.actorIds);
+    if (!actorIds || actorIds.error) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_ACTOR_IDS, activityId };
+    }
+
+    const actorMap = authoritativeActorMap(context.actors || context.characters);
+    const actors = [];
+    for (const actorId of actorIds){
+      const actor = actorMap[actorId];
+      if (!actor) return { ok: false, code: COMMAND_ERROR.ACTOR_NOT_FOUND, actorId };
+      if (cleanId(actor.campaignId) !== command.campaignId) {
+        return { ok: false, code: COMMAND_ERROR.CAMPAIGN_MISMATCH, actorId };
+      }
+      const runtime = ADNDWorldClock.actorTimeRuntime(actor);
+      if (runtime.activityId !== activityId || runtime.availableAtTick !== arrivalTick) {
+        return {
+          ok: false,
+          code: COMMAND_ERROR.ACTOR_NOT_RESERVED,
+          actorId,
+          activityId,
+          actorActivityId: runtime.activityId,
+        };
+      }
+      actors.push(actor);
+    }
+
+    // v1 single-party clock policy: resolving a journey whose arrival lies
+    // ahead of the campaign frontier pulls the frontier forward to it. Once
+    // several parties share a clock this becomes a GM/scheduler decision.
+    const advanceClock = context.advanceClock !== false;
+    const resolvedTick = arrivalTick > worldTick
+      ? (advanceClock ? arrivalTick : null)
+      : worldTick;
+    if (resolvedTick === null) {
+      return {
+        ok: false,
+        code: COMMAND_ERROR.ACTIVITY_NOT_ACTIVE,
+        activityId,
+        reason: 'not-yet-due',
+        arrivalTick,
+        authoritativeWorldTick: worldTick,
+      };
+    }
+
+    const newLocation = { subHexCoord: [destination.Q, destination.R] };
+    const actorPatches = actors.map(actor => ({
+      actorId: actor.id,
+      currentLocation: clonePlain(newLocation),
+      runtime: {
+        lastResolvedTick: resolvedTick,
+        availableAtTick: resolvedTick,
+        activityId: null,
+      },
+    }));
+
+    const event = ADNDDocuments.createGameEvent({
+      id: command.commandId,
+      type: EVENT_TYPES.TRAVEL_COMPLETED,
+      campaignId: command.campaignId,
+      targetIds: actorIds,
+      worldTick: resolvedTick,
+      rulesVersion: context.rulesVersion || null,
+      commandId: command.commandId,
+      createdAt: context.createdAt == null ? null : context.createdAt,
+      updatedAt: context.updatedAt == null ? null : context.updatedAt,
+      data: {
+        activityId,
+        actorIds: actorIds.slice(),
+        origin: clonePlain(activity.system && activity.system.origin),
+        destination: clonePlain(newLocation),
+        startedAtTick: ADNDWorldClock.normalizeTick(activity.startedAtTick),
+        arrivalTick,
+        previousWorldTick: worldTick,
+        resolvedTick,
+        clockAdvanced: resolvedTick > worldTick,
+      },
+    });
+
+    const preconditions = {
+      campaign: { campaignId: command.campaignId, worldTick },
+      activity: {
+        activityId,
+        status: ADNDActivities.ACTIVITY_STATUS.ACTIVE,
+        availableAtTick: arrivalTick,
+      },
+      actors: actors.map(actorRuntimePrecondition),
+      commandEventMustNotExist: command.commandId,
+    };
+
+    const commitBundle = {
+      version: 1,
+      commandId: command.commandId,
+      commandType: command.type,
+      idempotencyKey: command.commandId,
+      campaignId: command.campaignId,
+      expectedWorldTick: worldTick,
+      preconditions,
+      updateActivity: {
+        activityId,
+        status: ADNDActivities.ACTIVITY_STATUS.COMPLETED,
+        completedAtTick: resolvedTick,
+        updatedAt: context.updatedAt == null ? null : context.updatedAt,
+      },
+      patchActors: actorPatches,
+      updateCampaign: resolvedTick > worldTick ? { worldTick: resolvedTick } : null,
+      createEvent: event,
+    };
+
+    return {
+      ok: true,
+      command,
+      activityId,
+      actorIds: actorIds.slice(),
+      destination: clonePlain(newLocation),
+      resolvedTick,
+      arrivalTick,
+      clockAdvanced: resolvedTick > worldTick,
+      event,
+      commitBundle,
+    };
+  }
+
   return {
     COMMAND_VERSION,
     COMMAND_TYPES,
@@ -656,5 +895,8 @@ const ADNDCommands = (function(){
     explicitAuthoritativeMovementProfile,
     authoritativeMovementProfiles,
     executeBeginTravelCommand,
+    createResolveTravelIntent,
+    normalizeResolveTravelCommand,
+    executeResolveTravelCommand,
   };
 })();
