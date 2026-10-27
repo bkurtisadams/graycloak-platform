@@ -80,6 +80,9 @@ The first command that moves `worldTick` is Resolve Travel (commands v1.7.0):
 resolving a Travel Activity whose arrival lies ahead of the frontier sets
 `campaigns/{cid}.worldTick` to the arrival tick inside the same transaction
 that moves and releases the Actors. See the single-party clock policy in
-`docs/commands.md`. `currentDate` is still not derived from `worldTick`; that
-calendar adapter remains future work.
+`docs/commands.md`. Rest (commands v1.8.0) is the second mover: it adds whole
+days. The calendar adapter now exists (`adnd-calendar.js`): with
+`campaigns/{cid}.calendarEpoch` the map derives the Greyhawk date and hour
+from `worldTick`; `currentDate` is legacy text and is not written by the
+runtime.
 

@@ -21,6 +21,7 @@ function loadRuntime({ fetch, user, db } = {}){
   for (const file of [
     'adnd-documents.js',
     'adnd-world-clock.js',
+    'adnd-calendar.js',
     'adnd-activities.js',
     'adnd-commands.js',
     'adnd-map-route.js',
@@ -269,3 +270,64 @@ test('submitResolveTravel keeps the command id on transient failure and drops it
   assert.equal(View.state.resolveSubmit.ids['act-1'], undefined, 'conflict drops the attempt id');
   assert.match(View.resolveResultText(second), /no longer active/);
 });
+
+test('clockText prefers the calendar epoch, then legacy currentDate, then the bare tick', async () => {
+  const { context, View } = loadRuntime();
+  await seedParty(context, View);
+  View.state.data.campaign = realmValue(context, { worldTick: 26401 });
+  assert.equal(View.clockText(), 'tick 26401');
+  View.state.data.campaign = realmValue(context, { worldTick: 26401, currentDate: { year: 576, month: 1, day: 1 } });
+  assert.equal(View.clockText(), '1 Fireseek, 576 CY · tick 26401');
+  View.state.data.campaign = realmValue(context, { worldTick: 26401, currentDate: { year: 576, month: 1, day: 1 },
+    calendarEpoch: { year: 576, month: 'Fireseek', day: 1, hour: 6 } });
+  assert.equal(View.clockText(), 'Moonday, 3 Fireseek 576 CY · 02:00 · tick 26401');
+});
+
+test('partyPresence names the settlement the party stands in and restCandidates lists available Actors', async () => {
+  const { context, View } = loadRuntime();
+  await seedParty(context, View);
+  View.state.data.settlements = realmValue(context, { set_far_bank: { name: 'Far Bank', subHexCoord: [10, 20] } });
+  const presence = View.partyPresence();
+  assert.deepEqual([presence.cell.Q, presence.cell.R], [10, 20]);
+  assert.equal(presence.settlement.name, 'Far Bank');
+  assert.equal(View.settlementAtCell(realmValue(context, { Q: 11, R: 20 })), null);
+  assert.deepEqual([...View.restCandidates().map(c => c.actorId)], ['a']);
+  View.state.data.characters.a.runtime.activityId = 'act-1';
+  assert.equal(View.restCandidates().length, 0);
+});
+
+test('submitRest POSTs the rest intent for available Actors and reloads the clock', async () => {
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push({ url, init });
+    return { status: 200, json: async () => ({ ok: true, status: 'committed', commandId: JSON.parse(init.body).commandId,
+      activityId: JSON.parse(init.body).activityId, actorIds: ['a'], days: 3, resolvedTick: 43300, worldTick: 43300,
+      clockAdvanced: true, restored: [{ actorId: 'a', hitPoints: 3 }] }) };
+  };
+  const reloaded = { campaign: { worldTick: 43300 }, character: {
+    id: 'a', type: 'character', campaignId: 'camp-1', name: 'Alpha', currentLocation: { subHexCoord: [10, 20] },
+    runtime: { lastResolvedTick: 43300, availableAtTick: 43300, activityId: null }, hitPoints: { current: 6, maximum: 9 },
+  } };
+  const db = { collection: () => ({
+    doc: () => ({ get: async () => ({ exists: true, data: () => reloaded.campaign }) }),
+    where: () => ({ get: async () => ({ forEach: fn => fn({ id: 'a', data: () => reloaded.character }) }) }),
+  }) };
+  const { context, View } = loadRuntime({ fetch, db });
+  await seedParty(context, View);
+  View.state.restSubmit.days = 3;
+  const result = await View.submitRest();
+  assert.equal(result.ok, true);
+  assert.equal(calls[0].url, '/api/commands/rest');
+  const sent = JSON.parse(calls[0].init.body);
+  assert.equal(sent.type, 'rest');
+  assert.deepEqual(sent.actorIds, ['a']);
+  assert.equal(sent.days, 3);
+  assert.equal(sent.expectedWorldTick, 100);
+  assert.match(sent.commandId, /^command-rest-/);
+  assert.match(sent.activityId, /^activity-rest-/);
+  assert.equal(View.state.data.campaign.worldTick, 43300);
+  assert.equal(View.state.data.characters.a.hitPoints.current, 6);
+  assert.equal(View.restResultText(result), 'rested 3 days · +3 hp · clock → tick 43300');
+  assert.equal(View.state.restSubmit.ids, null);
+});
+

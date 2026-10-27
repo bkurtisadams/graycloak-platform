@@ -1,6 +1,7 @@
-// firebase-functions.mjs v1.5.0 — 2026-10-26
+// firebase-functions.mjs v1.6.0 — 2026-10-26
 // Deployable Firebase Functions entry point for Graycloak authoritative commands.
 // v1.5.0 adds resolveTravel beside beginTravel, sharing one command service.
+// v1.6.0 adds rest.
 
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
@@ -13,6 +14,7 @@ import {
   createFirebaseBeginTravelHandler,
   createFirebaseCommandService,
   createFirebaseResolveTravelHandler,
+  createFirebaseRestHandler,
 } from './runtime/firebase-deployment.mjs';
 
 const app = getApps()[0] || initializeApp();
@@ -41,6 +43,13 @@ const resolveTravelHandler = createFirebaseResolveTravelHandler({
   logger,
 });
 
+const restHandler = createFirebaseRestHandler({
+  db,
+  auth,
+  commandService,
+  logger,
+});
+
 // Infrastructure access must be public so Firebase Hosting can invoke the
 // function. Graycloak application authentication still requires a verified
 // Firebase ID token inside beginTravelHandler.
@@ -61,3 +70,12 @@ export const resolveTravel = onRequest({
   memory: '256MiB',
   maxInstances: 10,
 }, resolveTravelHandler);
+
+export const rest = onRequest({
+  region: 'us-central1',
+  invoker: 'public',
+  cors: false,
+  timeoutSeconds: 30,
+  memory: '256MiB',
+  maxInstances: 10,
+}, restHandler);

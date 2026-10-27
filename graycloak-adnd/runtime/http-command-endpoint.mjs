@@ -1,9 +1,10 @@
-// http-command-endpoint.mjs v1.4.0 — 2026-10-26
+// http-command-endpoint.mjs v1.5.0 — 2026-10-26
 // Thin authenticated HTTP transport for Graycloak authoritative commands.
 //
 // v1.4.0 generalizes the handler factory: createCommandHttpHandler() binds one
-// command-service method; createBeginTravelHttpHandler() and
-// createResolveTravelHttpHandler() are the two bound transports.
+// command-service method; createBeginTravelHttpHandler(),
+// createResolveTravelHttpHandler() and (v1.5.0) createRestHttpHandler() are
+// the bound transports.
 //
 // This file is deployment-neutral. It does not import firebase-admin,
 // firebase-functions, Express, or any browser code. A trusted host injects:
@@ -60,6 +61,7 @@ const CONFLICT_CODES = new Set([
   'activity-mismatch',
   'activity-precondition-failed',
   'actor-not-reserved',
+  'actor-not-available',
   'invalid-activity-destination',
   'idempotency-conflict',
 ]);
@@ -229,6 +231,7 @@ function publicCommandResult(result, status) {
       'status', 'idempotentReplay', 'commandId', 'activityId', 'actorIds',
       'availableAtTick', 'durationTicks', 'eventId',
       'destination', 'resolvedTick', 'worldTick', 'clockAdvanced',
+      'days', 'restored',
     ]) {
       if (result[key] !== undefined) out[key] = result[key];
     }
@@ -383,5 +386,12 @@ export function createResolveTravelHttpHandler(options = {}) {
   return createCommandHttpHandler(Object.assign({}, options, {
     method: 'handleResolveTravel',
     label: 'Resolve Travel',
+  }));
+}
+
+export function createRestHttpHandler(options = {}) {
+  return createCommandHttpHandler(Object.assign({}, options, {
+    method: 'handleRest',
+    label: 'Rest',
   }));
 }

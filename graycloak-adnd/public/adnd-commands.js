@@ -1,5 +1,13 @@
-// adnd-commands.js v1.7.0 — 2026-10-26
+// adnd-commands.js v1.8.0 — 2026-10-26
 // Graycloak authoritative game-command boundary.
+//
+// v1.8.0 adds Rest: a party of current (unreserved) Actors rests N whole
+// days. The trusted runtime advances the campaign clock by N days (same
+// single-party clock policy as Resolve Travel), rebinds the Actors to the new
+// tick, restores hit points on Actors that carry hitPoints {current, maximum}
+// at the OSRIC natural-healing rate supplied by the host (default 1 hp per
+// day of rest), records a completed Rest Activity, and writes a
+// rest.completed event.
 //
 // v1.7.0 adds Resolve Travel: the mirror of Begin Travel. The browser may ask
 // for an active Travel Activity to be resolved; the trusted runtime rechecks
@@ -24,11 +32,15 @@ const ADNDCommands = (function(){
   const COMMAND_TYPES = Object.freeze({
     BEGIN_TRAVEL: 'beginTravel',
     RESOLVE_TRAVEL: 'resolveTravel',
+    REST: 'rest',
     CREATE_CHARACTER: 'createCharacter',
   });
+  const REST_MAX_DAYS = 30;
+  const DEFAULT_REST_HEAL_PER_DAY = 1;
   const EVENT_TYPES = Object.freeze({
     TRAVEL_STARTED: 'travel.started',
     TRAVEL_COMPLETED: 'travel.completed',
+    REST_COMPLETED: 'rest.completed',
     CHARACTER_CREATED: 'character.created',
   });
   const AUTHORITATIVE_CHARGEN_METHODS = Object.freeze(['III']);
@@ -64,6 +76,8 @@ const ADNDCommands = (function(){
     ACTIVITY_NOT_TRAVEL: 'activity-not-travel',
     ACTIVITY_MISMATCH: 'activity-mismatch',
     ACTOR_NOT_RESERVED: 'actor-not-reserved',
+    ACTOR_NOT_AVAILABLE: 'actor-not-available',
+    INVALID_REST_DAYS: 'invalid-rest-days',
     INVALID_ACTIVITY_DESTINATION: 'invalid-activity-destination',
     MISSING_AUTHORITATIVE_OWNER: 'missing-authoritative-owner',
     INVALID_CHARACTER_ID: 'invalid-character-id',
@@ -439,6 +453,48 @@ const ADNDCommands = (function(){
         expectedWorldTick,
       },
     };
+  }
+
+  // ── Rest ─────────────────────────────────────────────────────────
+  function createRestIntent(input){
+    if (!dependenciesReady()) return { ok: false, code: COMMAND_ERROR.DEPENDENCY_UNAVAILABLE };
+    input = input || {};
+    const commandId = cleanId(input.commandId || input.id);
+    if (!commandId) return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_ID };
+    const activityId = cleanId(input.activityId);
+    if (!activityId) return { ok: false, code: COMMAND_ERROR.INVALID_ACTIVITY_ID };
+    const campaignId = cleanId(input.campaignId);
+    if (!campaignId) return { ok: false, code: COMMAND_ERROR.INVALID_CAMPAIGN_ID };
+    const expectedWorldTick = ADNDWorldClock.normalizeTick(input.expectedWorldTick);
+    if (expectedWorldTick === null) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_EXPECTED_WORLD_TICK };
+    }
+    const actorIds = normalizeActorIds(input.actorIds);
+    if (!actorIds) return { ok: false, code: COMMAND_ERROR.INVALID_ACTOR_IDS };
+    if (actorIds.error) return { ok: false, code: actorIds.error, actorId: actorIds.actorId };
+    const days = Number(input.days);
+    if (!Number.isInteger(days) || days < 1 || days > REST_MAX_DAYS) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_REST_DAYS };
+    }
+    return {
+      ok: true,
+      command: {
+        schemaVersion: COMMAND_VERSION,
+        commandId,
+        type: COMMAND_TYPES.REST,
+        campaignId,
+        activityId,
+        expectedWorldTick,
+        actorIds,
+        days,
+      },
+    };
+  }
+
+  function normalizeRestCommand(raw){
+    if (!raw || typeof raw !== 'object') return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND };
+    if (raw.type !== COMMAND_TYPES.REST) return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_TYPE };
+    return createRestIntent(raw);
   }
 
   function normalizeResolveTravelCommand(raw){
@@ -872,10 +928,166 @@ const ADNDCommands = (function(){
     };
   }
 
+  function actorHitPoints(actor){
+    const hp = actor && actor.hitPoints;
+    if (!hp || typeof hp !== 'object') return null;
+    if (!Number.isInteger(hp.current) || !Number.isInteger(hp.maximum) || hp.maximum < 1) return null;
+    return { current: hp.current, maximum: hp.maximum };
+  }
+
+  function executeRestCommand(rawCommand, context){
+    if (!dependenciesReady()) return { ok: false, code: COMMAND_ERROR.DEPENDENCY_UNAVAILABLE };
+    const normalized = normalizeRestCommand(rawCommand);
+    if (!normalized.ok) return normalized;
+    const command = normalized.command;
+    context = context || {};
+
+    const campaign = context.campaign;
+    if (!campaign || typeof campaign !== 'object') {
+      return { ok: false, code: COMMAND_ERROR.CAMPAIGN_NOT_FOUND };
+    }
+    const authoritativeCampaignId = contextCampaignId(context);
+    if (!authoritativeCampaignId || authoritativeCampaignId !== command.campaignId){
+      return {
+        ok: false,
+        code: COMMAND_ERROR.CAMPAIGN_MISMATCH,
+        commandCampaignId: command.campaignId,
+        authoritativeCampaignId,
+      };
+    }
+    const worldTick = ADNDWorldClock.campaignWorldTick(campaign);
+    if (worldTick === null) return { ok: false, code: COMMAND_ERROR.INVALID_EXPECTED_WORLD_TICK };
+    if (worldTick !== command.expectedWorldTick){
+      return {
+        ok: false,
+        code: COMMAND_ERROR.STALE_WORLD_TICK,
+        expectedWorldTick: command.expectedWorldTick,
+        authoritativeWorldTick: worldTick,
+      };
+    }
+
+    const actorMap = authoritativeActorMap(context.actors || context.characters);
+    const actors = [];
+    for (const actorId of command.actorIds){
+      const actor = actorMap[actorId];
+      if (!actor) return { ok: false, code: COMMAND_ERROR.ACTOR_NOT_FOUND, actorId };
+      if (cleanId(actor.campaignId) !== command.campaignId) {
+        return { ok: false, code: COMMAND_ERROR.CAMPAIGN_MISMATCH, actorId };
+      }
+      const time = ADNDWorldClock.getActorTimeStatus(actor, worldTick);
+      const S = ADNDWorldClock.ACTOR_TIME_STATUS;
+      if (time.status !== S.CURRENT && time.status !== S.BEHIND) {
+        return { ok: false, code: COMMAND_ERROR.ACTOR_NOT_AVAILABLE, actorId, actorStatus: time.status };
+      }
+      actors.push(actor);
+    }
+
+    const healPerDay = Number.isInteger(context.healPerDay) && context.healPerDay >= 0
+      ? context.healPerDay : DEFAULT_REST_HEAL_PER_DAY;
+    const durationTicks = command.days * ADNDWorldClock.TICKS_PER_DAY;
+    const resolvedTick = worldTick + durationTicks;
+
+    const actorPatches = actors.map(actor => {
+      const patch = {
+        actorId: actor.id,
+        runtime: { lastResolvedTick: resolvedTick, availableAtTick: resolvedTick, activityId: null },
+      };
+      const hp = actorHitPoints(actor);
+      if (hp) {
+        const healed = Math.min(hp.maximum, hp.current + command.days * healPerDay);
+        patch.hitPoints = { current: healed, maximum: hp.maximum };
+        patch.hitPointsRestored = healed - hp.current;
+      }
+      return patch;
+    });
+
+    const activity = ADNDDocuments.createActivity({
+      id: command.activityId,
+      type: ADNDActivities.ACTIVITY_TYPES.REST,
+      campaignId: command.campaignId,
+      name: context.activityName || 'Rest',
+      createdAt: context.createdAt == null ? null : context.createdAt,
+      updatedAt: context.updatedAt == null ? null : context.updatedAt,
+      actorIds: command.actorIds.slice(),
+      startedAtTick: worldTick,
+      availableAtTick: resolvedTick,
+      status: ADNDActivities.ACTIVITY_STATUS.COMPLETED,
+      system: {
+        days: command.days,
+        durationTicks,
+        healPerDay,
+        completedAtTick: resolvedTick,
+        location: clonePlain(actors[0] && actors[0].currentLocation) || null,
+      },
+    });
+    activity.completedAtTick = resolvedTick;
+
+    const event = ADNDDocuments.createGameEvent({
+      id: command.commandId,
+      type: EVENT_TYPES.REST_COMPLETED,
+      campaignId: command.campaignId,
+      targetIds: command.actorIds.slice(),
+      worldTick: resolvedTick,
+      rulesVersion: context.rulesVersion || null,
+      commandId: command.commandId,
+      createdAt: context.createdAt == null ? null : context.createdAt,
+      updatedAt: context.updatedAt == null ? null : context.updatedAt,
+      data: {
+        activityId: command.activityId,
+        actorIds: command.actorIds.slice(),
+        days: command.days,
+        durationTicks,
+        healPerDay,
+        previousWorldTick: worldTick,
+        resolvedTick,
+        clockAdvanced: true,
+        restored: actorPatches.map(p => ({ actorId: p.actorId, hitPoints: p.hitPointsRestored == null ? null : p.hitPointsRestored })),
+      },
+    });
+
+    const commitBundle = {
+      version: 1,
+      commandId: command.commandId,
+      commandType: command.type,
+      idempotencyKey: command.commandId,
+      campaignId: command.campaignId,
+      expectedWorldTick: worldTick,
+      preconditions: {
+        campaign: { campaignId: command.campaignId, worldTick },
+        actors: actors.map(actorRuntimePrecondition),
+        commandEventMustNotExist: command.commandId,
+        activityMustNotExist: command.activityId,
+      },
+      createActivity: activity,
+      patchActors: actorPatches.map(p => {
+        const out = { actorId: p.actorId, runtime: p.runtime };
+        if (p.hitPoints) out.hitPoints = p.hitPoints;
+        return out;
+      }),
+      updateCampaign: { worldTick: resolvedTick },
+      createEvent: event,
+    };
+
+    return {
+      ok: true,
+      command,
+      activity,
+      actorIds: command.actorIds.slice(),
+      days: command.days,
+      durationTicks,
+      resolvedTick,
+      restored: event.data.restored,
+      event,
+      commitBundle,
+    };
+  }
+
   return {
     COMMAND_VERSION,
     COMMAND_TYPES,
     EVENT_TYPES,
+    REST_MAX_DAYS,
+    DEFAULT_REST_HEAL_PER_DAY,
     AUTHORITATIVE_CHARGEN_METHODS,
     CHARACTER_NAME_MAX_LENGTH,
     COMMAND_ERROR,
@@ -898,5 +1110,8 @@ const ADNDCommands = (function(){
     createResolveTravelIntent,
     normalizeResolveTravelCommand,
     executeResolveTravelCommand,
+    createRestIntent,
+    normalizeRestCommand,
+    executeRestCommand,
   };
 })();

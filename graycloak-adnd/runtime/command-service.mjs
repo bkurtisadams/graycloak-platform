@@ -1,5 +1,10 @@
-// command-service.mjs v1.3.0 — 2026-10-26
-// Trusted command-service shell for Graycloak Begin Travel and Resolve Travel.
+// command-service.mjs v1.4.0 — 2026-10-26
+// Trusted command-service shell for Graycloak Begin Travel, Resolve Travel
+// and Rest.
+//
+// v1.4.0 adds handleRest(): authorizes the principal for each named Actor,
+// executes the pure Rest command (healPerDay from options.restHealPerDay,
+// default 1), and commits through applyRestBundle().
 //
 // v1.3.0 adds handleResolveTravel(): reads the Activity named by the intent,
 // authorizes the principal for every Actor the Activity reserved, executes the
@@ -21,6 +26,7 @@ import {
   TRANSACTION_STATUS,
   applyCommitBundle,
   applyResolveBundle,
+  applyRestBundle,
 } from './firestore-transaction.mjs';
 import { loadCommandRuntime } from './command-runtime.mjs';
 
@@ -189,6 +195,9 @@ export function createCommandService(options = {}) {
   const commitResolveBundle = typeof options.applyResolveBundle === 'function'
     ? options.applyResolveBundle
     : applyResolveBundle;
+  const commitRestBundle = typeof options.applyRestBundle === 'function'
+    ? options.applyRestBundle
+    : applyRestBundle;
 
   const configurationError = !db || typeof db.collection !== 'function' || typeof db.runTransaction !== 'function'
     ? SERVICE_ERROR.INVALID_FIRESTORE
@@ -431,9 +440,90 @@ export function createCommandService(options = {}) {
     }
   }
 
+  async function handleRest(rawIntent, request = {}) {
+    if (configurationError) return resultError(configurationError);
+    const principal = normalizePrincipal(request.principal || request.auth);
+    if (!principal) return resultError(SERVICE_ERROR.UNAUTHENTICATED);
+
+    const normalized = commandRuntime.Commands.normalizeRestCommand(rawIntent);
+    if (!normalized.ok) return Object.assign({ stage: 'normalize' }, normalized);
+    const command = normalized.command;
+
+    try {
+      const campaignRef = db.collection(collections.campaigns).doc(command.campaignId);
+      const eventRef = db.collection(collections.events).doc(command.commandId);
+      const [campaignSnapshot, eventSnapshot] = await Promise.all([readDoc(campaignRef), readDoc(eventRef)]);
+      if (!snapshotExists(campaignSnapshot)) {
+        return resultError(SERVICE_ERROR.CAMPAIGN_NOT_FOUND, { campaignId: command.campaignId });
+      }
+      const campaign = snapshotData(campaignSnapshot) || {};
+
+      const actors = [];
+      for (const actorId of command.actorIds) {
+        const actorSnapshot = await readDoc(db.collection(collections.actors).doc(actorId));
+        if (!snapshotExists(actorSnapshot)) return resultError(SERVICE_ERROR.ACTOR_NOT_FOUND, { actorId });
+        const actor = Object.assign({}, snapshotData(actorSnapshot) || {}, { id: actorId });
+        const allowed = await authorizeActor(actor, principal, { command, campaign, db, request });
+        if (!allowed) return resultError(SERVICE_ERROR.ACTOR_FORBIDDEN, { actorId });
+        actors.push(actor);
+      }
+
+      if (snapshotExists(eventSnapshot)) {
+        const existingEvent = snapshotData(eventSnapshot) || {};
+        if (serviceIdempotencyMatch(existingEvent, command)) {
+          return {
+            ok: true, status: TRANSACTION_STATUS.ALREADY_COMMITTED, idempotentReplay: true,
+            commandId: command.commandId, activityId: command.activityId, actorIds: command.actorIds.slice(),
+          };
+        }
+        return resultError(SERVICE_ERROR.IDEMPOTENCY_CONFLICT, { commandId: command.commandId });
+      }
+
+      const timestamp = now();
+      const rulesVersion = await resolveRulesVersion(options.rulesVersion, { command, campaign, actors, principal });
+      const execution = commandRuntime.Commands.executeRestCommand(command, {
+        campaignId: command.campaignId,
+        campaign,
+        actors,
+        healPerDay: options.restHealPerDay,
+        rulesVersion,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      if (!execution.ok) return Object.assign({ stage: 'execute' }, execution);
+      annotateCommitBundle(execution, principal);
+
+      const committed = await commitRestBundle(db, execution.commitBundle, {
+        collections: transactionCollections(collections),
+      });
+      if (!committed.ok) return Object.assign({ stage: 'commit' }, committed);
+
+      return {
+        ok: true,
+        status: committed.status,
+        idempotentReplay: !!committed.idempotentReplay,
+        commandId: command.commandId,
+        activityId: command.activityId,
+        actorIds: command.actorIds.slice(),
+        days: execution.days,
+        durationTicks: execution.durationTicks,
+        resolvedTick: execution.resolvedTick,
+        worldTick: execution.resolvedTick,
+        clockAdvanced: true,
+        restored: execution.restored,
+        eventId: execution.event && execution.event.id,
+      };
+    } catch (error) {
+      return resultError(error && error.serviceCode ? error.serviceCode : SERVICE_ERROR.READ_FAILED, {
+        message: error && error.message ? String(error.message) : String(error),
+      });
+    }
+  }
+
   return Object.freeze({
     version: COMMAND_SERVICE_VERSION,
     handleBeginTravel,
     handleResolveTravel,
+    handleRest,
   });
 }

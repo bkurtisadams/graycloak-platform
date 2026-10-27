@@ -37,6 +37,7 @@ test('command Hosting rewrites precede the SPA catch-all and pin the function re
   const expected = [
     ['/api/commands/begin-travel', 'beginTravel'],
     ['/api/commands/resolve-travel', 'resolveTravel'],
+    ['/api/commands/rest', 'rest'],
   ];
   expected.forEach(([source, functionId], i) => {
     assert.equal(hosting.rewrites[i].source, source);

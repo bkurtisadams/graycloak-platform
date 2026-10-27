@@ -1,4 +1,10 @@
-// adnd-map-view.js v1.7.0 — 2026-10-26
+// adnd-map-view.js v1.8.0 — 2026-10-26
+// v1.8.0 — Calendar header, presence, Rest. With campaigns/{cid}.calendarEpoch
+//          the header shows the Greyhawk date and hour derived from worldTick
+//          (ADNDCalendar); without it the tick/legacy currentDate remain. The
+//          Travel Party panel names the settlement the party is standing in
+//          (link to its card) and offers Rest (1–30 days) for available
+//          Actors, POSTing the client-safe rest intent to /api/commands/rest.
 // v1.7.0 — Resolve Travel. Every active journey (Actors sharing a
 //          runtime.activityId) gets a Resolve Travel button that POSTs the
 //          client-safe resolve intent to /api/commands/resolve-travel; the
@@ -91,6 +97,7 @@ const ADNDMapView = (function(){
   const CLICK_SLOP_PX = 4;
   const BEGIN_TRAVEL_URL = '/api/commands/begin-travel';
   const RESOLVE_TRAVEL_URL = '/api/commands/resolve-travel';
+  const REST_URL = '/api/commands/rest';
   let ME = null;              // map-engine module
   let _ready = null;
 
@@ -117,6 +124,7 @@ const ADNDMapView = (function(){
     travelParty: newTravelPartyState(),
     travelSubmit: { inFlight: false, result: null, ids: null },
     resolveSubmit: { inFlight: false, result: null, ids: {} },
+    restSubmit: { inFlight: false, result: null, ids: null, days: 1 },
   };
   function ready(url){
     if (_ready) return _ready;
@@ -705,15 +713,203 @@ const ADNDMapView = (function(){
         + `</div>`;
     }).join('') + (resultText ? `<span class="map-travel-result${resultCls}">${esc(resultText)}</span>` : '');
   }
+  function campaignCalendarDate(tick){
+    const camp = state.data && state.data.campaign;
+    if (!camp || typeof ADNDCalendar === 'undefined' || !ADNDCalendar) return null;
+    const t = tick == null ? campaignWorldTick() : tick;
+    if (t == null) return null;
+    return ADNDCalendar.dateFromTick(camp.calendarEpoch, t);
+  }
+  function clockText(){
+    if (!state.data) return '';
+    const tick = campaignWorldTick();
+    const cal = campaignCalendarDate(tick);
+    if (cal) return `${ADNDCalendar.formatDateTime(cal)} · tick ${tick}`;
+    const date = formatWorldDate(state.data.campaign && state.data.campaign.currentDate);
+    if (date) return tick == null ? date : `${date} · tick ${tick}`;
+    if (campaignId()) return tick == null ? 'world date not set' : `tick ${tick}`;
+    return '';
+  }
   function refreshClock(){
     if (typeof document === 'undefined') return;
     const clockEl = document.getElementById('map-clock');
     if (!clockEl || !state.data) return;
-    const date = formatWorldDate(state.data.campaign && state.data.campaign.currentDate);
-    const tick = campaignWorldTick();
-    if (date) clockEl.textContent = tick == null ? date : `${date} · tick ${tick}`;
-    else if (campaignId()) clockEl.textContent = tick == null ? 'world date not set' : `tick ${tick}`;
+    const text = clockText();
+    if (text) clockEl.textContent = text;
     else clockEl.style.display = 'none';
+  }
+  // ── Presence + Rest (v1.8.0) ─────────────────────────────────────
+  function settlementAtCell(cell){
+    if (!cell || !state.data) return null;
+    for (const id of Object.keys(state.data.settlements || {})){
+      const st = state.data.settlements[id];
+      if (Array.isArray(st.subHexCoord) && st.subHexCoord[0] === cell.Q && st.subHexCoord[1] === cell.R) {
+        return Object.assign({ id }, st);
+      }
+    }
+    return null;
+  }
+  function partyPresence(){
+    const cell = uniquePartyStartCell();
+    if (!cell) return null;
+    return { cell, settlement: settlementAtCell(cell) };
+  }
+  function restCandidates(){
+    const tick = campaignWorldTick();
+    if (tick == null || typeof ADNDWorldClock === 'undefined' || !ADNDWorldClock) return [];
+    const S = ADNDWorldClock.ACTOR_TIME_STATUS;
+    const out = [];
+    for (const id of Object.keys((state.data && state.data.characters) || {})){
+      const ch = state.data.characters[id];
+      if (!ch || String(ch.campaignId || '') !== String(campaignId() || '')) continue;
+      const time = ADNDWorldClock.getActorTimeStatus(ch, tick);
+      if (time.status === S.CURRENT || time.status === S.BEHIND) {
+        out.push({ actorId: String(ch.id || id), name: ch.name || id, hitPoints: ch.hitPoints || null });
+      }
+    }
+    return out;
+  }
+  function buildRestIntent(input){
+    if (typeof ADNDCommands === 'undefined' || !ADNDCommands ||
+        typeof ADNDCommands.createRestIntent !== 'function') {
+      return { ok: false, code: 'commands-unavailable' };
+    }
+    input = input || {};
+    const candidates = restCandidates();
+    if (!candidates.length) return { ok: false, code: 'no-available-actors' };
+    return ADNDCommands.createRestIntent({
+      commandId: input.commandId,
+      activityId: input.activityId,
+      campaignId: input.campaignId || campaignId(),
+      expectedWorldTick: input.expectedWorldTick == null ? campaignWorldTick() : input.expectedWorldTick,
+      actorIds: candidates.map(c => c.actorId),
+      days: input.days == null ? state.restSubmit.days : input.days,
+    });
+  }
+  function restRequest(intent, idToken){
+    if (!intent || !intent.ok || !intent.command) return { ok: false, code: 'invalid-intent' };
+    if (!idToken) return { ok: false, code: 'unauthenticated' };
+    return {
+      ok: true,
+      url: REST_URL,
+      init: {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(intent.command),
+      },
+    };
+  }
+  function restResultText(result){
+    if (!result) return '';
+    if (result.ok){
+      const parts = [result.idempotentReplay ? 'rest already recorded' : `rested ${result.days} day${result.days === 1 ? '' : 's'}`];
+      const healed = Array.isArray(result.restored)
+        ? result.restored.filter(r => Number.isInteger(r.hitPoints) && r.hitPoints > 0) : [];
+      if (healed.length) parts.push(`+${healed.reduce((s, r) => s + r.hitPoints, 0)} hp`);
+      if (result.worldTick != null) parts.push(`clock → tick ${result.worldTick}`);
+      return parts.join(' · ');
+    }
+    const code = result.code || 'unknown-error';
+    const where = [];
+    if (result.actorId) where.push(`actor ${result.actorId}`);
+    if (result.stage) where.push(`stage ${result.stage}`);
+    const suffix = where.length ? ` (${where.join(', ')})` : '';
+    if (result.httpStatus === 401 || code === 'unauthenticated') return 'sign in again to rest';
+    if (code === 'stale-world-tick') return `world clock moved on — reload and try again${suffix}`;
+    if (code === 'actor-not-available') return `a traveler is busy and cannot rest${suffix}`;
+    if (code === 'actor-precondition-failed') return `traveler state changed — reload and try again${suffix}`;
+    if (code === 'actor-forbidden') return `you do not control that Actor${suffix}`;
+    if (code === 'invalid-rest-days') return 'rest 1 to 30 days';
+    if (code === 'no-available-actors') return 'no available travelers to rest';
+    if (code === 'network-error') return 'could not reach the command endpoint';
+    if (code === 'invalid-response') return 'command endpoint returned an unreadable reply';
+    return `rest refused: ${code}${suffix}`;
+  }
+  function ensureRestIds(){
+    if (!state.restSubmit.ids){
+      state.restSubmit.ids = { commandId: mintId('command-rest'), activityId: mintId('activity-rest') };
+    }
+    return state.restSubmit.ids;
+  }
+  async function submitRest(){
+    if (state.restSubmit.inFlight) return null;
+    const intent = buildRestIntent(ensureRestIds());
+    if (!intent.ok){
+      state.restSubmit.result = { ok: false, code: intent.code || 'invalid-intent' };
+      refreshTravelPartyControls();
+      return state.restSubmit.result;
+    }
+    const user = (typeof ADNDAuth !== 'undefined' && ADNDAuth && ADNDAuth.getUser) ? ADNDAuth.getUser() : null;
+    let token = null;
+    try { token = user && typeof user.getIdToken === 'function' ? await user.getIdToken() : null; }
+    catch(e){ console.error('[map-view] id token failed:', e); }
+    const request = restRequest(intent, token);
+    if (!request.ok){
+      state.restSubmit.result = request;
+      refreshTravelPartyControls();
+      return request;
+    }
+    state.restSubmit.inFlight = true;
+    state.restSubmit.result = null;
+    refreshTravelPartyControls();
+    let result;
+    try {
+      const res = await fetch(request.url, request.init);
+      let body = null;
+      try { body = await res.json(); } catch(_){ body = null; }
+      if (!body || typeof body !== 'object') result = { ok: false, code: 'invalid-response', httpStatus: res.status };
+      else result = Object.assign({ httpStatus: res.status }, body);
+    } catch(e){
+      console.error('[map-view] rest failed:', e);
+      result = { ok: false, code: 'network-error' };
+    }
+    state.restSubmit.inFlight = false;
+    state.restSubmit.result = result;
+    if (result.ok){
+      state.restSubmit.ids = null;
+      try {
+        const db = ADNDAuth.getDb();
+        if (db) await reloadCampaignState(db);
+      } catch(e){ console.error('[map-view] reload after rest failed:', e); }
+      state.route = newRouteSelection();
+      state.travelParty = newTravelPartyState();
+      state.travelSubmit = { inFlight: false, result: null, ids: null };
+      refreshRouteControls();
+      refreshClock();
+    } else if (result.code === 'stale-world-tick' || result.code === 'actor-not-available' ||
+               result.code === 'actor-precondition-failed' || result.code === 'idempotency-conflict' ||
+               result.code === 'activity-already-exists') {
+      state.restSubmit.ids = null;
+    }
+    refreshTravelPartyControls();
+    scheduleRender();
+    return result;
+  }
+  function refreshPresenceControls(){
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('map-presence');
+    if (!el) return;
+    const presence = partyPresence();
+    const candidates = restCandidates();
+    const result = state.restSubmit && state.restSubmit.result;
+    const resultText = restResultText(result);
+    const resultCls = result ? (result.ok ? ' map-travel-result-ok' : ' map-travel-result-err') : '';
+    const where = presence
+      ? (presence.settlement
+        ? `in <a href="${esc(markerHref('settlement', presence.settlement.id))}">${esc(presence.settlement.name || presence.settlement.id)}</a>`
+        : `at ${presence.cell.Q},${presence.cell.R}`)
+      : null;
+    const busy = !!(state.restSubmit && state.restSubmit.inFlight);
+    const canRest = candidates.length > 0 && campaignWorldTick() != null && !busy;
+    const hp = candidates.filter(c => c.hitPoints && Number.isInteger(c.hitPoints.current))
+      .map(c => `${esc(c.name)} ${c.hitPoints.current}/${c.hitPoints.maximum} hp`).join(' · ');
+    el.innerHTML = (where ? `<span style="font-size:11px;">The party is ${where}${hp ? ` · ${hp}` : ''}</span>` : '')
+      + (candidates.length ? `<span style="display:inline-flex;align-items:center;gap:6px;margin-left:${where ? '10px' : '0'};">`
+        + `<button type="button" id="map-rest-begin" style="padding:3px 8px;margin:0;font-size:11px;"${canRest ? '' : ' disabled'}>${busy ? 'Resting…' : 'Rest'}</button>`
+        + `<input type="number" id="map-rest-days" min="1" max="30" step="1" value="${esc(state.restSubmit.days)}" style="width:44px;padding:2px 4px;font-size:11px;"> day(s)`
+        + `</span>` : '')
+      + (resultText ? `<div class="map-travel-result${resultCls}" style="margin-top:2px;">${esc(resultText)}</div>` : '');
+    el.style.display = (where || candidates.length || resultText) ? '' : 'none';
   }
 
   function travelPreviewText(preview){
@@ -762,6 +958,7 @@ const ADNDMapView = (function(){
       resultEl.classList.toggle('map-travel-result-err', !!(result && !result.ok));
     }
     refreshJourneyControls();
+    refreshPresenceControls();
   }
   function refreshTravelPartyControls(){
     if (typeof document === 'undefined') return;
@@ -1074,6 +1271,21 @@ const ADNDMapView = (function(){
     refreshRouteControls();
   }
   function wireTravelPartyControls(){
+    const presence = document.getElementById('map-presence');
+    if (presence){
+      presence.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('#map-rest-begin') : null;
+        if (btn) submitRest();
+      });
+      presence.addEventListener('change', (e) => {
+        if (e.target && e.target.id === 'map-rest-days'){
+          const n = parseInt(e.target.value, 10);
+          state.restSubmit.days = Number.isInteger(n) && n >= 1 && n <= 30 ? n : 1;
+          state.restSubmit.ids = null;
+          e.target.value = state.restSubmit.days;
+        }
+      });
+    }
     const journeys = document.getElementById('map-journeys');
     if (journeys) journeys.addEventListener('click', (e) => {
       const btn = e.target && e.target.closest ? e.target.closest('[data-resolve-activity]') : null;
@@ -1171,6 +1383,7 @@ const ADNDMapView = (function(){
             <span id="map-travel-result" class="map-travel-result"></span>
           </div>
           <div id="map-journeys" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);display:none;"></div>
+          <div id="map-presence" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);display:none;"></div>
         </div>
         <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>`;
@@ -1217,6 +1430,7 @@ const ADNDMapView = (function(){
     state.travelParty = newTravelPartyState();
     state.travelSubmit = { inFlight: false, result: null, ids: null };
     state.resolveSubmit = { inFlight: false, result: null, ids: {} };
+    state.restSubmit = { inFlight: false, result: null, ids: null, days: 1 };
     const c = pickCenter();
     state.view.cx = c.x; state.view.cy = c.y; state.view.zoom = 1.6;
     state.svg = shell();
@@ -1247,6 +1461,8 @@ const ADNDMapView = (function(){
     beginTravelRequest, travelResultText, beginTravelDisabledReason, submitBeginTravel,
     reloadCampaignState, activeJourneys, resolveTravelRequest, resolveResultText,
     buildResolveTravelIntent, submitResolveTravel, addRouteCell, clientToSubhex,
+    campaignCalendarDate, clockText, settlementAtCell, partyPresence, restCandidates,
+    buildRestIntent, restRequest, restResultText, submitRest,
     state,
   };
 })();

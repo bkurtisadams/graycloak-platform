@@ -13,6 +13,7 @@ const ADNDActivities = (function(){
   const ACTIVITY_VERSION = 4;
   const ACTIVITY_TYPES = Object.freeze({
     TRAVEL: 'travel',
+    REST: 'rest',
   });
   const ACTIVITY_STATUS = Object.freeze({
     PENDING: 'pending',

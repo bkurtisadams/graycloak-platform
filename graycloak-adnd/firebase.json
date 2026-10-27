@@ -68,6 +68,14 @@
           }
         },
         {
+          "source": "/api/commands/rest",
+          "function": {
+            "functionId": "rest",
+            "region": "us-central1",
+            "pinTag": true
+          }
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }

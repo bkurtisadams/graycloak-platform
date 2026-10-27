@@ -346,3 +346,71 @@ divides by five.
 Still outside this slice: encounter checks during travel, provisions, weather,
 crossings, mounts, and multi-party clock arbitration.
 
+## v1.8.0 Rest command boundary
+
+Rest is the second clock mover and the first town action.
+
+### Client-safe intent
+
+```js
+{
+  schemaVersion: 1,
+  commandId: 'command-rest-...',
+  type: 'rest',
+  campaignId: 'campaign-1',
+  activityId: 'activity-rest-...',
+  expectedWorldTick: 1200,
+  actorIds: ['char-val', 'char-kris'],
+  days: 3                      // integer 1–30
+}
+```
+
+### Trusted execution (`executeRestCommand`)
+
+Rechecks campaign identity and `expectedWorldTick`; every named Actor exists,
+is in the campaign, and has time status `current` or `behind` (a reserved,
+unbound, or ahead Actor is refused as `actor-not-available`). It then:
+
+- advances the clock by `days × TICKS_PER_DAY` (single-party clock policy,
+  as Resolve Travel);
+- rebinds each Actor's `runtime` to the new tick with no reservation;
+- on Actors carrying `hitPoints { current, maximum }`, restores
+  `days × healPerDay`, capped at `maximum`. `healPerDay` comes from the host
+  (`options.restHealPerDay` on the service) and defaults to 1 hp per day of
+  rest. Actors without a `hitPoints` field are rebound but untouched;
+- records a `rest` Activity already in `completed` status and a
+  `rest.completed` GameEvent whose `data.restored` lists hp regained per
+  Actor.
+
+Not modelled yet, pending a ruling against the OSRIC text: the Constitution
+bonus after a full week of rest and any long-rest acceleration. The host's
+`restHealPerDay` is the hook; a per-Actor resolver can replace it later
+without changing the intent.
+
+### Storage and transport
+
+`applyRestBundle()` (firestore-transaction v1.3) commits atomically with the
+idempotency marker, campaign-tick and Actor-snapshot preconditions.
+`handleRest()` (command-service v1.4) owner-authorizes each Actor.
+`createRestHttpHandler()` (http-command-endpoint v1.5) binds it at
+`POST /api/commands/rest`, deployed as the `rest` function. Public success
+fields add `days` and `restored`.
+
+### map-view v1.8.0
+
+The Travel Party panel shows where the party is (the settlement it stands in,
+linked to its card, or the bare cell), each available Actor's hp when stored,
+and a Rest button with a 1–30 day input for every Actor that is current or
+behind. On success it reloads the campaign and Actors, so the header date and
+hp update.
+
+## Calendar (v1.8.0)
+
+`campaigns/{cid}.calendarEpoch = { year, month, day, hour }` (month by name,
+festival weeks included) is the Greyhawk date at `worldTick` 0.
+`adnd-calendar.js` derives date, weekday and time of day from any tick, and
+the map header shows "Moonday, 3 Fireseek 576 CY · 02:00 · tick 26401". Without
+an epoch the header falls back to the legacy `currentDate` text, then the bare
+tick. `worldTick` remains the only authoritative time; the epoch is
+presentation.
+

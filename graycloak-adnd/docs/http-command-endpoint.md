@@ -38,11 +38,12 @@ Recommended paths:
 ```text
 POST /api/commands/begin-travel     → commandService.handleBeginTravel
 POST /api/commands/resolve-travel   → commandService.handleResolveTravel   (v1.4)
+POST /api/commands/rest             → commandService.handleRest            (v1.5)
 ```
 
-Both are produced by `createCommandHttpHandler({ method })`; the two named
-factories (`createBeginTravelHttpHandler`, `createResolveTravelHttpHandler`)
-just bind the method. Everything below applies to both.
+All are produced by `createCommandHttpHandler({ method })`; the named
+factories (`createBeginTravelHttpHandler`, `createResolveTravelHttpHandler`,
+`createRestHttpHandler`) just bind the method. Everything below applies to each.
 
 Required headers:
 
