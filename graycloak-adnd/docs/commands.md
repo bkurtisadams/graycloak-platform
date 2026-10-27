@@ -414,3 +414,63 @@ an epoch the header falls back to the legacy `currentDate` text, then the bare
 tick. `worldTick` remains the only authoritative time; the epoch is
 presentation.
 
+## v1.9.0 Enter World command boundary
+
+Bridges the browser chargen page and the authoritative world. The chargen
+page may create an Actor (rules permit an unbound create: `runtime` nulls, no
+movement fields), but only the trusted runtime may bind it.
+
+### Client-safe intent
+
+```js
+{
+  schemaVersion: 1,
+  commandId: 'command-enter-...',
+  type: 'enterWorld',
+  campaignId: 'campaign-1',
+  actorId: 'pc-val',
+  expectedWorldTick: 500,
+  settlementId: 'set_far_bank'     // optional: where to enter
+}
+```
+
+### Trusted execution (`executeEnterWorldCommand`)
+
+Rechecks campaign identity and clock; the Actor exists, is in the campaign,
+is owned by the principal, and is **unbound** (`runtime.lastResolvedTick`
+null, no Activity). The entry cell is the host-resolved settlement when the
+intent names one, else the Actor's stored `currentLocation` (chargen spawn),
+else the campaign's `spawnLocation`; none → `missing-entry-location`. The
+host supplies `movementRate` in feet; the Firebase deployment derives it from
+the OSRIC kernel's racial base rate (`getRacialMovementRate`, inches × 10:
+human/elf/half-elf/half-orc 120, dwarf/gnome/halfling 90; unknown race falls
+back to human). The bundle patches `currentLocation`, `runtime` (bound to the
+current tick) and `movementRate`, and writes an `actor.entered` event. No
+Activity, no clock change.
+
+`applyEnterWorldBundle()` (firestore-transaction v1.4), `handleEnterWorld()`
+(command-service v1.5, `baseMovementRate` option), `createEnterWorldHttpHandler()`
+(http-command-endpoint v1.6) at `POST /api/commands/enter-world`, deployed as
+the `enterWorld` function. Public success fields add `movementRate`.
+
+### map-view v1.10.0
+
+Campaign Actors that are still unbound are listed under "Not yet in the
+world" with an Enter World button. An Actor without a stored spawn cell is
+sent to the first settlement (by id) that has a `subHexCoord`.
+
+## Route pathfinding (map-route v0.9.0)
+
+`ADNDMapRoute.findRoute(start, goal, { subhexes, parentTerrain, ownerOf })`
+runs A* over adjacent subhexes with cost = 1 / miles-per-movement factor of
+the entered cell (level 5, rugged 6.67, very rugged 10), so it prefers plains
+over mountains rather than the fewest hops; water and unauthored cells are
+impassable. `appendPath()` lets a click on a distant cell expand into a legal
+chain. The result is only a client selection — Begin Travel still revalidates
+every cell on the server.
+
+## Travel duration rounding (activities v0.7.1)
+
+Ticks are computed as `distance × TICKS_PER_DAY / milesPerDay` and rounded to
+the nearest segment, so 3 mi at 18 mi/day is exactly 2400 ticks (was 2401).
+

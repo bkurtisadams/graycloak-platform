@@ -1,7 +1,11 @@
-// command-service.mjs v1.4.0 — 2026-10-26
+// command-service.mjs v1.5.0 — 2026-10-26
 // Trusted command-service shell for Graycloak Begin Travel, Resolve Travel
 // and Rest.
 //
+// v1.5.0 adds handleEnterWorld(): binds an unbound owned Actor to the clock
+// at its entry cell with a base Movement Rate from options.baseMovementRate
+// (actor, context) → feet, which the Firebase deployment backs with the OSRIC
+// kernel's racial table.
 // v1.4.0 adds handleRest(): authorizes the principal for each named Actor,
 // executes the pure Rest command (healPerDay from options.restHealPerDay,
 // default 1), and commits through applyRestBundle().
@@ -27,6 +31,7 @@ import {
   applyCommitBundle,
   applyResolveBundle,
   applyRestBundle,
+  applyEnterWorldBundle,
 } from './firestore-transaction.mjs';
 import { loadCommandRuntime } from './command-runtime.mjs';
 
@@ -36,6 +41,7 @@ export const DEFAULT_SERVICE_COLLECTIONS = Object.freeze({
   ...DEFAULT_TRANSACTION_COLLECTIONS,
   regions: 'regions',
   subhexes: 'subHexes',
+  settlements: 'settlements',
 });
 
 export const SERVICE_ERROR = Object.freeze({
@@ -48,6 +54,7 @@ export const SERVICE_ERROR = Object.freeze({
   CAMPAIGN_NOT_FOUND: 'campaign-not-found',
   ACTOR_NOT_FOUND: 'actor-not-found',
   ACTIVITY_NOT_FOUND: 'activity-not-found',
+  SETTLEMENT_NOT_FOUND: 'settlement-not-found',
   REGION_NOT_FOUND: 'region-not-found',
   MOVEMENT_RESOLUTION_FAILED: 'movement-resolution-failed',
   IDEMPOTENCY_CONFLICT: 'idempotency-conflict',
@@ -198,6 +205,10 @@ export function createCommandService(options = {}) {
   const commitRestBundle = typeof options.applyRestBundle === 'function'
     ? options.applyRestBundle
     : applyRestBundle;
+  const commitEnterWorldBundle = typeof options.applyEnterWorldBundle === 'function'
+    ? options.applyEnterWorldBundle
+    : applyEnterWorldBundle;
+  const baseMovementRate = typeof options.baseMovementRate === 'function' ? options.baseMovementRate : null;
 
   const configurationError = !db || typeof db.collection !== 'function' || typeof db.runTransaction !== 'function'
     ? SERVICE_ERROR.INVALID_FIRESTORE
@@ -520,10 +531,97 @@ export function createCommandService(options = {}) {
     }
   }
 
+  async function handleEnterWorld(rawIntent, request = {}) {
+    if (configurationError) return resultError(configurationError);
+    const principal = normalizePrincipal(request.principal || request.auth);
+    if (!principal) return resultError(SERVICE_ERROR.UNAUTHENTICATED);
+
+    const normalized = commandRuntime.Commands.normalizeEnterWorldCommand(rawIntent);
+    if (!normalized.ok) return Object.assign({ stage: 'normalize' }, normalized);
+    const command = normalized.command;
+
+    try {
+      const campaignRef = db.collection(collections.campaigns).doc(command.campaignId);
+      const eventRef = db.collection(collections.events).doc(command.commandId);
+      const actorRef = db.collection(collections.actors).doc(command.actorId);
+      const [campaignSnapshot, eventSnapshot, actorSnapshot] = await Promise.all([
+        readDoc(campaignRef), readDoc(eventRef), readDoc(actorRef),
+      ]);
+      if (!snapshotExists(campaignSnapshot)) {
+        return resultError(SERVICE_ERROR.CAMPAIGN_NOT_FOUND, { campaignId: command.campaignId });
+      }
+      const campaign = snapshotData(campaignSnapshot) || {};
+      if (!snapshotExists(actorSnapshot)) return resultError(SERVICE_ERROR.ACTOR_NOT_FOUND, { actorId: command.actorId });
+      const actor = Object.assign({}, snapshotData(actorSnapshot) || {}, { id: command.actorId });
+      const allowed = await authorizeActor(actor, principal, { command, campaign, db, request });
+      if (!allowed) return resultError(SERVICE_ERROR.ACTOR_FORBIDDEN, { actorId: command.actorId });
+
+      if (snapshotExists(eventSnapshot)) {
+        const existing = snapshotData(eventSnapshot) || {};
+        if (cleanId(existing.commandId) === command.commandId &&
+            cleanId(existing.campaignId) === command.campaignId &&
+            cleanId(existing.data && existing.data.actorId) === command.actorId) {
+          return { ok: true, status: TRANSACTION_STATUS.ALREADY_COMMITTED, idempotentReplay: true,
+            commandId: command.commandId, actorIds: [command.actorId] };
+        }
+        return resultError(SERVICE_ERROR.IDEMPOTENCY_CONFLICT, { commandId: command.commandId });
+      }
+
+      let entryLocation = null;
+      if (command.settlementId) {
+        const settlementSnapshot = await readDoc(db.collection(collections.settlements).doc(command.settlementId));
+        const settlement = snapshotData(settlementSnapshot);
+        if (!settlement || !Array.isArray(settlement.subHexCoord)) {
+          return resultError(SERVICE_ERROR.SETTLEMENT_NOT_FOUND, { settlementId: command.settlementId });
+        }
+        entryLocation = { regionalHexId: settlement.regionalHexId || null, subHexCoord: settlement.subHexCoord.slice(0, 2) };
+      }
+      let movementRate = null;
+      if (baseMovementRate) movementRate = await baseMovementRate(actor, { command, campaign, principal });
+
+      const timestamp = now();
+      const rulesVersion = await resolveRulesVersion(options.rulesVersion, { command, campaign, actors: [actor], principal });
+      const execution = commandRuntime.Commands.executeEnterWorldCommand(command, {
+        campaignId: command.campaignId,
+        campaign,
+        actors: [actor],
+        entryLocation,
+        defaultLocation: campaign.spawnLocation || options.defaultEntryLocation || null,
+        movementRate,
+        rulesVersion,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      });
+      if (!execution.ok) return Object.assign({ stage: 'execute' }, execution);
+      annotateCommitBundle(execution, principal);
+
+      const committed = await commitEnterWorldBundle(db, execution.commitBundle, {
+        collections: transactionCollections(collections),
+      });
+      if (!committed.ok) return Object.assign({ stage: 'commit' }, committed);
+      return {
+        ok: true,
+        status: committed.status,
+        idempotentReplay: !!committed.idempotentReplay,
+        commandId: command.commandId,
+        actorIds: [command.actorId],
+        destination: execution.location,
+        movementRate: execution.movementRate,
+        worldTick: command.expectedWorldTick,
+        eventId: execution.event && execution.event.id,
+      };
+    } catch (error) {
+      return resultError(error && error.serviceCode ? error.serviceCode : SERVICE_ERROR.READ_FAILED, {
+        message: error && error.message ? String(error.message) : String(error),
+      });
+    }
+  }
+
   return Object.freeze({
     version: COMMAND_SERVICE_VERSION,
     handleBeginTravel,
     handleResolveTravel,
     handleRest,
+    handleEnterWorld,
   });
 }

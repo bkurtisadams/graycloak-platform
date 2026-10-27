@@ -76,6 +76,14 @@
           }
         },
         {
+          "source": "/api/commands/enter-world",
+          "function": {
+            "functionId": "enterWorld",
+            "region": "us-central1",
+            "pinTag": true
+          }
+        },
+        {
           "source": "**",
           "destination": "/index.html"
         }

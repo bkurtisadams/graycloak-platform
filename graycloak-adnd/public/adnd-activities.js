@@ -1,4 +1,4 @@
-// adnd-activities.js v0.7.0 — 2026-08-30
+// adnd-activities.js v0.7.1 — 2026-10-26 (v0.7.1: exact travel ticks, nearest-segment rounding; REST activity type)
 // Pure Activity/travel planning primitives for Graycloak's shared world clock.
 //
 // v0.7 bridges authored world-map cells into the v0.6 route model. An ordered
@@ -587,10 +587,12 @@ const ADNDActivities = (function(){
     const distance = normalizePositiveFinite(distanceMiles);
     const dailyMiles = normalizePositiveFinite(milesPerDay);
     if (distance === null || dailyMiles === null) return null;
-    const travelDays = distance / dailyMiles;
-    const rawTicks = travelDays * ADNDWorldClock.TICKS_PER_DAY;
+    // Multiply before dividing so 3 mi at 18 mi/day is exactly 2400 ticks,
+    // not 2400.0000000000005 rounded up to 2401; then round to the nearest
+    // segment rather than always up.
+    const rawTicks = (distance * ADNDWorldClock.TICKS_PER_DAY) / dailyMiles;
     if (!Number.isFinite(rawTicks) || rawTicks > Number.MAX_SAFE_INTEGER) return null;
-    return Math.max(1, Math.ceil(rawTicks));
+    return Math.max(1, Math.round(rawTicks));
   }
 
   function calculateOutdoorTravelDuration(input, actors) {
@@ -934,6 +936,7 @@ const ADNDActivities = (function(){
     ACTIVITY_TYPES,
     ACTIVITY_STATUS,
     TRAVEL_TERRAIN,
+    TERRAIN_MILES_PER_MOVEMENT,
     MAP_TERRAIN_TRAVEL_CLASS,
     TERRAIN_MILES_PER_MOVEMENT,
     ENCUMBRANCE_PACE,

@@ -1,6 +1,8 @@
-// firestore-transaction.mjs v1.3.0 — 2026-10-26
+// firestore-transaction.mjs v1.4.0 — 2026-10-26
 // Trusted-runtime Firestore adapter for Graycloak semantic commit bundles.
 //
+// v1.4.0 adds applyEnterWorldBundle(): binds one Actor (location, runtime,
+// movementRate) and records actor.entered; no Activity, no clock change.
 // v1.3.0 adds applyRestBundle(): creates a completed Rest Activity, rebinds
 // (and optionally heals) its Actors, advances the campaign worldTick, and
 // records the rest.completed event, with the same idempotency pattern.
@@ -630,6 +632,101 @@ export async function applyRestBundle(db, bundle, options = {}) {
         actorIds: Array.from(validated.actorMaps.patches.keys()),
         worldTick: bundle.updateCampaign.worldTick,
       };
+    });
+  } catch (error) {
+    return resultError(TRANSACTION_ERROR.TRANSACTION_FAILED, {
+      message: error && error.message ? String(error.message) : String(error),
+    });
+  }
+}
+
+// ── Enter World ───────────────────────────────────────────────────
+
+export function validateEnterWorldBundle(bundle) {
+  if (!bundle || typeof bundle !== 'object' || bundle.version !== 1 || bundle.commandType !== 'enterWorld') {
+    return { ok: false, code: TRANSACTION_ERROR.INVALID_BUNDLE };
+  }
+  const commandId = cleanId(bundle.commandId);
+  const campaignId = cleanId(bundle.campaignId);
+  const eventId = cleanId(bundle.createEvent && bundle.createEvent.id);
+  if (!commandId || !campaignId || !eventId || eventId !== commandId) {
+    return { ok: false, code: TRANSACTION_ERROR.INVALID_BUNDLE };
+  }
+  const preconditions = bundle.preconditions;
+  if (!preconditions || typeof preconditions !== 'object' || !preconditions.campaign ||
+      !Array.isArray(preconditions.actors) || preconditions.actors.length !== 1 ||
+      !Array.isArray(bundle.patchActors) || bundle.patchActors.length !== 1) {
+    return { ok: false, code: TRANSACTION_ERROR.INVALID_BUNDLE };
+  }
+  const patch = bundle.patchActors[0];
+  const actorId = cleanId(patch && patch.actorId);
+  if (!actorId || cleanId(preconditions.actors[0].actorId) !== actorId ||
+      cleanId(preconditions.campaign.campaignId) !== campaignId ||
+      preconditions.campaign.worldTick !== bundle.expectedWorldTick ||
+      !Number.isSafeInteger(bundle.expectedWorldTick) || bundle.expectedWorldTick < 0 ||
+      cleanId(preconditions.commandEventMustNotExist) !== commandId ||
+      !patch.currentLocation || typeof patch.currentLocation !== 'object' ||
+      !patch.runtime || typeof patch.runtime !== 'object' ||
+      !(Number.isFinite(patch.movementRate) && patch.movementRate > 0) ||
+      cleanId(bundle.createEvent.campaignId) !== campaignId ||
+      cleanId(bundle.createEvent.commandId) !== commandId ||
+      cleanId(bundle.createEvent.data && bundle.createEvent.data.actorId) !== actorId) {
+    return { ok: false, code: TRANSACTION_ERROR.INVALID_BUNDLE };
+  }
+  return { ok: true, commandId, campaignId, actorId, eventId };
+}
+
+export async function applyEnterWorldBundle(db, bundle, options = {}) {
+  if (!db || typeof db.collection !== 'function' || typeof db.runTransaction !== 'function') {
+    return resultError(TRANSACTION_ERROR.INVALID_FIRESTORE);
+  }
+  const validated = validateEnterWorldBundle(bundle);
+  if (!validated.ok) return validated;
+  const collections = normalizeCollections(options.collections);
+  if (!collections) return resultError(TRANSACTION_ERROR.INVALID_COLLECTIONS);
+
+  const campaignRef = refFor(db, collections.campaigns, validated.campaignId);
+  const eventRef = refFor(db, collections.events, validated.eventId);
+  const actorRef = refFor(db, collections.actors, validated.actorId);
+  const expected = bundle.preconditions.actors[0];
+  const patch = bundle.patchActors[0];
+
+  try {
+    return await db.runTransaction(async transaction => {
+      const eventSnapshot = await transaction.get(eventRef);
+      if (snapshotExists(eventSnapshot)) {
+        const existing = snapshotData(eventSnapshot) || {};
+        if (cleanId(existing.commandId) === validated.commandId &&
+            cleanId(existing.campaignId) === validated.campaignId &&
+            cleanId(existing.data && existing.data.actorId) === validated.actorId) {
+          return { ok: true, status: TRANSACTION_STATUS.ALREADY_COMMITTED, idempotentReplay: true,
+            commandId: validated.commandId, actorIds: [validated.actorId] };
+        }
+        return resultError(TRANSACTION_ERROR.IDEMPOTENCY_CONFLICT, { commandId: validated.commandId });
+      }
+      const campaignSnapshot = await transaction.get(campaignRef);
+      if (!snapshotExists(campaignSnapshot)) {
+        return resultError(TRANSACTION_ERROR.CAMPAIGN_NOT_FOUND, { campaignId: validated.campaignId });
+      }
+      const campaign = snapshotData(campaignSnapshot) || {};
+      if (campaign.worldTick !== bundle.expectedWorldTick) {
+        return resultError(TRANSACTION_ERROR.STALE_WORLD_TICK, {
+          expectedWorldTick: bundle.expectedWorldTick, authoritativeWorldTick: campaign.worldTick,
+        });
+      }
+      const actorSnapshot = await transaction.get(actorRef);
+      if (!snapshotExists(actorSnapshot)) return resultError(TRANSACTION_ERROR.ACTOR_NOT_FOUND, { actorId: validated.actorId });
+      const field = actorPreconditionFailure(snapshotData(actorSnapshot) || {}, expected);
+      if (field) return resultError(TRANSACTION_ERROR.ACTOR_PRECONDITION_FAILED, { actorId: validated.actorId, field });
+
+      transaction.update(actorRef, {
+        currentLocation: clonePlain(patch.currentLocation),
+        runtime: clonePlain(patch.runtime),
+        movementRate: patch.movementRate,
+      });
+      transaction.set(eventRef, bundle.createEvent);
+      return { ok: true, status: TRANSACTION_STATUS.COMMITTED, idempotentReplay: false,
+        commandId: validated.commandId, actorIds: [validated.actorId] };
     });
   } catch (error) {
     return resultError(TRANSACTION_ERROR.TRANSACTION_FAILED, {

@@ -1,5 +1,11 @@
-// adnd-commands.js v1.8.0 — 2026-10-26
+// adnd-commands.js v1.9.0 — 2026-10-26
 // Graycloak authoritative game-command boundary.
+//
+// v1.9.0 adds Enter World: an unbound Actor (made by the browser chargen with
+// runtime nulls and no movement data) is bound to the campaign clock, given
+// its authoritative base Movement Rate (feet, from the OSRIC kernel by race,
+// supplied by the host), and placed at its stored or chosen entry location.
+// No Activity, no clock change; an actor.entered event records it.
 //
 // v1.8.0 adds Rest: a party of current (unreserved) Actors rests N whole
 // days. The trusted runtime advances the campaign clock by N days (same
@@ -33,6 +39,7 @@ const ADNDCommands = (function(){
     BEGIN_TRAVEL: 'beginTravel',
     RESOLVE_TRAVEL: 'resolveTravel',
     REST: 'rest',
+    ENTER_WORLD: 'enterWorld',
     CREATE_CHARACTER: 'createCharacter',
   });
   const REST_MAX_DAYS = 30;
@@ -41,6 +48,7 @@ const ADNDCommands = (function(){
     TRAVEL_STARTED: 'travel.started',
     TRAVEL_COMPLETED: 'travel.completed',
     REST_COMPLETED: 'rest.completed',
+    ACTOR_ENTERED: 'actor.entered',
     CHARACTER_CREATED: 'character.created',
   });
   const AUTHORITATIVE_CHARGEN_METHODS = Object.freeze(['III']);
@@ -78,6 +86,9 @@ const ADNDCommands = (function(){
     ACTOR_NOT_RESERVED: 'actor-not-reserved',
     ACTOR_NOT_AVAILABLE: 'actor-not-available',
     INVALID_REST_DAYS: 'invalid-rest-days',
+    ACTOR_ALREADY_BOUND: 'actor-already-bound',
+    MISSING_ENTRY_LOCATION: 'missing-entry-location',
+    INVALID_ACTOR_ID: 'invalid-actor-id',
     INVALID_ACTIVITY_DESTINATION: 'invalid-activity-destination',
     MISSING_AUTHORITATIVE_OWNER: 'missing-authoritative-owner',
     INVALID_CHARACTER_ID: 'invalid-character-id',
@@ -495,6 +506,40 @@ const ADNDCommands = (function(){
     if (!raw || typeof raw !== 'object') return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND };
     if (raw.type !== COMMAND_TYPES.REST) return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_TYPE };
     return createRestIntent(raw);
+  }
+
+  // ── Enter World ──────────────────────────────────────────────────
+  function createEnterWorldIntent(input){
+    if (!dependenciesReady()) return { ok: false, code: COMMAND_ERROR.DEPENDENCY_UNAVAILABLE };
+    input = input || {};
+    const commandId = cleanId(input.commandId || input.id);
+    if (!commandId) return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_ID };
+    const campaignId = cleanId(input.campaignId);
+    if (!campaignId) return { ok: false, code: COMMAND_ERROR.INVALID_CAMPAIGN_ID };
+    const actorId = cleanId(input.actorId);
+    if (!actorId) return { ok: false, code: COMMAND_ERROR.INVALID_ACTOR_ID };
+    const expectedWorldTick = ADNDWorldClock.normalizeTick(input.expectedWorldTick);
+    if (expectedWorldTick === null) {
+      return { ok: false, code: COMMAND_ERROR.INVALID_EXPECTED_WORLD_TICK };
+    }
+    const command = {
+      schemaVersion: COMMAND_VERSION,
+      commandId,
+      type: COMMAND_TYPES.ENTER_WORLD,
+      campaignId,
+      actorId,
+      expectedWorldTick,
+    };
+    // Optional player choice of entry settlement; the host resolves its cell.
+    const settlementId = cleanId(input.settlementId);
+    if (settlementId) command.settlementId = settlementId;
+    return { ok: true, command };
+  }
+
+  function normalizeEnterWorldCommand(raw){
+    if (!raw || typeof raw !== 'object') return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND };
+    if (raw.type !== COMMAND_TYPES.ENTER_WORLD) return { ok: false, code: COMMAND_ERROR.INVALID_COMMAND_TYPE };
+    return createEnterWorldIntent(raw);
   }
 
   function normalizeResolveTravelCommand(raw){
@@ -1082,6 +1127,95 @@ const ADNDCommands = (function(){
     };
   }
 
+  function executeEnterWorldCommand(rawCommand, context){
+    if (!dependenciesReady()) return { ok: false, code: COMMAND_ERROR.DEPENDENCY_UNAVAILABLE };
+    const normalized = normalizeEnterWorldCommand(rawCommand);
+    if (!normalized.ok) return normalized;
+    const command = normalized.command;
+    context = context || {};
+
+    const campaign = context.campaign;
+    if (!campaign || typeof campaign !== 'object') return { ok: false, code: COMMAND_ERROR.CAMPAIGN_NOT_FOUND };
+    const authoritativeCampaignId = contextCampaignId(context);
+    if (!authoritativeCampaignId || authoritativeCampaignId !== command.campaignId){
+      return { ok: false, code: COMMAND_ERROR.CAMPAIGN_MISMATCH, commandCampaignId: command.campaignId, authoritativeCampaignId };
+    }
+    const worldTick = ADNDWorldClock.campaignWorldTick(campaign);
+    if (worldTick === null) return { ok: false, code: COMMAND_ERROR.INVALID_EXPECTED_WORLD_TICK };
+    if (worldTick !== command.expectedWorldTick){
+      return { ok: false, code: COMMAND_ERROR.STALE_WORLD_TICK, expectedWorldTick: command.expectedWorldTick, authoritativeWorldTick: worldTick };
+    }
+
+    const actorMap = authoritativeActorMap(context.actors || context.characters || (context.actor ? [context.actor] : []));
+    const actor = actorMap[command.actorId];
+    if (!actor) return { ok: false, code: COMMAND_ERROR.ACTOR_NOT_FOUND, actorId: command.actorId };
+    if (cleanId(actor.campaignId) !== command.campaignId) {
+      return { ok: false, code: COMMAND_ERROR.CAMPAIGN_MISMATCH, actorId: command.actorId };
+    }
+    const runtime = ADNDWorldClock.actorTimeRuntime(actor);
+    if (runtime.lastResolvedTick !== null || runtime.activityId !== null) {
+      return { ok: false, code: COMMAND_ERROR.ACTOR_ALREADY_BOUND, actorId: command.actorId };
+    }
+
+    // Entry cell: host-resolved settlement (player choice) > stored location
+    // (browser chargen spawn) > host default.
+    let location = null;
+    if (context.entryLocation && typeof context.entryLocation === 'object') location = context.entryLocation;
+    else if (actor.currentLocation && typeof actor.currentLocation === 'object') location = actor.currentLocation;
+    else if (context.defaultLocation && typeof context.defaultLocation === 'object') location = context.defaultLocation;
+    const cell = location ? ADNDActivities.normalizeAxialCoord(location) : null;
+    if (!cell) return { ok: false, code: COMMAND_ERROR.MISSING_ENTRY_LOCATION, actorId: command.actorId };
+    const newLocation = Object.assign({}, clonePlain(location), { subHexCoord: [cell.Q, cell.R] });
+
+    const movementRate = Number(context.movementRate);
+    if (!(Number.isFinite(movementRate) && movementRate > 0)) {
+      return { ok: false, code: COMMAND_ERROR.MISSING_AUTHORITATIVE_MOVEMENT, actorId: command.actorId };
+    }
+
+    const patch = {
+      actorId: command.actorId,
+      currentLocation: newLocation,
+      runtime: { lastResolvedTick: worldTick, availableAtTick: worldTick, activityId: null },
+      movementRate,
+    };
+    const event = ADNDDocuments.createGameEvent({
+      id: command.commandId,
+      type: EVENT_TYPES.ACTOR_ENTERED,
+      campaignId: command.campaignId,
+      actorId: command.actorId,
+      targetIds: [command.actorId],
+      worldTick,
+      rulesVersion: context.rulesVersion || null,
+      commandId: command.commandId,
+      createdAt: context.createdAt == null ? null : context.createdAt,
+      updatedAt: context.updatedAt == null ? null : context.updatedAt,
+      data: {
+        actorId: command.actorId,
+        actorIds: [command.actorId],
+        location: clonePlain(newLocation),
+        settlementId: command.settlementId || null,
+        movementRate,
+        raceId: actor.raceId || null,
+      },
+    });
+    const commitBundle = {
+      version: 1,
+      commandId: command.commandId,
+      commandType: command.type,
+      idempotencyKey: command.commandId,
+      campaignId: command.campaignId,
+      expectedWorldTick: worldTick,
+      preconditions: {
+        campaign: { campaignId: command.campaignId, worldTick },
+        actors: [actorRuntimePrecondition(actor)],
+        commandEventMustNotExist: command.commandId,
+      },
+      patchActors: [patch],
+      createEvent: event,
+    };
+    return { ok: true, command, actorId: command.actorId, location: clonePlain(newLocation), movementRate, event, commitBundle };
+  }
+
   return {
     COMMAND_VERSION,
     COMMAND_TYPES,
@@ -1113,5 +1247,8 @@ const ADNDCommands = (function(){
     createRestIntent,
     normalizeRestCommand,
     executeRestCommand,
+    createEnterWorldIntent,
+    normalizeEnterWorldCommand,
+    executeEnterWorldCommand,
   };
 })();

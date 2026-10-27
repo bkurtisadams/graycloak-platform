@@ -1,4 +1,4 @@
-// adnd-chargen-view.js v1.1.0 — 2026-08-11
+// adnd-chargen-view.js v1.1.1 (Enter World hint after save) — 2026-08-11
 // v1.1.0 — save() stamps currentLocation on the character doc
 //          (schema §4.x shape: { regionalHexId, subHexCoord }).
 //          Spawn resolution order: campaigns/{cid}.spawnLocation if
@@ -349,7 +349,7 @@
       render();
       const host = $('chargen-card');
       host.insertAdjacentHTML('afterbegin',
-        `<div class="cg-ok">Saved ${esc(doc.name)} — characters/${esc(ref.id)}</div>`);
+        `<div class="cg-ok">Saved ${esc(doc.name)} — characters/${esc(ref.id)}. ${campaignId() ? 'Use <b>Enter World</b> in the World Map panel to bring them onto the map.' : ''}</div>`);
     } catch (e) {
       console.error('[chargen] save failed:', e);
       state.saving = false;

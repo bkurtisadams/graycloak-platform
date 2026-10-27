@@ -1,4 +1,13 @@
-// adnd-map-view.js v1.8.1 — 2026-10-26
+// adnd-map-view.js v1.10.0 — 2026-10-26
+// v1.10.0 — Enter World. Actors in the campaign that the chargen page made
+//           but that are not yet bound to the clock are listed with an Enter
+//           World button; it POSTs the client-safe intent to
+//           /api/commands/enter-world (with a settlement id when the Actor has
+//           no stored spawn cell) and reloads, so the PC appears as a party
+//           marker with server-assigned movement.
+// v1.9.0 — click-to-path: in route mode a click on a non-adjacent cell asks
+//          ADNDMapRoute.findRoute() for the cheapest-days chain over authored
+//          terrain and appends it; adjacent clicks still append one cell.
 // v1.8.1 — in route mode a click on a settlement/freehold marker selects that
 //          marker's cell for the route instead of opening its card.
 // v1.8.0 — Calendar header, presence, Rest. With campaigns/{cid}.calendarEpoch
@@ -100,6 +109,7 @@ const ADNDMapView = (function(){
   const BEGIN_TRAVEL_URL = '/api/commands/begin-travel';
   const RESOLVE_TRAVEL_URL = '/api/commands/resolve-travel';
   const REST_URL = '/api/commands/rest';
+  const ENTER_WORLD_URL = '/api/commands/enter-world';
   let ME = null;              // map-engine module
   let _ready = null;
 
@@ -127,6 +137,7 @@ const ADNDMapView = (function(){
     travelSubmit: { inFlight: false, result: null, ids: null },
     resolveSubmit: { inFlight: false, result: null, ids: {} },
     restSubmit: { inFlight: false, result: null, ids: null, days: 1 },
+    enterSubmit: { inFlight: false, result: null, ids: {} },
   };
   function ready(url){
     if (_ready) return _ready;
@@ -887,6 +898,144 @@ const ADNDMapView = (function(){
     scheduleRender();
     return result;
   }
+  // ── Enter World (v1.10.0) ────────────────────────────────────────
+  function unboundActors(){
+    const out = [];
+    for (const id of Object.keys((state.data && state.data.characters) || {})){
+      const ch = state.data.characters[id];
+      if (!ch || String(ch.campaignId || '') !== String(campaignId() || '')) continue;
+      const rt = ch.runtime || {};
+      if (rt.lastResolvedTick == null && !rt.activityId) {
+        out.push({ actorId: String(ch.id || id), name: ch.name || id, raceId: ch.raceId || null,
+          hasLocation: !!(ch.currentLocation && Array.isArray(ch.currentLocation.subHexCoord)) });
+      }
+    }
+    return out;
+  }
+  function defaultEntrySettlementId(){
+    const ids = Object.keys((state.data && state.data.settlements) || {}).sort();
+    for (const id of ids){
+      const st = state.data.settlements[id];
+      if (Array.isArray(st.subHexCoord)) return id;
+    }
+    return null;
+  }
+  function buildEnterWorldIntent(actorId, input){
+    if (typeof ADNDCommands === 'undefined' || !ADNDCommands ||
+        typeof ADNDCommands.createEnterWorldIntent !== 'function') {
+      return { ok: false, code: 'commands-unavailable' };
+    }
+    input = input || {};
+    const actor = unboundActors().find(a => a.actorId === String(actorId));
+    if (!actor) return { ok: false, code: 'actor-not-unbound' };
+    return ADNDCommands.createEnterWorldIntent({
+      commandId: input.commandId,
+      campaignId: input.campaignId || campaignId(),
+      actorId: actor.actorId,
+      expectedWorldTick: input.expectedWorldTick == null ? campaignWorldTick() : input.expectedWorldTick,
+      settlementId: input.settlementId !== undefined ? input.settlementId
+        : (actor.hasLocation ? null : defaultEntrySettlementId()),
+    });
+  }
+  function enterWorldResultText(result){
+    if (!result) return '';
+    if (result.ok){
+      const d = result.destination && Array.isArray(result.destination.subHexCoord) ? result.destination.subHexCoord : null;
+      const parts = [result.idempotentReplay ? 'already in the world' : 'entered the world'];
+      if (d) parts.push(`at ${d[0]},${d[1]}`);
+      if (result.movementRate != null) parts.push(`MR ${result.movementRate} ft`);
+      return parts.join(' · ');
+    }
+    const code = result.code || 'unknown-error';
+    const suffix = result.stage ? ` (stage ${result.stage})` : '';
+    if (result.httpStatus === 401 || code === 'unauthenticated') return 'sign in again to enter the world';
+    if (code === 'actor-already-bound') return 'that character is already in the world — reload';
+    if (code === 'missing-entry-location') return 'no entry location — add a settlement or spawnLocation';
+    if (code === 'missing-authoritative-movement') return 'the rules kernel could not supply a Movement Rate';
+    if (code === 'settlement-not-found') return 'entry settlement not found';
+    if (code === 'actor-forbidden') return 'you do not control that character';
+    if (code === 'stale-world-tick') return 'world clock moved on — reload and try again';
+    if (code === 'network-error') return 'could not reach the command endpoint';
+    if (code === 'invalid-response') return 'command endpoint returned an unreadable reply';
+    return `enter refused: ${code}${suffix}`;
+  }
+  async function submitEnterWorld(actorId){
+    if (state.enterSubmit.inFlight) return null;
+    actorId = actorId == null ? null : String(actorId);
+    if (!actorId) return { ok: false, code: 'invalid-intent' };
+    const ids = state.enterSubmit.ids || (state.enterSubmit.ids = {});
+    if (!ids[actorId]) ids[actorId] = mintId('command-enter');
+    const intent = buildEnterWorldIntent(actorId, { commandId: ids[actorId] });
+    if (!intent.ok){
+      state.enterSubmit.result = { ok: false, code: intent.code || 'invalid-intent' };
+      refreshTravelPartyControls();
+      return state.enterSubmit.result;
+    }
+    const user = (typeof ADNDAuth !== 'undefined' && ADNDAuth && ADNDAuth.getUser) ? ADNDAuth.getUser() : null;
+    let token = null;
+    try { token = user && typeof user.getIdToken === 'function' ? await user.getIdToken() : null; }
+    catch(e){ console.error('[map-view] id token failed:', e); }
+    if (!token){
+      state.enterSubmit.result = { ok: false, code: 'unauthenticated' };
+      refreshTravelPartyControls();
+      return state.enterSubmit.result;
+    }
+    state.enterSubmit.inFlight = true;
+    state.enterSubmit.result = null;
+    refreshTravelPartyControls();
+    let result;
+    try {
+      const res = await fetch(ENTER_WORLD_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(intent.command),
+      });
+      let body = null;
+      try { body = await res.json(); } catch(_){ body = null; }
+      if (!body || typeof body !== 'object') result = { ok: false, code: 'invalid-response', httpStatus: res.status };
+      else result = Object.assign({ httpStatus: res.status }, body);
+    } catch(e){
+      console.error('[map-view] enter world failed:', e);
+      result = { ok: false, code: 'network-error' };
+    }
+    state.enterSubmit.inFlight = false;
+    state.enterSubmit.result = result;
+    if (result.ok){
+      delete ids[actorId];
+      try {
+        const db = ADNDAuth.getDb();
+        if (db) await reloadCampaignState(db);
+      } catch(e){ console.error('[map-view] reload after enter failed:', e); }
+      state.route = newRouteSelection();
+      state.travelParty = newTravelPartyState();
+      refreshRouteControls();
+    } else if (result.code === 'actor-already-bound' || result.code === 'stale-world-tick' ||
+               result.code === 'actor-precondition-failed' || result.code === 'idempotency-conflict') {
+      delete ids[actorId];
+    }
+    refreshTravelPartyControls();
+    scheduleRender();
+    return result;
+  }
+  function refreshEnterControls(){
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById('map-enter');
+    if (!el) return;
+    const actors = unboundActors();
+    const result = state.enterSubmit && state.enterSubmit.result;
+    const resultText = enterWorldResultText(result);
+    const resultCls = result ? (result.ok ? ' map-travel-result-ok' : ' map-travel-result-err') : '';
+    if (!actors.length && !resultText){ el.style.display = 'none'; el.innerHTML = ''; return; }
+    const busy = !!(state.enterSubmit && state.enterSubmit.inFlight);
+    const canEnter = campaignWorldTick() != null && !busy;
+    el.style.display = '';
+    el.innerHTML = (actors.length ? `<div style="font-size:11px;font-weight:700;margin-bottom:2px;">Not yet in the world</div>` : '')
+      + actors.map(a => `<div style="display:flex;align-items:center;gap:8px;margin:2px 0;">`
+        + `<span style="font-size:11px;">${esc(a.name)}${a.raceId ? ` <span style="color:#777;">${esc(a.raceId)}</span>` : ''}</span>`
+        + `<button type="button" data-enter-actor="${esc(a.actorId)}" style="padding:3px 8px;margin:0;font-size:11px;"${canEnter ? '' : ' disabled'}>${busy ? 'Entering…' : 'Enter World'}</button>`
+        + `</div>`).join('')
+      + (resultText ? `<div class="map-travel-result${resultCls}" style="margin-top:2px;">${esc(resultText)}</div>` : '');
+  }
   function refreshPresenceControls(){
     if (typeof document === 'undefined') return;
     const el = document.getElementById('map-presence');
@@ -961,6 +1110,7 @@ const ADNDMapView = (function(){
     }
     refreshJourneyControls();
     refreshPresenceControls();
+    refreshEnterControls();
   }
   function refreshTravelPartyControls(){
     if (typeof document === 'undefined') return;
@@ -1010,13 +1160,15 @@ const ADNDMapView = (function(){
     if (state.route && state.route.error) {
       if (state.route.error === 'noncontiguous-route') return 'route cells must be adjacent';
       if (state.route.error === 'route-loop') return 'route cannot loop through a selected cell';
+      if (state.route.error === 'no-route') return 'no overland path to that cell';
+      if (state.route.error === 'route-search-limit') return 'that cell is too far to path automatically';
       return `route error: ${state.route.error}`;
     }
     if (cells.length === 0) return state.route && state.route.active
       ? 'click a start cell'
       : 'no route selected';
     if (cells.length === 1) return state.route && state.route.active
-      ? `start ${cells[0].Q},${cells[0].R} · click an adjacent cell`
+      ? `start ${cells[0].Q},${cells[0].R} · click a destination`
       : `start ${cells[0].Q},${cells[0].R}`;
     const preview = previewSelectedRoute();
     if (!preview.ok) {
@@ -1047,10 +1199,19 @@ const ADNDMapView = (function(){
     refreshTravelPartyControls();
     scheduleRender();
   }
+  function routeTerrainInput(){
+    return {
+      subhexes: (state.data && state.data.subhex) || {},
+      parentTerrain: (state.data && state.data.flanaess) || {},
+      ownerOf: ME && typeof ME.ownerOf === 'function' ? ME.ownerOf : null,
+    };
+  }
   function addRouteCell(cell){
     if (typeof ADNDMapRoute === 'undefined' || !ADNDMapRoute ||
         typeof ADNDMapRoute.appendCell !== 'function') return false;
-    const result = ADNDMapRoute.appendCell(state.route, cell);
+    const result = typeof ADNDMapRoute.appendPath === 'function'
+      ? ADNDMapRoute.appendPath(state.route, cell, routeTerrainInput())
+      : ADNDMapRoute.appendCell(state.route, cell);
     setRouteSelection(result.selection);
     return !!result.ok;
   }
@@ -1273,6 +1434,11 @@ const ADNDMapView = (function(){
     refreshRouteControls();
   }
   function wireTravelPartyControls(){
+    const enter = document.getElementById('map-enter');
+    if (enter) enter.addEventListener('click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('[data-enter-actor]') : null;
+      if (btn) submitEnterWorld(btn.getAttribute('data-enter-actor'));
+    });
     const presence = document.getElementById('map-presence');
     if (presence){
       presence.addEventListener('click', (e) => {
@@ -1374,7 +1540,7 @@ const ADNDMapView = (function(){
       <div class="map-card">
         <h2>World Map</h2>
         <div id="map-clock" class="map-clock"></div>
-        <div class="map-hint">${esc(msg || 'drag to pan · wheel to zoom · route mode: click adjacent subhexes')}</div>
+        <div class="map-hint">${esc(msg || 'drag to pan · wheel to zoom · route mode: click a destination (or step cell by cell)')}</div>
         <div id="map-route-controls" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 8px;">
           <button id="map-route-toggle" type="button" style="padding:5px 9px;margin:0;font-size:12px;">Plan Route</button>
           <button id="map-route-undo" type="button" style="padding:5px 9px;margin:0;font-size:12px;" disabled>Undo</button>
@@ -1391,6 +1557,7 @@ const ADNDMapView = (function(){
           </div>
           <div id="map-journeys" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);display:none;"></div>
           <div id="map-presence" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);display:none;"></div>
+          <div id="map-enter" style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,.08);display:none;"></div>
         </div>
         <svg id="map-svg" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>`;
@@ -1438,6 +1605,7 @@ const ADNDMapView = (function(){
     state.travelSubmit = { inFlight: false, result: null, ids: null };
     state.resolveSubmit = { inFlight: false, result: null, ids: {} };
     state.restSubmit = { inFlight: false, result: null, ids: null, days: 1 };
+    state.enterSubmit = { inFlight: false, result: null, ids: {} };
     const c = pickCenter();
     state.view.cx = c.x; state.view.cy = c.y; state.view.zoom = 1.6;
     state.svg = shell();
@@ -1470,6 +1638,7 @@ const ADNDMapView = (function(){
     buildResolveTravelIntent, submitResolveTravel, addRouteCell, clientToSubhex,
     campaignCalendarDate, clockText, settlementAtCell, partyPresence, restCandidates,
     buildRestIntent, restRequest, restResultText, submitRest,
+    unboundActors, defaultEntrySettlementId, buildEnterWorldIntent, enterWorldResultText, submitEnterWorld,
     state,
   };
 })();

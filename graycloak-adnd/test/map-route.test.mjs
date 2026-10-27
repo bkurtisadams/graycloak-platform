@@ -181,3 +181,56 @@ test('index loads the pure route adapter after Activities and before the map vie
   assert.ok(map > route);
 });
 
+
+function realm(context, value){
+  context.__realm = JSON.stringify(value);
+  return vm.runInContext('JSON.parse(__realm)', context);
+}
+
+test('findRoute prefers cheaper terrain over fewer hops and refuses impassable water', () => {
+  const { context, Route } = loadRouteRuntime();
+  const subhexes = {};
+  // Straight line (10,20)→(14,20) runs through mountains; a plains detour
+  // one row down costs fewer days despite being longer.
+  for (let q = 11; q <= 13; q++) subhexes[`subhex_${q}_20`] = { owner: { col: 1, row: 1 }, terrain: 'mountains' };
+  for (let q = 10; q <= 14; q++) subhexes[`subhex_${q}_21`] = { owner: { col: 1, row: 1 }, terrain: 'plains' };
+  subhexes['subhex_14_20'] = { owner: { col: 1, row: 1 }, terrain: 'plains' };
+  subhexes['subhex_10_20'] = { owner: { col: 1, row: 1 }, terrain: 'plains' };
+  context.__json = JSON.stringify({ subhexes, parentTerrain: {} });
+  const input = vm.runInContext('JSON.parse(__json)', context);
+  const found = Route.findRoute(realm(context, { Q: 10, R: 20 }), realm(context, { Q: 14, R: 20 }), input);
+  assert.equal(found.ok, true, JSON.stringify(found));
+  assert.ok(found.cells.length >= 5);
+  assert.deepEqual([found.cells[0].Q, found.cells[0].R], [10, 20]);
+  const last = found.cells[found.cells.length - 1];
+  assert.deepEqual([last.Q, last.R], [14, 20]);
+  assert.ok(found.cells.every(c => !(c.R === 20 && c.Q >= 11 && c.Q <= 13)), 'detours around the mountains');
+  for (let i = 1; i < found.cells.length; i++) assert.equal(Route.axialDistance(found.cells[i - 1], found.cells[i]), 1);
+
+  subhexes['subhex_12_21'] = { owner: { col: 1, row: 1 }, terrain: 'water_fresh' };
+  context.__json = JSON.stringify({ subhexes, parentTerrain: {} });
+  const viaMountains = Route.findRoute(realm(context, { Q: 10, R: 20 }), realm(context, { Q: 14, R: 20 }), vm.runInContext('JSON.parse(__json)', context));
+  assert.equal(viaMountains.ok, true);
+  assert.ok(viaMountains.cells.some(c => c.R === 20 && c.Q === 12) || viaMountains.cells.length > 5, 'lake forces another way');
+
+  const island = Route.findRoute(realm(context, { Q: 10, R: 20 }), realm(context, { Q: 50, R: 50 }), vm.runInContext('JSON.parse(__json)', context));
+  assert.equal(island.ok, false);
+  assert.equal(island.code, 'no-route');
+});
+
+test('appendPath appends adjacent cells directly and expands distant ones into a chain', () => {
+  const { context, Route } = loadRouteRuntime();
+  const subhexes = {};
+  for (let q = 10; q <= 14; q++) subhexes[`subhex_${q}_20`] = { owner: { col: 1, row: 1 }, terrain: 'plains' };
+  context.__json = JSON.stringify({ subhexes, parentTerrain: {} });
+  const input = vm.runInContext('JSON.parse(__json)', context);
+  let sel = Route.createSelection();
+  sel = Route.appendPath(sel, realm(context, { Q: 10, R: 20 }), input).selection;
+  const r1 = Route.appendPath(sel, realm(context, { Q: 11, R: 20 }), input);
+  assert.equal(r1.action, 'append');
+  const r2 = Route.appendPath(r1.selection, realm(context, { Q: 14, R: 20 }), input);
+  assert.equal(r2.ok, true);
+  assert.equal(r2.action, 'path');
+  assert.equal(r2.added, 3);
+  assert.equal(r2.selection.cells.length, 5);
+});

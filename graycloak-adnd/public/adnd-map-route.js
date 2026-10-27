@@ -1,5 +1,12 @@
-// adnd-map-route.js v0.8.0 — 2026-08-30
+// adnd-map-route.js v0.9.0 — 2026-10-26
 // Pure ordered-route selection adapter for the Graycloak world map.
+//
+// v0.9.0 adds findRoute(): A* over the hex grid using authored terrain, so a
+// click on a distant cell can be expanded into a legal adjacent chain. Cost
+// is travel time (1 / miles-per-movement factor per cell), so the planner
+// prefers plains over mountains rather than fewest hops; water and unauthored
+// cells are impassable. The result is still only a client-side selection —
+// the trusted runtime revalidates every cell when travel begins.
 //
 // This layer knows nothing about DOM rendering or Firestore. It keeps an ordered
 // list of adjacent subhex cells and can hand that selection to ADNDActivities'
@@ -17,6 +24,8 @@ const ADNDMapRoute = (function(){
     ROUTE_TOO_SHORT: 'route-too-short',
     ACTIVITIES_UNAVAILABLE: 'activities-unavailable',
     INVALID_MAP_ADAPTER: 'invalid-map-adapter',
+    NO_ROUTE: 'no-route',
+    ROUTE_SEARCH_LIMIT: 'route-search-limit',
   });
 
   function normalizeCell(value){
@@ -138,6 +147,101 @@ const ADNDMapRoute = (function(){
     return Math.max(0, sel.cells.length - 1) * milesPerStep;
   }
 
+  // ── Pathfinding ──────────────────────────────────────────────────
+  const AXIAL_DIRS = Object.freeze([[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]);
+  const DEFAULT_MAX_EXPANSIONS = 20000;
+
+  function enteredCellCost(cell, input){
+    if (typeof ADNDActivities === 'undefined' || !ADNDActivities ||
+        typeof ADNDActivities.resolveAuthoredCellTerrain !== 'function') return null;
+    const resolved = ADNDActivities.resolveAuthoredCellTerrain(cell, input);
+    if (!resolved || !resolved.ok) return null;
+    const factors = ADNDActivities.TERRAIN_MILES_PER_MOVEMENT || {};
+    const factor = factors[resolved.terrain];
+    if (!(factor > 0)) return null;
+    return 1 / factor;   // relative days per cell: level 5, rugged 6.67, very rugged 10
+  }
+
+  // A* from start to goal over adjacent subhexes. Returns the full chain
+  // including start and goal, or { ok:false, code } when no path exists.
+  function findRoute(start, goal, input){
+    const a = normalizeCell(start), b = normalizeCell(goal);
+    if (!a || !b) return { ok: false, code: ROUTE_ERROR.INVALID_CELL };
+    input = input || {};
+    if (!input.subhexes || !input.parentTerrain) return { ok: false, code: ROUTE_ERROR.INVALID_MAP_ADAPTER };
+    if (sameCell(a, b)) return { ok: true, cells: [{ Q: a.Q, R: a.R }], cost: 0, expansions: 0 };
+    const maxExpansions = Number.isInteger(input.maxExpansions) && input.maxExpansions > 0
+      ? input.maxExpansions : DEFAULT_MAX_EXPANSIONS;
+    const factors = (typeof ADNDActivities !== 'undefined' && ADNDActivities && ADNDActivities.TERRAIN_MILES_PER_MOVEMENT) || {};
+    const bestFactor = Math.max(...Object.values(factors).filter(f => f > 0), 0.2);
+    const minCost = 1 / bestFactor;
+    const key = c => `${c.Q},${c.R}`;
+    const h = c => axialDistance(c, b) * minCost;
+    const open = [{ cell: a, f: h(a) }];
+    const g = new Map([[key(a), 0]]);
+    const came = new Map();
+    const closed = new Set();
+    const costCache = new Map();
+    const cellCost = c => {
+      const k = key(c);
+      if (!costCache.has(k)) costCache.set(k, enteredCellCost(c, input));
+      return costCache.get(k);
+    };
+    let expansions = 0;
+    while (open.length){
+      let bi = 0;
+      for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
+      const current = open.splice(bi, 1)[0].cell;
+      const ck = key(current);
+      if (closed.has(ck)) continue;
+      closed.add(ck);
+      if (sameCell(current, b)){
+        const cells = [];
+        let k = ck;
+        while (k){ const [Q, R] = k.split(',').map(Number); cells.push({ Q, R }); k = came.get(k); }
+        cells.reverse();
+        return { ok: true, cells, cost: g.get(ck), expansions };
+      }
+      if (++expansions > maxExpansions) return { ok: false, code: ROUTE_ERROR.ROUTE_SEARCH_LIMIT, expansions };
+      for (const [dq, dr] of AXIAL_DIRS){
+        const next = { Q: current.Q + dq, R: current.R + dr };
+        const nk = key(next);
+        if (closed.has(nk)) continue;
+        const step = cellCost(next);
+        if (step === null) continue;
+        const tentative = g.get(ck) + step;
+        if (g.has(nk) && tentative >= g.get(nk)) continue;
+        g.set(nk, tentative);
+        came.set(nk, ck);
+        open.push({ cell: next, f: tentative + h(next) });
+      }
+    }
+    return { ok: false, code: ROUTE_ERROR.NO_ROUTE, expansions };
+  }
+
+  // Append a possibly distant cell: adjacent cells append directly; others are
+  // expanded through findRoute() from the current end of the selection.
+  function appendPath(selection, value, input){
+    const next = createSelection(selection);
+    const cell = normalizeCell(value);
+    if (!cell) return appendCell(next, value);
+    if (next.cells.length === 0 || axialDistance(next.cells[next.cells.length - 1], cell) <= 1) {
+      return appendCell(next, cell);
+    }
+    const found = findRoute(next.cells[next.cells.length - 1], cell, input);
+    if (!found.ok) {
+      next.error = found.code;
+      return { ok: false, code: found.code, selection: next };
+    }
+    let sel = next;
+    for (const step of found.cells.slice(1)){
+      const r = appendCell(sel, step);
+      if (!r.ok) return r;
+      sel = r.selection;
+    }
+    return { ok: true, action: 'path', selection: sel, added: found.cells.length - 1, cost: found.cost };
+  }
+
   function buildTravelPlan(selection, input){
     const sel = createSelection(selection);
     if (sel.cells.length < 2) {
@@ -169,6 +273,8 @@ const ADNDMapRoute = (function(){
     clearSelection,
     undoSelection,
     appendCell,
+    findRoute,
+    appendPath,
     routeDistanceMiles,
     buildTravelPlan,
   };

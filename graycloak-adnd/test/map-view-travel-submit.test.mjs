@@ -331,3 +331,35 @@ test('submitRest POSTs the rest intent for available Actors and reloads the cloc
   assert.equal(View.state.restSubmit.ids, null);
 });
 
+
+test('unboundActors lists chargen PCs and submitEnterWorld POSTs the enter intent', async () => {
+  const calls = [];
+  const fetch = async (url, init) => { calls.push({ url, init }); return { status: 200, json: async () => ({ ok: true, status: 'committed',
+    commandId: JSON.parse(init.body).commandId, actorIds: ['pc'], destination: { subHexCoord: [64, 26] }, movementRate: 90, worldTick: 100 }) }; };
+  const reloaded = { campaign: { worldTick: 100 }, character: { id: 'pc', type: 'character', campaignId: 'camp-1', name: 'Val', raceId: 'dwarf',
+    currentLocation: { subHexCoord: [64, 26] }, runtime: { lastResolvedTick: 100, availableAtTick: 100, activityId: null }, movementRate: 90 } };
+  const db = { collection: () => ({
+    doc: () => ({ get: async () => ({ exists: true, data: () => reloaded.campaign }) }),
+    where: () => ({ get: async () => ({ forEach: fn => fn({ id: 'pc', data: () => reloaded.character }) }) }) }) };
+  const { context, View } = loadRuntime({ fetch, db });
+  await seedParty(context, View);
+  context.__json = JSON.stringify({ id: 'pc', type: 'character', campaignId: 'camp-1', name: 'Val', raceId: 'dwarf',
+    runtime: { lastResolvedTick: null, availableAtTick: null, activityId: null }, currentLocation: null });
+  View.state.data.characters.pc = vm.runInContext('ADNDDocuments.createActor(JSON.parse(__json))', context);
+  View.state.data.settlements = realmValue(context, { set_far_bank: { name: 'Far Bank', subHexCoord: [64, 26] } });
+  const unbound = View.unboundActors();
+  assert.equal(unbound.length, 1);
+  assert.equal(unbound[0].actorId, 'pc');
+  assert.equal(unbound[0].hasLocation, false);
+
+  const result = await View.submitEnterWorld('pc');
+  assert.equal(result.ok, true);
+  assert.equal(calls[0].url, '/api/commands/enter-world');
+  const sent = JSON.parse(calls[0].init.body);
+  assert.equal(sent.type, 'enterWorld');
+  assert.equal(sent.actorId, 'pc');
+  assert.equal(sent.settlementId, 'set_far_bank', 'no stored spawn → first settlement');
+  assert.equal(sent.expectedWorldTick, 100);
+  assert.equal(View.unboundActors().length, 0, 'reloaded Actor is bound');
+  assert.equal(View.enterWorldResultText(result), 'entered the world · at 64,26 · MR 90 ft');
+});
