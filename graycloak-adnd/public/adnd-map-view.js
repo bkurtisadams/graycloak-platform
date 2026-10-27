@@ -1,4 +1,6 @@
-// adnd-map-view.js v1.8.0 — 2026-10-26
+// adnd-map-view.js v1.8.1 — 2026-10-26
+// v1.8.1 — in route mode a click on a settlement/freehold marker selects that
+//          marker's cell for the route instead of opening its card.
 // v1.8.0 — Calendar header, presence, Rest. With campaigns/{cid}.calendarEpoch
 //          the header shows the Greyhawk date and hour derived from worldTick
 //          (ADNDCalendar); without it the tick/legacy currentDate remain. The
@@ -1315,9 +1317,14 @@ const ADNDMapView = (function(){
   }
   function wireInput(svg){
     let drag = null;
+    // Marker links open their card except in route mode, where the cell
+    // under the marker is what the player wants.
+    svg.addEventListener('click', (e) => {
+      if (state.route && state.route.active && e.target.closest('a')) e.preventDefault();
+    });
     svg.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      if (e.target.closest('a')) return;      // let marker links click through
+      if (e.target.closest('a') && !(state.route && state.route.active)) return;
       drag = {
         x: e.clientX, y: e.clientY,
         cx: state.view.cx, cy: state.view.cy,
