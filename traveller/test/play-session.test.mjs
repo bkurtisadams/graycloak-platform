@@ -3311,3 +3311,71 @@ test('v0.354.0 a finished job\u2019s result and the last fight\u2019s aftermath 
   assert.equal(person.aftermath.back.command, null);
   assert.equal(person.aftermath.close, null);
 });
+
+// ---------------------------------------------------------------- v0.359.0
+// Bruce's session (Nov 2026): a campaign the lobby starts has no location and
+// no ship; the required first step had no working control, and the first New
+// ship broke the cloud save.
+import { createCampaignDocument as createCampaignDocumentForStart } from '../src/campaign-document.js';
+import { importCharacterDocument as importCharacterForStart } from '../vendor/classic-traveller-rules/index.js';
+
+async function lobbyCampaign() {
+  const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+  const character = importCharacterForStart(bundle.documents.characters[0]);
+  character.shipRefs = [];
+  character.benefits.shipEntitlements = [];
+  character.benefits.raw = character.benefits.raw.filter((benefit) => !/Scout Ship/.test(benefit.name ?? benefit));
+  const campaign = createCampaignDocumentForStart({ name: 'Fresh', characters: [character], partyCharacterIds: [character.identity.id], activeCharacterId: character.identity.id, activeShipId: null });
+  const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+  registry.putAll([character, campaign]);
+  return { registry, campaignId: campaign.identity.id, characterId: character.identity.id };
+}
+
+test('v0.359.0 a campaign with no location leads with Set the starting world, and Start puts it there with its ships berthed', async () => {
+  const { registry, campaignId, characterId } = await lobbyCampaign();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  let view = session.view();
+  assert.equal(view.scene.currentId, null);
+  assert.equal(view.next.title, 'Set the starting world');
+  assert.match(view.next.copy, /Vehicles tab/);
+  // A ship first, with no location: no port call yet, but linked to its holder.
+  const made = session.run('ship:new', { fight: { value: { designKey: 'type-s-scout-courier', name: 'Mystra', holder: { kind: 'character', id: characterId } } } });
+  assert.equal(made.ok, true, made.message);
+  let r = registry.resolveCampaign(campaignId);
+  assert.equal(r.ships[0].state.portCall ?? null, null);
+  assert.equal(r.ships[0].state.currentFuelTons, 0, 'recorded empty, not unrecorded');
+  assert.ok(r.characters[0].shipRefs.some((ref) => ref.shipId === made.createdId && ref.relationship === 'owner'));
+  assert.doesNotThrow(() => registry.buildBundle(campaignId), 'the bundle — and so the cloud save — accepts it');
+  view = session.view();
+  assert.match(view.next.copy, /Mystra is berthed where the campaign begins/);
+  const started = session.run('referee:start:port-meridian');
+  assert.equal(started.ok, true, started.message);
+  assert.match(started.message, /the campaign begins at Port Meridian \(0405\); Mystra is berthed there/);
+  r = registry.resolveCampaign(campaignId);
+  assert.equal(r.campaign.location.systemId, 'port-meridian');
+  assert.equal(r.ships[0].state.portCall.systemId, 'port-meridian');
+  view = session.view();
+  assert.equal(view.scene.currentId, 'port-meridian');
+  assert.notEqual(view.next.title, 'Set the starting world');
+});
+
+test('v0.359.0 a patron\u2019s ship, whose holder is no campaign character, still bundles', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const result = session.run('ship:new', { fight: { value: { designKey: 'type-r-subsidized-merchant', name: 'Varlet', holder: { kind: 'patron', name: 'Mercenary colonel' } } } });
+  assert.equal(result.ok, true, result.message);
+  assert.doesNotThrow(() => registry.buildBundle(campaignId));
+});
+
+test('v0.359.0 a ship made before the link was written is linked on opening', async () => {
+  const { registry, campaignId, characterId } = await lobbyCampaign();
+  const first = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const made = first.run('ship:new', { fight: { value: { designKey: 'type-s-scout-courier', name: 'Mystra', holder: { kind: 'character', id: characterId } } } });
+  // Undo the link, as every pre-v0.359.0 New ship left it.
+  const r = registry.resolveCampaign(campaignId);
+  registry.put({ ...r.characters[0], shipRefs: [] });
+  assert.throws(() => registry.buildBundle(campaignId), /is not referenced by assigned character/);
+  createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  assert.ok(registry.resolveCampaign(campaignId).characters[0].shipRefs.some((ref) => ref.shipId === made.createdId));
+  assert.doesNotThrow(() => registry.buildBundle(campaignId));
+});

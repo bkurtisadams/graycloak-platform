@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.358.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.358.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.358.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.358.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.359.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.359.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.359.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.359.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.358.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.358.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.358.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.359.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.359.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.359.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.358.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.358.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.359.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.359.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.358.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.359.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1546,6 +1546,53 @@ function mapZoomControl(camera, { onCentre = null } = {}) {
     h('button', { type: 'button', title: 'Zoom in (or the mouse wheel)', 'aria-label': 'Zoom in', text: '+', onclick: () => camera.zoomBy(1.25) }));
 }
 
+// v0.359.0: a campaign with no location yet — every campaign the lobby
+// starts, until the referee says where. The map drew nothing at all here
+// ("This campaign's location is not on it"), so there was no world to pick
+// and nothing to pick it with (Bruce, Nov 2026: the one required step had no
+// working control). Now the map draws with nobody on it, any world can be
+// selected, and its caption carries the one button that matters.
+function startingWorldScene(scene, subsector, frame, { onSelectSystem, onCommand }) {
+  const selectedId = scene.selectedId ?? null;
+  let selected = null;
+  try { selected = selectedId ? getSubsectorSystem(subsector, selectedId) : null; } catch { selected = null; }
+  const svg = renderSubsectorMap({
+    subsector, columns: frame.columns, rows: frame.rows, firstColumn: frame.firstColumn, firstRow: frame.firstRow, borders: scene.map?.borders ?? [],
+    worldStyle: 'book', edges: scene.map?.edges ?? [], current: null, selected, lanes: scene.lanes === 'never' ? [] : (subsector.routes ?? []),
+    onSelect: scene.kind === 'subsector' ? (system) => onSelectSystem(system.id === selectedId ? null : system.id) : null
+  });
+  svg.classList.add('map');
+  if (!savedLanesShown()) svg.classList.add('hide-lanes');
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  const middle = subsectorHexCenter(Math.ceil(frame.columns / 2), Math.ceil(frame.rows / 2), SUBSECTOR_SVG_GEOMETRY);
+  const camera = attachCamera(svg, { key: scene.map?.sectorId ?? subsector.id ?? subsector.name, frame, focus: middle });
+  const captions = [];
+  if (selected) {
+    const caption = worldCaption(selected, { role: 'there', label: 'Selected' });
+    if (scene.referee && onCommand) {
+      const start = kindButton({ label: `Start the campaign at ${selected.name}`, kind: 'travel', primary: true }, { small: true,
+        onclick: () => onCommand(`referee:start:${selected.id}`) });
+      start.title = 'Set this as the campaign\u2019s current world; any ship the travellers hold is berthed here';
+      caption.append(start);
+    }
+    captions.push(caption);
+  } else {
+    captions.push(h('div', { class: 'caption caption-here' },
+      h('p', { class: 'caption-role', text: 'No starting world yet' }),
+      h('h2', { text: 'Where does the campaign begin?' }),
+      h('p', { class: 'caption-facts', text: scene.referee ? 'Select a world on the map, then press Start the campaign there. The travellers\u2019 ship, if they have one, is berthed at that world; a ship can also be added afterwards from the Vehicles tab.' : 'The referee has not set the campaign\u2019s starting world yet.' })));
+  }
+  return [
+    h('div', { class: 'scene-title map-head' },
+      h('span', { text: scene.map?.sectorName ? `${scene.map.sectorName} sector` : `${subsector.name} subsector` }),
+      mapKey(Boolean(subsector.routes?.length)),
+      subsector.routes?.length ? lanesToggle(svg) : null,
+      mapZoomControl(camera, {})),
+    svg,
+    h('div', { class: 'captions' }, captions)
+  ];
+}
+
 export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSector = null }, readOnly = false) {
   // v0.321.0: the campaign's map from the session — the sector as charted,
   // in a frame round the charted subsectors — or Far Meridian for samples.
@@ -1553,7 +1600,7 @@ export function subsectorScene(scene, { onSelectSystem, onCommand, onExportSecto
   const frame = scene.map?.frame ?? { firstColumn: 1, firstRow: 1, columns: SUBSECTOR_COLUMNS, rows: SUBSECTOR_ROWS };
   let current;
   try { current = getSubsectorSystem(subsector, scene.currentId ?? scene.fromId); } catch { current = null; }
-  if (!current) return [h('p', { class: 'scene-title', text: `${subsector.name} subsector. This campaign's location is not on it.` })];
+  if (!current) return startingWorldScene(scene, subsector, frame, { onSelectSystem, onCommand });
   const selectedId = scene.selectedId ?? scene.toId ?? scene.courseId ?? null;
   let selected = null;
   try { selected = selectedId ? getSubsectorSystem(subsector, selectedId) : null; } catch { selected = null; }

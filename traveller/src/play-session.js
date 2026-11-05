@@ -58,7 +58,7 @@ import {
   VECTOR_ESCAPE_RANGE
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
+import { debitShipAccount, linkCharacterToShip } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
@@ -728,7 +728,10 @@ export function refereeShip({ designKey, name = '', holder, characters = [], id 
   // The ship document names its holder among the crew (as the mustering-out
   // ships make their holder the pilot).
   const crewAssignments = [{ role: 'pilot', characterId: authority.assignedCharacterId, characterName: authority.assignedCharacterName }];
-  return createShipDocument({ designKey, id, name: String(name ?? '').trim(), authority, crewAssignments });
+  // v0.359.0: a new ship starts with its tanks recorded as empty, not
+  // unrecorded — the card read "Fuel (null of 40 tons)" (Bruce, Nov 2026).
+  // The referee fills it from the port or by fiat.
+  return createShipDocument({ designKey, id, name: String(name ?? '').trim(), authority, crewAssignments, state: { currentFuelTons: 0, fuelQuality: 'unknown' } });
 }
 
 // v0.229.0: the Scenes tab, Foundry's directory shape — a folder, a name, and
@@ -2721,7 +2724,15 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
   const facts = portExtras(resolved, subsector);
   const { ship, system } = facts;
   const nothing = { next: { title: 'No ship in port', copy: 'This campaign has no active ship at a mapped world.', actions: [] }, steps: [], done: [], checklist: null, destinationId: null };
-  if (!ship || !system) return nothing;
+  // v0.359.0: a campaign that has not started anywhere yet says so and says
+  // what to do, instead of "No ship in port" with nothing to press (Bruce,
+  // Nov 2026). The map carries the control; the ship can come first or after.
+  if (!system) {
+    return { ...nothing, next: { title: 'Set the starting world', copy: ship
+      ? `Select a world on the map and press Start the campaign there. ${ship.identity.name || 'The ship'} is berthed where the campaign begins.`
+      : 'Select a world on the map and press Start the campaign there. The travellers have no ship yet: add one from the Vehicles tab (New ship), or bring in a mustering-out ship, before or after.', actions: [] } };
+  }
+  if (!ship) return { ...nothing, next: { title: 'No ship', copy: `The travellers are at ${system.name} with no ship. Add one from the Vehicles tab (New ship), or bring in a mustering-out ship waiting there.`, actions: [] } };
   const trip = safeTrip(resolved);
   if (!trip) return nothing;
   const context = { subsector };
@@ -3325,6 +3336,24 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     if (sector) subsector = campaignSectorMap(resolved.campaign, sector);
   };
 
+  // v0.359.0: a ship a traveller holds that the traveller's record does not
+  // reference — every ship New ship made before this version — is linked on
+  // opening, so the campaign saves to the cloud again. Returns how many.
+  function repairShipLinks() {
+    let fixed = 0;
+    for (const ship of resolved.ships ?? []) {
+      const authority = ship.authority ?? {};
+      if (!authority.assignedCharacterId || authority.characterOwnsShip === false) continue;
+      const holder = (resolved.characters ?? []).find((entry) => entry.identity.id === authority.assignedCharacterId);
+      if (!holder || holder.shipRefs.some((ref) => ref.shipId === ship.identity.id)) continue;
+      registry.put(linkCharacterToShip(holder, { shipId: ship.identity.id, relationship: 'owner', shipType: ship.design?.typeCode ?? '', shipName: ship.identity.name ?? '' }));
+      fixed += 1;
+    }
+    if (fixed) reload();
+    return fixed;
+  }
+  repairShipLinks();
+
   // v0.321.0: chart what the ship could reach, and remember where the party
   // has been (a world's full profile is shown to players once visited).
   // v0.331.0: the game refereeing, rumours still waiting for words are
@@ -3630,6 +3659,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           activityLogs: home.bundle.documents.activityLogs.map((entry) => mergeActivityLogHistory(registry.get(entry.identity.id), entry)) } });
         revision = home.revision;
         reload();
+        repairShipLinks();
         setSave('cloud', `Loaded from the cloud, revision ${home.revision}`);
         // v0.321.0: the cloud copy may predate the sector; chart what it needs.
         try { if (chartAndVisit().length + writeRumorsIfSolo()) saveToCloud(); } catch (error) { console.warn('[traveller] charting:', error); }
@@ -4822,6 +4852,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const ship = systemId ? beginPortCall(built, { systemId, arrivalDate: date, berthingDueCr: 0 }) : built;
         const makeActive = !campaign.activeShipId;
         registry.put(ship);
+        // v0.359.0: a ship held by a traveller is written on the traveller
+        // too — the bundle refuses a ship its assigned character does not
+        // reference, which is exactly what every New ship produced, so the
+        // first cloud save after one failed (Bruce, Nov 2026).
+        const holderCharacter = ship.authority.characterOwnsShip
+          ? (resolved.characters ?? []).find((entry) => entry.identity.id === ship.authority.assignedCharacterId) : null;
+        if (holderCharacter) registry.put(linkCharacterToShip(holderCharacter, { shipId: ship.identity.id, relationship: 'owner', shipType: ship.design.typeCode, shipName: ship.identity.name ?? '' }));
         registry.put(addShipToCampaign(registry.resolveCampaign(campaignId).campaign, ship, { makeActive }));
         reload();
         const holder = vehicleHolder(ship, registry.resolveCampaign(campaignId));
@@ -7138,16 +7175,27 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const roster = { ...campaign.roster };
         const clearTrip = () => { delete roster.trip; delete roster.shipFight; };
         let message;
-        if (what === 'move') {
+        if (what === 'move' || what === 'start') {
+          // v0.359.0: 'start' is the same act for a campaign with no location
+          // yet — the lobby's campaigns all begin this way — worded as a
+          // beginning rather than a move, and berthing every ship the
+          // travellers hold, not only the active one.
           const system = getSubsectorSystem(subsector, arg);
+          const starting = what === 'start' || !campaign.location?.systemId;
           const ship = activeShip();
           clearTrip();
           if (roster.animals?.surface || roster.animals?.pending) roster.animals = { ...roster.animals, surface: null, pending: null };
           registry.put({ ...campaign, roster, location: { systemId: system.id, systemName: system.name, worldId: system.mainWorld.id, worldName: system.mainWorld.name } });
           reload();
-          if (ship) persist([beginPortCall(ship, { systemId: system.id, arrivalDate: formatCampaignDate(campaign.time), berthingDueCr: 0 })]);
+          const berth = (entry) => beginPortCall(entry, { systemId: system.id, arrivalDate: formatCampaignDate(campaign.time), berthingDueCr: 0 });
+          if (starting) {
+            const unberthed = (resolved.ships ?? []).filter((entry) => !entry.state?.portCall?.systemId);
+            if (unberthed.length) persist(unberthed.map(berth));
+          } else if (ship) persist([berth(ship)]);
           chartAndVisit();
-          message = `Referee: ${ship?.identity.name ?? 'the ship'} moved to ${system.name} (${system.hex}), berthed, the trip cleared.`;
+          message = starting
+            ? `Referee: the campaign begins at ${system.name} (${system.hex})${ship ? `; ${ship.identity.name} is berthed there` : ''}.`
+            : `Referee: ${ship?.identity.name ?? 'the ship'} moved to ${system.name} (${system.hex}), berthed, the trip cleared.`;
         } else if (what === 'clear-trip') {
           clearTrip();
           registry.put({ ...campaign, roster });

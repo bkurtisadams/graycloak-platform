@@ -2507,3 +2507,34 @@ test('v0.356.0 a new NPC is handed his automatic pistol with expertise-0 in it, 
   assert.equal(actor.loadout.weaponKey, 'automatic-pistol');
   assert.deepEqual(actor.skills, { 'Automatic Pistol': 0 });
 });
+
+// v0.359.0 (Bruce, Nov 2026): the map of a campaign that has not started
+// anywhere drew nothing — no world to select, no control to set one.
+test('v0.359.0 with no starting world the map still draws, a world can be selected, and Start the campaign is on its caption', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  const { subsectorScene } = await import('../client/play-views.js');
+  const commands = [];
+  const selections = [];
+  const handlers = { onSelectSystem: (id) => selections.push(id), onCommand: (command) => commands.push(command) };
+  const scene = { kind: 'subsector', currentId: null, selectedId: null, jump: 0, referee: true, lanes: 'charted' };
+  let parts = subsectorScene(scene, handlers);
+  const svg = parts.find((part) => part.tagName?.toLowerCase() === 'svg');
+  assert.ok(svg, 'the map draws with nobody on it');
+  assert.equal(svg.querySelector('.map-here-ship'), null);
+  const caption = parts.at(-1).textContent;
+  assert.match(caption, /No starting world yet/);
+  assert.match(caption, /Vehicles tab/);
+  svg.querySelector('[data-system-id="port-meridian"]').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  assert.deepEqual(selections, ['port-meridian']);
+  parts = subsectorScene({ ...scene, selectedId: 'port-meridian' }, handlers);
+  const button = [...parts.at(-1).querySelectorAll('button')].find((node) => /Start the campaign at Port Meridian/.test(node.textContent));
+  assert.ok(button, 'the caption carries Start');
+  button.click();
+  assert.deepEqual(commands, ['referee:start:port-meridian']);
+  // Not the referee: the map and the note, no button.
+  parts = subsectorScene({ ...scene, selectedId: 'port-meridian', referee: false }, handlers);
+  assert.equal([...parts.at(-1).querySelectorAll('button')].length, 0);
+  assert.match(subsectorScene({ ...scene, referee: false }, handlers).at(-1).textContent, /referee has not set/);
+});

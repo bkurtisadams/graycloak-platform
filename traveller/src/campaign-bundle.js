@@ -117,7 +117,11 @@ export function createCampaignBundle(campaign, { characters = [], ships = [], co
   const characterIds = new Set(ids(characters));
   const shipIds = new Set(ids(ships));
   for (const ship of ships) {
-    if (ship.authority.assignedCharacterId) {
+    // v0.359.0: a ship a patron or a government holds names its holder in
+    // assignedCharacterId (the ship schema requires one, and the holder must
+    // be on the crew), but that holder is no campaign character — so the
+    // character checks below are for a traveller's ship only.
+    if (ship.authority.assignedCharacterId && ship.authority.characterOwnsShip !== false) {
       if (!characterIds.has(ship.authority.assignedCharacterId)) {
         throw new CampaignBundleValidationError(`ship ${ship.identity.id} assigned character is missing from bundle: ${ship.authority.assignedCharacterId}`);
       }

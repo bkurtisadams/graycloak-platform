@@ -91,3 +91,9 @@ test('the data card reads as Book 2 p.24 lays it out', () => {
   assert.ok(lines.some((line) => /^6\. Bridge \(Pilot-\d\)/.test(line)));
   assert.ok(lines.some((line) => /^T-1 \(B, M\) Gunner-0/.test(line)));
 });
+
+test('v0.359.0 the data card says unrecorded fuel, not null', () => {
+  const card = shipDataCard(fight().participants[0]);
+  const lines = dataCardLines({ ...card, fuel: { ...card.fuel, aboardTons: null } });
+  assert.ok(lines.some((line) => /Fuel \(unrecorded of 40 tons\)/.test(line)), lines.join('\n'));
+});
