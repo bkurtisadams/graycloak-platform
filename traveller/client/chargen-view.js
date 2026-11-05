@@ -17,7 +17,7 @@ import {
   SKILL_TABLES,
   MUSTERING_OUT_TABLES,
   AGING_BANDS
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 import {
   ACTION_LABELS,
   buildServiceHistory,
@@ -26,7 +26,7 @@ import {
   serviceName,
   PHASE_LABELS,
   skillTableName
-} from './ui-model.js?v=v0.359.0';
+} from './ui-model.js?v=v0.359.1';
 
 export const SHEET_CHARACTERISTICS = Object.freeze([
   ['STR', 'STRENGTH'],

@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
+import { debitShipAccount, linkCharacterToShip } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
