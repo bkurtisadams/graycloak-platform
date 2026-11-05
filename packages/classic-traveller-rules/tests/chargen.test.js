@@ -443,6 +443,50 @@ test('Book 1 p.21: Scouts and Other draw no retirement pay', async () => {
   assert.equal(separated('scouts').retired, true);
 });
 
+// The serializer agreed with the old rule, not p.21's, so a retired Scout could
+// be generated and then not saved ("retirementPayAnnual does not match
+// completed terms"; Kurt, Nov 2026). Played through the public API: a Scout
+// is driven to five terms and mustered out, then exported and made a document.
+test('Book 1 p.21: a retired Scout survives export and the document (the validator reads the same rule)', async () => {
+  const { createCharacter, getAvailableActions, performChargenAction, CHARGEN_ACTIONS, exportCharacter, createCharacterDocument, createDice } = await import('../index.js');
+  // Fixed dice through the package's own factory: every d6 a 6, or a 1.
+  const dieOf = (want) => createDice(() => (want - 0.5) / 6);
+  const high = dieOf(6);
+  const low = dieOf(1);
+  // A 12 on reenlistment is mandatory (Book 1 p.6); an 8 reenlists and leaves the choice.
+  const mid = dieOf(4);
+  const roll = (character, action, payload = {}) => performChargenAction(character, action, { ...payload, dice: high }).character;
+  let scout = null;
+  // Keep rolling until a Scout reaches five terms, survives, and retires; high
+  // dice enlist, survive and reenlist, so this takes one pass.
+  for (let attempt = 0; attempt < 20 && !scout; attempt += 1) {
+    let c = createCharacter({ name: 'Scout', dice: high });
+    for (let step = 0; step < 400; step += 1) {
+      const { phase, actions, choices } = getAvailableActions(c);
+      if (phase === CHARGEN_PHASES.MUSTER_OUT_ROLLS_PENDING && choices.remainingRolls === 0) break;
+      if (phase === CHARGEN_PHASES.COMPLETE || actions.length === 0) break;
+      if (actions.includes(CHARGEN_ACTIONS.ATTEMPT_ENLISTMENT)) c = roll(c, CHARGEN_ACTIONS.ATTEMPT_ENLISTMENT, { service: 'scouts' });
+      else if (actions.includes(CHARGEN_ACTIONS.ROLL_SKILL)) c = roll(c, CHARGEN_ACTIONS.ROLL_SKILL, { tableKey: choices.skillTables[0] });
+      else if (actions.includes(CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION)) c = roll(c, CHARGEN_ACTIONS.RESOLVE_SKILL_SPECIALIZATION, { specialization: choices.specializations[0] });
+      else if (actions.includes(CHARGEN_ACTIONS.ROLL_REENLISTMENT)) c = performChargenAction(c, CHARGEN_ACTIONS.ROLL_REENLISTMENT, { dice: mid }).character;
+      else if (actions.includes(CHARGEN_ACTIONS.REENLIST) && c.terms < 5) c = roll(c, CHARGEN_ACTIONS.REENLIST);
+      else if (actions.includes(CHARGEN_ACTIONS.MUSTER_OUT)) c = roll(c, CHARGEN_ACTIONS.MUSTER_OUT);
+      else if (actions.includes(CHARGEN_ACTIONS.ROLL_MUSTER_CASH)) c = performChargenAction(c, CHARGEN_ACTIONS.ROLL_MUSTER_CASH, { dice: low }).character;
+      else if (actions.includes(CHARGEN_ACTIONS.ROLL_MUSTER_BENEFIT)) c = performChargenAction(c, CHARGEN_ACTIONS.ROLL_MUSTER_BENEFIT, { dice: low }).character;
+      else if (actions.includes(CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION)) c = roll(c, CHARGEN_ACTIONS.RESOLVE_MUSTER_BENEFIT_SPECIALIZATION, { specialization: choices.specializations[0] });
+      else c = roll(c, actions[0]);
+      if (!c.alive) break;
+    }
+    if (c.alive && c.service === 'scouts' && c.retired) scout = c;
+  }
+  assert.ok(scout, 'a five-term Scout retired');
+  assert.equal(scout.terms >= 5, true);
+  assert.equal(scout.retirementPayAnnual, 0, 'Book 1 p.21: no pension for a Scout');
+  assert.doesNotThrow(() => exportCharacter(scout));
+  assert.doesNotThrow(() => createCharacterDocument(scout));
+  assert.throws(() => exportCharacter({ ...scout, retirementPayAnnual: 4000 }), /retirementPayAnnual/);
+});
+
 test('Book 1 p.7: a rank 5 or 6 character MAY add +1 to a benefit roll', async () => {
   const { rollMusterOutBenefit } = await import('../index.js');
   const captain = () => baseCharacter({

@@ -1,5 +1,5 @@
 import { SERVICE_KEYS, getService } from '../careers/services.js';
-import { retirementPayForTerms } from '../careers/mustering-out.js';
+import { retirementPayFor } from '../careers/mustering-out.js';
 import { CHARACTERISTIC_KEYS, formatUPP } from './upp.js';
 import { CHARGEN_PHASES } from './chargen.js';
 
@@ -251,8 +251,12 @@ function validateRetirement(character, errors) {
   add(errors, typeof character.retired === 'boolean', 'retired must be boolean');
   if (character.retired) {
     add(errors, character.terms >= 5, 'retired characters must have at least five terms');
-    add(errors, character.retirementPayAnnual === retirementPayForTerms(character.terms),
-      'retirementPayAnnual does not match completed terms');
+    // Book 1 p.21: a retired Scout or Other draws no pension, so the figure
+    // to match is the service's, not the term count's alone. The chargen
+    // withheld it correctly and this check then refused the character, so a
+    // five-term Scout could not be saved (Kurt, Nov 2026).
+    add(errors, character.retirementPayAnnual === retirementPayFor(character.service, character.terms),
+      'retirementPayAnnual does not match completed terms and service');
   } else if (character.terms < 5) {
     add(errors, character.retirementPayAnnual === 0, 'non-retired characters under five terms must have zero retirement pay');
   }

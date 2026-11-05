@@ -20,7 +20,7 @@ import {
   getMusterBenefitOutcome,
   getMusterCash,
   musterRollAllowance,
-  retirementPayForTerms
+  retirementPayFor
 } from '../careers/mustering-out.js';
 
 export const CHARGEN_PHASES = Object.freeze({
@@ -238,7 +238,6 @@ function applyRankServiceBenefits(next) {
 }
 
 // Book 1 p.21.
-const SERVICES_WITHOUT_PENSIONS = Object.freeze(['scouts', 'other']);
 
 function baseSkillEligibility(serviceKey, termNumber) {
   // Book 1 p.7: "During a character's initial term of service, he becomes
@@ -259,9 +258,7 @@ function markSeparated(next, reason) {
   // Book 1 p.21: "Retirement pay is not available to characters serving in the
   // Scout or the Other service." They still take every mustering-out benefit
   // they are eligible for; only the pension is withheld.
-  next.retirementPayAnnual = SERVICES_WITHOUT_PENSIONS.includes(next.service)
-    ? 0
-    : retirementPayForTerms(next.terms);
+  next.retirementPayAnnual = retirementPayFor(next.service, next.terms);
   return next;
 }
 
@@ -927,7 +924,7 @@ export function beginMusterOut(character) {
   const next = copyCharacter(character);
   if (next.terms >= 5 && !next.retired) {
     next.retired = true;
-    next.retirementPayAnnual = retirementPayForTerms(next.terms);
+    next.retirementPayAnnual = retirementPayFor(next.service, next.terms);
   }
 
   const allowance = musterRollAllowance(next.terms, next.rank);

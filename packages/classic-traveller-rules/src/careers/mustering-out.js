@@ -128,6 +128,14 @@ export function getMusterCash(serviceKey, total) {
   return table.cash[total - 1];
 }
 
+// Book 1 p.21: "Retirement pay is not available to characters serving in the
+// Scout or the Other service." Pay by terms, then the service's say.
+export const SERVICES_WITHOUT_PENSIONS = Object.freeze(['scouts', 'other']);
+
+export function retirementPayFor(service, terms) {
+  return SERVICES_WITHOUT_PENSIONS.includes(service) ? 0 : retirementPayForTerms(terms);
+}
+
 export function retirementPayForTerms(terms) {
   if (!Number.isInteger(terms) || terms < 0) {
     throw new RangeError(`terms must be a non-negative integer; received ${terms}`);
