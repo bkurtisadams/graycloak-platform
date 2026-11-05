@@ -131,6 +131,8 @@ button, input, select { font: inherit; color: inherit; }
 .mast-players { font-size: 13px; color: var(--ink-2); white-space: normal; max-width: 320px; }
 .mast-players b { color: var(--ink); }
 .mast-save.is-stale, .mast-save.is-error { color: var(--red); font-weight: 700; }
+/* v0.361.0: a failed save's reason sits in the line, not in a tooltip. */
+.mast-save-reason { font-weight: 400; white-space: normal; }
 .mast-signin { margin-left: 8px; padding: 0; background: none; border: 0; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .notice { padding: 8px 10px; border-left: 3px solid var(--go-border); background: var(--go); color: var(--go-ink); font-size: 14px; }
 .notice.is-error { border-left-color: var(--attention-border); background: var(--attention); color: var(--ink); }

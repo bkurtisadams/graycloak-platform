@@ -115,6 +115,7 @@ import { setCombatantCurrent } from './encounter-document.js';
 
 import { appendActivityLogEntry, createActivityLogDocument, mergeActivityLogHistory } from './activity-log-document.js';
 import { StaleCampaignHomeError, createCampaignHome, importCampaignHome, nextCampaignHome } from './campaign-home.js';
+import { exportCampaignBundle } from './campaign-bundle.js';
 import { buildPublishedCampaign, buildPublishedScene, buildPublishedCharacter, buildPublishedView, buildPublishedLog } from './published-view.js';
 import { authorizePlayerDeclaration } from './player-declaration.js';
 import { authorizePlayerWoundAllocation } from './player-wound-allocation.js';
@@ -7736,6 +7737,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
 
   api = {
     connect, run, saveToCloud, reload,
+    // v0.361.0: the campaign as the portable bundle the old client's
+    // [ EXPORT CAMPAIGN ] wrote, and the same bundle the lobby's LOAD A
+    // CAMPAIGN FILE reads back. The last of the old client's Settings
+    // commands play.html lacked; Reload from cloud is connect().
+    exportBundle: () => exportCampaignBundle(registry.buildBundle(campaignId)),
+    get campaignName() { return resolved.campaign.identity.name ?? ''; },
+    get campaignId() { return campaignId; },
     // v0.329.0: the save a command already started, or one now; for the
     // server, which must not return before the campaign is saved.
     async flushSave() {

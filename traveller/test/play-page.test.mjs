@@ -169,3 +169,17 @@ test('v0.354.0 the player\u2019s page shows the job card, its encounter inside, 
   const css = await read('play.css');
   assert.match(css, /\.side-jobs\[hidden\] \{ display: none; \}/);
 });
+
+// v0.361.0 (Bruce, Nov 2026): Save now was nowhere to be found and a failed
+// save's reason was only a tooltip. The masthead names the reason and offers
+// Save now; Settings carries the old page's campaign-file commands.
+test('v0.361.0 the masthead shows a failed save\u2019s reason with Save now, and Settings has the campaign-file commands', async () => {
+  const play = await read('play.js');
+  assert.match(play, /state\.save\.state === 'error' \? h\('span', \{ class: 'mast-save-reason', text: ` \\u2014 \$\{state\.save\.detail\}` \}\) : null/);
+  assert.match(play, /state\.save\.state === 'error' \? h\('button', \{ type: 'button', class: 'mast-signin', text: 'Save now', onclick: handlers\.onSaveNow \}\) : null/);
+  for (const name of ['onSaveNow', 'onReloadFromCloud', 'onExportCampaign']) assert.match(play, new RegExp(`${name}: async? ?\\(\\) =>|${name}: \\(\\) =>`), name);
+  const views = await read('play-views.js');
+  assert.match(views, /legend', \{ text: 'Campaign file' \}/);
+  for (const label of ['Save now', 'Reload from cloud', 'Export campaign']) assert.match(views, new RegExp(`label: '${label}'`), label);
+  assert.match(views, /Load a campaign file in the lobby/);
+});

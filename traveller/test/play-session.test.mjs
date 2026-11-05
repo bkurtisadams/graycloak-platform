@@ -3400,3 +3400,15 @@ test('v0.360.0 a joining character\u2019s mustering-out ship is named as waiting
   assert.match(ship.identity.registry, /^S-\d{5}$/);
   assert.doesNotThrow(() => registry.buildBundle(campaignId));
 });
+
+// ---------------------------------------------------------------- v0.361.0
+test('v0.361.0 the session exports the campaign as the bundle the lobby loads back', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const text = session.exportBundle();
+  const { importCampaignBundle } = await import('../src/campaign-bundle.js');
+  const bundle = importCampaignBundle(text);
+  assert.equal(bundle.campaign.identity.id, campaignId);
+  assert.equal(session.campaignId, campaignId);
+  assert.equal(session.campaignName, bundle.campaign.identity.name);
+});

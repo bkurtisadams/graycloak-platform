@@ -2,18 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.360.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.360.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.360.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.360.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.360.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.360.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.360.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.360.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.360.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.360.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.360.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.360.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.361.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.361.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.361.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.361.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.361.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.361.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.361.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.361.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.361.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.361.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.361.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.361.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -493,6 +493,27 @@ function render() {
       return result;
     },
     onOpenSurface: () => openSurfaceDialog(),
+    // v0.361.0: the old referee page's Settings commands, here. Save now is
+    // also on the masthead beside a failed save (Bruce, Nov 2026: he could
+    // not find it, and the reason was only a tooltip).
+    onSaveNow: async () => {
+      if (source.mode !== 'live') return;
+      await source.session.saveToCloud();
+      render();
+    },
+    onReloadFromCloud: async () => {
+      if (source.mode !== 'live') return;
+      await openFromCloud(source.session.campaignId);
+    },
+    onExportCampaign: () => {
+      if (source.mode !== 'live') return;
+      const text = source.session.exportBundle();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      link.download = `${String(source.session.campaignName || 'campaign').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'campaign'}.campaign.json`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    },
     // v0.321.0: the sector as charted, for travellermap.com's Poster Maker.
     onExportSector: () => {
       if (source.mode !== 'live') return;
@@ -982,7 +1003,11 @@ function render() {
   if (state.save) {
     saveLine.className = `mast-save is-${state.save.state}`;
     saveLine.title = state.save.detail;
+    // v0.361.0: a failed save says why, in the line and not only on hover,
+    // and offers Save now to try again (Bruce, Nov 2026).
     saveLine.replaceChildren(...[h('span', { text: state.save.state === 'cloud' && source.session.revision ? `${state.save.label}, revision ${source.session.revision}` : state.save.label }),
+      state.save.state === 'error' ? h('span', { class: 'mast-save-reason', text: ` \u2014 ${state.save.detail}` }) : null,
+      state.save.state === 'error' ? h('button', { type: 'button', class: 'mast-signin', text: 'Save now', onclick: handlers.onSaveNow }) : null,
       state.save.state === 'local' ? h('button', { type: 'button', class: 'mast-signin', text: 'Sign in', onclick: handlers.onSignIn }) : null,
       state.save.state === 'cloud' || state.save.state === 'error' ? h('button', { type: 'button', class: 'mast-signin', text: 'Account', onclick: () => openAccount() }) : null,
       state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
