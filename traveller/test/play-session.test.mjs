@@ -3379,3 +3379,24 @@ test('v0.359.0 a ship made before the link was written is linked on opening', as
   assert.ok(registry.resolveCampaign(campaignId).characters[0].shipRefs.some((ref) => ref.shipId === made.createdId));
   assert.doesNotThrow(() => registry.buildBundle(campaignId));
 });
+
+// ---------------------------------------------------------------- v0.360.0
+test('v0.360.0 a joining character\u2019s mustering-out ship is named as waiting, and comes in with a name', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+  const elena = importCharacterForStart(bundle.documents.characters[0]);
+  elena.identity = { ...elena.identity, id: 'char-elena', name: 'Elena Quill' };
+  elena.shipRefs = [];
+  elena.benefits.shipEntitlements[0].disposition = 'reserve-assignment-available';
+  const admitted = session.run('character:admit', { fight: { value: { character: elena, ownerUid: 'bruce', playerName: 'Bruce' } } });
+  assert.equal(admitted.ok, true, admitted.message);
+  assert.match(admitted.message, /Their Scout Ship is waiting in Vehicles: Bring in to build it here\./);
+  const brought = session.run('ship:from-benefit:char-elena');
+  assert.equal(brought.ok, true, brought.message);
+  assert.doesNotMatch(brought.message, /\(\)/, 'the ship has a name');
+  const ship = registry.resolveCampaign(campaignId).ships.find((entry) => entry.authority.assignedCharacterId === 'char-elena');
+  assert.ok(ship.identity.name, 'named');
+  assert.match(ship.identity.registry, /^S-\d{5}$/);
+  assert.doesNotThrow(() => registry.buildBundle(campaignId));
+});

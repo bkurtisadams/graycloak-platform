@@ -83,6 +83,7 @@ import {
 // The market seeds are shared with client/app.js so both pages draw the same
 // speculative lot and the same resale quotes on a given day.
 import { saleQuoteSeed, seededDice, weeklyTradeSeed } from '../client/commerce-market.js';
+import { generateShipName, generateShipRegistry } from '../client/generators.js';
 import {
   addActivityLogToCampaign, campaignIsPublished, markCampaignPublished, recordSpeculativeLotPurchase, refreshCampaignDocumentRefs,
   setCampaignOwner, speculativeLotPurchasedQuantity, advanceCampaignDays, advanceCampaignSeconds, updateCampaignTime, addSceneToCampaign,
@@ -4817,9 +4818,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         if (!benefit) throw new Error(`${character.identity.name || 'This character'} has no ship benefit waiting`);
         const campaign = resolved.campaign;
         const date = formatCampaignDate(campaign.time);
+        // v0.360.0: the ship arrives named and registered — the log read
+        // "Elena Quill's Scout Ship () comes into the campaign" (Bruce, Nov
+        // 2026). The referee renames it from the ship sheet.
+        const naming = { name: generateShipName(), registry: generateShipRegistry(benefit === 'Free Trader' ? 'A' : 'S') };
         const built = benefit === 'Free Trader'
-          ? createTypeAFreeTraderForCharacter(character, { startedOn: date })
-          : createTypeSScoutReserveShipForCharacter(character);
+          ? createTypeAFreeTraderForCharacter(character, { startedOn: date, ...naming })
+          : createTypeSScoutReserveShipForCharacter(character, naming);
         const systemId = campaign.location?.systemId ?? null;
         const ship = systemId ? beginPortCall(built.ship, { systemId, arrivalDate: date, berthingDueCr: 0 }) : built.ship;
         const makeActive = !campaign.activeShipId;
@@ -5214,7 +5219,12 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             registry.putAll([character, campaign]);
           }
           reload();
-          const message = `${character.identity.name || '(unnamed)'} joins the campaign${value.playerName ? ` with ${value.playerName}` : ''}.`;
+          // v0.360.0: a mustering-out ship does not come in by itself; the
+          // referee brings it in from Vehicles. Say so where they will read
+          // it (Bruce, Nov 2026: Elena Quill's Scout Ship "didn't come with
+          // her").
+          const waiting = untakenShipBenefit(character);
+          const message = `${character.identity.name || '(unnamed)'} joins the campaign${value.playerName ? ` with ${value.playerName}` : ''}.${waiting ? ` Their ${waiting} is waiting in Vehicles: Bring in to build it here.` : ''}`;
           log('SYSTEM', message);
           lastMessage = { ok: true, message, characterId: character.identity.id };
           onChange();
