@@ -8,32 +8,32 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.356.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.356.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.358.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.358.0';
 // v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
-import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.356.0';
+import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.358.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf, loadPublishedCampaign
-} from './publish.js?v=v0.356.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.356.0';
-import { importCampaignBundle } from '../src/campaign-bundle.js?v=v0.356.0';
-import { setCampaignOwner, markCampaignPublished } from '../src/campaign-document.js?v=v0.356.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.356.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.356.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.356.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.356.0';
-import { generateCharacterName } from './generators.js?v=v0.356.0';
+} from './publish.js?v=v0.358.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.358.0';
+import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.358.0';
+import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.358.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.358.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.358.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.358.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.358.0';
+import { generateCharacterName } from './generators.js?v=v0.358.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome,
   isNpcRecord, setCharacterRecordRole
-} from '../src/character-record.js?v=v0.356.0';
+} from '../src/character-record.js?v=v0.358.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter,
-  exportCharacterDocument
+  exportCharacterDocument, importCharacterDocument
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.0';
 
 const el = {
@@ -297,6 +297,50 @@ async function loadCampaignFile(file) {
   }
 }
 
+// v0.358.0: [ START A CAMPAIGN ] creates the campaign here and opens it on
+// play.html. It used to hand the character to the old referee client
+// (its ?start= boot path), which was the one place a campaign could begin — so
+// every new campaign started in a page that has no New Ship and hides its
+// own [ SET CURRENT LOCATION ]. The campaign is built around the character,
+// saved to its home at once (which also publishes the envelope), and the
+// record is marked as living in it — the same state a seat by invite
+// produces, with the referee as player. play.html fetches it from the cloud.
+async function startCampaignWithRecord(record) {
+  try {
+    const uid = currentUserId();
+    if (!uid) throw new Error('sign in first');
+    if (record.ownerUid && record.ownerUid !== uid) throw new Error('that character belongs to another account');
+    if (record.pendingJoin || isNpcRecord(record) || characterRecordStatus(record).enter !== null) throw new Error(`${record.name} is already in a campaign`);
+    const character = importCharacterDocument(record.character);
+    const name = await askText({
+      title: 'New campaign', message: `Name the campaign ${character.identity.name} starts.`,
+      value: '', placeholder: 'Unnamed Campaign', confirm: 'Start'
+    });
+    if (name === null) return;
+    const now = Date.now();
+    let campaign = createCampaignDocument({
+      name: String(name).trim() || 'Unnamed Campaign',
+      characters: [character], partyCharacterIds: [character.identity.id],
+      activeCharacterId: character.identity.id, activeShipId: null
+    });
+    campaign = setCampaignOwner(campaign, uid);
+    campaign = setDocumentOwner(campaign, { documentId: character.identity.id, ownerUid: uid });
+    campaign = markCampaignPublished(campaign, now);
+    const bundle = createCampaignBundle(campaign, { characters: [character] });
+    const home = createCampaignHome(bundle, { ownerUid: uid, savedAt: now });
+    const envelope = buildPublishedCampaign(campaign, { publishedAt: now });
+    setStatus(`STARTING ${campaign.identity.name.toUpperCase()}\u2026`);
+    await saveCampaignHome(home, envelope, { expectedRevision: null });
+    await saveCharacterRecord(setCharacterRecordWorld(record, {
+      kind: WORLD_KINDS.CAMPAIGN, campaignId: campaign.identity.id, campaignName: campaign.identity.name, since: now
+    }));
+    window.location.href = `play.html?campaign=${encodeURIComponent(campaign.identity.id)}`;
+  } catch (error) {
+    console.error(error);
+    setStatus(error?.message ?? String(error), 'error');
+  }
+}
+
 function campaignDate(time) {
   return time ? `${String(time.dayOfYear).padStart(3, '0')}-${time.year}` : '--';
 }
@@ -517,7 +561,7 @@ function renderNewCampaign() {
   const free = records.filter((record) => !record.pendingJoin && !isNpcRecord(record) && characterRecordStatus(record).enter === null);
   box.replaceChildren(
     el2('p', 'lobby-add-note', free.length ? 'Which of your characters starts it?' : 'None of your characters is free. Roll one first, or take one out of a campaign.'),
-    ...free.map((record) => mainLink(`[ START WITH ${record.name.toUpperCase()} ]`, `index.html?start=${encodeURIComponent(record.characterId)}`)));
+    ...free.map((record) => mainButton(`[ START WITH ${record.name.toUpperCase()} ]`, () => startCampaignWithRecord(record))));
 }
 
 // Campaigns you play in: their players' copy (name, date, world, ship) is
@@ -619,7 +663,7 @@ function characterMain(record) {
   if (state.key === 'campaign') return mainLink(`[ OPEN ${String(record.world.campaignName ?? 'CAMPAIGN').toUpperCase()} ]`, `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`);
   if (state.key === 'waiting') return mainButton('[ WITHDRAW ]', () => withdrawJoin(record), { title: 'Stop waiting to join' });
   if (state.key === 'npc') return mainButton('[ VIEW SHEET ]', () => openSheet(record));
-  if (state.key === 'free') return mainLink('[ START A CAMPAIGN ]', `index.html?start=${encodeURIComponent(record.characterId)}`, { title: 'Referee a new campaign that starts with this character; to join someone else\u2019s, open their join link' });
+  if (state.key === 'free') return mainButton('[ START A CAMPAIGN ]', () => startCampaignWithRecord(record), { title: 'Referee a new campaign that starts with this character; to join someone else\u2019s, open their join link' });
   return mainButton('[ VIEW SHEET ]', () => openSheet(record));
 }
 function characterMenu(record) {
