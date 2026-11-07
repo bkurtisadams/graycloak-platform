@@ -31,7 +31,7 @@ import {
   DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, attemptDriveRepair, quoteStarportDriveRepair, repairDrivesAtStarport,
   shipEncounterReactionDMParts, debitShipAccount, shipReactionStance, rollReactionAttack,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
-} from '../../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+} from '../../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from '../contract-document.js';
 import { campaignDateKey, routeMarketSeed, seededDice } from '../../client/commerce-market.js';
@@ -565,7 +565,9 @@ const HANDLERS = {
     events.push(event(state, 'depart', `lifting from ${facts.system.name} for ${facts.target.name}`));
     // Book 2 p.3: pirates and patrols meet ships "entering or leaving a
     // system"; p.36's table, keyed on this world's starport.
-    const outbound = rollShipEncounter(seeded(state, `${state.campaign.identity.id}|departure|${facts.system.id}|${dateLabel}`), { starport: facts.profile.starport });
+    // v0.373.0: The Traveller Book (1982) p.75's table, by starport column,
+    // +2 for a naval base and +1 for a scout base (Kurt, Nov 2026).
+    const outbound = rollShipEncounter(seeded(state, `${state.campaign.identity.id}|departure|${facts.system.id}|${dateLabel}`), { starport: facts.profile.starport, ...shipEncounterBases(facts.system) });
     if (outbound.type) return one(state, [...events, openEncounter(state, outbound, { phase: 'outbound', system: facts.system, seedBase: `${state.campaign.identity.id}|departure|${facts.system.id}|${dateLabel}` })]);
     return launch(state, events, context);
   },
@@ -697,6 +699,11 @@ function halt(state, events, reason, detail, from) {
   return one(state, [...events, event(state, 'halt', detail, { reason })]);
 }
 
+// v0.373.0: The Traveller Book (1982) p.75 reads the system's bases.
+function shipEncounterBases(system) {
+  return { navalBase: Boolean(system?.bases?.naval), scoutBase: Boolean(system?.bases?.scout) };
+}
+
 // v0.315.7: a hostile pirate attacks on the reaction table's own throw.
 function pirateAttack(state, { hostileByDefault, reactionTotal, seedBase }) {
   if (!hostileByDefault || !Number.isInteger(reactionTotal) || shipReactionStance({ tableTotal: reactionTotal }) !== 'hostile') return null;
@@ -720,7 +727,10 @@ function openEncounter(state, rolled, { phase, system, seedBase }) {
   // choice when it should have been the pirate's.
   const attack = pirateAttack(state, { hostileByDefault: rolled.hostileByDefault, reactionTotal: reaction.tableTotal, seedBase });
   state.encounter = {
-    key: rolled.type, label: rolled.label, hull: rolled.hull?.label ?? null, hullKey: rolled.hull?.hull ?? rolled.type, phase,
+    // v0.373.0: the hull is named only where the type does not already say
+    // it (a pirate, or a ship built on a stand-in design until its own exists).
+    key: rolled.type, label: rolled.label, hull: rolled.hull && (rolled.hostileByDefault || rolled.hull.standIn) ? rolled.hull.label : null,
+    hullKey: rolled.hull?.hull ?? rolled.type, smallCraft: rolled.smallCraft?.label ?? null, phase,
     hostileByDefault: Boolean(rolled.hostileByDefault), reaction: reaction.description, reactionTotal: reaction.tableTotal,
     reactionDM: dm, systemId: system?.id ?? null, seedBase, tollDemandCr: null,
     attacking: Boolean(attack?.attacks),
@@ -728,7 +738,9 @@ function openEncounter(state, rolled, { phase, system, seedBase }) {
   };
   state.situation = 'encounter';
   const attackText = attack ? (attack.attacks ? `; it attacks (${state.encounter.attackThrow})` : `; it holds off (${state.encounter.attackThrow})`) : '';
-  return event(state, 'encounter', `${rolled.label}${rolled.hull ? ` (${rolled.hull.label})` : ''} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description.replace(/\.$/, '')}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}${attackText}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal, attacking: Boolean(attack?.attacks) });
+  const named = state.encounter.hull ? ` (${state.encounter.hull})` : '';
+  const craft = rolled.smallCraft ? `; a ${rolled.smallCraft.label} is met as well` : '';
+  return event(state, 'encounter', `${rolled.label}${named} met ${phase === 'outbound' ? 'leaving' : 'entering'} the system: ${reaction.description.replace(/\.$/, '')}${dm ? ` (reaction DM ${dm > 0 ? '+' : ''}${dm})` : ''}${attackText}${craft}`, { key: rolled.type, phase, reactionTotal: reaction.tableTotal, attacking: Boolean(attack?.attacks) });
 }
 
 function afterEncounter(state, events, context) {
@@ -824,7 +836,7 @@ function arrive(state, events, context) {
   const targetProfile = parseUniversalWorldProfile(target.mainWorld.uwp);
   // Seeded on the departure date, as play-session.js does.
   const seedBase = `${state.campaign.identity.id}|arrival|${target.id}|${jump.startedOn}`;
-  const inbound = rollShipEncounter(seeded(state, seedBase), { starport: targetProfile.starport });
+  const inbound = rollShipEncounter(seeded(state, seedBase), { starport: targetProfile.starport, ...shipEncounterBases(target) });
   if (inbound.type) {
     events.push(openEncounter(state, inbound, { phase: 'inbound', system: target, seedBase }));
     return one(state, events);

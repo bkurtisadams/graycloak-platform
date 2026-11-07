@@ -1698,6 +1698,10 @@ export function creditShotAgainstEscape(encounter, shipId) {
   if (participant.shotsRemainingBeforeEscape === 0) {
     participant.escaped = true;
     logEvent(next, { kind: 'escape', shipId });
+    // 0.94.0: a ship that gets away can end the fight there and then; before,
+    // the outcome waited for the next laser fire, which a fight with nobody
+    // left to shoot at never reached.
+    if (next.outcome === 'in-progress') return applyDisabledOutcomes(next);
   }
   return next;
 }
@@ -1755,12 +1759,21 @@ function applyDisabledOutcomes(encounter) {
     const present = encounter.participants.filter((participant) => participant.side === side
       && !participant.escaped && !participant.surrendered);
     if (!present.length) {
-      encounter.outcome = 'disengaged';
+      // 0.94.0: a side that gave itself up has surrendered; one that got
+      // away (or was let go) has disengaged.
+      const gaveUp = encounter.participants.some((participant) => participant.side === side && participant.surrendered)
+        && !encounter.participants.some((participant) => participant.side === side && participant.escaped);
+      encounter.outcome = gaveUp ? 'surrendered' : 'disengaged';
       return encounter;
     }
     const statuses = present.map(participantStatus);
     if (statuses.every((status) => status.toothless)) {
       const adrift = statuses.every((status) => status.adrift);
+      // 0.94.0 (Kurt, Nov 2026): in the abbreviated fight too, a disarmed
+      // side that is running is still in it until p.37's shots are spent
+      // (Book 2 p.37: "the referee then states that a certain number of
+      // shots may be made before the ship is out of range").
+      if (encounter.spatialMode !== 'vector' && !adrift && present.every((participant) => participant.fled)) continue;
       // Ruling (Graycloak, Sep 2026): on a vector plot a disarmed ship that
       // can still move is still playing. p.22's own opening example is a free
       // trader trying to outrun a pirate, and ending the fight the moment a

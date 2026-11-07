@@ -17,8 +17,8 @@ import {
   createShipDocument, armShipTurret, createShipCombatEncounter, COMPUTER_MODELS, COMPUTER_PROGRAMS,
   actingSide, currentPhase, advanceShipCombatPhase, allocateLaserFire, resolveLaserFire,
   turretOperational, turretWeapons, getTurretWeapon, shipCombatIntent, participantStatus,
-  declareFlight, creditShotAgainstEscape, cpuFireOptions
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+  declareFlight, creditShotAgainstEscape, cpuFireOptions, STANDARD_SHIP_DESIGN_KEYS, surrender
+} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 
 // Book 2 p.36 names the hull; these are the standard designs it resolves to.
 const SHIP_ENCOUNTER_DESIGN_KEYS = Object.freeze({
@@ -44,6 +44,8 @@ export function opposingShipDesignKey(encounter) {
   // came from: the type itself for a free trader/subsidized merchant/yacht
   // (Book 2 p.36 names one design per type), or the separate p.36 hull throw
   // for a patrol or pirate (Type S, Type C, or an armed Type Y).
+  // v0.373.0: The Traveller Book (1982) table names the design itself.
+  if (STANDARD_SHIP_DESIGN_KEYS.includes(encounter?.hullKey)) return encounter.hullKey;
   return SHIP_ENCOUNTER_DESIGN_KEYS[encounter?.hullKey] ?? 'type-s-scout-courier';
 }
 
@@ -322,5 +324,51 @@ export function fleeShipFight(encounter, shipId) {
   // depend on a shot being fired to notice that nothing CAN be fired — with
   // no threat left, the ship is simply gone.
   if (!threatened && next.outcome === 'in-progress') next = { ...next, outcome: 'disengaged' };
+  return next;
+}
+
+// v0.373.0 (Kurt, Nov 2026): what a foe does once it has no working gun,
+// in the abbreviated fight. The Traveller Book (1982) p.78 has the referee
+// use the reaction table "to determine the precise reaction of any type of
+// ship and crew", thrown once on first meeting (p.102) — the encounter's own
+// reaction. RULING: 2-7, it runs, and p.37's shots are allowed before it is
+// out of range; 8+, it heaves to and surrenders. Nothing changes while the
+// player's own ship is the helpless one, or on a vector plot.
+export const HEAVES_TO_ON_REACTION = 8;
+
+export function settleHelplessFoe(encounter, { playerSide, reactionTotal } = {}) {
+  const same = { encounter, line: null, settled: null };
+  if (encounter.outcome !== 'disarmed' || encounter.spatialMode === 'vector' || !Number.isInteger(reactionTotal)) return same;
+  const foes = encounter.participants.filter((entry) => entry.side !== playerSide && !entry.escaped && !entry.surrendered);
+  const ours = encounter.participants.filter((entry) => entry.side === playerSide && !entry.escaped && !entry.surrendered);
+  if (!foes.length || foes.some((entry) => entry.fled) || !foes.every((entry) => participantStatus(entry).toothless)) return same;
+  if (!ours.some((entry) => !participantStatus(entry).toothless)) return same;
+  let next = { ...encounter, outcome: 'in-progress' };
+  const names = foes.map((entry) => entry.name).join(' and ');
+  if (reactionTotal >= HEAVES_TO_ON_REACTION) {
+    for (const foe of foes) next = surrender(next, foe.id);
+    next = { ...next, outcome: 'surrendered' };
+    return { encounter: next, settled: 'surrendered', line: `${names} has no working gun and heaves to: it surrenders (its reaction was ${reactionTotal}; 8+ heaves to).` };
+  }
+  for (const foe of foes) {
+    next = declareFlight(next, { shipId: foe.id, shotsBeforeEscape: STANDARD_SHOTS_BEFORE_ESCAPE, note: `No working gun; reaction ${reactionTotal} (2-7 runs). Standard ruling: ${STANDARD_SHOTS_BEFORE_ESCAPE} shots before out of range (Book 2 p.37)` });
+  }
+  return { encounter: next, settled: 'running', line: `${names} has no working gun and runs (its reaction was ${reactionTotal}; 2-7 runs): ${STANDARD_SHOTS_BEFORE_ESCAPE} shots before it is out of range (Book 2 p.37).` };
+}
+
+// v0.373.0: holding fire on a ship that is running spends the shots that
+// could have been fired, so a runner is not kept in range by never shooting.
+export function forfeitEscapeShots(encounter, shooterId) {
+  const shooter = encounter.participants.find((entry) => entry.id === shooterId);
+  if (!shooter) return encounter;
+  const runner = encounter.participants.find((entry) => entry.side !== shooter.side && entry.fled && !entry.escaped);
+  if (!runner) return encounter;
+  const lasers = shooter.ship.specifications.armament.turrets
+    .filter((turret) => turretOperational(shooter.ship, turret.id))
+    .reduce((sum, turret) => sum + turretWeapons(shooter.ship, turret.id).filter((key) => getTurretWeapon(key).fires === 'laser').length, 0);
+  let next = encounter;
+  for (let index = 0; index < Math.max(1, lasers) && !next.participants.find((entry) => entry.id === runner.id).escaped; index += 1) {
+    next = creditShotAgainstEscape(next, runner.id);
+  }
   return next;
 }

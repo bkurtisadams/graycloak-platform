@@ -17,6 +17,7 @@ import {
   rollPatrolOrPirateHull,
   shipEncounterStarportDM,
   SHIP_ENCOUNTER_TABLE,
+  STARSHIP_TYPES_1982,
   SHIP_ENCOUNTER_TYPES,
 } from '../index.js';
 
@@ -98,27 +99,39 @@ test('generalized referee skill check follows the Book 1 Electronics throw patte
   assert.equal(result.basis, 'graycloak-generalized-from-book1-electronics');
 });
 
-test('Book 2 p.36: the starport decides how much traffic a system has', () => {
+test('The Traveller Book p.75: the starport picks the column; the 1977 starport DM is gone', () => {
+  // The 1977 DMs stay exported for the Journal's reference table.
   assert.equal(shipEncounterStarportDM('A'), 6);
-  assert.equal(shipEncounterStarportDM('B'), 4);
-  assert.equal(shipEncounterStarportDM('C'), 2);
-  assert.equal(shipEncounterStarportDM('D'), 1);
-  assert.equal(shipEncounterStarportDM('E'), -2);
-  assert.equal(shipEncounterStarportDM('X'), -4);
-
-  // An X-class port throws 2D-4, which cannot reach 9, so it never sees
-  // traffic at all. That is the rule working, not a gap.
-  const sixes = { rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) };
-  assert.equal(rollShipEncounter(sixes, { starport: 'X' }).type, null);
-  // The same throw at a class A port is a patrol.
-  assert.equal(rollShipEncounter(sixes, { starport: 'A' }).type, 'patrol');
+  const at = (total, starport, options = {}) => rollShipEncounter({ rollD6: () => 1, roll2D6: () => ({ dice: [1, total - 1], total }) }, { starport, ...options });
+  // A 12 is a Subsidized Merchant (and a small craft) at A, a Yacht at C, a
+  // Mercenary Cruiser at X.
+  assert.equal(at(12, 'A').type, 'subsidized-merchant');
+  assert.ok(at(12, 'A').smallCraft);
+  assert.equal(at(12, 'C').type, 'yacht');
+  assert.equal(at(12, 'X').type, 'mercenary-cruiser');
+  // X-class ports see traffic now: a 9 is a Patrol Cruiser.
+  assert.equal(at(9, 'X').type, 'patrol');
+  assert.equal(at(9, 'X').hull.label, 'Type T Patrol Cruiser (built as a stand-in)');
+  // P is a pirate, hostile by default, built on its own hull.
+  const pirate = at(10, 'C');
+  assert.equal(pirate.type, 'pirate');
+  assert.equal(pirate.hostileByDefault, true);
+  assert.equal(pirate.code, 'TP');
+  assert.equal(pirate.hull.hull, 'type-c-cruiser');
+  assert.equal(at(9, 'D').hull.hull, 'type-s-scout-courier');
 });
 
-test('Book 2 p.36: eight or less is no encounter', () => {
+test('The Traveller Book p.75: a dash is no encounter; bases add to the throw', () => {
   const ones = { rollD6: () => 1, roll2D6: () => ({ dice: [1, 1], total: 2 }) };
   const result = rollShipEncounter(ones, { starport: 'C' });
-  assert.equal(result.total, 4);
+  assert.equal(result.total, 2);
   assert.equal(result.type, null);
+  const eight = { rollD6: () => 1, roll2D6: () => ({ dice: [4, 4], total: 8 }) };
+  assert.equal(rollShipEncounter(eight, { starport: 'E' }).type, null);
+  // +2 naval, +1 scout: an 8 at E becomes 11, a pirate patrol cruiser.
+  const based = rollShipEncounter(eight, { starport: 'E', navalBase: true, scoutBase: true });
+  assert.equal(based.total, 11);
+  assert.equal(based.code, 'TP');
 });
 
 test('Book 2 p.36: only the pirate is hostile by default; merchants carry news', () => {
@@ -134,17 +147,14 @@ test('Book 2 p.36: only the pirate is hostile by default; merchants carry news',
   assert.equal(traders.length, 3);
 });
 
-test('Book 2 p.36: a patrol or pirate rolls for its hull', () => {
-  const low = { rollD6: () => 1, roll2D6: () => ({ dice: [6, 6], total: 12 }) };
-  const encounter = rollShipEncounter(low, { starport: 'A' });
-  assert.equal(encounter.type, 'patrol');
-  // 2D of ones is 2, so 6- : a Type S Scout/Courier.
-  assert.equal(encounter.hull.hull, 'type-s-scout-courier');
-  // A seven exactly is the armed yacht.
+test('The Traveller Book p.75: every ship type builds a standard design; K, L and T are stand-ins', () => {
+  for (const type of Object.values(STARSHIP_TYPES_1982)) {
+    assert.ok(type.design, type.code);
+    assert.equal(type.standIn, ['K', 'L', 'T'].includes(type.code), type.code);
+  }
+  // The small craft roll: 1D, +1 naval, -1 scout; a 6 with a naval base is the fighter.
+  const craft = rollShipEncounter({ rollD6: () => 6, roll2D6: () => ({ dice: [6, 6], total: 12 }) }, { starport: 'A', navalBase: true });
+  assert.equal(craft.smallCraft.label, '10-ton Fighter');
+  // The 1977 hull throw stays for the old referee page.
   assert.equal(rollPatrolOrPirateHull(createSequenceDice([3, 4])).hull, 'type-y-yacht-armed');
-  assert.equal(rollPatrolOrPirateHull(createSequenceDice([5, 5])).hull, 'type-c-cruiser');
-  // A trader is not a patrol and rolls no hull.
-  const trader = rollShipEncounter({ rollD6: () => 3, roll2D6: () => ({ dice: [3, 4], total: 7 }) }, { starport: 'C' });
-  assert.equal(trader.type, 'free-trader');
-  assert.equal(trader.hull, null);
 });

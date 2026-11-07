@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.372.1';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.372.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.372.1';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.372.1';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.373.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.373.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.373.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.373.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.372.1';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.372.1';
-import { renderSectionStrip } from './section-strip.js?v=v0.372.1';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.373.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.373.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.373.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.372.1';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.372.1';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.373.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.373.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.372.1';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.373.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1975,7 +1975,11 @@ export function shipFightScene(fight, handlers) {
       : 'Ship fight \u2014 over' }),
     h('p', { text: fight.outcome === 'in-progress'
       ? (fight.spatialMode === 'vector' ? 'Book 2 pp.22-31: vector movement. Wheel to zoom, right-drag to pan.' : 'Book 2 p.37: abbreviated combat, no range. Every operational laser turret fires at the one foe.')
-      : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.', disengaged: 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` }));
+      : { disabled: 'Disabled and adrift \u2014 a boarding is uncontested.', disarmed: 'No working weapon left, but it can still run.',
+        // v0.373.0: a helpless foe heaves to (reaction 8+) or runs and may get away.
+        surrendered: 'It heaved to and surrendered \u2014 a boarding is uncontested.',
+        disengaged: (fight.roster ?? []).some((ship) => ship.shipId !== 'player' && ship.escaped) ? 'It ran and got away.'
+          : (fight.roster ?? []).some((ship) => ship.shipId === 'player' && ship.escaped) ? 'You broke off and got clear.' : 'It broke off.' }[fight.outcome] ?? `Outcome: ${fight.outcome}` }));
   const blocked = fight.fireBlocked && fight.outcome === 'in-progress' ? h('p', { class: 'notice is-warning', text: fight.fireBlocked }) : null;
   const roster = h('ul', { class: 'entries' }, fight.roster.map((ship) => h('li', { class: `entry${ship.side === 'native' ? ' is-active' : ''}` },
     h('span', { class: 'entry-name', text: ship.name }),

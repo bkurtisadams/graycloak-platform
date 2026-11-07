@@ -26,7 +26,7 @@ import {
   creditShipAccount, generateSpeculativeTradeOffer, getPersonalWeapon, getSubsectorSystem, parseUniversalWorldProfile,
   purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, assessLoad, inventoryLoadGrams, rollEncounterRange,
   personalWeaponExpertise, PERSONAL_EXPERTISE_FLOOR, LONG_GUN_PARRY_KEYS, ENCOUNTER_RANGE_TABLE, MORALE_DMS,
-  PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE, REACTION_DMS, SHIP_ENCOUNTER_STARPORT_DMS, SHIP_ENCOUNTER_TABLE,
+  PERSONAL_ARMOR_TYPES as ARMOR_TYPES, RANGE_MATRIX, REACTION_TABLE, REACTION_DMS, SHIP_ENCOUNTER_TABLE_1982, STARSHIP_TYPES_1982,
   TERRAIN_DMS, createDice, importCharacterDocument, stableDocumentId, rollReaction, formatUPP, updateCharacterGameplayState,
   assertValidShipDocument, createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire,
   resolveLaserFire, PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
@@ -41,11 +41,11 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
-  shipStateDamageSummary, laserSoftwareBlock
+  shipStateDamageSummary, laserSoftwareBlock, settleHelplessFoe, forfeitEscapeShots
 } from './ship-arrival-combat.js';
 // coastVectorShips (bulk-coast every unmoved ship on a side) is not imported
 // yet: with one ship per side, commitShipVector(shipId, {x:0,y:0}) below does
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -505,8 +505,10 @@ function tableEntries() {
   for (const [total, range] of Object.entries(ENCOUNTER_RANGE_TABLE)) push('Book 1 p.27 / Encounter range', `2D ${total}`, String(range).replace('-', ' '));
   for (const [terrain, dm] of Object.entries(TERRAIN_DMS)) push('Book 1 p.27 / Terrain DMs', sentenceCase(terrain), `DM ${signed(dm)}`);
   for (const [name, dm] of Object.entries(MORALE_DMS)) push('Book 1 p.33 / Morale', sentenceCase(name.replace(/([A-Z])/g, ' $1')), `DM ${signed(dm)}`);
-  for (const [total, ship] of Object.entries(SHIP_ENCOUNTER_TABLE)) push('Book 2 p.38 / Shipping', `2D+DM ${total}`, sentenceCase(String(ship)));
-  for (const [starport, dm] of Object.entries(SHIP_ENCOUNTER_STARPORT_DMS)) push('Book 2 p.38 / Shipping', `Starport ${starport}`, `DM ${signed(dm)}`);
+  // v0.373.0: The Traveller Book (1982) p.75's table, which the game now throws.
+  for (const [total, row] of Object.entries(SHIP_ENCOUNTER_TABLE_1982)) push('The Traveller Book p.75 / Starship encounters', `2D+DM ${total}`, ['A', 'B', 'C', 'D', 'E', 'X'].map((port, index) => `${port} ${row[index] || '\u2013'}`).join(', '));
+  push('The Traveller Book p.75 / Starship encounters', 'DMs', '+2 naval base, +1 scout base; P pirate, * a small craft too');
+  for (const type of Object.values(STARSHIP_TYPES_1982)) push('The Traveller Book p.75 / Starship encounters', `Type ${type.code}`, `${type.tons}-ton ${type.label}`);
   return entries;
 }
 
@@ -4292,12 +4294,31 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         }
       ]
     });
-    const step = autoAdvanceShipFight(combat, dice, { playerSide: opponentIsIntruder ? 'native' : 'intruder' });
+    const playerSide = opponentIsIntruder ? 'native' : 'intruder';
+    const reactionTotal = Number.isInteger(encounter.reactionTotal) ? encounter.reactionTotal : null;
+    const settled = settleHelpless(autoAdvanceShipFight(combat, dice, { playerSide }), dice, { playerSide, reactionTotal });
+    const step = settled.step;
     return {
-      encounter: step.encounter, playerSide: opponentIsIntruder ? 'native' : 'intruder',
+      encounter: step.encounter, playerSide, reactionTotal,
       opponentLabel: encounter.label, systemId: encounter.systemId, fromTrip: true,
-      log: narrateShots(step.shots, step.encounter)
+      log: [...narrateShots(step.shots, step.encounter), ...settled.lines]
     };
+  }
+
+  // v0.373.0 (Kurt, Nov 2026): a foe left with no working gun runs (its
+  // reaction 2-7) or heaves to (8+) — settleHelplessFoe — instead of the
+  // abbreviated fight simply ending. A runner keeps the fight going until
+  // p.37's shots are spent, so play goes on to the player's next choice.
+  function settleHelpless(step, dice, { playerSide, reactionTotal }) {
+    const settled = settleHelplessFoe(step.encounter, { playerSide, reactionTotal });
+    if (!settled.line) return { step, lines: [] };
+    if (settled.settled === 'running') {
+      // The fire that left it gunless has been resolved: on to the next phase,
+      // so the same volley is not offered twice.
+      const again = autoAdvanceShipFight(advanceShipCombatPhase(settled.encounter, { dice }), dice, { playerSide });
+      return { step: { ...again, shots: [...(step.shots ?? []), ...(again.shots ?? [])], newLogEntries: [...(step.newLogEntries ?? []), ...(again.newLogEntries ?? [])] }, lines: [settled.line] };
+    }
+    return { step: { ...step, encounter: settled.encounter }, lines: [settled.line] };
   }
 
   function activeShip() {
@@ -7654,11 +7675,18 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             shots = resolved2.shots;
           }
         }
+        // v0.373.0: holding fire on a runner spends the shots too.
+        if (command === 'shipfight:hold') fight = forfeitEscapeShots(fight, 'player');
         if (fight.outcome === 'in-progress') fight = advanceShipCombatPhase(fight, { dice });
-        const step = autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide });
+        const settled = settleHelpless(autoAdvanceShipFight(fight, dice, { playerSide: pendingShipFight.playerSide }), dice,
+          { playerSide: pendingShipFight.playerSide, reactionTotal: pendingShipFight.reactionTotal ?? null });
+        const step = settled.step;
+        const runner = step.encounter.participants.find((entry) => entry.side !== pendingShipFight.playerSide && entry.fled);
+        const gotAway = runner?.escaped && !pendingShipFight.encounter.participants.find((entry) => entry.id === runner.id)?.escaped
+          ? [`${runner.name} is out of range and away.`] : [];
         const narrated = [
           ...narrateShots(shots, step.encounter), ...narrateShots(step.shots, step.encounter),
-          ...narrateDamageControl(step.newLogEntries, step.encounter)
+          ...narrateDamageControl(step.newLogEntries, step.encounter), ...settled.lines, ...gotAway
         ];
         setShipFight({ ...pendingShipFight, encounter: step.encounter, log: [...pendingShipFight.log, ...narrated].slice(-40) });
         message = narrated.join(' ') || 'No shots fired this round.';
@@ -7968,7 +7996,14 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const outcomeText = {
           disabled: `${pendingShipFight.opponentLabel} is disabled and adrift — a boarding is uncontested.`,
           disarmed: `${pendingShipFight.opponentLabel} has no working weapon left but can still run.`,
-          disengaged: `${pendingShipFight.opponentLabel} broke off.`,
+          // v0.373.0
+          surrendered: `${pendingShipFight.opponentLabel} heaved to and surrendered \u2014 a boarding is uncontested.`,
+          disengaged: (() => {
+            const parts = pendingShipFight.encounter.participants;
+            const foeAway = parts.some((entry) => entry.side !== pendingShipFight.playerSide && entry.escaped);
+            const usAway = parts.some((entry) => entry.side === pendingShipFight.playerSide && entry.escaped);
+            return foeAway && !usAway ? `${pendingShipFight.opponentLabel} ran and got away.` : usAway ? `${parts.find((entry) => entry.side === pendingShipFight.playerSide)?.name ?? 'The ship'} broke off and got clear.` : `${pendingShipFight.opponentLabel} broke off.`;
+          })(),
           escaped: `${pendingShipFight.opponentLabel} is out of detection range and gone.`
         }[pendingShipFight.encounter.outcome] ?? `The fight with ${pendingShipFight.opponentLabel} is over (${pendingShipFight.encounter.outcome}).`;
         // v0.246.0: the ships go back on the scene where the fight left them

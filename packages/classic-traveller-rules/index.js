@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.93.1';
+export const RULES_VERSION = '0.94.0';
 
 export {
   createDice,
@@ -767,7 +767,10 @@ export {
   shipEncounterStarportDM,
   SHIP_ENCOUNTER_TABLE,
   SHIP_ENCOUNTER_TYPES,
-  SHIP_ENCOUNTER_STARPORT_DMS
+  SHIP_ENCOUNTER_STARPORT_DMS,
+  SHIP_ENCOUNTER_TABLE_1982,
+  STARSHIP_TYPES_1982,
+  SMALL_CRAFT_1982
 } from './src/encounters/patrons.js';
 
 export {

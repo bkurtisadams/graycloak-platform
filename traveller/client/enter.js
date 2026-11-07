@@ -8,34 +8,34 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.372.1';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.372.1';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.373.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.373.0';
 // v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
-import { ask, askText, askForm, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.372.1';
+import { ask, askText, askForm, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.373.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf, loadPublishedCampaign
-} from './publish.js?v=v0.372.1';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.372.1';
-import { joinByLink, joinFailureMessage } from '../src/join-flow.js?v=v0.372.1';
-import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.372.1';
-import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.372.1';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.372.1';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.372.1';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.372.1';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.372.1';
-import { generateCharacterName } from './generators.js?v=v0.372.1';
+} from './publish.js?v=v0.373.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.373.0';
+import { joinByLink, joinFailureMessage } from '../src/join-flow.js?v=v0.373.0';
+import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.373.0';
+import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.373.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.373.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.373.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.373.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.373.0';
+import { generateCharacterName } from './generators.js?v=v0.373.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome,
   isNpcRecord, setCharacterRecordRole, otherCharactersInCampaign, leaveCampaignWords
-} from '../src/character-record.js?v=v0.372.1';
+} from '../src/character-record.js?v=v0.373.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter,
   exportCharacterDocument, importCharacterDocument
-} from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
 
 const el = {
   status: document.querySelector('#enter-status'),
