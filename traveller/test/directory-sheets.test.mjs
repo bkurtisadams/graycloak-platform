@@ -2538,3 +2538,42 @@ test('v0.359.0 with no starting world the map still draws, a world can be select
   assert.equal([...parts.at(-1).querySelectorAll('button')].length, 0);
   assert.match(subsectorScene({ ...scene, referee: false }, handlers).at(-1).textContent, /referee has not set/);
 });
+
+// v0.364.0 (Bruce, Nov 2026): a player who already plays one character and
+// asks to bring another saw no way to bring it in, and the referee had no way
+// to let one character go while the player stayed.
+test('v0.364.0 a player with a second request is offered Bring in, and each of their characters can be let go', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const { setDocumentOwner } = await import('../src/campaign-document.js');
+  registry.put(setDocumentOwner(registry.resolveCampaign(campaignId).campaign, { documentId: me, ownerUid: 'player-7' }));
+  session.reload();
+  const players = {
+    seats: [{ uid: 'player-7', name: 'Bruce', lastSeenAt: Date.now() }], invites: [],
+    joins: [{ uid: 'player-7', name: 'Bruce', characterName: 'Baroness Katarina Sorell', characterId: 'char-kat', character: { identity: { id: 'char-kat', name: 'Baroness Katarina Sorell' } } }]
+  };
+  const state = { ...session.view({ referee: { tab: 'Players', players } }), live: true };
+  const acted = [];
+  document.querySelector('main').replaceChildren(...renderDrawer('referee', state, state.referee, { onSeat: (action, value) => acted.push([action, value]) }));
+  const text = document.querySelector('main').textContent;
+  assert.match(text, /plays Hawkeye \u00b7 bringing in Baroness Katarina Sorell\u2026 \u00b7 here now/);
+  const buttons = [...document.querySelectorAll('button')];
+  buttons.find((node) => node.textContent === 'Bring in').click();
+  buttons.find((node) => node.textContent === 'Let Hawkeye go').click();
+  assert.deepEqual(acted.map(([action]) => action), ['admit', 'release']);
+  assert.equal(acted[0][1].characterId, 'char-kat');
+  assert.equal(acted[1][1].id, me);
+  assert.equal(acted[1][1].ask, true, 'a present player\u2019s character is confirmed first');
+  assert.equal(acted[1][1].playerName, 'Bruce');
+  // The request for a character they already play is not offered again.
+  const same = { ...players, joins: [{ ...players.joins[0], characterId: me }] };
+  const again = { ...session.view({ referee: { tab: 'Players', players: same } }), live: true };
+  document.querySelector('main').replaceChildren(...renderDrawer('referee', again, again.referee, { onSeat: () => {} }));
+  assert.equal([...document.querySelectorAll('button')].some((node) => node.textContent === 'Bring in'), false);
+  dom.window.close();
+  delete globalThis.document;
+});

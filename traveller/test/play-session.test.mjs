@@ -3412,3 +3412,32 @@ test('v0.361.0 the session exports the campaign as the bundle the lobby loads ba
   assert.equal(session.campaignId, campaignId);
   assert.equal(session.campaignName, bundle.campaign.identity.name);
 });
+
+// ---------------------------------------------------------------- v0.364.0
+test('v0.364.0 one player may play two characters here, and letting one go keeps the other and the player', async () => {
+  const { registry, campaignId } = await lobbyCampaign();
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+  const make = (id, name) => {
+    const character = importCharacterForStart(bundle.documents.characters[0]);
+    character.identity = { ...character.identity, id, name };
+    character.shipRefs = [];
+    character.benefits.shipEntitlements = [];
+    character.benefits.raw = character.benefits.raw.filter((benefit) => !/Scout Ship/.test(benefit.name ?? benefit));
+    return character;
+  };
+  for (const [id, name] of [['char-gab', 'Gabriella Bennett'], ['char-kat', 'Baroness Katarina Sorell']]) {
+    const admitted = session.run('character:admit', { fight: { value: { character: make(id, name), ownerUid: 'uid-bruce', playerName: 'Bruce' } } });
+    assert.equal(admitted.ok, true, admitted.message);
+  }
+  const owners = () => registry.resolveCampaign(campaignId).campaign.ownership?.actors ?? {};
+  assert.equal(owners()['char-gab'], 'uid-bruce');
+  assert.equal(owners()['char-kat'], 'uid-bruce');
+  const released = session.run('character:release', { fight: { id: 'char-gab', value: { keepCopy: false } } });
+  assert.equal(released.ok, true, released.message);
+  assert.equal(owners()['char-gab'], undefined, 'Gabriella is out of the campaign');
+  assert.equal(owners()['char-kat'], 'uid-bruce', 'Katarina, and Bruce, stay');
+  const here = registry.resolveCampaign(campaignId).characters.map((entry) => entry.identity.id);
+  assert.equal(here.includes('char-gab'), false);
+  assert.equal(here.includes('char-kat'), true);
+});

@@ -2,18 +2,18 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.363.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.363.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.363.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.363.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.363.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.363.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.363.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.363.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.363.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.363.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.363.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.363.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.364.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.364.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.364.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.364.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.364.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.364.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.364.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.364.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.364.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.364.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.364.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.364.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -1255,11 +1255,16 @@ function onJoins(joins) {
   refreshPlayers();
   if (!source.session.resolved.campaign.roster?.approvePlayers) {
     for (const join of joins) {
-      if (autoAdmitted.has(join.uid)) continue;
-      autoAdmitted.add(join.uid);
+      // v0.364.0: once for each player AND character. Keyed by the player
+      // alone, a second request from someone already brought in this visit
+      // (a new character after the first) was skipped until the page was
+      // reloaded (Bruce, Nov 2026).
+      const key = `${join.uid}:${join.characterId ?? ''}`;
+      if (autoAdmitted.has(key)) continue;
+      autoAdmitted.add(key);
       console.info('[traveller] bringing in', join.characterName ?? join.characterId, 'for', join.name ?? join.uid);
       runSeat('admit', { kind: 'join', uid: join.uid, characterId: join.characterId ?? null, name: join.name ?? null })
-        .then((ok) => { if (ok === false) autoAdmitted.delete(join.uid); });
+        .then((ok) => { if (ok === false) autoAdmitted.delete(key); });
     }
   }
   if (ui.drawer === 'referee' && ui.referee.tab === 'Players') render();
@@ -1412,8 +1417,13 @@ async function runSeat(action, seat) {
       }
       await cloud.releaseSeat(campaignId, seat.uid);
     } else if (action === 'release') {
+      // v0.364.0: `ask` is a present player's character (the Travellers tab's
+      // Let X go): confirm, and put their lobby record back to unassigned so
+      // the character is theirs again. Without it, a player who has gone.
+      if (seat.ask && !await confirmed(`Take ${seat.name} out of the campaign?\n\n${seat.playerName} stays; only this character leaves.`, { title: 'Let a character go', confirm: 'Let go' })) return;
       const released = source.session.run('character:release', { fight: { id: seat.id, value: { keepCopy: Boolean(seat.keepCopy) } } });
       if (!released.ok) throw new Error(released.message);
+      if (seat.ask) await cloud.placeCharacter(seat.id, { kind: 'unassigned', campaignId: null, campaignName: null, since: null }).catch((error) => console.warn('[traveller] returning the record:', error?.code ?? error));
     } else if (action === 'revoke') {
       if (!await confirmed(`Revoke invite ${seat.code}? Anyone still holding it will not be able to join.`, { title: 'Revoke invite', confirm: 'Revoke', danger: true })) return;
       await cloud.revokeInvite(seat.code);

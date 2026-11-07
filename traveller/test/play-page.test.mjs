@@ -183,3 +183,15 @@ test('v0.361.0 the masthead shows a failed save\u2019s reason with Save now, and
   for (const label of ['Save now', 'Reload from cloud', 'Export campaign']) assert.match(views, new RegExp(`label: '${label}'`), label);
   assert.match(views, /Load a campaign file in the lobby/);
 });
+
+// v0.364.0 (Bruce, Nov 2026): the page remembered which players it had brought
+// in by player alone, so a second request from the same player waited for a reload.
+test('v0.364.0 a join is brought in once for each player and character, and a present player\u2019s character can be let go with a confirm', async () => {
+  const play = await read('play.js');
+  assert.match(play, /const key = `\$\{join\.uid\}:\$\{join\.characterId \?\? ''\}`;/);
+  assert.match(play, /if \(autoAdmitted\.has\(key\)\) continue;/);
+  assert.match(play, /autoAdmitted\.delete\(key\)/);
+  assert.doesNotMatch(play, /autoAdmitted\.(has|add|delete)\(join\.uid\)/);
+  assert.match(play, /if \(seat\.ask && !await confirmed\(`Take \$\{seat\.name\} out of the campaign\?/);
+  assert.match(play, /if \(seat\.ask\) await cloud\.placeCharacter\(seat\.id, \{ kind: 'unassigned'/);
+});
