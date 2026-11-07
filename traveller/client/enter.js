@@ -8,30 +8,30 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.372.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.372.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.372.1';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.372.1';
 // v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
-import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.372.0';
+import { ask, askText, askForm, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.372.1';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf, loadPublishedCampaign
-} from './publish.js?v=v0.372.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.372.0';
-import { joinByLink, joinFailureMessage } from '../src/join-flow.js?v=v0.372.0';
-import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.372.0';
-import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.372.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.372.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.372.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.372.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.372.0';
-import { generateCharacterName } from './generators.js?v=v0.372.0';
+} from './publish.js?v=v0.372.1';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.372.1';
+import { joinByLink, joinFailureMessage } from '../src/join-flow.js?v=v0.372.1';
+import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.372.1';
+import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.372.1';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.372.1';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.372.1';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.372.1';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.372.1';
+import { generateCharacterName } from './generators.js?v=v0.372.1';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome,
   isNpcRecord, setCharacterRecordRole, otherCharactersInCampaign, leaveCampaignWords
-} from '../src/character-record.js?v=v0.372.0';
+} from '../src/character-record.js?v=v0.372.1';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter,
   exportCharacterDocument, importCharacterDocument
@@ -285,7 +285,8 @@ async function loadCampaignFile(file) {
     const now = Date.now();
     campaign = markCampaignPublished(campaign, now);
     const home = createCampaignHome({ ...bundle, campaign }, { ownerUid: uid, savedAt: now });
-    const envelope = buildPublishedCampaign(campaign, { publishedAt: now });
+    // v0.372.1: who referees, for the lobby's cards, from the file itself.
+    const envelope = { ...buildPublishedCampaign(campaign, { publishedAt: now }), referee: campaign.roster?.settings?.referee === 'game' ? 'game' : 'person' };
     await saveCampaignHome(home, envelope, { expectedRevision: null });
     campaignsLoadedFor = null;
     setStatus(`${(campaign.identity.name || 'CAMPAIGN').toUpperCase()} LOADED INTO THE CLOUD`, 'ok');
@@ -313,23 +314,37 @@ async function startCampaignWithRecord(record) {
     if (record.ownerUid && record.ownerUid !== uid) throw new Error('that character belongs to another account');
     if (record.pendingJoin || isNpcRecord(record) || characterRecordStatus(record).enter !== null) throw new Error(`${record.name} is already in a campaign`);
     const character = importCharacterDocument(record.character);
-    const name = await askText({
-      title: 'New campaign', message: `Name the campaign ${character.identity.name} starts.`,
-      value: '', placeholder: 'Unnamed Campaign', confirm: 'Start'
+    // v0.372.1: who referees is asked here, once (Kurt, Nov 2026: a new
+    // campaign silently became "a person referees", and his own character's
+    // page then had nothing to press). Settings on play.html still changes it.
+    const answer = await askForm({
+      title: 'New campaign', message: `Name the campaign ${character.identity.name} starts, and say who referees it.`,
+      confirm: 'Start',
+      fields: [
+        { name: 'name', label: 'Campaign name', type: 'text', placeholder: 'Unnamed Campaign' },
+        { name: 'referee', label: 'Who referees', type: 'select', options: [
+          { value: 'person', label: 'You: you make the calls, on the referee\u2019s page' },
+          { value: 'game', label: 'The game (solo): you play from the player\u2019s page' }
+        ] }
+      ]
     });
-    if (name === null) return;
+    if (answer === null) return;
+    const referee = answer.referee === 'game' ? 'game' : 'person';
     const now = Date.now();
     let campaign = createCampaignDocument({
-      name: String(name).trim() || 'Unnamed Campaign',
+      name: String(answer.name ?? '').trim() || 'Unnamed Campaign',
       characters: [character], partyCharacterIds: [character.identity.id],
       activeCharacterId: character.identity.id, activeShipId: null
     });
+    campaign = { ...campaign, roster: { ...(campaign.roster ?? {}), settings: { ...(campaign.roster?.settings ?? {}), referee } } };
     campaign = setCampaignOwner(campaign, uid);
     campaign = setDocumentOwner(campaign, { documentId: character.identity.id, ownerUid: uid });
     campaign = markCampaignPublished(campaign, now);
     const bundle = createCampaignBundle(campaign, { characters: [character] });
     const home = createCampaignHome(bundle, { ownerUid: uid, savedAt: now });
-    const envelope = buildPublishedCampaign(campaign, { publishedAt: now });
+    // The lobby's cards read who referees from the envelope; play.html's first
+    // save publishes it too, but the card should be right before that.
+    const envelope = { ...buildPublishedCampaign(campaign, { publishedAt: now }), referee };
     setStatus(`STARTING ${campaign.identity.name.toUpperCase()}\u2026`);
     await saveCampaignHome(home, envelope, { expectedRevision: null });
     await saveCharacterRecord(setCharacterRecordWorld(record, {
@@ -661,7 +676,18 @@ function characterState(record) {
 // The one thing to do next with this character.
 function characterMain(record) {
   const state = characterState(record);
-  if (state.key === 'campaign') return mainLink(`[ OPEN ${String(record.world.campaignName ?? 'CAMPAIGN').toUpperCase()} ]`, `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`);
+  if (state.key === 'campaign') {
+    // v0.372.1: in a campaign you referee yourself, the player's page has no
+    // buttons (the referee acts), so your character's card opens the
+    // referee's page instead (Kurt, Nov 2026: he opened his own new campaign
+    // from the character card and could do nothing). The game refereeing,
+    // the player's page is where solo play happens, as before.
+    const own = campaigns.find((campaign) => campaign.campaignId === record.world.campaignId);
+    if (own && own.refereeMode !== 'game') {
+      return mainLink(`[ REFEREE ${String(record.world.campaignName ?? 'CAMPAIGN').toUpperCase()} ]`, `play.html?campaign=${encodeURIComponent(record.world.campaignId)}`);
+    }
+    return mainLink(`[ OPEN ${String(record.world.campaignName ?? 'CAMPAIGN').toUpperCase()} ]`, `seat.html?campaign=${encodeURIComponent(record.world.campaignId)}`);
+  }
   if (state.key === 'waiting') return mainButton('[ WITHDRAW ]', () => withdrawJoin(record), { title: 'Stop waiting to join' });
   if (state.key === 'npc') return mainButton('[ VIEW SHEET ]', () => openSheet(record));
   if (state.key === 'free') return mainButton('[ START A CAMPAIGN ]', () => startCampaignWithRecord(record), { title: 'Referee a new campaign that starts with this character; to join someone else\u2019s, open their join link' });

@@ -10,21 +10,21 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.372.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.372.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.372.0';
-import { engineMismatchMessage } from '../src/engine-version.js?v=v0.372.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.372.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.372.0';
-import { kindButton } from './kind-button.js?v=v0.372.0';
-import { ask, askForm, tell } from './dialogs.js?v=v0.372.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.372.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.372.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.372.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.372.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.372.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.372.1';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.372.1';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.372.1';
+import { engineMismatchMessage } from '../src/engine-version.js?v=v0.372.1';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.372.1';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.372.1';
+import { kindButton } from './kind-button.js?v=v0.372.1';
+import { ask, askForm, tell } from './dialogs.js?v=v0.372.1';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.372.1';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.372.1';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.372.1';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.372.1';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.372.1';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.372.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.372.1';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -282,6 +282,13 @@ export function engineMismatch(engine, page = PAGE_VERSION) {
 // the owner draws his pay from the profits), and refuses both where a person
 // referees, as it does every player request.
 async function moneyDialog(ship) {
+  // v0.372.1: a person refereeing, the game refuses every player's request;
+  // say so here rather than send one.
+  if (state.envelope?.referee !== 'game') {
+    const holds = Number.isFinite(ship.accountCr) ? `Cr ${ship.accountCr.toLocaleString('en-US')}` : 'an unknown sum';
+    await tell({ title: `${ship.name ?? 'The ship'}\u2019s account`, message: `The ship\u2019s account holds ${holds}. Trade, fares, freight, berthing, fuel and upkeep go through it; your character\u2019s own money is separate. Your referee moves money between them in this campaign.` });
+    return;
+  }
   const own = characters();
   if (!own.length) { await tell({ title: 'The ship\u2019s account', message: 'You have no character in this campaign yet.' }); return; }
   const holds = Number.isFinite(ship.accountCr) ? `Cr ${ship.accountCr.toLocaleString('en-US')}` : 'an unknown sum';
@@ -347,6 +354,17 @@ function situationCard(envelope) {
   const quest = s.quest && ['port', 'jump'].includes(s.kind) ? s.quest : null;
   const parts = [h('h2', { text: s.title ?? 'Now' })];
   if (s.detail) parts.push(h('p', { class: 'cite', text: s.detail }));
+  // v0.372.1: a person refereeing, this page has no buttons, and said
+  // nothing about why (Kurt, Nov 2026, in his own new campaign). The
+  // campaign's own referee gets the way to the page that does act.
+  if (!game) {
+    const referee = currentUserId() && currentUserId() === envelope.ownership?.ownerUid;
+    parts.push(h('p', { class: 'notice' },
+      referee
+        ? 'You referee this campaign, so its business is done on the referee\u2019s page; this page shows what your players see. '
+        : `${envelope.refereeName ? `${envelope.refereeName} referees` : 'A person referees'} this campaign and acts for the party; this page shows where things stand. `,
+      referee ? h('a', { href: `play.html?campaign=${encodeURIComponent(campaignId)}`, text: 'Open the referee\u2019s page' }) : null));
+  }
   // v0.354.0: a job's own request shows inside its card.
   const jobAsked = Boolean(quest) && String(state.request?.command ?? '').startsWith('quest:');
   if (state.request && !jobAsked) parts.push(requestNotice());
