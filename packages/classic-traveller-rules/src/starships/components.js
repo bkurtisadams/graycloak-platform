@@ -122,7 +122,8 @@ export const MISSILE_PRICE_CR = 5000;
 export const SAND_CANISTER_PRICE_CR = 400;
 export const SAND_CANISTER_MASS_KG = 50;
 
-// Book 2 p.16, ship's vehicles.
+// Book 2 p.15, ship's vehicles: "the price for the item in millions of credits"
+// (an Air/Raft is 6, which is MCr 6 — Cr 6,000,000 — as printed).
 export const SHIP_VEHICLES = freezeTable([
   ['atv', { key: 'atv', label: 'ATV', tons: 10, priceMCr: 3 }],
   ['air-raft', { key: 'air-raft', label: 'Air/Raft', tons: 4, priceMCr: 6 }],
