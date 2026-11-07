@@ -127,6 +127,13 @@ Changes made during extraction:
   effects. New `talk.mjs` (`talk`): parley and offer of service. The runner
   adds the actions "missiles", "melee", "parley" and "offer-service"; the
   combat tester now only draws the board and takes input.
+- 0.13.0–0.30.0: not logged here; see the commit history.
+- 0.31.0: new `underworld.mjs` (exported as `underworld`): Book III
+  searching, forcing doors and spikes, listening, traps, wandering checks,
+  sighting and surprise underground, pursuit past corners, the Monster
+  Determination matrix, unguarded treasure by dungeon level, and room
+  stocking (`stockRoom`, `stockLevel`). The Monster Level Tables (p.10–11)
+  are still to be transcribed.
 
 ## Open items
 
