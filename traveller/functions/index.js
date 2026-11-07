@@ -21,6 +21,7 @@ import { readFileSync } from 'node:fs';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { applyRemoteRequest, StaleCampaignHomeError } from './app/src/remote-request.js';
+import { packHome, unpackHome } from './app/src/home-codec.js';
 import { MERIDIAN_REACH_SECTOR } from './app/world/meridian-reach-sector.js';
 
 // The region must match the Firestore database's location (us-central1 for
@@ -50,7 +51,8 @@ function campaignStore(campaignId) {
   return {
     async loadHome() {
       const snapshot = await homeRef.get();
-      return snapshot.exists ? snapshot.data() : null;
+      // v0.363.0: a home too big to store as a map is stored gzipped; read either.
+      return snapshot.exists ? unpackHome(snapshot.data()) : null;
     },
     async isSeated(uid) {
       const snapshot = await playerRef(uid).get();
@@ -65,7 +67,7 @@ function campaignStore(campaignId) {
         if (currentRevision !== expectedRevision || home.revision !== (currentRevision ?? 0) + 1) {
           throw new StaleCampaignHomeError({ campaignId, expectedRevision, currentRevision, savedAt: current.data()?.savedAt ?? null });
         }
-        transaction.set(homeRef, home);
+        transaction.set(homeRef, (await packHome(home, { wrapBytes: (bytes) => Buffer.from(bytes) })).data);
         const payload = { ...envelope, homeRevision: home.revision, homeSavedAt: home.savedAt, engine: ENGINE };
         transaction.set(envelopeRef, payload, { mergeFields: Object.keys(payload) });
         written = home.revision;

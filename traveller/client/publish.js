@@ -10,8 +10,9 @@
 // characteristics and wounds, and Firestore rules cannot filter fields, so
 // players read the projection in src/published-view.js instead.
 
-import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.362.0';
-import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.362.0';
+import { TRAVELLER_FIREBASE_CONFIG } from './firebase-config.js?v=v0.363.0';
+import { StaleCampaignHomeError } from '../src/campaign-home.js?v=v0.363.0';
+import { packHome, unpackHome, HOME_WARN_BYTES } from '../src/home-codec.js?v=v0.363.0';
 
 const SDK_VERSION = '10.12.2';
 const FIRESTORE_SCRIPT = `https://www.gstatic.com/firebasejs/${SDK_VERSION}/firebase-firestore-compat.js`;
@@ -426,6 +427,10 @@ async function getOrAbsent(ref) {
   }
 }
 
+// v0.363.0: the web SDK's bytes type, for a home stored compressed (see
+// src/home-codec.js: a home that no longer fits a Firestore document as a map).
+const wrapBytes = (bytes) => globalThis.firebase.firestore.Blob.fromUint8Array(bytes);
+
 export async function saveCampaignHome(home, envelope, { expectedRevision = null } = {}) {
   const db = await ensureFirestore();
   const ref = homeRef(db, home.campaignId);
@@ -456,7 +461,10 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
     } else if (current.exists && home.revision !== currentRevision + 1) {
       throw new StaleCampaignHomeError({ campaignId: home.campaignId, expectedRevision, currentRevision });
     }
-    transaction.set(ref, next);
+    // v0.363.0: a map while it fits, gzipped bytes when it does not.
+    const packed = await packHome(next, { wrapBytes });
+    if (packed.bytes > HOME_WARN_BYTES) console.warn(`[traveller] the campaign is ${Math.round(packed.bytes / 1024)} KB as saved (${packed.encoding}); a Firestore document holds 1,024 KB`);
+    transaction.set(ref, packed.data);
     // v0.295.0: each field the envelope carries is replaced whole. A plain
     // merge merged the ownership map key by key, so a character removed from
     // the campaign stayed "owned" in the envelope for good — the rules still
@@ -473,7 +481,8 @@ export async function saveCampaignHome(home, envelope, { expectedRevision = null
 export async function loadCampaignHome(campaignId) {
   const db = await ensureFirestore();
   const snapshot = await getOrAbsent(homeRef(db, campaignId));
-  return snapshot.exists ? snapshot.data() : null;
+  // v0.363.0: whichever way it was stored, the caller gets `bundle` as an object.
+  return snapshot.exists ? unpackHome(snapshot.data()) : null;
 }
 
 // The campaigns this account referees: the envelopes, which name the home's
@@ -488,10 +497,12 @@ export async function renameCampaignHome(campaignId, name) {
   const ref = homeRef(db, campaignId);
   const snapshot = await ref.get();
   if (!snapshot.exists) throw new Error('that campaign has no cloud copy to rename');
-  const home = snapshot.data();
-  const bundle = JSON.parse(home.bundle);
-  bundle.campaign.identity.name = name;
-  await ref.set({ ...home, bundle: JSON.stringify(bundle) });
+  // v0.363.0: this read `bundle` as a JSON string, but a home is written with
+  // it as a map (and, now, as gzipped bytes); unpackHome reads all three, and
+  // the home goes back the way packHome says it fits.
+  const home = await unpackHome(snapshot.data());
+  home.bundle.campaign.identity.name = name;
+  await ref.set((await packHome({ ...home, name }, { wrapBytes })).data);
   await db.collection('travellerCampaigns').doc(campaignId).set({ name }, { merge: true });
   return name;
 }
