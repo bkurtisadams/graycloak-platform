@@ -2218,7 +2218,7 @@ function playersPanel(model, state, handlers) {
         h('button', { type: 'button', class: 'button is-small', text: 'Approve', onclick: () => act('admit', { kind: 'join', uid: request.uid, characterId: request.characterId, name: request.name }) }),
         h('button', { type: 'button', class: 'button is-small', text: 'Decline', onclick: () => act('decline', { kind: 'join', uid: request.uid }) })) : null)), 'Nobody is waiting.'),
     state.live ? h('p', { class: 'cite' },
-      h('button', { type: 'button', class: 'button is-small', text: 'Refresh', title: 'Read seats, links and joins again', onclick: () => act('refresh', {}) }), ' ',
+      h('button', { type: 'button', class: 'button is-small', text: 'Refresh', title: 'Read players, links and join requests again', onclick: () => act('refresh', {}) }), ' ',
       h('button', { type: 'button', class: 'button is-small', text: 'Copy diagnostics', title: 'Copy what this page knows about players and joins, to paste to Claude', onclick: () => act('diagnostics', {}) })) : null,
     section(`Players (${model.members.length})`, model.members.map((member) => h('li', { class: 'entry' },
       h('span', { class: 'entry-name', text: member.name }),
@@ -2265,7 +2265,7 @@ function refereeDrawer(referee, state, handlers) {
     }),
     referee.unbuilt ? h('p', { class: 'empty', text: referee.unbuilt }) : null,
     referee.seats?.error ? h('p', { class: 'notice is-error', text: referee.seats.error }) : null,
-    referee.seats?.loading ? h('p', { class: 'empty', text: 'Reading seats\u2026' }) : null,
+    referee.seats?.loading ? h('p', { class: 'empty', text: 'Reading players\u2026' }) : null,
     referee.tab === 'Players' && state.live && referee.seats ? h('div', { class: 'lead-actions' },
       h('button', { type: 'button', class: 'button is-small', text: 'New join link', title: 'Make a link players open to ask to join; it is copied for you', onclick: () => handlers.onSeat?.('invite', {}) })) : null,
     // v0.229.0: Foundry's directory shape for Scenes — a create button above

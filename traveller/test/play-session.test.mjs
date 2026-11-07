@@ -1097,7 +1097,7 @@ test('the Players tab files seats, open invites and requests to join', async () 
   };
   const view = refereeView(resolved, { tab: 'Players', players });
   assert.deepEqual(view.tree.map((entry) => [entry.path, entry.count]), [
-    ['Asking to join', 1], ['Open invites', 1], ['Seated', 1]
+    ['Asking to join', 1], ['Open invites', 1], ['Playing', 1]
   ]);
 
   // A request shows the character it is asking to sit down with, not its uid.
@@ -1105,7 +1105,7 @@ test('the Players tab files seats, open invites and requests to join', async () 
   assert.equal(asking.name, resolved.characters[0].identity.name);
   assert.deepEqual(asking.seat, { kind: 'join', uid: 'player-2', characterId: resolved.characters[0].identity.id });
 
-  assert.equal(refereeView(resolved, { tab: 'Players', folder: 'Seated', players }).shown[0].seat.kind, 'seat');
+  assert.equal(refereeView(resolved, { tab: 'Players', folder: 'Playing', players }).shown[0].seat.kind, 'seat');
   assert.equal(refereeView(resolved, { tab: 'Players', folder: 'Open invites', players }).shown[0].seat.code, 'HJ42QP');
 
   // Signed out there is nothing to show, and it says so rather than looking empty.

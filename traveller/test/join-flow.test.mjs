@@ -89,7 +89,7 @@ test('v0.362.0 a refused seat names its step, and the next try goes through', as
   await assert.rejects(join(record, fake), (error) => {
     assert.equal(error.code, 'permission-denied');
     assert.equal(error.step, JOIN_STEPS.seat);
-    assert.match(joinFailureMessage(error), /^THAT LINK WAS NOT ACCEPTED \(STEP: TAKING A SEAT\)\. /);
+    assert.match(joinFailureMessage(error), /^THAT LINK WAS NOT ACCEPTED \(STEP: ADDING YOU TO THE CAMPAIGN\)\. /);
     return true;
   });
   assert.ok(fake.store.joins.has(`${CAMPAIGN}/${UID}`), 'the first attempt left its note behind');

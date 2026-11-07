@@ -21,7 +21,7 @@ export const JOIN_STEPS = Object.freeze({
   clear: 'clearing an earlier join note',
   note: 'sending the join note',
   request: 'recording the request',
-  seat: 'taking a seat',
+  seat: 'adding you to the campaign',
   move: 'moving the character in'
 });
 

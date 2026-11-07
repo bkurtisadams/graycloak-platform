@@ -451,8 +451,8 @@ function seatEntries(resolved, players) {
     entries.push({
       id: `seat:${seated.uid}`,
       name: seated.name || seated.uid,
-      note: seated.seatedAt ? `seated ${new Date(seated.seatedAt).toLocaleDateString()}` : 'seated',
-      folder: 'Seated',
+      note: seated.seatedAt ? `joined ${new Date(seated.seatedAt).toLocaleDateString()}` : 'in the campaign',
+      folder: 'Playing',
       seat: { kind: 'seat', uid: seated.uid }
     });
   }
@@ -1568,7 +1568,7 @@ export function refereeView(resolved, { tab = 'Journal', folder = '', query = ''
     truncated: Math.max(0, shown.length - LIMIT),
     // Tables has nothing behind it but the printed pages; Players' seats live
     // in the cloud and need a signed-in referee to fetch them.
-    unbuilt: tab === 'Players' && !players ? 'Sign in to manage seats and invites.' : null,
+    unbuilt: tab === 'Players' && !players ? 'Sign in to manage players and invites.' : null,
     members: tab === 'Players' && players && !players.loading ? playersModel(resolved, players) : null,
     // The Players tab acts on the cloud, not on campaign documents.
     seats: tab === 'Players' && players ? { loading: Boolean(players.loading), error: players.error ?? null } : null,
