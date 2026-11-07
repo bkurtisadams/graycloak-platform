@@ -8,29 +8,30 @@
 // Writes: the account's own travellerCharacters records, and one join request
 // per campaign beneath the campaign it applies to. Nothing else.
 
-import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.361.0';
-import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.361.0';
+import { initAuth, onAuthChange, signOutOfTraveller, currentUserId, authStatus } from './auth.js?v=v0.362.0';
+import { openSignInDialog, openPasswordDialog } from './signin-ui.js?v=v0.362.0';
 // v0.334.0: Traveller's own dialogs in place of the browser's (Kurt).
-import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.361.0';
+import { ask, askText, askBeforeDeleting, confirmDeletes, setConfirmDeletes } from './dialogs.js?v=v0.362.0';
 import {
   ensureFirestore, saveCharacterRecord, deleteCharacterRecord, watchOwnCharacterRecords,
   readInvite, writeJoinRequest, deleteJoinRequest, listOwnCampaigns, saveCampaignHome,
   renameCampaignHome, deleteCampaignHome, listCampaignInvites, createInvite,
   loadPublishedCharacter, leaveSeat, seatSelf, loadPublishedCampaign
-} from './publish.js?v=v0.361.0';
-import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.361.0';
-import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.361.0';
-import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.361.0';
-import { buildPublishedCampaign } from '../src/published-view.js?v=v0.361.0';
-import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.361.0';
-import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.361.0';
-import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.361.0';
-import { generateCharacterName } from './generators.js?v=v0.361.0';
+} from './publish.js?v=v0.362.0';
+import { campaignHomeSummary, createCampaignHome } from '../src/campaign-home.js?v=v0.362.0';
+import { joinByLink, joinFailureMessage } from '../src/join-flow.js?v=v0.362.0';
+import { importCampaignBundle, createCampaignBundle } from '../src/campaign-bundle.js?v=v0.362.0';
+import { setCampaignOwner, setDocumentOwner, markCampaignPublished, createCampaignDocument } from '../src/campaign-document.js?v=v0.362.0';
+import { buildPublishedCampaign } from '../src/published-view.js?v=v0.362.0';
+import { renderChargenSheet, renderChargenActions, renderChargenTables } from './chargen-view.js?v=v0.362.0';
+import { buildProcedure, formatHistoryEvent } from './ui-model.js?v=v0.362.0';
+import { loadTravellerDocument, TRAVELLER_DOCUMENT_KINDS } from './document-loader.js?v=v0.362.0';
+import { generateCharacterName } from './generators.js?v=v0.362.0';
 import {
   createCharacterRecord, characterRecordStatus, setCharacterRecordPendingJoin, normalizeInviteCode, createJoinRequest, WORLD_KINDS,
   setCharacterRecordWorld, unassignedWorld, createTravellerInvite, generateInviteCode, returnCharacterHome,
   isNpcRecord, setCharacterRecordRole
-} from '../src/character-record.js?v=v0.361.0';
+} from '../src/character-record.js?v=v0.362.0';
 import {
   CHARGEN_PHASES, createCharacter, createCharacterDocument, performChargenAction, exportCharacter, importCharacter,
   exportCharacterDocument, importCharacterDocument
@@ -1009,33 +1010,31 @@ function joinLinkFor(code) {
 // note the referee's page reads to bring it into the campaign; the player
 // seats themselves on the strength of the link and goes straight to the
 // campaign. A link that asks for approval keeps the old wait.
+// v0.362.0: the sequence lives in src/join-flow.js — repeatable after a
+// failed attempt, and naming the step that was refused (Bruce, Nov 2026).
 async function joinWith(record, rawCode, knownInvite = null) {
   const code = inviteCodeFrom(rawCode);
   try {
-    if (!code) throw new Error('that link has no code in it');
-    const invite = knownInvite?.code === code ? knownInvite : await readInvite(code);
-    if (!invite || invite.game !== 'traveller' || !invite.campaignId) throw new Error('that link does not open a Traveller campaign');
     const uid = currentUserId();
     const { user } = authStatus();
     const playerName = user?.displayName ?? user?.email ?? null;
-    const join = createJoinRequest({ uid, name: playerName, code, campaignId: invite.campaignId, record });
-    await writeJoinRequest(join);
-    const campaignName = invite.campaignName ?? invite.campaignId;
-    if (invite.approval) {
-      await saveCharacterRecord(setCharacterRecordPendingJoin(record, { campaignId: invite.campaignId, campaignName: invite.campaignName ?? null, code }));
+    setStatus('JOINING\u2026');
+    const result = await joinByLink({
+      record, code, knownInvite, uid, playerName,
+      io: { readInvite, deleteJoinRequest, writeJoinRequest, seatSelf, saveCharacterRecord }
+    });
+    if (result.outcome === 'waiting') {
       joinDismissed = true;
-      setStatus(`${record.name.toUpperCase()} IS WAITING FOR THE REFEREE OF ${String(campaignName).toUpperCase()}`, 'ok');
+      setStatus(`${record.name.toUpperCase()} IS WAITING FOR THE REFEREE OF ${String(result.campaignName).toUpperCase()}`, 'ok');
       return;
     }
-    setStatus(`JOINING ${String(campaignName).toUpperCase()}\u2026`);
-    await seatSelf(invite.campaignId, uid, { name: playerName, code });
-    await saveCharacterRecord(setCharacterRecordWorld({ ...record, pendingJoin: null }, {
-      kind: WORLD_KINDS.CAMPAIGN, campaignId: invite.campaignId, campaignName: invite.campaignName ?? null, since: Date.now()
-    }));
-    window.location.href = `seat.html?campaign=${encodeURIComponent(invite.campaignId)}`;
+    // Seated. If the character could not be moved in here, the referee's page
+    // brings it in from the join note, and the seat page says it is coming.
+    if (result.moveError) console.warn('[traveller] seated, but the character was not moved in:', result.moveError);
+    window.location.href = `seat.html?campaign=${encodeURIComponent(result.invite.campaignId)}`;
   } catch (error) {
     console.error(error);
-    setStatus(error?.code === 'permission-denied' ? 'THAT LINK WAS NOT ACCEPTED. ASK YOUR REFEREE FOR A NEW ONE.' : (error?.message ?? String(error)), 'error');
+    setStatus(joinFailureMessage(error), 'error');
   }
 }
 
