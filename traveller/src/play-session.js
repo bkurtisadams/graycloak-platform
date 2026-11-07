@@ -22,7 +22,7 @@ import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad,
   removeCharacterInventoryItem, setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
   restCharacter, medicalAttention, characterIsWounded, REST_DAYS, skillGuide, skillDM, CATALOGUE, CATALOGUE_PACKS, catalogueEntry,
-  catalogueAvailability, FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, calculateLifeSupportCostForTrip, calculateJumpFuelRequirement, calculateSpeculativePurchaseCost,
+  catalogueAvailability, FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, calculateLifeSupportCostForTrip, calculateJumpFuelRequirement, starportFuelService, calculateSpeculativePurchaseCost,
   creditShipAccount, generateSpeculativeTradeOffer, getPersonalWeapon, getSubsectorSystem, parseUniversalWorldProfile,
   purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, assessLoad, inventoryLoadGrams, rollEncounterRange,
   personalWeaponExpertise, PERSONAL_EXPERTISE_FLOOR, LONG_GUN_PARRY_KEYS, ENCOUNTER_RANGE_TABLE, MORALE_DMS,
@@ -631,7 +631,7 @@ function vehicleHolder(ship, resolved) {
   return authority.assignedCharacterName ? `held by ${authority.assignedCharacterName}` : null;
 }
 
-function vehicleEntries(resolved) {
+function vehicleEntries(resolved, subsector = null) {
   const here = resolved.campaign.location?.systemId ?? null;
   const ships = (resolved.ships ?? []).map((ship) => {
     const view = shipView(ship);
@@ -661,6 +661,19 @@ function vehicleEntries(resolved) {
         ...(!active && here && berthed === here
           ? [{ label: 'Travel in this ship', command: `ship:make-active:${ship.identity.id}`, title: 'The travellers change to this ship here, in port; cargo, fuel and accounts stay with each ship' }]
           : []),
+        // v0.371.0: and for a ship too short of fuel for even the shortest jump.
+        // Only where it cannot refuel itself: no fuel sold at the port and no
+        // gas giant to skim (or no streamlining to skim it).
+        ...((() => {
+          try {
+            const aboard = Number.isFinite(ship.state?.currentFuelTons) ? ship.state.currentFuelTons : 0;
+            const at = subsector && ship.state?.portCall?.systemId ? getSubsectorSystem(subsector, ship.state.portCall.systemId) : null;
+            if (!at || aboard >= calculateJumpFuelRequirement(ship, 1).totalTons) return [];
+            const sells = starportFuelService(parseUniversalWorldProfile(at.mainWorld.uwp).starport).available;
+            const skims = Boolean(at.gasGiant) && Boolean(ship.specifications?.hull?.streamlined);
+            return sells || skims ? [] : [{ label: 'Fuel the ship (referee)', command: `ship:refuel:${ship.identity.id}`, title: 'A referee\u2019s ruling: the tanks are filled at no charge' }];
+          } catch { return []; }
+        })()),
         // v0.368.0: the referee's ruling for a ship whose drives are down.
         ...((ship.state?.malfunction?.failed ?? []).length
           ? [{ label: 'Repair the drives (referee)', command: `ship:repair-drives:${ship.identity.id}`, title: 'A referee\u2019s ruling: the failed drives are repaired at no charge' }]
@@ -1547,13 +1560,13 @@ export function playersModel(resolved, players) {
   };
 }
 
-export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null } = {}) {
+export function refereeView(resolved, { tab = 'Journal', folder = '', query = '', players = null, stagingSceneId = null, subsector = null } = {}) {
   const sets = {
     Journal: journalEntries,
     Jobs: jobEntries,
     Actors: actorEntries,
     Players: (input) => (players ? seatEntries(input, players) : characterEntries(input)),
-    Vehicles: vehicleEntries,
+    Vehicles: (input) => vehicleEntries(input, subsector),
     Scenes: sceneEntries
   };
   const entries = (sets[tab] ?? sets.Journal)(resolved);
@@ -3015,6 +3028,34 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
     steps.push({ id: 'drive-risk', title: 'Drive risk if you jump now', figure: `+${riskDM} to the weekly throw`, state: 'ready', kind: 'danger',
       copy: `Each week in jump the drives fail on 2D of 13+, with ${signed(riskDM)} added for: ${why}. A failure can take out the jump drive, the maneuver drive and the power plant together; a starport repairs them for a share of each drive's price (Book 2 p.18), and a patch needs an engineer's throw. An annual overhaul${port.checklist.driveFailureDMParts?.some((part) => /overhaul/.test(part.why)) ? ' (offered below)' : ''} and a posted engineer take the risk down.`,
       cite: 'The Traveller Book (1982)' });
+  }
+  // v0.371.0: a jump that leaves the tanks too low to jump again into a system
+  // where fuel cannot be had is a way to be stranded (Bruce, Nov 2026: Shydral,
+  // a class E starport with no gas giant; the jump burned all 40 t). The rules
+  // allow it; the page should say so first. Fuel is had at a class A-D
+  // starport, or by skimming a gas giant with a streamlined hull (Book 2
+  // p.35, "Wilderness Refuelling").
+  if (target && port.distance) {
+    try {
+      const need = calculateJumpFuelRequirement(ship, port.distance);
+      const aboard = Number.isFinite(ship.state.currentFuelTons) ? ship.state.currentFuelTons : 0;
+      const left = Math.round((aboard - need.totalTons) * 10) / 10;
+      const onward = calculateJumpFuelRequirement(ship, 1).totalTons;
+      if (aboard >= need.totalTons && left < onward) {
+        const starport = parseUniversalWorldProfile(target.mainWorld.uwp).starport;
+        const sells = starportFuelService(starport).available;
+        const streamlined = Boolean(ship.specifications?.hull?.streamlined);
+        if (!sells && !(target.gasGiant && streamlined)) {
+          const why = [
+            `${target.name} sells no fuel (${starport === 'X' ? 'no starport' : `a class ${starport} starport`})`,
+            target.gasGiant ? `and has a gas giant, but ${ship.identity.name} is not streamlined to skim it` : 'and has no gas giant to skim'
+          ].join(' ');
+          steps.push({ id: 'fuel-risk', title: `Fuel risk: ${target.name}`, figure: `${left} t left on arrival`, state: 'ready', kind: 'danger',
+            copy: `${why}. This jump leaves ${left} t aboard, and the shortest jump takes ${onward} t. ${ship.identity.name} could not leave ${target.name} on its own. Refuel here first if you can, or choose a world with fuel.`,
+            cite: 'Book 2 p.6, p.35' });
+        }
+      }
+    } catch { /* out of range or no course: the other cards say so */ }
   }
   steps.push({ id: 'jump', title: 'Depart', state: jump.command ? 'ready' : 'blocked', cite: 'Book 2 p.5', ...jump });
 
@@ -4955,6 +4996,24 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         if (!failed.length) throw new Error(`${ship.identity.name} has no failed drive`);
         persist([{ ...ship, state: { ...ship.state, malfunction: null } }]);
         const message = `Referee: ${ship.identity.name}\u2019s ${failed.join(', ')} repaired at no charge.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command.startsWith('ship:refuel:')) {
+        // v0.371.0: a referee's ruling for a ship that cannot refuel where it
+        // is (Bruce, Nov 2026: 0 t at Shydral, no fuel sold, no gas giant): the
+        // tanks filled, at no charge, and said so.
+        const id = command.slice('ship:refuel:'.length);
+        const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === id);
+        if (!ship) throw new Error('no such ship in this campaign');
+        const capacity = ship.specifications.fuel.capacityTons;
+        const aboard = Number.isFinite(ship.state.currentFuelTons) ? ship.state.currentFuelTons : 0;
+        if (aboard >= capacity) throw new Error(`${ship.identity.name}\u2019s tanks are full`);
+        persist([{ ...ship, state: { ...ship.state, currentFuelTons: capacity, fuelQuality: aboard <= 0 ? 'refined' : (ship.state.fuelQuality === 'refined' ? 'refined' : 'mixed') } }]);
+        const message = `Referee: ${ship.identity.name} takes on ${Math.round((capacity - aboard) * 10) / 10} t of fuel at no charge (${aboard} t to ${capacity} t).`;
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
@@ -7974,7 +8033,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.quest = questView(resolved, { writable: save.state !== 'stale' && (seat !== 'player' || mode === 'game'), situation: state.situation?.kind ?? null });
       state.jobResult = resolved.campaign.roster?.jobResult ?? null;
       state.jobBook = seat === 'player' ? playerJobBook(resolved) : null;
-      state.referee = refereeView(resolved, referee);
+      state.referee = refereeView(resolved, { ...referee, subsector });
       // v0.357.0: the space scene the masthead's Space chip opens — the
       // active one if it is a vector board, else the newest vector board.
       state.space = spaceSceneSummary(resolved);

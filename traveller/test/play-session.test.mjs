@@ -3593,3 +3593,76 @@ test('v0.368.0 departing overdue for the annual overhaul shows the drive risk be
   assert.equal(risk.kind, 'danger');
   assert.ok(steps.findIndex((entry) => entry.id === 'drive-risk') < steps.findIndex((entry) => entry.id === 'jump'), 'before the Depart');
 });
+
+// ---------------------------------------------------------------- v0.371.0
+// Bruce, Nov 2026: Shydral — a class E starport, no gas giant — and the jump had
+// burned all 40 t. Allowed by the rules; the page should say so before.
+async function onePastCinder({ gasGiant = false, fuel = null, destination = 'cinder' } = {}) {
+  const { registry, campaignId } = await traderSolo('person');
+  const { getJumpDestinations } = await import('../vendor/classic-traveller-rules/index.js');
+  const subsector = { ...FAR_MERIDIAN_SUBSECTOR, systems: FAR_MERIDIAN_SUBSECTOR.systems.map((entry) => (entry.id === 'cinder' ? { ...entry, gasGiant } : entry)) };
+  const origin = getJumpDestinations(subsector, 'cinder', 1)[0].system;
+  const session = createPlaySession({ registry, campaignId, subsector });
+  assert.equal(session.run(`referee:move:${origin.id}`).ok, true);
+  const r = registry.resolveCampaign(campaignId);
+  const ship = r.ships.find((entry) => entry.identity.id === r.campaign.activeShipId);
+  const { calculateJumpFuelRequirement } = await import('../vendor/classic-traveller-rules/index.js');
+  const need = calculateJumpFuelRequirement(ship, 1).totalTons;
+  registry.put({ ...ship, state: { ...ship.state, currentFuelTons: fuel ?? need } });
+  session.reload();
+  assert.equal(session.run(`trip:choose-destination:${destination}`).ok, true);
+  return { registry, campaignId, session, ship, need, origin, subsector };
+}
+
+test('v0.371.0 a jump that leaves too little fuel to jump again, into a system with no fuel to be had, is warned of first', async () => {
+  const { session, need } = await onePastCinder();
+  const risk = session.view().steps.find((entry) => entry.id === 'fuel-risk');
+  assert.ok(risk, 'a warning');
+  assert.equal(risk.title, 'Fuel risk: Cinder');
+  assert.equal(risk.figure, '0 t left on arrival');
+  assert.match(risk.copy, /^Cinder sells no fuel \(a class E starport\) and has no gas giant to skim\. This jump leaves 0 t aboard, and the shortest jump takes \d+(\.\d+)? t\. .+ could not leave Cinder on its own\./);
+  assert.equal(risk.kind, 'danger');
+  assert.ok(need > 0);
+  const steps = session.view().steps;
+  assert.ok(steps.findIndex((entry) => entry.id === 'fuel-risk') < steps.findIndex((entry) => entry.id === 'jump'), 'before the Depart');
+});
+
+test('v0.371.0 no fuel warning with fuel to spare, or where fuel can be had', async () => {
+  // A destination whose starport sells fuel: nothing to warn of, though the tanks come up empty.
+  const probe = await onePastCinder();
+  const { getJumpDestinations, parseUniversalWorldProfile, starportFuelService } = await import('../vendor/classic-traveller-rules/index.js');
+  const sells = getJumpDestinations(probe.subsector, probe.origin.id, 1).find((entry) => starportFuelService(parseUniversalWorldProfile(entry.system.mainWorld.uwp).starport).available);
+  assert.ok(sells, 'a neighbour that sells fuel');
+  const fuelled = await onePastCinder({ destination: sells.system.id });
+  assert.equal(fuelled.session.view().steps.some((entry) => entry.id === 'fuel-risk'), false);
+  // A gas giant to skim: warned only if the ship is not streamlined to skim it.
+  const skim = await onePastCinder({ gasGiant: true });
+  const streamlined = Boolean(skim.ship.specifications.hull.streamlined);
+  const risk = skim.session.view().steps.find((entry) => entry.id === 'fuel-risk');
+  if (streamlined) assert.equal(risk, undefined, 'a streamlined ship skims the gas giant');
+  else assert.match(risk.copy, /and has a gas giant, but .+ is not streamlined to skim it/);
+});
+
+test('v0.371.0 the referee may fill a ship that cannot refuel, at no charge, from the Vehicles tab', async () => {
+  const { registry, campaignId, session, ship, subsector } = await onePastCinder({ fuel: 0 });
+  const mod = await import('../src/play-session.js');
+  // Where it can refuel itself (the neighbour that sells fuel), the button is not offered.
+  const labelsAt = () => Object.values(mod.VEHICLE_FOLDERS).flatMap((folder) => (mod.refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder, subsector }).shown ?? []).flatMap((row) => (row.actions ?? []).map((action) => action.label)));
+  const originSells = !labelsAt().includes('Fuel the ship (referee)');
+  // Stranded: berthed at Cinder, a class E starport with no gas giant.
+  assert.equal(session.run('referee:move:cinder').ok, true);
+  const labels = () => Object.values(mod.VEHICLE_FOLDERS).flatMap((folder) => (mod.refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder, subsector }).shown ?? []).flatMap((row) => (row.actions ?? []).map((action) => action.label)));
+  assert.ok(labels().includes('Fuel the ship (referee)'));
+  assert.equal(typeof originSells, 'boolean');
+  const account = registry.resolveCampaign(campaignId).ships.find((entry) => entry.identity.id === ship.identity.id).state.finances.balanceCr;
+  const done = session.run(`ship:refuel:${ship.identity.id}`);
+  assert.equal(done.ok, true, done.message);
+  const after = registry.resolveCampaign(campaignId).ships.find((entry) => entry.identity.id === ship.identity.id);
+  assert.equal(after.state.currentFuelTons, ship.specifications.fuel.capacityTons);
+  assert.equal(after.state.finances.balanceCr, account, 'no charge');
+  assert.match(done.message, new RegExp(`^Referee: ${ship.identity.name} takes on ${ship.specifications.fuel.capacityTons} t of fuel at no charge \\(0 t to ${ship.specifications.fuel.capacityTons} t\\)\\.$`));
+  assert.equal(labels().includes('Fuel the ship (referee)'), false, 'full tanks: no button');
+  assert.equal(session.run(`ship:refuel:${ship.identity.id}`).ok, false, 'already full');
+  const { playerMayRun } = await import('../src/player-requests.js');
+  assert.equal(playerMayRun(`ship:refuel:${ship.identity.id}`), false, 'a ruling, not a player\u2019s button');
+});
