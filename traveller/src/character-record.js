@@ -194,3 +194,42 @@ export function returnCharacterHome(record, published, trip = {}) {
   const next = { ...current, character: { ...character, history }, name: character.identity.name, lastCampaign: null, updatedAt: Date.now() };
   return importCharacterRecord(next);
 }
+
+// v0.369.0: the account's other characters that are in the same campaign as
+// this one. Leaving a campaign with one character used to delete the player's
+// seat there outright, so a player who took an extra character out was no
+// longer a player in the campaign at all, and the server refused every press
+// of the character who stayed (Bruce, Nov 2026: "You are not a player in this
+// campaign"). The seat belongs to the player, so it goes with the last one.
+export function otherCharactersInCampaign(records, record) {
+  const campaignId = record?.world?.campaignId ?? null;
+  if (!campaignId) return [];
+  return (records ?? []).filter((entry) => entry.characterId !== record.characterId
+    && entry.world?.kind === WORLD_KINDS.CAMPAIGN && entry.world?.campaignId === campaignId);
+}
+
+// v0.370.0: what the lobby says when a player takes a character out of a
+// campaign. It said the character "has left" and "comes home", which is true of
+// their own copy only: the referee's campaign keeps its copy until the referee
+// lets the character go, so a player who left Anastasia from the lobby was
+// still listed with her in Sea of Suns (Bruce, Nov 2026). Says so, and says
+// whether the player is still in the campaign by another character.
+function listNames(names) {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+}
+
+export function leaveCampaignWords(record, records) {
+  const where = record?.world?.campaignName || 'this campaign';
+  const name = record?.name || 'This character';
+  const others = otherCharactersInCampaign(records, record).map((entry) => entry.name);
+  const stays = others.length
+    ? `You stay in ${where} with ${listNames(others)}.`
+    : `You stop being a player in ${where}.`;
+  return {
+    question: `Take ${name} out of ${where}?\n\n${name} comes home with everything that happened there, free to join another campaign. ${where} keeps its own copy of ${name} until its referee lets ${name} go. ${stays}`,
+    done: others.length
+      ? `${name.toUpperCase()} IS FREE; THE REFEREE OF ${String(where).toUpperCase()} STILL HOLDS A COPY. YOU STILL PLAY ${listNames(others).toUpperCase()} THERE`
+      : `${name.toUpperCase()} IS FREE; THE REFEREE OF ${String(where).toUpperCase()} STILL HOLDS A COPY UNTIL THEY LET ${name.toUpperCase()} GO`
+  };
+}

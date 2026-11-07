@@ -71,3 +71,61 @@ test('a join request carries the character and only for an unassigned one the pl
   const seated = setCharacterRecordWorld(record, { kind: WORLD_KINDS.CAMPAIGN, campaignId: 'other' });
   assert.throws(() => createJoinRequest({ uid: 'uid-a', code: 'abc234', campaignId: 'sea-of-suns', record: seated }), /already in a world/);
 });
+
+// v0.369.0 (Bruce, Nov 2026): taking one character out of a campaign deleted the
+// player's seat there, though another of theirs still played in it, and the
+// server then refused every press: "You are not a player in this campaign".
+test('v0.369.0 the player\u2019s other characters in the same campaign are what keep their seat', async () => {
+  const { otherCharactersInCampaign } = await import('../src/character-record.js');
+  const base = await hawkeye();
+  const make = (id, name, world) => {
+    const record = createCharacterRecord({ ...base, identity: { ...base.identity, id, name } }, { ownerUid: 'uid-bruce', createdAt: 1 });
+    return world ? setCharacterRecordWorld(record, world) : record;
+  };
+  const sea = { kind: WORLD_KINDS.CAMPAIGN, campaignId: 'campaign-sea', campaignName: 'Sea of Suns', since: 5 };
+  const other = { kind: WORLD_KINDS.CAMPAIGN, campaignId: 'campaign-other', campaignName: 'Elsewhere', since: 5 };
+  const katarina = make('char-kat', 'Baroness Katarina Sorell', sea);
+  const gabriella = make('char-gab', 'Gabriella Bennett', sea);
+  const elsewhere = make('char-else', 'Someone Else', other);
+  const spare = make('char-spare', 'Anastasia', null);
+  const records = [katarina, gabriella, elsewhere, spare];
+  // Gabriella leaves while Katarina is still in Sea of Suns: the seat stays.
+  assert.deepEqual(otherCharactersInCampaign(records, gabriella).map((entry) => entry.characterId), ['char-kat']);
+  // Katarina is the last one there once Gabriella has gone: the seat may go.
+  assert.deepEqual(otherCharactersInCampaign([katarina, elsewhere, spare], katarina), []);
+  // A character in another campaign, or none, does not count; nor does the leaving one.
+  assert.deepEqual(otherCharactersInCampaign([elsewhere, spare], katarina), []);
+  assert.deepEqual(otherCharactersInCampaign(records, spare), [], 'not in any campaign');
+  assert.deepEqual(otherCharactersInCampaign(null, katarina), []);
+});
+
+// v0.370.0: Leave says what it does — their copy comes home, the referee's stays.
+test('v0.370.0 Leave says the referee keeps a copy, and whether the player stays in the campaign', async () => {
+  const { leaveCampaignWords, otherCharactersInCampaign } = await import('../src/character-record.js');
+  const base = await hawkeye();
+  const sea = { kind: WORLD_KINDS.CAMPAIGN, campaignId: 'campaign-sea', campaignName: 'Sea of Suns', since: 5 };
+  const make = (id, name, world) => {
+    const record = createCharacterRecord({ ...base, identity: { ...base.identity, id, name } }, { ownerUid: 'uid-bruce', createdAt: 1 });
+    return world ? setCharacterRecordWorld(record, world) : record;
+  };
+  const anastasia = make('char-ana', 'Anastasia Von Tirnow', sea);
+  const katarina = make('char-kat', 'Baroness Katarina Sorell', sea);
+  // With another character still there.
+  const both = leaveCampaignWords(anastasia, [anastasia, katarina]);
+  assert.match(both.question, /^Take Anastasia Von Tirnow out of Sea of Suns\?\n\n/);
+  assert.match(both.question, /comes home with everything that happened there, free to join another campaign\./);
+  assert.match(both.question, /Sea of Suns keeps its own copy of Anastasia Von Tirnow until its referee lets Anastasia Von Tirnow go\./);
+  assert.match(both.question, /You stay in Sea of Suns with Baroness Katarina Sorell\.$/);
+  assert.equal(both.done, 'ANASTASIA VON TIRNOW IS FREE; THE REFEREE OF SEA OF SUNS STILL HOLDS A COPY. YOU STILL PLAY BARONESS KATARINA SORELL THERE');
+  // The last one there: the player goes too.
+  const last = leaveCampaignWords(katarina, [katarina]);
+  assert.match(last.question, /You stop being a player in Sea of Suns\.$/);
+  assert.match(last.done, /^BARONESS KATARINA SORELL IS FREE; THE REFEREE OF SEA OF SUNS STILL HOLDS A COPY UNTIL THEY LET BARONESS KATARINA SORELL GO$/);
+  // Several others are listed in words.
+  const third = make('char-third', 'Third One', sea);
+  assert.match(leaveCampaignWords(anastasia, [anastasia, katarina, third]).question, /with Baroness Katarina Sorell and Third One\.$/);
+  // It never says "seat".
+  for (const text of [both.question, both.done, last.question, last.done]) assert.doesNotMatch(text, /seat/i);
+  // And it agrees with what Leave does: the player stays in exactly when others remain.
+  assert.equal(otherCharactersInCampaign([anastasia, katarina], anastasia).length, 1);
+});
