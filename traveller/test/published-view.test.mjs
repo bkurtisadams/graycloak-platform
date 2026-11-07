@@ -240,7 +240,7 @@ test('the published log keeps only the most recent entries', () => {
   assert.equal(published.entries.at(-1).message, 'line 11');
 });
 
-test('the published ship is what the party knows: no account, no manifests', async () => {
+test('the published ship is what the party knows: its account balance, no ledger, no manifests (v0.368.0)', async () => {
   const ship = importShipDocument(await readFile(path.join(examples, 'Hawkeye.ship.json'), 'utf8'));
   const published = buildPublishedShip(ship);
   assert.equal(published.name, ship.identity.name);
@@ -248,8 +248,10 @@ test('the published ship is what the party knows: no account, no manifests', asy
   assert.equal(published.jumpRating, 2);
   assert.equal(published.fuel.capacityTons, 40);
   assert.equal(published.cargo.capacityTons, 3);
+  // v0.368.0: the balance is the party's to see; how it got there is not.
+  assert.equal(published.accountCr, ship.state.finances.balanceCr);
   const serialised = JSON.stringify(published);
-  for (const forbidden of ['finances', 'operatingAccount', 'cargoManifest', 'passengerManifest', 'crew']) {
+  for (const forbidden of ['finances', 'ledger', 'operatingAccount', 'cargoManifest', 'passengerManifest', 'crew']) {
     assert.ok(!serialised.includes(forbidden), `${forbidden} must not reach the published ship`);
   }
   const { campaign } = await fixture();

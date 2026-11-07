@@ -261,8 +261,12 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
 }
 
 // v0.70.0: the ship as the party knows it — name, type, jump, fuel, hold and
-// berths. Not the operating account, not the manifests: money and cargo are
-// the referee's tables until the player page can act on them.
+// berths. Not the manifests or the ledger.
+// v0.368.0: the account's balance is now shown (Kurt, Nov 2026). v0.70.0 held
+// money back "until the player page can act on it", and a player's page now
+// buys fuel and trade goods, pays berthing and repairs from this account, so
+// the player has to be able to see what is in it (Bruce: Katarina's own cash
+// never moved, and nothing said where the ship's money was).
 export function buildPublishedShip(ship) {
   if (!ship) return null;
   const specs = ship.specifications ?? {};
@@ -275,6 +279,7 @@ export function buildPublishedShip(ship) {
     typeName: ship.design?.name ?? null,
     tons: specs.hull?.tons ?? null,
     jumpRating: specs.drives?.jump?.rating ?? null,
+    accountCr: Number.isFinite(state.finances?.balanceCr) ? state.finances.balanceCr : null,
     // v0.367.0: whether the computer carries Generate, so a player's map can say
     // so. It always said the ship did not (Bruce, Nov 2026: the port card and
     // the course panel disagreed).

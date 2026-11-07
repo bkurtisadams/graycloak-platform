@@ -28,7 +28,7 @@ import {
   reviveLowPassengers, settleLowPassageLottery, attendingMedicExpertise, rollPassengerEndurance,
   checkRepossession, impoundShip, releaseImpound, rollPrivateMessage, acceptPrivateMessage, deliverPrivateMessages,
   resolveHail, resolveInspection, payInspectionToll, grantBrokerTip, HAIL_ENCOUNTER_KEYS, INSPECTION_ENCOUNTER_KEYS,
-  DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, quoteStarportDriveRepair, repairDrivesAtStarport,
+  DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, attemptDriveRepair, quoteStarportDriveRepair, repairDrivesAtStarport,
   shipEncounterReactionDMParts, debitShipAccount, shipReactionStance, rollReactionAttack,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
 } from '../../vendor/classic-traveller-rules/index.js?v=r0.93.1';
@@ -311,6 +311,23 @@ function haltActions(state, context) {
   }
 }
 
+// v0.368.0: who tries a patch on a failed drive while berthed, and with what.
+// 1982: 10+ per day, DM + the Engineering of the attending engineer. Kurt, Nov
+// 2026: players may try to repair things themselves on a world or in a
+// starport, not only in flight — so with no engineer posted, the best
+// Engineering among the travellers tries, with none at all as 2D unaided.
+export function patchAttempt(state) {
+  const levels = Object.fromEntries((state.characters ?? []).map((entry) => [entry.identity.id, Number(entry.skills?.Engineering ?? 0)]));
+  const posted = attendingEngineerExpertise(state.ship, levels);
+  if (posted !== null) {
+    const engineer = state.ship.crew.assignments.find((entry) => String(entry.role).toLowerCase() === 'engineer');
+    return { skill: posted, who: engineer?.characterName || 'The engineer' };
+  }
+  const level = (entry) => Number(entry.skills?.Engineering ?? 0);
+  const best = (state.characters ?? []).reduce((top, entry) => (!top || level(entry) > level(top) ? entry : top), null);
+  return { skill: best ? level(best) : 0, who: best ? (best.identity.name || 'Someone aboard') : 'Someone aboard' };
+}
+
 export function listActions(state, context) {
   if (state.situation === 'halted') return haltActions(state, context);
   if (state.situation === 'in-jump') return [{ type: 'jump-week', label: `A week in jump space (${state.jump.weeksDone + 1} of ${state.jump.weeks})` }];
@@ -351,6 +368,10 @@ export function listActions(state, context) {
     return actions;
   }
   if (facts.berthingOwed && balance >= facts.portCall.berthingDueCr) actions.push({ type: 'pay-berthing', label: `Pay berthing ${cr(facts.portCall.berthingDueCr)}` });
+  if (ship.state.malfunction?.failed?.length) {
+    const attempt = patchAttempt(state);
+    actions.push({ type: 'repair-patch', label: `Try to patch ${ship.state.malfunction.failed.join(', ')} (a day)`, days: 1, skill: attempt.skill, who: attempt.who });
+  }
   // 1982: a malfunction is patched in flight; "more complete repairs" wait
   // for a starport with repair facilities (class A-C).
   if (facts.driveRepair && facts.driveRepair.costCr <= balance) {
@@ -424,6 +445,21 @@ const HANDLERS = {
     const result = repairDrivesAtStarport(state.ship, { starport: facts.profile.starport, quote: facts.driveRepair, dateLabel: tripDate(state) });
     state.ship = result.ship;
     return one(state, [event(state, 'port', `${facts.driveRepair.parts.map((part) => `${part.label} ${part.percent}%`).join(', ')} repaired at the class ${facts.profile.starport} starport, ${cr(result.costCr)} (Book 2 p.18)`)]);
+  },
+
+  // v0.368.0: a day spent patching the failed drives, 10+ on 2D with the
+  // Engineering of whoever tries. One throw patches every failed drive; the
+  // complete repair still waits for a starport (The Traveller Book, 1982).
+  'repair-patch'(state) {
+    const failed = [...(state.ship.state.malfunction?.failed ?? [])];
+    if (!failed.length) throw new RangeError('no drive has failed');
+    const dateLabel = tripDate(state);
+    const { skill, who } = patchAttempt(state);
+    const attempt = attemptDriveRepair(state.ship, seeded(state, `${state.campaign.identity.id}|patch|${dateLabel}`), { engineeringSkill: skill, dateLabel });
+    state.ship = attempt.ship;
+    const line = `${who} tries to patch ${failed.join(', ')}: 2D ${attempt.dice.join('+')}${skill ? ` + ${skill}` : ''} = ${attempt.total} against 10+ \u2014 ${attempt.success ? 'patched; the drives run until a starport repairs them completely' : 'no luck'}`;
+    const passed = passDays(state, 1, 'patching the drives');
+    return one(passed.state, [event(state, 'port', line), ...passed.events]);
   },
 
   wait(state, action) {

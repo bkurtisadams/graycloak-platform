@@ -3514,3 +3514,82 @@ test('v0.367.0 the fuel row says what is for the jump and what is for the power 
   // The trader is 200 tons, Jump-1, power plant 1: 20 t for the parsec, 10 t for the plant.
   assert.match(fuel.detail, /^30 tons needed \(20 for the jump, 10 for the power plant\), \d+(\.\d+)? aboard \(Book 2 p\.6\)$/);
 });
+
+// ---------------------------------------------------------------- v0.368.0
+// Kurt, Nov 2026, on Bruce's Marisol (all three drives failed; Cr 18,800,000):
+// players may try to repair for themselves in port; his drives repaired at no
+// charge as a referee's ruling; a warning before departing overdue.
+async function brokenTrader() {
+  const { registry, campaignId } = await traderSolo('person');
+  const r = registry.resolveCampaign(campaignId);
+  const ship = r.ships.find((entry) => entry.identity.id === r.campaign.activeShipId);
+  registry.put({ ...ship, state: { ...ship.state, malfunction: { failed: ['powerPlant', 'maneuverDrive', 'jumpDrive'], since: '100-4800', patched: false } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  return { registry, campaignId, session, shipId: ship.identity.id };
+}
+const activeOf = (registry, campaignId) => { const r = registry.resolveCampaign(campaignId); return r.ships.find((entry) => entry.identity.id === r.campaign.activeShipId); };
+
+test('v0.368.0 in port a player may try to patch failed drives, a day at a time, 10+ on 2D with whoever has the Engineering', async () => {
+  const { playerMayRun } = await import('../src/player-requests.js');
+  assert.equal(playerMayRun('trip:repair-patch'), true);
+  const { registry, campaignId, session } = await brokenTrader();
+  const step = session.view().steps.find((entry) => entry.id === 'repair-patch');
+  assert.ok(step, 'a patch is offered');
+  assert.equal(step.command, 'trip:repair-patch');
+  assert.match(step.figure, /^a day, 10\+ on 2D/);
+  assert.match(step.copy, /patches every failed drive; a patch holds until a starport repairs them completely/);
+  const dayOf = () => registry.resolveCampaign(campaignId).campaign.time.dayOfYear + registry.resolveCampaign(campaignId).campaign.time.year * 400;
+  const start = dayOf();
+  let tries = 0;
+  while (activeOf(registry, campaignId).state.malfunction?.failed.length && tries < 60) {
+    const result = session.run('trip:repair-patch');
+    assert.equal(result.ok, true, result.message);
+    tries += 1;
+  }
+  const mended = activeOf(registry, campaignId).state.malfunction;
+  assert.deepEqual(mended.failed, [], 'the throw patches every failed drive at once');
+  assert.equal(mended.patched, true);
+  assert.ok(tries >= 1 && dayOf() >= start + tries, 'each try took a day');
+  const logged = registry.resolveCampaign(campaignId).activityLogs[0].entries.map((entry) => entry.message).join('\n');
+  assert.match(logged, /tries to patch powerPlant, maneuverDrive, jumpDrive: 2D \d\+\d.* = \d+ against 10\+ \u2014 patched/);
+  assert.equal(session.view().steps.some((entry) => entry.id === 'repair-patch'), false, 'nothing left to patch');
+});
+
+test('v0.368.0 the referee may repair a ship\u2019s drives at no charge, from the Vehicles tab', async () => {
+  const { registry, campaignId, session, shipId } = await brokenTrader();
+  const mod = await import('../src/play-session.js');
+  const rows = () => Object.values(mod.VEHICLE_FOLDERS).flatMap((folder) => mod.refereeView(registry.resolveCampaign(campaignId), { tab: 'Vehicles', folder }).shown ?? []);
+  const labels = () => rows().flatMap((row) => (row.actions ?? []).map((action) => action.label));
+  assert.ok(labels().includes('Repair the drives (referee)'));
+  const before = activeOf(registry, campaignId).state.finances.balanceCr;
+  const done = session.run(`ship:repair-drives:${shipId}`);
+  assert.equal(done.ok, true, done.message);
+  assert.match(done.message, /^Referee: .+\u2019s powerPlant, maneuverDrive, jumpDrive repaired at no charge\.$/);
+  assert.equal(activeOf(registry, campaignId).state.malfunction, null);
+  assert.equal(activeOf(registry, campaignId).state.finances.balanceCr, before, 'no charge');
+  assert.equal(labels().includes('Repair the drives (referee)'), false);
+  assert.equal(session.run(`ship:repair-drives:${shipId}`).ok, false, 'nothing left to repair');
+  const { playerMayRun } = await import('../src/player-requests.js');
+  assert.equal(playerMayRun(`ship:repair-drives:${shipId}`), false, 'a ruling, not a player\u2019s button');
+});
+
+test('v0.368.0 departing overdue for the annual overhaul shows the drive risk before the Depart', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const r = registry.resolveCampaign(campaignId);
+  const ship = r.ships.find((entry) => entry.identity.id === r.campaign.activeShipId);
+  // The books begin years ago, so the overhaul is long past due.
+  const ledger = ship.state.finances.ledger.map((entry, index) => (index === 0 ? { ...entry, date: '001-4790' } : entry));
+  registry.put({ ...ship, state: { ...ship.state, finances: { ...ship.state.finances, ledger } } });
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const here = registry.resolveCampaign(campaignId).campaign.location.systemId;
+  const { getJumpDestinations } = await import('../vendor/classic-traveller-rules/index.js');
+  assert.equal(session.run(`trip:choose-destination:${getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, here, 1)[0].system.id}`).ok, true);
+  const steps = session.view().steps;
+  const risk = steps.find((entry) => entry.id === 'drive-risk');
+  assert.ok(risk, 'a warning');
+  assert.match(risk.figure, /^\+\d+ to the weekly throw$/);
+  assert.match(risk.copy, /Each week in jump the drives fail on 2D of 13\+, with \+\d+ added for: .*\d+ weeks? past annual overhaul \(\+\d+\)\./);
+  assert.match(risk.copy, /take out the jump drive, the maneuver drive and the power plant together/);
+  assert.equal(risk.kind, 'danger');
+  assert.ok(steps.findIndex((entry) => entry.id === 'drive-risk') < steps.findIndex((entry) => entry.id === 'jump'), 'before the Depart');
+});

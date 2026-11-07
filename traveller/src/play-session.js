@@ -657,9 +657,15 @@ function vehicleEntries(resolved) {
       sheet: { kind: 'ship', id: ship.identity.id },
       badge: { kind: 'ship', typeCode: ship.design?.typeCode ?? '?', side: folder === VEHICLE_FOLDERS.active || folder === VEHICLE_FOLDERS.travellers ? 'party' : 'neutral' },
       // The session refuses it away from port or mid-fight, and says why.
-      actions: !active && here && berthed === here
-        ? [{ label: 'Travel in this ship', command: `ship:make-active:${ship.identity.id}`, title: 'The travellers change to this ship here, in port; cargo, fuel and accounts stay with each ship' }]
-        : []
+      actions: [
+        ...(!active && here && berthed === here
+          ? [{ label: 'Travel in this ship', command: `ship:make-active:${ship.identity.id}`, title: 'The travellers change to this ship here, in port; cargo, fuel and accounts stay with each ship' }]
+          : []),
+        // v0.368.0: the referee's ruling for a ship whose drives are down.
+        ...((ship.state?.malfunction?.failed ?? []).length
+          ? [{ label: 'Repair the drives (referee)', command: `ship:repair-drives:${ship.identity.id}`, title: 'A referee\u2019s ruling: the failed drives are repaired at no charge' }]
+          : [])
+      ]
     };
   });
   // A Free Trader or Scout Ship rolled but not yet built (Book 1 pp.22-23).
@@ -2186,7 +2192,7 @@ const COMMAND_KINDS = Object.freeze([
   [/^shipfight:flee$/, 'travel'],
   [/^trip:(load-freight|book-passengers|carry-message)(:|$)/, 'money'],
   [/^speculation:sell:/, 'money'],
-  [/^trip:(wait|fuel-skim)$/, 'optional'],
+  [/^trip:(wait|fuel-skim|repair-patch)$/, 'optional'],
   [/^shipyard:/, 'optional'],
   [/^speculation:buy$/, 'optional'],
   [/^shipfight:(repair:|cancel-repair)/, 'optional'],
@@ -2815,6 +2821,15 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
       copy: port.driveRepair ? `The account holds ${cr(balance)}.` : 'Only a class A, B or C starport repairs drives (The Traveller Book, 1982).', cite: 'Book 2 p.18' });
   }
 
+  // v0.368.0: a patch is the cheap way, tried by whoever has the Engineering,
+  // a day at a time (Kurt, Nov 2026: players may repair for themselves in port).
+  const patch = find('repair-patch');
+  if (patch) {
+    steps.push({ id: 'repair-patch', title: `Try to patch ${ship.state.malfunction.failed.join(', ')}`, figure: `a day, 10+ on 2D${patch.skill ? ` + ${patch.skill}` : ''}`, state: 'ready',
+      command: tripCommand(patch), verb: 'Try a patch',
+      copy: `${patch.who} tries${patch.skill ? ` (Engineering-${patch.skill})` : ', unaided'}. One throw patches every failed drive; a patch holds until a starport repairs them completely. Each try takes a day in port.`, cite: 'The Traveller Book (1982)' });
+  }
+
   // v0.315.1: offered when it is due within the policy's own 60 days, or
   // overdue; an overhaul just paid for was offered again at full price.
   const maintain = find('maintain', (entry) => entry.overdue || entry.daysUntilDue <= MAINTENANCE_OFFER_DAYS);
@@ -2990,6 +3005,16 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
     const lifeSupport = calculateLifeSupportCostForTrip(ship).totalCr;
     jump = { figure: `${target.name}, ${port.distance} parsec${port.distance === 1 ? '' : 's'}`, command: tripCommand(depart), verb: 'Depart',
       copy: `Lift, a day out to 100 diameters, then a week in jump (Book 2 p.1). Life support ${cr(lifeSupport)}${port.overstayCr ? ` and berthing ${cr(port.overstayCr)} are` : ' is'} charged on the way out.` };
+  }
+  // v0.368.0: say plainly what departing overdue risks, before the Depart
+  // (Bruce, Nov 2026: overhaul flagged on every jump since 283-4807; then all
+  // three drives failed at Cr 18,800,000 to repair).
+  const riskDM = port.checklist?.driveFailureDM ?? 0;
+  if (riskDM > 0 && target) {
+    const why = (port.checklist.driveFailureDMParts ?? []).map((part) => `${part.why} (${signed(part.dm)})`).join(', ');
+    steps.push({ id: 'drive-risk', title: 'Drive risk if you jump now', figure: `+${riskDM} to the weekly throw`, state: 'ready', kind: 'danger',
+      copy: `Each week in jump the drives fail on 2D of 13+, with ${signed(riskDM)} added for: ${why}. A failure can take out the jump drive, the maneuver drive and the power plant together; a starport repairs them for a share of each drive's price (Book 2 p.18), and a patch needs an engineer's throw. An annual overhaul${port.checklist.driveFailureDMParts?.some((part) => /overhaul/.test(part.why)) ? ' (offered below)' : ''} and a posted engineer take the risk down.`,
+      cite: 'The Traveller Book (1982)' });
   }
   steps.push({ id: 'jump', title: 'Depart', state: jump.command ? 'ready' : 'blocked', cite: 'Book 2 p.5', ...jump });
 
@@ -4915,6 +4940,23 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const message = `${ship.identity.name || 'A new ship'} (Type ${ship.design.typeCode} ${ship.design.name}) comes into the campaign${holder ? `, ${holder}` : ''}${makeActive ? '; the travellers\u2019 ship' : systemId ? '; berthed here' : ''}.`;
         log('SHIP', message);
         lastMessage = { ok: true, message, createdId: ship.identity.id };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      if (command.startsWith('ship:repair-drives:')) {
+        // v0.368.0: a referee's ruling — the failed drives repaired at no
+        // charge (Kurt, Nov 2026: Bruce's three drives, where the bugs that
+        // stranded and mis-priced him share the blame).
+        const id = command.slice('ship:repair-drives:'.length);
+        const ship = (resolved.ships ?? []).find((entry) => entry.identity.id === id);
+        if (!ship) throw new Error('no such ship in this campaign');
+        const failed = ship.state?.malfunction?.failed ?? [];
+        if (!failed.length) throw new Error(`${ship.identity.name} has no failed drive`);
+        persist([{ ...ship, state: { ...ship.state, malfunction: null } }]);
+        const message = `Referee: ${ship.identity.name}\u2019s ${failed.join(', ')} repaired at no charge.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
         onChange();
         saveToCloud();
         return lastMessage;

@@ -216,3 +216,10 @@ test('v0.367.0 the player\u2019s page passes the published ship\u2019s Generate 
   const seat = await read('seat.js');
   assert.match(seat, /generate: Boolean\(envelope\.ship\?\.generate\)/);
 });
+
+// v0.368.0: the player's page shows the ship's account (Kurt, Nov 2026).
+test('v0.368.0 the player\u2019s ship card shows the ship\u2019s account', async () => {
+  const seat = await read('seat.js');
+  assert.match(seat, /Ship\\u2019s account Cr \$\{Number\(ship\.accountCr\)\.toLocaleString\('en-US'\)\}/);
+  assert.match(seat, /ship\.accountCr === null \|\| ship\.accountCr === undefined \? null/);
+});
