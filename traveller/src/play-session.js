@@ -2138,6 +2138,25 @@ function safeTrip(resolved) {
   try { return currentTrip(resolved); } catch { return null; }
 }
 
+// v0.366.0: where this ship could set a course from the port it is in, and
+// which of those it can plot — a lane from the starport, or the Generate
+// program (Book 2 p.32). Null away from a port.
+function departureChoices(resolved, subsector) {
+  const trip = safeTrip(resolved);
+  if (!trip || trip.situation !== 'port') return null;
+  const choices = listTripActions(trip, { subsector }).filter((entry) => entry.type === 'choose-destination');
+  return { destinationId: trip.destinationId ?? null, choices, plottable: choices.filter((entry) => entry.plottable) };
+}
+
+// Said where a ship cannot leave on its own: why, and who can put it right.
+function strandedText(ship, here, choices) {
+  if (!choices) return null;
+  const rating = ship.specifications.drives.jump.rating;
+  if (!choices.choices.length) return `No world lies within Jump-${rating} of ${here.name}, so ${ship.identity.name} cannot leave on its own. The referee can move it or change ships (Vehicles tab).`;
+  if (!choices.plottable.length) return `No world within Jump-${rating} of ${here.name} can be plotted: none is on a charted lane from here and ${ship.identity.name} does not carry the Generate program (Book 2 p.32). The referee can change ships or move the ship (Vehicles tab, and the map).`;
+  return null;
+}
+
 // A runner action as a page command: trip:<type>[:<the one thing it names>].
 export function tripCommand(action) {
   const arg = action.systemId ?? action.offerId ?? action.passageClass ?? action.how ?? null;
@@ -2930,10 +2949,20 @@ export function portProcedure(resolved, { subsector, writable = true, selectedSy
   }))] : [];
   const blockedRows = (port.checklist?.rows ?? []).filter((row) => row.blocking && !row.ok);
   let jump;
-  if (!target) jump = { figure: 'No course yet', copy: 'Pick a world on the map and set a course.' };
+  if (!target) jump = { figure: 'No course yet', copy: `Pick a world on the map and set a course.${(() => { const stranded = strandedText(ship, system, departureChoices(resolved, subsector)); return stranded ? ` ${stranded}` : ''; })()}` };
   else if (port.impound) jump = { figure: 'Held by the bank', copy: 'The ship cannot leave until the mortgage arrears are paid.' };
   else if (port.berthingOwed) jump = { figure: `${target.name}: berthing unpaid`, copy: 'Pay berthing before departure.' };
-  else if (!depart) jump = { figure: `${target.name}: not cleared`, copy: 'Nothing can depart from here now.' };
+  else if (!depart) {
+    // v0.366.0: this said only "Nothing can depart from here now" (Bruce,
+    // Nov 2026: a course set on a Jump-2 ship stayed after the party changed
+    // to a Jump-1 one). It is out of range; say so, and say if nothing else
+    // can be plotted either.
+    const rating = ship.specifications.drives.jump.rating;
+    const gap = getJumpDestinations(subsector, system.id, 6).find((entry) => entry.system.id === target.id)?.distance ?? null;
+    const stranded = strandedText(ship, system, departureChoices(resolved, subsector));
+    jump = { figure: `${target.name}: out of range`,
+      copy: `${target.name} is ${gap ? `${gap} parsecs` : 'beyond reach'} from ${system.name}; ${ship.identity.name} jumps ${rating}. Set a course for a world within ${rating} parsec${rating === 1 ? '' : 's'}.${stranded ? ` ${stranded}` : ''}` };
+  }
   else if (blockedRows.length) jump = { figure: `${target.name}: ${blockedRows.map((row) => checklistLabel(row.key).toLowerCase()).join(', ')}`, copy: blockedRows.map((row) => row.detail).join('. ') };
   else if (elsewhere.length) {
     const bound = new Set(ship.state.passengerManifest.map((entry) => entry.destinationSystemId));
@@ -4887,9 +4916,32 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         if (resolved.encounters.some((entry) => entry.status === 'active') || resolved.campaign.roster?.shipFight) throw new Error('a fight is in progress; finish it first');
         const here = resolved.campaign.location?.systemId ?? null;
         if (here && ship.state?.portCall?.systemId !== here) throw new Error(`${ship.identity.name} is not berthed where the travellers are`);
+        const previous = activeShip();
         registry.put(addShipToCampaign(resolved.campaign, ship, { makeActive: true }));
         reload();
-        const message = `The travellers now travel in ${ship.identity.name} (${ship.design?.name ?? 'ship'}).`;
+        let message = `The travellers now travel in ${ship.identity.name} (${ship.design?.name ?? 'ship'}).`;
+        // v0.366.0: a course was set for the ship the party left. If this one
+        // cannot reach it from here it is cleared, not left to read "not
+        // cleared" (Bruce, Nov 2026: Zaegregrai, 2 parsecs, set on Marisol,
+        // Jump-2; then Yggdrasil Thodzou, Jump-1).
+        const where = resolved.campaign.location?.systemId ? getSubsectorSystem(subsector, resolved.campaign.location.systemId) : null;
+        const course = resolved.campaign.roster?.trip?.destinationId ?? null;
+        if (where && course) {
+          const rating = ship.specifications.drives.jump.rating;
+          if (!getJumpDestinations(subsector, where.id, rating).some((entry) => entry.system.id === course)) {
+            const roster = { ...resolved.campaign.roster, trip: { ...resolved.campaign.roster.trip, destinationId: null } };
+            registry.put({ ...resolved.campaign, roster });
+            reload();
+            let courseName = course;
+            try { courseName = getSubsectorSystem(subsector, course).name; } catch { /* the id will do */ }
+            message += ` The course for ${courseName} was set for ${previous?.identity.name ?? 'the last ship'} (Jump-${previous?.specifications.drives.jump.rating ?? '?'}); ${ship.identity.name} is Jump-${rating} and cannot reach it from ${where.name}, so it is cleared.`;
+          }
+        }
+        // And if it cannot leave from here at all, the referee hears it now.
+        if (where) {
+          const stranded = strandedText(ship, where, departureChoices(resolved, subsector));
+          if (stranded) message += ` Warning: ${stranded}`;
+        }
         log('SHIP', message);
         lastMessage = { ok: true, message };
         onChange();
@@ -6485,11 +6537,17 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           if (confiscated.length) persist(confiscated);
           registry.put(withPersonState(withAnimalState(resolved.campaign, { surface: null }), { pending: null }));
           reload();
+          // v0.366.0: say what the arrest was for. "Served 5 days in jail" gave
+          // no reason (Bruce, Nov 2026); the weapon and the law level are known.
+          const weaponWords = [...new Set((law.seized ?? []).map((item) => item.weaponName).filter(Boolean))];
+          const forWhat = weaponWords.length
+            ? `carrying ${weaponWords.join(' and ')}, which law level ${law.level} prohibits outside the starport (Book 3 p.8)`
+            : `a weapons violation (law level ${law.level})`;
           if (seizedNotes.length) log('ENCOUNTER', `Confiscated by the police on ${pending.worldName}: ${seizedNotes.join(', ')}.`);
-          log('ENCOUNTER', `${who} ${law.arrested.length === 1 ? 'is' : 'are'} arrested on ${pending.worldName} for a weapons violation (law level ${law.level}): ${days} day${days === 1 ? '' : 's'} in jail, 1D (The Traveller Book).`);
+          log('ENCOUNTER', `${who} ${law.arrested.length === 1 ? 'is' : 'are'} arrested on ${pending.worldName} for ${forWhat}: ${days} day${days === 1 ? '' : 's'} in jail, 1D (The Traveller Book).`);
           const passed = run('time:pass', { fight: { value: { amount: days, unit: 'days', reason: `${who} in jail on ${pending.worldName}` } } });
           if (!passed.ok) throw new Error(passed.message);
-          return finish(`${who} served ${days} day${days === 1 ? '' : 's'} in jail and ${law.arrested.length === 1 ? 'is' : 'are'} back at the starport.`);
+          return finish(`${who} served ${days} day${days === 1 ? '' : 's'} in jail for ${forWhat}, and ${law.arrested.length === 1 ? 'is' : 'are'} back at the starport.${seizedNotes.length ? ' The weapon was confiscated.' : ''}`);
         }
         // v0.346.0 (design.md 9.2): the reaction decides what may be done.
         if (command === 'persons:walk') {

@@ -21,6 +21,9 @@ const PLAYER_COMMANDS = Object.freeze([
   // server against whose character it is).
   'gear:buy', 'gear:seek', 'gear:black-buy', 'gear:black-decline',
   'party:rest',
+  // v0.366.0: a player puts down or picks up what their own character carries
+  // (owner checked on the server). Names, weights and the rest stay the referee's.
+  'inventory:toggle:',
   'ship:from-benefit:',          // v0.338.0: his own character's mustering-out ship (owner checked on the server)
   'shipfight:fire', 'shipfight:hold', 'shipfight:flee', 'shipfight:end', 'shipfight:cancel-repair'
 ]);

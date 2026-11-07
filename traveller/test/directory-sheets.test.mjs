@@ -2611,3 +2611,70 @@ test('v0.365.0 a player with two characters here lists each on its own line, wit
   dom.window.close();
   delete globalThis.document;
 });
+
+// v0.366.0: on a player's page the carried box is theirs to change and nothing
+// else on the Gear tab is.
+test('v0.366.0 the Gear tab on a player\u2019s page lets them carry or stow, and draws the rest read-only', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  globalThis.window = dom.window;
+  const { session, registry, campaignId } = await freshSession();
+  const id = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const sent = [];
+  const draw = (handlers) => {
+    const state = session.view({ sheets: [{ kind: 'actor', id, tab: 'Gear' }] });
+    document.querySelector('main').replaceChildren(renderSheets(state.sheets, handlers));
+  };
+  draw({ onInventory: (...args) => sent.push(args), inventoryCarryOnly: true });
+  const cells = [...document.querySelectorAll('.sheet-table input.sheet-cell')];
+  assert.ok(cells.length >= 3, 'name, quantity and weight cells are drawn');
+  assert.ok(cells.every((node) => node.disabled), 'and cannot be edited');
+  assert.equal(document.querySelector('.sheet-remove'), null, 'no remove');
+  assert.equal(document.querySelector('.sheet-add'), null, 'no add-an-item form');
+  const military = [...document.querySelectorAll('input[type="checkbox"]')].find((node) => !node.getAttribute('aria-label'));
+  assert.equal(military?.disabled, true, 'the military-load box is the referee\u2019s');
+  const carried = document.querySelector('input[type="checkbox"][aria-label$="carried"]');
+  assert.ok(carried && !carried.disabled, 'the carried box is theirs');
+  carried.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.deepEqual(sent.map(([characterId, verb]) => [characterId, verb]), [[id, 'toggle']]);
+  // The referee's page is unchanged: everything editable, remove and add present.
+  draw({ onInventory: () => {} });
+  assert.ok([...document.querySelectorAll('.sheet-table input.sheet-cell')].every((node) => !node.disabled));
+  assert.ok(document.querySelector('.sheet-remove'));
+  assert.ok(document.querySelector('.sheet-add'));
+  dom.window.close();
+});
+
+// v0.366.0 (Bruce, Nov 2026): searching "SMG" found no "Submachine Gun clip",
+// and a Buy of six at Cr 1,000 showed no total.
+test('v0.366.0 the Compendium search knows what players call things, and a Buy says what it will cost', { skip: !JSDOM }, async () => {
+  const { gearSearchText } = await import('../client/play-views.js');
+  const smg = { key: 'ammo:submachine-gun', name: 'Submachine Gun clip (30 rounds)', group: 'Ammunition' };
+  const pack = { key: 'ammo:lc-power-pack', name: 'Laser Carbine power pack (50 shots)', group: 'Ammunition' };
+  for (const word of ['smg', 'submachine', 'clip', 'ammo', 'magazine']) assert.ok(gearSearchText(smg).includes(word), word);
+  assert.equal(gearSearchText(pack).includes('smg'), false, 'and not the wrong clip');
+  assert.ok(gearSearchText(pack).includes('lc') && gearSearchText(pack).includes('power pack'));
+
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { compendiumDrawer } = await import('../client/play-views.js');
+  const compendium = { world: { name: 'Thogafarn', techLevel: 5, lawLevel: 4 }, packs: [{ name: 'Weapons', entries: [
+    { ...smg, priceCr: 20, weightGrams: 500, techLevel: null, note: '', page: 41, kind: 'item', buy: true, reason: null, warning: null, black: null },
+    { ...pack, priceCr: 1000, weightGrams: 3000, techLevel: null, note: '', page: 41, kind: 'item', buy: true, reason: null, warning: null, black: null }] }] };
+  const open = (key) => compendiumDrawer({ compendium, compendiumUi: { expanded: key }, compendiumCharacters: [{ id: 'char-1', name: 'Katarina' }], live: true, seat: 'player' }, { onCompendium: () => {}, onGear: () => {} });
+  document.querySelector('main').replaceChildren(...open('ammo:lc-power-pack').filter(Boolean));
+  const total = document.querySelector('.gear-total');
+  assert.match(total.textContent, /^1 \u00d7 Laser Carbine power pack \(50 shots\) = Cr 1,000$/);
+  const qty = document.querySelector('.gear-qty');
+  qty.value = '6';
+  qty.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  assert.equal(total.textContent, '6 \u00d7 Laser Carbine power pack (50 shots) = Cr 6,000');
+  // And the SMG clip, which is what was wanted, is Cr 20 each.
+  document.querySelector('main').replaceChildren(...open('ammo:submachine-gun').filter(Boolean));
+  assert.equal(document.querySelector('.gear-total').textContent, '1 \u00d7 Submachine Gun clip (30 rounds) = Cr 20');
+  dom.window.close();
+});

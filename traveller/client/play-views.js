@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.365.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.365.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.365.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.365.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.366.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.366.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.366.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.366.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.365.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.365.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.365.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.366.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.366.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.366.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.365.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.365.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.366.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.366.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.365.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.366.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -2169,6 +2169,22 @@ function characterButtons(member, entry, act, handlers) {
   ];
 }
 
+// v0.366.0: what the Compendium search matches against: the name and group,
+// and what players call it. Searching "SMG" found no "Submachine Gun clip"
+// (Bruce, Nov 2026: "I don't think I can buy SMG clips at all").
+const GEAR_ALIASES = Object.freeze([
+  [/submachine-gun/, 'smg sub-machine gun submachinegun'],
+  [/laser-carbine|:lc-/, 'lc laser carbine'],
+  [/laser-rifle|:lr-/, 'lr laser rifle'],
+  [/automatic-rifle/, 'ar auto rifle'],
+  [/automatic-pistol/, 'auto pistol'],
+  [/^ammo:/, 'ammo ammunition magazine mag reload clip power pack']
+]);
+export function gearSearchText(entry) {
+  const aliases = GEAR_ALIASES.filter(([pattern]) => pattern.test(String(entry.key ?? ''))).map(([, words]) => words);
+  return [entry.name, entry.group, ...aliases].join(' ').toLowerCase();
+}
+
 // A request from a player for a character who is not already one of theirs here.
 function newJoin(member) {
   return Boolean(member.joining) && !member.characters.some((entry) => entry.id === member.joining.characterId);
@@ -2759,7 +2775,14 @@ export function compendiumDrawer(state, handlers) {
     h('span', { class: 'gear-weight', text: entry.kind === 'armour' ? 'worn' : formatGrams(entry.weightGrams) }));
     if (!open) return summary;
     const who = h('select', { class: 'sheet-select', 'aria-label': 'Character' }, characters.map((entry) => h('option', { value: entry.id, text: entry.name })));
-    const quantity = entry.kind === 'item' ? h('input', { type: 'number', min: '1', value: '1', class: 'gear-qty', 'aria-label': 'How many' }) : null;
+    // v0.366.0: what the Buy will cost, said in words under the row it is for,
+    // and updated as the number changes (Bruce, Nov 2026: six power packs at
+    // Cr 1,000 for six SMG clips at Cr 20, with nothing to show the difference).
+    const howMany = () => Math.max(1, Math.floor(Number(quantity?.value ?? 1)) || 1);
+    const totalWords = () => `${howMany()} \u00d7 ${entry.name} = Cr ${(entry.priceCr * howMany()).toLocaleString('en-US')}`;
+    const total = h('p', { class: 'gear-total', 'aria-live': 'polite', text: '' });
+    const quantity = entry.kind === 'item' ? h('input', { type: 'number', min: '1', value: '1', class: 'gear-qty', 'aria-label': 'How many', oninput: () => { total.textContent = totalWords(); } }) : null;
+    total.textContent = totalWords();
     return h('div', { class: 'gear-open' },
       summary,
       h('div', { class: 'gear-detail' },
@@ -2771,9 +2794,10 @@ export function compendiumDrawer(state, handlers) {
         // v0.353.0: what the black market asks, and why it is there at all.
         entry.black?.available ? h('p', { class: 'sheet-note', text: `Black market: Cr ${entry.black.priceCr.toLocaleString('en-US')} (${entry.black.why}). Finding a seller takes 1D days and Streetwise; a buyer who deals badly may draw the law.` })
           : entry.black && !entry.black.available ? h('p', { class: 'cite', text: entry.black.reason }) : null,
+        state.live && characters.length ? total : null,
         state.live && characters.length ? h('div', { class: 'gear-actions' },
           who, quantity,
-          h('button', { type: 'button', class: 'button is-small is-primary', disabled: !entry.buy, title: entry.reason ?? '', text: 'Buy', onclick: () => handlers.onGear?.('buy', who.value, entry.key, quantity ? quantity.value : 1) }),
+          h('button', { type: 'button', class: 'button is-small is-primary', disabled: !entry.buy, title: entry.reason ?? '', 'aria-label': `Buy ${entry.name}`, text: 'Buy', onclick: () => handlers.onGear?.('buy', who.value, entry.key, quantity ? quantity.value : 1) }),
           entry.black?.available ? h('button', { type: 'button', class: 'button is-small', text: 'Find a seller', title: 'The black market (Graycloak): 1D days asking, 2D + Streetwise for 8+, then the seller\u2019s reaction with Bribery as a DM', onclick: () => handlers.onGear?.('seek', who.value, entry.key, 1) }) : null,
           player ? null : h('button', { type: 'button', class: 'button is-small', text: 'Give', title: 'The referee\u2019s grant: no charge', onclick: () => handlers.onGear?.('give', who.value, entry.key, quantity ? quantity.value : 1) })) : null,
         h('p', { class: 'cite', text: `Book ${entry.kind === 'item' ? 3 : 1} p.${entry.page}` })));
@@ -2789,7 +2813,7 @@ export function compendiumDrawer(state, handlers) {
         h('button', { type: 'button', class: 'button is-small', text: 'Send away', onclick: () => handlers.onGear?.('black-decline', offer.characterId, offer.key, 1) })) : null) : null,
     h('input', { type: 'search', class: 'search', placeholder: 'Search the compendium', 'aria-label': 'Search the compendium', value: view.query ?? '', oninput: (event) => go({ query: event.target.value }) }),
     ...compendium.packs.map((pack) => {
-      const entries = pack.entries.filter((entry) => !query || entry.name.toLowerCase().includes(query) || String(entry.group).toLowerCase().includes(query));
+      const entries = pack.entries.filter((entry) => !query || gearSearchText(entry).includes(query));
       if (!entries.length) return null;
       const collapsed = !query && (view.collapsed ?? {})[pack.name];
       const groups = [...new Set(entries.map((entry) => entry.group))];

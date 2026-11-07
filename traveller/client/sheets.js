@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.365.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.365.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.365.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.366.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.366.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.366.0';
 
 const DRAGGED = new Map();
 
@@ -448,32 +448,34 @@ function gearTab(sheet, handlers) {
         h('span', { class: 'sheet-load-mark', style: `left:${width(load.loadGrams)}` })),
       h('p', { class: 'sheet-note', text: `Free to ${KG(load.normalGrams)}; encumbered to ${KG(load.doubleGrams)} at one off STR, DEX and END; a military force may carry to ${KG(load.tripleGrams)} at two off.` })));
   }
+  // v0.366.0: on a player's page only the carried box is theirs to change.
+  const carryOnly = Boolean(handlers.inventoryCarryOnly);
   parts.push(h('div', { class: 'sheet-section-label' }, 'CARRIED'));
   const rows = (sheet.inventory ?? []).map((item) => h('tr', {},
     h('td', {}, h('input', {
-      class: 'sheet-cell', value: item.name, 'aria-label': `Name of ${item.name}`,
+      class: 'sheet-cell', value: item.name, 'aria-label': `Name of ${item.name}`, disabled: carryOnly,
       onchange: (event) => handlers.onInventory?.(sheet.id, 'update', item.id, { name: event.currentTarget.value })
     })),
     h('td', {}, h('input', {
-      class: 'sheet-cell', type: 'number', min: '1', value: String(item.quantity), 'aria-label': `Quantity of ${item.name}`,
+      class: 'sheet-cell', type: 'number', min: '1', value: String(item.quantity), 'aria-label': `Quantity of ${item.name}`, disabled: carryOnly,
       onchange: (event) => handlers.onInventory?.(sheet.id, 'update', item.id, { quantity: Number(event.currentTarget.value) || 1 })
     })),
     h('td', {}, h('input', {
-      class: 'sheet-cell', type: 'number', step: '0.1', min: '0', value: String(item.weightGrams / 1000), 'aria-label': `Weight of ${item.name} in kilograms`,
+      class: 'sheet-cell', type: 'number', step: '0.1', min: '0', value: String(item.weightGrams / 1000), 'aria-label': `Weight of ${item.name} in kilograms`, disabled: carryOnly,
       onchange: (event) => handlers.onInventory?.(sheet.id, 'update', item.id, { weightKg: Number(event.currentTarget.value) || 0 })
     })),
     h('td', { class: 'sheet-cell-total', text: item.carried ? (item.counts ? KG(item.totalGrams) : 'not counted') : 'stowed' }),
     h('td', {}, h('label', { class: 'sheet-check' },
       h('input', { type: 'checkbox', checked: item.carried, 'aria-label': `${item.name} carried`, onchange: () => handlers.onInventory?.(sheet.id, 'toggle', item.id) }),
       ' carried')),
-    h('td', {}, h('button', { type: 'button', class: 'sheet-remove', 'aria-label': `Remove ${item.name}`, text: '\u00d7', onclick: () => handlers.onInventory?.(sheet.id, 'remove', item.id) }))));
+    h('td', {}, carryOnly ? null : h('button', { type: 'button', class: 'sheet-remove', 'aria-label': `Remove ${item.name}`, text: '\u00d7', onclick: () => handlers.onInventory?.(sheet.id, 'remove', item.id) }))));
   parts.push(h('table', { class: 'sheet-table' },
     h('thead', {}, h('tr', {}, ['Item', 'Qty', 'Each kg', 'Counts', 'Carried', ''].map((label) => h('th', { text: label })))),
     h('tbody', {}, rows.length ? rows : h('tr', {}, h('td', { colspan: '6', class: 'sheet-note', text: 'Nothing carried.' })))));
   // Read off the fields rather than through FormData: the page's own
   // FormData and the one a test harness provides are not the same class, and
   // constructing one from the other's <form> throws.
-  parts.push(h('form', { class: 'sheet-add', onsubmit: (event) => {
+  if (!carryOnly) parts.push(h('form', { class: 'sheet-add', onsubmit: (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? '';
@@ -487,7 +489,7 @@ function gearTab(sheet, handlers) {
   parts.push(h('p', { class: 'sheet-note', text: 'Clothing, personal armour and minor items \u2014 holsters, scabbards, belts \u2014 are not counted (p.33). Untick carried for anything stowed aboard ship.' }));
   if (load && !sheet.npc) {
     parts.push(h('label', { class: 'sheet-check' },
-      h('input', { type: 'checkbox', checked: load.military, onchange: (event) => handlers.onInventory?.(sheet.id, 'military', event.currentTarget.checked ? 'on' : 'off') }),
+      h('input', { type: 'checkbox', checked: load.military, disabled: carryOnly, onchange: (event) => handlers.onInventory?.(sheet.id, 'military', event.currentTarget.checked ? 'on' : 'off') }),
       ' Carrying as part of a military force (p.33: to three times STR, at two off)'));
   }
   if ((sheet.entitlements ?? []).length) {

@@ -63,6 +63,11 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
       const characterId = String(request.value?.characterId ?? '');
       if (!characterId || (campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('you can buy only for your own character');
     }
+    // v0.366.0: a player carries or puts down only their own character's gear.
+    if (command.startsWith('inventory:')) {
+      const characterId = String(request.value?.characterId ?? '');
+      if (!characterId || (campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('you can change only your own character\u2019s gear');
+    }
     const cloud = {
       userId: () => ownerUid,
       account: () => ({ displayName: refereeName }),
@@ -76,7 +81,7 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
     // carried out, and then the one save carries everything.
     const session = createPlaySession({ registry, campaignId, sector, subsector: sector ? null : subsector, cloud, cloudRevision: home.revision });
     const who = registry.resolveCampaign(campaignId).characters.find((entry) => request.characterId && entry.identity.id === request.characterId);
-    const result = session.run(command, { fight: { value: request.value ?? {} } });
+    const result = session.run(command, { fight: { value: request.value ?? {} }, ...(command.startsWith('inventory:') ? { characterId: String(request.value?.characterId ?? '') } : {}) });
     if (!result.ok) return { ok: false, message: result.message, revision: null };
     const revision = await session.flushSave();
     if (session.save.state === 'stale' && attempt === 0) continue; // someone saved first: once more from theirs

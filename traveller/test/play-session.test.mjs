@@ -1916,6 +1916,9 @@ test('v0.318.1 an arrest is served as 1D days in jail: the party leaves the surf
   assert.equal(after.campaign.time.dayOfYear, before + 3);
   assert.equal(after.campaign.roster.persons.pending, null);
   assert.ok(after.activityLogs[0].entries.some((entry) => /Hawkeye is arrested on Orison .* 3 days in jail/.test(entry.message)));
+  // v0.366.0: and it says what for — "served 5 days in jail" gave no reason (Bruce, Nov 2026).
+  assert.match(served.message, /Hawkeye served 3 days in jail for carrying Laser Rifle, which law level 7 prohibits outside the starport \(Book 3 p\.8\), and is back at the starport\. The weapon was confiscated\./);
+  assert.ok(after.activityLogs[0].entries.some((entry) => /arrested on Orison for carrying Laser Rifle, which law level 7 prohibits/.test(entry.message)));
   // v0.318.2: the laser rifle is confiscated, from hand and from the pack.
   const hawkeye = after.characters.find((entry) => entry.identity.id === r.characters[0].identity.id);
   assert.equal(hawkeye.loadout.weaponKey, 'hands');
@@ -3440,4 +3443,60 @@ test('v0.364.0 one player may play two characters here, and letting one go keeps
   const here = registry.resolveCampaign(campaignId).characters.map((entry) => entry.identity.id);
   assert.equal(here.includes('char-gab'), false);
   assert.equal(here.includes('char-kat'), true);
+});
+
+// ---------------------------------------------------------------- v0.366.0
+// Bruce (Nov 2026): the party changed from Marisol (Jump-2) to Yggdrasil
+// Thodzou (Jump-1) with a 2-parsec course still set; the card read "not
+// cleared" and "Nothing can depart from here now", and nothing said why.
+async function scoutAndTrader() {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const here = registry.resolveCampaign(campaignId).campaign.location.systemId;
+  const { getJumpDestinations } = await import('../vendor/classic-traveller-rules/index.js');
+  const far = getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, here, 2).find((entry) => entry.distance === 2);
+  assert.ok(far, 'a world two parsecs away');
+  const named = (name) => registry.resolveCampaign(campaignId).ships.find((ship) => ship.identity.name === name);
+  assert.equal(session.run('ship:new', { fight: { value: { designKey: 'type-s-scout-courier', name: 'Courier Bee', holder: { kind: 'patron', name: 'A patron' } } } }).ok, true);
+  assert.equal(session.run('ship:new', { fight: { value: { designKey: 'type-a-free-trader', name: 'Yggdrasil Thodzou', holder: { kind: 'patron', name: 'A patron' } } } }).ok, true);
+  assert.equal(session.run(`ship:make-active:${named('Courier Bee').identity.id}`).ok, true);
+  assert.equal(named('Courier Bee').specifications.drives.jump.rating, 2);
+  assert.equal(named('Yggdrasil Thodzou').specifications.drives.jump.rating, 1);
+  return { registry, campaignId, session, far, named };
+}
+
+test('v0.366.0 changing to a ship that cannot reach the course clears it and says why', async () => {
+  const { registry, campaignId, session, far, named } = await scoutAndTrader();
+  assert.equal(session.run(`trip:choose-destination:${far.system.id}`).ok, true);
+  assert.equal(session.view().scene.courseId, far.system.id);
+  const changed = session.run(`ship:make-active:${named('Yggdrasil Thodzou').identity.id}`);
+  assert.equal(changed.ok, true, changed.message);
+  assert.match(changed.message, new RegExp(`The course for ${far.system.name} was set for Courier Bee \\(Jump-2\\); Yggdrasil Thodzou is Jump-1 and cannot reach it from .+, so it is cleared\\.`));
+  assert.equal(session.view().scene.courseId, null, 'the course is gone');
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.trip.destinationId, null);
+});
+
+test('v0.366.0 a course the new ship can reach is kept', async () => {
+  const { session, named, registry, campaignId } = await scoutAndTrader();
+  const here = registry.resolveCampaign(campaignId).campaign.location.systemId;
+  const { getJumpDestinations } = await import('../vendor/classic-traveller-rules/index.js');
+  const near = getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, here, 1)[0];
+  assert.equal(session.run(`trip:choose-destination:${near.system.id}`).ok, true);
+  const changed = session.run(`ship:make-active:${named('Yggdrasil Thodzou').identity.id}`);
+  assert.equal(changed.ok, true, changed.message);
+  assert.doesNotMatch(changed.message, /cleared/);
+  assert.equal(session.view().scene.courseId, near.system.id);
+});
+
+test('v0.366.0 a course set beyond the ship\u2019s jump reads out of range, with the distance and the rating', async () => {
+  const { registry, campaignId, session, far, named } = await scoutAndTrader();
+  session.run(`trip:choose-destination:${far.system.id}`);
+  // The slow ship made active with the course still set, as a campaign saved before this version has it.
+  const { addShipToCampaign } = await import('../src/campaign-document.js');
+  registry.put(addShipToCampaign(registry.resolveCampaign(campaignId).campaign, named('Yggdrasil Thodzou'), { makeActive: true }));
+  session.reload();
+  const card = JSON.stringify(session.view().steps ?? []) + JSON.stringify(session.view().next ?? {});
+  assert.match(card, new RegExp(`${far.system.name}: out of range`));
+  assert.match(card, /is 2 parsecs from .+; Yggdrasil Thodzou jumps 1\. Set a course for a world within 1 parsec\./);
+  assert.doesNotMatch(card, /Nothing can depart from here now/);
 });

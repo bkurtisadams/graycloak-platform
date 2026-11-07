@@ -162,3 +162,37 @@ test('v0.353.0 a player may shop, but only for his own character', async () => {
   assert.equal(bought.ok, true, bought.message);
   assert.match(bought.message, /buys a Dagger/);
 });
+
+// v0.366.0 (Bruce, Nov 2026): the carried boxes on a player's page cleared and
+// came back, because nothing was listening. A player may carry or stow what is
+// on their own character; names, weights and the rest stay the referee's.
+test('v0.366.0 a player may carry or stow their own character\u2019s gear and no one else\u2019s', async () => {
+  assert.equal(playerMayRun('inventory:toggle:item-1'), true);
+  for (const command of ['inventory:add', 'inventory:remove:item-1', 'inventory:update:item-1', 'inventory:military:on', 'inventory:ready:item-1']) {
+    assert.equal(playerMayRun(command), false, command);
+  }
+  const { campaignId, store } = await setup('game');
+  const id = 'char-04164baa70c3b5a6';
+  const characters = store.home.bundle.documents.characters;
+  const item = characters.find((entry) => entry.identity.id === id).inventory[0];
+  assert.ok(item, 'a carried item to put down');
+  const ownedBy = (uid) => { store.home.bundle.campaign.ownership = { ...(store.home.bundle.campaign.ownership ?? {}), actors: { ...(store.home.bundle.campaign.ownership?.actors ?? {}), [id]: uid } }; };
+  const saved = () => importCampaignHome(store.home).bundle.documents.characters.find((entry) => entry.identity.id === id).inventory.find((entry) => entry.id === item.id);
+  // Someone else's character: refused, nothing saved.
+  ownedBy('someone-else');
+  const refused = await apply(campaignId, store, `inventory:toggle:${item.id}`, { value: { characterId: id } });
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /only your own character/);
+  assert.equal(store.saves, 0);
+  // No character named: refused.
+  assert.match((await apply(campaignId, store, `inventory:toggle:${item.id}`, { value: {} })).message, /only your own character/);
+  // Their own: put down, then picked up.
+  ownedBy(PLAYER);
+  const down = await apply(campaignId, store, `inventory:toggle:${item.id}`, { value: { characterId: id } });
+  assert.equal(down.ok, true, down.message);
+  assert.equal(saved().carried, false);
+  const up = await apply(campaignId, store, `inventory:toggle:${item.id}`, { value: { characterId: id } });
+  assert.equal(up.ok, true, up.message);
+  assert.equal(saved().carried, true);
+  assert.equal(store.saves, 2);
+});
