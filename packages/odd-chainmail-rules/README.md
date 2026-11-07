@@ -137,6 +137,16 @@ Changes made during extraction:
   printed (`MONSTER_LEVEL_TABLES`, `monsterFromTable`, `rollDungeonMonster`);
   stocked rooms now carry their monster. Rows with no bestiary entry yet
   carry the name only; Evil Priests' level awaits a ruling.
+- 0.33.0: new `dungeon-gen.mjs` (exported as `dungeonGen`): `generateLevel`
+  lays out a seeded dungeon level on a sheet of 10' squares (80 × 60 by
+  default) by AD&D DMG Appendix A Tables I–VII, simplified: 10' passages at
+  right angles, rectangular rooms and chambers, no overlaps, passages that
+  meet join, dead ends capped and pruned, one or two ways down, stopping at
+  a room target. Rooms are stocked by Book III p.7.
+- 0.34.0: `generateLevel` defaults to 36 rooms, checks Table I every 30'
+  on a straight run and 20' after anything else (options `straightRun`,
+  `afterRun`; the DMG's 60'/30' still available), and keeps at most two
+  side passages waiting (`maxOpen`), so rooms hold their share of a level.
 
 ## Open items
 
