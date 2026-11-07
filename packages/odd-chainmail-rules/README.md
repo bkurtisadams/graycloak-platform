@@ -132,8 +132,11 @@ Changes made during extraction:
   searching, forcing doors and spikes, listening, traps, wandering checks,
   sighting and surprise underground, pursuit past corners, the Monster
   Determination matrix, unguarded treasure by dungeon level, and room
-  stocking (`stockRoom`, `stockLevel`). The Monster Level Tables (p.10–11)
-  are still to be transcribed.
+  stocking (`stockRoom`, `stockLevel`).
+- 0.32.0: `underworld.mjs` adds the six Monster Level Tables (p.10–11) as
+  printed (`MONSTER_LEVEL_TABLES`, `monsterFromTable`, `rollDungeonMonster`);
+  stocked rooms now carry their monster. Rows with no bestiary entry yet
+  carry the name only; Evil Priests' level awaits a ruling.
 
 ## Open items
 

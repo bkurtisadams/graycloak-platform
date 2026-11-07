@@ -6,7 +6,7 @@
  * surprise underground, pursuit past corners, the Monster Determination
  * matrix, and stocking rooms with monsters and unguarded treasure.
  * Dice come from rng() in [0,1). The six Monster Level Tables (p.10–11) are
- * not here yet: monsterTableFor names the table, the referee picks the creature.
+ * transcribed as printed, repeats included (Wyverns twice on Table 5).
  */
 import { rollGem, rollJewelry, rollMagicItem } from "./treasure.mjs";
 
@@ -84,6 +84,67 @@ export function monsterTableFor(dungeonLevel, d6) {
   return i + 1;
 }
 
+/**
+ * Monster Level Tables (p.10–11): Table 1 a d8, Tables 2–4 a d10 (0 = 10), Tables 5–6 a d12.
+ * key: a Book II entry in monsters.mjs; options: the referee or a roll picks one; npc: a character type
+ * by its Book I title; none of these: no bestiary entry yet. Number appearing is Book II's, set by the
+ * referee for the party (Book III p.10).
+ */
+const fm = (level) => ({ cls: "fighter", level }), mu = (level) => ({ cls: "magic-user", level });
+const RETINUE = "1–4 apprentices (Enchanters or Evil Priests) and 1–6 fighter-type bodyguards of levels 4–6";
+export const MONSTER_LEVEL_TABLES = Object.freeze({
+  1: { die: 8, rows: [
+    { name: "Kobolds", key: "kobold" }, { name: "Goblins", key: "goblin" }, { name: "Skeletons", key: "skeleton" },
+    { name: "Orcs", key: "orc" }, { name: "Giant Rats" }, { name: "Centipedes" }, { name: "Bandits", key: "bandit" },
+    { name: "Spiders" }] },
+  2: { die: 10, rows: [
+    { name: "Hobgoblins", key: "hobgoblin" }, { name: "Zombies", key: "zombie" }, { name: "Lizards" },
+    { name: "Warriors", npc: fm(2) }, { name: "Conjurers", npc: mu(3) }, { name: "Gnolls", key: "gnoll" },
+    { name: "Thouls" }, { name: "Ghouls", key: "ghoul" }, { name: "Berserkers", key: "berserker" },
+    { name: "Theurgists", npc: mu(4) }] },
+  3: { die: 10, rows: [
+    { name: "Wights", key: "wight" }, { name: "Heroes", npc: fm(4) }, { name: "Giant Hogs" }, { name: "Giant Ants" },
+    { name: "Ochre Jelly", key: "ochre-jelly" }, { name: "Thaumaturgists", npc: mu(5) },
+    { name: "Swashbucklers", npc: fm(5) }, { name: "Magicians", npc: mu(6) }, { name: "Giant Snakes" },
+    { name: "Giant Weasels" }] },
+  4: { die: 10, rows: [
+    { name: "Wraiths", key: "wraith" }, { name: "Ogres", key: "ogre" }, { name: "Evil Priests", npc: { cls: "cleric", level: null, alignment: "chaos" } },
+    { name: "Myrmidons", npc: fm(6) }, { name: "Giant Beetles" }, { name: "Giant Scorpions" },
+    { name: "Lycanthropes", options: ["werewolf", "wereboar", "weretiger", "werebear"] },
+    { name: "Gargoyles", key: "gargoyle" }, { name: "White Apes" }, { name: "Enchanters", npc: mu(7) }] },
+  5: { die: 12, rows: [
+    { name: "Trolls", key: "troll" }, { name: "Superheroes", npc: fm(8) }, { name: "Wyverns", key: "wyvern" },
+    { name: "Spectres", key: "spectre" }, { name: "Mummies", key: "mummy" }, { name: "Minotaurs", key: "minotaur" },
+    { name: "Manticores", key: "manticore" }, { name: "Cockatrices", key: "cockatrice" },
+    { name: "Sorcerers", npc: mu(9) }, { name: "Wyverns", key: "wyvern" },
+    { name: "Hydra (6–8 heads)", key: "hydra", heads: [6, 8] }, { name: "Medusae", key: "medusa" }] },
+  6: { die: 12, rows: [
+    { name: "Giants", options: ["giant-hill", "giant-stone", "giant-frost", "giant-fire", "giant-cloud"] },
+    { name: "Hydra (9–12 heads)", key: "hydra", heads: [9, 12] },
+    { name: "Dragons", options: ["dragon-white", "dragon-black", "dragon-green", "dragon-blue", "dragon-red", "dragon-golden"] },
+    { name: "Basilisks", key: "basilisk" }, { name: "Gorgons", key: "gorgon" }, { name: "Chimeras", key: "chimera" },
+    { name: "Vampires", key: "vampire" }, { name: "Lords", npc: fm(9) }, { name: "Spectres", key: "spectre" },
+    { name: "Wizards", npc: mu(11), retinue: RETINUE },
+    { name: "Evil High Priests", npc: { cls: "cleric", level: 8, alignment: "chaos" }, retinue: RETINUE },
+    { name: "Purple Worms", key: "purple-worm" }] }
+});
+/** Book III's list of others to consider by level and surroundings; the referee places these, never a roll. */
+export const OTHER_MONSTERS = Object.freeze(["Giant Crabs", "Giant Leeches", "Giant Octopi", "Crocodiles", "Giant Squids", "Sea Monsters", "Nixies", "Mermen", "Griffons", "Pterodactyls", "Rocs", "Invisible Stalkers", "Cyborgs", "Robots", "Androids", "Shadows", "Dopplegangers"]);
+
+/** Roll on one Monster Level Table; a row with options picks one of them. */
+export function monsterFromTable(table, rng) {
+  const t = MONSTER_LEVEL_TABLES[table];
+  const row = t.rows[die(t.die, rng) - 1];
+  const out = { table, ...row };
+  if (row.options) out.key = row.options[die(row.options.length, rng) - 1];
+  if (row.heads) out.heads = row.heads[0] + die(row.heads[1] - row.heads[0] + 1, rng) - 1;
+  return out;
+}
+/** A wandering monster or room monster for a dungeon level: the matrix picks the table, the table the monster. */
+export function rollDungeonMonster(dungeonLevel, rng) {
+  return monsterFromTable(monsterTableFor(dungeonLevel, die(6, rng)), rng);
+}
+
 /** Unguarded treasure by dungeon level (p.7): silver always, gold 50%, gems and jewellery each at a chance × a die, magic by chance. */
 export const DUNGEON_TREASURE = Object.freeze([
   { levels: [1, 1],    silver: 100,   gold: 10,   gemPct: 5,  gemDie: 6,  magicPct: 5 },
@@ -111,7 +172,7 @@ export function stockRoom(dungeonLevel, rng) {
   const monster = die(6, rng) <= 2;
   const treasure = die(6, rng) <= (monster ? 3 : 1);
   return {
-    monster: monster ? { table: monsterTableFor(dungeonLevel, die(6, rng)) } : null,
+    monster: monster ? rollDungeonMonster(dungeonLevel, rng) : null,
     treasure: treasure ? dungeonTreasure(dungeonLevel, rng) : null
   };
 }
@@ -154,8 +215,15 @@ function runSelfTests() {
   ok(t2.sp === 1200 && t2.gp === 300, "levels 2–3: 100 × d12 silver, 100 × d6 gold");
   const empty = stockRoom(1, seq(f(3, 6), f(2, 6)));
   ok(!empty.monster && !empty.treasure, "empty room: treasure only on a 1");
-  const lair = stockRoom(1, seq(f(1, 6), f(3, 6), f(6, 6), f(1, 6), f(100, 100)));
-  ok(lair.monster && lair.monster.table === 4 && lair.treasure, "monster room with treasure on 1–3");
+  const lair = stockRoom(1, seq(f(1, 6), f(3, 6), f(6, 6), f(5, 10), f(1, 6), f(100, 100)));
+  ok(lair.monster && lair.monster.table === 4 && lair.monster.name === "Giant Beetles" && lair.treasure, "monster room with treasure on 1–3");
+  ok([1, 2, 3, 4].every((n) => MONSTER_LEVEL_TABLES[n].rows.length === MONSTER_LEVEL_TABLES[n].die) && MONSTER_LEVEL_TABLES[5].rows.length === 12 && MONSTER_LEVEL_TABLES[6].rows.length === 12, "table sizes match their dice");
+  ok(monsterFromTable(1, seq(f(4, 8))).key === "orc" && monsterFromTable(2, seq(f(10, 10))).name === "Theurgists", "rows read in order, 0 = 10");
+  ok(monsterFromTable(5, seq(f(3, 12))).name === "Wyverns" && monsterFromTable(5, seq(f(10, 12))).name === "Wyverns", "Wyverns twice on Table 5, as printed");
+  const hy = monsterFromTable(5, seq(f(11, 12), f(3, 3)));
+  ok(hy.key === "hydra" && hy.heads === 8, "hydra heads rolled in range");
+  ok(monsterFromTable(6, seq(f(3, 12), f(5, 6))).key === "dragon-red", "Dragons pick a kind");
+  ok(monsterFromTable(6, seq(f(10, 12))).retinue && monsterFromTable(6, seq(f(10, 12))).npc.level === 11, "Wizards bring a retinue");
   const lvl = stockLevel(["a", "b", "c"], 1, Math.random, new Set(["b"]));
   ok(lvl.a && lvl.c && !("b" in lvl), "allocated rooms are left alone");
   console.log(`underworld.mjs — all self-tests passed (${pass} assertions).`);
