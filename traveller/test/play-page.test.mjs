@@ -210,3 +210,9 @@ test('v0.365.0 the play page installs the column handles, and the stylesheet pla
   const resize = await read('panel-resize.js');
   assert.match(resize, /shell\.append\(handle\)/, 'on the shell, which is not redrawn, not in a column that is');
 });
+
+// v0.367.0: the player's map is told whether the ship carries Generate.
+test('v0.367.0 the player\u2019s page passes the published ship\u2019s Generate to its map', async () => {
+  const seat = await read('seat.js');
+  assert.match(seat, /generate: Boolean\(envelope\.ship\?\.generate\)/);
+});

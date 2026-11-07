@@ -22,7 +22,7 @@ import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad,
   removeCharacterInventoryItem, setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
   restCharacter, medicalAttention, characterIsWounded, REST_DAYS, skillGuide, skillDM, CATALOGUE, CATALOGUE_PACKS, catalogueEntry,
-  catalogueAvailability, FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, calculateLifeSupportCostForTrip, calculateSpeculativePurchaseCost,
+  catalogueAvailability, FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, calculateLifeSupportCostForTrip, calculateJumpFuelRequirement, calculateSpeculativePurchaseCost,
   creditShipAccount, generateSpeculativeTradeOffer, getPersonalWeapon, getSubsectorSystem, parseUniversalWorldProfile,
   purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, assessLoad, inventoryLoadGrams, rollEncounterRange,
   personalWeaponExpertise, PERSONAL_EXPERTISE_FLOOR, LONG_GUN_PARRY_KEYS, ENCOUNTER_RANGE_TABLE, MORALE_DMS,
@@ -2219,6 +2219,21 @@ function checklistLabel(key) {
   return CHECKLIST_LABELS[key] ?? (key.startsWith('crew-') ? `Crew: ${key.slice(5)}` : sentenceCase(key));
 }
 
+// v0.367.0: a jump burns the jump drive's fuel AND the power plant's, and the
+// row only gave the total (Bruce, Nov 2026: "Jump-2 used 40 t; Book 2 says
+// 20"). Book 2 p.6: 10% of the hull for each parsec jumped, plus 10 t for each
+// point of power plant rating, whatever the distance.
+function fuelDetail(row, port, ship) {
+  try {
+    const need = calculateJumpFuelRequirement(ship, port.distance);
+    const aboard = Number.isFinite(ship.state.currentFuelTons) ? ship.state.currentFuelTons : 0;
+    const parts = `${need.jumpFuelTons} for the jump, ${need.powerPlantFuelTons} for the power plant`;
+    // Short of fuel, the rules package says so in its own words; add the split to them.
+    if (!row.ok) return `${row.detail} (${parts})`;
+    return `${need.totalTons} tons needed (${parts}), ${aboard} aboard (Book 2 p.6)`;
+  } catch { return row.detail; }
+}
+
 function checklistView(port, ship) {
   if (!port.checklist) return null;
   const lifeSupport = calculateLifeSupportCostForTrip(ship);
@@ -2227,7 +2242,7 @@ function checklistView(port, ship) {
     lane: port.lane,
     target: port.target ? { id: port.target.id, name: port.target.name, distance: port.distance } : null,
     rows: port.checklist.rows.map((row) => ({
-      key: row.key, ok: row.ok, blocking: row.blocking, detail: row.detail,
+      key: row.key, ok: row.ok, blocking: row.blocking, detail: row.key === 'fuel' ? fuelDetail(row, port, ship) : row.detail,
       label: checklistLabel(row.key),
       loud: row.key === 'misjump-risk' && !row.ok
     })),

@@ -275,6 +275,10 @@ export function buildPublishedShip(ship) {
     typeName: ship.design?.name ?? null,
     tons: specs.hull?.tons ?? null,
     jumpRating: specs.drives?.jump?.rating ?? null,
+    // v0.367.0: whether the computer carries Generate, so a player's map can say
+    // so. It always said the ship did not (Bruce, Nov 2026: the port card and
+    // the course panel disagreed).
+    generate: Boolean(state.computer?.programs?.includes('generate')),
     fuel: { aboardTons: Number.isFinite(state.currentFuelTons) ? state.currentFuelTons : null, capacityTons: specs.fuel?.capacityTons ?? null },
     cargo: { usedTons: state.cargoUsedTons ?? 0, capacityTons: specs.cargo?.capacityTons ?? null },
     staterooms: specs.accommodations?.staterooms ?? null,

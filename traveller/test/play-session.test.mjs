@@ -3500,3 +3500,17 @@ test('v0.366.0 a course set beyond the ship\u2019s jump reads out of range, with
   assert.match(card, /is 2 parsecs from .+; Yggdrasil Thodzou jumps 1\. Set a course for a world within 1 parsec\./);
   assert.doesNotMatch(card, /Nothing can depart from here now/);
 });
+
+// ---------------------------------------------------------------- v0.367.0
+test('v0.367.0 the fuel row says what is for the jump and what is for the power plant', async () => {
+  const { registry, campaignId } = await traderSolo('person');
+  const session = createPlaySession({ registry, campaignId, subsector: FAR_MERIDIAN_SUBSECTOR });
+  const here = registry.resolveCampaign(campaignId).campaign.location.systemId;
+  const { getJumpDestinations } = await import('../vendor/classic-traveller-rules/index.js');
+  const near = getJumpDestinations(FAR_MERIDIAN_SUBSECTOR, here, 1)[0];
+  assert.equal(session.run(`trip:choose-destination:${near.system.id}`).ok, true);
+  const fuel = session.view().checklist.rows.find((row) => row.key === 'fuel');
+  assert.ok(fuel, 'a fuel row');
+  // The trader is 200 tons, Jump-1, power plant 1: 20 t for the parsec, 10 t for the plant.
+  assert.match(fuel.detail, /^30 tons needed \(20 for the jump, 10 for the power plant\), \d+(\.\d+)? aboard \(Book 2 p\.6\)$/);
+});

@@ -255,3 +255,16 @@ test('the published ship is what the party knows: no account, no manifests', asy
   const { campaign } = await fixture();
   assert.equal(buildPublishedCampaign(campaign, { ship }).ship.shipId, ship.identity.id);
 });
+
+// v0.367.0 (Bruce, Nov 2026): the port card said the Marisol carried Generate and
+// the course panel on his page said it did not: the page was never told.
+test('v0.367.0 the published ship says whether the computer carries Generate', async () => {
+  const { buildPublishedShip } = await import('../src/published-view.js');
+  const { readFile } = await import('node:fs/promises');
+  const bundle = JSON.parse(await readFile(new URL('./fixtures/Sea-of-Suns-v0.11.2-buggy.campaign.json', import.meta.url), 'utf8'));
+  const ship = bundle.documents.ships[0];
+  const withPrograms = (programs) => ({ ...ship, state: { ...ship.state, computer: { ...ship.state.computer, programs } } });
+  assert.equal(buildPublishedShip(withPrograms(['navigation', 'generate'])).generate, true);
+  assert.equal(buildPublishedShip(withPrograms(['navigation'])).generate, false);
+  assert.equal(buildPublishedShip({ ...ship, state: { ...ship.state, computer: undefined } }).generate, false, 'no computer state: not carried');
+});
