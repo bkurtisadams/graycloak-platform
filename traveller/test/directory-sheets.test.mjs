@@ -2563,7 +2563,7 @@ test('v0.364.0 a player with a second request is offered Bring in, and each of t
   assert.match(text, /plays Hawkeye \u00b7 bringing in Baroness Katarina Sorell\u2026 \u00b7 here now/);
   const buttons = [...document.querySelectorAll('button')];
   buttons.find((node) => node.textContent === 'Bring in').click();
-  buttons.find((node) => node.textContent === 'Let Hawkeye go').click();
+  buttons.find((node) => node.textContent === 'Let go').click();
   assert.deepEqual(acted.map(([action]) => action), ['admit', 'release']);
   assert.equal(acted[0][1].characterId, 'char-kat');
   assert.equal(acted[1][1].id, me);
@@ -2574,6 +2574,40 @@ test('v0.364.0 a player with a second request is offered Bring in, and each of t
   const again = { ...session.view({ referee: { tab: 'Players', players: same } }), live: true };
   document.querySelector('main').replaceChildren(...renderDrawer('referee', again, again.referee, { onSeat: () => {} }));
   assert.equal([...document.querySelectorAll('button')].some((node) => node.textContent === 'Bring in'), false);
+  dom.window.close();
+  delete globalThis.document;
+});
+
+// v0.365.0: with two characters each has a line of its own, with its own buttons.
+test('v0.365.0 a player with two characters here lists each on its own line, with Sheet and Let go for that one', { skip: !JSDOM }, async () => {
+  const dom = new JSDOM('<main></main>');
+  globalThis.document = dom.window.document;
+  globalThis.Node = dom.window.Node;
+  globalThis.Option = dom.window.Option;
+  const { session, registry, campaignId } = await freshSession();
+  const me = registry.resolveCampaign(campaignId).characters[0].identity.id;
+  const acted = [];
+  // Two characters for the one player, through the real session.
+  const { setDocumentOwner } = await import('../src/campaign-document.js');
+  registry.put(setDocumentOwner(registry.resolveCampaign(campaignId).campaign, { documentId: me, ownerUid: 'player-7' }));
+  session.reload();
+  const second = session.run('character:admit', { fight: { value: { character: { ...registry.resolveCampaign(campaignId).characters[0], identity: { ...registry.resolveCampaign(campaignId).characters[0].identity, id: 'char-second', name: 'Baroness Katarina Sorell' } }, ownerUid: 'player-7', playerName: 'Bruce' } } });
+  assert.equal(second.ok, true, second.message);
+  session.reload();
+  const again = { ...session.view({ referee: { tab: 'Players', players: { seats: [{ uid: 'player-7', name: 'Bruce', lastSeenAt: Date.now() }], invites: [], joins: [] } } }), live: true };
+  document.querySelector('main').replaceChildren(...renderDrawer('referee', again, again.referee, { onSeat: (action, value) => acted.push([action, value]) }));
+  const lines = [...document.querySelectorAll('.entry-characters li')];
+  assert.equal(lines.length, 2, 'one line for each character');
+  assert.match(lines[1].textContent, /Baroness Katarina Sorell/);
+  const letGo = [...lines[1].querySelectorAll('button')].find((node) => node.textContent === 'Let go');
+  assert.ok(letGo, 'a Let go on that character\u2019s line');
+  assert.match(letGo.title, /Take Baroness Katarina Sorell out of the campaign; Bruce stays/);
+  letGo.click();
+  assert.equal(acted[0][0], 'release');
+  assert.equal(acted[0][1].id, 'char-second');
+  assert.equal(acted[0][1].ask, true);
+  // The player's own Remove stays on the player's line, once.
+  assert.equal([...document.querySelectorAll('button')].filter((node) => node.textContent === 'Remove').length, 1);
   dom.window.close();
   delete globalThis.document;
 });

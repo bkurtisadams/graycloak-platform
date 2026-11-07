@@ -195,3 +195,18 @@ test('v0.364.0 a join is brought in once for each player and character, and a pr
   assert.match(play, /if \(seat\.ask && !await confirmed\(`Take \$\{seat\.name\} out of the campaign\?/);
   assert.match(play, /if \(seat\.ask\) await cloud\.placeCharacter\(seat\.id, \{ kind: 'unassigned'/);
 });
+
+// v0.365.0: the columns can be dragged. Static pins, since the drag itself is
+// tested against a page in panel-widths.test.mjs.
+test('v0.365.0 the play page installs the column handles, and the stylesheet places them off the redrawn columns', async () => {
+  const play = await read('play.js');
+  assert.match(play, /import \{ installPanelResize \} from '\.\/panel-resize\.js\?v=v\d+\.\d+\.\d+';/);
+  assert.match(play, /installPanelResize\(\{ shell: \$\('shell'\) \}\);/);
+  const css = await read('play.css');
+  assert.match(css, /\.panel-handle\[data-panel='now'\] \{ left: var\(--now-width\); \}/);
+  assert.match(css, /\.panel-handle\[data-panel='sidebar'\] \{ left: calc\(100% - var\(--sidebar-width\)\); \}/);
+  assert.match(css, /\.shell\[data-sidebar='collapsed'\] \.panel-handle\[data-panel='sidebar'\] \{ display: none; \}/);
+  assert.match(css, /@media \(max-width: 760px\) \{ \.panel-handle \{ display: none; \} \}/);
+  const resize = await read('panel-resize.js');
+  assert.match(resize, /shell\.append\(handle\)/, 'on the shell, which is not redrawn, not in a column that is');
+});

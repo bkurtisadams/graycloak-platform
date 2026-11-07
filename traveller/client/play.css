@@ -1736,3 +1736,25 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .side-jobs .job-sheet h3 { margin: 0 0 4px; font-size: 16px; }
 .seat-situation .job-card { margin: 10px 0; }
 .person-encounter.is-fight { border-top-color: var(--danger-edge); }
+
+/* ---------------------------------------------------- resizable columns
+   v0.365.0: a handle on the left column's edge and one on the sidebar's.
+   They sit on the shell (the columns are redrawn; a child of one would go with
+   it), start just inside the map and the sidebar so neither column's scrollbar
+   is covered, and are not drawn when the page is one column. */
+.shell { position: relative; }
+.panel-handle { position: absolute; bottom: 0; width: 8px; z-index: 20; cursor: col-resize; touch-action: none; background: transparent; }
+.panel-handle[data-panel='now'] { left: var(--now-width); }
+.panel-handle[data-panel='sidebar'] { left: calc(100% - var(--sidebar-width)); }
+.panel-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: transparent; }
+.panel-handle:hover::after, .panel-handle:focus-visible::after, .shell.is-resizing .panel-handle::after { background: var(--signal); }
+.panel-handle:focus-visible { outline: none; }
+.shell.is-resizing { cursor: col-resize; user-select: none; }
+.shell[data-sidebar='collapsed'] .panel-handle[data-panel='sidebar'] { display: none; }
+@media (max-width: 760px) { .panel-handle { display: none; } }
+
+/* v0.365.0: a player with more than one character here lists each on a line of
+   its own, with that character's own buttons. */
+.entry-characters { flex-basis: 100%; list-style: none; margin: 0; padding: 4px 0 0 10px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); }
+.entry-characters li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.entry-characters .seat-actions { margin-left: auto; }

@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.364.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.364.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.364.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.364.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.365.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.365.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.365.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.365.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.364.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.364.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.364.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.365.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.365.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.365.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.364.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.364.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.365.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.365.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.364.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.365.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -2159,6 +2159,16 @@ function refereeShipEditor(s, state, handlers) {
 // v0.285.0: the Players tab as one list, no folders — the join link, who is
 // asking, who is seated with which character, and anyone whose player has
 // gone. Roll20's player list and D&D Beyond's campaign page, in one place.
+// One character's buttons on the Travellers tab: its sheet, and letting it go
+// while the player stays (v0.364.0).
+function characterButtons(member, entry, act, handlers) {
+  return [
+    h('button', { type: 'button', class: 'button is-small', text: 'Sheet', title: `Open ${entry.name}\u2019s sheet`, onclick: () => handlers.onOpenSheet?.('actor', entry.id) }),
+    ...(entry.fighting ? [] : [h('button', { type: 'button', class: 'button is-small', text: 'Let go', title: `Take ${entry.name} out of the campaign; ${member.name} stays`,
+      onclick: () => act('release', { id: entry.id, name: entry.name, keepCopy: false, ask: true, playerName: member.name, playerUid: member.uid }) })])
+  ];
+}
+
 // A request from a player for a character who is not already one of theirs here.
 function newJoin(member) {
   return Boolean(member.joining) && !member.characters.some((entry) => entry.id === member.joining.characterId);
@@ -2236,14 +2246,14 @@ function playersPanel(model, state, handlers) {
       state.live ? h('span', { class: 'seat-actions' },
         newJoin(member) ? h('button', { type: 'button', class: 'button is-small is-primary', text: 'Bring in', title: 'Bring their character into the campaign now',
           onclick: () => act('admit', { kind: 'join', uid: member.uid, characterId: member.joining.characterId ?? null, name: member.name }) }) : null,
-        ...member.characters.map((entry) => h('button', { type: 'button', class: 'button is-small', text: 'Sheet', title: `Open ${entry.name}\u2019s sheet`, onclick: () => handlers.onOpenSheet?.('actor', entry.id) })),
-        // v0.364.0: take ONE character out of the campaign and leave the player
-        // in it. A player who deletes a character in their own lobby does not
-        // take it out of the campaign; only the referee can (Bruce, Nov 2026:
-        // Gabriella, deleted, still showed as his playable character).
-        ...member.characters.filter((entry) => !entry.fighting).map((entry) => h('button', { type: 'button', class: 'button is-small', text: `Let ${entry.name.split(' ')[0]} go`, title: `Take ${entry.name} out of the campaign; ${member.name} stays`,
-          onclick: () => act('release', { id: entry.id, name: entry.name, keepCopy: false, ask: true, playerName: member.name, playerUid: member.uid }) })),
-        h('button', { type: 'button', class: 'button is-small', text: 'Remove', title: 'Remove this player; their character goes home with them', onclick: () => act('remove', member) })) : null)), 'No players yet.'),
+        // v0.365.0: with one character the buttons stay on the line; with more,
+        // each character has a line of its own below (two bare "Sheet" buttons
+        // told nothing apart, and "Let Baroness go" took a title for a name).
+        ...(member.characters.length === 1 ? characterButtons(member, member.characters[0], act, handlers) : []),
+        h('button', { type: 'button', class: 'button is-small', text: 'Remove', title: 'Remove this player; their character goes home with them', onclick: () => act('remove', member) })) : null,
+      state.live && member.characters.length > 1 ? h('ul', { class: 'entry-characters' }, member.characters.map((entry) => h('li', {},
+        h('span', { class: 'entry-name', text: entry.name }),
+        h('span', { class: 'seat-actions' }, ...characterButtons(member, entry, act, handlers))))) : null)), 'No players yet.'),
     model.departed.length ? section('Player gone', model.departed.map((entry) => h('li', { class: 'entry' },
       h('span', { class: 'entry-name', text: entry.name }),
       h('span', { class: 'entry-note', text: entry.fighting ? 'their player left; this waits until the fight ends' : 'their player has left the campaign' }),
