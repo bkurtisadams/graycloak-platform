@@ -23,9 +23,11 @@
 //   resolve {id}           an encounter dealt with (a fight opened or the party let go): doing back to road
 //   rumours {place, list}  set a settlement's rumour list
 //   paint {q, r, t?, track?, ford?, place?, kind?}  edit the referee's key in place; a hex the players know is updated too (pass 10)
+// Dungeon levels (pass 16): the ops whose names start "dungeon" go to dungeon-service.mjs; the referee's map lists the levels.
 // Rulings (Kurt, Oct 2026): a lone character walks as a party of one; the players start knowing the home village and its ring.
 
 import { isReferee } from "./campaign-service.mjs";
+import { createDungeonOps } from "./dungeon-service.mjs";
 
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 
@@ -41,6 +43,7 @@ export const worldPaths = (cid) => ({
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n) }) {
   const { roster, wilderness: W, westmark: WM } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
+  const dungeons = rules.dungeonGen ? createDungeonOps({ rules, now, rollDie }) : null;
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
   const d6 = () => rollDie(6);
@@ -104,15 +107,17 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       if (!camp) return refuse("not-found", "no such game");
       const ref = isReferee(camp, uid);
       if (!ref && !(camp.members ?? []).includes(uid)) return refuse("forbidden", "you are not in this game");
+      if (String(op ?? "").startsWith("dungeon")) return dungeons ? dungeons.handle(tx, { op, data, cid, ref }) : refuse("bad-request", "the dungeon levels aren't deployed");
       const { map, known, seeded } = await loadMaps(tx, p);
       const save = () => { if (seeded) { tx.set(p.map, clean(map)); } tx.set(p.known, clean(known)); };
 
       if (op === "map") {
         const rumours = ref ? (await tx.get(p.rumours)) ?? {} : undefined;
+        const levels = ref && dungeons ? await dungeons.summary(tx, cid) : undefined;
         if (seeded) save();
         const places = { ...PLACES };
         for (const [k, h] of Object.entries(map.hexes)) if (h.place && !places[h.place]) { const { q, r } = W.parse(k); places[h.place] = { q, r, kind: h.kind ?? "village", desc: "" }; }
-        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { known: known.hexes } : {}), ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}) };
+        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { known: known.hexes } : {}), ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}), ...(levels ? { dungeons: levels } : {}) };
       }
 
       if (op === "rumours") {

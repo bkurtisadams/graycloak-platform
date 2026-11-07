@@ -249,6 +249,62 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .rm-row [data-rm-del] { margin-left: auto; min-height: 0; padding: 2px 8px; }
 #rumourCard h3 { display: flex; align-items: center; gap: 8px; }
 #rumourCard select { font: inherit; font-size: .84rem; }
+/* pass 16: the dungeon level on the stage (approved mockup, Nov 2026) */
+.lobbystage:has(.lcard.dungeon) { overflow: hidden; }
+.lobbystage .lcard.world.dungeon { padding: 12px; gap: 10px; min-height: 0; }
+.lobbystage .dg-stage { position: relative; flex: 1 1 auto; min-height: 360px; border: 1px solid #b7c7d2; border-radius: 8px; overflow: hidden; background: #3f6f96; }
+.lobbystage .dg-over { position: absolute; inset: 12px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.lobbystage .dg-mid { flex: 1 1 auto; min-height: 0; display: flex; align-items: flex-start; gap: 8px; }
+.lobbystage .dg-stage > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.lobbystage .dg-stage.blank { background: #3f6f96 repeating-linear-gradient(0deg, transparent 0 10px, rgba(255,255,255,.06) 10px 11px), repeating-linear-gradient(90deg, transparent 0 10px, rgba(255,255,255,.06) 10px 11px); background-blend-mode: normal; }
+.lobbystage .dg-stage.editing > svg { cursor: crosshair; }
+.lobbystage .dg-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lobbystage .dg-top > * { pointer-events: auto; }
+.lobbystage .dg-pill { background: rgba(251,253,254,.94); border: 1px solid #b7c7d2; border-radius: 999px; padding: 3px 10px; font-size: 12px; color: #1f2b38; }
+.lobbystage .dg-chip { background: #fff3cd; border: 1px solid #c9a227; border-radius: 999px; padding: 3px 10px; font-size: 12px; color: #5a4300; font-weight: 600; }
+.lobbystage .dg-chip.open { background: #e3f1dc; border-color: #4f7a3a; color: #2c4a1f; }
+.lobbystage .dg-acts { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.lobbystage .dg-stage button { min-height: 32px; padding: 4px 12px; border: 1px solid #9fb2c0; border-radius: 6px; background: #fbfdfe !important; color: #1f2b38 !important; font-family: var(--serif); font-size: 13px; cursor: pointer; }
+.lobbystage .dg-stage button.primary, .lobbystage .dg-stage button.on { background: #1f2b38 !important; color: #ffffff !important; border-color: #1f2b38; }
+.lobbystage .dg-stage button:disabled { opacity: .55; cursor: default; }
+.lobbystage .dg-tools { pointer-events: auto; flex: 0 0 128px; box-sizing: border-box; background: rgba(251,253,254,.96); border: 1px solid #9fb2c0; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+.lobbystage .dg-tools .lab { font-size: 11px; color: #66717d; font-family: var(--type); }
+.lobbystage .dg-tools button { min-height: 34px; text-align: left; font-size: 12.5px; padding: 4px 10px; }
+.lobbystage .dg-tools .foot { border-top: 1px solid #d5dbe3; margin-top: 4px; padding-top: 6px; display: flex; gap: 6px; }
+.lobbystage .dg-card { pointer-events: auto; margin-left: auto; flex: 0 0 300px; max-height: calc(100% - 90px); overflow-y: auto; background: #fbfdfe; color: #1f2b38; border: 1px solid #9fb2c0; border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 6px 20px rgba(15,25,35,.22); box-sizing: border-box; }
+.lobbystage .dg-card h3 { margin: 0; font-size: 17px; }
+.lobbystage .dg-card .hd { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lobbystage .dg-card .lab, .lobbystage .dg-card .sz { font-family: var(--type); font-size: 11px; color: #66717d; }
+.lobbystage .dg-card .blk { font-size: 13px; line-height: 1.45; }
+.lobbystage .dg-card .mon { color: #b3362b; }
+.lobbystage .dg-card .mut { color: #66717d; }
+.lobbystage .dg-card textarea { width: 100%; min-height: 46px; box-sizing: border-box; padding: 6px 8px; border: 1px solid #9fb2c0; border-radius: 6px; font-family: var(--serif); font-size: 13px; color: #1f2b38; background: #ffffff !important; resize: vertical; }
+.lobbystage .dg-card label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #66717d; }
+.lobbystage .dg-card .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.lobbystage .dg-card select { font: inherit; font-size: 13px; max-width: 100%; background: #ffffff !important; color: #1f2b38 !important; }
+.lobbystage .dg-legend { position: absolute; right: 12px; bottom: 12px; background: rgba(251,253,254,.94); border: 1px solid #b7c7d2; border-radius: 6px; padding: 6px 10px; font-family: var(--type); font-size: 10px; color: #1f2b38; display: grid; grid-template-columns: auto auto; gap: 3px 14px; pointer-events: none; }
+.lobbystage .dg-gen { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: 16px; box-sizing: border-box; }
+.lobbystage .dg-gen form { width: 520px; max-width: 100%; background: #fbfdfe; color: #1f2b38; border: 1px solid #9fb2c0; border-radius: 10px; padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 6px 24px rgba(15,25,35,.25); box-sizing: border-box; }
+.lobbystage .dg-gen h2 { margin: 0 0 2px; font-size: 19px; }
+.lobbystage .dg-gen p { margin: 0; font-size: 13px; color: #66717d; }
+.lobbystage .dg-gen .fld { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 10px; font-size: 13.5px; }
+.lobbystage .dg-gen .fld > span { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.lobbystage .dg-gen .hint { font-size: 12px; color: #66717d; }
+.lobbystage .dg-gen input[type=number], .lobbystage .dg-gen select { min-height: 32px; box-sizing: border-box; padding: 4px 8px; border: 1px solid #9fb2c0; border-radius: 6px; font-family: var(--type); font-size: 13px; color: #1f2b38 !important; background: #ffffff !important; }
+.lobbystage .dg-gen .radios { display: flex; flex-direction: column; gap: 4px; }
+.lobbystage .dg-gen .radios label, .lobbystage .dg-gen .chk { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.lobbystage .dg-gen input[type=radio], .lobbystage .dg-gen input[type=checkbox] { margin: 0; width: 16px; height: 16px; }
+.sc-list.short { max-height: 32vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; }
+.lobbystage .dg-gen .go { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.lobbystage .dg-party { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px dashed #b7c7d2; border-radius: 6px; background: var(--card); font-size: 13px; color: var(--pencil); }
+.lobbystage .dg-tip { position: absolute; pointer-events: none; background: #1f2b38; color: #fff; font-size: 12px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+.dg-keyhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 0 4px; border-top: 1px solid #c5d1d9; }
+.dg-keyhead h3 { margin: 0; font-size: .95rem; } .dg-keyhead span { font-family: var(--type); font-size: .7rem; color: var(--pencil); text-align: right; }
+.dg-key { display: flex; flex-direction: column; }
+.dg-krow { display: grid; grid-template-columns: 26px 1fr; gap: 6px; align-items: baseline; width: 100%; padding: 5px 6px; border: 1px solid transparent; border-bottom: 1px solid #e3e8ee; border-radius: 0; background: transparent !important; text-align: left; font-family: var(--serif); font-size: .8rem; color: var(--ink); cursor: pointer; box-sizing: border-box; min-height: 0; }
+.dg-krow.on { border: 2px solid #e0a400; border-radius: 6px; background: #fff8e1 !important; color: #1f2b38 !important; }
+.dg-krow > b { font-size: .84rem; } .dg-krow .dg-mon, .dg-krow b.dg-mon { color: var(--red); } .dg-krow .dg-tre { color: #8a6508; }
+.dg-krow .dg-size { font-family: var(--type); font-size: .7rem; color: var(--pencil); } .dg-krow .dg-empty { color: var(--pencil); } .dg-krow .dg-note { color: var(--pencil); }
 /* pass 7: the world on the stage */
 .lobbystage:has(.lcard.world) { padding: 16px; align-items: stretch; }
 .lobbystage .lcard.world { width: 100%; }
@@ -694,10 +750,11 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl, westmark as wm
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl, westmark as wm, underworld as uw
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 import * as wmap from "./world-map.mjs";
+import * as dmap from "./dungeon-map.mjs";
 import * as rui from "./roster-ui.mjs";
 { const st = document.createElement("style"); st.textContent = rui.ROSTER_CSS + rui.DIRECTORY_CSS; document.head.appendChild(st); }
 
@@ -1321,6 +1378,7 @@ function renderLobbyStage() {
   const uid = meUid();
   if (PLAYER && renderPlayerOnboarding(el, g, uid)) { setCrumb(["The Westmark"]); return; } // the welcome card, the first roll, a draft being finished: cards before the scene
   if (!lobby.view) lobby.view = defaultScene(uid);
+  if (lobby.view?.dungeon && !PLAYER) { renderDungeonStage(el, g, uid); renderBoardPanel(); return; }
   if (lobby.view) { renderWorldStage(el, g, uid); renderBoardPanel(); return; }
   renderBoard(el, g, uid, !PLAYER); // no scene to show (a player with nothing on the map): the board
 }
@@ -1529,7 +1587,7 @@ async function loadWorld(force = false) {
   world.loading = true; renderLobbyStage();
   const r = await online.api.world("map", table.cid);
   world.loading = false;
-  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.known = r.known ?? null; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.error = ""; }
+  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.known = r.known ?? null; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.dungeons = r.dungeons ?? {}; world.error = ""; }
   else world.error = r.error ?? "Couldn't load the map.";
   renderLobbyStage();
 }
@@ -1862,9 +1920,9 @@ function renderScenes() {
   const ready = table.chars.filter((c) => c.status === "ready" && c.doing !== "dead");
   const mine = (c) => !PLAYER || rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER;
   const names = (list) => list.map((c) => esc(c.name)).join(", ");
-  const row = ({ title, kind, who, on, sub, act }) => `<button type="button" class="sc-row${sub ? " sub" : ""}${on ? " on" : ""}" ${act}><span class="sc-body"><b>${esc(title)}<small>${esc(kind)}</small></b>${who ? `<span class="sc-who">${who}</span>` : ""}</span>${on ? `<span class="sc-open">open</span>` : ""}</button>`;
+  const row = ({ title, kind, who, on, sub, act, tag = null }) => `<button type="button" class="sc-row${sub ? " sub" : ""}${on ? " on" : ""}" ${act}><span class="sc-body"><b>${esc(title)}<small>${esc(kind)}</small></b>${who ? `<span class="sc-who">${who}</span>` : ""}</span>${on || tag ? `<span class="sc-open">${esc(tag ?? "open")}</span>` : ""}</button>`;
   // the kingdom
-  const onKingdom = !inFight && v && !v.place && (!v.id || charOf(v.id)?.doing !== "town");
+  const onKingdom = !inFight && v && !v.place && !v.dungeon && (!v.id || charOf(v.id)?.doing !== "town");
   const byPlace = {}; for (const c of ready) { if (c.doing === "town") (byPlace[c.where ?? world.home] ??= []).push(c); }
   const roadFolk = ready.filter((c) => c.doing !== "town");
   const kingdomWho = PLAYER ? names(roadFolk.filter(mine).length ? roadFolk.filter(mine) : []) : roadFolk.map((c) => `${esc(c.name)} \u00b7 ${esc(doingOf(c))}`).join("; ");
@@ -1877,17 +1935,194 @@ function renderScenes() {
     const onHere = !inFight && v && ((v.place === name && !v.id) || (v.id && charOf(v.id)?.doing === "town" && (charOf(v.id)?.where ?? world.home) === name));
     html += row({ title: name, kind: p.kind, who: names(here) || (PLAYER ? "" : "no one"), on: onHere, sub: true, act: `data-sc-place="${esc(name)}" data-sc-char="${esc(here.find(mine)?.id ?? "")}"` });
   }
-  // dungeons: Fosscraig, not yet
-  if (!PLAYER) for (const [name, p] of Object.entries(world.places ?? {})) if (p.kind === "ruin" && name === "Fosscraig") html += row({ title: `${name} \u00b7 Level 1`, kind: "dungeon", who: "not yet mapped", on: false, sub: true, act: "disabled" });
+  // dungeons: the levels under the ruins (pass 16), the referee's for now
+  if (!PLAYER) for (const [lid, d] of Object.entries(world.dungeons ?? {})) {
+    const st = lid === dungeon.lid && dungeon.loaded ? (dungeon.level?.status ?? null) : d.status;
+    html += row({ title: d.name, kind: "dungeon", who: `nobody \u00b7 ${st === "open" ? "open" : st === "draft" ? "draft" : "not yet mapped"}`, on: !inFight && v?.dungeon === lid, sub: true, act: `data-sc-dungeon="${esc(lid)}"`, tag: st === "draft" || st === "open" ? st : "" });
+  }
   // the live fight
   if (live) html += row({ title: lf?.title ?? "The fight", kind: `battle \u00b7 live${lf?.round ? ` \u00b7 round ${lf.round}` : ""}`, who: PLAYER ? "" : "the page is in it when it is open", on: inFight, act: `data-sc-fight="${esc(live)}"` });
-  el.innerHTML = html + (!PLAYER && live ? `<div class="row"><button id="plEnd">End the fight</button></div>` : "");
+  const showKey = !PLAYER && !inFight && v?.dungeon && dungeon.lid === v.dungeon && dungeon.level;
+  el.innerHTML = (showKey ? `<div class="sc-list short">${html}</div>` : html) + (!PLAYER && live ? `<div class="row"><button id="plEnd">End the fight</button></div>` : "") + (showKey ? `<div><div class="dg-keyhead"><h3>Level key</h3><span>${esc(dmap.countsText(dungeon.level))}</span></div><div class="dg-key">${dmap.keyRowsHtml(dungeon.level, dungeon.sel)}</div></div>` : "");
   $("#scNote").textContent = PLAYER ? "where your characters are" : "settlements and dungeons under the kingdom; a live fight is a scene too";
   el.querySelector("[data-sc-kingdom]")?.addEventListener("click", () => { if (PLAYER) { const c = roadFolk.find(mine) ?? myChars(uid)[0]; if (c) openWorld(c.id); } else openWorld(null); });
   el.querySelectorAll("[data-sc-place]").forEach((b) => b.addEventListener("click", () => { const cid = b.dataset.scChar; if (PLAYER) { if (cid) openWorld(cid); } else openWorld(null, b.dataset.scPlace); }));
   el.querySelector("[data-sc-fight]")?.addEventListener("click", () => { if (!online.api?.fight) openOnline(table.cid, live); });
-  if (!PLAYER) renderRumourEditor(el);
+  el.querySelectorAll("[data-sc-dungeon]").forEach((b) => b.addEventListener("click", () => openDungeon(b.dataset.scDungeon)));
+  el.querySelectorAll("[data-dg-room]").forEach((b) => b.addEventListener("click", () => { dungeon.sel = dungeon.sel === b.dataset.dgRoom ? null : b.dataset.dgRoom; dungeon.picking = false; renderLobbyStage(); }));
+  if (showKey) { el.querySelector(".sc-row.on")?.scrollIntoView({ block: "nearest" }); el.querySelector(".dg-krow.on")?.scrollIntoView({ block: "nearest" }); }
+  if (!PLAYER && !(v?.dungeon && !inFight)) renderRumourEditor(el);
   $("#plEnd")?.addEventListener("click", endLiveFight);
+}
+/* ---------- pass 16 (approved mockup, Nov 2026): a dungeon level on the stage, the referee's side ---------- */
+const dungeon = { lid: null, level: null, loaded: false, loading: false, busy: false, error: "", editing: false, tool: "floor", sel: null, vb: null, picking: false, gen: null };
+const DG_TOOLS = [["floor", "Floor"], ["rock", "Rock"], ["room", "Room \u25ad"], ["door", "Door"], ["secret", "Secret door"], ["oneway", "One-way door"], ["stairs", "Stairs down"], ["trap", "Trap"]];
+const DG_GEN = () => ({ seed: 1 + Math.floor(Math.random() * 99999), rooms: 36, width: 80, height: 60, straightRun: 30, afterRun: 20, deadEnds: 3, stairsDown: 2, stock: true });
+function openDungeon(lid) {
+  lobby.view = { dungeon: lid }; lobby.error = "";
+  if (dungeon.lid !== lid) Object.assign(dungeon, { lid, level: null, loaded: false, error: "", editing: false, sel: null, vb: null, picking: false, gen: null });
+  if (!dungeon.loaded) loadDungeon(); else renderLobbyStage();
+}
+async function loadDungeon() {
+  if (dungeon.loading) return;
+  dungeon.loading = true; renderLobbyStage();
+  const r = await online.api.world("dungeon", table.cid, { lid: dungeon.lid });
+  dungeon.loading = false;
+  if (r.ok) { dungeon.level = r.level; dungeon.loaded = true; dungeon.error = ""; if (!r.level) dungeon.gen ??= DG_GEN(); }
+  else dungeon.error = r.error ?? "Couldn't load the level.";
+  renderLobbyStage();
+}
+async function dungeonOp(op, data = {}) {
+  dungeon.busy = true; dungeon.error = ""; renderLobbyStage();
+  const r = await online.api.world(op, table.cid, { lid: dungeon.lid, ...data });
+  dungeon.busy = false;
+  if (r.ok) { const fresh = !dungeon.level && r.level; dungeon.level = r.level; if (fresh || op === "dungeonMake") dungeon.vb = null; if (dungeon.sel && !r.level?.rooms.some((x) => x.id === dungeon.sel)) dungeon.sel = null; if (world.dungeons?.[dungeon.lid]) Object.assign(world.dungeons[dungeon.lid], { status: r.level?.status ?? null, rooms: r.level?.rooms.length ?? 0 }); }
+  else dungeon.error = r.error ?? "That didn't work.";
+  renderLobbyStage();
+  return r;
+}
+/** Where the party is, under the stage: nobody comes down until the exploring pass. */
+function dungeonPartyNote() {
+  const ready = table.chars.filter((c) => c.status === "ready" && c.doing !== "dead").map((c) => c.name);
+  const list = ready.length > 1 ? `${ready.slice(0, -1).join(", ")} and ${ready.at(-1)}` : ready[0];
+  return `No party on this level yet${list ? ` \u00b7 ${esc(list)} ${ready.length > 1 ? "are" : "is"} on the kingdom map` : ""}`;
+}
+function renderDungeonStage(el, g, uid) {
+  const L = dungeon.level, info = world.dungeons?.[dungeon.lid] ?? { place: "Fosscraig", name: "Fosscraig \u00b7 Level 1", level: 1 };
+  setCrumb(["The Westmark", info.place, `Level ${info.level}`]);
+  if (!dungeon.loaded) { el.innerHTML = `<div class="lcard world dungeon"><div class="dg-stage blank">${dungeon.error ? `<div class="dg-gen"><div class="rs-err">${esc(dungeon.error)}</div></div>` : `<div class="dg-top"><span class="dg-pill">Lighting the lamps\u2026</span></div>`}</div></div>`; if (!dungeon.loading && !dungeon.error) loadDungeon(); return; }
+  const err = dungeon.error ? `<div class="rs-err">${esc(dungeon.error)}</div>` : "";
+  if (!L) { el.innerHTML = `<div class="lcard world dungeon">${err}<div class="dg-stage blank">${dungeonGenHtml(info)}</div><div class="dg-party">${dungeonPartyNote()}</div></div>`; bindDungeonGen(el); return; }
+  const open = L.status === "open", busy = dungeon.busy ? "disabled" : "";
+  const chip = dungeon.editing ? `<span class="dg-chip${open ? " open" : ""}">Editing \u00b7 ${open ? "open" : "draft"}</span>` : open ? `<span class="dg-chip open">Open \u00b7 the players can go down</span>` : `<span class="dg-chip">Draft \u00b7 the players can\u2019t see this level</span>`;
+  const top = dungeon.editing
+    ? `<div class="dg-top">${chip}<span class="dg-pill">click a square to paint with the tool \u00b7 drag for a room \u00b7 right-drag pans</span></div>`
+    : `<div class="dg-top">${chip}<span class="dg-pill">10 feet a square \u00b7 seed ${L.seed} \u00b7 wheel zooms, right-drag pans</span><span class="dg-acts"><button type="button" data-dg="reroll" ${busy || (open ? "disabled title=\"The players can go down; edit it instead\"" : "")}>Reroll the level</button><button type="button" data-dg="restock" ${busy || (open ? "disabled title=\"The players can go down; edit the rooms instead\"" : "")}>Restock the rooms</button><button type="button" data-dg="edit" ${busy}>Edit the map</button>${open ? "" : `<button type="button" class="primary" data-dg="open" ${busy}>Open to the players</button>`}</span></div>`;
+  const tools = dungeon.editing ? `<div class="dg-tools"><span class="lab">Tool</span>${DG_TOOLS.map(([k, t]) => `<button type="button" class="${dungeon.tool === k ? "on" : ""}" data-dg-tool="${k}">${t}</button>`).join("")}<span class="foot"><button type="button" data-dg="undo" ${busy || (L.undoable ? "" : "disabled")}>Undo</button><button type="button" class="primary" data-dg="done">Done</button></span></div>` : "";
+  el.innerHTML = `<div class="lcard world dungeon">${err}<div class="dg-stage${dungeon.editing ? " editing" : ""}">${dmap.levelSvg(L, { sel: dungeon.sel })}<div class="dg-over">${top}<div class="dg-mid">${tools}${dungeon.sel ? dungeonRoomCard(L, dungeon.sel) : ""}</div></div>${dmap.legendHtml()}<div class="dg-tip" id="dgTip" hidden></div></div><div class="dg-party">${dungeonPartyNote()}</div></div>`;
+  bindDungeon(el, L);
+}
+function dungeonGenHtml(info) {
+  const o = dungeon.gen ??= DG_GEN(), busy = dungeon.busy ? "disabled" : "";
+  const num = (k, v, w = 90, lo = 0, hi = 999999) => `<input type="number" data-dg-gen="${k}" value="${v}" min="${lo}" max="${hi}" style="width:${w}px">`;
+  return `<div class="dg-gen"><form id="dgGen" onsubmit="return false">
+    <div><h2>${esc(info.name)} isn\u2019t mapped yet</h2><p>Lay it out with the DMG\u2019s random dungeon tables (simplified), stock it by Book III, then edit what you like before anyone goes down.</p></div>
+    <label class="fld">Seed<span>${num("seed", o.seed, 90, 0, 2147483647)}<button type="button" data-dg="seed">New seed</button></span></label>
+    <label class="fld">Rooms<span>${num("rooms", o.rooms, 70, 4, 80)}<span class="hint">stops here and closes what\u2019s still open</span></span></label>
+    <label class="fld">Sheet<span>${num("width", o.width, 60, 30, 120)}\u00d7${num("height", o.height, 60, 30, 90)}<span class="hint" id="dgFeet">squares \u00b7 ${o.width * 10}\u2032 \u00d7 ${o.height * 10}\u2032</span></span></label>
+    <div class="fld"><span>Check Table I every</span><span class="radios"><label><input type="radio" name="dgRun" value="ours" ${o.straightRun === 30 && o.afterRun === 20 ? "checked" : ""}>30\u2032 on a straight run, 20\u2032 after anything else</label><label><input type="radio" name="dgRun" value="dmg" ${o.straightRun === 60 ? "checked" : ""}>the DMG\u2019s 60\u2032 and 30\u2032 (more passage)</label></span></div>
+    <label class="fld">Dead ends kept<span>${num("deadEnds", o.deadEnds, 70, 0, 10)}</span></label>
+    <label class="fld">Ways down<span><select data-dg-gen="stairsDown">${[1, 2, 3, 4].map((n) => `<option value="${n}" ${o.stairsDown === n ? "selected" : ""}>${n === 1 ? "1" : `1\u2013${n}`}</option>`).join("")}</select><span class="hint">to Level ${(info.level ?? 1) + 1}</span></span></label>
+    <label class="chk"><input type="checkbox" data-dg-gen="stock" ${o.stock ? "checked" : ""}>Stock the rooms by Book III p.7 (monster 1\u20132, treasure 1\u20133 / 1)</label>
+    <div class="go"><button type="button" data-dg="cancel">Cancel</button><button type="button" class="primary" data-dg="make" ${busy}>${dungeon.busy ? "Laying it out\u2026" : "Generate the level"}</button></div>
+  </form></div>`;
+}
+function bindDungeonGen(el) {
+  const o = dungeon.gen;
+  const read = () => { el.querySelectorAll("[data-dg-gen]").forEach((i) => { const k = i.dataset.dgGen; o[k] = i.type === "checkbox" ? i.checked : Number(i.value); }); const run = el.querySelector("input[name=dgRun]:checked")?.value; Object.assign(o, run === "dmg" ? { straightRun: 60, afterRun: 30 } : { straightRun: 30, afterRun: 20 }); };
+  el.querySelectorAll("[data-dg-gen=width],[data-dg-gen=height]").forEach((i) => i.addEventListener("input", () => { read(); $("#dgFeet").textContent = `squares \u00b7 ${o.width * 10}\u2032 \u00d7 ${o.height * 10}\u2032`; }));
+  el.querySelector("[data-dg=seed]")?.addEventListener("click", () => { read(); o.seed = DG_GEN().seed; renderLobbyStage(); });
+  el.querySelector("[data-dg=cancel]")?.addEventListener("click", () => openWorld(null));
+  el.querySelector("[data-dg=make]")?.addEventListener("click", () => { read(); dungeonOp("dungeonMake", { opts: { ...o } }); });
+}
+/** The selected room's card: what the rolls put there, and ways to change it. */
+function dungeonRoomCard(L, id) {
+  const r = L.rooms.find((x) => x.id === id); if (!r) return "";
+  const s = L.stock?.[id] ?? {}, m = s.monster, t = s.treasure, busy = dungeon.busy ? "disabled" : "";
+  let mon = `<span class="mut">No monster.</span>`;
+  if (m) {
+    const b = m.key ? MONSTERS.find((x) => x.key === m.key) : null;
+    const hd = b ? `${b.hd.count}${b.hd.bonus ? (b.hd.bonus > 0 ? `+${b.hd.bonus}` : b.hd.bonus) : ""}` : "";
+    const facts = b ? ` \u00b7 AC ${b.ac} \u00b7 HD ${hd} \u00b7 move ${b.move?.ground ?? "?"}\u2033` : m.npc ? ` \u00b7 ${esc(rs.CLASS_LABEL[m.npc.cls] ?? m.npc.cls)}${m.npc.level ? ` ${m.npc.level}` : ", level for the referee"}` : "";
+    const na = b?.reference?.numberAppearing ? `No. appearing ${esc(b.reference.numberAppearing)} (Book II), set for the party when they come` : m.npc ? "Their number is the referee\u2019s, set for the party when they come" : "No bestiary entry yet: the referee supplies it";
+    mon = `<b class="mon">${esc(m.name)}</b>${m.heads ? ` (${m.heads} heads)` : ""}${facts}<br><span class="mut">${na}${m.retinue ? `; with ${esc(m.retinue)}` : ""}</span>`;
+  }
+  const tre = t ? `${[t.sp ? `${t.sp} sp` : "", t.gp ? `${t.gp} gp` : "", t.gems?.length ? `${t.gems.length} gem${t.gems.length === 1 ? "" : "s"} (${t.gems.map((g) => `${g} gp`).join(", ")})` : "", t.jewelry?.length ? `${t.jewelry.length} jewellery (${t.jewelry.map((g) => `${g} gp`).join(", ")})` : "", ...(t.magic ?? []).map((x) => esc(x.name))].filter(Boolean).join(" \u00b7 ")}` : `<span class="mut">None.</span>`;
+  const pick = dungeon.picking ? (() => {
+    const T = uw.MONSTER_LEVEL_TABLES;
+    const opts = Object.entries(T).map(([n, tb]) => `<optgroup label="Table ${n}">${tb.rows.map((row, i) => `<option value="${n}:${i}">${esc(row.name)}</option>`).join("")}</optgroup>`).join("");
+    return `<div class="blk"><select id="dgPick">${opts}</select> <select id="dgPickKind" hidden></select></div><div class="btns"><button type="button" class="primary" data-dg-room-act="pickUse" ${busy}>Use</button><button type="button" data-dg-room-act="pickCancel">Cancel</button></div>`;
+  })() : "";
+  return `<section class="dg-card" aria-label="Room ${dmap.roomNo(id)}"><div class="hd"><h3>Room ${dmap.roomNo(id)}</h3><span class="sz">${esc(r.kind)} \u00b7 ${r.w * 10}\u2032 \u00d7 ${r.h * 10}\u2032</span></div>
+    <div class="blk"><span class="lab">MONSTER${m ? ` \u00b7 Table ${m.table}` : ""}</span><br>${mon}</div>
+    <div class="blk"><span class="lab">TREASURE${t ? (m ? " \u00b7 with the monster (1\u20133)" : " \u00b7 unguarded (1)") : ""}</span><br>${tre}</div>
+    <label>Referee\u2019s note<textarea id="dgNote" maxlength="400">${esc(L.notes?.[id] ?? "")}</textarea></label>
+    ${pick || `<div class="btns"><button type="button" data-dg-room-act="rerollMonster" ${busy}>Reroll monster</button><button type="button" data-dg-room-act="rerollTreasure" ${busy}>Reroll treasure</button><button type="button" data-dg-room-act="pick" ${busy}>Pick a monster\u2026</button><button type="button" data-dg-room-act="empty" ${busy}>Empty the room</button></div>`}
+  </section>`;
+}
+function bindDungeon(el, L) {
+  const svg = $("#dgSvg"), stage = el.querySelector(".dg-stage"), tip = $("#dgTip");
+  const fit = dmap.extentOf(L), S0 = dmap.CELL;
+  dungeon.vb ??= { x: fit.x - 2 * S0, y: fit.y - 5 * S0, w: fit.w + 4 * S0, h: fit.h + 8 * S0 }; // room for the bar along the top and the key in the corner
+  const apply = () => svg.setAttribute("viewBox", `${dungeon.vb.x} ${dungeon.vb.y} ${dungeon.vb.w} ${dungeon.vb.h}`);
+  apply();
+  // zoom and pan as on the hex map: the wheel zooms at the pointer, a right-drag pans
+  svg.addEventListener("wheel", (ev) => { ev.preventDefault(); const c = dmap.cellAt(svg, ev), vb = dungeon.vb, z = ev.deltaY > 0 ? 1.15 : 1 / 1.15; const w = Math.min(L.width * dmap.CELL * 1.5, Math.max(80, vb.w * z)), h = vb.h * (w / vb.w); dungeon.vb = { x: c.px - (c.px - vb.x) * (w / vb.w), y: c.py - (c.py - vb.y) * (h / vb.h), w, h }; apply(); }, { passive: false });
+  svg.addEventListener("contextmenu", (ev) => ev.preventDefault());
+  const ghost = $("#dgSvgGhost"), S = dmap.CELL;
+  const inSheet = (c) => c.x >= 1 && c.y >= 1 && c.x < L.width - 1 && c.y < L.height - 1;
+  svg.addEventListener("pointerdown", (ev) => {
+    if (ev.button === 2) {
+      ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
+      const start = { x: ev.clientX, y: ev.clientY, vb: { ...dungeon.vb } }, r = svg.getBoundingClientRect(), sc = Math.max(start.vb.w / r.width, start.vb.h / r.height);
+      const move = (m) => { dungeon.vb = { ...start.vb, x: start.vb.x - (m.clientX - start.x) * sc, y: start.vb.y - (m.clientY - start.y) * sc }; apply(); };
+      const up = () => { svg.removeEventListener("pointermove", move); svg.removeEventListener("pointerup", up); svg.removeEventListener("pointercancel", up); };
+      svg.addEventListener("pointermove", move); svg.addEventListener("pointerup", up); svg.addEventListener("pointercancel", up);
+      return;
+    }
+    if (ev.button !== 0) return;
+    const c0 = dmap.cellAt(svg, ev);
+    if (!dungeon.editing) { // a click picks the room under it
+      const r = L.rooms.find((x) => c0.x >= x.x && c0.x < x.x + x.w && c0.y >= x.y && c0.y < x.y + x.h);
+      dungeon.sel = r ? (dungeon.sel === r.id ? null : r.id) : null; dungeon.picking = false; renderLobbyStage(); return;
+    }
+    if (dungeon.busy || !inSheet(c0)) return;
+    ev.preventDefault(); svg.setPointerCapture(ev.pointerId);
+    const tool = dungeon.tool, cells = new Map(), mark = (c) => { if (!inSheet(c)) return; const k = `${c.x},${c.y}`; if (cells.has(k)) return; cells.set(k, { x: c.x, y: c.y }); ghost.insertAdjacentHTML("beforeend", `<rect x="${c.x * S}" y="${c.y * S}" width="${S}" height="${S}" fill="#e0a400" opacity=".55"/>`); };
+    const rectOf = (a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x) + 1, h: Math.abs(a.y - b.y) + 1 });
+    const drawRect = (rc) => { ghost.innerHTML = `<rect x="${rc.x * S}" y="${rc.y * S}" width="${rc.w * S}" height="${rc.h * S}" fill="#e0a400" opacity=".4" stroke="#e0a400" stroke-width="2"/><text x="${(rc.x + rc.w / 2) * S}" y="${rc.y * S - 3}" font-size="9" text-anchor="middle" fill="#fbfdfe" font-family="Courier Prime, monospace">${rc.w * 10}\u2032 \u00d7 ${rc.h * 10}\u2032</text>`; };
+    let last = c0;
+    if (tool === "room") drawRect(rectOf(c0, c0)); else mark(c0);
+    const single = tool === "stairs" || tool === "trap";
+    const move = (m) => { const c = dmap.cellAt(svg, m); if (c.x === last.x && c.y === last.y) return; last = c; if (tool === "room") drawRect(rectOf(c0, { x: Math.max(1, Math.min(L.width - 2, c.x)), y: Math.max(1, Math.min(L.height - 2, c.y)) })); else if (!single) mark(c); };
+    const up = () => { svg.removeEventListener("pointermove", move); svg.removeEventListener("pointerup", up); svg.removeEventListener("pointercancel", up);
+      if (tool === "room") dungeonOp("dungeonPaint", { tool, rect: rectOf(c0, { x: Math.max(1, Math.min(L.width - 2, last.x)), y: Math.max(1, Math.min(L.height - 2, last.y)) }) });
+      else dungeonOp("dungeonPaint", { tool, cells: [...cells.values()] }); };
+    svg.addEventListener("pointermove", move); svg.addEventListener("pointerup", up); svg.addEventListener("pointercancel", up);
+  });
+  // hover: the square's room, size and contents
+  svg.addEventListener("pointermove", (ev) => {
+    if (ev.buttons) return;
+    const c = dmap.cellAt(svg, ev), r = L.rooms.find((x) => c.x >= x.x && c.x < x.x + x.w && c.y >= x.y && c.y < x.y + x.h), trap = (L.traps ?? []).find((t) => t.x === c.x && t.y === c.y);
+    if (!r && !trap) { tip.hidden = true; return; }
+    const s = r ? L.stock?.[r.id] ?? {} : {};
+    tip.textContent = trap ? `Trap (Table VII, ${trap.roll}): ${trap.text}` : `Room ${dmap.roomNo(r.id)} \u00b7 ${dmap.sizeText(r)}${s.monster ? ` \u00b7 ${s.monster.name}` : ""}${s.treasure ? ` \u00b7 ${dmap.treasureText(s.treasure)}` : ""}`;
+    const b = stage.getBoundingClientRect(); tip.style.left = `${ev.clientX - b.left + 12}px`; tip.style.top = `${ev.clientY - b.top - 28}px`; tip.hidden = false;
+  });
+  svg.addEventListener("pointerleave", () => { tip.hidden = true; });
+  el.querySelectorAll("[data-dg-tool]").forEach((b) => b.addEventListener("click", () => { dungeon.tool = b.dataset.dgTool; renderLobbyStage(); }));
+  el.querySelectorAll("[data-dg]").forEach((b) => b.addEventListener("click", async () => {
+    const k = b.dataset.dg;
+    if (k === "edit") { dungeon.editing = true; renderLobbyStage(); }
+    else if (k === "done") { dungeon.editing = false; renderLobbyStage(); }
+    else if (k === "undo") dungeonOp("dungeonUndo");
+    else if (k === "reroll") { if (confirm("Lay the level out again with a new seed? Your edits and notes on this draft are lost.")) { dungeon.sel = null; dungeonOp("dungeonMake", { opts: { ...(L.opts ?? {}), seed: DG_GEN().seed } }); } }
+    else if (k === "restock") { if (confirm("Stock every room again by Book III p.7? Your notes stay; monsters and treasure are rolled afresh.")) dungeonOp("dungeonRestock"); }
+    else if (k === "open") { if (confirm(`Open ${L.name} to the players? After this it can be edited but not laid out or restocked again.`)) dungeonOp("dungeonOpen"); }
+  }));
+  // the room card
+  const room = dungeon.sel;
+  el.querySelectorAll("[data-dg-room-act]").forEach((b) => b.addEventListener("click", () => {
+    const act = b.dataset.dgRoomAct;
+    if (act === "pick") { dungeon.picking = true; renderLobbyStage(); return; }
+    if (act === "pickCancel") { dungeon.picking = false; renderLobbyStage(); return; }
+    if (act === "pickUse") { const [table, row] = $("#dgPick").value.split(":").map(Number), kind = $("#dgPickKind"); dungeon.picking = false; dungeonOp("dungeonRoom", { room, act: "pick", table, row, ...(kind.hidden ? {} : { key: kind.value }) }); return; }
+    if (act === "empty" && !confirm(`Empty room ${dmap.roomNo(room)} of its monster and treasure?`)) return;
+    dungeonOp("dungeonRoom", { room, act });
+  }));
+  const pickSel = $("#dgPick"), kindSel = $("#dgPickKind");
+  if (pickSel) { const sync = () => { const [t, i] = pickSel.value.split(":").map(Number), row = uw.MONSTER_LEVEL_TABLES[t].rows[i]; kindSel.hidden = !row.options; kindSel.innerHTML = (row.options ?? []).map((k) => `<option value="${esc(k)}">${esc(MONSTERS.find((x) => x.key === k)?.name ?? k)}</option>`).join(""); }; pickSel.addEventListener("change", sync); sync(); }
+  $("#dgNote")?.addEventListener("change", (e) => dungeonOp("dungeonRoom", { room, act: "note", text: e.target.value }));
 }
 function renderGameFights() {
   const el = $("#gameFights"); if (!el || !table.game) return;

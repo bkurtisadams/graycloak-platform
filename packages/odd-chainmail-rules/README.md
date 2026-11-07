@@ -147,6 +147,9 @@ Changes made during extraction:
   on a straight run and 20' after anything else (options `straightRun`,
   `afterRun`; the DMG's 60'/30' still available), and keeps at most two
   side passages waiting (`maxOpen`), so rooms hold their share of a level.
+- 0.35.0: `generateLevel` shuffles with its own seeded Fisher–Yates instead
+  of a random sort comparator, so a seed lays out the same level in every
+  JavaScript engine (seeds from 0.34.0 lay out differently).
 
 ## Open items
 

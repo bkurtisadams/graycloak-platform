@@ -61,6 +61,7 @@ export function generateLevel(opts = {}) {
   const LONG = Math.max(1, Math.round(straightRun / 10)), SHORT = Math.max(1, Math.round(afterRun / 10));
   const rng = mulberry32(seed);
   const d = (n) => 1 + Math.floor(rng() * n);
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const g = Array.from({ length: height }, () => Array(width).fill(ROCK));
   const at = (x, y) => (x < 0 || y < 0 || x >= width || y >= height ? null : g[y][x]);
   const inside = (x, y) => x >= 1 && y >= 1 && x < width - 1 && y < height - 1;
@@ -88,7 +89,7 @@ export function generateLevel(opts = {}) {
     for (const [, , s] of [...(kind === "chamber" ? CHAMBER_SIZE : ROOM_SIZE)].reverse()) sizes.push([s[0] / 10, s[1] / 10]);
     const [dx, dy] = dir, [px, py] = right(dir);
     for (const [a, b] of sizes) for (const [along, deep] of d(2) === 1 ? [[a, b], [b, a]] : [[b, a], [a, b]]) {
-      const offsets = Array.from({ length: along }, (_, i) => i).sort(() => rng() - 0.5);
+      const offsets = shuffle(Array.from({ length: along }, (_, i) => i));
       for (const o of offsets) {
         const nx = door[0] + dx, ny = door[1] + dy;
         const cx = [nx - px * o, nx - px * o + px * (along - 1) + dx * (deep - 1)];
@@ -287,7 +288,7 @@ export function generateLevel(opts = {}) {
     const openN = (x, y) => Object.values(DIRS).filter(([dx, dy]) => OPEN.has(at(x + dx, y + dy))).length;
     const tips = [];
     for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) if (at(x, y) === PASSAGE && openN(x, y) === 1 && !keep.has(`${x},${y}`)) tips.push([x, y]);
-    for (const [x, y] of tips.sort(() => rng() - 0.5).slice(0, maxDead)) keep.add(`${x},${y}`);
+    for (const [x, y] of shuffle(tips).slice(0, maxDead)) keep.add(`${x},${y}`);
     for (let changed = true; changed;) {
       changed = false;
       for (let y = 1; y < height - 1; y++) for (let x = 1; x < width - 1; x++) {
