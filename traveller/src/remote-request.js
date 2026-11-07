@@ -68,6 +68,22 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
       const characterId = String(request.value?.characterId ?? '');
       if (!characterId || (campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('you can change only your own character\u2019s gear');
     }
+    // v0.372.0: a player moves only his own character's money, and draws from
+    // the ship only for a character who holds it: its owner (Book 2 p.6: the
+    // owner draws his pay from the profits), or a Scout holding it on
+    // detached duty, since nobody else ever could. Anyone may pay in.
+    if (command === 'money:to-ship' || command === 'money:from-ship') {
+      const characterId = String(request.value?.characterId ?? '');
+      if (!characterId || (campaign.ownership?.actors ?? {})[characterId] !== request.uid) return refuse('you can move only your own character\u2019s money');
+      if (command === 'money:from-ship') {
+        const resolvedHere = registry.resolveCampaign(campaignId);
+        const character = resolvedHere.characters.find((entry) => entry.identity.id === characterId);
+        // The ship play-session's activeShip() would use.
+        const shipId = campaign.activeShipId ?? resolvedHere.ships?.[0]?.identity.id ?? null;
+        const owns = Boolean(shipId) && (character?.shipRefs ?? []).some((ref) => ref.shipId === shipId && (ref.relationship === 'owner' || ref.relationship === 'reserve-assignee'));
+        if (!owns) return refuse('only the character who holds the ship (its owner, or a Scout on detached duty) draws from its account; ask your referee');
+      }
+    }
     const cloud = {
       userId: () => ownerUid,
       account: () => ({ displayName: refereeName }),

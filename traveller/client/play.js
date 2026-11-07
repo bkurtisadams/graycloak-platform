@@ -2,19 +2,19 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.371.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.371.0';
-import { installPanelResize } from './panel-resize.js?v=v0.371.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.371.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.371.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.371.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.371.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.371.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.371.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.371.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.371.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.371.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.371.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.372.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.372.0';
+import { installPanelResize } from './panel-resize.js?v=v0.372.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.372.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.372.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.372.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.372.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.372.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.372.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.372.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.372.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.372.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.372.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -122,6 +122,30 @@ const ui = {
   sheetFocus: null
 };
 if (!SAMPLE_SITUATIONS[ui.situation]) ui.situation = 'port';
+
+// v0.372.0: the referee's Move money (Vehicles tab, the travellers' ship).
+async function moveMoney() {
+  if (source.mode !== 'live') return;
+  const options = viewState().moneyOptions;
+  if (!options) { note('The travellers have no ship.'); return; }
+  if (!options.characters.length) { note('No character is in the campaign.'); return; }
+  const answer = await askForm({
+    title: `${options.shipName}\u2019s account`,
+    message: `The account holds Cr ${options.accountCr.toLocaleString('en-US')}. Trade, fares, freight, berthing, fuel and upkeep go through it; each character\u2019s own money is separate.`,
+    confirm: 'Move the money',
+    fields: [
+      { name: 'direction', label: 'What', type: 'select', options: [{ value: 'to-ship', label: 'Pay into the ship' }, { value: 'from-ship', label: 'Draw from the ship' }] },
+      { name: 'characterId', label: 'Whose money', type: 'select', options: options.characters.map((entry) => ({ value: entry.id, label: `${entry.name} (Cr ${entry.cashCr.toLocaleString('en-US')})` })) },
+      { name: 'amount', label: 'Credits', type: 'text', placeholder: 'e.g. 5000' }
+    ]
+  });
+  if (!answer) return;
+  const amountCr = Number(String(answer.amount ?? '').replace(/[,\s]/g, '').replace(/^cr/i, ''));
+  if (!Number.isInteger(amountCr) || amountCr < 1) { note('Enter a whole number of credits, 1 or more.'); return; }
+  const result = source.session.run(`money:${answer.direction}`, { fight: { value: { characterId: answer.characterId, amountCr } } });
+  if (!result.ok) note(result.message);
+  render();
+}
 
 // The one seam. Replace the body with a read of the campaign documents and
 // the rest of the page follows.
@@ -946,6 +970,8 @@ function render() {
       if (source.mode !== 'live' || !command) return;
       if (ui.jumpAnimation) return;
       if (command === 'trip:jump-week' && playJumpWeek(command)) return;
+      // v0.372.0: Move money asks first, then runs money:to-ship or money:from-ship.
+      if (command === 'money:ask') { moveMoney(); return; }
       // A fight command carries the declaration the screen is showing.
       const fight = command.startsWith('fight:')
         ? { actorId: viewState().next?.declare?.actorId ?? ui.selectedMarker ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }

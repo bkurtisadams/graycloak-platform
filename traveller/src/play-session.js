@@ -58,7 +58,7 @@ import {
   VECTOR_ESCAPE_RANGE
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
+import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
@@ -658,6 +658,8 @@ function vehicleEntries(resolved, subsector = null) {
       badge: { kind: 'ship', typeCode: ship.design?.typeCode ?? '?', side: folder === VEHICLE_FOLDERS.active || folder === VEHICLE_FOLDERS.travellers ? 'party' : 'neutral' },
       // The session refuses it away from port or mid-fight, and says why.
       actions: [
+        // v0.372.0: money between a character and the travellers' ship.
+        ...(active ? [{ label: 'Move money', command: 'money:ask', title: 'Pay a character\u2019s money into this ship\u2019s account, or draw from it' }] : []),
         ...(!active && here && berthed === here
           ? [{ label: 'Travel in this ship', command: `ship:make-active:${ship.identity.id}`, title: 'The travellers change to this ship here, in port; cargo, fuel and accounts stay with each ship' }]
           : []),
@@ -4019,7 +4021,18 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     }
   }
 
+  // v0.372.0: while a command runs, its saves wait for it to finish (run()).
+  let holdSaves = false;
+  let heldSave = null;
   function saveToCloud() {
+    if (holdSaves) {
+      if (!heldSave) {
+        let resolve;
+        const promise = new Promise((done) => { resolve = done; });
+        heldSave = { promise, resolve };
+      }
+      return heldSave.promise;
+    }
     const uid = cloud?.userId?.();
     if (!uid || save.state === 'stale') return Promise.resolve(null);
     if (inflight) {
@@ -4721,9 +4734,122 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
     return shown.join(' ') || sentence(action.label);
   }
 
-  function run(command, { selectedSystemId = null, characterId = null, item = null, fight = null } = {}) {
+  // v0.372.0: which purse paid (Bruce, Nov 2026: "credits never change" —
+  // he watched his character's money, while trade, fares, berthing and
+  // upkeep all go through the ship's account). After each command, one chat
+  // line says whose money moved and where it stands now. Only the outermost
+  // command writes it, so a command that runs others (time:pass inside a
+  // job) gives one line, not several.
+  let runDepth = 0;
+  function moneySnapshot() {
+    return {
+      ships: new Map((resolved.ships ?? []).map((entry) => [entry.identity.id, { name: entry.identity.name || 'The ship', cr: Number(entry.state?.finances?.balanceCr ?? 0) }])),
+      characters: new Map((resolved.characters ?? []).map((entry) => [entry.identity.id, { name: entry.identity.name || 'A character', cr: Number(entry.finances?.credits ?? 0) }]))
+    };
+  }
+  function moneyLine(before) {
+    const after = moneySnapshot();
+    const parts = [];
+    for (const [id, now] of after.ships) {
+      const was = before.ships.get(id);
+      if (was && was.cr !== now.cr) parts.push(`${now.name}\u2019s account ${cr(now.cr)} (was ${cr(was.cr)})`);
+    }
+    for (const [id, now] of after.characters) {
+      const was = before.characters.get(id);
+      if (was && was.cr !== now.cr) parts.push(`${now.name}\u2019s own money ${cr(now.cr)} (was ${cr(was.cr)})`);
+    }
+    return parts.length ? `${parts.join('; ')}.` : null;
+  }
+
+  // The balance goes on the end of the command's own last chat line
+  // ("Berthing paid, Cr100. Marisol's account Cr 43,800 (was Cr 43,900).");
+  // a command that logged nothing gets a line of its own. Saves asked for
+  // during the command wait for it, so the line goes out in the same save.
+  function addMoneyLine(line, entriesBefore) {
+    const document = resolved.activityLogs?.[0] ?? null;
+    if (document && document.entries.length > entriesBefore) {
+      const next = JSON.parse(JSON.stringify(document));
+      const last = next.entries[next.entries.length - 1];
+      const text = String(last.message ?? '').trimEnd();
+      last.message = `${text}${/[.!?:]$/.test(text) ? '' : '.'} ${line}`;
+      registry.put(next);
+      reload();
+    } else {
+      log('MONEY', line);
+    }
+  }
+
+  function run(command, options = {}) {
+    runDepth += 1;
+    const outermost = runDepth === 1;
+    let before = null;
+    let entriesBefore = 0;
+    if (outermost) {
+      try { before = moneySnapshot(); entriesBefore = resolved.activityLogs?.[0]?.entries?.length ?? 0; } catch { before = null; }
+      holdSaves = true;
+    }
+    let result;
+    try {
+      result = runCommand(command, options);
+    } finally {
+      runDepth -= 1;
+      if (outermost) {
+        if (before && result?.ok) {
+          try {
+            const line = moneyLine(before);
+            if (line) { addMoneyLine(line, entriesBefore); onChange(); }
+          } catch (error) {
+            console.warn('[traveller] money line:', error);
+          }
+        }
+        holdSaves = false;
+        const held = heldSave;
+        heldSave = null;
+        if (held) held.resolve(saveToCloud());
+      }
+    }
+    return result;
+  }
+
+  function runCommand(command, { selectedSystemId = null, characterId = null, item = null, fight = null } = {}) {
     try {
       if (save.state === 'stale') throw new Error('this campaign was changed elsewhere; reload first');
+      // v0.372.0: money between a character and the ship's account (Kurt,
+      // Nov 2026). The rules package has had both directions since the
+      // ship's ledger was built (operations.js; Book 2 p.6's owner drawing
+      // his pay from the profits for the draw); nothing called them. Who may
+      // draw from the ship, on a player's page, is remote-request.js's check.
+      if (command === 'money:to-ship' || command === 'money:from-ship') {
+        const value = fight?.value ?? {};
+        const character = (resolved.characters ?? []).find((entry) => entry.identity.id === String(value.characterId ?? ''));
+        if (!character) throw new Error('choose whose money it is');
+        const ship = activeShip();
+        if (!ship) throw new Error('the travellers have no ship');
+        const amount = Number(value.amountCr);
+        if (!Number.isInteger(amount) || amount < 1) throw new RangeError('the amount must be a whole number of credits, 1 or more');
+        const who = character.identity.name || 'The character';
+        const shipName = ship.identity.name || 'the ship';
+        const dateLabel = formatCampaignDate(resolved.campaign.time);
+        let moved;
+        let message;
+        if (command === 'money:to-ship') {
+          const has = Number(character.finances?.credits ?? 0);
+          if (has < amount) throw new Error(`${who} has only ${cr(has)}`);
+          moved = transferCharacterCreditsToShip(character, ship, amount, { dateLabel });
+          message = `${who} paid ${cr(amount)} into ${shipName}\u2019s account.`;
+        } else {
+          const holds = Number(ship.state.finances?.balanceCr ?? 0);
+          if (holds < amount) throw new Error(`${shipName}\u2019s account holds only ${cr(holds)}`);
+          moved = transferShipCreditsToCharacter(ship, character, amount, { dateLabel });
+          message = `${who} drew ${cr(amount)} from ${shipName}\u2019s account.`;
+        }
+        persist([moved.character, moved.ship]);
+        log('MONEY', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command.startsWith('inventory:')) {
         if (resolved.encounters.some((entry) => entry.status === 'active')) throw new Error('a fight is in progress; finish it in the current client');
         lastMessage = { ok: true, message: runInventory(command, { characterId, item }) };
@@ -7951,6 +8077,15 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.travellers = travellersView(resolved);
       state.travellerCandidates = travellerCandidates(resolved);
       state.newShipOptions = newShipOptions(resolved);
+      // v0.372.0: for the referee's Move money dialog.
+      state.moneyOptions = (() => {
+        const ship = activeShip();
+        return ship ? {
+          shipName: ship.identity.name || 'The ship',
+          accountCr: Number(ship.state?.finances?.balanceCr ?? 0),
+          characters: (resolved.characters ?? []).map((entry) => ({ id: entry.identity.id, name: entry.identity.name || '(unnamed)', cashCr: Number(entry.finances?.credits ?? 0) }))
+        } : null;
+      })();
       // v0.302.0: where the party is, for the animal checks (referee only).
       state.animals = seat === 'player' ? null : animalSurfaceView(resolved, currentWorldProfile(resolved, subsector).system);
       // v0.319.0: patrons and rumours, for the column (the referee's).

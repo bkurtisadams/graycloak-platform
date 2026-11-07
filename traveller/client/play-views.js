@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.371.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.371.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.371.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.371.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.372.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.372.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.372.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.372.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.371.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.371.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.371.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.372.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.372.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.372.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.371.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.371.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.372.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.372.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.371.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.372.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -77,9 +77,11 @@ export function renderMastChips(state, { openDrawer, drawer, openSheet = null, o
   const chips = [];
   const c = state.character;
   if (c) {
-    chips.push(h('button', { class: `chip${c.hurt ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'character', onclick: () => openDrawer('character') },
+    // v0.372.0: "personal", beside the ship's own account on the ship chip
+    // (Bruce, Nov 2026: trade money never showed here, because it is the ship's).
+    chips.push(h('button', { class: `chip${c.hurt ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'character', onclick: () => openDrawer('character'), title: 'The character\u2019s own money. Trade, fares, berthing and upkeep go through the ship\u2019s account.' },
       h('span', { class: 'chip-name', text: c.name || '(unnamed)' }),
-      h('span', { class: 'chip-line' }, h('span', { class: 'code', text: c.upp }), ` ${c.hurt ? c.status : cr(c.cashCr)}`)));
+      h('span', { class: 'chip-line' }, h('span', { class: 'code', text: c.upp }), ` ${c.hurt ? c.status : `${cr(c.cashCr)} personal`}`)));
   }
   const s = state.ship;
   if (s) {
@@ -88,7 +90,7 @@ export function renderMastChips(state, { openDrawer, drawer, openSheet = null, o
     const open = openSheets.some((entry) => entry.kind === 'ship' && entry.id === s.id);
     chips.push(h('button', { class: `chip${s.damage ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': open, onclick: () => (openSheet ? openSheet('ship', s.id) : openDrawer('ship')) },
       h('span', { class: 'chip-name', text: s.name }),
-      h('span', { class: 'chip-line', text: `Fuel ${s.fuel.now}/${s.fuel.full}  Hold ${s.hold.full - s.hold.now} t free` })));
+      h('span', { class: 'chip-line', text: `Fuel ${s.fuel.now}/${s.fuel.full}  Hold ${s.hold.full - s.hold.now} t free  ${cr(s.accountCr ?? 0)} ship` })));
   }
   // v0.226.0: Combat belongs beside the character and the ship, not buried at
   // the foot of the port column. A running fight already owns the screen, so

@@ -10,21 +10,21 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.371.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.371.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.371.0';
-import { engineMismatchMessage } from '../src/engine-version.js?v=v0.371.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.371.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.371.0';
-import { kindButton } from './kind-button.js?v=v0.371.0';
-import { ask } from './dialogs.js?v=v0.371.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.371.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.371.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.371.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.371.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.371.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.372.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.372.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.372.0';
+import { engineMismatchMessage } from '../src/engine-version.js?v=v0.372.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.372.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.372.0';
+import { kindButton } from './kind-button.js?v=v0.372.0';
+import { ask, askForm, tell } from './dialogs.js?v=v0.372.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.372.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.372.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.372.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.372.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.372.0';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.93.1';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.371.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.372.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -152,15 +152,20 @@ function renderMast() {
   }
   const chips = characters().map((character) => {
     const hurt = ['STR', 'DEX', 'END'].some((key) => Number(character.current?.[key]) < Number(character.characteristics?.[key]));
-    return h('button', { type: 'button', class: `chip${hurt ? ' is-hurt' : ''}`, title: 'Open the sheet', onclick: () => openSheet(character.identity.id) },
+    // v0.372.0: "personal" — the character's own money, not the ship's
+    // (Bruce, Nov 2026: "credits never change"; trade goes through the ship).
+    return h('button', { type: 'button', class: `chip${hurt ? ' is-hurt' : ''}`, title: 'Open the sheet. Cr is the character\u2019s own money; trade, fares, berthing and upkeep go through the ship\u2019s account.', onclick: () => openSheet(character.identity.id) },
       h('span', { class: 'chip-name', text: character.identity.name || '(unnamed)' }),
-      h('span', { class: 'chip-line' }, h('span', { class: 'code', text: character.upp ?? '' }), hurt ? ' Wounded' : ` Cr ${Number(character.finances?.credits ?? 0).toLocaleString('en-US')}`));
+      h('span', { class: 'chip-line' }, h('span', { class: 'code', text: character.upp ?? '' }), hurt ? ' Wounded' : ` Cr ${Number(character.finances?.credits ?? 0).toLocaleString('en-US')} personal`));
   });
   const ship = envelope?.ship;
   if (ship) {
-    chips.push(h('span', { class: 'chip' },
+    // v0.372.0: the ship's account on the chip, and the chip opens the
+    // dialog that moves money between a character and the ship.
+    const account = Number.isFinite(ship.accountCr) ? ` Cr ${ship.accountCr.toLocaleString('en-US')} ship` : '';
+    chips.push(h('button', { type: 'button', class: 'chip', title: 'The ship\u2019s account: pay into it or draw from it', onclick: () => { moneyDialog(ship); } },
       h('span', { class: 'chip-name', text: ship.name ?? 'Ship' }),
-      h('span', { class: 'chip-line', text: `Fuel ${ship.fuel?.aboardTons ?? '?'}/${ship.fuel?.capacityTons ?? '?'}  Hold ${Math.max(0, (ship.cargo?.capacityTons ?? 0) - (ship.cargo?.usedTons ?? 0))} t free` })));
+      h('span', { class: 'chip-line', text: `Fuel ${ship.fuel?.aboardTons ?? '?'}/${ship.fuel?.capacityTons ?? '?'}  Hold ${Math.max(0, (ship.cargo?.capacityTons ?? 0) - (ship.cargo?.usedTons ?? 0))} t free ${account}` })));
   }
   $('mast-chips').replaceChildren(...chips);
   $('theme').textContent = document.documentElement.dataset.theme === 'dark' ? 'Light' : 'Dark';
@@ -270,6 +275,30 @@ const REQUEST_PATIENCE_MS = 20000;
 export function engineMismatch(engine, page = PAGE_VERSION) {
   // v0.371.0: which side is behind decides what to say (src/engine-version.js).
   return engineMismatchMessage(engine, page);
+}
+
+// v0.372.0: pay into the ship's account, or draw from it (Kurt, Nov 2026).
+// The game refuses a draw unless the character owns the ship (Book 2 p.6:
+// the owner draws his pay from the profits), and refuses both where a person
+// referees, as it does every player request.
+async function moneyDialog(ship) {
+  const own = characters();
+  if (!own.length) { await tell({ title: 'The ship\u2019s account', message: 'You have no character in this campaign yet.' }); return; }
+  const holds = Number.isFinite(ship.accountCr) ? `Cr ${ship.accountCr.toLocaleString('en-US')}` : 'an unknown sum';
+  const answer = await askForm({
+    title: `${ship.name ?? 'The ship'}\u2019s account`,
+    message: `The ship\u2019s account holds ${holds}. Trade, fares, freight, berthing, fuel and upkeep are paid into and out of it; your character\u2019s own money is separate. Anyone may pay in; only the character who holds the ship (its owner, or a Scout on detached duty) may draw out.`,
+    confirm: 'Move the money',
+    fields: [
+      { name: 'direction', label: 'What', type: 'select', options: [{ value: 'to-ship', label: 'Pay into the ship' }, { value: 'from-ship', label: 'Draw from the ship' }] },
+      { name: 'characterId', label: 'Whose money', type: 'select', options: own.map((character) => ({ value: character.identity.id, label: `${character.identity.name || '(unnamed)'} (Cr ${Number(character.finances?.credits ?? 0).toLocaleString('en-US')})` })) },
+      { name: 'amount', label: 'Credits', type: 'text', placeholder: 'e.g. 5000' }
+    ]
+  });
+  if (!answer) return;
+  const amountCr = Number(String(answer.amount ?? '').replace(/[,\s]/g, '').replace(/^cr/i, ''));
+  if (!Number.isInteger(amountCr) || amountCr < 1) { await tell({ title: 'The ship\u2019s account', message: 'Enter a whole number of credits, 1 or more.' }); return; }
+  sendRequest(`money:${answer.direction}`, { characterId: answer.characterId, amountCr });
 }
 
 async function sendRequest(command, value = {}) {
