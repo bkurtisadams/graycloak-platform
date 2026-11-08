@@ -2,19 +2,19 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.376.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.376.0';
-import { installPanelResize } from './panel-resize.js?v=v0.376.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.376.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.376.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.376.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.376.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.376.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.376.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.376.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.376.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.376.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.376.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.377.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.377.0';
+import { installPanelResize } from './panel-resize.js?v=v0.377.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.377.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.377.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.377.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.377.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.377.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.377.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.377.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.377.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.377.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.377.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -143,6 +143,39 @@ async function moveMoney() {
   const amountCr = Number(String(answer.amount ?? '').replace(/[,\s]/g, '').replace(/^cr/i, ''));
   if (!Number.isInteger(amountCr) || amountCr < 1) { note('Enter a whole number of credits, 1 or more.'); return; }
   const result = source.session.run(`money:${answer.direction}`, { fight: { value: { characterId: answer.characterId, amountCr } } });
+  if (!result.ok) note(result.message);
+  render();
+}
+
+// v0.377.0: the referee's Trade in (Vehicles tab, the travellers' ship).
+async function tradeIn() {
+  if (source.mode !== 'live') return;
+  const options = viewState().tradeInOptions;
+  if (!options) { note('The travellers have no ship.'); return; }
+  if (!options.yard) { note('A trade-in needs a shipyard: a class A or B starport.'); return; }
+  const open = options.designs.filter((entry) => entry.possible);
+  if (!open.length) { note(`${options.name} cannot be traded in: ${options.designs[0]?.reasons.join('; ') ?? 'no other design'}.`); return; }
+  const money = (value) => `Cr ${Number(value).toLocaleString('en-US')}`;
+  const first = await askForm({
+    title: `Trade in ${options.name}`,
+    message: `She is a ${options.design}. Her name, crew, account (${money(options.balanceCr)}) and ledger carry over to the new ship; turret fittings and damage stay with the old hull. Choose the new design.`,
+    confirm: 'Next',
+    fields: [{ name: 'designKey', label: 'New design', type: 'select', options: open.map((entry) => ({ value: entry.key, label: `${entry.label} \u2014 ${money(entry.priceCr)}` })) }]
+  });
+  if (!first) return;
+  const chosen = open.find((entry) => entry.key === first.designKey);
+  const answer = await askForm({
+    title: `Trade in ${options.name}`,
+    message: `No book prices a used ship: the sale defaults to 60% of a new ${options.design}. ${chosen.mortgagePrincipalCr ? `Her mortgage (${money(chosen.mortgagePrincipalCr)} still owed) is cleared from the sale first. ` : ''}The new ship defaults to its new price${chosen.buildMonths ? `; built new it would take ${chosen.buildMonths} months, so pass the time with Wait if you rule it so` : ''}.`,
+    confirm: 'Trade her in',
+    fields: [
+      { name: 'saleCr', label: 'Sale (Cr)', type: 'text', value: String(chosen.saleCr) },
+      { name: 'priceCr', label: 'New ship (Cr)', type: 'text', value: String(chosen.priceCr) },
+      { name: 'pay', label: 'Pay', type: 'select', options: [{ value: 'cash', label: 'From the account' }, { value: 'mortgage', label: 'A new mortgage (Book 2 p.5)' }] }
+    ]
+  });
+  if (!answer) return;
+  const result = source.session.run('ship:trade-in', { fight: { value: { designKey: chosen.key, saleCr: answer.saleCr, priceCr: answer.priceCr, finance: answer.pay === 'mortgage' } } });
   if (!result.ok) note(result.message);
   render();
 }
@@ -1011,6 +1044,8 @@ function render() {
       if (command === 'trip:jump-week' && playJumpWeek(command)) return;
       // v0.372.0: Move money asks first, then runs money:to-ship or money:from-ship.
       if (command === 'money:ask') { moveMoney(); return; }
+      // v0.377.0: Trade in asks first, then runs ship:trade-in.
+      if (command === 'ship:trade-in-ask') { tradeIn(); return; }
       // A fight command carries the declaration the screen is showing.
       const fight = command.startsWith('fight:')
         ? { actorId: viewState().next?.declare?.actorId ?? ui.selectedMarker ?? null, move: ui.fightMove ?? 'Stand', running: Boolean(ui.fightRunning), attack: ui.fightAttack !== false, targetId: ui.fightTargetId, woundTargets: ui.woundTargets }

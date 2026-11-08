@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.97.0';
+export const RULES_VERSION = '0.98.0';
 
 export {
   createDice,
@@ -557,6 +557,10 @@ export {
   MORTGAGE_PERIOD_DAYS,
   financeShip,
   shipMortgageSchedule,
+  TRADE_IN_RESALE_RATE,
+  shipMortgagePrincipalCr,
+  tradeInQuote,
+  tradeInShip,
   MAINTENANCE_DAYS,
   shipMaintenanceStatus,
   performMaintenance,

@@ -1,7 +1,7 @@
 import {
   importCharacterDocument,
   updateCharacterGameplayState
-} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
 
 import {
   importNpcActorDocument,

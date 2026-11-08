@@ -25,3 +25,36 @@ test('v0.376.0 the referee adds a Type A2 Far Trader: jump-2, 60 t fuel, 48 t ho
   assert.equal(ship.specifications.fuel.capacityTons, 60);
   assert.equal(ship.specifications.cargo.capacityTons, 48);
 });
+
+async function atOrison() {
+  const bundle = JSON.parse(await readFile(fixture, 'utf8'));
+  bundle.campaign.location = { systemId: 'orison', systemName: 'Orison', worldId: 'orison-main', worldName: 'Orison' };
+  const registry = createDocumentRegistry({ storage: createMemoryStorage() });
+  const { campaign } = registry.putBundle(bundle);
+  return createPlaySession({ registry, campaignId: campaign.identity.id, subsector: FAR_MERIDIAN_SUBSECTOR });
+}
+
+test('v0.377.0 the travellers\u2019 Type A is traded in for a Far Trader at a B starport, keeping her name', async () => {
+  const session = await atOrison();
+  session.run('ship:new', { fight: { value: { designKey: 'type-a-free-trader', name: 'Majestic', holder: { kind: 'patron', name: 'House Sorell' } } } });
+  const majestic = session.resolved.ships.find((entry) => entry.identity.name === 'Majestic');
+  const active = session.run(`ship:make-active:${majestic.identity.id}`);
+  assert.equal(active.ok, true, active.message);
+  const options = session.view().tradeInOptions;
+  assert.equal(options.yard, true);
+  const a2 = options.designs.find((entry) => entry.key === 'type-a2-far-trader');
+  assert.equal(a2.saleCr, 22_248_000, '60% of MCr37.08');
+  const traded = session.run('ship:trade-in', { fight: { value: { designKey: 'type-a2-far-trader', finance: true } } });
+  assert.equal(traded.ok, true, traded.message);
+  const after = session.resolved.ships.find((entry) => entry.identity.id === majestic.identity.id);
+  assert.equal(after.identity.name, 'Majestic');
+  assert.equal(after.design.key, 'type-a2-far-trader');
+  assert.equal(after.state.finances.balanceCr, 22_248_000);
+  assert.equal(after.state.finances.mortgage.cashPriceCr, 80_194_000);
+});
+
+test('v0.377.0 a Scout held on detached duty is not hers to trade in', async () => {
+  const session = await atOrison();
+  const result = session.run('ship:trade-in', { fight: { value: { designKey: 'type-a2-far-trader' } } });
+  assert.equal(result.ok, false);
+});

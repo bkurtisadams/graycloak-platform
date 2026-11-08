@@ -30,7 +30,7 @@ import {
   TERRAIN_DMS, createDice, importCharacterDocument, stableDocumentId, rollReaction, formatUPP, updateCharacterGameplayState,
   assertValidShipDocument, createShipCombatEncounter, currentPhase, actingSide, advanceShipCombatPhase, allocateLaserFire,
   resolveLaserFire, PRESSURE_SECTIONS, damageControlOptions, declareDamageControl, cancelDamageControl, DAMAGE_CONTROL_THROW,
-  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
+  STANDARD_SHIP_DESIGN_KEYS, getStandardShipDesign, tradeInQuote, tradeInShip, shipCombatIntent, shipCombatPhaseActions, SHIP_COMBAT_PHASES, opposingSide,
   shipDataCard, COMPUTER_PROGRAMS, improvisedMeleeWeapons, shipBatteryStatus,
   TURRET_MOUNTS, TURRET_WEAPONS, fitShipTurret, armShipTurret, purchaseComputerProgram, shipHardpoints, turretWeapons, REFIT_FIRE_CONTROL_TONS,
   damageReport, speculativeTonsPerUnit, speculativeCargoUnits, COMPUTER_MODELS, quoteComputerRefit, refitShipComputer,
@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
+import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -662,6 +662,8 @@ function vehicleEntries(resolved, subsector = null) {
       actions: [
         // v0.372.0: money between a character and the travellers' ship.
         ...(active ? [{ label: 'Move money', command: 'money:ask', title: 'Pay a character\u2019s money into this ship\u2019s account, or draw from it' }] : []),
+        // v0.377.0: trade her in for another design, at an A or B starport.
+        ...(active ? [{ label: 'Trade in\u2026', command: 'ship:trade-in-ask', title: 'Sell her and buy another design, keeping her name, crew, account and ledger (at an A or B starport)' }] : []),
         ...(!active && here && berthed === here
           ? [{ label: 'Travel in this ship', command: `ship:make-active:${ship.identity.id}`, title: 'The travellers change to this ship here, in port; cargo, fuel and accounts stay with each ship' }]
           : []),
@@ -5244,6 +5246,32 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         saveToCloud();
         return lastMessage;
       }
+      // v0.377.0 (Kurt, Nov 2026): trade the travellers' ship in for another
+      // design at an A or B starport, keeping her identity. The sale defaults
+      // to 60% of her design's new price, the new ship to its new price; a
+      // mortgage on her is cleared from the sale first; the new one is paid in
+      // cash or put on a fresh mortgage (Book 2 p.5).
+      if (command === 'ship:trade-in') {
+        const value = fight?.value ?? {};
+        const ship = activeShip();
+        if (!ship) throw new Error('the travellers have no ship');
+        if (liveEncounter() || setupEncounter() || pendingShipFight) throw new Error('a fight is in progress; finish it first');
+        const { system, profile } = currentWorldProfile(resolved, subsector);
+        if (!profile || !SHIPYARD_FITTING_STARPORTS.includes(profile.starport)) throw new Error('a trade-in needs a shipyard: a class A or B starport');
+        if (safeTrip(resolved)?.situation && safeTrip(resolved).situation !== 'port') throw new Error('she must be in port');
+        const number = (raw) => (raw === undefined || raw === null || raw === '' ? null : Math.round(Number(String(raw).replace(/[,\s]/g, '').replace(/^cr/i, ''))));
+        const result = tradeInShip(ship, {
+          designKey: String(value.designKey ?? ''), dateLabel: formatCampaignDate(resolved.campaign.time),
+          saleCr: number(value.saleCr), priceCr: number(value.priceCr), finance: Boolean(value.finance), homeSystemId: system?.id ?? null
+        });
+        persist([result.ship]);
+        const message = `${ship.identity.name || 'The ship'} is traded in at ${system.name}: the ${result.was} sold for ${cr(result.saleCr)}${result.mortgagePaidCr ? `, ${cr(result.mortgagePaidCr)} of it to clear her mortgage` : ''}; she is now a ${result.now}, ${result.financed ? `on a new mortgage (${cr(result.priceCr)})` : `bought for ${cr(result.priceCr)}`}. Name, crew, account and ledger carry over; turret fittings and damage stayed with the old hull.`;
+        log('SHIP', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'ship:new') {
         // v0.339.0: the referee adds a ship to the campaign from the Vehicles
         // tab — a traveller's, a patron's or a government's — berthed where
@@ -8426,6 +8454,22 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       state.travellers = travellersView(resolved);
       state.travellerCandidates = travellerCandidates(resolved);
       state.newShipOptions = newShipOptions(resolved);
+      // v0.377.0: the trade-in dialog's choices and the books' defaults.
+      state.tradeInOptions = (() => {
+        const ship = activeShip();
+        if (!ship) return null;
+        const { profile } = currentWorldProfile(resolved, subsector);
+        return {
+          shipId: ship.identity.id, name: ship.identity.name || 'The ship', design: ship.design.name,
+          balanceCr: Number(ship.state.finances?.balanceCr ?? 0),
+          yard: profile ? SHIPYARD_FITTING_STARPORTS.includes(profile.starport) : false,
+          designs: STANDARD_SHIP_DESIGN_KEYS.filter((key) => key !== ship.design.key).map((key) => {
+            const design = getStandardShipDesign(key);
+            const quote = tradeInQuote(ship, { designKey: key });
+            return { key, label: `Type ${design.typeCode} ${design.name} (${design.hull.tons} t, jump-${design.drives.jump.rating}, ${design.drives.maneuver.rating}G)`, ...quote, reasons: [...quote.reasons] };
+          })
+        };
+      })();
       // v0.372.0: for the referee's Move money dialog.
       state.moneyOptions = (() => {
         const ship = activeShip();

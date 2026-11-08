@@ -7,7 +7,7 @@
 // and the sidebar are redrawn wholesale, which would take a handle with them.
 // A width the player has not chosen is left alone, so the page's own widths
 // for a fight or a staging board still apply until they drag.
-import { PANEL_LIMITS, clampWidth, nudgedWidth, loadWidths, saveWidths } from '../src/panel-widths.js?v=v0.376.0';
+import { PANEL_LIMITS, clampWidth, nudgedWidth, loadWidths, saveWidths } from '../src/panel-widths.js?v=v0.377.0';
 
 const VARIABLES = { now: '--now-width', sidebar: '--sidebar-width' };
 const LABELS = { now: 'Resize the left column', sidebar: 'Resize the sidebar' };

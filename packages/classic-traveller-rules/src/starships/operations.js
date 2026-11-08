@@ -1,5 +1,5 @@
 import { assertValidCharacterDocument } from '../characters/character-document.js';
-import { assertValidShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT, REFIT_FIRE_CONTROL_TONS, refitComputerSpecification } from './ship-document.js';
+import { assertValidShipDocument, createShipDocument, DOUBLED_ROLE_SALARY_RATE, PORT_CALL_BERTHS, PORT_CALL_HISTORY_LIMIT, REFIT_FIRE_CONTROL_TONS, refitComputerSpecification } from './ship-document.js';
 import {
   getTurretWeapon,
   getTurretMount,
@@ -735,7 +735,11 @@ export function financeShip(ship, {
 }
 
 function mortgagePaymentsMade(ship) {
-  return ship.state.finances.ledger.filter((entry) => entry.kind === MORTGAGE_LEDGER_KIND).length;
+  // 0.98.0: only payments made on this mortgage — a ship traded in carries its
+  // ledger, and the old hull's payments are not the new one's.
+  const start = ship.state.finances.mortgage?.startedOn ? assertGameDate(ship.state.finances.mortgage.startedOn, 'mortgage.startedOn') : null;
+  return ship.state.finances.ledger.filter((entry) => entry.kind === MORTGAGE_LEDGER_KIND
+    && (start === null || !entry.date || assertGameDate(entry.date, 'ledger date') >= start)).length;
 }
 
 /** Where the mortgage stands as of `dateLabel`. Always answers; null-safe. */
@@ -1518,4 +1522,84 @@ export function purchaseComputerProgram(ship, key, { dateLabel = null, priceCr =
   next.state.computer.programs.push(program.key);
   assertValidShipDocument(next);
   return Object.freeze({ ship: next, costCr, program: program.key });
+}
+
+
+// ---------------------------------------------------------------------------
+// 0.98.0 (Kurt, Nov 2026): trading a ship in for another design, keeping her
+// identity — name, registry, holder, crew, account and ledger, cargo and fuel
+// up to the new hull's room. No book prices a used ship: the referee states
+// the sale (default 60% of the old design's new price, the middle of
+// Supplement 7's surplus scout prices) and the price of the new (default its
+// new price). Any mortgage is cleared from the sale first, at the principal
+// still owed (cash price x payments remaining / term; ruling, Book 2 sets no
+// payoff). A ship whose holder may not sell it (a service ship, a subsidized
+// one) cannot be traded in. Turret fittings, battle damage and malfunctions
+// stay with the old hull.
+// ---------------------------------------------------------------------------
+export const TRADE_IN_RESALE_RATE = 0.6;
+
+export function shipMortgagePrincipalCr(ship) {
+  const mortgage = ship.state.finances.mortgage;
+  if (!mortgage) return 0;
+  const remaining = Math.max(0, mortgage.termMonths - mortgagePaymentsMade(ship));
+  return Math.round(mortgage.cashPriceCr * remaining / mortgage.termMonths);
+}
+
+export function tradeInQuote(ship, { designKey } = {}) {
+  assertValidShipDocument(ship);
+  const reasons = [];
+  const oldDesign = getStandardShipDesign(ship.design.key);
+  const newDesign = getStandardShipDesign(designKey);
+  if (newDesign.key === ship.design.key) reasons.push(`she is already a ${newDesign.name}`);
+  if (ship.authority?.saleAllowed === false) reasons.push(`${ship.authority.controllingAuthority ?? 'her holder'} does not allow her sale`);
+  if (ship.state.finances.mortgage?.subsidized) reasons.push('a subsidized ship belongs to the subsidy until its term is run');
+  if (ship.state.impound) reasons.push('she is impounded');
+  const used = Number(ship.state.cargoUsedTons ?? 0);
+  if (used > newDesign.cargo.capacityTons) reasons.push(`${used} t of cargo will not fit the new ${newDesign.cargo.capacityTons} t hold`);
+  return Object.freeze({
+    possible: reasons.length === 0, reasons,
+    saleCr: Math.round(oldDesign.economics.newCostMCr * 1_000_000 * TRADE_IN_RESALE_RATE),
+    priceCr: Math.round(newDesign.economics.newCostMCr * 1_000_000),
+    mortgagePrincipalCr: shipMortgagePrincipalCr(ship),
+    buildMonths: newDesign.economics.buildMonths
+  });
+}
+
+export function tradeInShip(ship, { designKey, dateLabel, saleCr = null, priceCr = null, finance = false, homeSystemId = null } = {}) {
+  const quote = tradeInQuote(ship, { designKey });
+  if (!quote.possible) throw new RangeError(quote.reasons.join('; '));
+  assertGameDate(dateLabel, 'dateLabel');
+  const sale = saleCr ?? quote.saleCr;
+  const price = priceCr ?? quote.priceCr;
+  for (const [label, value] of [['sale', sale], ['price', price]]) {
+    if (!Number.isInteger(value) || value < 0) throw new TypeError(`the ${label} must be a whole number of credits`);
+  }
+  const newDesign = getStandardShipDesign(designKey);
+  const was = ship.design.name;
+  const owed = quote.mortgagePrincipalCr;
+  if (owed > sale + ship.state.finances.balanceCr) throw new RangeError(`the bank is owed Cr${owed.toLocaleString('en-US')} on her; the sale and the account do not cover it`);
+  const state = cloneJson(ship.state);
+  let next = createShipDocument({
+    designKey, id: ship.identity.id, name: ship.identity.name, registry: ship.identity.registry,
+    authority: ship.authority, crewAssignments: ship.crew.assignments, notes: ship.notes,
+    state: {
+      operationalStatus: state.operationalStatus, fuelQuality: state.fuelQuality,
+      currentFuelTons: state.currentFuelTons === null ? null : Math.min(state.currentFuelTons, newDesign.fuel.capacityTons),
+      cargoUsedTons: state.cargoUsedTons, cargoManifest: state.cargoManifest, passengerManifest: state.passengerManifest,
+      portCallHistory: state.portCallHistory, privateMessages: state.privateMessages, portCall: state.portCall,
+      finances: { balanceCr: state.finances.balanceCr, ledger: state.finances.ledger, mortgage: null },
+      computer: state.computer, maintenance: state.maintenance
+    }
+  });
+  next = appendLedger(next, { kind: 'ship-sale', amountCr: sale, description: `The ${was} sold for Cr${sale.toLocaleString('en-US')} in trade`, dateLabel });
+  if (owed) next = appendLedger(next, { kind: 'mortgage-payoff', amountCr: -owed, description: `Mortgage on the ${was} cleared: Cr${owed.toLocaleString('en-US')} principal still owed`, dateLabel });
+  if (finance) {
+    next = financeShip(next, { startedOn: dateLabel, cashPriceCr: price || quote.priceCr, homeSystemId });
+  } else {
+    if (price > next.state.finances.balanceCr) throw new RangeError(`the ${newDesign.name} costs Cr${price.toLocaleString('en-US')}; the account holds Cr${next.state.finances.balanceCr.toLocaleString('en-US')} after the sale${owed ? ' and the mortgage' : ''}`);
+    if (price) next = appendLedger(next, { kind: 'ship-purchase', amountCr: -price, description: `A Type ${newDesign.typeCode} ${newDesign.name} bought for Cr${price.toLocaleString('en-US')}`, dateLabel });
+  }
+  assertValidShipDocument(next);
+  return Object.freeze({ ship: next, saleCr: sale, priceCr: price, mortgagePaidCr: owed, financed: Boolean(finance), was, now: newDesign.name });
 }

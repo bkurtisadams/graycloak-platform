@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.376.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.376.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.376.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.376.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.377.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.377.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.377.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.377.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.376.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.376.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.376.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.377.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.377.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.377.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.376.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.376.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.377.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.377.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.376.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.377.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -1011,6 +1011,9 @@ function shipyardPanel(yard, handlers) {
       h('p', { class: 'cite', text: `Retrofit in place of the installed model; the old one is traded in at 25% of its price (Book 2 p.15). A model supports jumps to its own number, a bis one more, and never less than the design did (The Traveller Book, 1982); the drive still sets the range. Now jump-${yard.computer.maximumSupportedJump}.` }),
       h('ul', { class: 'yard-list' }, yard.computer.offers.filter((entry) => entry.upgrade || entry.command).map((entry) => row(entry.label, entry.detail, buy(entry, 'Fit'))))
     ] : null,
+    // v0.377.0: why there is nothing to buy for the drives (Bruce, Nov 2026).
+    h('h4', { text: 'Drives' }),
+    h('p', { class: 'cite', text: 'Not refittable. The engineering section holds only the drives it was built for (Book 2 p.10), and a refit may never enlarge a drive (Trillion Credit Squadron p.34). For more jump, trade the ship in for another design: the Vehicles tab, Trade in.' }),
     h('h4', { text: 'Software' }),
     h('p', { class: 'cite', text: `Carried: ${yard.carried.join(', ') || 'nothing'}.` }),
     h('ul', { class: 'yard-list' }, yard.software.map((entry) => row(entry.label, [`${entry.group}, ${entry.space} space`, entry.note].filter(Boolean).join(' \u2014 '), buy(entry, 'Buy')))));

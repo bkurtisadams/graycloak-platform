@@ -24,7 +24,7 @@ import {
   drugSynergy,
   getDrug,
   createDice
-} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
 export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 17;
