@@ -2,19 +2,19 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.373.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.373.0';
-import { installPanelResize } from './panel-resize.js?v=v0.373.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.373.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.373.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.373.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.373.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.373.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.373.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.373.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.373.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.373.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.373.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.374.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.374.0';
+import { installPanelResize } from './panel-resize.js?v=v0.374.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.374.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.374.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.374.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.374.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.374.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.374.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.374.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.374.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.374.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.374.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -451,6 +451,26 @@ function render() {
     onMedical: (id, medicId, atHand = {}) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('character:medical', { fight: { id, value: { medicId, kit: Boolean(atHand.kit), facility: Boolean(atHand.facility), xeno: Boolean(atHand.xeno) } } });
+      if (!result.ok) note(result.message);
+      render();
+    },
+    // v0.374.0: drugs (Book 2 p.38): a dose in a fight, medical drug in place
+    // of a kit, medical slow drug for a day's healing.
+    onFightDrug: (combatantId, drugKey) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('fight:take-drug', { fight: { value: { combatantId, drugKey } } });
+      if (!result.ok) note(result.message);
+      render();
+    },
+    onMedicalDrug: (id, medicId, atHand = {}) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('character:medical', { fight: { id, value: { medicId, drug: true, xeno: Boolean(atHand.xeno) } } });
+      if (!result.ok) note(result.message);
+      render();
+    },
+    onMedicalSlow: (id) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('character:medical-slow', { fight: { id } });
       if (!result.ok) note(result.message);
       render();
     },

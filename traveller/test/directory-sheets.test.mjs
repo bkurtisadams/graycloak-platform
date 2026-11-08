@@ -1367,7 +1367,7 @@ test('v0.264.0 buying from the Compendium pays from the character\u2019s cash an
   const character = () => registry.resolveCampaign(campaignId).characters[0];
   const id = character().identity.id;
   const view = session.view().compendium;
-  assert.deepEqual(view.packs.map((pack) => pack.name), ['Weapons', 'Armour', 'Equipment']);
+  assert.deepEqual(view.packs.map((pack) => pack.name), ['Weapons', 'Armour', 'Equipment', 'Drugs']);
   const cash = character().finances.credits;
   const items = character().inventory.length;
 
@@ -1421,7 +1421,7 @@ test('v0.264.0 the Compendium tab lists the packs, flags what cannot be bought, 
   const state = { ...session.view(), live: true, compendiumCharacters: characters, compendiumUi: { expanded: 'weapon:rifle' } };
   document.querySelector('main').replaceChildren(...renderDrawer('compendium', state, {}, handlers));
   const main = document.querySelector('main');
-  assert.equal(main.querySelectorAll('.gear-pack').length, 3);
+  assert.equal(main.querySelectorAll('.gear-pack').length, 4, 'v0.374.0: Drugs is the fourth pack');
   assert.ok([...main.querySelectorAll('.gear-row')].every((row) => row.getAttribute('draggable') === 'true'));
   [...main.querySelectorAll('.gear-open button')].find((button) => button.textContent === 'Give').click();
   assert.deepEqual(acted, { how: 'give', who: characters[0].id, key: 'weapon:rifle', quantity: 1 });

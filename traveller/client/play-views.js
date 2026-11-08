@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.373.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.373.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.373.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.373.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.374.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.374.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.374.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.374.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
-} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.373.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.373.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.373.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.374.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.374.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.374.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.373.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.373.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.374.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.374.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.373.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.374.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -880,6 +880,8 @@ function fightScene(state, handlers) {
             h('th', { title: 'Book 1 p.28 step 4A', text: 'Movement' }), h('th', { text: 'Weapon' }), h('th', { title: 'What each is wearing (Book 1 p.42). Set by the referee.', text: 'Armour' }),
             h('th', { title: 'Book 1 p.28 step 4B \u2014 or hover an enemy token and press T', text: 'Target' }), h('th', { title: '2D against 8+, after every DM', text: 'Needs' }))),
           sides.map((side) => h('tbody', {}, side.flatMap((row) => [sheetRow(row, state, handlers, focus?.fighter.id), whyRow(row)]).filter(Boolean)))),
+        // v0.374.0: slow and combat drug (Book 2 p.38, 1977).
+        drugsLine(sides, state, handlers),
         h('div', { class: 'fight-actions' },
           state.live && !wound && !state.concluded && !state.setupPhase
             ? h('button', { type: 'button', class: 'button is-primary', onclick: () => handlers.onResolveSheet?.() },
@@ -889,6 +891,26 @@ function fightScene(state, handlers) {
           // here because the table reads like a turn order and is not one.
           state.setupPhase ? null : h('span', { class: 'cite', text: 'Every attack in a round lands together (Book 1 p.30).' }))))
   ];
+}
+
+// v0.374.0: who is on a drug, and the doses the party can take, under the
+// orders table. Taking one is not an action (ruling): it is swallowed as the
+// round is declared, and takes hold rounds later.
+function drugsLine(sides, state, handlers) {
+  const rows = sides.flat().map((row) => row.fighter ?? row).filter((fighter) => (fighter.drugs ?? []).length || (fighter.drugChoices ?? []).length);
+  if (!rows.length || state.concluded || state.setupPhase) return null;
+  return h('div', { class: 'fight-drugs' },
+    h('span', { class: 'sheet-section-label', text: 'DRUGS' }),
+    rows.map((fighter) => h('span', { class: 'sheet-inline' },
+      h('b', { text: `${fighter.name}: ` }),
+      (fighter.drugs ?? []).length ? h('span', { text: `${fighter.drugs.map((taken) => `${taken.name.toLowerCase()} (${taken.state})`).join(', ')} ` }) : null,
+      state.live && state.seat !== 'player' ? (fighter.drugChoices ?? []).map((choice) => h('button', {
+        type: 'button', class: 'button is-small',
+        title: choice.key === 'slow' ? 'Takes hold in 3 rounds: two attacks a round for 40 rounds, then 1D wounds (Book 2 p.38)' : 'Takes hold in 2 rounds: strength and endurance +2 for 30 rounds, then 1D wounds (Book 2 p.38)',
+        text: `Take ${choice.name.toLowerCase()} (${choice.doses})`,
+        onclick: () => handlers.onFightDrug?.(fighter.id, choice.key)
+      })) : null)),
+    h('span', { class: 'cite', text: 'Two or more drugs: synergy, 1D each multiplied, in wounds when they end (Book 2 p.39).' }));
 }
 
 // v0.254.0: the now column while a fight is being set up says how, rather

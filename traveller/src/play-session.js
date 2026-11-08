@@ -21,7 +21,7 @@
 import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad,
   removeCharacterInventoryItem, setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
-  restCharacter, medicalAttention, characterIsWounded, REST_DAYS, skillGuide, skillDM, CATALOGUE, CATALOGUE_PACKS, catalogueEntry,
+  restCharacter, medicalAttention, characterIsWounded, REST_DAYS, getDrug, drugForItemName, drugAvailabilityThrow, drugLegalityThrow, MEDICAL_SLOW_AGING_MONTHS, skillGuide, skillDM, CATALOGUE, CATALOGUE_PACKS, catalogueEntry,
   catalogueAvailability, FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, calculateLifeSupportCostForTrip, calculateJumpFuelRequirement, starportFuelService, calculateSpeculativePurchaseCost,
   creditShipAccount, generateSpeculativeTradeOffer, getPersonalWeapon, getSubsectorSystem, parseUniversalWorldProfile,
   purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, assessLoad, inventoryLoadGrams, rollEncounterRange,
@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
+import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -111,7 +111,7 @@ import {
   addNpcActorInventoryItem, updateNpcActorInventoryItem, removeNpcActorInventoryItem, recordNpcActorWounds, restNpcActor,
   medicalAttentionNpcActor, npcActorIsNonHuman, npcActorIsWounded, npcActorIsSeverelyWounded, npcActorIsDead
 } from './npc-actor-document.js';
-import { setCombatantCurrent } from './encounter-document.js';
+import { setCombatantCurrent, takeEncounterDrug, ENCOUNTER_COMBAT_DRUGS } from './encounter-document.js';
 
 import { appendActivityLogEntry, createActivityLogDocument, mergeActivityLogHistory } from './activity-log-document.js';
 import { StaleCampaignHomeError, createCampaignHome, importCampaignHome, nextCampaignHome } from './campaign-home.js';
@@ -1048,7 +1048,10 @@ function actorSheet(resolved, id, subsector = null) {
         .filter((entry) => entry.status?.alive !== false && entry.state?.lifeState !== 'dead' && String(entry.identity.name ?? '').trim())
         .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Object.hasOwn(entry.skills ?? {}, 'Medical') ? Number(entry.skills.Medical) : null }))
         .sort((a, b) => (b.level ?? -1) - (a.level ?? -1)),
-      kitSeen: medicalKitSeen(resolved)
+      kitSeen: medicalKitSeen(resolved),
+      // v0.374.0: the party's doses for treatment (Book 2 p.38).
+      medicalDrugDoses: partyDoses(resolved, 'medical'),
+      medicalSlowDoses: partyDoses(resolved, 'medical-slow')
     },
     compactOnly: false,
     editable: true
@@ -1119,6 +1122,12 @@ function taggedWeaponChoices(who, choices) {
     const tag = weaponExpertiseTag(who, choice.key);
     return tag ? { ...choice, baseName: choice.name, name: `${choice.name} \u2014 ${tag.text}`, tag } : choice;
   });
+}
+
+// v0.374.0: how many doses of a drug the party carries, all told.
+function partyDoses(resolved, drugKey) {
+  const name = getDrug(drugKey).name.toLowerCase();
+  return (resolved.characters ?? []).reduce((sum, entry) => sum + (entry.inventory ?? []).filter((item) => String(item.name ?? '').toLowerCase() === name).reduce((n, item) => n + Number(item.quantity ?? 0), 0), 0);
 }
 
 // v0.296.0: is there a medical kit in anyone's gear? A hint for the
@@ -1800,6 +1809,18 @@ export function fightView(encounter, { characters = [], actors = [], concluded =
       encumbrance: Number(entry.encumbrance ?? 0),
       rolled: entry.rolled ? { ...entry.rolled } : null,
       blowsUsed: entry.blowsUsed,
+      // v0.374.0: slow and combat drug (Book 2 p.38): what this combatant is
+      // on, and what the party's gear lets a character take.
+      drugs: (entry.drugs ?? []).map((taken) => ({
+        key: taken.key, name: getDrug(taken.key).name,
+        state: taken.ended ? 'worn off' : encounter.round < taken.first ? `from round ${taken.first}` : `until round ${taken.last}`
+      })),
+      drugChoices: entry.side === 'party' && entry.status === 'active' && entry.playerCharacter
+        ? ENCOUNTER_COMBAT_DRUGS
+          .filter((key) => !(entry.drugs ?? []).some((taken) => taken.key === key && !taken.ended))
+          .map((key) => ({ key, name: getDrug(key).name, doses: partyDoses({ characters }, key) }))
+          .filter((choice) => choice.doses > 0)
+        : [],
       down: entry.status !== 'active',
       contactIds: [...(entry.contactIds ?? [])],
       upp: source?.upp ?? null,
@@ -3551,6 +3572,23 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   // was treated; any other movement of the clock leaves it behind.
   // v0.296.0: who attends, and what is at hand — the referee's call on the
   // kit and the facility ("a medical facility could be anywhere").
+  // v0.374.0: drugs are carried as doses, an inventory item named for the
+  // drug (Book 2 pp.38-39). Whose dose is used: the first of `preferIds`
+  // that has one, then anyone in the party.
+  function doseHolder(drugKey, preferIds = []) {
+    const name = getDrug(drugKey).name.toLowerCase();
+    const has = (entry) => (entry?.inventory ?? []).some((item) => String(item.name ?? '').toLowerCase() === name && Number(item.quantity) > 0);
+    const characters = resolved.characters ?? [];
+    for (const id of preferIds) { const found = characters.find((entry) => entry.identity.id === id); if (has(found)) return found; }
+    return characters.find(has) ?? null;
+  }
+  function useDose(character, drugKey) {
+    const name = getDrug(drugKey).name.toLowerCase();
+    const item = (character.inventory ?? []).find((entry) => String(entry.name ?? '').toLowerCase() === name && Number(entry.quantity) > 0);
+    if (!item) throw new Error(`${character.identity.name} has no ${getDrug(drugKey).name.toLowerCase()}`);
+    return Number(item.quantity) > 1 ? updateCharacterInventoryItem(character, item.id, { quantity: Number(item.quantity) - 1 }) : removeCharacterInventoryItem(character, item.id);
+  }
+
   function attendance(value = {}) {
     const medicId = value?.medicId ?? null;
     const medic = medicId ? [...(resolved.characters ?? []), ...(resolved.npcActors ?? [])].find((entry) => entry.identity.id === medicId) ?? null : null;
@@ -4991,6 +5029,45 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const quantity = entry.armourKey || entry.weaponKey ? 1 : Math.max(1, Math.floor(Number(fight?.value?.quantity ?? 1)));
         const buying = command === 'gear:buy';
         const { profile } = currentWorldProfile(resolved, subsector);
+        // v0.374.0: a drug is searched for (Book 2 p.39, 1977): a day's
+        // search, 2D for the table's throw (+1 a tech level above the drug's
+        // index, + the searcher's best of Medical, Admin and Bribery), and the
+        // world's law: 2D under its law level makes it illegal here (thrown
+        // once a world). Not found, the day is spent all the same.
+        if (buying && entry.drugKey && !npc) {
+          const availability0 = catalogueAvailability(entry, profile);
+          if (!availability0.buy) throw new Error(availability0.reason);
+          const drug = getDrug(entry.drugKey);
+          const cost0 = drug.priceCr * quantity;
+          const cash0 = Number(who.finances?.credits ?? 0);
+          if (cost0 > cash0) throw new Error(`${who.identity.name} has Cr ${cash0.toLocaleString('en-US')}; ${quantity} dose${quantity === 1 ? '' : 's'} of ${drug.name.toLowerCase()} cost Cr ${cost0.toLocaleString('en-US')}`);
+          if (personState(resolved.campaign).pending || animalState(resolved.campaign).pending) throw new Error('an encounter is waiting; deal with it first');
+          const { system } = currentWorldProfile(resolved, subsector);
+          const passed = run('time:pass', { fight: { value: { amount: 1, unit: 'days', reason: `searching for ${drug.name.toLowerCase()}`, checks: 'town' } } });
+          if (!passed.ok) throw new Error(passed.message);
+          const buyer = (resolved.characters ?? []).find((entry2) => entry2.identity.id === who.identity.id) ?? who;
+          const dealing = Math.max(...['Medical', 'Admin', 'Bribery'].map((skill) => Number(buyer.skills?.[skill] ?? 0)));
+          const found = drugAvailabilityThrow(createDice(), drug.key, { worldTechLevel: profile.techLevel, dm: dealing });
+          const legality = drugLegalityThrow(seededDice(`${resolved.campaign.identity.id}|drug-law|${system.id}|${drug.key}`), profile.lawLevel);
+          const how = `2D ${found.roll}${found.techDM ? ` +${found.techDM} tech` : ''}${found.dm ? ` +${found.dm} ${buyer.identity.name}\u2019s dealing` : ''} = ${found.total} against ${found.target}+`;
+          const lawText = legality.legal ? `legal here (2D ${legality.roll} against law level ${legality.lawLevel})` : `illegal here (2D ${legality.roll} under law level ${legality.lawLevel})`;
+          let message;
+          if (!found.found) {
+            message = `${buyer.identity.name} searches a day for ${drug.name.toLowerCase()} and finds none (${how}). It is ${lawText}.`;
+          } else {
+            let next2 = addCharacterInventoryItem(buyer, { name: drug.name, weightGrams: 0, quantity, carried: true });
+            const cashNow = Number(buyer.finances?.credits ?? 0);
+            next2 = importCharacterDocument({ ...next2, finances: { ...next2.finances, credits: cashNow - cost0 } });
+            persist([next2]);
+            message = `${buyer.identity.name} finds ${drug.name.toLowerCase()} after a day\u2019s search (${how}) and buys ${quantity} dose${quantity === 1 ? '' : 's'} for Cr ${cost0.toLocaleString('en-US')} (Cr ${(cashNow - cost0).toLocaleString('en-US')} left). It is ${lawText}.`;
+            if (!legality.legal) { const law = lawTakesAnInterest(`Buying ${drug.name.toLowerCase()}`); if (law && /enforcer/.test(law)) message += ' The next day a local enforcer comes asking questions.'; }
+          }
+          log('GEAR', message, { detail: `${drug.note}\nBook 2 p.39 (1977)` });
+          lastMessage = { ok: true, message };
+          onChange();
+          saveToCloud();
+          return lastMessage;
+        }
         const availability = catalogueAvailability(entry, profile, { prohibitedWeaponKeys: profile ? prohibitedWeaponKeys(profile.lawLevel) : [] });
         const cost = entry.priceCr * quantity;
         const cash = Number(who.finances?.credits ?? 0);
@@ -5016,7 +5093,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const line = buying
           ? `${who.identity.name} buys ${what} for Cr ${cost.toLocaleString('en-US')} (Cr ${(cash - cost).toLocaleString('en-US')} left).`
           : `${who.identity.name} is given ${what}.`;
-        log('GEAR', line, { detail: [entry.priceNote, entry.note || null, availability.warning, entry.page ? `Book ${entry.pack === 'Equipment' ? 3 : 1} p.${entry.page}` : null].filter(Boolean).join('\n') || null });
+        log('GEAR', line, { detail: [entry.priceNote, entry.note || null, availability.warning, entry.page ? `Book ${entry.pack === 'Equipment' ? 3 : entry.pack === 'Drugs' ? 2 : 1} p.${entry.page}` : null].filter(Boolean).join('\n') || null });
         lastMessage = { ok: true, message: line, warning: availability.warning };
         onChange();
         saveToCloud();
@@ -5433,6 +5510,31 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         saveToCloud();
         return lastMessage;
       }
+      // v0.374.0: medical slow drug (Book 2 p.38): thirty days of ordinary
+      // healing in one day. The wounded (not the seriously wounded) are back
+      // to full strength by the day's end, unconscious meanwhile, a month
+      // older in body.
+      if (command === 'character:medical-slow') {
+        const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+        if (!patient) throw new Error('choose a character first');
+        if (patient.status?.severelyWounded) throw new Error(`${patient.identity.name} is seriously wounded: ordinary healing cannot bring him back, slow drug or not; he needs medical attention (Book 1 p.31)`);
+        if (!characterIsWounded(patient)) throw new Error(`${patient.identity.name} is not wounded`);
+        const holder = doseHolder('medical-slow', [patient.identity.id]);
+        if (!holder) throw new Error('nobody in the party has medical slow drug');
+        let campaign = advanceCampaignDays(resolved.campaign, 1);
+        registry.put(campaign);
+        reload();
+        const givenBy = holder.identity.id === patient.identity.id ? null : useDose(holder, 'medical-slow');
+        let healed = restCharacter(givenBy ? patient : useDose(patient, 'medical-slow'));
+        healed = importCharacterDocument({ ...healed, chronology: { ...healed.chronology, physicalAgeMonths: Number(healed.chronology?.physicalAgeMonths ?? 0) + MEDICAL_SLOW_AGING_MONTHS } });
+        persist(givenBy ? [healed, givenBy] : [healed]);
+        const message = `${patient.identity.name} takes medical slow drug${givenBy ? ` (${holder.identity.name}\u2019s dose)` : ''}: a day unconscious, thirty days\u2019 healing in it, and back to full strength, a month older in body (Book 2 p.38).`;
+        log('MEDICAL', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'character:rest' || command === 'character:medical') {
         const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
         // v0.271.0: an NPC actor rests and is treated by the same rule.
@@ -5478,14 +5580,29 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           lastMessage = { ok: true, message: `${patient.identity.name} rested three days: full strength.` };
         } else {
           const { medic, level, kit, facility, xeno } = attendance(fight?.value);
+          // v0.374.0 (Kurt, Nov 2026): a dose of medical drug, given by an
+          // attendant with Medical-1 or better, is medical attention for
+          // ordinary wounds in place of a kit. The seriously wounded still need
+          // a facility (Book 1, 1981).
+          const byDrug = Boolean(fight?.value?.drug) && !patient.status?.severelyWounded;
+          const holder = byDrug ? doseHolder('medical', [medic?.identity?.id, patient.identity.id].filter(Boolean)) : null;
+          if (byDrug && !holder) throw new Error('nobody in the party has medical drug');
           // v0.296.0: no throw (1981 Book 1, Kurt's ruling); refused, saying
           // what is missing, before any time passes.
-          const result = medicalAttention(patient, { medicalLevel: level, medicalKit: kit, facility, xeno });
+          const result = medicalAttention(patient, { medicalLevel: level, medicalKit: byDrug ? true : kit, facility, xeno });
           ({ campaign, sameDay } = treatmentDay(campaign, patient.identity.id));
           registry.put(campaign);
           reload();
-          persist([result.character]);
-          const line = treatedLine(medic, level, patient.identity.name, result.serious, sameDay, xeno);
+          let treated = result.character;
+          const extra = [];
+          if (holder) {
+            if (holder.identity.id === patient.identity.id) treated = useDose(treated, 'medical');
+            else extra.push(useDose((resolved.characters ?? []).find((entry) => entry.identity.id === holder.identity.id) ?? holder, 'medical'));
+          }
+          persist([treated, ...extra]);
+          const line = byDrug
+            ? `${medic?.identity.name ?? 'Someone'} (Medical-${level}${xeno ? `, Medical-${level - 2} for a non-human` : ''}) treats ${patient.identity.name} with a dose of medical drug${holder.identity.id === patient.identity.id ? '' : ` (${holder.identity.name}\u2019s)`}: back to full strength (Book 2 p.38).${sameDay ? ' (Same day of treatment: the clock does not move.)' : ''}`
+            : treatedLine(medic, level, patient.identity.name, result.serious, sameDay, xeno);
           log('MEDICAL', line);
           lastMessage = { ok: true, message: line };
         }
@@ -7292,6 +7409,34 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       }
       // v0.255.0: a weapon can be chosen while the board is being set up as
       // well as during the fight, so this sits outside both groups.
+      // v0.374.0: slow or combat drug in a fight (Book 2 p.38). A player
+      // character takes a dose from his own gear, or the party's; an NPC is the
+      // referee's to dose.
+      if (command === 'fight:take-drug') {
+        const encounter = liveEncounter();
+        if (!encounter) throw new Error('no fight is running');
+        const combatantId = fight?.value?.combatantId;
+        const drugKey = String(fight?.value?.drugKey ?? '');
+        if (!ENCOUNTER_COMBAT_DRUGS.includes(drugKey)) throw new Error('only slow drug and combat drug are taken in a fight');
+        const combatant = encounter.combatants.find((entry) => entry.id === combatantId);
+        if (!combatant) throw new Error('no such combatant');
+        const result = takeEncounterDrug(encounter, { combatantId, drugKey });
+        const changed = [result.encounter];
+        let from = '';
+        if (combatant.playerCharacter) {
+          const holder = doseHolder(drugKey, [combatant.id]);
+          if (!holder) throw new Error(`nobody in the party has ${getDrug(drugKey).name.toLowerCase()}`);
+          changed.push(useDose(holder, drugKey));
+          if (holder.identity.id !== combatant.id) from = ` (${holder.identity.name}\u2019s dose)`;
+        }
+        persist(changed);
+        const message = `${result.entry.text}${from}`;
+        log('COMBAT', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'fight:weapon') {
         const encounter = liveEncounter() ?? setupEncounter();
         if (!encounter) throw new Error('no fight is running');

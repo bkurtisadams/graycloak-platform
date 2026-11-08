@@ -14,6 +14,7 @@
 // is carrying them outside the starport (Book 3 p.8).
 
 import { PERSONAL_WEAPONS } from '../combat/personal-combat.js';
+import { DRUGS } from './drugs.js';
 
 const item = (entry) => Object.freeze({ techLevel: null, weightGrams: 0, note: '', military: false, ...entry });
 
@@ -124,8 +125,17 @@ export const CATALOGUE_EQUIPMENT = Object.freeze([
   B3('Rations', 'Dehydrated Rations (1 day)', 1, 25, 200, 'One person, one day; needs water where eaten.', { page: 15 })
 ]);
 
-export const CATALOGUE = Object.freeze([...CATALOGUE_WEAPONS, ...CATALOGUE_WEAPON_EXTRAS, ...CATALOGUE_ARMOUR, ...CATALOGUE_EQUIPMENT]);
-export const CATALOGUE_PACKS = Object.freeze(['Weapons', 'Armour', 'Equipment']);
+// 0.95.0: Book 2 pp.38-39's drugs, by the dose (Kurt, Nov 2026). Buying one
+// is a day's search and a throw (drugs.js), not a purchase off the shelf.
+// Psi-drugs wait for psionics.
+export const CATALOGUE_DRUGS = Object.freeze(Object.values(DRUGS).map((entry) => item({
+  key: `drug:${entry.key}`, pack: 'Drugs', group: 'Drugs', drugKey: entry.key, name: entry.name,
+  techLevel: entry.techLevel, priceCr: entry.priceCr, priceNote: `Cr ${entry.priceCr.toLocaleString('en-US')} a dose`,
+  note: `${entry.note} A day\u2019s search, then 2D for ${entry.availability}+ (+1 a tech level above ${entry.techLevel}).`, page: 39
+})));
+
+export const CATALOGUE = Object.freeze([...CATALOGUE_WEAPONS, ...CATALOGUE_WEAPON_EXTRAS, ...CATALOGUE_ARMOUR, ...CATALOGUE_EQUIPMENT, ...CATALOGUE_DRUGS]);
+export const CATALOGUE_PACKS = Object.freeze(['Weapons', 'Armour', 'Equipment', 'Drugs']);
 
 export function catalogueEntry(key) {
   const entry = CATALOGUE.find((candidate) => candidate.key === key);
@@ -142,6 +152,12 @@ export function catalogueEntry(key) {
 export function catalogueAvailability(entry, profile, { prohibitedWeaponKeys = [] } = {}) {
   if (!profile) return { buy: false, reason: 'Buying needs a world: the party is not in port.', warning: null };
   if (entry.military) return { buy: false, reason: 'Strictly military, not sold to civilians in most circumstances (Book 1 p.41). The referee can give it.', warning: null };
+  // 0.95.0: a drug below its tech index is not generally to be had in pill
+  // form (ruling); at or above it, buying is the search and its throw.
+  if (entry.drugKey && Number(profile.techLevel) < entry.techLevel) {
+    return { buy: false, reason: `Not generally available below tech level ${entry.techLevel}; this world is ${profile.techLevel} (Book 2 p.39).`, warning: null };
+  }
+  if (entry.drugKey) return { buy: true, reason: null, warning: 'A day\u2019s search, then the availability throw; the world\u2019s law may forbid it (Book 2 p.39).' };
   if (entry.techLevel !== null && Number(profile.techLevel) < entry.techLevel) {
     return { buy: false, reason: `Needs tech level ${entry.techLevel}; this world is ${profile.techLevel}. Perhaps as an import at a higher price, at the referee\u2019s word (Book 3 p.13).`, warning: null };
   }
@@ -160,6 +176,8 @@ export function catalogueAvailability(entry, profile, { prohibitedWeaponKeys = [
 // ---------------------------------------------------------------------------
 export function blackMarketTerms(entry, profile) {
   if (!profile) return null;
+  // 0.95.0: drugs have their own availability throw (Book 2 p.39).
+  if (entry.drugKey) return null;
   const short = entry.techLevel === null ? 0 : entry.techLevel - Number(profile.techLevel);
   if (short >= 4) return { available: false, reason: `${short} tech levels beyond this world: not to be had at any price.` };
   if (entry.military) return { available: true, factor: 2, priceCr: entry.priceCr * 2, why: 'military' };

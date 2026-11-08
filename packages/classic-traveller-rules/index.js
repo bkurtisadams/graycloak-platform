@@ -6,7 +6,7 @@
 // against the version it was built for and says so when a server is still
 // serving an older copy (traveller/client/rules-check.js). It must equal
 // package.json's version; tests/rules-version.test.js holds the two together.
-export const RULES_VERSION = '0.94.0';
+export const RULES_VERSION = '0.95.0';
 
 export {
   createDice,
@@ -55,10 +55,16 @@ export {
   CATALOGUE_WEAPON_EXTRAS,
   CATALOGUE_ARMOUR,
   CATALOGUE_EQUIPMENT,
+  CATALOGUE_DRUGS,
   catalogueEntry,
   catalogueAvailability,
   blackMarketTerms
 } from './src/equipment/catalogue.js';
+// 0.95.0: Book 2 pp.38-39's drugs (1977).
+export {
+  DRUGS, DRUG_SOURCE, getDrug, drugForItemName, drugAvailabilityThrow, drugLegalityThrow, drugSynergy,
+  COMBAT_DRUG_TIMING, combatDrugRounds, MEDICAL_SLOW_AGING_MONTHS
+} from './src/equipment/drugs.js';
 export {
   SKILL_GUIDE,
   skillGuide,

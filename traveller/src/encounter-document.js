@@ -18,8 +18,13 @@ import {
   personalMovementConsequences,
   resolvePersonalMorale,
   endPersonalCombatRecovery,
-  stableDocumentId
-} from '../vendor/classic-traveller-rules/index.js?v=r0.94.0';
+  stableDocumentId,
+  COMBAT_DRUG_TIMING,
+  combatDrugRounds,
+  drugSynergy,
+  getDrug,
+  createDice
+} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
 export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 17;
@@ -605,6 +610,116 @@ export function importEncounterDocument(input) { const document = migrateEncount
 export function exportEncounterDocument(document, { space = 2 } = {}) { return JSON.stringify(importEncounterDocument(document), null, space); }
 
 function combatants(document, side) { return document.combatants.filter((entry) => entry.side === side); }
+// ---- combat drugs (Book 2 p.38, 1977) ---------------------------------------
+//
+// v0.374.0 (Kurt, Nov 2026). Slow drug: from 3 rounds after taking, for 40,
+// two combat rounds to each one (here, every attack is thrown twice); then
+// 1D wounds. Combat drug: from 2 rounds after, for 30, strength and
+// endurance +2 each (scores, the blow allowance drawn from endurance, and
+// what the wounds come off); then 1D wounds. More than one drug: synergy,
+// 1D a drug multiplied, at the end of the period of use (p.39). A drug still
+// running when the fight ends wears off then (ruling): the fight is the
+// game's only clock that fine.
+
+export const ENCOUNTER_COMBAT_DRUGS = Object.freeze(Object.keys(COMBAT_DRUG_TIMING));
+
+function drugsOf(combatant) { return Array.isArray(combatant?.drugs) ? combatant.drugs : []; }
+
+/** Whether a combatant is under slow drug in this round. */
+export function combatantSlowed(combatant, round) {
+  return drugsOf(combatant).some((entry) => entry.key === 'slow' && !entry.ended && round >= entry.first && round <= entry.last);
+}
+
+export function takeEncounterDrug(document, { combatantId, drugKey } = {}) {
+  const next = importEncounterDocument(document);
+  if (next.status !== 'active') throw new Error('the fight is over');
+  const timing = COMBAT_DRUG_TIMING[drugKey];
+  if (!timing) throw new RangeError(`${drugKey} is not taken in a fight`);
+  const combatant = next.combatants.find((entry) => entry.id === combatantId);
+  if (!combatant) throw new Error('no such combatant');
+  if (combatant.status !== 'active') throw new Error(`${combatant.name} is in no state to take anything`);
+  if (combatant.animal) throw new Error('an animal takes no drugs');
+  if (drugsOf(combatant).some((entry) => entry.key === drugKey && !entry.ended)) throw new Error(`${combatant.name} is already on ${getDrug(drugKey).name.toLowerCase()}`);
+  const rounds = combatDrugRounds(drugKey, next.round);
+  const taken = { key: drugKey, takenRound: next.round, first: rounds.first, last: rounds.last, boosted: false, ended: false };
+  const updated = { ...combatant, drugs: [...drugsOf(combatant), taken] };
+  replaceCombatants(next, updated);
+  const name = getDrug(drugKey).name.toLowerCase();
+  const entry = { round: next.round, kind: 'drug', side: combatant.side, combatantId, drug: drugKey,
+    text: `${combatant.name} takes ${name}: in effect rounds ${rounds.first}\u2013${rounds.last}, then 1D wounds (Book 2 p.38).` };
+  next.history.push(entry);
+  assertValidEncounterDocument(next);
+  return { encounter: next, entry };
+}
+
+function boostCombatant(combatant, boost, sign) {
+  const next = { ...combatant, characteristics: { ...combatant.characteristics }, current: { ...combatant.current } };
+  for (const [key, amount] of Object.entries(boost)) {
+    next.characteristics[key] = Math.max(0, Number(next.characteristics[key] ?? 0) + sign * amount);
+    next.current[key] = Math.max(0, Number(next.current[key] ?? 0) + sign * amount);
+  }
+  if (boost.END) next.blowAllowance = Math.max(0, Number(next.blowAllowance ?? 0) + sign * boost.END);
+  return next;
+}
+
+// Onsets for the round about to be fought.
+function startCombatDrugs(combatants, round, entries) {
+  return combatants.map((combatant) => {
+    if (!drugsOf(combatant).length) return combatant;
+    let next = combatant;
+    const drugs = drugsOf(combatant).map((entry) => {
+      if (entry.ended || entry.boosted || entry.first !== round) return entry;
+      const timing = COMBAT_DRUG_TIMING[entry.key];
+      if (timing.boost) next = boostCombatant(next, timing.boost, 1);
+      entries.push({ round, kind: 'drug', side: combatant.side, combatantId: combatant.id, drug: entry.key,
+        text: entry.key === 'slow' ? `${combatant.name}\u2019s slow drug takes hold: two attacks a round.` : `${combatant.name}\u2019s combat drug takes hold: strength and endurance +2.` });
+      return { ...entry, boosted: true };
+    });
+    return { ...next, drugs };
+  });
+}
+
+// Wear-offs: those whose last round has been fought, or all of them.
+function endCombatDrugs(combatant, round, dice, entries, { all = false } = {}) {
+  if (!drugsOf(combatant).length || combatant.status === 'dead') return combatant;
+  let next = combatant;
+  const ending = drugsOf(combatant).filter((entry) => !entry.ended && (all || entry.last <= round));
+  if (!ending.length) return combatant;
+  const drugs = drugsOf(combatant).map((entry) => (ending.includes(entry) ? { ...entry, ended: true } : entry));
+  next = { ...next, drugs };
+  for (const entry of ending) {
+    const timing = COMBAT_DRUG_TIMING[entry.key];
+    if (timing.boost && entry.boosted) next = boostCombatant(next, timing.boost, -1);
+    const wound = [dice.rollD6()];
+    next = woundFromDrug(next, wound, dice);
+    entries.push({ round, kind: 'drug', side: combatant.side, combatantId: combatant.id, drug: entry.key,
+      text: `${combatant.name}\u2019s ${getDrug(entry.key).name.toLowerCase()} wears off: 1D [${wound[0]}] wounds (Book 2 p.38).` });
+  }
+  // p.39: synergy at the end of the period of drug use.
+  if (drugs.every((entry) => entry.ended) && drugs.length > 1) {
+    const synergy = drugSynergy(dice, drugs.map((entry) => entry.key));
+    if (synergy) {
+      next = woundFromDrug(next, null, dice, synergy.wounds);
+      entries.push({ round, kind: 'drug', side: combatant.side, combatantId: combatant.id, drug: 'synergy',
+        text: `${combatant.name} suffers synergy: ${synergy.dice.map((die) => `[${die}]`).join(' \u00d7 ')} = ${synergy.wounds} wounds (Book 2 p.39).` });
+    }
+  }
+  return next;
+}
+
+function woundFromDrug(combatant, damageDice, dice, fixed = null) {
+  if (combatant.status === 'dead') return combatant;
+  const firstBloodRoll = combatant.firstBlood ? dice.rollD6() : null;
+  try {
+    const damage = fixed === null
+      ? applyPersonalDamage(combatant, damageDice, firstBloodRoll)
+      : applyPersonalDamage(combatant, [], firstBloodRoll, { woundGroups: [fixed] });
+    return { ...damage.combatant, position: combatant.position, drugs: combatant.drugs };
+  } catch {
+    return combatant;
+  }
+}
+
 function replaceCombatants(document, ...entries) {
   const map = new Map(entries.map((entry) => [entry.id, entry]));
   document.combatants = document.combatants.map((entry) => map.get(entry.id) ?? entry);
@@ -901,7 +1016,7 @@ export function setCombatantStatus(document, { combatantId, status } = {}) {
 }
 
 // Referee ends the fight without playing it out.
-export function endEncounterByReferee(document, { date, reason = 'referee-ended' } = {}) {
+export function endEncounterByReferee(document, { date, reason = 'referee-ended', dice = null } = {}) {
   const next = importEncounterDocument(document);
   if (next.status !== 'active') throw new Error('encounter is already resolved');
   if (!validDate(date)) throw new TypeError('valid date is required');
@@ -911,6 +1026,10 @@ export function endEncounterByReferee(document, { date, reason = 'referee-ended'
   next.outcome = { winner: !foesStanding ? 'party' : !partyStanding ? 'opposition' : null, reason };
   next.roundState.declaredActions = [];
   next.timing.resolvedDate = { year: date.year, dayOfYear: date.dayOfYear };
+  // v0.374.0: drugs still running wear off as the fight ends.
+  const worn = [];
+  next.combatants = next.combatants.map((entry) => endCombatDrugs(entry, next.round, dice ?? createDice(), worn, { all: true }));
+  next.history.push(...worn);
   next.combatants = next.combatants.map(endPersonalCombatRecovery);
   const entry = { round: next.round, kind: 'outcome', side: 'referee', text: `Referee ends the encounter: ${next.status}.` };
   next.history.push(entry);
@@ -1315,6 +1434,8 @@ export function resolveDeclaredRound(document, { dice, date, playerAllocatesWoun
   // evading do not (Book 1 p.32).
   for (const declaration of declarations.filter((entry) => ['attack', 'close', 'open'].includes(entry.action))) {
     throwAttack(declaration.actorId, declaration.targetId, declaration.modifier, declaration.side);
+    // v0.374.0: slow drug, two combat rounds to each one (Book 2 p.38).
+    if (combatantSlowed(snapshot.get(declaration.actorId), next.round)) throwAttack(declaration.actorId, declaration.targetId, declaration.modifier, declaration.side);
   }
 
   // Anyone active, allowed to act, and not given an order falls back to the
@@ -1338,6 +1459,7 @@ export function resolveDeclaredRound(document, { dice, date, playerAllocatesWoun
       continue;
     }
     throwAttack(entry.id, foe.id, 0, entry.side);
+    if (combatantSlowed(attacker, next.round)) throwAttack(entry.id, foe.id, 0, entry.side);
   }
 
   // --- Step 2C: wounds land after the last attack, in declaration order.
@@ -1487,6 +1609,8 @@ function concludeRound(next, entries, live, { dice, date } = {}) {
     const gone = next.map.spatialMode === 'range-line' ? encounterMapDistance(entry, nearest ?? entry) >= escapeThreshold : encounterMapDistance(entry, nearest ?? entry) > escapeThreshold;
     if (nearest && gone) entry.status = 'escaped';
   }
+  // v0.374.0: drugs whose last round this was wear off now.
+  if (dice) for (const [id, entry] of live) live.set(id, endCombatDrugs(entry, next.round, dice, entries));
   replaceCombatants(next, ...live.values());
   next.range = closestOpposingBand(next.combatants, next.map.spatialMode) ?? next.range;
   next.roundState.declaredActions = [];
@@ -1529,9 +1653,16 @@ function concludeRound(next, entries, live, { dice, date } = {}) {
     }
   }
   next.history.push(...entries);
-  if (next.status === 'active') next.round += 1;
-  else {
+  if (next.status === 'active') {
+    next.round += 1;
+    const onsets = [];
+    next.combatants = startCombatDrugs(next.combatants, next.round, onsets);
+    next.history.push(...onsets);
+  } else {
     next.timing.resolvedDate = { year: date.year, dayOfYear: date.dayOfYear };
+    const worn = [];
+    next.combatants = next.combatants.map((entry) => endCombatDrugs(entry, next.round, dice ?? createDice(), worn, { all: true }));
+    next.history.push(...worn);
     next.combatants = next.combatants.map(endPersonalCombatRecovery);
   }
   assertValidEncounterDocument(next);

@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.373.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.373.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.373.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.374.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.374.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.374.0';
 
 const DRAGGED = new Map();
 
@@ -422,7 +422,17 @@ function conditionBlock(sheet, handlers) {
       h('label', { class: 'sheet-check', title: condition.severe ? 'Your call: a facility could be anywhere' : (condition.kitSeen ? 'A medical kit is in someone\u2019s gear' : 'Your call: no kit is listed in anyone\u2019s gear') },
         atHand, condition.severe ? ' medical facility available' : ' medical kit at hand'),
       h('label', { class: 'sheet-check', title: 'Xeno-medicine: the attendant counts two levels lower (The Traveller Book)' }, xeno, ' non-human patient'),
-      treat),
+      treat,
+      // v0.374.0 (Kurt, Nov 2026): a dose of medical drug is the treatment in
+      // place of a kit, for ordinary wounds; medical slow drug heals in a day.
+      !condition.severe && condition.medicalDrugDoses ? h('button', { type: 'button', class: 'button is-small', disabled: !qualified.length,
+        title: qualified.length ? 'A dose of medical drug, given by the attendant, in place of a medical kit (Book 2 p.38)' : `Nobody here has Medical-${needed}`,
+        text: `Medical drug (${condition.medicalDrugDoses})`,
+        onclick: () => handlers.onMedicalDrug?.(sheet.id, medic.value, nonHuman ? { xeno: true } : {}) }) : null,
+      !condition.severe && condition.medicalSlowDoses ? h('button', { type: 'button', class: 'button is-small',
+        title: 'Unconscious a day; thirty days\u2019 healing in it, so back to full strength, a month older in body (Book 2 p.38)',
+        text: `Medical slow drug (${condition.medicalSlowDoses})`,
+        onclick: () => handlers.onMedicalSlow?.(sheet.id) }) : null),
     !sheet.playerSeat && !qualified.length ? h('p', { class: 'sheet-note', text: `Nobody here has Medical-${needed}${nonHuman ? ' (two levels over, for a non-human)' : ''}${condition.severe ? '' : '; rest is the way'}.` }) : null);
 }
 
