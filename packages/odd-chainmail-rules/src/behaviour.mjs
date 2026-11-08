@@ -13,7 +13,8 @@
  *   5. fight if adjacent, close if it can touch, charge if only a charge
  *      reaches, otherwise advance (Cunning at half move, to stay able to join).
  * Each decision is returned as a plain-text reason for the log.
- * Lair defenders stay within LAIR_RADIUS of their hoard (an open ruling).
+ * Book III's Avoiding Monsters (Kurt, Nov 2026): monsters attack or pursue whatever they see, with no
+ * leash to a hoard, and keep after a foe only while no more than 90 feet (9") lies between them.
  */
 import { MONSTERS } from "./monsters.mjs";
 import { hitDiceFor } from "./hit-dice.mjs";
@@ -24,7 +25,7 @@ import { opponent } from "./turn-sequence.mjs";
 import { present, active, sz, centre, adjacent, distIn } from "./board.mjs";
 import { reachFor, moveInches, moveFigure, mayCharge as mayChargeNow } from "./movement.mjs";
 
-export const LAIR_RADIUS = 6; // inches from the hoard that lair defenders will go; OPEN for Kurt
+export const PURSUIT_INCHES = 9; // Book III: pursuit goes on while not more than 90 feet separate them (1" = 10 feet underground)
 export const PROFILE_LABEL = Object.freeze({ mindless: "Mindless", bestial: "Bestial", cunning: "Cunning", intelligent: "Intelligent" });
 const mon = (f) => (f.kind === "monster" ? MONSTERS.find((m) => m.key === f.monsterKey) : null);
 export const profileOf = (f) => (f.kind === "monster" ? mon(f).mind.behavior : "cunning");
@@ -39,14 +40,13 @@ export const isCaster = (f) => f.kind === "pc" && ["magic-user", "cleric"].inclu
 export const woundFrac = (e) => (e.maxHp ? Math.max(0, e.hp) / e.maxHp : 1);
 export const leaderOf = (state, side) => state.figures.filter((e) => e.side === side && present(e) && e.kind === "pc").sort((a, b) => b.level - a.level)[0] ?? null;
 export const engagedByAlly = (state, f, t) => state.figures.some((a) => a !== f && a.side === f.side && active(a) && a.target === t.id && adjacent(a, t));
-/** Best reachable cell toward t. charge: only cells in contact. maxCost in half-cells. Lair defenders stay near the hoard. */
+/** Best reachable cell toward t. charge: only cells in contact. maxCost in half-cells. */
 export function approach(state, f, t, { charge = false, maxCost = Infinity } = {}) {
   const was = f.charging; f.charging = charge;
   const reach = reachFor(state, f); f.charging = was;
-  const lair = lairOf(state, f); let best = null;
+  let best = null;
   for (const n of reach.values()) {
     if (n.passOnly || n.cost === 0 || n.cost > maxCost) continue;
-    if (lair && Math.hypot(n.x - lair.x, n.y - lair.y) / 3 > LAIR_RADIUS) continue;
     const probe = { x: n.x, y: n.y, size: sz(f) }; const touch = adjacent(probe, t);
     if (charge && !touch) continue;
     const c = centre(probe), d = Math.hypot(c.x - centre(t).x, c.y - centre(t).y);
@@ -79,10 +79,10 @@ export function decide(state, f, events = []) {
   if (g?.holdRound === state.round) { f.action = "hold"; f.target = null; return `${n} holds: uncertain reaction to the parley`; }
   let foes = state.figures.filter((e) => e.side !== f.side && present(e) && e.placed);
   if (!foes.length) return null;
+  if (f.kind === "monster" && foes.every((e) => distIn(f, e) > PURSUIT_INCHES)) { f.action = "hold"; f.target = null; return `${n} lets them go: more than 90 feet between them (Book III)`; }
   if (f.kind === "monster" && avoidsForce(m.mind.intelligence, forceOf(state, f)) && !foes.some((e) => adjacent(f, e))) {
     const fc = forceOf(state, f), why = `${fc.foeCount} against ${fc.ownCount}, ${Math.round(fc.foeHd * 10) / 10} HD against ${Math.round(fc.ownHd * 10) / 10}`;
     f.target = null; f.action = "hold";
-    if (lairOf(state, f)) return `${n} holds by the hoard: an obviously superior force (${why})`;
     const back = retreat(state, f, foes);
     if (back) { moveTo(f, back.n.x, back.n.y); return `${n} falls back from an obviously superior force (${why})`; }
     return `${n} holds: an obviously superior force (${why}), nowhere to fall back`;
@@ -126,7 +126,7 @@ export function decide(state, f, events = []) {
   if (ch) { f.charging = true; moveTo(f, ch.n.x, ch.n.y); f.target = t.id; f.action = "melee"; return `${n} charges ${t.name}: ${why}${why.includes("charge range") ? "" : ", in charge range"}`; }
   const step = approach(state, f, t, { maxCost: prof === "cunning" ? half : Infinity });
   if (step) { moveTo(f, step.n.x, step.n.y); f.target = t.id; return `${n} advances on ${t.name}${prof === "cunning" ? " in good order (half move, so he can join a melee)" : ""}: ${why}`; }
-  return `${n} holds${lairOf(state, f) ? " by the hoard (lair defenders don't pursue)" : ""}: can't get closer to ${t.name}`;
+  return `${n} holds: can't get closer to ${t.name}`;
 }
 
 /** Every active, placed figure on the side decides in turn. Returns events: moves and charges, then the decisions. */
@@ -157,10 +157,17 @@ function runSelfTests() {
   }
   // Cunning: closes when it can touch, otherwise advances at half move.
   {
-    const s = st([pc(1, 0, 5), mo(3, "orc", 39, 5)]);
+    const s = st([pc(1, 0, 5), mo(3, "kobold", 26, 5)]);
+    for (let y = 0; y < 11; y++) s.walls[y][13] = true; // a wall with a gap at the far end: no touch or charge this round, 8.7" as the crow flies
     behave(s, "B");
-    const orc = s.figures[1];
-    ok(orc.x < 39 && orc.moved <= Math.floor(moveBudget(moveInches(orc)) / 2), "orc advances at half move when nothing is in reach");
+    const kob = s.figures[1];
+    ok(kob.x < 26 && kob.moved <= Math.floor(moveBudget(moveInches(kob)) / 2), "kobold advances at half move when nothing is in reach");
+    const far = st([pc(1, 0, 5), mo(3, "orc", 39, 5)]);
+    const gone = behave(far, "B").find((e) => e.type === "behaviour").lines[0].text;
+    ok(/lets them go: more than 90 feet/.test(gone) && far.figures[1].x === 39, "no pursuit past 90 feet (Book III)");
+    const hoard = st([pc(1, 2, 5), mo(3, "orc", 26, 5)]); hoard.chests = [{ monsterKey: "orc", x: 30, y: 5 }];
+    behave(hoard, "B");
+    ok(Math.hypot(hoard.figures[1].x - 30, hoard.figures[1].y - 5) / 3 > 6, "lair defenders aren't leashed to the hoard: the orc goes past the old 6\"");
     const s2 = st([pc(1, 10, 5), mo(3, "orc", 14, 5)]);
     const line = behave(s2, "B").find((e) => e.type === "behaviour").lines[0].text;
     ok(/closes on F1/.test(line) && adjacent(s2.figures[1], s2.figures[0]), "orc closes when it can touch");

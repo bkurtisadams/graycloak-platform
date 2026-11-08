@@ -66,6 +66,27 @@ export function pursuitContinues(d6, { past = "corner" } = {}) {
   return d6 <= (past === "secret" ? 1 : 2);
 }
 
+/**
+ * Avoiding monsters (p.11): no avoiding a monster that surprised the party within 20 feet, unless it was
+ * surprised too; otherwise the party may flee and pursuit runs as above.
+ */
+export const NO_AVOID_FEET = 20;
+export function mayAvoid({ monstersSurprisedParty = false, feet = Infinity, monstersSurprised = false } = {}) {
+  return !(monstersSurprisedParty && feet <= NO_AVOID_FEET && !monstersSurprised);
+}
+/**
+ * Dropped to stop pursuit (p.11): food distracts intelligent monsters 10%, semi-intelligent 50%,
+ * non-intelligent 90%; treasure the other way round. The behaviour profiles stand in for Book III's three
+ * kinds (a reading, Nov 2026): intelligent and cunning (they talk) = intelligent, bestial = semi-intelligent,
+ * mindless = non-intelligent. Burning oil deters many: the referee says which.
+ */
+export const DISTRACT_PCT = Object.freeze({ food: { intelligent: 10, semi: 50, non: 90 }, treasure: { intelligent: 90, semi: 50, non: 10 } });
+export const mindClass = (intelligence) => (intelligence === "mindless" ? "non" : intelligence === "bestial" ? "semi" : "intelligent");
+export function distracted(item, intelligence, d100) {
+  const row = DISTRACT_PCT[item]; if (!row) return false;
+  return d100 <= row[mindClass(intelligence)];
+}
+
 /** Monster Determination matrix (p.10): by dungeon level, the d6 ranges that pick Monster Level Table 1–6. */
 export const DETERMINATION = Object.freeze([
   { levels: [1, 1],    tables: [[1, 2], [3, 4], [5, 5], [6, 6], null, null] },
@@ -88,7 +109,8 @@ export function monsterTableFor(dungeonLevel, d6) {
  * Monster Level Tables (p.10–11): Table 1 a d8, Tables 2–4 a d10 (0 = 10), Tables 5–6 a d12.
  * key: a Book II entry in monsters.mjs; options: the referee or a roll picks one; npc: a character type
  * by its Book I title; none of these: no bestiary entry yet. Number appearing is Book II's, set by the
- * referee for the party (Book III p.10).
+ * referee for the party (Book III p.10). Rulings (Kurt, Nov 2026): Evil Priests are 4th-level chaotic
+ * clerics; Evil High Priests 8th level (Patriarch) or higher.
  */
 const fm = (level) => ({ cls: "fighter", level }), mu = (level) => ({ cls: "magic-user", level });
 const RETINUE = "1–4 apprentices (Enchanters or Evil Priests) and 1–6 fighter-type bodyguards of levels 4–6";
@@ -108,7 +130,7 @@ export const MONSTER_LEVEL_TABLES = Object.freeze({
     { name: "Swashbucklers", npc: fm(5) }, { name: "Magicians", npc: mu(6) }, { name: "Giant Snakes" },
     { name: "Giant Weasels" }] },
   4: { die: 10, rows: [
-    { name: "Wraiths", key: "wraith" }, { name: "Ogres", key: "ogre" }, { name: "Evil Priests", npc: { cls: "cleric", level: null, alignment: "chaos" } },
+    { name: "Wraiths", key: "wraith" }, { name: "Ogres", key: "ogre" }, { name: "Evil Priests", npc: { cls: "cleric", level: 4, alignment: "chaos" } },
     { name: "Myrmidons", npc: fm(6) }, { name: "Giant Beetles" }, { name: "Giant Scorpions" },
     { name: "Lycanthropes", options: ["werewolf", "wereboar", "weretiger", "werebear"] },
     { name: "Gargoyles", key: "gargoyle" }, { name: "White Apes" }, { name: "Enchanters", npc: mu(7) }] },
@@ -125,7 +147,7 @@ export const MONSTER_LEVEL_TABLES = Object.freeze({
     { name: "Basilisks", key: "basilisk" }, { name: "Gorgons", key: "gorgon" }, { name: "Chimeras", key: "chimera" },
     { name: "Vampires", key: "vampire" }, { name: "Lords", npc: fm(9) }, { name: "Spectres", key: "spectre" },
     { name: "Wizards", npc: mu(11), retinue: RETINUE },
-    { name: "Evil High Priests", npc: { cls: "cleric", level: 8, alignment: "chaos" }, retinue: RETINUE },
+    { name: "Evil High Priests", npc: { cls: "cleric", level: 8, orHigher: true, alignment: "chaos" }, retinue: RETINUE },
     { name: "Purple Worms", key: "purple-worm" }] }
 });
 /** Book III's list of others to consider by level and surroundings; the referee places these, never a roll. */
@@ -205,6 +227,10 @@ function runSelfTests() {
   ok(surpriseUnderground({ partyD6: 3, monstersD6: 1, throughDoor: true }) === "monsters", "unless through a door");
   ok(surpriseUnderground({ partyD6: 2, monstersD6: 5 }) === "party", "party surprised on 1–2");
   ok(dropsItem(25) && !dropsItem(26), "25% to drop a held item");
+  ok(!mayAvoid({ monstersSurprisedParty: true, feet: 20 }) && mayAvoid({ monstersSurprisedParty: true, feet: 30 }), "no avoiding a surprise within 20'");
+  ok(mayAvoid({ monstersSurprisedParty: true, feet: 10, monstersSurprised: true }) && mayAvoid({}), "unless they were surprised too");
+  ok(distracted("food", "mindless", 90) && !distracted("food", "intelligent", 11) && distracted("food", "bestial", 50), "food: 90 / 50 / 10");
+  ok(distracted("treasure", "cunning", 90) && !distracted("treasure", "mindless", 11) && !distracted("oil", "cunning", 1), "treasure the other way round");
   ok(pursuitContinues(2) && !pursuitContinues(3) && !pursuitContinues(2, { past: "secret" }), "pursuit past corners and secret doors");
   ok(monsterTableFor(1, 2) === 1 && monsterTableFor(1, 5) === 3 && monsterTableFor(1, 6) === 4, "level 1 matrix");
   ok(monsterTableFor(5, 3) === 4 && monsterTableFor(11, 1) === 5 && monsterTableFor(20, 1) === 6, "deeper rows");
@@ -224,6 +250,7 @@ function runSelfTests() {
   ok(hy.key === "hydra" && hy.heads === 8, "hydra heads rolled in range");
   ok(monsterFromTable(6, seq(f(3, 12), f(5, 6))).key === "dragon-red", "Dragons pick a kind");
   ok(monsterFromTable(6, seq(f(10, 12))).retinue && monsterFromTable(6, seq(f(10, 12))).npc.level === 11, "Wizards bring a retinue");
+  ok(monsterFromTable(4, seq(f(3, 10))).npc.level === 4 && monsterFromTable(6, seq(f(11, 12))).npc.orHigher, "Evil Priests 4th, Evil High Priests 8th or higher");
   const lvl = stockLevel(["a", "b", "c"], 1, Math.random, new Set(["b"]));
   ok(lvl.a && lvl.c && !("b" in lvl), "allocated rooms are left alone");
   console.log(`underworld.mjs — all self-tests passed (${pass} assertions).`);

@@ -2033,7 +2033,7 @@ function dungeonRoomCard(L, id) {
   if (m) {
     const b = m.key ? MONSTERS.find((x) => x.key === m.key) : null;
     const hd = b ? `${b.hd.count}${b.hd.bonus ? (b.hd.bonus > 0 ? `+${b.hd.bonus}` : b.hd.bonus) : ""}` : "";
-    const facts = b ? ` \u00b7 AC ${b.ac} \u00b7 HD ${hd} \u00b7 move ${b.move?.ground ?? "?"}\u2033` : m.npc ? ` \u00b7 ${esc(rs.CLASS_LABEL[m.npc.cls] ?? m.npc.cls)}${m.npc.level ? ` ${m.npc.level}` : ", level for the referee"}` : "";
+    const facts = b ? ` \u00b7 AC ${b.ac} \u00b7 HD ${hd} \u00b7 move ${b.move?.ground ?? "?"}\u2033` : m.npc ? ` \u00b7 ${esc(rs.CLASS_LABEL[m.npc.cls] ?? m.npc.cls)}${m.npc.level ? ` ${m.npc.level}${m.npc.orHigher ? " or higher" : ""}` : ", level for the referee"}${m.npc.alignment ? `, ${esc(m.npc.alignment)}` : ""}` : "";
     const na = b?.reference?.numberAppearing ? `No. appearing ${esc(b.reference.numberAppearing)} (Book II), set for the party when they come` : m.npc ? "Their number is the referee\u2019s, set for the party when they come" : "No bestiary entry yet: the referee supplies it";
     mon = `<b class="mon">${esc(m.name)}</b>${m.heads ? ` (${m.heads} heads)` : ""}${facts}<br><span class="mut">${na}${m.retinue ? `; with ${esc(m.retinue)}` : ""}</span>`;
   }

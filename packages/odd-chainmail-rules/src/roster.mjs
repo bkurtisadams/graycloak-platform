@@ -22,7 +22,7 @@
  * Rolls stand (Kurt, Oct 2026: in the book the referee rolls the abilities):
  * a player can't throw away a rolled character; the referee can delete one.
  */
-import { rollAbilities, rollStartingGold, raceClassLegal, raceAlignmentLegal, legalClassesFor, legalAlignmentsFor, recomputeExchange, exchangeDonorsFor, maxExchangeSteps, startingHp, maxLevelFor } from "./chargen.mjs";
+import { rollAbilities, rollStartingGold, raceClassLegal, raceAlignmentLegal, legalClassesFor, legalCombosFor, legalAlignmentsFor, recomputeExchange, exchangeDonorsFor, maxExchangeSteps, startingHp, maxLevelFor } from "./chargen.mjs";
 import { hitDiceFor } from "./hit-dice.mjs";
 import { primeFor, xpMod, missileMod } from "./derivations.mjs";
 import { classKey, titleFor, nextThreshold, nextTitle } from "./advancement.mjs";
@@ -132,11 +132,18 @@ export function rollCharacter(roll) {
   return { status: "draft", level: 1, xp: 0, rolled, abilities: { ...rolled }, exchange: { from: "", steps: 0 }, xpPrimeBonus: 0, gold, coins: { cp: 0, sp: 0, gp: gold }, items: [], ready: { weapon: null, missile: null }, remembered: [], notes: "", hirelings: [], name: "", race: "human", cls: "fighter", alignment: "law" };
 }
 
+/**
+ * A class a character of this race may take on its own: Greyhawk's dwarves thieve only as Fighting-Man/Thieves
+ * (Kurt, Nov 2026, from the Greyhawk text), and the online roster has no multi-classes yet, so a dwarf can't
+ * pick Thief here; elves and halflings can be thieves alone.
+ */
+export const soloClassLegal = (race, cls) => legalCombosFor(race, { greyhawk: true }).some((c) => c.length === 1 && c[0] === cls);
+
 /** Choices a draft still offers: classes and alignments for its race, exchange donors for its class. */
 export function choicesFor(ch) {
   const prime = primeFor(ch.cls);
   return {
-    classes: legalClassesFor(ch.race, { greyhawk: true }), alignments: legalAlignmentsFor(ch.race), prime,
+    classes: legalClassesFor(ch.race, { greyhawk: true }).filter((c) => soloClassLegal(ch.race, c)), alignments: legalAlignmentsFor(ch.race), prime,
     donors: Object.entries(exchangeDonorsFor(ch.cls)).map(([from, ratio]) => ({ from, ratio, max: maxExchangeSteps(ch.rolled, ch.cls, prime, from), xpOnly: false }))
   };
 }
@@ -150,6 +157,7 @@ export function setBasics(ch, o = {}) {
   if (o.cls != null) { if (!CLASS_LABEL[classKey(o.cls)] || classKey(o.cls) !== o.cls) return fail("no such class"); next.cls = o.cls; }
   if (o.alignment != null) { if (!ALIGN_LABEL[o.alignment]) return fail("no such alignment"); next.alignment = o.alignment; }
   if (!raceClassLegal(next.race, next.cls)) return fail(`a ${next.race} can't be a ${CLASS_LABEL[next.cls].toLowerCase()}`);
+  if (!soloClassLegal(next.race, next.cls)) return fail(`a ${next.race} thieves only as a Fighting-Man/Thief (Greyhawk), and multi-classes aren't online yet`);
   if (!raceAlignmentLegal(next.race, next.alignment)) return fail(`a ${next.race} can't be of ${ALIGN_LABEL[next.alignment]}`);
   // a changed class keeps no exchange it can't make; the shop list is checked again on finishing
   const ex = o.exchange ?? (next.cls === ch.cls ? next.exchange : { from: "", steps: 0 });
@@ -301,6 +309,9 @@ function runSelfTests() {
   let r = setBasics(ch, { name: "Brom", race: "halfling", cls: "magic-user" });
   ok(!r.ok && /halfling/.test(r.error), "a halfling can't be a magic-user");
   r = setBasics(ch, { race: "dwarf", alignment: "chaos" }); ok(!r.ok, "a dwarf can't be of Chaos");
+  r = setBasics(ch, { race: "dwarf", cls: "thief" }); ok(!r.ok && /Fighting-Man\/Thief/.test(r.error), "a dwarf thieves only as a Fighting-Man/Thief (Greyhawk)");
+  ok(setBasics(ch, { race: "elf", cls: "thief", alignment: "neutral" }).ok && setBasics(ch, { race: "halfling", cls: "thief", alignment: "law" }).ok, "elves and halflings may be thieves alone");
+  ok(!choicesFor({ ...ch, race: "dwarf" }).classes.includes("thief") && choicesFor({ ...ch, race: "elf" }).classes.includes("thief"), "the dwarf's class list has no Thief");
   const strong = { ...ch, rolled: { str: 13, int: 15, wis: 12, con: 15, dex: 16, cha: 11 } }; strong.abilities = { ...strong.rolled };
   r = setBasics(strong, { name: "Brom", cls: "fighter", exchange: { from: "int", steps: 2 } });
   ok(r.ok && r.ch.abilities.str === 15 && r.ch.abilities.int === 11, "fighter trades Intelligence 2 for 1 into Strength");

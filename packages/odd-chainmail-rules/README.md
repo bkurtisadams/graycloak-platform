@@ -150,6 +150,14 @@ Changes made during extraction:
 - 0.35.0: `generateLevel` shuffles with its own seeded Fisher–Yates instead
   of a random sort comparator, so a seed lays out the same level in every
   JavaScript engine (seeds from 0.34.0 lay out differently).
+- 0.36.0: rulings (Kurt, Nov 2026). Evil Priests are 4th-level chaotic
+  clerics, Evil High Priests 8th level or higher. Book III's Avoiding
+  Monsters replaces the open 6" lair leash: monsters pursue what they see
+  while no more than 90 feet (9") separate them, hoard or no hoard
+  (`behaviour.PURSUIT_INCHES`); `underworld` adds `mayAvoid` (no avoiding a
+  surprise within 20') and `distracted` (food and treasure dropped to stop
+  pursuit). The online roster offers no single-class dwarf thief: by
+  Greyhawk, dwarves thieve only as Fighting-Man/Thieves (`soloClassLegal`).
 
 ## Open items
 
