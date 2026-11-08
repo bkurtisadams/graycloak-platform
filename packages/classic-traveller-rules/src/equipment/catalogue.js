@@ -131,7 +131,7 @@ export const CATALOGUE_EQUIPMENT = Object.freeze([
 export const CATALOGUE_DRUGS = Object.freeze(Object.values(DRUGS).map((entry) => item({
   key: `drug:${entry.key}`, pack: 'Drugs', group: 'Drugs', drugKey: entry.key, name: entry.name,
   techLevel: entry.techLevel, priceCr: entry.priceCr, priceNote: `Cr ${entry.priceCr.toLocaleString('en-US')} a dose`,
-  note: `${entry.note} A day\u2019s search, then 2D for ${entry.availability}+ (+1 a tech level above ${entry.techLevel}).`, page: 39
+  note: `${entry.note} A day\u2019s search, then 2D for ${entry.availability}+, DM the world\u2019s tech level less ${entry.techLevel}.`, page: 39
 })));
 
 export const CATALOGUE = Object.freeze([...CATALOGUE_WEAPONS, ...CATALOGUE_WEAPON_EXTRAS, ...CATALOGUE_ARMOUR, ...CATALOGUE_EQUIPMENT, ...CATALOGUE_DRUGS]);
@@ -152,12 +152,12 @@ export function catalogueEntry(key) {
 export function catalogueAvailability(entry, profile, { prohibitedWeaponKeys = [] } = {}) {
   if (!profile) return { buy: false, reason: 'Buying needs a world: the party is not in port.', warning: null };
   if (entry.military) return { buy: false, reason: 'Strictly military, not sold to civilians in most circumstances (Book 1 p.41). The referee can give it.', warning: null };
-  // 0.95.0: a drug below its tech index is not generally to be had in pill
-  // form (ruling); at or above it, buying is the search and its throw.
-  if (entry.drugKey && Number(profile.techLevel) < entry.techLevel) {
-    return { buy: false, reason: `Not generally available below tech level ${entry.techLevel}; this world is ${profile.techLevel} (Book 2 p.39).`, warning: null };
+    // 0.95.1: below the index, still searched for, at a negative DM (The
+  // Traveller Book p.106).
+  if (entry.drugKey) {
+    const techDM = Number(profile.techLevel) - entry.techLevel;
+    return { buy: true, reason: null, warning: `A day\u2019s search, then the availability throw (DM ${techDM >= 0 ? '+' : '\u2212'}${Math.abs(techDM)} for tech level); the world\u2019s law may forbid it.` };
   }
-  if (entry.drugKey) return { buy: true, reason: null, warning: 'A day\u2019s search, then the availability throw; the world\u2019s law may forbid it (Book 2 p.39).' };
   if (entry.techLevel !== null && Number(profile.techLevel) < entry.techLevel) {
     return { buy: false, reason: `Needs tech level ${entry.techLevel}; this world is ${profile.techLevel}. Perhaps as an import at a higher price, at the referee\u2019s word (Book 3 p.13).`, warning: null };
   }

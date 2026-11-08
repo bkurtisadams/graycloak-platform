@@ -99,14 +99,16 @@ export function characterAgingCheckDate(document) {
  * zero is an aging crisis (Book 1): it is reported, not resolved — the
  * caller decides on medical care, as chargen's resolveAgingCrisis does.
  */
-export function resolveCharacterAging(document, { dice = createDice() } = {}) {
+export function resolveCharacterAging(document, { dice = createDice(), anagathics = false } = {}) {
   assertValidCharacterDocument(document);
   requireDice(dice);
   if (!characterAgingDue(document)) throw new RangeError('no aging throw is due');
 
   const checkpointMonths = document.chronology.nextAgingCheckAgeMonths;
   const checkpointAge = Math.floor(checkpointMonths / 12);
-  const rules = agingRulesForAge(checkpointAge);
+  // 0.96.0: Book 2 p.38 — "a regimen of regular monthly doses enables an
+  // individual to ignore the aging die throws". The checkpoint passes, unthrown.
+  const rules = anagathics ? [] : agingRulesForAge(checkpointAge);
   const next = cloneJson(document);
   const checks = [];
   const crises = [];
@@ -144,8 +146,41 @@ export function resolveCharacterAging(document, { dice = createDice() } = {}) {
     physicalAge: checkpointAge,
     date: next.chronology.asOfDate,
     checks,
-    crises
+    crises,
+    ...(anagathics ? { anagathics: true } : {})
   });
   assertValidCharacterDocument(next);
-  return Object.freeze({ document: next, checkpointAge, checks, crises });
+  return Object.freeze({ document: next, checkpointAge, checks, crises, anagathics: Boolean(anagathics) });
+}
+
+/**
+ * 0.96.0: an aging crisis in play (Book 1 p.7, 1977). A characteristic taken
+ * to zero: a saving throw of 8+, with the attending medic's Medical as a DM.
+ * Failed, the character dies. Made, the characteristic becomes 1 and the
+ * character ages 1D months: at once, fully recovered, under slow drug with
+ * medical care; without them (ruling, as chargen has it), incapacitated for
+ * those months, which pass in his chronological age too.
+ */
+export function resolvePlayAgingCrisis(document, { characteristic, dice = createDice(), medicalSkill = 0, slowDrug = true } = {}) {
+  assertValidCharacterDocument(document);
+  requireDice(dice);
+  if (Number(document.characteristics?.[characteristic]) !== 0) throw new RangeError(`${characteristic} is not at zero`);
+  const rolled = dice.roll2D6();
+  const total = rolled.total + Number(medicalSkill || 0);
+  const next = cloneJson(document);
+  if (total < 8) {
+    next.status = { ...next.status, alive: false, consciousness: 'not-applicable' };
+    next.history.push({ type: 'aging-crisis', characteristic, dice: rolled.dice, roll: rolled.total, medicalSkill, total, target: 8, success: false, outcome: 'death' });
+    assertValidCharacterDocument(next);
+    return Object.freeze({ document: next, success: false, roll: rolled.total, total, recoveryMonths: 0 });
+  }
+  const recoveryMonths = dice.rollD6();
+  next.characteristics[characteristic] = 1;
+  if (Object.hasOwn(next.current ?? {}, characteristic)) next.current[characteristic] = Math.max(1, Number(next.current[characteristic] ?? 0));
+  next.upp = formatUPP(next.characteristics);
+  next.chronology.physicalAgeMonths += recoveryMonths;
+  if (!slowDrug) next.chronology.chronologicalAgeMonths += recoveryMonths;
+  next.history.push({ type: 'aging-crisis', characteristic, dice: rolled.dice, roll: rolled.total, medicalSkill, total, target: 8, success: true, outcome: 'survived', slowDrug: Boolean(slowDrug), recoveryMonths, restoredTo: 1 });
+  assertValidCharacterDocument(next);
+  return Object.freeze({ document: next, success: true, roll: rolled.total, total, recoveryMonths });
 }

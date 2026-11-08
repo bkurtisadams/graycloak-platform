@@ -25,7 +25,9 @@ function fight() {
   });
   // The player fires once, as Bruce did; the fight then sees a side with no
   // working gun.
-  const dice = createDice();
+  // v0.375.0: dice that always miss. With random dice a hit could take out
+  // the merchant's drive, leaving it adrift ('disabled', not 'disarmed').
+  const dice = { rollD6: () => 1, roll2D6: () => ({ dice: [1, 1], total: 2 }) };
   const first = autoAdvanceShipFight(encounter, dice, { playerSide: 'intruder' }).encounter;
   const aimed = allocateLaserFire(first, laserAllocationAgainstSingleFoe(first, 'player', 'opponent'));
   return resolveLaserFire(aimed, dice).encounter;

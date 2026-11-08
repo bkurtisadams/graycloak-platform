@@ -211,7 +211,10 @@ export function buildPublishedView(encounter, { campaignId, publishedAt, rounds 
       playerCharacter: Boolean(combatant.playerCharacter),
       condition: visibleCondition(combatant),
       position: { column: combatant.position.column, row: combatant.position.row },
-      tokenLabel: combatant.tokenLabel ?? null
+      tokenLabel: combatant.tokenLabel ?? null,
+      // v0.375.0: the drugs a party combatant is on (Book 2 p.38), so its
+      // player is not offered the same one twice. Never a foe's.
+      drugs: combatant.side === 'party' ? (combatant.drugs ?? []).filter((taken) => !taken.ended).map((taken) => taken.key) : []
     })),
     // v0.180.0: the party's own dice. An attack with a party combatant on
     // either end is one the table watched being thrown, so its result is

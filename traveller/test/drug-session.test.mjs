@@ -66,3 +66,47 @@ test('v0.374.0 medical slow drug: back to full strength in a day, a month older 
   assert.equal(doses(session, 'Medical slow drug'), 0);
   assert.equal(session.run('character:medical-slow', { fight: { id: HAWKEYE } }).ok, false, 'not wounded now');
 });
+
+test('v0.375.0 fast drug: sixty days, then two months younger in body; the antidote cuts it short', async () => {
+  const { session, registry, campaignId } = await atOrison();
+  session.run('gear:give', { fight: { id: HAWKEYE, value: { key: 'drug:fast', quantity: 2 } } });
+  session.run('gear:give', { fight: { id: HAWKEYE, value: { key: 'drug:fast-antidote', quantity: 1 } } });
+  const age = hawkeye(session).chronology.physicalAgeMonths;
+  const taken = session.run('drug:take', { fight: { id: HAWKEYE, value: { drugKey: 'fast' } } });
+  assert.equal(taken.ok, true, taken.message);
+  assert.ok(registry.resolveCampaign(campaignId).campaign.roster.drugRegimen[HAWKEYE].fastUntil);
+  assert.equal(session.run('drug:take', { fight: { id: HAWKEYE, value: { drugKey: 'fast' } } }).ok, false, 'one at a time');
+  const cut = session.run('drug:take', { fight: { id: HAWKEYE, value: { drugKey: 'fast-antidote' } } });
+  assert.equal(cut.ok, true, cut.message);
+  assert.match(cut.message, /cancelled after 0 days/);
+  assert.equal(hawkeye(session).chronology.physicalAgeMonths, age);
+  assert.equal(registry.resolveCampaign(campaignId).campaign.roster.drugRegimen?.[HAWKEYE], undefined);
+  // A full dose: sixty days on the referee's clock, then the saving.
+  session.run('drug:take', { fight: { id: HAWKEYE, value: { drugKey: 'fast' } } });
+  const date = registry.resolveCampaign(campaignId).campaign.time;
+  const set = session.run('time:set', { fight: { value: { year: date.year, dayOfYear: date.dayOfYear + 60 } } });
+  assert.equal(set.ok, true, set.message);
+  assert.ok(session.view().chat.some((line) => /fast drug wears off after 60 days: 2 months younger/.test(line.text)));
+  assert.equal(hawkeye(session).chronology.physicalAgeMonths, age - 2, 'the saving is taken off the body');
+});
+
+test('v0.375.0 anagathics: a month at a time, carried forward', async () => {
+  const { session, registry, campaignId } = await atOrison();
+  session.run('gear:give', { fight: { id: HAWKEYE, value: { key: 'drug:anagathics', quantity: 2 } } });
+  assert.equal(session.run('drug:take', { fight: { id: HAWKEYE, value: { drugKey: 'anagathics' } } }).ok, true);
+  const first = registry.resolveCampaign(campaignId).campaign.roster.drugRegimen[HAWKEYE].anagathicsUntil;
+  session.run('drug:take', { fight: { id: HAWKEYE, value: { drugKey: 'anagathics' } } });
+  const second = registry.resolveCampaign(campaignId).campaign.roster.drugRegimen[HAWKEYE].anagathicsUntil;
+  assert.notEqual(first, second, 'a second dose extends the first');
+});
+
+test('v0.375.0 truth drug: 2D wounds, off endurance first', async () => {
+  const { session } = await atOrison();
+  session.run('gear:give', { fight: { id: HAWKEYE, value: { key: 'drug:truth', quantity: 1 } } });
+  const before = hawkeye(session).current;
+  const result = session.run('drug:truth', { fight: { id: HAWKEYE } });
+  assert.equal(result.ok, true, result.message);
+  assert.match(result.message, /two minutes of truthful answers, then an hour unconscious and 2D/);
+  const after = hawkeye(session).current;
+  assert.ok(after.END < before.END || before.END === 0);
+});

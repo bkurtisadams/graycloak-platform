@@ -21,7 +21,7 @@
 import {
   PERSONAL_ARMOR_TYPES, PERSONAL_WEAPONS, PERSONAL_WEAPON_WEIGHTS_GRAMS, addCharacterInventoryItem, characterLoad,
   removeCharacterInventoryItem, setCharacterMilitaryLoad, updateCharacterInventoryItem, emptyCharacterRecord, updateCharacterRecord,
-  restCharacter, medicalAttention, characterIsWounded, REST_DAYS, getDrug, drugForItemName, drugAvailabilityThrow, drugLegalityThrow, MEDICAL_SLOW_AGING_MONTHS, skillGuide, skillDM, CATALOGUE, CATALOGUE_PACKS, catalogueEntry,
+  restCharacter, medicalAttention, characterIsWounded, REST_DAYS, getDrug, drugForItemName, drugAvailabilityThrow, drugLegalityThrow, MEDICAL_SLOW_AGING_MONTHS, assertGameDate as dayOrdinal, addDays as addGameDays, FAST_DRUG_DAYS, fastDrugAgingSavedMonths, ANAGATHICS_DOSE_DAYS, truthDrugWounds, resolvePlayAgingCrisis, skillGuide, skillDM, CATALOGUE, CATALOGUE_PACKS, catalogueEntry,
   catalogueAvailability, FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, calculateLifeSupportCostForTrip, calculateJumpFuelRequirement, starportFuelService, calculateSpeculativePurchaseCost,
   creditShipAccount, generateSpeculativeTradeOffer, getPersonalWeapon, getSubsectorSystem, parseUniversalWorldProfile,
   purchaseSpeculativeCargo, quoteSpeculativeResale, sellSpeculativeCargo, assessLoad, inventoryLoadGrams, rollEncounterRange,
@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -1124,6 +1124,26 @@ function taggedWeaponChoices(who, choices) {
   });
 }
 
+// v0.375.0: the drugs block of an actor's sheet.
+function sheetDrugs(resolved, id) {
+  const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+  const actor = character ? null : (resolved.npcActors ?? []).find((entry) => entry.identity.id === id);
+  if (!character && !actor) return null;
+  const doses = Object.fromEntries(['fast', 'fast-antidote', 'anagathics', 'truth'].map((key) => [key, partyDoses(resolved, key)]));
+  const regimen = character ? (resolved.campaign.roster?.drugRegimen?.[id] ?? {}) : {};
+  const zeros = character && character.status?.alive !== false ? ['STR', 'DEX', 'END', 'INT'].filter((key) => Number(character.characteristics?.[key]) === 0) : [];
+  if (!Object.values(doses).some(Boolean) && !regimen.fastUntil && !regimen.anagathicsUntil && !zeros.length) return null;
+  return {
+    character: Boolean(character), doses,
+    fastUntil: regimen.fastUntil ?? null, anagathicsUntil: regimen.anagathicsUntil ?? null,
+    agingCrisis: zeros,
+    slowDoses: partyDoses(resolved, 'slow'),
+    medics: [...(resolved.characters ?? []), ...(resolved.npcActors ?? []).filter((entry) => entry.profile?.kind !== 'statblock')]
+      .filter((entry) => entry.status?.alive !== false && entry.identity.id !== id && Object.hasOwn(entry.skills ?? {}, 'Medical'))
+      .map((entry) => ({ id: entry.identity.id, name: entry.identity.name, level: Number(entry.skills.Medical) }))
+  };
+}
+
 // v0.374.0: how many doses of a drug the party carries, all told.
 function partyDoses(resolved, drugKey) {
   const name = getDrug(drugKey).name.toLowerCase();
@@ -1314,7 +1334,11 @@ export function sheetViews(resolved, open = [], { subsector = null } = {}) {
   return open
     .map((entry) => {
       const sheet = build[entry.kind]?.(resolved, entry.id, subsector) ?? null;
-      return sheet ? { ...sheet, compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null, editing: Boolean(entry.editing) } : null;
+      if (!sheet) return null;
+      // v0.375.0: the party's drugs on an actor's sheet (Book 2 pp.38-39):
+      // what this character is on, what can be taken, and truth drug for anyone.
+      const drugs = entry.kind === 'actor' ? sheetDrugs(resolved, entry.id) : null;
+      return { ...sheet, ...(drugs ? { drugs } : {}), compact: sheet.compactOnly || Boolean(entry.compact), tab: entry.tab ?? null, editing: Boolean(entry.editing) };
     })
     .filter(Boolean);
 }
@@ -3575,12 +3599,45 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
   // v0.374.0: drugs are carried as doses, an inventory item named for the
   // drug (Book 2 pp.38-39). Whose dose is used: the first of `preferIds`
   // that has one, then anyone in the party.
-  function doseHolder(drugKey, preferIds = []) {
+  function doseHolder(drugKey, preferIds = [], { ownOnly = false } = {}) {
     const name = getDrug(drugKey).name.toLowerCase();
     const has = (entry) => (entry?.inventory ?? []).some((item) => String(item.name ?? '').toLowerCase() === name && Number(item.quantity) > 0);
     const characters = resolved.characters ?? [];
     for (const id of preferIds) { const found = characters.find((entry) => entry.identity.id === id); if (has(found)) return found; }
-    return characters.find(has) ?? null;
+    return ownOnly ? null : characters.find(has) ?? null;
+  }
+
+  // v0.375.0: fast drug and anagathics run on the campaign's calendar, kept
+  // on the campaign (roster.drugRegimen, by character): fast drug's start and
+  // end, and the date a month's anagathics covers to.
+  function regimens() { return resolved.campaign.roster?.drugRegimen ?? {}; }
+  function setRegimen(characterId, patch) {
+    const all = { ...regimens() };
+    const next = { ...(all[characterId] ?? {}), ...patch };
+    for (const key of Object.keys(next)) if (next[key] === null) delete next[key];
+    if (Object.keys(next).length) all[characterId] = next; else delete all[characterId];
+    registry.put({ ...resolved.campaign, roster: { ...resolved.campaign.roster, drugRegimen: all } });
+    reload();
+  }
+  // Fast drug's saving on the body, when its dose ends or is cut short.
+  function endFastDrug(character, daysUnder, how) {
+    const saved = fastDrugAgingSavedMonths(daysUnder);
+    const physical = Math.max(0, Number(character.chronology?.physicalAgeMonths ?? 0) - saved);
+    const next = importCharacterDocument({ ...character, chronology: { ...character.chronology, physicalAgeMonths: physical } });
+    persist([next]);
+    setRegimen(character.identity.id, { fastFrom: null, fastUntil: null });
+    return `${character.identity.name}\u2019s fast drug ${how} after ${daysUnder} day${daysUnder === 1 ? '' : 's'}: ${saved ? `${saved} month${saved === 1 ? '' : 's'} younger in body than the calendar` : 'too short to change his age'} (Book 2 p.38).`;
+  }
+  function settleFastDrug() {
+    const today = formatCampaignDate(resolved.campaign.time);
+    const lines = [];
+    for (const [id, regimen] of Object.entries(regimens())) {
+      if (!regimen.fastUntil || dayOrdinal(today) < dayOrdinal(regimen.fastUntil)) continue;
+      const character = (resolved.characters ?? []).find((entry) => entry.identity.id === id);
+      if (!character) { setRegimen(id, { fastFrom: null, fastUntil: null }); continue; }
+      lines.push(endFastDrug(character, FAST_DRUG_DAYS, 'wears off'));
+    }
+    return lines;
   }
   function useDose(character, drugKey) {
     const name = getDrug(drugKey).name.toLowerCase();
@@ -3950,6 +4007,13 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           persist([armed.encounter]);
           encounter = armed.encounter;
           if (armed.entry) log('COMBAT', armed.entry.text);
+        }
+        // v0.375.0: a drug swallowed with the order, from the character's own
+        // gear only (Book 2 p.38).
+        if (authorized.drugKey) {
+          const dosed = run('fight:take-drug', { fight: { value: { combatantId: authorized.actorId, drugKey: authorized.drugKey, ownOnly: true } } });
+          if (!dosed.ok) throw new Error(dosed.message);
+          encounter = (resolved.encounters ?? []).find((candidate) => candidate.identity.id === encounter.identity.id) ?? encounter;
         }
         const result = declareEncounterAction(encounter, { action: authorized.action, actorId: authorized.actorId, targetId: authorized.targetId });
         persist([result.encounter]);
@@ -4861,6 +4925,10 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
             console.warn('[traveller] money line:', error);
           }
         }
+        // v0.375.0: a dose of fast drug that has run its sixty days.
+        if (result?.ok) {
+          try { for (const line of settleFastDrug()) { log('MEDICAL', line); onChange(); } } catch (error) { console.warn('[traveller] fast drug:', error); }
+        }
         holdSaves = false;
         const held = heldSave;
         heldSave = null;
@@ -5049,7 +5117,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
           const dealing = Math.max(...['Medical', 'Admin', 'Bribery'].map((skill) => Number(buyer.skills?.[skill] ?? 0)));
           const found = drugAvailabilityThrow(createDice(), drug.key, { worldTechLevel: profile.techLevel, dm: dealing });
           const legality = drugLegalityThrow(seededDice(`${resolved.campaign.identity.id}|drug-law|${system.id}|${drug.key}`), profile.lawLevel);
-          const how = `2D ${found.roll}${found.techDM ? ` +${found.techDM} tech` : ''}${found.dm ? ` +${found.dm} ${buyer.identity.name}\u2019s dealing` : ''} = ${found.total} against ${found.target}+`;
+          const how = `2D ${found.roll}${found.techDM ? ` ${found.techDM > 0 ? '+' : '\u2212'}${Math.abs(found.techDM)} tech` : ''}${found.dm ? ` +${found.dm} ${buyer.identity.name}\u2019s dealing` : ''} = ${found.total} against ${found.target}+`;
           const lawText = legality.legal ? `legal here (2D ${legality.roll} against law level ${legality.lawLevel})` : `illegal here (2D ${legality.roll} under law level ${legality.lawLevel})`;
           let message;
           if (!found.found) {
@@ -5514,6 +5582,107 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // healing in one day. The wounded (not the seriously wounded) are back
       // to full strength by the day's end, unconscious meanwhile, a month
       // older in body.
+      // v0.375.0: fast drug, its antidote, and anagathics (Book 2 p.38), on the
+      // campaign's calendar. A dose from the character's own gear, then the
+      // party's.
+      if (command === 'drug:take') {
+        const who = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+        if (!who) throw new Error('choose a character first');
+        const drugKey = String(fight?.value?.drugKey ?? '');
+        if (!['fast', 'fast-antidote', 'anagathics'].includes(drugKey)) throw new Error('that drug is not taken this way');
+        if (who.status?.alive === false) throw new Error(`${who.identity.name} is dead`);
+        const today = formatCampaignDate(resolved.campaign.time);
+        const regimen = regimens()[who.identity.id] ?? {};
+        if (drugKey === 'fast' && regimen.fastUntil) throw new Error(`${who.identity.name} is already on fast drug, until ${regimen.fastUntil}`);
+        if (drugKey === 'fast-antidote' && !regimen.fastUntil) throw new Error(`${who.identity.name} is not on fast drug`);
+        const holder = doseHolder(drugKey, [who.identity.id]);
+        if (!holder) throw new Error(`nobody in the party has ${getDrug(drugKey).name.toLowerCase()}`);
+        persist([useDose(holder, drugKey)]);
+        const from = holder.identity.id === who.identity.id ? '' : ` (${holder.identity.name}\u2019s dose)`;
+        let message;
+        if (drugKey === 'fast') {
+          const until = addGameDays(today, FAST_DRUG_DAYS);
+          setRegimen(who.identity.id, { fastFrom: today, fastUntil: until });
+          message = `${who.identity.name} takes fast drug${from}: sixty days pass as one for him, until ${until}; aging is slowed, air and food go further, and he is all but helpless meanwhile (Book 2 p.38).`;
+        } else if (drugKey === 'fast-antidote') {
+          const days = Math.max(0, dayOrdinal(today) - dayOrdinal(regimen.fastFrom));
+          message = `${who.identity.name} takes the fast drug antidote${from}. ${endFastDrug((resolved.characters ?? []).find((entry) => entry.identity.id === who.identity.id), days, 'is cancelled')}`;
+        } else {
+          const start = regimen.anagathicsUntil && dayOrdinal(regimen.anagathicsUntil) > dayOrdinal(today) ? regimen.anagathicsUntil : today;
+          const until = addGameDays(start, ANAGATHICS_DOSE_DAYS);
+          setRegimen(who.identity.id, { anagathicsUntil: until });
+          message = `${who.identity.name} takes a month\u2019s anagathics${from}: aging throws are ignored until ${until}, if the doses keep coming (Book 2 p.38).`;
+        }
+        log('MEDICAL', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      // v0.375.0: truth drug (Book 2 p.39): about two minutes of truthful
+      // answers, then an hour unconscious and 2D wounds. Ruling: the wounds
+      // come off endurance, then strength, then dexterity, none below zero.
+      if (command === 'drug:truth') {
+        const targetId = fight?.id ?? characterId;
+        const character = (resolved.characters ?? []).find((entry) => entry.identity.id === targetId);
+        const actor = character ? null : (resolved.npcActors ?? []).find((entry) => entry.identity.id === targetId);
+        const subject = character ?? actor;
+        if (!subject) throw new Error('choose who is given it');
+        const holder = doseHolder('truth', [String(fight?.value?.fromId ?? '')].filter(Boolean));
+        if (!holder) throw new Error('nobody in the party has truth drug');
+        const wounds = truthDrugWounds(createDice());
+        const current = { ...(subject.current ?? {}) };
+        let left = wounds.wounds;
+        for (const key of ['END', 'STR', 'DEX']) { const take = Math.min(left, Number(current[key] ?? 0)); current[key] = Number(current[key] ?? 0) - take; left -= take; }
+        const zeros = ['STR', 'DEX', 'END'].filter((key) => current[key] <= 0).length;
+        const dead = zeros >= 3;
+        const dosed = useDose(holder, 'truth');
+        const selfDosed = Boolean(character) && holder.identity.id === character.identity.id;
+        const changed = selfDosed ? [] : [dosed];
+        if (character) {
+          changed.push(updateCharacterGameplayState(selfDosed ? dosed : character, { current, alive: !dead, consciousness: dead ? 'not-applicable' : 'conscious', severelyWounded: !dead && zeros >= 2 ? true : undefined }));
+        } else {
+          changed.push(recordNpcActorWounds(actor, { current, dead, severe: !dead && zeros >= 2 }));
+        }
+        persist(changed);
+        const message = `${subject.identity.name} is given truth drug: about two minutes of truthful answers, then an hour unconscious and 2D [${wounds.dice.join(' ')}] = ${wounds.wounds} wounds${dead ? ', which kill' : ''} (Book 2 p.39).`;
+        log('MEDICAL', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
+      // v0.375.0: an aging crisis, settled (Book 1 p.7): 8+, with the
+      // attendant's Medical as a DM. With medical care and a dose of slow drug
+      // the survivor is back at once, 1D months older in body; without them he
+      // is incapacitated those months, which pass on his own calendar too.
+      if (command === 'character:aging-crisis') {
+        const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
+        if (!patient) throw new Error('choose a character first');
+        const characteristic = String(fight?.value?.characteristic ?? ['STR', 'DEX', 'END', 'INT'].find((key) => Number(patient.characteristics?.[key]) === 0) ?? '');
+        if (!characteristic || Number(patient.characteristics?.[characteristic]) !== 0) throw new Error(`${patient.identity.name} has no characteristic at zero`);
+        const { medic, level } = attendance(fight?.value);
+        const care = Boolean(medic) && level !== null;
+        const slowHolder = care ? doseHolder('slow', [medic.identity.id, patient.identity.id]) : null;
+        const result = resolvePlayAgingCrisis(patient, { characteristic, dice: createDice(), medicalSkill: care ? level : 0, slowDrug: Boolean(slowHolder) });
+        const changed = [result.document];
+        if (result.success && slowHolder) {
+          if (slowHolder.identity.id === patient.identity.id) changed[0] = useDose(result.document, 'slow');
+          else changed.push(useDose(slowHolder, 'slow'));
+        }
+        persist(changed);
+        const how = `2D ${result.roll}${care && level ? ` + ${medic.identity.name}\u2019s Medical-${level}` : ''} = ${result.total} against 8+`;
+        const message = !result.success
+          ? `${patient.identity.name}\u2019s aging crisis (${characteristic} at zero): ${how}. He dies (Book 1 p.7).`
+          : slowHolder
+            ? `${patient.identity.name} survives the aging crisis (${characteristic} at zero; ${how}): under medical care and slow drug he is back at once with ${characteristic} 1, ${result.recoveryMonths} month${result.recoveryMonths === 1 ? '' : 's'} older in body (Book 1 p.7).`
+            : `${patient.identity.name} survives the aging crisis (${characteristic} at zero; ${how}): with ${care ? 'no slow drug' : 'no medical care'}, he is incapacitated ${result.recoveryMonths} month${result.recoveryMonths === 1 ? '' : 's'}, then returns with ${characteristic} 1 (Book 1 p.7).`;
+        log('MEDICAL', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'character:medical-slow') {
         const patient = (resolved.characters ?? []).find((entry) => entry.identity.id === (fight?.id ?? characterId));
         if (!patient) throw new Error('choose a character first');
@@ -7413,7 +7582,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // character takes a dose from his own gear, or the party's; an NPC is the
       // referee's to dose.
       if (command === 'fight:take-drug') {
-        const encounter = liveEncounter();
+        const encounter = liveEncounter() ?? setupEncounter();
         if (!encounter) throw new Error('no fight is running');
         const combatantId = fight?.value?.combatantId;
         const drugKey = String(fight?.value?.drugKey ?? '');
@@ -7424,7 +7593,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
         const changed = [result.encounter];
         let from = '';
         if (combatant.playerCharacter) {
-          const holder = doseHolder(drugKey, [combatant.id]);
+          const holder = doseHolder(drugKey, [combatant.id], { ownOnly: Boolean(fight?.value?.ownOnly) });
           if (!holder) throw new Error(`nobody in the party has ${getDrug(drugKey).name.toLowerCase()}`);
           changed.push(useDose(holder, drugKey));
           if (holder.identity.id !== combatant.id) from = ` (${holder.identity.name}\u2019s dose)`;

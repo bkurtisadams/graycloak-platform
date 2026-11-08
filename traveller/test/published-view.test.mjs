@@ -62,7 +62,9 @@ test('the published view leaks nothing a player should not see', async () => {
   }
   // And spot-check by value: the raider's characteristics are 8/9/7.
   for (const combatant of view.combatants) {
-    assert.deepEqual(Object.keys(combatant).sort(), ['condition', 'id', 'name', 'playerCharacter', 'position', 'side', 'tokenLabel']);
+    assert.deepEqual(Object.keys(combatant).sort(), ['condition', 'drugs', 'id', 'name', 'playerCharacter', 'position', 'side', 'tokenLabel']);
+    // v0.375.0: drugs is the party's own only; a foe's is always empty.
+    if (combatant.side !== 'party') assert.deepEqual(combatant.drugs, []);
   }
 });
 

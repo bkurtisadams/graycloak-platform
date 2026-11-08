@@ -31,7 +31,7 @@ import {
   DRIVE_REPAIR_STARPORTS, attendingEngineerExpertise, attemptDriveRepair, quoteStarportDriveRepair, repairDrivesAtStarport,
   shipEncounterReactionDMParts, debitShipAccount, shipReactionStance, rollReactionAttack,
   FREIGHT_RATE_PER_TON_CR, PASSAGE_FARES_CR, laneBetween
-} from '../../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+} from '../../vendor/classic-traveller-rules/index.js?v=r0.96.0';
 import { advanceCampaignDays, updateCampaignLocation } from '../campaign-document.js';
 import { completeContractDocument, failContractDocument, isContractOverdue, reconcileContractDeadlines } from '../contract-document.js';
 import { campaignDateKey, routeMarketSeed, seededDice } from '../../client/commerce-market.js';
@@ -176,7 +176,10 @@ function passDays(state, days, reason) {
     dice: seeded(state, `${state.campaign.identity.id}|clock|${from}|${to}`),
     unpaid: { [state.ship.identity.id]: unpaidCrew(state.ship) },
     skillLevels: { [state.ship.identity.id]: crewSkillLevels(state) },
-    sinceLabels: since ? { [state.ship.identity.id]: since } : {}
+    sinceLabels: since ? { [state.ship.identity.id]: since } : {},
+    // v0.375.0: a month's anagathics passes an aging checkpoint unthrown (Book 2 p.38).
+    anagathicsUntil: Object.fromEntries(Object.entries(state.campaign.roster?.drugRegimen ?? {})
+      .filter(([, regimen]) => regimen?.anagathicsUntil).map(([id, regimen]) => [id, regimen.anagathicsUntil]))
   });
   const next = { ...state, ship: clock.ships[0], characters: clock.characters };
   next.campaign = advanceCampaignDays(state.campaign, daysBetween(from, clock.dateLabel));
@@ -187,7 +190,7 @@ function passDays(state, days, reason) {
     } else if (fired.kind === 'maintenance-due') {
       events.push(Object.freeze({ date: fired.date, kind: 'maintenance-due', text: `annual maintenance due (${cr(fired.costCr)})` }));
     } else if (fired.kind === 'aging') {
-      events.push(Object.freeze({ date: fired.date, kind: 'aging', text: `aging throws at ${fired.checkpointAge}`, characterId: fired.characterId }));
+      events.push(Object.freeze({ date: fired.date, kind: 'aging', text: fired.anagathics ? `aging checkpoint at ${fired.checkpointAge} passed on anagathics, no throws (Book 2 p.38)` : `aging throws at ${fired.checkpointAge}`, characterId: fired.characterId }));
     }
   }
   if (clock.stoppedAt?.kind === 'aging-crisis') {

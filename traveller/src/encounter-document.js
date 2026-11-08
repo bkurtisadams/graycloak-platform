@@ -24,7 +24,7 @@ import {
   drugSynergy,
   getDrug,
   createDice
-} from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
 
 export const ENCOUNTER_DOCUMENT_TYPE = 'graycloak-traveller-personal-encounter';
 export const CURRENT_ENCOUNTER_DOCUMENT_SCHEMA_VERSION = 17;
@@ -632,7 +632,7 @@ export function combatantSlowed(combatant, round) {
 
 export function takeEncounterDrug(document, { combatantId, drugKey } = {}) {
   const next = importEncounterDocument(document);
-  if (next.status !== 'active') throw new Error('the fight is over');
+  if (next.status !== 'active' && next.status !== 'setup') throw new Error('the fight is over');
   const timing = COMBAT_DRUG_TIMING[drugKey];
   if (!timing) throw new RangeError(`${drugKey} is not taken in a fight`);
   const combatant = next.combatants.find((entry) => entry.id === combatantId);
@@ -640,13 +640,18 @@ export function takeEncounterDrug(document, { combatantId, drugKey } = {}) {
   if (combatant.status !== 'active') throw new Error(`${combatant.name} is in no state to take anything`);
   if (combatant.animal) throw new Error('an animal takes no drugs');
   if (drugsOf(combatant).some((entry) => entry.key === drugKey && !entry.ended)) throw new Error(`${combatant.name} is already on ${getDrug(drugKey).name.toLowerCase()}`);
-  const rounds = combatDrugRounds(drugKey, next.round);
-  const taken = { key: drugKey, takenRound: next.round, first: rounds.first, last: rounds.last, boosted: false, ended: false };
+  // v0.375.0 (Kurt, Nov 2026): taken while the fight is set up, or in round 1
+  // before it is resolved, counts as taken before the fight — the round
+  // before round 1 — so combat drug holds from round 2 and slow drug from 3.
+  const beforeFight = next.status === 'setup' || next.round === 1;
+  const takenRound = beforeFight ? 0 : next.round;
+  const rounds = combatDrugRounds(drugKey, takenRound);
+  const taken = { key: drugKey, takenRound, first: rounds.first, last: rounds.last, boosted: false, ended: false };
   const updated = { ...combatant, drugs: [...drugsOf(combatant), taken] };
   replaceCombatants(next, updated);
   const name = getDrug(drugKey).name.toLowerCase();
   const entry = { round: next.round, kind: 'drug', side: combatant.side, combatantId, drug: drugKey,
-    text: `${combatant.name} takes ${name}: in effect rounds ${rounds.first}\u2013${rounds.last}, then 1D wounds (Book 2 p.38).` };
+    text: `${combatant.name} takes ${name}${beforeFight ? ' before the fight' : ''}: in effect rounds ${rounds.first}\u2013${rounds.last}, then 1D wounds (Book 2 p.38).` };
   next.history.push(entry);
   assertValidEncounterDocument(next);
   return { encounter: next, entry };

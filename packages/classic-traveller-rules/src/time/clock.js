@@ -102,7 +102,10 @@ export function nextDueDates({ ships = [], characters = [], pending = [], sinceL
  * charged before starts its liability at the starting date unless
  * `sinceLabels` says otherwise.
  */
-export function advanceClock(state, toLabel, { dice = createDice(), skillLevels = {}, unpaid = {}, sinceLabels = {} } = {}) {
+// 0.96.0: anagathicsUntil — characterId -> the date a character's monthly
+// anagathics dose covers to; an aging checkpoint on or before it passes
+// without throws (Book 2 p.38).
+export function advanceClock(state, toLabel, { dice = createDice(), skillLevels = {}, unpaid = {}, sinceLabels = {}, anagathicsUntil = {} } = {}) {
   const startOrdinal = assertGameDate(state?.dateLabel, 'state.dateLabel');
   const targetOrdinal = assertGameDate(toLabel, 'toLabel');
   if (targetOrdinal < startOrdinal) throw new RangeError(`cannot advance the clock backwards from ${state.dateLabel} to ${toLabel}`);
@@ -189,11 +192,13 @@ export function advanceClock(state, toLabel, { dice = createDice(), skillLevels 
         character = ageCharacterDocumentTo(character, formatGameDate(assertGameDate(dateLabel) + 1));
         dateLabel = character.chronology.asOfDate;
       }
-      const result = resolveCharacterAging(character, { dice });
+      const covered = anagathicsUntil[event.characterId] && compareGameDates(dateLabel, anagathicsUntil[event.characterId]) <= 0;
+      const result = resolveCharacterAging(character, { dice, anagathics: Boolean(covered) });
       characters[index] = result.document;
       fired.push(Object.freeze({
         date: dateLabel,
         kind: 'aging',
+        anagathics: Boolean(covered),
         characterId: event.characterId,
         checkpointAge: result.checkpointAge,
         checks: result.checks,

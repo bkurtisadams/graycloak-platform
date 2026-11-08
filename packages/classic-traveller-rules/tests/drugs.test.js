@@ -19,17 +19,16 @@ test('Book 2 p.39: the drug table, by the dose', () => {
   assert.throws(() => getDrug('psi-booster'));
 });
 
-test('Book 2 p.39: availability, +1 a tech level above the index; below it, not found', () => {
-  // Slow drug (TL 8, 9+) on a TL 10 world: a 7 is 9 with the DM.
+test('The Traveller Book p.106: availability, DM world tech level less the drug\u2019s index, negative below it', () => {
   const found = drugAvailabilityThrow(fixed(7), 'slow', { worldTechLevel: 10 });
   assert.equal(found.techDM, 2);
   assert.equal(found.found, true);
   assert.equal(drugAvailabilityThrow(fixed(6), 'slow', { worldTechLevel: 10 }).found, false);
-  // The searcher's Medical, Admin or Bribery is a DM.
   assert.equal(drugAvailabilityThrow(fixed(6), 'slow', { worldTechLevel: 10, dm: 1 }).found, true);
-  const below = drugAvailabilityThrow(fixed(12), 'slow', { worldTechLevel: 7 });
-  assert.equal(below.belowTech, true);
+  const below = drugAvailabilityThrow(fixed(12), 'slow', { worldTechLevel: 4 });
+  assert.equal(below.techDM, -4);
   assert.equal(below.found, false);
+  assert.equal(drugAvailabilityThrow(fixed(12), 'slow', { worldTechLevel: 7 }).found, true, 'one short is still to be had');
 });
 
 test('Book 2 p.39: legal on 2D equal to or above the law level', () => {
@@ -51,7 +50,48 @@ test('Book 2 p.38: slow drug from 3 rounds on for 40; combat drug from 2 on for 
 test('0.95.0 drugs are in the Store, searched for rather than sold off the shelf', () => {
   assert.ok(CATALOGUE_PACKS.includes('Drugs'));
   const slow = CATALOGUE_DRUGS.find((entry) => entry.key === 'drug:slow');
-  assert.equal(catalogueAvailability(slow, { techLevel: 7, lawLevel: 0 }).buy, false);
+  assert.equal(catalogueAvailability(slow, { techLevel: 7, lawLevel: 0 }).buy, true);
+  assert.match(catalogueAvailability(slow, { techLevel: 7, lawLevel: 0 }).warning, /DM \u22121/);
   assert.equal(catalogueAvailability(slow, { techLevel: 9, lawLevel: 0 }).buy, true);
   assert.equal(blackMarketTerms(slow, { techLevel: 7, lawLevel: 0 }), null);
+});
+
+// 0.96.0 ----------------------------------------------------------------
+import { fastDrugAgingSavedMonths, truthDrugWounds, resolveCharacterAging, resolvePlayAgingCrisis, importCharacterDocument, createSequenceDice } from '../index.js';
+import { readFileSync } from 'node:fs';
+
+test('Book 2 p.38: fast drug saves 59 of 60 days\u2019 aging, in whole months', () => {
+  assert.equal(fastDrugAgingSavedMonths(60), 2);
+  assert.equal(fastDrugAgingSavedMonths(10), 0);
+  assert.equal(fastDrugAgingSavedMonths(90), 2, 'one dose lasts 60 days');
+  assert.equal(truthDrugWounds(fixed(9)).wounds, 9);
+});
+
+function agedCharacter() {
+  const bundle = JSON.parse(readFileSync(new URL('../../../traveller/test/fixtures/Sea-of-Suns-v0.11.2-buggy.campaign.json', import.meta.url), 'utf8'));
+  const character = importCharacterDocument(bundle.documents.characters[0]);
+  return { ...character, chronology: { ...character.chronology, physicalAgeMonths: character.chronology.nextAgingCheckAgeMonths } };
+}
+
+test('Book 2 p.38: on anagathics the aging checkpoint passes without throws', () => {
+  const character = agedCharacter();
+  const result = resolveCharacterAging(character, { dice: fixed(2), anagathics: true });
+  assert.equal(result.checks.length, 0);
+  assert.equal(result.document.chronology.nextAgingCheckAgeMonths, character.chronology.nextAgingCheckAgeMonths + 48);
+  assert.deepEqual(result.document.characteristics, character.characteristics);
+});
+
+test('Book 1 p.7: an aging crisis in play — 8+ with Medical, 1D months; failed, death', () => {
+  const character = agedCharacter();
+  const zeroed = { ...character, upp: `${character.upp.slice(0, 2)}0${character.upp.slice(3)}`, characteristics: { ...character.characteristics, END: 0 }, current: { ...character.current, END: 0 } };
+  const lived = resolvePlayAgingCrisis(zeroed, { characteristic: 'END', dice: createSequenceDice([3, 3, 4]), medicalSkill: 2 });
+  assert.equal(lived.success, true);
+  assert.equal(lived.document.characteristics.END, 1);
+  assert.equal(lived.document.chronology.physicalAgeMonths, zeroed.chronology.physicalAgeMonths + 4);
+  assert.equal(lived.document.chronology.chronologicalAgeMonths, zeroed.chronology.chronologicalAgeMonths, 'under slow drug: at once');
+  const noDrug = resolvePlayAgingCrisis(zeroed, { characteristic: 'END', dice: createSequenceDice([3, 3, 4]), medicalSkill: 2, slowDrug: false });
+  assert.equal(noDrug.document.chronology.chronologicalAgeMonths, zeroed.chronology.chronologicalAgeMonths + 4);
+  const died = resolvePlayAgingCrisis(zeroed, { characteristic: 'END', dice: createSequenceDice([3, 3]), medicalSkill: 1 });
+  assert.equal(died.success, false);
+  assert.equal(died.document.status.alive, false);
 });

@@ -3666,3 +3666,25 @@ test('v0.371.0 the referee may fill a ship that cannot refuel, at no charge, fro
   const { playerMayRun } = await import('../src/player-requests.js');
   assert.equal(playerMayRun(`ship:refuel:${ship.identity.id}`), false, 'a ruling, not a player\u2019s button');
 });
+
+test('v0.375.0 a player swallows slow drug with the order, from his own gear only', async () => {
+  const { session, me, encounter } = await multiplayerFixture();
+  const foe = encounter().combatants.find((entry) => entry.side !== 'party');
+  const entry = { uid: 'player-7', actorId: me, action: 'attack', targetId: foe.id, round: encounter().round, declaredAt: 5, drugKey: 'slow' };
+  const refused = session.applyPlayerDeclarations([entry]);
+  assert.equal(refused.length, 1, 'no dose of his own');
+  assert.match(refused[0].message, /slow drug/);
+});
+
+test('v0.375.0 with a dose, the drug and the order both land', async () => {
+  const { session, me, encounter } = await multiplayerFixture();
+  session.run('gear:give', { fight: { id: me, value: { key: 'drug:slow', quantity: 1 } } });
+  const foe = encounter().combatants.find((entry) => entry.side !== 'party');
+  const entry = { uid: 'player-7', actorId: me, action: 'attack', targetId: foe.id, round: encounter().round, declaredAt: 6, drugKey: 'slow' };
+  assert.deepEqual(session.applyPlayerDeclarations([entry]), []);
+  const pc = encounter().combatants.find((combatant) => combatant.id === me);
+  assert.equal(pc.drugs[0].key, 'slow');
+  assert.equal(pc.drugs[0].takenRound, 0, 'round 1 counts as before the fight');
+  const character = session.resolved.characters.find((candidate) => candidate.identity.id === me);
+  assert.equal((character.inventory ?? []).filter((item) => item.name === 'Slow drug').length, 0, 'the dose is used');
+});

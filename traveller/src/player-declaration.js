@@ -12,7 +12,10 @@ function nonblank(value) {
 // the referee's weapon column would set it (Kurt, Sep 2026: a player could
 // not go to Hands). Optional; the referee checks it against what the
 // character carries before applying it.
-export function createPlayerDeclaration({ uid, actorId, action, targetId = null, round, declaredAt = Date.now(), weaponKey = null } = {}) {
+// v0.375.0: drugKey — slow or combat drug swallowed with this order, from the
+// character's own gear (Book 2 p.38). Optional.
+export const PLAYER_DECLARATION_DRUGS = Object.freeze(['slow', 'combat']);
+export function createPlayerDeclaration({ uid, actorId, action, targetId = null, round, declaredAt = Date.now(), weaponKey = null, drugKey = null } = {}) {
   if (!nonblank(uid)) throw new TypeError('a signed-in player is required');
   if (!nonblank(actorId)) throw new TypeError('actorId is required');
   if (!PLAYER_DECLARATION_ACTIONS.includes(action)) throw new RangeError(`unknown player action: ${action}`);
@@ -22,7 +25,8 @@ export function createPlayerDeclaration({ uid, actorId, action, targetId = null,
   if (needsTarget && !nonblank(targetId)) throw new TypeError(`${action} requires a target`);
   if (!needsTarget && targetId !== null) throw new TypeError(`${action} does not take a target`);
   if (weaponKey !== null && weaponKey !== undefined && !nonblank(weaponKey)) throw new TypeError('weaponKey must name a weapon');
-  return Object.freeze({ uid: uid.trim(), actorId: actorId.trim(), action, targetId: targetId === null ? null : targetId.trim(), round, declaredAt, weaponKey: weaponKey ? weaponKey.trim() : null });
+  if (drugKey !== null && drugKey !== undefined && !PLAYER_DECLARATION_DRUGS.includes(drugKey)) throw new RangeError(`not a drug taken in a fight: ${drugKey}`);
+  return Object.freeze({ uid: uid.trim(), actorId: actorId.trim(), action, targetId: targetId === null ? null : targetId.trim(), round, declaredAt, weaponKey: weaponKey ? weaponKey.trim() : null, drugKey: drugKey ?? null });
 }
 
 export function authorizePlayerDeclaration(raw, { campaign, encounter } = {}) {

@@ -4,11 +4,11 @@
 // for psionics, and fast drug, anagathics and truth drug for a later slice.
 //
 // Rulings (Graycloak), where the book leaves the referee to say:
-//  - Availability: a "determined search" is one day. The throw is 2D, +1 for
-//    each tech level the world has above the drug's index, + the searcher's
-//    best of Medical, Admin and Bribery ("DMs might be allowed for trained
-//    medical personnel, or admin or bribery expertise"). Below the drug's
-//    index it is not generally available in pill form: not found.
+//  - Availability: a "determined search" is one day. The throw is 2D + the
+//    searcher's best of Medical, Admin and Bribery ("DMs might be allowed for
+//    trained medical personnel, or admin or bribery expertise"), with the
+//    tech DM from The Traveller Book (1982) p.106 (Kurt, Nov 2026): world tech
+//    level less the drug's index, negative below it.
 //  - Legality: thrown once per drug per world (seeded, so the answer stays).
 //  - Medical drug (Kurt, Nov 2026): one dose, given by an attendant with
 //    Medical-1 or better, is medical attention for ordinary wounds in place
@@ -57,21 +57,19 @@ export function drugForItemName(name) {
 }
 
 /**
- * Book 2 p.39: after a determined search, 2D for the table's throw, +1 for
- * each tech level the world has above the drug's index. Below the index:
- * not generally available (ruling). dm is the searcher's skill DM.
+ * Availability (Kurt, Nov 2026: The Traveller Book (1982) p.106 rather than
+ * 1977's): after a determined search, 2D for the table's throw, with a DM of
+ * the world's tech level less the drug's index — negative below it ("on a
+ * tech level 4 world, the DM would be -4"). dm is the searcher's skill DM.
  */
 export function drugAvailabilityThrow(dice, key, { worldTechLevel, dm = 0 } = {}) {
   requireDice(dice);
   const entry = getDrug(key);
   const tech = Number(worldTechLevel);
-  if (!Number.isFinite(tech) || tech < entry.techLevel) {
-    return Object.freeze({ drug: entry.key, belowTech: true, found: false, target: entry.availability, techDM: 0, dm: 0, roll: null, total: null });
-  }
   const throwResult = dice.roll2D6();
-  const techDM = tech - entry.techLevel;
+  const techDM = (Number.isFinite(tech) ? tech : 0) - entry.techLevel;
   const total = throwResult.total + techDM + Number(dm || 0);
-  return Object.freeze({ drug: entry.key, belowTech: false, found: total >= entry.availability, target: entry.availability, techDM, dm: Number(dm || 0), dice: throwResult.dice, roll: throwResult.total, total });
+  return Object.freeze({ drug: entry.key, belowTech: techDM < 0, found: total >= entry.availability, target: entry.availability, techDM, dm: Number(dm || 0), dice: throwResult.dice, roll: throwResult.total, total });
 }
 
 /** Book 2 p.39: 2D equal to or above the law level, no problem; below, illegal. */
@@ -110,3 +108,22 @@ export function combatDrugRounds(key, takenRound) {
 }
 
 export const MEDICAL_SLOW_AGING_MONTHS = 1;
+
+// 0.96.0: fast drug (Book 2 p.38): one dose lasts 60 days and makes them
+// pass as one for its user, so his body ages 59 days less. Taken off as whole
+// months, rounded, when the dose ends or the antidote is taken.
+export const FAST_DRUG_DAYS = 60;
+export function fastDrugAgingSavedMonths(daysUnder) {
+  const days = Math.max(0, Math.min(FAST_DRUG_DAYS, Number(daysUnder) || 0));
+  return Math.round((days * 59 / 60) / 30);
+}
+
+// Anagathics: "a regimen of regular monthly doses". One dose covers a month.
+export const ANAGATHICS_DOSE_DAYS = 30;
+
+// Truth drug: about two minutes of truth, then an hour unconscious and 2D wounds.
+export function truthDrugWounds(dice) {
+  requireDice(dice);
+  const rolled = dice.roll2D6();
+  return Object.freeze({ dice: rolled.dice, wounds: rolled.total });
+}

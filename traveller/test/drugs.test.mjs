@@ -26,27 +26,32 @@ function round(encounter) {
 }
 const attacksBy = (encounter, id, inRound) => encounter.history.filter((entry) => entry.kind === 'attack' && entry.actorId === id && entry.round === inRound).length;
 
-test('v0.374.0 slow drug: from 3 rounds after taking, two attacks a round', async () => {
+test('v0.375.0 slow drug taken in round 1 counts as taken before the fight: two attacks from round 3', async () => {
   let encounter = (await fight());
   const pc = pcOf(encounter);
-  encounter = takeEncounterDrug(encounter, { combatantId: pc.id, drugKey: 'slow' }).encounter;
+  const taken = takeEncounterDrug(encounter, { combatantId: pc.id, drugKey: 'slow' });
+  assert.match(taken.entry.text, /before the fight: in effect rounds 3/);
+  encounter = taken.encounter;
   assert.throws(() => takeEncounterDrug(encounter, { combatantId: pc.id, drugKey: 'slow' }), /already on slow drug/);
-  for (let index = 0; index < 4; index += 1) encounter = round(encounter);
+  for (let index = 0; index < 3; index += 1) encounter = round(encounter);
   assert.equal(attacksBy(encounter, pc.id, 1), 1);
-  assert.equal(attacksBy(encounter, pc.id, 3), 1);
-  assert.equal(attacksBy(encounter, pc.id, 4), 2, 'round 1 + 3: two combat rounds to each one');
-  // The two hits ended the fight, and the drug wore off with it.
-  assert.ok(encounter.history.some((entry) => entry.round === 4 && /takes hold/.test(entry.text ?? '')));
-  assert.ok(encounter.history.some((entry) => /slow drug wears off/.test(entry.text ?? '')));
+  assert.equal(attacksBy(encounter, pc.id, 2), 1);
+  assert.equal(attacksBy(encounter, pc.id, 3), 2, 'two combat rounds to each one');
+  assert.ok(encounter.history.some((entry) => entry.round === 3 && /takes hold/.test(entry.text ?? '')));
   assert.equal(combatantSlowed({ drugs: [{ key: 'slow', first: 4, last: 43, ended: false }] }, 4), true);
   assert.equal(combatantSlowed({ drugs: [{ key: 'slow', first: 4, last: 43, ended: false }] }, 3), false);
 });
 
-test('v0.374.0 combat drug: +2 strength and endurance from 2 rounds on; off at the fight\u2019s end with 1D wounds', async () => {
+test('v0.375.0 taken after round 1, a drug counts from the round it is taken', async () => {
+  let encounter = round(await fight());
+  const taken = takeEncounterDrug(encounter, { combatantId: pcOf(encounter).id, drugKey: 'combat' });
+  assert.match(taken.entry.text, /in effect rounds 4/);
+});
+
+test('v0.374.0 combat drug: +2 strength and endurance from round 2 when taken before the fight; off at the fight\u2019s end with 1D wounds', async () => {
   let encounter = await fight();
   const before = pcOf(encounter);
   encounter = takeEncounterDrug(encounter, { combatantId: before.id, drugKey: 'combat' }).encounter;
-  encounter = round(encounter);
   assert.equal(pcOf(encounter).characteristics.STR, before.characteristics.STR, 'not yet');
   encounter = round(encounter);
   const boosted = pcOf(encounter);

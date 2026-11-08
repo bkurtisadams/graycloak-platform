@@ -16,9 +16,9 @@
 // piece of state it does keep is each panel's dragged position, which is
 // view state play.js has no use for and which must survive a re-render.
 
-import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.374.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.374.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.374.0';
+import { serviceName, nobleTitleLabel, buildServiceHistory } from './ui-model.js?v=v0.375.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.375.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.375.0';
 
 const DRAGGED = new Map();
 
@@ -361,6 +361,7 @@ function playTab(sheet, handlers) {
     })(),
     h('p', { class: 'sheet-note', text: 'Armour sets the throw anyone shooting at you needs, as well as your own protection (Book 1 p.42).' }),
     conditionBlock(sheet, handlers),
+    drugsBlock(sheet, handlers),
     // v0.263.0: the label is the throw (2D + Book 1's DM, into chat); the
     // second line says what the skill is for, not the level again; ⓘ or
     // Shift+click puts the full description in chat.
@@ -434,6 +435,34 @@ function conditionBlock(sheet, handlers) {
         text: `Medical slow drug (${condition.medicalSlowDoses})`,
         onclick: () => handlers.onMedicalSlow?.(sheet.id) }) : null),
     !sheet.playerSeat && !qualified.length ? h('p', { class: 'sheet-note', text: `Nobody here has Medical-${needed}${nonHuman ? ' (two levels over, for a non-human)' : ''}${condition.severe ? '' : '; rest is the way'}.` }) : null);
+}
+
+// v0.375.0: Book 2 pp.38-39 and Book 1 p.7 on the sheet — fast drug and its
+// antidote, anagathics, truth drug, and an aging crisis to settle. The
+// referee's; a player's sheet shows what applies, without the buttons.
+function drugsBlock(sheet, handlers) {
+  const drugs = sheet.drugs;
+  if (!drugs) return null;
+  const referee = !sheet.playerSeat;
+  const button = (text, title, onclick, disabled = false) => h('button', { type: 'button', class: 'button is-small', text, title, disabled, onclick });
+  const lines = [];
+  if (drugs.fastUntil) lines.push(`On fast drug until ${drugs.fastUntil}.`);
+  if (drugs.anagathicsUntil) lines.push(`Anagathics until ${drugs.anagathicsUntil}: aging throws ignored.`);
+  const medic = drugs.agingCrisis.length ? h('select', { class: 'sheet-select', 'aria-label': 'Attending' },
+    h('option', { value: '', text: 'No medical care' }),
+    drugs.medics.map((entry) => h('option', { value: entry.id, text: `${entry.name} \u2014 Medical-${entry.level}` }))) : null;
+  if (medic && drugs.medics[0]) medic.value = drugs.medics[0].id;
+  return h('div', { class: 'sheet-condition' },
+    h('div', { class: 'sheet-section-label', text: 'DRUGS' }),
+    lines.length ? h('p', { class: 'sheet-note', text: lines.join(' ') }) : null,
+    drugs.agingCrisis.length ? h('p', { class: 'sheet-note is-error', text: `Aging crisis: ${drugs.agingCrisis.join(', ')} at zero. 8+ to survive, the attendant\u2019s Medical a DM; with care and a dose of slow drug (${drugs.slowDoses} in the party) back at once, 1D months older; otherwise incapacitated 1D months (Book 1 p.7).` }) : null,
+    referee ? h('div', { class: 'sheet-actions' },
+      drugs.agingCrisis.length ? [h('span', { class: 'sheet-inline' }, 'Attending ', medic),
+        button('Throw for the crisis', 'Book 1 p.7', () => handlers.onAgingCrisis?.(sheet.id, drugs.agingCrisis[0], medic.value || null))] : null,
+      drugs.character && !drugs.fastUntil && drugs.doses.fast ? button(`Fast drug (${drugs.doses.fast})`, 'Sixty days pass as one for him; aging slowed (Book 2 p.38)', () => handlers.onDrug?.(sheet.id, 'fast')) : null,
+      drugs.character && drugs.fastUntil && drugs.doses['fast-antidote'] ? button(`Fast antidote (${drugs.doses['fast-antidote']})`, 'Cancels what is left of the fast drug', () => handlers.onDrug?.(sheet.id, 'fast-antidote')) : null,
+      drugs.character && drugs.doses.anagathics ? button(`Anagathics, a month (${drugs.doses.anagathics})`, 'A regular monthly dose: aging throws ignored (Book 2 p.38)', () => handlers.onDrug?.(sheet.id, 'anagathics')) : null,
+      drugs.doses.truth ? button(`Give truth drug (${drugs.doses.truth})`, 'About two minutes of truth, then an hour unconscious and 2D wounds (Book 2 p.39)', () => handlers.onTruthDrug?.(sheet.id)) : null) : null);
 }
 
 function gearTab(sheet, handlers) {

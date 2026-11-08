@@ -10,21 +10,21 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.374.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.374.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.374.0';
-import { engineMismatchMessage } from '../src/engine-version.js?v=v0.374.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.374.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.374.0';
-import { kindButton } from './kind-button.js?v=v0.374.0';
-import { ask, askForm, tell } from './dialogs.js?v=v0.374.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.374.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.374.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.374.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.374.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.374.0';
-import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.95.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.374.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.375.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.375.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.375.0';
+import { engineMismatchMessage } from '../src/engine-version.js?v=v0.375.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.375.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.375.0';
+import { kindButton } from './kind-button.js?v=v0.375.0';
+import { ask, askForm, tell } from './dialogs.js?v=v0.375.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.375.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.375.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.375.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.375.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.375.0';
+import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.375.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -614,8 +614,17 @@ function fighters() {
     characteristics: { STR: 1, DEX: 1, END: 1 },
     condition: entry.condition,
     weaponKey: entry.weaponKey ?? null,
-    weaponChoices: entry.weaponChoices ?? []
+    weaponChoices: entry.weaponChoices ?? [],
+    drugs: entry.drugs ?? []
   }));
+}
+
+// v0.375.0: slow and combat drug, swallowed with an order from the
+// character's own gear (Book 2 p.38). How many doses he carries.
+const FIGHT_DRUGS = Object.freeze([{ key: 'slow', name: 'Slow drug' }, { key: 'combat', name: 'Combat drug' }]);
+function ownDoses(characterId, name) {
+  const character = characters().find((entry) => entry.identity.id === characterId);
+  return (character?.inventory ?? []).filter((item) => String(item.name ?? '').toLowerCase() === name.toLowerCase()).reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
 }
 
 function declarationFor(actorId) {
@@ -632,7 +641,8 @@ async function sendOrder(actorId) {
       targetId: order.target ? draft.targetId : null,
       round: state.view.declaringRound, declaredAt: Date.now(),
       // v0.283.0: the weapon, only when it changes.
-      weaponKey: draft.weaponKey && draft.weaponKey !== fighter?.weaponKey ? draft.weaponKey : null
+      weaponKey: draft.weaponKey && draft.weaponKey !== fighter?.weaponKey ? draft.weaponKey : null,
+      drugKey: draft.drugKey || null
     });
     await writeDeclaration(campaignId, state.view.encounterId, declaration);
     setStatus('Order sent. Waiting for the referee.', 'ok');
@@ -651,7 +661,7 @@ function orderRow(fighter, foes) {
     const taken = sent.weaponKey ? fighter.weaponChoices.find((entry) => entry.key === sent.weaponKey)?.name ?? sent.weaponKey : null;
     return h('div', { class: 'seat-order is-sent' },
       h('b', { text: fighter.name }),
-      h('span', { text: ` \u2014 ${taken ? `takes up ${taken}; ` : ''}${order?.label ?? sent.action}${target ? `: ${target.name}` : ''}.` }),
+      h('span', { text: ` \u2014 ${sent.drugKey ? `swallows ${sent.drugKey} drug; ` : ''}${taken ? `takes up ${taken}; ` : ''}${order?.label ?? sent.action}${target ? `: ${target.name}` : ''}.` }),
       h('span', { class: 'cite', text: ' Sent; waiting for the referee to resolve the round.' }));
   }
   const draft = state.drafts.get(fighter.id) ?? { action: 'attack', targetId: foes.find((foe) => !foe.down)?.id ?? null, weaponKey: fighter.weaponKey };
@@ -677,9 +687,17 @@ function orderRow(fighter, foes) {
     onchange: (event) => { state.drafts.set(fighter.id, { ...draft, weaponKey: event.currentTarget.value }); renderScene(); } },
   fighter.weaponChoices.map((entry) => h('option', { value: entry.key, selected: entry.key === (draft.weaponKey ?? fighter.weaponKey), text: `${entry.name}${entry.tag ? ` (${entry.tag})` : ''}` }))) : null;
   const card = draft.action === 'attack' && !changed ? throws.find((entry) => entry.targetId === draft.targetId) : null;
+  // v0.375.0: a drug with the order. In round 1 it counts as taken before the fight.
+  const drugChoices = FIGHT_DRUGS.filter((drug) => !fighter.drugs.includes(drug.key)).map((drug) => ({ ...drug, doses: ownDoses(fighter.id, drug.name) })).filter((drug) => drug.doses > 0);
+  const drugSelect = drugChoices.length ? h('select', { class: 'sheet-select', 'aria-label': `${fighter.name}: drug`,
+    title: 'Slow drug: two attacks a round, from 3 rounds on, for 40, then 1D wounds. Combat drug: +2 strength and endurance from 2 rounds on, for 30, then 1D wounds. Two drugs: synergy (Book 2 pp.38-39).',
+    onchange: (event) => { state.drafts.set(fighter.id, { ...draft, drugKey: event.currentTarget.value || null }); renderScene(); } },
+  h('option', { value: '', text: 'No drug' }),
+  drugChoices.map((drug) => h('option', { value: drug.key, selected: draft.drugKey === drug.key, text: `${drug.name} (${drug.doses})` }))) : null;
   return h('div', { class: 'seat-order' },
     h('b', { text: fighter.name }),
-    weaponSelect, actionSelect, targetSelect,
+    weaponSelect, actionSelect, targetSelect, drugSelect,
+    draft.drugKey && state.view.declaringRound === 1 ? h('p', { class: 'cite seat-throw', text: 'Taken in round 1, it counts as taken before the fight.' }) : null,
     changed ? h('p', { class: 'cite seat-throw', text: 'A new weapon: its throw shows once the referee takes the order.' }) : null,
     h('button', { type: 'button', class: 'button is-primary', text: 'Send order', disabled: order.target && !draft.targetId, onclick: () => sendOrder(fighter.id) }),
     card ? h('p', { class: 'cite seat-throw', text: `${card.weaponName}: 2D ${card.totalDM >= 0 ? '+' : '\u2212'}${Math.abs(card.totalDM)}, needs ${card.needed}+ at ${String(card.range ?? '').replace('-', ' ')} range${card.rows.length ? ` \u2014 ${card.rows.map((row) => `${row.label} ${row.dm >= 0 ? '+' : '\u2212'}${Math.abs(row.dm)}`).join(', ')}` : ''}${card.defenceDM ? `, their defence ${card.defenceDM >= 0 ? '+' : '\u2212'}${Math.abs(card.defenceDM)}` : ''}.` }) : null);
