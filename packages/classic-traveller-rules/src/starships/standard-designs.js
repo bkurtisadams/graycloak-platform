@@ -414,13 +414,91 @@ export const TYPE_C_CRUISER = deepFreeze({
   ]
 });
 
+// 0.97.0 (Kurt, Nov 2026): the Type A2 Far Trader, built to Book 2's rules.
+// Supplement 7 (1980) pp.23-26, 46 prints a jump-2, 1-G Far Trader on "the type
+// 200 hull", but its drives (jump-B 15 t, maneuver-A 1 t, power plant-B 7 t =
+// 23 t) cannot fit a standard 200-ton hull's 15-ton engineering section (Book 2
+// p.10), its 50 tons of fuel fall short of Book 2's 60 (p.6: 10% of the hull
+// per jump number, plus 10Pn), and its printed prices do not reproduce. This is
+// that ship made legal: a custom 200-ton hull (Book 2 p.10: Cr100,000 a ton,
+// MCr20 minimum, 36 months) with a 23-ton engineering section; 60 tons of fuel;
+// Supplement 7's ten staterooms, four low berths, Model/1bis, air/raft and two
+// hardpoints; two tons held for fire control as on the Type A; the rest cargo.
+// A custom design: no standard-design reduction, and the naval architect's 1%
+// (Book 2 p.21, step 10).
+export const TYPE_A2_FAR_TRADER_KEY = 'type-a2-far-trader';
+
+export const TYPE_A2_FAR_TRADER = deepFreeze({
+  key: TYPE_A2_FAR_TRADER_KEY,
+  typeCode: 'A2',
+  name: 'Far Trader',
+  mission: ['commercial', 'freight', 'passengers'],
+  hull: {
+    tons: 200,
+    standard: false,
+    custom: true,
+    engineTons: 23,
+    streamlined: true
+  },
+  drives: {
+    jump: { letter: 'B', rating: 2 },
+    maneuver: { letter: 'A', rating: 1 },
+    powerPlant: { letter: 'B', rating: 2 }
+  },
+  fuel: {
+    capacityTons: 60,
+    jumpFuelTonsAtMaxJump: 40,
+    powerPlantFuelTonsPerTrip: 20
+  },
+  computer: { model: '1bis', tons: 1, cpu: 4, storage: null, maximumSupportedJump: 2 },
+  accommodations: {
+    staterooms: 10,
+    lowBerths: 4
+  },
+  cargo: {
+    capacityTons: 48
+  },
+  armament: {
+    hardpoints: 2,
+    turrets: []
+  },
+  vehicles: [
+    { name: 'Air/Raft', tons: 4, stowage: 'hull compartment' }
+  ],
+  crew: {
+    standardCount: 4,
+    standardDuties: ['pilot', 'engineer', 'medic', 'steward'],
+    rulesMinimumPositions: [
+      { role: 'pilot', skill: 'Pilot', minimumLevel: 1 },
+      { role: 'engineer', skill: 'Engineer', minimumLevel: 1 },
+      { role: 'medic', skill: 'Medic', minimumLevel: 1 },
+      { role: 'steward', skill: 'Steward', minimumLevel: 1 }
+    ],
+    notes: 'Book 2 p.17, as for the Type A: pilot, engineer, medic and steward. Supplement 7 prints three (pilot/navigator, engineer, steward/medic). Two hardpoints, no turrets; two tons held for fire control.'
+  },
+  economics: {
+    standardDesignDiscountApplied: false,
+    customDesign: true,
+    newCostMCr: 80.194,
+    buildMonths: 36,
+    annualRoutineMaintenanceCr: 80194
+  },
+  sources: [
+    'Classic Traveller Supplement 7 pp.23-26, 46 (Type A2 Far Trader, as printed)',
+    'Classic Traveller Book 2 p.10 (custom hull, engineering section)',
+    'Classic Traveller Book 2 p.6 (fuel)',
+    'Classic Traveller Book 2 p.21 (naval architect\u2019s fee, 1%)'
+  ]
+});
+
 const STANDARD_DESIGNS = Object.freeze({
   [TYPE_S_SCOUT_COURIER_KEY]: TYPE_S_SCOUT_COURIER,
   [TYPE_A_FREE_TRADER_KEY]: TYPE_A_FREE_TRADER,
   [TYPE_R_SUBSIDIZED_MERCHANT_KEY]: TYPE_R_SUBSIDIZED_MERCHANT,
   [TYPE_M_SUBSIDIZED_MERCHANT_KEY]: TYPE_M_SUBSIDIZED_MERCHANT,
   [TYPE_Y_YACHT_KEY]: TYPE_Y_YACHT,
-  [TYPE_C_CRUISER_KEY]: TYPE_C_CRUISER
+  [TYPE_C_CRUISER_KEY]: TYPE_C_CRUISER,
+  [TYPE_A2_FAR_TRADER_KEY]: TYPE_A2_FAR_TRADER
 });
 
 export const STANDARD_SHIP_DESIGN_KEYS = Object.freeze(Object.keys(STANDARD_DESIGNS));

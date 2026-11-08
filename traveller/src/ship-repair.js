@@ -36,8 +36,7 @@
 
 import {
   HULL_TYPES, POWER_PLANTS, MANEUVER_DRIVES, JUMP_DRIVES, COMPUTER_MODELS,
-  getTurretMount, getTurretWeapon, repairShipDamage
-} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
+  getTurretMount, getTurretWeapon, repairShipDamage, designHull } from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
 
 export const SHIPYARD_STARPORTS = Object.freeze(['A', 'C']);
 export const REPAIR_PARTS_CREW_DM = -2;
@@ -79,7 +78,8 @@ export function assemblyCostCr({ specifications, state }, { location, turretId }
     return Math.round(DRIVE_TABLES[location][letter].priceMCr * 1_000_000);
   }
   if (location === 'computer') return Math.round(COMPUTER_MODELS[specifications.computer.model].priceMCr * 1_000_000);
-  return Math.round(HULL_TYPES[specifications.hull.tons].priceMCr * 1_000_000);
+  // v0.376.0: a custom hull (the Type A2) is priced by Book 2 p.10's rule.
+  return Math.round(designHull({ hull: specifications.hull }).priceMCr * 1_000_000);
 }
 
 export function rollRepairCost(dice, assemblyCr, { byCrew }) {

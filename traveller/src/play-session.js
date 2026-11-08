@@ -41,7 +41,7 @@ import {
   createTypeAFreeTraderForCharacter, createTypeSScoutReserveShipForCharacter, shipMortgageSchedule, createShipDocument,
   rollPatronOutcome, patronOutcomeSettlement, RUMOR_LEAD_DAYS, rollPersonEncounter1982, rollBoardingParty, hostileAttackIsPhysical, patronAdvance, blackMarketTerms,
   QUEST_STAGES, QUEST_FOES, QUEST_FOE_NAMES, questStageDays, throwQuestStage, rollSpoils, RANDOM_PERSON_ENCOUNTERS_1982, equipEncounterGroup
-} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
 import {
   opposingShipDesignKey, opposingShipDisposition, buildEncounteredShip, shipCombatLoadout, autoAdvanceShipFight, shipFightRoster,
   laserAllocationAgainstSingleFoe, creditEscapeShots, fleeShipFight, STANDARD_SHOTS_BEFORE_ESCAPE, damageLocationLabel,
@@ -56,12 +56,12 @@ import {
 import {
   enableVectorMovement, commitShipVector, adjudicateVectorSurface, previewShipVector, vectorRangeDM, shipVectorManeuver,
   VECTOR_ESCAPE_RANGE
-} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
 // v0.311.0: build-order step 3 — arrival events live in the rules package.
-import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
+import { debitShipAccount, linkCharacterToShip, transferCharacterCreditsToShip, transferShipCreditsToCharacter } from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
 import {
   orbitalTransfer, chargeShuttleFreight, portCallBrokerTipDM, spendBrokerTip
-} from '../vendor/classic-traveller-rules/index.js?v=r0.96.0';
+} from '../vendor/classic-traveller-rules/index.js?v=r0.97.0';
 // Pure planning for a fight staged on a Space (vector) scene — no DOM, no ship
 // documents. See its own header: built to be shared by any client.
 import { dataCardLines } from './ship-data-card-text.js';
@@ -708,7 +708,7 @@ export function newShipOptions(resolved) {
   return {
     designs: STANDARD_SHIP_DESIGN_KEYS.map((key) => {
       const design = getStandardShipDesign(key);
-      return { key, label: `Type ${design.typeCode} ${design.name} (${design.hull.tons} tons)` };
+      return { key, label: `Type ${design.typeCode} ${design.name} (${design.hull.tons} tons${design.hull.custom ? ', custom hull' : ''})` };
     }),
     characters: (resolved.characters ?? []).filter((entry) => String(entry.identity.name ?? '').trim())
       .map((entry) => ({ id: entry.identity.id, name: entry.identity.name }))

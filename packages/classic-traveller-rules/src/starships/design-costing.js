@@ -13,6 +13,9 @@
 
 import {
   HULL_TYPES,
+  CUSTOM_HULL_PRICE_PER_TON_CR,
+  CUSTOM_HULL_MINIMUM_PRICE_CR,
+  CUSTOM_HULL_BUILD_MONTHS,
   POWER_PLANTS,
   MANEUVER_DRIVES,
   JUMP_DRIVES,
@@ -36,6 +39,23 @@ function round(value) {
   return Number(Number(value).toFixed(6));
 }
 
+// 0.97.0: Book 2 p.10 — a hull not on the standard table is custom: Cr100,000
+// a ton (MCr20 minimum), 36 months, with the engineering section its design
+// states. A custom design pays the naval architect's 1% (p.21) and gets no
+// standard-design reduction.
+export const NAVAL_ARCHITECT_FEE = 0.01;
+export function designHull(design) {
+  if (design.hull.custom) {
+    const tons = design.hull.tons;
+    const engineTons = Number(design.hull.engineTons);
+    if (!Number.isFinite(engineTons) || engineTons <= 0 || engineTons >= tons) throw new RangeError('a custom hull states its engineering section in tons');
+    return Object.freeze({ tons, engineTons, mainTons: tons - engineTons, priceMCr: Math.max(CUSTOM_HULL_MINIMUM_PRICE_CR, CUSTOM_HULL_PRICE_PER_TON_CR * tons) / 1_000_000, buildMonths: CUSTOM_HULL_BUILD_MONTHS, custom: true });
+  }
+  const hull = HULL_TYPES[design.hull.tons];
+  if (!hull) throw new RangeError(`no standard hull of ${design.hull.tons} tons`);
+  return hull;
+}
+
 function vehicleEntry(vehicle) {
   const byName = Object.values(SHIP_VEHICLES).find(
     (entry) => entry.label.toLowerCase() === String(vehicle?.name ?? '').trim().toLowerCase()
@@ -50,14 +70,13 @@ function vehicleEntry(vehicle) {
  * after it.
  */
 export function costDesign(design) {
-  const hull = HULL_TYPES[design.hull.tons];
-  if (!hull) throw new RangeError(`no standard hull of ${design.hull.tons} tons`);
+  const hull = designHull(design);
   const hullHundreds = design.hull.tons / 100;
 
   const items = [];
   const add = (label, priceMCr) => { items.push(Object.freeze({ label, priceMCr: round(priceMCr) })); };
 
-  add(`Hull ${design.hull.tons}`, hull.priceMCr);
+  add(`${hull.custom ? 'Custom hull' : 'Hull'} ${design.hull.tons}`, hull.priceMCr);
   add(`Jump drive-${design.drives.jump.letter}`, JUMP_DRIVES[design.drives.jump.letter].priceMCr);
   add(`Maneuver drive-${design.drives.maneuver.letter}`, MANEUVER_DRIVES[design.drives.maneuver.letter].priceMCr);
   add(`Power plant-${design.drives.powerPlant.letter}`, POWER_PLANTS[design.drives.powerPlant.letter].priceMCr);
@@ -89,7 +108,9 @@ export function costDesign(design) {
   }
 
   const componentsMCr = round(items.reduce((sum, item) => sum + item.priceMCr, 0));
-  const standardDesignMCr = round(componentsMCr * (1 - STANDARD_DESIGN_PRICE_REDUCTION));
+  const standardDesignMCr = hull.custom
+    ? round(componentsMCr * (1 + NAVAL_ARCHITECT_FEE))
+    : round(componentsMCr * (1 - STANDARD_DESIGN_PRICE_REDUCTION));
   return Object.freeze({
     items: Object.freeze(items),
     componentsMCr,
@@ -104,8 +125,7 @@ export function costDesign(design) {
  * everything else lives in the main compartment. Neither may be overspent.
  */
 export function tonnageBudget(design) {
-  const hull = HULL_TYPES[design.hull.tons];
-  if (!hull) throw new RangeError(`no standard hull of ${design.hull.tons} tons`);
+  const hull = designHull(design);
 
   const engineeringTons = JUMP_DRIVES[design.drives.jump.letter].tons
     + MANEUVER_DRIVES[design.drives.maneuver.letter].tons
