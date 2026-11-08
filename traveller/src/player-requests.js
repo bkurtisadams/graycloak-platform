@@ -24,6 +24,7 @@ const PLAYER_COMMANDS = Object.freeze([
   // v0.366.0: a player puts down or picks up what their own character carries
   // (owner checked on the server). Names, weights and the rest stay the referee's.
   'inventory:toggle:',
+  'money:move', // v0.378.0: the Money tab (checked on the server)
   'money:to-ship', 'money:from-ship', // v0.372.0: own character only; drawing needs the ship's owner (checked on the server)
   'ship:from-benefit:',          // v0.338.0: his own character's mustering-out ship (owner checked on the server)
   'shipfight:fire', 'shipfight:hold', 'shipfight:flee', 'shipfight:end', 'shipfight:cancel-repair'
@@ -128,6 +129,14 @@ export function playerSituation(view, { mode = 'person' } = {}) {
         buy: Boolean(entry.buy), reason: entry.reason ? text(entry.reason) : null, warning: entry.warning ? text(entry.warning) : null,
         black: entry.black ? { available: Boolean(entry.black.available), priceCr: Number(entry.black.priceCr ?? 0), why: text(entry.black.why), reason: entry.black.reason ? text(entry.black.reason) : null } : null
       })) }))
+    } : null,
+    // v0.378.0: the Money tab — the travellers' ship, the other travellers by
+    // name (never their balances) and the recent money lines.
+    money: view.money ? {
+      date: text(view.money.date), where: text(view.money.where),
+      ship: (() => { const ship = (view.money.ships ?? []).find((entry) => entry.travellers); return ship ? { id: text(ship.id), name: text(ship.name), accountCr: Number(ship.accountCr ?? 0), heldById: text(ship.heldById), heldByName: text(ship.heldByName) } : null; })(),
+      travellers: (view.money.characters ?? []).map((entry) => ({ id: text(entry.id), name: text(entry.name) })),
+      recent: (view.money.recent ?? []).map((entry) => ({ day: text(entry.day), text: text(entry.text), amountCr: Number(entry.amountCr ?? 0) }))
     } : null,
     blackMarket: view.blackMarket && !view.blackMarket.searching && view.blackMarket.priceCr ? { key: text(view.blackMarket.key), characterId: text(view.blackMarket.characterId), priceCr: Number(view.blackMarket.priceCr) } : null,
     // v0.350.0: "!" and "?" on the player's map.

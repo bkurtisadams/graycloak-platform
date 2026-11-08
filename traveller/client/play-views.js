@@ -7,22 +7,22 @@
 //   2. Every function takes state and returns DOM. No module-level state.
 //   3. A situation adds a scene and a lead card. It never adds a panel.
 
-import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.377.0';
-import { renderReactionPanel } from './reaction-panel.js?v=v0.377.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.377.0';
-import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.377.0';
+import { renderSubsectorMap, createSvgNode, SUBSECTOR_SVG_GEOMETRY, subsectorHexCenter } from './subsector-svg.js?v=v0.378.0';
+import { renderReactionPanel } from './reaction-panel.js?v=v0.378.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.378.0';
+import { rangeBandForBandGap, ENCOUNTER_RANGE_LINE_ESCAPE_BANDS, ENCOUNTER_RANGE_LINE_COLUMNS } from '../src/encounter-document.js?v=v0.378.0';
 import {
   SUBSECTOR_COLUMNS, SUBSECTOR_ROWS, getJumpDestinations, getSubsectorSystem, parseUniversalWorldProfile, laneBetween,
   describeStarport, describeAtmosphere, describeHydrographics, describePopulation, describeLawLevel,
   describeWorldSize, describeGovernment, describeTradeClassifications,
   previewPersonalAttack, getPersonalWeapon, blowsRemaining
 } from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
-import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.377.0';
-import { kindButton, kindIcon } from './kind-button.js?v=v0.377.0';
-import { renderSectionStrip } from './section-strip.js?v=v0.377.0';
+import { renderVectorFight, renderPhaseTrack, renderDataCards } from './vector-fight-view.js?v=v0.378.0';
+import { kindButton, kindIcon } from './kind-button.js?v=v0.378.0';
+import { renderSectionStrip } from './section-strip.js?v=v0.378.0';
 export { renderSectionStrip };
-import { actorBadge, shipBadge } from './sheets.js?v=v0.377.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.377.0';
+import { actorBadge, shipBadge } from './sheets.js?v=v0.378.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview } from './wound-dialog.js?v=v0.378.0';
 // v0.245.0: the original working staging board (client/ship-vector-map.js,
 // built v0.161-v0.198 for the old referee client) rather than a reimple-
 // mentation. Drag a ship to place it, drag its velocity arrow to set its
@@ -37,7 +37,7 @@ import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroup
 // presentational (no game state — every write goes out through the callbacks
 // below to play-session.js commands), and it is precisely what lets a drag
 // survive the re-render. See the same note in ship-vector-map.js.
-import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.377.0';
+import { renderVectorSceneStage } from './ship-vector-map.js?v=v0.378.0';
 
 export function h(tag, attributes = {}, ...children) {
   const node = document.createElement(tag);
@@ -73,13 +73,15 @@ function entryThumb(markup) {
 
 // ---------------------------------------------------------------- masthead
 
-export function renderMastChips(state, { openDrawer, drawer, openSheet = null, openSheets = [], onSpace = null }) {
+export function renderMastChips(state, { openDrawer, drawer, openSheet = null, openSheets = [], onSpace = null, onMoneyTab = null }) {
   const chips = [];
   const c = state.character;
   if (c) {
     // v0.372.0: "personal", beside the ship's own account on the ship chip
     // (Bruce, Nov 2026: trade money never showed here, because it is the ship's).
-    chips.push(h('button', { class: `chip${c.hurt ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'character', onclick: () => openDrawer('character'), title: 'The character\u2019s own money. Trade, fares, berthing and upkeep go through the ship\u2019s account.' },
+    // v0.378.0 (the approved mockup): a chip opens the Money tab with that
+    // account first; the character's drawer is the Travellers tab's.
+    chips.push(h('button', { class: `chip${c.hurt ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': drawer === 'character', onclick: () => (onMoneyTab ? onMoneyTab(`character:${c.id}`) : openDrawer('character')), title: 'Money: this character\u2019s own money and every other account. Trade, fares, berthing and upkeep go through the ship\u2019s account.' },
       h('span', { class: 'chip-name', text: c.name || '(unnamed)' }),
       h('span', { class: 'chip-line' }, h('span', { class: 'code', text: c.upp }), ` ${c.hurt ? c.status : `${cr(c.cashCr)} personal`}`)));
   }
@@ -88,7 +90,7 @@ export function renderMastChips(state, { openDrawer, drawer, openSheet = null, o
     // v0.317.0: the ship chip opens the ship's sheet — the one place for the
     // ship, as the Vehicles tab does — not a second, different panel.
     const open = openSheets.some((entry) => entry.kind === 'ship' && entry.id === s.id);
-    chips.push(h('button', { class: `chip${s.damage ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': open, onclick: () => (openSheet ? openSheet('ship', s.id) : openDrawer('ship')) },
+    chips.push(h('button', { class: `chip${s.damage ? ' is-hurt' : ''}`, type: 'button', 'aria-pressed': open, title: 'Money: the ship\u2019s account and every other; the ship\u2019s sheet is in the Vehicles tab', onclick: () => (onMoneyTab ? onMoneyTab(`ship:${s.id}`) : openSheet ? openSheet('ship', s.id) : openDrawer('ship')) },
       h('span', { class: 'chip-name', text: s.name }),
       h('span', { class: 'chip-line', text: `Fuel ${s.fuel.now}/${s.fuel.full}  Hold ${s.hold.full - s.hold.now} t free  ${cr(s.accountCr ?? 0)} ship` })));
   }
@@ -2313,6 +2315,11 @@ function playersPanel(model, state, handlers) {
 
 function refereeDrawer(referee, state, handlers) {
   const go = (patch) => handlers.onReferee?.(patch);
+  // v0.378.0: the Money tab.
+  if (referee.tab === 'Money') {
+    const view = refereeMoneyView(state.money, { live: state.live, draft: state.moneyDraft ?? {} });
+    return view ? moneyPanel(view, handlers) : [h('p', { class: 'empty', text: 'No accounts yet.' })];
+  }
   if (referee.tab === 'Players' && referee.members) {
     return [
       referee.seats?.error ? h('p', { class: 'notice is-error', text: referee.seats.error }) : null,
@@ -2978,7 +2985,8 @@ export function chatExportText({ campaignName = 'Campaign', date = '', lines = [
 
 // The sidebar's tabs: Chat first, then the directories.
 // v0.347.0: Jobs (design.md 9.8).
-export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Jobs', 'Actors', 'Players', 'Vehicles', 'Scenes', 'Compendium']);
+// v0.378.0: Money, every account in one place.
+export const SIDEBAR_TABS = Object.freeze(['Chat', 'Journal', 'Jobs', 'Money', 'Actors', 'Players', 'Vehicles', 'Scenes', 'Compendium']);
 // v0.331.0 (Kurt): the Players tab is shown as Travellers — what the books
 // call the player characters ("a band of travellers", 1977 Book 1 p.2).
 // The key stays 'Players' so saved page state and handlers keep working.
@@ -2989,4 +2997,94 @@ export function renderSideTabs(active, { players = 0, onTab = null } = {}) {
     type: 'button', class: 'side-tab', 'aria-pressed': tab === active ? 'true' : 'false',
     onclick: () => onTab?.(tab)
   }, SIDEBAR_TAB_LABELS[tab] ?? tab, tab === 'Players' && players ? h('span', { class: 'side-count', text: ` ${players}` }) : null));
+}
+
+// ---------------------------------------------------------------------------
+// v0.378.0 (Kurt, Nov 2026): the Money tab, on the referee's page and the
+// player's page, as the approved mockup has it: the accounts, one Move money
+// form, the referee's Correct a balance, and the recent money lines.
+// `accounts` = { characters: [{id, name, cashCr, own}], ships: [{id, name,
+// typeCode, accountCr, travellers, heldById, heldByName, mortgage}],
+// others: [names] | null, partyCr | null }. `from`/`to` = the choices.
+// ---------------------------------------------------------------------------
+const moneyFigure = (value) => `Cr ${Number(value ?? 0).toLocaleString('en-US')}`;
+const moneyKey = (ref) => (ref ? `${ref.kind}:${ref.id}` : '');
+const moneyRef = (key) => { const [kind, ...rest] = String(key ?? '').split(':'); return kind && rest.length ? { kind, id: rest.join(':') } : null; };
+
+export function moneyPanel(view, handlers = {}) {
+  const { player = false, live = false, notice = null, accounts, from = [], toFor = () => [], draft = {}, recent = [], date = '', where = '', correctable = [] } = view;
+  const fromKey = draft.from && from.some((entry) => entry.key === draft.from) ? draft.from : from[0]?.key ?? '';
+  const toChoices = toFor(fromKey);
+  const toKey = draft.to && toChoices.some((entry) => entry.key === draft.to) ? draft.to : toChoices[0]?.key ?? '';
+  const amount = String(draft.amount ?? '');
+  const amountCr = Math.round(Number(amount.replace(/[,\s]/g, '').replace(/^cr/i, '')));
+  const toEntry = toChoices.find((entry) => entry.key === toKey);
+  const fromEntry = from.find((entry) => entry.key === fromKey);
+  const verb = fromEntry?.kind === 'character' && toEntry?.kind === 'character' ? `Give ${toEntry.name}` : 'Move';
+  const set = (patch) => handlers.onMoneyDraft?.({ from: fromKey, to: toKey, amount, ...draft, ...patch });
+  const select = (label, value, choices, onchange) => h('label', { class: 'money-field' }, label,
+    h('select', { onchange: (event) => onchange(event.currentTarget.value) },
+      choices.map((entry) => h('option', { value: entry.key, selected: entry.key === value, text: entry.label }))));
+  const row = (name, figure, { own = false, sub = null, travellers = false, total = false } = {}) => h('div', { class: `money-row${own ? ' is-own' : ''}${travellers ? ' is-travellers' : ''}${total ? ' is-total' : ''}` },
+    h('div', { class: 'money-row-line' }, h('span', {}, ...[].concat(name)), h('span', { class: 'money-figure', text: figure })),
+    sub ? h('span', { class: `money-sub${/Mortgage/.test(sub) ? ' is-owed' : ''}`, text: sub }) : null);
+  const characterRows = (accounts.characters ?? []).map((entry) => row(player ? `${entry.name} \u00b7 own money` : entry.name, moneyFigure(entry.cashCr), { own: entry.own }));
+  const shipRows = (accounts.ships ?? []).map((ship) => row(
+    [h('b', { text: ship.name }), player ? ' \u00b7 ship account' : ` \u00b7 ${ship.typeCode ? `Type ${ship.typeCode}` : 'ship'}${ship.travellers ? ' \u00b7 travellers\u2019 ship' : ship.where ? ` \u00b7 at ${ship.where}` : ''}`],
+    moneyFigure(ship.accountCr),
+    { travellers: ship.travellers, sub: player ? (ship.heldByName ? `Held by ${ship.heldByName}: only ${ship.heldByName.split(' ')[0]} may draw from it` : null) : ship.mortgage }));
+  return [
+    h('div', { class: 'money-panel' },
+      h('div', { class: 'money-head' }, h('h2', { text: 'MONEY' }), h('span', { class: 'cite', text: [date, where].filter(Boolean).join(' \u00b7 ') })),
+      notice ? h('p', { class: 'money-notice', text: notice }) : null,
+      h('section', { class: 'money-accounts', 'aria-label': 'Accounts' },
+        h('h3', { text: player ? 'YOURS' : 'CHARACTERS \u2014 OWN MONEY' }),
+        player
+          ? h('div', { class: 'money-list' }, ...characterRows, ...shipRows)
+          : h('div', { class: 'money-list' }, ...characterRows, row('Party, all told', moneyFigure(accounts.partyCr), { total: true })),
+        player ? null : h('h3', { text: 'SHIPS \u2014 ACCOUNTS' }),
+        player ? null : (shipRows.length ? h('div', { class: 'money-list' }, ...shipRows) : h('p', { class: 'cite', text: 'No ships in this campaign.' })),
+        player && accounts.others?.length ? h('h3', { text: 'OTHER TRAVELLERS' }) : null,
+        player && accounts.others?.length ? h('p', { class: 'cite', text: `${accounts.others.join(' \u00b7 ')} \u2014 you can give them money; their balances are their own.` }) : null),
+      live && from.length ? h('section', { class: 'money-move', 'aria-label': 'Move money' },
+        h('h3', { text: 'MOVE MONEY' }),
+        select('From', fromKey, from, (value) => set({ from: value, to: '' })),
+        select('To', toKey, toChoices, (value) => set({ to: value })),
+        h('label', { class: 'money-field' }, 'Credits', h('input', { type: 'text', inputmode: 'numeric', value: amount, placeholder: 'e.g. 5,000',
+          oninput: (event) => { draft.amount = event.currentTarget.value; }, onchange: (event) => set({ amount: event.currentTarget.value }) })),
+        h('p', { class: 'cite', text: player
+          ? 'From your own money to the ship or another traveller. Drawing from the ship is its holder\u2019s; ship to ship is the referee\u2019s.'
+          : 'Any account to any account. A ledger line on each ship, and one chat line.' }),
+        h('button', { type: 'button', class: 'button money-go', disabled: !toKey,
+          text: `${verb}${Number.isInteger(amountCr) && amountCr > 0 ? ` ${moneyFigure(amountCr)}` : ''}`,
+          onclick: () => handlers.onMoneyMove?.({ from: moneyRef(fromKey), to: moneyRef(toKey), amountCr: draft.amount ?? amount }) })) : null,
+      !player && live && correctable.length ? h('details', { class: 'money-correct' },
+        h('summary', { text: 'Correct a balance (referee)' }),
+        h('p', { class: 'cite', text: 'Sets an account to a figure, for fixing mistakes. Recorded as a correction, not a transfer.' }),
+        (() => {
+          const account = h('select', { 'aria-label': 'Account to correct' }, correctable.map((entry) => h('option', { value: entry.key, text: entry.label })));
+          const figure = h('input', { type: 'text', inputmode: 'numeric', 'aria-label': 'New balance', placeholder: 'new balance' });
+          return h('div', { class: 'money-correct-row' }, account, figure,
+            h('button', { type: 'button', class: 'button is-small', text: 'Set', onclick: () => handlers.onMoneyCorrect?.({ account: moneyRef(account.value), valueCr: figure.value }) }));
+        })()) : null,
+      h('section', { class: 'money-recent', 'aria-label': 'Recent money' },
+        h('h3', { text: 'RECENT' }),
+        recent.length ? h('ol', {}, recent.map((entry) => h('li', {},
+          h('span', { text: `${entry.day ? `${entry.day} \u00b7 ` : ''}${entry.text}` }),
+          h('span', { class: entry.amountCr < 0 ? 'is-out' : 'is-in', text: `${entry.amountCr < 0 ? '\u2212' : '+'}${moneyFigure(Math.abs(entry.amountCr))}` })))) : h('p', { class: 'cite', text: 'Nothing yet.' })))
+  ];
+}
+
+// The referee's choices: any account to any other.
+export function refereeMoneyView(money, { live = false, draft = {} } = {}) {
+  if (!money) return null;
+  const all = [
+    ...(money.characters ?? []).map((entry) => ({ key: `character:${entry.id}`, kind: 'character', name: entry.name, label: `${entry.name} \u2014 own money (${moneyFigure(entry.cashCr)})` })),
+    ...(money.ships ?? []).map((ship) => ({ key: `ship:${ship.id}`, kind: 'ship', name: ship.name, label: `${ship.name} \u2014 ship account (${moneyFigure(ship.accountCr)})` }))
+  ];
+  return {
+    player: false, live, draft, date: money.date, where: money.where, recent: money.recent ?? [],
+    accounts: { characters: money.characters, ships: money.ships, partyCr: money.partyCr },
+    from: all, toFor: (key) => all.filter((entry) => entry.key !== key), correctable: all
+  };
 }

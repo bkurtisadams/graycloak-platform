@@ -162,7 +162,7 @@ test('v0.354.0 the player\u2019s page shows the job card, its encounter inside, 
   assert.match(seat, /const inner = q\.here \? \[/, 'the encounter and the aftermath sit inside the card at its world');
   assert.match(seat, /await ask\(\{ title: 'Give up the job'/, 'giving up asks first');
   assert.match(seat, /Close hides a result on this page only/);
-  assert.match(seat, /const tabs = \['Chat', 'Store', 'Jobs'\]/);
+  assert.match(seat, /const tabs = \['Chat', 'Store', 'Jobs', 'Money'\]/);
   assert.match(seat, /The fight is begun on the play page; it opens here when it starts\./);
   const html = await read('seat.html');
   assert.match(html, /<section class="side-jobs" id="side-jobs" aria-label="Jobs" hidden><\/section>/);

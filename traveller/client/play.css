@@ -1758,3 +1758,42 @@ details.talk-roll-body summary::-webkit-details-marker { display: none; }
 .entry-characters { flex-basis: 100%; list-style: none; margin: 0; padding: 4px 0 0 10px; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); }
 .entry-characters li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
 .entry-characters .seat-actions { margin-left: auto; }
+
+/* v0.378.0: the Money tab (the approved mockup). Theme tokens, so it reads
+   in both light and dark. */
+.money-panel { display: flex; flex-direction: column; gap: 18px; padding: 16px; font-family: var(--display); font-size: 13px; color: var(--ink); }
+.money-panel h2 { margin: 0; font-size: 15px; letter-spacing: 0.08em; }
+.money-panel h3 { margin: 0; font-size: 11px; letter-spacing: 0.12em; color: var(--ink-2); font-weight: 700; }
+.money-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.money-panel .cite { margin: 0; font-size: 12px; color: var(--ink-2); }
+.money-notice { margin: 0; padding: 10px 12px; background: var(--travel-wash); border: 1px solid var(--travel-edge); color: var(--travel-ink); font-size: 12px; }
+.money-accounts { display: flex; flex-direction: column; gap: 8px; }
+.money-accounts h3 + .money-list, .money-accounts .money-list + h3 { margin-top: 0; }
+.money-accounts .money-list + h3 { margin-top: 6px; }
+.money-list { display: flex; flex-direction: column; border: 1px solid var(--line); }
+.money-row { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+.money-row:last-child { border-bottom: none; }
+.money-row-line { display: flex; justify-content: space-between; gap: 12px; }
+.money-figure { font-weight: 700; white-space: nowrap; }
+.money-row.is-own { background: var(--raise); }
+.money-row.is-travellers { background: var(--money-wash); box-shadow: inset 3px 0 0 var(--money-edge); }
+.money-row.is-travellers .money-figure { color: var(--money-ink); }
+.money-row.is-total { color: var(--ink-2); }
+.money-row.is-total .money-figure { font-weight: 400; }
+.money-sub { font-size: 12px; color: var(--ink-2); }
+.money-sub.is-owed { color: var(--owed-ink); }
+.money-move { display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--raise); border: 1px solid var(--line); }
+.money-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-2); }
+.money-field select, .money-field input { font: inherit; font-size: 13px; padding: 9px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+.money-go { font: inherit; font-weight: 700; padding: 12px; background: var(--money-fill); color: var(--money-fill-ink); border: none; cursor: pointer; }
+.money-go:disabled { opacity: 0.5; cursor: default; }
+.money-correct { border: 1px solid var(--line); padding: 10px 12px; }
+.money-correct summary { cursor: pointer; font-size: 12px; color: var(--ink-2); }
+.money-correct .cite { margin-top: 8px; }
+.money-correct-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.money-correct-row select, .money-correct-row input { font: inherit; font-size: 12px; padding: 6px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+.money-recent { display: flex; flex-direction: column; gap: 6px; }
+.money-recent ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.money-recent li { display: flex; justify-content: space-between; gap: 12px; }
+.money-recent .is-out { color: var(--danger-ink); white-space: nowrap; }
+.money-recent .is-in { color: var(--money-ink); white-space: nowrap; }

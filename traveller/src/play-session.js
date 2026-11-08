@@ -617,6 +617,54 @@ export const VEHICLE_FOLDERS = Object.freeze({
   others: 'Patrons and others'
 });
 
+// v0.378.0 (Kurt, Nov 2026): the Money tab — every account in one place:
+// each character's own money, each ship's account with its mortgage, and
+// the latest money lines from the ships' ledgers. The player's page gets a
+// projection of this without other characters' balances (player-requests.js).
+export function shipHolderCharacter(ship, characters = []) {
+  const byRef = characters.find((entry) => (entry.shipRefs ?? []).some((ref) => ref.shipId === ship.identity.id && (ref.relationship === 'owner' || ref.relationship === 'reserve-assignee')));
+  return byRef ?? characters.find((entry) => entry.identity.id === ship.authority?.assignedCharacterId) ?? null;
+}
+
+export function moneyView(resolved) {
+  const characters = (resolved.characters ?? []).filter((entry) => String(entry.identity.name ?? '').trim());
+  const today = formatCampaignDate(resolved.campaign.time);
+  const activeId = resolved.campaign.activeShipId ?? resolved.ships?.[0]?.identity.id ?? null;
+  const ships = (resolved.ships ?? []).map((ship) => {
+    const holder = shipHolderCharacter(ship, characters);
+    let mortgage = null;
+    try {
+      const schedule = shipMortgageSchedule(ship, { dateLabel: today });
+      if (schedule.financed && !schedule.paidOff) {
+        mortgage = schedule.subsidized
+          ? 'Subsidized: the government pays the bank'
+          : `Mortgage ${cr(schedule.monthlyPaymentCr)} a month · next due ${schedule.nextDueDate}${schedule.arrearsCr ? ` · ${cr(schedule.arrearsCr)} in arrears` : ''}`;
+      }
+    } catch { mortgage = null; }
+    const assignment = ship.authority?.assignmentType;
+    return {
+      id: ship.identity.id, name: ship.identity.name || 'The ship', typeCode: ship.design?.typeCode ?? '',
+      accountCr: Number(ship.state.finances?.balanceCr ?? 0), travellers: ship.identity.id === activeId,
+      where: ship.state.portCall?.systemId ?? null,
+      heldById: holder?.identity.id ?? null, heldByName: holder?.identity.name ?? null,
+      mortgage: mortgage ?? (assignment === 'reserve' ? 'No mortgage \u2014 held on detached duty' : 'No mortgage')
+    };
+  }).sort((a, b) => Number(b.travellers) - Number(a.travellers));
+  const recent = (resolved.ships ?? []).flatMap((ship) => (ship.state.finances?.ledger ?? []).map((entry, index) => ({
+    date: entry.date ?? '', order: index, ship: ship.identity.name || 'The ship', text: entry.description, amountCr: Number(entry.amountCr ?? 0)
+  }))).filter((entry) => entry.amountCr)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.order - a.order)
+    .slice(0, 12)
+    .map((entry) => ({ day: String(entry.date).split('-')[0] || '', text: `${entry.text}${entry.text.includes(entry.ship) ? '' : `, ${entry.ship}`}`, amountCr: entry.amountCr }));
+  const characterRows = characters.map((entry) => ({ id: entry.identity.id, name: entry.identity.name, cashCr: Number(entry.finances?.credits ?? 0) }));
+  return {
+    date: today, where: resolved.campaign.location?.systemName ?? null,
+    characters: characterRows,
+    partyCr: characterRows.reduce((sum, entry) => sum + entry.cashCr, 0),
+    ships, recent
+  };
+}
+
 function vehicleFolder(ship, resolved) {
   if (ship.identity.id === resolved.campaign.activeShipId) return VEHICLE_FOLDERS.active;
   const holderId = ship.authority?.assignedCharacterId ?? null;
@@ -661,7 +709,6 @@ function vehicleEntries(resolved, subsector = null) {
       // The session refuses it away from port or mid-fight, and says why.
       actions: [
         // v0.372.0: money between a character and the travellers' ship.
-        ...(active ? [{ label: 'Move money', command: 'money:ask', title: 'Pay a character\u2019s money into this ship\u2019s account, or draw from it' }] : []),
         // v0.377.0: trade her in for another design, at an A or B starport.
         ...(active ? [{ label: 'Trade in\u2026', command: 'ship:trade-in-ask', title: 'Sell her and buy another design, keeping her name, crew, account and ledger (at an A or B starport)' }] : []),
         ...(!active && here && berthed === here
@@ -4948,6 +4995,62 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       // ship's ledger was built (operations.js; Book 2 p.6's owner drawing
       // his pay from the profits for the draw); nothing called them. Who may
       // draw from the ship, on a player's page, is remote-request.js's check.
+      // v0.378.0: the Money tab's one transfer — any account to any account
+      // (a character's own money or a ship's account). Who may do which on a
+      // player's page is remote-request.js's check.
+      if (command === 'money:move' || command === 'money:correct') {
+        const value = fight?.value ?? {};
+        const find = (ref) => {
+          if (ref?.kind === 'character') return { kind: 'character', doc: (resolved.characters ?? []).find((entry) => entry.identity.id === String(ref.id ?? '')) };
+          if (ref?.kind === 'ship') return { kind: 'ship', doc: (resolved.ships ?? []).find((entry) => entry.identity.id === String(ref.id ?? '')) };
+          return { kind: null, doc: null };
+        };
+        const label = (account) => (account.kind === 'ship' ? `${account.doc.identity.name || 'the ship'}\u2019s account` : `${account.doc.identity.name}\u2019s own money`);
+        const balance = (account) => (account.kind === 'ship' ? Number(account.doc.state.finances?.balanceCr ?? 0) : Number(account.doc.finances?.credits ?? 0));
+        const dateLabel = formatCampaignDate(resolved.campaign.time);
+        const setCharacter = (doc, credits) => importCharacterDocument({ ...doc, finances: { ...doc.finances, credits } });
+        let message;
+        if (command === 'money:correct') {
+          const account = find(value.account);
+          if (!account.doc) throw new Error('choose an account');
+          const target = Math.round(Number(String(value.valueCr ?? '').replace(/[,\s]/g, '').replace(/^cr/i, '')));
+          if (!Number.isFinite(target) || target < 0) throw new RangeError('a balance is zero or more credits');
+          const delta = target - balance(account);
+          if (account.kind === 'ship') {
+            const next = delta > 0 ? creditShipAccount(account.doc, delta, { kind: 'referee', description: 'Referee correction', dateLabel })
+              : delta < 0 ? debitShipAccount(account.doc, -delta, { kind: 'referee', description: 'Referee correction', dateLabel }) : account.doc;
+            persist([next]);
+          } else {
+            persist([setCharacter(account.doc, target)]);
+          }
+          message = `The referee corrects ${label(account)} to ${cr(target)} (was ${cr(target - delta)}).`;
+        } else {
+          const from = find(value.from);
+          const to = find(value.to);
+          if (!from.doc || !to.doc) throw new Error('choose where the money comes from and where it goes');
+          if (from.kind === to.kind && from.doc.identity.id === to.doc.identity.id) throw new Error('choose two different accounts');
+          const amount = Math.round(Number(String(value.amountCr ?? '').replace(/[,\s]/g, '').replace(/^cr/i, '')));
+          if (!Number.isInteger(amount) || amount < 1) throw new RangeError('the amount must be a whole number of credits, 1 or more');
+          if (balance(from) < amount) throw new Error(`${label(from)} holds only ${cr(balance(from))}`);
+          const changed = [];
+          const fromName = from.doc.identity.name || 'the ship';
+          const toName = to.doc.identity.name || 'the ship';
+          if (from.kind === 'ship') changed.push(debitShipAccount(from.doc, amount, { kind: 'transfer', description: `${cr(amount)} to ${to.kind === 'ship' ? `${toName}\u2019s account` : toName}`, dateLabel }));
+          else changed.push(setCharacter(from.doc, balance(from) - amount));
+          if (to.kind === 'ship') changed.push(creditShipAccount(to.doc, amount, { kind: 'transfer', description: `${cr(amount)} from ${from.kind === 'ship' ? `${fromName}\u2019s account` : fromName}`, dateLabel }));
+          else changed.push(setCharacter(to.doc, balance(to) + amount));
+          persist(changed);
+          message = from.kind === 'character' && to.kind === 'character' ? `${fromName} gives ${toName} ${cr(amount)}.`
+            : from.kind === 'character' ? `${fromName} pays ${cr(amount)} into ${toName}\u2019s account.`
+              : to.kind === 'character' ? `${toName} draws ${cr(amount)} from ${fromName}\u2019s account.`
+                : `${cr(amount)} moves from ${fromName}\u2019s account to ${toName}\u2019s.`;
+        }
+        log('MONEY', message);
+        lastMessage = { ok: true, message };
+        onChange();
+        saveToCloud();
+        return lastMessage;
+      }
       if (command === 'money:to-ship' || command === 'money:from-ship') {
         const value = fight?.value ?? {};
         const character = (resolved.characters ?? []).find((entry) => entry.identity.id === String(value.characterId ?? ''));
@@ -8446,6 +8549,7 @@ export function createPlaySession({ registry, campaignId, subsector: subsectorPa
       const state = buildPlayViewState(resolved, { subsector, seat, characterId });
       state.chat = mergedChat(state.chat ?? []);
       state.compendium = compendiumView(resolved, subsector);
+      state.money = moneyView(resolved);
       // v0.353.0: a black-market seller waiting, or a search in hand.
       state.blackMarket = resolved.campaign.roster?.blackMarket ?? null;
       // v0.329.2: who referees, for Settings (Kurt: the switch was buried in

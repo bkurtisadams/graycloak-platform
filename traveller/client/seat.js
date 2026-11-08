@@ -10,21 +10,21 @@
 // for them (Firestore rules): the campaign summary, their own characters,
 // their filtered log, and the chat. Everything here is built from those.
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.377.0';
-import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer } from './play-views.js?v=v0.377.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.377.0';
-import { engineMismatchMessage } from '../src/engine-version.js?v=v0.377.0';
-import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.377.0';
-import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.377.0';
-import { kindButton } from './kind-button.js?v=v0.377.0';
-import { ask, askForm, tell } from './dialogs.js?v=v0.377.0';
-import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.377.0';
-import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.377.0';
-import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.377.0';
-import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.377.0';
-import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.377.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.378.0';
+import { h, renderTalkLog, bandsScene, subsectorScene, shipFightScene, compendiumDrawer, moneyPanel } from './play-views.js?v=v0.378.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.378.0';
+import { engineMismatchMessage } from '../src/engine-version.js?v=v0.378.0';
+import { initAuth, currentUserId, onAuthChange, authStatus } from './auth.js?v=v0.378.0';
+import { ensureFirestore, watchChat, sendChatMessage, watchDeclarations, writeDeclaration, writeWoundAllocation, touchSeat, loadCharacterRecord, saveCharacterRecord, watchOwnCharacterRecords, writeJoinRequest, sendPlayerRequest, watchPlayerRequest } from './publish.js?v=v0.378.0';
+import { kindButton } from './kind-button.js?v=v0.378.0';
+import { ask, askForm, tell } from './dialogs.js?v=v0.378.0';
+import { createPlayerDeclaration } from '../src/player-declaration.js?v=v0.378.0';
+import { createPlayerWoundAllocation } from '../src/player-wound-allocation.js?v=v0.378.0';
+import { woundPromptFrom, initialWoundDraft, previewWoundDraft, renderWoundGroups, renderWoundPreview, woundHitLine } from './wound-dialog.js?v=v0.378.0';
+import { interpretChatInput, createChatMessage, rollFormula, formatRoll } from '../src/dice-tray.js?v=v0.378.0';
+import { playerSheetViews, formatCampaignDate } from '../src/play-session.js?v=v0.378.0';
 import { importCharacterDocument, skillGuide, skillDM, PERSONAL_WEAPONS } from '../vendor/classic-traveller-rules/index.js?v=r0.98.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.377.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.378.0';
 
 const THEME_KEY = 'graycloak-traveller-theme';
 const $ = (id) => document.getElementById(id);
@@ -154,7 +154,9 @@ function renderMast() {
     const hurt = ['STR', 'DEX', 'END'].some((key) => Number(character.current?.[key]) < Number(character.characteristics?.[key]));
     // v0.372.0: "personal" — the character's own money, not the ship's
     // (Bruce, Nov 2026: "credits never change"; trade goes through the ship).
-    return h('button', { type: 'button', class: `chip${hurt ? ' is-hurt' : ''}`, title: 'Open the sheet. Cr is the character\u2019s own money; trade, fares, berthing and upkeep go through the ship\u2019s account.', onclick: () => openSheet(character.identity.id) },
+    // v0.378.0 (the approved mockup): a chip opens the Money tab, that account
+    // first; the sheet is the Sheet button beside the character's name.
+    return h('button', { type: 'button', class: `chip${hurt ? ' is-hurt' : ''}`, title: 'Money: your own money, the ship\u2019s account, and giving or paying in. Trade, fares, berthing and upkeep go through the ship\u2019s account.', onclick: () => openMoney(`character:${character.identity.id}`) },
       h('span', { class: 'chip-name', text: character.identity.name || '(unnamed)' }),
       h('span', { class: 'chip-line' }, h('span', { class: 'code', text: character.upp ?? '' }), hurt ? ' Wounded' : ` Cr ${Number(character.finances?.credits ?? 0).toLocaleString('en-US')} personal`));
   });
@@ -163,7 +165,7 @@ function renderMast() {
     // v0.372.0: the ship's account on the chip, and the chip opens the
     // dialog that moves money between a character and the ship.
     const account = Number.isFinite(ship.accountCr) ? ` Cr ${ship.accountCr.toLocaleString('en-US')} ship` : '';
-    chips.push(h('button', { type: 'button', class: 'chip', title: 'The ship\u2019s account: pay into it or draw from it', onclick: () => { moneyDialog(ship); } },
+    chips.push(h('button', { type: 'button', class: 'chip', title: 'Money: the ship\u2019s account, paying in, and drawing out', onclick: () => openMoney(`ship:${ship.id ?? state.envelope?.situation?.money?.ship?.id ?? ''}`) },
       h('span', { class: 'chip-name', text: ship.name ?? 'Ship' }),
       h('span', { class: 'chip-line', text: `Fuel ${ship.fuel?.aboardTons ?? '?'}/${ship.fuel?.capacityTons ?? '?'}  Hold ${Math.max(0, (ship.cargo?.capacityTons ?? 0) - (ship.cargo?.usedTons ?? 0))} t free ${account}` })));
   }
@@ -275,37 +277,6 @@ const REQUEST_PATIENCE_MS = 20000;
 export function engineMismatch(engine, page = PAGE_VERSION) {
   // v0.371.0: which side is behind decides what to say (src/engine-version.js).
   return engineMismatchMessage(engine, page);
-}
-
-// v0.372.0: pay into the ship's account, or draw from it (Kurt, Nov 2026).
-// The game refuses a draw unless the character owns the ship (Book 2 p.6:
-// the owner draws his pay from the profits), and refuses both where a person
-// referees, as it does every player request.
-async function moneyDialog(ship) {
-  // v0.372.1: a person refereeing, the game refuses every player's request;
-  // say so here rather than send one.
-  if (state.envelope?.referee !== 'game') {
-    const holds = Number.isFinite(ship.accountCr) ? `Cr ${ship.accountCr.toLocaleString('en-US')}` : 'an unknown sum';
-    await tell({ title: `${ship.name ?? 'The ship'}\u2019s account`, message: `The ship\u2019s account holds ${holds}. Trade, fares, freight, berthing, fuel and upkeep go through it; your character\u2019s own money is separate. Your referee moves money between them in this campaign.` });
-    return;
-  }
-  const own = characters();
-  if (!own.length) { await tell({ title: 'The ship\u2019s account', message: 'You have no character in this campaign yet.' }); return; }
-  const holds = Number.isFinite(ship.accountCr) ? `Cr ${ship.accountCr.toLocaleString('en-US')}` : 'an unknown sum';
-  const answer = await askForm({
-    title: `${ship.name ?? 'The ship'}\u2019s account`,
-    message: `The ship\u2019s account holds ${holds}. Trade, fares, freight, berthing, fuel and upkeep are paid into and out of it; your character\u2019s own money is separate. Anyone may pay in; only the character who holds the ship (its owner, or a Scout on detached duty) may draw out.`,
-    confirm: 'Move the money',
-    fields: [
-      { name: 'direction', label: 'What', type: 'select', options: [{ value: 'to-ship', label: 'Pay into the ship' }, { value: 'from-ship', label: 'Draw from the ship' }] },
-      { name: 'characterId', label: 'Whose money', type: 'select', options: own.map((character) => ({ value: character.identity.id, label: `${character.identity.name || '(unnamed)'} (Cr ${Number(character.finances?.credits ?? 0).toLocaleString('en-US')})` })) },
-      { name: 'amount', label: 'Credits', type: 'text', placeholder: 'e.g. 5000' }
-    ]
-  });
-  if (!answer) return;
-  const amountCr = Number(String(answer.amount ?? '').replace(/[,\s]/g, '').replace(/^cr/i, ''));
-  if (!Number.isInteger(amountCr) || amountCr < 1) { await tell({ title: 'The ship\u2019s account', message: 'Enter a whole number of credits, 1 or more.' }); return; }
-  sendRequest(`money:${answer.direction}`, { characterId: answer.characterId, amountCr });
 }
 
 async function sendRequest(command, value = {}) {
@@ -891,13 +862,70 @@ function renderChat() {
 // the player buys for a character of their own. The game carries it out when
 // it referees (a person refereeing: the request is refused for now).
 function renderSideTabs() {
-  const tabs = ['Chat', 'Store', 'Jobs'];
+  // v0.378.0: Money.
+  const tabs = ['Chat', 'Store', 'Jobs', 'Money'];
   const current = state.sideTab ?? 'Chat';
   $('side-tabs').replaceChildren(...tabs.map((tab) => h('button', { type: 'button', class: 'side-tab', 'aria-pressed': String(tab === current), text: tab,
     onclick: () => { state.sideTab = tab; render(); } })));
   $('side-chat').hidden = current !== 'Chat';
   $('side-store').hidden = current !== 'Store';
   $('side-jobs').hidden = current !== 'Jobs';
+  $('side-money').hidden = current !== 'Money';
+}
+
+// v0.378.0: the Money tab on the player's page (the approved mockup): his
+// own money and the travellers' ship, the other travellers by name, one
+// Move money form (sent as a request; the game checks it), recent lines.
+function openMoney(fromKey) {
+  state.moneyDraft = { ...(state.moneyDraft ?? {}), from: fromKey, to: '' };
+  state.sideTab = 'Money';
+  render();
+}
+
+function renderMoney() {
+  const box = $('side-money');
+  if (!box || state.sideTab !== 'Money') return;
+  const money = state.envelope?.situation?.money ?? null;
+  if (!money) { box.replaceChildren(h('p', { class: 'empty', text: 'The accounts show once the campaign has published where you are.' })); return; }
+  const game = state.envelope?.situation?.mode === 'game';
+  const own = characters();
+  const ownIds = new Set(own.map((entry) => entry.identity.id));
+  const figure = (value) => `Cr ${Number(value ?? 0).toLocaleString('en-US')}`;
+  const ship = money.ship;
+  const holder = ship && ownIds.has(ship.heldById) ? own.find((entry) => entry.identity.id === ship.heldById) : null;
+  const from = [
+    ...own.map((entry) => ({ key: `character:${entry.identity.id}`, kind: 'character', name: entry.identity.name, label: `${entry.identity.name} \u2014 own money (${figure(entry.finances?.credits)})` })),
+    ...(holder ? [{ key: `ship:${ship.id}`, kind: 'ship', name: ship.name, label: `${ship.name} \u2014 ship account (${figure(ship.accountCr)})` }] : [])
+  ];
+  const others = (money.travellers ?? []).filter((entry) => !ownIds.has(entry.id));
+  const toFor = (key) => {
+    if (key.startsWith('ship:')) return holder ? [{ key: `character:${holder.identity.id}`, kind: 'character', name: holder.identity.name, label: `${holder.identity.name} \u2014 own money` }] : [];
+    const fromId = key.slice('character:'.length);
+    return [
+      ...(money.travellers ?? []).filter((entry) => entry.id !== fromId).map((entry) => ({ key: `character:${entry.id}`, kind: 'character', name: entry.name, label: `${entry.name} \u2014 a gift or loan` })),
+      ...(ship ? [{ key: `ship:${ship.id}`, kind: 'ship', name: ship.name, label: `${ship.name} \u2014 pay into the ship` }] : [])
+    ];
+  };
+  const view = {
+    player: true, live: game && state.request?.status !== 'pending',
+    notice: game ? null : `${state.envelope?.refereeName ? `${state.envelope.refereeName} referees` : 'A person referees'} this campaign: ask your referee to move money for you.`,
+    draft: state.moneyDraft ?? {}, date: money.date, where: money.where, recent: money.recent ?? [],
+    accounts: {
+      characters: own.map((entry) => ({ id: entry.identity.id, name: entry.identity.name, cashCr: Number(entry.finances?.credits ?? 0), own: true })),
+      ships: ship ? [{ ...ship, travellers: true }] : [],
+      others: others.map((entry) => entry.name)
+    },
+    from, toFor
+  };
+  box.replaceChildren(...moneyPanel(view, {
+    onMoneyDraft: (draft) => { state.moneyDraft = draft; renderMoney(); },
+    onMoneyMove: ({ from: source, to, amountCr }) => {
+      const amount = Math.round(Number(String(amountCr ?? '').replace(/[,\s]/g, '').replace(/^cr/i, '')));
+      if (!Number.isInteger(amount) || amount < 1) { setStatus('Enter a whole number of credits, 1 or more.', 'error'); return; }
+      state.moneyDraft = { ...(state.moneyDraft ?? {}), amount: '' };
+      sendRequest('money:move', { characterId: source.kind === 'character' ? source.id : to.id, from: source, to, amountCr: amount });
+    }
+  }).filter(Boolean));
 }
 
 function renderStore() {
@@ -925,6 +953,7 @@ function render() {
   renderChat();
   renderStore();
   renderJobs();
+  renderMoney();
   renderWoundPrompt();
 }
 

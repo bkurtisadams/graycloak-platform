@@ -84,6 +84,30 @@ export async function applyRemoteRequest({ campaignId, request, store, sector = 
         if (!owns) return refuse('only the character who holds the ship (its owner, or a Scout on detached duty) draws from its account; ask your referee');
       }
     }
+    // v0.378.0: the Money tab's transfer, on a player's page (Kurt, Nov
+    // 2026): from his own character's money to the travellers' ship or to
+    // another traveller; from the ship only for the character who holds it,
+    // and only to that character. Ship to ship is the referee's.
+    if (command === 'money:move') {
+      const owners = campaign.ownership?.actors ?? {};
+      const from = request.value?.from ?? {};
+      const to = request.value?.to ?? {};
+      const resolvedHere = registry.resolveCampaign(campaignId);
+      const travellersShipId = campaign.activeShipId ?? resolvedHere.ships?.[0]?.identity.id ?? null;
+      if (from.kind === 'ship' && to.kind === 'ship') return refuse('moving money between ships is the referee\u2019s');
+      if (from.kind === 'character') {
+        if (owners[String(from.id ?? '')] !== request.uid) return refuse('you can move only your own character\u2019s money');
+        if (to.kind === 'ship' && String(to.id ?? '') !== travellersShipId) return refuse('you can pay only into the travellers\u2019 ship');
+      } else if (from.kind === 'ship') {
+        if (String(from.id ?? '') !== travellersShipId) return refuse('you can draw only from the travellers\u2019 ship');
+        if (to.kind !== 'character' || owners[String(to.id ?? '')] !== request.uid) return refuse('drawn money goes to your own character');
+        const character = resolvedHere.characters.find((entry) => entry.identity.id === String(to.id ?? ''));
+        const holds = (character?.shipRefs ?? []).some((ref) => ref.shipId === travellersShipId && (ref.relationship === 'owner' || ref.relationship === 'reserve-assignee'));
+        if (!holds) return refuse('only the character who holds the ship (its owner, or a Scout on detached duty) draws from its account; ask your referee');
+      } else {
+        return refuse('choose where the money comes from');
+      }
+    }
     const cloud = {
       userId: () => ownerUid,
       account: () => ({ displayName: refereeName }),

@@ -2,19 +2,19 @@
 // or shut. Everything drawn comes from play-views.js; everything known comes
 // from one view state. Today that state is sample data (play-sample.js).
 
-import { copyDiagnostics } from './diagnostics.js?v=v0.377.0';
-import { ask, askText, askForm, tell } from './dialogs.js?v=v0.377.0';
-import { installPanelResize } from './panel-resize.js?v=v0.377.0';
-import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.377.0';
-import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.377.0';
-import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.377.0';
-import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.377.0';
-import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.377.0';
-import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.377.0';
-import { importCampaignHome } from '../src/campaign-home.js?v=v0.377.0';
-import { createPlayCloud } from './play-cloud.js?v=v0.377.0';
-import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.377.0';
-import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.377.0';
+import { copyDiagnostics } from './diagnostics.js?v=v0.378.0';
+import { ask, askText, askForm, tell } from './dialogs.js?v=v0.378.0';
+import { installPanelResize } from './panel-resize.js?v=v0.378.0';
+import { h, renderAnimalEncounter, renderMastChips, renderNow, renderScene, renderDrawer, renderTalkLog, renderRowMenu, renderFighterMenu, renderSideTabs, sheetRows, chatExportText, renderGearDrop } from './play-views.js?v=v0.378.0';
+import { renderSheets, forgetSheetPosition } from './sheets.js?v=v0.378.0';
+import { SAMPLE_SITUATIONS, SAMPLE_ORDER, SAMPLE_REFEREE } from './play-sample.js?v=v0.378.0';
+import { createDocumentRegistry, DOCUMENT_REGISTRY_STORAGE_KEY } from '../src/document-registry.js?v=v0.378.0';
+import { createPlaySession, formatCampaignDate, vectorFromSpeedBearing, sectorExportText } from '../src/play-session.js?v=v0.378.0';
+import { createTravellerInvite, generateInviteCode } from '../src/character-record.js?v=v0.378.0';
+import { importCampaignHome } from '../src/campaign-home.js?v=v0.378.0';
+import { createPlayCloud } from './play-cloud.js?v=v0.378.0';
+import { FAR_MERIDIAN_SUBSECTOR } from '../world/far-meridian-subsector.js?v=v0.378.0';
+import { MERIDIAN_REACH_SECTOR } from '../world/meridian-reach-sector.js?v=v0.378.0';
 // v0.316.2: whether a button is being held down (see render()).
 const press = { held: false, owed: false };
 
@@ -193,6 +193,8 @@ function viewState() {
       staging: ui.stagingSceneId ? { sceneId: ui.stagingSceneId, intruder: ui.stagingIntruder, pressurised: ui.stagingPressurised } : null,
       sheets: ui.openSheets
     });
+    // v0.378.0: the Money tab's form, kept in the page.
+    state.moneyDraft = ui.moneyDraft ?? {};
     // v0.346.0: a closed notice stays closed until a new one comes.
     if (state.notice?.message && ui.closedNotice === state.notice.message) state.notice = null;
     // v0.298.0: the referee's non-human tick, over the species default.
@@ -484,6 +486,22 @@ function render() {
     onMedical: (id, medicId, atHand = {}) => {
       if (source.mode !== 'live') return;
       const result = source.session.run('character:medical', { fight: { id, value: { medicId, kit: Boolean(atHand.kit), facility: Boolean(atHand.facility), xeno: Boolean(atHand.xeno) } } });
+      if (!result.ok) note(result.message);
+      render();
+    },
+    // v0.378.0: the Money tab.
+    onMoneyTab: (fromKey) => { ui.moneyDraft = { ...(ui.moneyDraft ?? {}), from: fromKey, to: '' }; openSideTab('Money'); },
+    onMoneyDraft: (draft) => { ui.moneyDraft = draft; render(); },
+    onMoneyMove: ({ from, to, amountCr }) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('money:move', { fight: { value: { from, to, amountCr } } });
+      if (!result.ok) note(result.message);
+      else ui.moneyDraft = { ...(ui.moneyDraft ?? {}), amount: '' };
+      render();
+    },
+    onMoneyCorrect: ({ account, valueCr }) => {
+      if (source.mode !== 'live') return;
+      const result = source.session.run('money:correct', { fight: { value: { account, valueCr } } });
       if (!result.ok) note(result.message);
       render();
     },
@@ -1113,7 +1131,7 @@ function render() {
       state.save.state === 'cloud' || state.save.state === 'error' ? h('button', { type: 'button', class: 'mast-signin', text: 'Account', onclick: () => openAccount() }) : null,
       state.save.state === 'stale' ? h('button', { type: 'button', class: 'mast-signin', text: 'Reload', onclick: () => location.reload() }) : null].filter(Boolean));
   }
-  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer, openSheet: source.mode === 'live' ? (kind, id) => handlers.onOpenSheet(kind, id) : null, openSheets: ui.openSheets, onSpace: handlers.onSpace }));
+  $('mast-chips').replaceChildren(...renderMastChips(state, { openDrawer, drawer: ui.drawer, openSheet: source.mode === 'live' ? (kind, id) => handlers.onOpenSheet(kind, id) : null, openSheets: ui.openSheets, onSpace: handlers.onSpace, onMoneyTab: source.mode === 'live' ? handlers.onMoneyTab : null }));
 
   $('now').replaceChildren(...renderNow(state, handlers));
   $('scene').replaceChildren(...renderScene(state, handlers));
