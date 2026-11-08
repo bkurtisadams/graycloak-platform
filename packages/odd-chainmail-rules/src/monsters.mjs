@@ -63,7 +63,8 @@ const MINDS = Object.freeze({
   // the Monster Manual's creatures for Book III's dungeon tables (Nov 2026): Non- = mindless; Animal, Semi- and Low = bestial
   "giant-rat": [B], "giant-centipede": [M], "spider-giant": [B], "spider-huge": [B], "spider-large": [M], "giant-ant": [B],
   "lizard-fire": [B], "lizard-giant": [M], "lizard-minotaur": [M], "lizard-subterranean": [M],
-  "snake-amphisbaena": [B], "snake-constrictor": [B], "snake-poisonous": [B], "snake-spitting": [B]
+  "snake-amphisbaena": [B], "snake-constrictor": [B], "snake-poisonous": [B], "snake-spitting": [B],
+  "boar-giant": [B], "giant-weasel": [B], "ape-carnivorous": [C], "giant-scorpion": [M], "beetle-fire": [M], "beetle-boring": [B], "beetle-bombardier": [M]
 });
 
 function mindOf(key) {
@@ -1239,6 +1240,62 @@ export const MONSTERS = Object.freeze([
     reference: { numberAppearing: "1d3", inLairPct: 0 },
     abilities: [ability("attack", "Poison", "A head at each end, both biting; save vs poison or die.", "poison", 0), ability("defense", "Cold", "Cold does it no harm.")],
     description: "Rolls like a hoop, holding one neck in the other mouth (Monster Manual)."
+  }),
+  monster({
+    key: "boar-giant", name: "Giant Boar", folder: "fantastic-creatures", ac: 6,
+    hd: { count: 7 }, move: { ground: 12 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Tusks", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "2d4", inLairPct: 0 },
+    abilities: [ability("other", "Fights on", "Fights 1\u20134 rounds more at 0 to \u221210 hit points; dies at once at \u221211 or worse. Boars and sows fight alike; with 3 or more, 25% that 1\u20134 of the herd are young (2\u20136 HD).")],
+    description: "The elothere, prehistoric forerunner of the wild boar, very aggressive; five feet at the shoulder (Monster Manual). Book III's giant hogs."
+  }),
+  monster({
+    key: "giant-weasel", name: "Giant Weasel", folder: "fantastic-creatures", ac: 6,
+    hd: { count: 3, bonus: 3 }, move: { ground: 15 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    morale: { never: true }, reference: { numberAppearing: "1d8", inLairPct: 15 },
+    abilities: [ability("attack", "Drain blood", "The round after a bite it holds on and drains 2\u201312 hit points a round."), ability("other", "To the death", "Attacks until destroyed. In the lair always 4 or more: 2 parents and young, 10\u201380% grown. Pelts sell for 1,000\u20136,000 gp.")],
+    description: "Vicious hunters of woods and of places underground (Monster Manual)."
+  }),
+  monster({
+    key: "ape-carnivorous", name: "Carnivorous Ape", folder: "fantastic-creatures", ac: 6,
+    hd: { count: 5 }, move: { ground: 12 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Hands and bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "2d4", inLairPct: 10 },
+    abilities: [ability("attack", "Rending", "Striking with both hands rends for 1\u20138 more."), ability("other", "Keen senses", "Surprised only on a 1. Hungers for human flesh; very cunning.")],
+    description: "A larger, stronger, very aggressive gorilla, seven feet and more (Monster Manual). Book III's white apes."
+  }),
+  monster({
+    key: "giant-scorpion", name: "Giant Scorpion", folder: "fantastic-creatures", ac: 3,
+    hd: { count: 5, bonus: 5 }, move: { ground: 15 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Pincers and sting", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d4", inLairPct: 50 },
+    abilities: [ability("attack", "Poison sting", "The tail stings: save vs poison or die.", "poison", 0), ability("other", "Three at once", "Can fight up to three opponents; drags the dead to its lair. Its own sting kills it.")],
+    description: "Found even in cold places such as dungeons (Monster Manual)."
+  }),
+  monster({
+    key: "beetle-fire", name: "Fire Beetle", folder: "clean-up-crew", ac: 4,
+    hd: { count: 1, bonus: 2 }, move: { ground: 12 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Mandibles", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "3d4", inLairPct: 0 },
+    abilities: [ability("other", "Glowing glands", "Three glands glow red; taken out they light a 10' radius for 1\u20136 days.")],
+    description: "The smallest giant beetle, two and a half feet; above and below ground, mostly by night (Monster Manual)."
+  }),
+  monster({
+    key: "beetle-boring", name: "Boring Beetle", folder: "clean-up-crew", ac: 3,
+    hd: { count: 5 }, move: { ground: 6 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Mandibles", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "3d6", inLairPct: 40 },
+    abilities: [ability("other", "Farmers", "Grow molds, slimes and fungi in unused tunnels; groups are rumoured to share a mind. What a beetle eats can't be revived short of a wish.")],
+    description: "Nine feet long, in great trees or old tunnels underground (Monster Manual)."
+  }),
+  monster({
+    key: "beetle-bombardier", name: "Bombardier Beetle", folder: "clean-up-crew", ac: 4,
+    hd: { count: 2, bonus: 2 }, move: { ground: 9 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Mandibles", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "3d4", inLairPct: 0 },
+    abilities: [ability("attack", "Acid cloud", "Attacked, 50% a round to fire an 8' cloud of acid vapour: 3\u201312 to all in it; the bang stuns (20%, 2\u20138 rounds) or deafens (20%, 2\u201312 rounds) within 16'. Every third round at most, twice in eight hours.")],
+    description: "Four feet long, usually in woods above ground (Monster Manual)."
   })
 ]);
 
@@ -1286,8 +1343,8 @@ function runSelfTests() {
     pass++;
   };
 
-  ok(MONSTERS.length === 94, "eighty Book II monsters and fourteen from the Monster Manual for Book III's tables (Nov 2026)");
-  for (const k of ["giant-rat", "giant-centipede", "spider-large", "spider-huge", "spider-giant", "giant-ant", "lizard-giant", "lizard-subterranean", "lizard-minotaur", "lizard-fire", "snake-poisonous", "snake-spitting", "snake-constrictor", "snake-amphisbaena"]) ok(MONSTERS.some((m) => m.key === k), `Monster Manual: ${k}`);
+  ok(MONSTERS.length === 101, "eighty Book II monsters and twenty-one from the Monster Manual for Book III's tables (Nov 2026)");
+  for (const k of ["giant-rat", "giant-centipede", "spider-large", "spider-huge", "spider-giant", "giant-ant", "lizard-giant", "lizard-subterranean", "lizard-minotaur", "lizard-fire", "snake-poisonous", "snake-spitting", "snake-constrictor", "snake-amphisbaena", "boar-giant", "giant-weasel", "ape-carnivorous", "giant-scorpion", "beetle-fire", "beetle-boring", "beetle-bombardier"]) ok(MONSTERS.some((m) => m.key === k), `Monster Manual: ${k}`);
   ok(MONSTERS.find((m) => m.key === "spider-large").specialAbilities.entries.find((e) => e.tag === "poison").value === 2 && MONSTERS.find((m) => m.key === "giant-centipede").attack.damage.dice === 0, "poison save modifiers; the centipede's bite does no damage itself");
   ok(MONSTERS.every((m) => Number.isInteger(m.size) && m.size >= 1 && m.size <= 4), "every monster has a grid size");
   ok(MONSTERS.find((m) => m.key === "ogre")?.size === 2 && MONSTERS.find((m) => m.key === "giant-hill")?.size === 3, "ogre 2x2, giant 3x3");

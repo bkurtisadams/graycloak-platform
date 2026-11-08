@@ -111,7 +111,8 @@ export function monsterTableFor(dungeonLevel, d6) {
  * by its Book I title; none of these: no bestiary entry yet. Number appearing is Book II's, set by the
  * referee for the party (Book III p.10). Creatures Book II doesn't stat come from the Monster Manual (Kurt,
  * Nov 2026); where the Manual has several kinds, the ones that live in a dungeon are offered (a reading: no
- * water or phase spiders, no sea snakes, no fire or minotaur lizards on Table 2). Rulings (Kurt, Nov 2026): Evil Priests are 4th-level chaotic
+ * water or phase spiders, no sea snakes, no fire or minotaur lizards on Table 2, fire and boring beetles only;
+ * giant hogs are the Manual's giant boar, white apes its carnivorous ape). Rulings (Kurt, Nov 2026): Evil Priests are 4th-level chaotic
  * clerics; Evil High Priests 8th level (Patriarch) or higher.
  */
 const fm = (level) => ({ cls: "fighter", level }), mu = (level) => ({ cls: "magic-user", level });
@@ -127,15 +128,15 @@ export const MONSTER_LEVEL_TABLES = Object.freeze({
     { name: "Thouls" }, { name: "Ghouls", key: "ghoul" }, { name: "Berserkers", key: "berserker" },
     { name: "Theurgists", npc: mu(4) }] },
   3: { die: 10, rows: [
-    { name: "Wights", key: "wight" }, { name: "Heroes", npc: fm(4) }, { name: "Giant Hogs" }, { name: "Giant Ants", key: "giant-ant" },
+    { name: "Wights", key: "wight" }, { name: "Heroes", npc: fm(4) }, { name: "Giant Hogs", key: "boar-giant" }, { name: "Giant Ants", key: "giant-ant" },
     { name: "Ochre Jelly", key: "ochre-jelly" }, { name: "Thaumaturgists", npc: mu(5) },
     { name: "Swashbucklers", npc: fm(5) }, { name: "Magicians", npc: mu(6) }, { name: "Giant Snakes", options: ["snake-poisonous", "snake-spitting", "snake-constrictor", "snake-amphisbaena"] },
-    { name: "Giant Weasels" }] },
+    { name: "Giant Weasels", key: "giant-weasel" }] },
   4: { die: 10, rows: [
     { name: "Wraiths", key: "wraith" }, { name: "Ogres", key: "ogre" }, { name: "Evil Priests", npc: { cls: "cleric", level: 4, alignment: "chaos" } },
-    { name: "Myrmidons", npc: fm(6) }, { name: "Giant Beetles" }, { name: "Giant Scorpions" },
+    { name: "Myrmidons", npc: fm(6) }, { name: "Giant Beetles", options: ["beetle-fire", "beetle-boring"] }, { name: "Giant Scorpions", key: "giant-scorpion" },
     { name: "Lycanthropes", options: ["werewolf", "wereboar", "weretiger", "werebear"] },
-    { name: "Gargoyles", key: "gargoyle" }, { name: "White Apes" }, { name: "Enchanters", npc: mu(7) }] },
+    { name: "Gargoyles", key: "gargoyle" }, { name: "White Apes", key: "ape-carnivorous" }, { name: "Enchanters", npc: mu(7) }] },
   5: { die: 12, rows: [
     { name: "Trolls", key: "troll" }, { name: "Superheroes", npc: fm(8) }, { name: "Wyverns", key: "wyvern" },
     { name: "Spectres", key: "spectre" }, { name: "Mummies", key: "mummy" }, { name: "Minotaurs", key: "minotaur" },

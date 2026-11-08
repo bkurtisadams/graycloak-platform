@@ -164,9 +164,11 @@ Changes made during extraction:
   poisonous, spitting, constrictor and amphisbaena snakes. Manual AC, hit
   dice, move, number appearing and specials; 1d6 a hit as in the LBBs; a
   poison ability's value is its save modifier, applied in melee. The
-  Monster Level Tables point at them (dungeon kinds only). Still without
-  data: Thouls, Giant Hogs, Giant Weasels, Giant Beetles, Giant Scorpions
-  and White Apes.
+  Monster Level Tables point at them (dungeon kinds only).
+- 0.38.0: seven more from the Monster Manual: giant boar (Book III's giant
+  hogs), giant weasel, carnivorous ape (white apes), giant scorpion, and
+  fire, boring and bombardier beetles (fire and boring roll on Table 4).
+  Only Thouls are still without data.
 
 ## Open items
 
