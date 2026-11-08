@@ -55,7 +55,7 @@ export function combatProfile(f) {
   const m = mon(f);
   const p = monsterAttackProfile(m); const dice = m.key === "hydra" && f.hp != null ? hydraHeads(Math.max(0, f.hp)) : monsterAttackDice(m);
   if (p.method === "weapon") { const w = f.weaponId ?? weaponIdForClass(p.weaponClass); return { weaponId: w, parryWeaponId: w, dice, bonus: 0, fcLabel: `${dice} HD`, profileAttack: false }; }
-  return { weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`, profileAttack: true, damageDice: p.damage.dice || 1, damageFlat: p.damage.bonus || 0 };
+  return { weaponId: "polearm", parryWeaponId: null, dice, bonus: 0, fcLabel: `${dice} HD, ${p.description.toLowerCase()}`, profileAttack: true, damageDice: Number.isInteger(p.damage.dice) ? p.damage.dice : 1, damageFlat: p.damage.bonus || 0 }; // 0 dice: a bite that only poisons (the giant centipede)
 }
 /** The figure as the combat engine sees it this round. A broken weapon gives no attack or parry dice (Kurt). */
 export function combatant(f, facing, extra = {}) {
@@ -143,11 +143,13 @@ export function afterStrike(ctx, atk, tgt, res) {
     notes.push(`Petrifying touch: save vs stone d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "turned to stone"}.`);
     if (!sv.saved) tgt.pendingStatus = "petrified";
   }
-  let poison = abilityOf(m, "poison") && ["medusa"].includes(m.key);
+  const pz = abilityOf(m, "poison"); // the medusa's snakes; the Monster Manual's spiders, snakes and centipede carry their save modifier as the value
+  let poison = !!pz && (m.key === "medusa" || Number.isFinite(pz.value));
   if (m.key === "wyvern") { const w = wyvernStings(rng); poison = w.sting; notes.push(w.sting ? "The wyvern stings." : "The wyvern bites."); }
   if (poison) {
-    const sv = poisonBite(savesOf(tgt), rng, svMod);
-    notes.push(`${m.key === "medusa" ? "Snake bite" : "Poison"}: save vs poison d20 ${sv.roll} vs ${sv.need}: ${sv.saved ? "saved" : "dies"}.`);
+    const pm = Number.isFinite(pz?.value) ? pz.value : 0;
+    const sv = poisonBite(savesOf(tgt), rng, svMod + pm);
+    notes.push(`${m.key === "medusa" ? "Snake bite" : "Poison"}: save vs poison d20 ${sv.roll}${svMod + pm ? ` ${svMod + pm > 0 ? "+" : "\u2212"}${Math.abs(svMod + pm)}` : ""} vs ${sv.need}: ${sv.saved ? "saved" : "dies"}.`);
     if (sv.dies) add(tgt.id, 999);
   }
   if (abilityOf(m, "swallow")) {
@@ -420,6 +422,17 @@ function runSelfTests() {
     const t = { ...orc(9, 2, 2), monsterKey: "troll", name: "Troll", hp: 10, maxHp: 30, firstHitRound: 1 };
     const s = st([t]); s.round = 4;
     ok(regenerate(s)?.items[0].text.includes("regenerates 3") && t.hp === 13, "troll regenerates 3");
+  }
+  // The Monster Manual's poisoners (Nov 2026): the save modifier rides on the ability; the centipede's bite does no damage itself.
+  {
+    const tgt = pc(1, "A", 5, 5), cen = { ...orc(2, 6, 5), monsterKey: "giant-centipede", name: "Centipede" }, dead = [];
+    const res = { dice: [{ hit: true, roll: [6, 6] }] };
+    const items = afterStrike({ state: st([tgt, cen]), rng: () => 0.45, add: (id, n) => dead.push([id, n]) }, cen, tgt, res);
+    ok(items.some((x) => /save vs poison d20 10 \+4 vs/.test(x.text)), "centipede: save at +4");
+    ok(combatProfile(cen).damageDice === 0 && combatProfile({ ...cen, monsterKey: "spider-giant" }).damageDice === 1, "a centipede's bite does no damage; a spider's does 1d6");
+    const sp = { ...orc(3, 6, 5), monsterKey: "spider-large", name: "Spider" }, t2 = pc(4, "A", 5, 5), d2 = [];
+    const it2 = afterStrike({ state: st([t2, sp]), rng: () => 0.0, add: (id, n) => d2.push([id, n]) }, sp, t2, res);
+    ok(it2.some((x) => /\+2 vs/.test(x.text) && /dies/.test(x.text)) && d2.some(([id, n]) => id === 4 && n === 999), "large spider: +2, and a failed save kills");
   }
   console.log(`melee.mjs — all self-tests passed (${pass} assertions).`);
 }

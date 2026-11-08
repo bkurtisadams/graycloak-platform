@@ -59,7 +59,11 @@ const MINDS = Object.freeze({
   "giant-hill": [I, "giant-hill"], "giant-stone": [I, "giant-stone"], "giant-frost": [I, "giant-frost"], "giant-fire": [I, "giant-fire"], "giant-cloud": [I, "giant-cloud"],
   werewolf: [B], wereboar: [B], weretiger: [B], werebear: [B],
   "green-slime": [M], "gray-ooze": [M], "yellow-mold": [M],
-  "horse-light": [B], "horse-medium": [B], "horse-heavy": [B], "horse-draft": [B], mule: [B]
+  "horse-light": [B], "horse-medium": [B], "horse-heavy": [B], "horse-draft": [B], mule: [B],
+  // the Monster Manual's creatures for Book III's dungeon tables (Nov 2026): Non- = mindless; Animal, Semi- and Low = bestial
+  "giant-rat": [B], "giant-centipede": [M], "spider-giant": [B], "spider-huge": [B], "spider-large": [M], "giant-ant": [B],
+  "lizard-fire": [B], "lizard-giant": [M], "lizard-minotaur": [M], "lizard-subterranean": [M],
+  "snake-amphisbaena": [B], "snake-constrictor": [B], "snake-poisonous": [B], "snake-spitting": [B]
 });
 
 function mindOf(key) {
@@ -1115,6 +1119,126 @@ export const MONSTERS = Object.freeze([
     morale: { rating: 0 }, reference: { numberAppearing: "—", inLairPct: 0 },
     abilities: [],
     description: "War horses melee as in Chainmail."
+  }),
+
+  /* ---- The Monster Manual's creatures for Book III's dungeon tables (Kurt, Nov 2026: "we can use the Monster Manual").
+     AC, hit dice, move, number appearing, % in lair, intelligence and specials are the Manual's; a hit does the
+     usual 1d6, as every monster in the little brown books does. Their Manual treasure types (not Book II's) are
+     left out: in the dungeon Book III p.7 stocks the treasure. A poison ability's value is its save modifier. ---- */
+  monster({
+    key: "giant-rat", name: "Giant Rat", folder: "clean-up-crew", ac: 7,
+    hd: { count: 1, dieSize: 4 }, move: { ground: 12 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "5d10", inLairPct: 10 },
+    abilities: [
+      ability("attack", "Disease", "5% a wound to carry a serious disease (save vs poison, Monster Manual)."),
+      ability("other", "Fear of fire", "Avoid strong parties unless something commands them; fear fire and flee from it. Swim well (6\")."),
+    ],
+    description: "Giant Sumatran rats, 1\u20134 hit points each (Monster Manual). A plague of crypts and dungeons."
+  }),
+  monster({
+    key: "giant-centipede", name: "Giant Centipede", folder: "clean-up-crew", ac: 9,
+    hd: { count: 1, dieSize: 2 }, move: { ground: 15 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite (poison only)", weaponClass: 4, damage: { dice: 0, bonus: 0 } },
+    reference: { numberAppearing: "2d12", inLairPct: 0 },
+    abilities: [ability("attack", "Weak poison", "The bite does no damage itself; save vs poison at +4 or die. Saves against its other attacks are at \u22121.", "poison", 4)],
+    description: "A foot and more long, \u00bc hit die (Monster Manual). Aggressive; rushes out to bite."
+  }),
+  monster({
+    key: "spider-large", name: "Large Spider", folder: "fantastic-creatures", ac: 8,
+    hd: { count: 1, bonus: 1 }, move: { ground: 6 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "2d10", inLairPct: 60 },
+    abilities: [ability("attack", "Weak poison", "Save vs poison at +2 or die.", "poison", 2), ability("other", "Scuttler", "Runs on walls and ceilings (15\" in its web); 90% to attack anything within 3\".")],
+    description: "Small, searching spiders (Monster Manual)."
+  }),
+  monster({
+    key: "spider-huge", name: "Huge Spider", folder: "fantastic-creatures", ac: 6,
+    hd: { count: 2, bonus: 2 }, move: { ground: 18 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d12", inLairPct: 50 },
+    abilities: [ability("attack", "Poison", "Save vs poison at +1 or die.", "poison", 1), ability("other", "Hunter", "Leaps 3\" onto prey; surprises on 1\u20135.")],
+    description: "A roving hunter, wolf or trapdoor spider of huge size (Monster Manual)."
+  }),
+  monster({
+    key: "spider-giant", name: "Giant Spider", folder: "fantastic-creatures", ac: 4,
+    hd: { count: 4, bonus: 4 }, move: { ground: 3 }, alignment: "chaos", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d8", inLairPct: 70 },
+    abilities: [ability("attack", "Poison", "Save vs poison or die.", "poison", 0), ability("other", "Web", "Moves 12\" in its web, which holds like a web spell (18 Strength breaks free in a round, 17 in two, and so on) and burns readily. Flees a superior foe.")],
+    description: "Web builders, lurking above paths to drop on prey (Monster Manual)."
+  }),
+  monster({
+    key: "giant-ant", name: "Giant Ant", folder: "fantastic-creatures", ac: 3,
+    hd: { count: 2 }, move: { ground: 18 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Mandibles", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d100", inLairPct: 10 },
+    abilities: [ability("other", "Nest", "90% are workers. In the nest: double the number, plus a warrior for every 5 workers (3 HD, mandibles, then a sting: save vs poison or more damage), the queen (10 HD, neither moves nor attacks; kill her and the rest are confused 6 rounds, then leave), and the egg chamber with 5\u201350 workers and 5 warriors.")],
+    description: "Two feet long (Monster Manual). Treasure lies in the queen's chamber."
+  }),
+  monster({
+    key: "lizard-giant", name: "Giant Lizard", folder: "fantastic-creatures", ac: 5,
+    hd: { count: 3, bonus: 1 }, move: { ground: 15 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "2d6", inLairPct: 0 },
+    abilities: [ability("attack", "Snap", "A 20 to hit clamps both jaws: double damage.")],
+    description: "Fifteen feet long, remarkable only for size; marshes and swamps by preference (Monster Manual)."
+  }),
+  monster({
+    key: "lizard-subterranean", name: "Subterranean Lizard", folder: "fantastic-creatures", ac: 5,
+    hd: { count: 6 }, move: { ground: 12 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d6", inLairPct: 20 },
+    abilities: [ability("attack", "Snap", "A 20 to hit clamps both jaws: double damage."), ability("other", "Climber", "Runs along walls and ceilings as easily as floors. Drags its prey to its lair.")],
+    description: "Twenty feet long, found only underground, most aggressive and dreaded (Monster Manual)."
+  }),
+  monster({
+    key: "lizard-minotaur", name: "Minotaur Lizard", folder: "fantastic-creatures", ac: 5,
+    hd: { count: 8 }, move: { ground: 6 }, alignment: "neutral", size: 3,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Claws and bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d8", inLairPct: 80 },
+    abilities: [ability("attack", "Snatch", "Surprises on 1\u20134. A 20 to hit picks up a man-sized victim or smaller, helpless in its mouth and bitten again."), ability("other", "Warm lands", "Usually only in warm regions; drags subdued prey to its den.")],
+    description: "Forty feet long, very aggressive (Monster Manual)."
+  }),
+  monster({
+    key: "lizard-fire", name: "Fire Lizard", folder: "fantastic-creatures", ac: 3,
+    hd: { count: 10 }, move: { ground: 9 }, alignment: "neutral", size: 3,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Claws and bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d4", inLairPct: 50 },
+    abilities: [ability("attack", "Puff of flame", "A cone \u00bd\" to 1\" wide and 1\u00bd\" long: 2\u201312 (1\u20136 with a save)."), ability("defense", "Fireproof", "Fire does it no harm."), ability("other", "Sleeper", "Often (50%) asleep; hoards metal and gems; 10% to have 1\u20134 eggs worth 5,000 gp each.")],
+    description: "Thirty feet long, the false dragon; red dragons avoid it (Monster Manual)."
+  }),
+  monster({
+    key: "snake-poisonous", name: "Giant Poisonous Snake", folder: "fantastic-creatures", ac: 5,
+    hd: { count: 4, bonus: 2 }, move: { ground: 15 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d6", inLairPct: 0 },
+    abilities: [ability("attack", "Poison", "Save vs poison or die; some kinds still do 3\u201318 on a save (the referee's choice).", "poison", 0)],
+    description: "Monster Manual."
+  }),
+  monster({
+    key: "snake-spitting", name: "Giant Spitting Snake", folder: "fantastic-creatures", ac: 5,
+    hd: { count: 4, bonus: 2 }, move: { ground: 12 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d4", inLairPct: 0 },
+    abilities: [ability("attack", "Poison", "Save vs poison or die.", "poison", 0), ability("attack", "Spit", "Sprays poisonous spittle up to 3\" at one creature: save vs poison.")],
+    description: "A giant spitting cobra and its kin (Monster Manual)."
+  }),
+  monster({
+    key: "snake-constrictor", name: "Giant Constrictor Snake", folder: "fantastic-creatures", ac: 5,
+    hd: { count: 6, bonus: 1 }, move: { ground: 9 }, alignment: "neutral", size: 2,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Bite and coils", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d2", inLairPct: 0 },
+    abilities: [ability("attack", "Constriction", "Drops its coils from above, bites, then constricts for 2\u20138 a round. Four strong men (16+) at head and tail uncoil it in 2\u20135 rounds. Sleeps for days after eating.")],
+    description: "Monster Manual."
+  }),
+  monster({
+    key: "snake-amphisbaena", name: "Amphisbaena", folder: "fantastic-creatures", ac: 3,
+    hd: { count: 6 }, move: { ground: 12 }, alignment: "neutral", size: 1,
+    attack: { method: MonsterAttackMethod.PROFILE, description: "Two bites", weaponClass: 4, damage: { dice: 1, bonus: 0 } },
+    reference: { numberAppearing: "1d3", inLairPct: 0 },
+    abilities: [ability("attack", "Poison", "A head at each end, both biting; save vs poison or die.", "poison", 0), ability("defense", "Cold", "Cold does it no harm.")],
+    description: "Rolls like a hoop, holding one neck in the other mouth (Monster Manual)."
   })
 ]);
 
@@ -1162,7 +1286,9 @@ function runSelfTests() {
     pass++;
   };
 
-  ok(MONSTERS.length === 80, "eighty Book II monsters (the four more Men, Oct 2026)");
+  ok(MONSTERS.length === 94, "eighty Book II monsters and fourteen from the Monster Manual for Book III's tables (Nov 2026)");
+  for (const k of ["giant-rat", "giant-centipede", "spider-large", "spider-huge", "spider-giant", "giant-ant", "lizard-giant", "lizard-subterranean", "lizard-minotaur", "lizard-fire", "snake-poisonous", "snake-spitting", "snake-constrictor", "snake-amphisbaena"]) ok(MONSTERS.some((m) => m.key === k), `Monster Manual: ${k}`);
+  ok(MONSTERS.find((m) => m.key === "spider-large").specialAbilities.entries.find((e) => e.tag === "poison").value === 2 && MONSTERS.find((m) => m.key === "giant-centipede").attack.damage.dice === 0, "poison save modifiers; the centipede's bite does no damage itself");
   ok(MONSTERS.every((m) => Number.isInteger(m.size) && m.size >= 1 && m.size <= 4), "every monster has a grid size");
   ok(MONSTERS.find((m) => m.key === "ogre")?.size === 2 && MONSTERS.find((m) => m.key === "giant-hill")?.size === 3, "ogre 2x2, giant 3x3");
   ok(MONSTERS.find((m) => m.key === "spectre")?.specialAbilities.entries.some((a) => a.tag === "drain" && a.value === 2), "spectre drains two levels");

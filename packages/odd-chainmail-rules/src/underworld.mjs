@@ -109,7 +109,9 @@ export function monsterTableFor(dungeonLevel, d6) {
  * Monster Level Tables (p.10–11): Table 1 a d8, Tables 2–4 a d10 (0 = 10), Tables 5–6 a d12.
  * key: a Book II entry in monsters.mjs; options: the referee or a roll picks one; npc: a character type
  * by its Book I title; none of these: no bestiary entry yet. Number appearing is Book II's, set by the
- * referee for the party (Book III p.10). Rulings (Kurt, Nov 2026): Evil Priests are 4th-level chaotic
+ * referee for the party (Book III p.10). Creatures Book II doesn't stat come from the Monster Manual (Kurt,
+ * Nov 2026); where the Manual has several kinds, the ones that live in a dungeon are offered (a reading: no
+ * water or phase spiders, no sea snakes, no fire or minotaur lizards on Table 2). Rulings (Kurt, Nov 2026): Evil Priests are 4th-level chaotic
  * clerics; Evil High Priests 8th level (Patriarch) or higher.
  */
 const fm = (level) => ({ cls: "fighter", level }), mu = (level) => ({ cls: "magic-user", level });
@@ -117,17 +119,17 @@ const RETINUE = "1–4 apprentices (Enchanters or Evil Priests) and 1–6 fighte
 export const MONSTER_LEVEL_TABLES = Object.freeze({
   1: { die: 8, rows: [
     { name: "Kobolds", key: "kobold" }, { name: "Goblins", key: "goblin" }, { name: "Skeletons", key: "skeleton" },
-    { name: "Orcs", key: "orc" }, { name: "Giant Rats" }, { name: "Centipedes" }, { name: "Bandits", key: "bandit" },
-    { name: "Spiders" }] },
+    { name: "Orcs", key: "orc" }, { name: "Giant Rats", key: "giant-rat" }, { name: "Centipedes", key: "giant-centipede" }, { name: "Bandits", key: "bandit" },
+    { name: "Spiders", options: ["spider-large", "spider-huge", "spider-giant"] }] },
   2: { die: 10, rows: [
-    { name: "Hobgoblins", key: "hobgoblin" }, { name: "Zombies", key: "zombie" }, { name: "Lizards" },
+    { name: "Hobgoblins", key: "hobgoblin" }, { name: "Zombies", key: "zombie" }, { name: "Lizards", options: ["lizard-giant", "lizard-subterranean"] },
     { name: "Warriors", npc: fm(2) }, { name: "Conjurers", npc: mu(3) }, { name: "Gnolls", key: "gnoll" },
     { name: "Thouls" }, { name: "Ghouls", key: "ghoul" }, { name: "Berserkers", key: "berserker" },
     { name: "Theurgists", npc: mu(4) }] },
   3: { die: 10, rows: [
-    { name: "Wights", key: "wight" }, { name: "Heroes", npc: fm(4) }, { name: "Giant Hogs" }, { name: "Giant Ants" },
+    { name: "Wights", key: "wight" }, { name: "Heroes", npc: fm(4) }, { name: "Giant Hogs" }, { name: "Giant Ants", key: "giant-ant" },
     { name: "Ochre Jelly", key: "ochre-jelly" }, { name: "Thaumaturgists", npc: mu(5) },
-    { name: "Swashbucklers", npc: fm(5) }, { name: "Magicians", npc: mu(6) }, { name: "Giant Snakes" },
+    { name: "Swashbucklers", npc: fm(5) }, { name: "Magicians", npc: mu(6) }, { name: "Giant Snakes", options: ["snake-poisonous", "snake-spitting", "snake-constrictor", "snake-amphisbaena"] },
     { name: "Giant Weasels" }] },
   4: { die: 10, rows: [
     { name: "Wraiths", key: "wraith" }, { name: "Ogres", key: "ogre" }, { name: "Evil Priests", npc: { cls: "cleric", level: 4, alignment: "chaos" } },

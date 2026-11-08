@@ -158,6 +158,15 @@ Changes made during extraction:
   surprise within 20') and `distracted` (food and treasure dropped to stop
   pursuit). The online roster offers no single-class dwarf thief: by
   Greyhawk, dwarves thieve only as Fighting-Man/Thieves (`soloClassLegal`).
+- 0.37.0: fourteen Monster Manual creatures for Book III's dungeon tables
+  (Kurt, Nov 2026): giant rat, giant centipede, large, huge and giant
+  spiders, giant ant, giant, subterranean, minotaur and fire lizards, and
+  poisonous, spitting, constrictor and amphisbaena snakes. Manual AC, hit
+  dice, move, number appearing and specials; 1d6 a hit as in the LBBs; a
+  poison ability's value is its save modifier, applied in melee. The
+  Monster Level Tables point at them (dungeon kinds only). Still without
+  data: Thouls, Giant Hogs, Giant Weasels, Giant Beetles, Giant Scorpions
+  and White Apes.
 
 ## Open items
 
