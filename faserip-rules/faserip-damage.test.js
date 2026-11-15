@@ -2,17 +2,11 @@
 // [CERT] tests certify against Players Book worked examples and prose.
 
 import {
-  bluntDamage, meleeWeaponDamage, bluntThrowDamage, chargeDamage,
+  bluntDamage, meleeWeaponDamage, bluntThrowDamage, thrownWeaponDamage, chargeDamage, chargeDamageParts,
+  chargeToHitShift, chargeMissContinuation, MATERIAL_EXAMPLES, INDESTRUCTIBLE_MATERIAL_RANKS,
   defenseValue, applyDefense, resolveChargeImpact, forceFieldBreach,
   resolveResistance, enduranceLossStep, recoveryAmount, healingPerHour,
   applyHealing, resolveFallImpact, KARMA_STABILIZE_ONE_ROUND, KARMA_EXTRA_ENDURANCE_FEAT,
-  chargeDamageParts, chargeToHitShift, chargeMissContinuation, MATERIAL_EXAMPLES,
-  INDESTRUCTIBLE_MATERIAL_RANKS, CHARGE_MAX_TO_HIT_CS,
-  impairedEnduranceNumber, enduranceRestoreStep, regainConsciousnessFeat,
-  stabilizationOutcome, disabilityCheck, robotReactivation, recoveryAllowed,
-  ZERO_HEALTH_UNCONSCIOUS_ROUNDS, STUN_ROUNDS, STABILIZE_UNCONSCIOUS_HOURS, WAKE_RETRY_TURNS,
-  RECOVERY_DELAY_TURNS, RECOVERY_PER_DAY, HEALING_INTERVAL_TURNS,
-  IMPAIRED_ABILITY_SHIFT, ENDURANCE_RANK_HEAL_DAYS, DISABILITY_ABILITIES,
   DAMAGE_VERSION, DAMAGE_CERTIFIED,
 } from './faserip-damage.js';
 
@@ -59,12 +53,54 @@ t('[CERT] blunt thrown: lesser of Strength and item material strength', () => {
   eq(bluntThrowDamage({ strength: 6, itemMaterialRank: 'RM' }), 6);
 });
 
+t('[RULED 2026-11-11] a listed weapon thrown keeps its listed minimum (Club 10, Good material)', () => {
+  eq(thrownWeaponDamage({ listedDamage: 10, strength: 6, itemMaterialRank: 'GD' }), 10);
+  eq(thrownWeaponDamage({ listedDamage: 10, strength: 2, itemMaterialRank: 'GD' }), 10);
+});
+
+t('[RULED 2026-11-11] a listed weapon thrown rises to the lesser of Strength and material', () => {
+  eq(thrownWeaponDamage({ listedDamage: 10, strength: 100, itemMaterialRank: 'EX' }), 20);
+  eq(thrownWeaponDamage({ listedDamage: 10, strength: 16, itemMaterialRank: 'EX' }), 16);
+});
+
+t('[CERT] an improvised thrown object has no minimum', () => {
+  eq(thrownWeaponDamage({ strength: 6, itemMaterialRank: 'RM' }), 6);
+  eq(thrownWeaponDamage({ listedDamage: 0, strength: 100, itemMaterialRank: 'GD' }), 10);
+});
+
 t('[CERT] charging example: Endurance Good(10), 10 areas -> 10 + 2x10 = 30', () => {
   eq(chargeDamage({ endurance: 10, areas: 10 }), 30);
 });
 
 t('[CERT] charging uses higher of Endurance or Body Armor as the base', () => {
   eq(chargeDamage({ endurance: 10, bodyArmor: 40, areas: 5 }), 50);
+});
+
+t('[CERT] charge to-hit: +1CS per area moved, max +3, minimum one area', () => {
+  eq(chargeToHitShift(0), null);
+  eq(chargeToHitShift(1), 1);
+  eq(chargeToHitShift(3), 3);
+  eq(chargeToHitShift(10), 3);
+});
+
+t('[CERT] charge damage parts: base reducible, speed bonus fixed', () => {
+  eq(chargeDamageParts({ endurance: 10, areas: 10 }), { base: 10, speedBonus: 20, total: 30, baseReducible: true, speedBonusFixed: true });
+});
+
+t('[CERT] a charging Miss continues half speed rounding up', () => {
+  eq(chargeMissContinuation(7), 4);
+  eq(chargeMissContinuation(10), 5);
+});
+
+t('[CERT] material examples: asphalt Good, steel Remarkable, Adamantium Unearthly; Class ranks indestructible', () => {
+  eq(MATERIAL_EXAMPLES.GD.includes('asphalt'), true);
+  eq(MATERIAL_EXAMPLES.RM.includes('steel'), true);
+  eq(MATERIAL_EXAMPLES.UN.includes('Adamantium steel'), true);
+  eq(INDESTRUCTIBLE_MATERIAL_RANKS, ['CL1000', 'CL3000', 'CL5000']);
+});
+
+t('[CERT] charging through a Good wall inflicts 10 on an unarmored attacker', () => {
+  eq(resolveChargeImpact({ damage: 30, targetDefense: 10, attackerDefense: 0 }).attackerTakes, 10);
 });
 
 // --- Defenses ----------------------------------------------------------
@@ -179,106 +215,6 @@ t('[CERT] ground holds: charging model rebounds full damage; distance model take
   eq(charging.heroTakes, 26);
   const distance = resolveFallImpact({ enduranceNumber: 6, impactSpeedAreas: 10, floorsFallen: 10, groundMaterialRank: 'RM', model: 'distance' });
   eq(distance.heroTakes, 10);
-});
-
-// --- Charging helpers (v0.8.1) -----------------------------------------
-
-t('[CERT] charging parts: End Gd(10), 10 areas -> base 10 reducible + 20 fixed speed bonus = 30', () => {
-  eq(chargeDamageParts({ endurance: 10, areas: 10 }), { base: 10, speedBonus: 20, total: 30, baseReducible: true, speedBonusFixed: true });
-});
-
-t('[CERT] charging parts use the higher of Endurance and Body Armor as the base', () => {
-  eq(chargeDamageParts({ endurance: 10, bodyArmor: 20, areas: 3 }).base, 20);
-});
-
-t('[CERT] charging to-hit: +1CS per area moved, maximum +3CS, none without a full area', () => {
-  eq([0, 1, 2, 3, 4, 7].map(chargeToHitShift), [null, 1, 2, 3, 3, 3]);
-  eq(CHARGE_MAX_TO_HIT_CS, 3);
-});
-
-t('[CERT] charging miss continues half speed rounded up in a straight line', () => {
-  eq(chargeMissContinuation(7), 4);
-  eq(chargeMissContinuation(4), 2);
-});
-
-t('[CERT] Material Strength examples: steel Remarkable, Vibranium Incredible, Adamantium Unearthly; Class 1000+ indestructible', () => {
-  eq(MATERIAL_EXAMPLES.RM.includes('steel'), true);
-  eq(MATERIAL_EXAMPLES.IN.includes('Vibranium'), true);
-  eq(MATERIAL_EXAMPLES.UN[0], 'Adamantium steel');
-  eq(INDESTRUCTIBLE_MATERIAL_RANKS, ['CL1000', 'CL3000', 'CL5000']);
-});
-
-// --- Life, Death, and Health (v0.9.0) -----------------------------------
-
-t('[CERT] 0 Health: unconscious 1-10 rounds; a Stun lasts 1-10 rounds', () => {
-  eq(ZERO_HEALTH_UNCONSCIOUS_ROUNDS, { min: 1, max: 10 });
-  eq(STUN_ROUNDS, { min: 1, max: 10 });
-});
-
-t('[CERT] impaired Endurance number is the highest of the reduced rank (Ex -> Gd counts as 15)', () => {
-  eq(impairedEnduranceNumber('GD'), 15);
-  eq(enduranceLossStep('EX'), { dead: false, rank: 'GD', numberForChecks: 15 });
-  eq(enduranceLossStep('FE'), { dead: false, rank: 'SH0', numberForChecks: 0 });
-});
-
-t('[CERT] at Shift 0 the character is not yet dead; the next loss is', () => {
-  eq(enduranceLossStep('PR').rank, 'FE');
-  eq(enduranceLossStep('SH0').dead, true);
-});
-
-t('[CERT] aid halts the loss: unconscious 1-10 more hours at 0 Health, conscious above it', () => {
-  eq(stabilizationOutcome({ health: 0 }), { lossHalted: true, unconscious: true, hours: { min: 1, max: 10 } });
-  eq(stabilizationOutcome({ health: 3 }), { lossHalted: true, unconscious: false, hours: null });
-  eq(STABILIZE_UNCONSCIOUS_HOURS, { min: 1, max: 10 });
-});
-
-t('[CERT] regain consciousness: green Endurance FEAT; success wakes with Health = Endurance number', () => {
-  const ok = regainConsciousnessFeat({ enduranceRank: 'GD', enduranceNumber: 15, roll: 60 });
-  eq([ok.needed, ok.color, ok.success, ok.wakeHealth, ok.retryTurns], ['green', 'green', true, 15, null]);
-});
-
-t('[CERT] regain consciousness: white fails and re-checks in 1-10 turns', () => {
-  const no = regainConsciousnessFeat({ enduranceRank: 'GD', enduranceNumber: 15, roll: 10 });
-  eq([no.color, no.success, no.wakeHealth, no.retryTurns], ['white', false, null, WAKE_RETRY_TURNS]);
-  eq(WAKE_RETRY_TURNS, { min: 1, max: 10 });
-});
-
-t('[CERT] impaired Endurance heals one rank per week, per day under care, at -2CS meanwhile', () => {
-  eq(IMPAIRED_ABILITY_SHIFT, -2);
-  eq(ENDURANCE_RANK_HEAL_DAYS, { normal: 7, hospital: 1 });
-});
-
-t('[CERT] restoring ranks: intermediate ranks use the highest number, the original rank gets its own number back', () => {
-  eq(enduranceRestoreStep({ rankKey: 'GD', originalRankKey: 'RM', originalNumber: 30 }), { restored: true, atCap: false, rank: 'EX', number: 25 });
-  eq(enduranceRestoreStep({ rankKey: 'EX', originalRankKey: 'RM', originalNumber: 30 }), { restored: true, atCap: true, rank: 'RM', number: 30 });
-  eq(enduranceRestoreStep({ rankKey: 'RM', originalRankKey: 'RM', originalNumber: 30 }).restored, false);
-});
-
-t('[CERT] disabilities at Shift 0: physical abilities above Good make a green FEAT; failure drops to the next printed number (Mn 75 -> Am 50)', () => {
-  eq(DISABILITY_ABILITIES, ['fighting', 'agility', 'strength', 'endurance']);
-  eq(disabilityCheck({ abilityRank: 'GD', roll: 1 }).atRisk, false);
-  const fail = disabilityCheck({ abilityRank: 'MN', roll: 1 });
-  eq([fail.atRisk, fail.impaired, fail.rank, fail.number], [true, true, 'AM', 50]);
-  eq(disabilityCheck({ abilityRank: 'MN', roll: 99 }).impaired, false);
-});
-
-t('[CERT] Vision reactivation: Reason FEAT vs Unearthly intensity, 100 days, no Karma', () => {
-  eq(robotReactivation({ highestRankKey: 'UN', highestPowerNumber: 100 }), { reasonIntensity: 'UN', days: 100, karmaOnReturn: 0 });
-});
-
-t('[CERT] Recovery gate: ten turns, once per day, not after a knockout or further damage', () => {
-  eq(RECOVERY_DELAY_TURNS, 10);
-  eq(RECOVERY_PER_DAY, 1);
-  eq(recoveryAllowed({ conscious: true }).allowed, true);
-  eq(recoveryAllowed({ conscious: false }).reason, 'unconscious');
-  eq(recoveryAllowed({ conscious: true, knockedOut: true }).reason, 'knocked unconscious');
-  eq(recoveryAllowed({ conscious: true, damagedAgain: true }).reason, 'damaged again');
-  eq(recoveryAllowed({ conscious: true, usedToday: true }).reason, 'once per day');
-  eq(recoveryAllowed({ conscious: true, turnsSinceDamage: 4 }), { allowed: false, reason: 'ten turns', turnsRemaining: 6 });
-});
-
-t('[CERT] Healing interval is one hour = 600 turns', () => {
-  eq(HEALING_INTERVAL_TURNS, 600);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

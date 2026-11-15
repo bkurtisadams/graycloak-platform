@@ -1,3 +1,12 @@
+// faserip-rules kernel v0.2.17
+// v0.2.17: ERRATA — thrown listed weapons keep their listed minimum damage
+//          (Judge, 2026-11-11); faserip-damage.js v0.10.0 thrownWeaponDamage.
+// v0.2.16: ERRATA — Recovery forfeited by a second hit inside the ten-turn
+//          window (Judge, 2026-10-01); recoveryAllowed damagedAgain now has a
+//          Foundry caller.
+// v0.2.15: ERRATA — Absorption heals before it pools (Judge, 2026-09-09),
+//          superseding the flat-pool ruling; faserip-powers.js v0.2.0.
+//          Fixed-bug: KERNEL_VERSION had stayed at 0.2.12 through two bumps.
 // faserip-rules kernel v0.2.14
 // v0.2.14: ERRATA — Appendix A Absorption rulings (Judge, 2026-09-05);
 //          faserip-powers.js v0.1.0 opens the power-mechanics module.
@@ -42,7 +51,7 @@
 // Ruling document: MSH Advanced Set, Players Book (PDF v1.1).
 // Pure rules engine. No Foundry, no DOM, no dice — callers supply rolls.
 
-export const KERNEL_VERSION = '0.2.12';
+export const KERNEL_VERSION = '0.2.17';
 
 export const COLORS = ['white', 'green', 'yellow', 'red'];
 
@@ -244,6 +253,7 @@ export function escalateForMultipleActions(neededColor) {
 
 // Source-text issues and GM rulings. Kurt (Graycloak) holds final RAW authority.
 export const ERRATA = [
+  'RULED 2026-11-11 (Judge): a thrown weapon designed for combat (weapons table type includes Blunt Throwing or Edged Throwing: Club, Boomerang, Knife, Spear, Shuriken) always inflicts at least its listed damage, up to the lesser of the thrower\'s Strength and the item\'s material strength. The Melee Weapons section defines the table\'s damage as "normal (minimum) damage" and names Blunt Throwing among the types it covers, so it governs listed weapons; the Blunt Throwing Attack sentence (lesser of Strength and material strength, no minimum) governs improvised objects with no listed damage. A Club thrown at Typical Strength inflicts 10, a rock 6. Implemented as faserip-damage thrownWeaponDamage.',
   'RULED 2026-09-05 (PR1, Judge, 2026-08): poison unconsciousness (1-10 rounds) and the re-FEAT window (1-10 turns) are separate rolls; one turn is one round for this purpose (TURN_SECONDS). Consistent with the Judge\'s Book text.',
   'RULED 2026-09-05 (PR2, Judge, 2026-08): Endurance ranks lost to poison do not by themselves impose the -2CS Impaired Abilities penalty; the lowered rank is the penalty. Departs from Life, Death, and Health ("a character who has lost Endurance ranks has a -2CS"), kept as the Judge\'s ruling. The lost ranks still heal per Impaired Abilities (one per week, one per day under care) and count at the highest number of the reduced rank.',
   'RULED 2026-09-05 (PR3): the poison FEAT is the standard intensity ladder — Endurance (or Resistance to Toxins) against the toxin Intensity: three or more ranks above automatic, one or two above green, equal yellow, below red. Consistent with the Judge\'s Book.',
@@ -299,9 +309,11 @@ export const ERRATA = [
   'NOTE: Conspiracy example totals 185 but prints "55 points each" for three heroes; floor(185/3)=61. Kernel follows the stated split rule (100/3 -> 33 each), treating 55 as a book math error.',
   'NOTE: Karma Summary Listing prints Failing Commitment as -5; prose and the Reed Richards example say failure to show is -10 and leaving early is -5. Karma module encodes both per prose.',
   'RULED 2026-09-05 (Judge): Absorption grants a temporary Health pool equal to the Power rank NUMBER, flat, whatever damage the absorbed attack carried — a 5-point shock and a 48-point bolt both give Amazing(48) Absorption 48. The book states the gain as \'the Power rank involved\' and its example (Health 100 -> 148) does not name the bolt\'s damage, so the flat reading is the one the arithmetic supports.',
+  'RULED 2026-09-09 (Judge), SUPERSEDES the flat-pool ruling above: the absorbed points are one budget that first heals existing damage up to max Health and only then raises Health above max as the pool (\'healing existing damage and even temporarily raising ... Health\'). Health 70/100 hit by a 5-point shock -> 75 and no pool; 70/100 absorbing 48 -> 100 real plus an 18-point pool; the book\'s 100 -> 148 example holds at full Health. The pool caps at the rank number; each absorption refreshes the one 10-round clock. The prior ruling read \'by the Power rank involved\' as a flat grant; it is the cap.',
   'RULED 2026-09-05 (Judge): Absorption damage above the rank number is damage the absorber MUST take, against real Health; it may not be paid out of the pool the same attack grants. Amazing(48) at Health 100 hit for 60: real Health 88, pool 48, 136 displayed. The pool soaks only subsequent damage, so when it lapses the character stands at 88 — the 12 points really landed. Health loss thereafter comes off the pool first, then real Health (book text).',
   'RULED 2026-09-05 (Judge): the Absorption pool caps at the Power rank number — a second absorption refreshes it rather than stacking — and one 10-round clock is refreshed by each absorption rather than a queue of staged expiries. The book is silent on repeat absorptions; without a cap a character standing in a storm accumulates without limit.',
   'RULED 2026-09-05 (Judge): redirected Absorption excess resolves as the absorbed damage type on that type\'s own Battle Effects column at the absorber\'s Agility, for the excess amount, on the round after it was absorbed. The book gives the amount and the timing but names no attack form.',
+  'RULED 2026-10-01 (Judge): Recovery is forfeited for the day when the character is damaged again inside the ten-turn window ("damaged, steps out, and then is damaged again before Recovery takes place, then only Healing is possible"); the second hit does not merely restart the clock. recoveryAllowed({ damagedAgain }) is the kernel expression; msh-faserip sets it from recordDamage.',
   'RULED 2026-08-31: Teleporting into an object inflicts damage equal to the material strength (1x, Movement chapter text authoritative); the Appendix A power description saying twice is wrong. Body Armor gives no protection.',
   'RULED 2026-08-31: Fall impact resolves entirely as a Charging attack per the Charging rules (rebound mechanism); "damage equivalent to the distance" is descriptive, not an alternate formula.',
   'RULED 2026-08-31: Laser rifles are Energy attacks (Energy column, Body Armor at -20); the weapon table typing them "S" is wrong.',
