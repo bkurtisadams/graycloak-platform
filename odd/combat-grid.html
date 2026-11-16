@@ -349,6 +349,12 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .hexscene .w-card { position: absolute; right: 12px; top: 52px; width: min(340px, calc(100% - 24px)); max-height: calc(100% - 160px); box-sizing: border-box; border-color: var(--ink); box-shadow: 0 6px 20px rgba(15,25,35,.3); z-index: 3; }
 .lobbystage .hexscene .w-key { left: 10px; right: auto; top: 50px; bottom: auto; }
 .lobbystage .hexscene .w-crumb a { color: inherit; }
+.lobbystage .lcard.world.hexscene > .ps-strip { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; margin: 0; border-radius: 0; border-top: 1px solid #9fb2c0; }
+.lobbystage .vgbox { position: absolute; left: 0; right: 0; top: 0; bottom: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
+.lobbystage .vgscene:has(.ps-strip) .vgbox { bottom: 90px; }
+.lobbystage .vgscene .vgbox .w-map.village { position: relative; inset: auto; width: min(100cqw, calc(100cqh * 860 / 680)); height: auto; aspect-ratio: 860 / 680; flex: none; border: 1px solid #1f2b38; }
+.lobbystage .vgscene .w-crumb { z-index: 3; }
+.lobbystage .w-me[data-w-open] { cursor: pointer; }
 .lobbystage .w-toast { position: absolute; left: 12px; bottom: 104px; max-width: min(560px, calc(100% - 380px)); z-index: 4; background: var(--card); color: var(--ink); border: 1px solid #d9a85a; border-radius: 4px; padding: 6px 12px; font-size: .9rem; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 .lobbystage .w-toast.bad { border-color: var(--red); color: var(--red); }
 .lobbystage .ps-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 12px; padding: 8px 12px; min-height: 44px; background: var(--card); border-top: 1px solid #9fb2c0; }
@@ -1527,13 +1533,13 @@ function renderPlayerOnboarding(el, g, uid) {
 }
 
 /* ---------- pass 9 (approved board 10): the party strip, in every mode ---------- */
-function partyStripHtml(uid, { acting = null, nearKey = null } = {}) {
+function partyStripHtml(uid, { acting = null, nearKey = null, place = null } = {}) {
   const chars = table.chars.filter((c) => c.status === "ready").slice().sort((a, b) => (rs.levelOf(b, uid) >= rs.OWNERSHIP.OWNER) - (rs.levelOf(a, uid) >= rs.OWNERSHIP.OWNER) || (a.name ?? "").localeCompare(b.name ?? ""));
   if (!chars.length) return "";
   const chips = chars.map((c) => {
     const p = table.game?.people?.[c.owner] ?? {}, mine = rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER, dead = c.doing === "dead" || (c.hp ?? 1) <= 0;
     const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
-    const away = nearKey && hexKeyOf(c) !== nearKey;
+    const away = place ? !(c.doing === "town" && (c.where ?? world.home) === place) : nearKey && hexKeyOf(c) !== nearKey;
     return `<div class="ps-ch${c.id === acting ? " on" : ""}${away ? " away" : ""}" data-ps-open="${esc(c.id)}" title="${esc(c.name)}: open the sheet"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(c.name)} <small>${clsAbbr(c)} ${c.level ?? 1}${mine ? "" : ` \u00b7 ${esc(p.name ?? "")}`}</small></div><div class="bar"><i class="${tone}" style="width:${dead ? 0 : pct}%"></i></div><div class="s"><span>${dead ? "dead" : `hp ${c.hp}/${c.maxHp}`}</span><span>${esc(c.where ?? world.home)} \u00b7 ${esc(doingOf(c).split(" \u00b7 ")[0])}</span></div></div>`;
   }).join("");
   return `<div class="ps-strip">${chips}</div>`;
@@ -1645,11 +1651,15 @@ function renderWorldStage(el, g, uid) {
   const placeName = v.kind === "village" ? (c ? (c.where ?? world.home) : v.place) : null;
   setCrumb(online.api?.fight ? null : v.kind === "village" ? ["The Westmark", placeName, ...(v.at === "inn" ? [world.places[placeName]?.inn ?? "the inn"] : v.at === "market" ? ["the market"] : [])] : world.full && world.asPlayers ? ["The Westmark", "as the players see it"] : c ? ["The Westmark", `${hexNo(hexKeyOf(c) ?? "0,0")} \u00b7 ${c.name}`] : ["The Westmark"]);
   if (v.kind === "hex") { renderHexScene(el, c, uid); return; }
-  const head = `<div class="ls-head"><h2>${esc(v.kind === "village" ? placeName : "The Westmark")}</h2><span class="ls-day">${v.kind === "village" ? "village" : "the road"} \u00b7 Day ${c?.day ?? g.day ?? 1}</span>${c ? `<span class="note">${esc(c.name)} \u00b7 ${esc(rs.CLASS_LABEL[c.cls] ?? "")} ${c.level ?? 1} \u00b7 hp ${c.hp}/${c.maxHp} \u00b7 ${c.coins?.gp ?? 0} gp</span>` : `<span class="note">the referee's map</span>`}${!PLAYER && (c || v.place) ? `<a href="#" id="wAll" style="margin-left:auto">The referee's map</a>` : ""}</div>`;
-  el.innerHTML = `<div class="lcard world">${head}${world.error ? `<div class="rs-err">${esc(world.error)}</div>` : ""}${world.msg ? `<div class="ls-msg">${esc(world.msg)}</div>` : ""}<div class="w-wrap">${v.kind === "village" ? villageHtml(c, uid) : hexMapHtml(c, uid)}</div>${partyStripHtml(uid, { acting: c?.id ?? null, nearKey: c ? hexKeyOf(c) : null })}</div>`;
+  renderVillageScene(el, c, uid, placeName, g);
+}
+/** A city or village: just its map, filling the stage like Foundry's canvas; the party strip along the bottom; a place's card floats over the map only when its pin is clicked. */
+function renderVillageScene(el, c, uid, placeName, g) {
+  const toast = world.error ? `<div class="w-toast bad">${esc(world.error)}</div>` : world.msg ? `<div class="w-toast">${esc(world.msg)}</div>` : "";
+  el.innerHTML = `<div class="lcard world hexscene vgscene"><div class="w-wrap">${villageHtml(c, uid)}</div>${toast}${partyStripHtml(uid, { acting: c?.id ?? null, place: placeName })}</div>`;
   bindPartyStrip(el);
   $("#wAll")?.addEventListener("click", (e) => { e.preventDefault(); openWorld(null); });
-  if (v.kind === "village") bindVillage(el, c, uid); else bindHexMap(el, c, uid);
+  bindVillage(el, c, uid);
 }
 /* the village */
 function villageHtml(c, uid) {
@@ -1658,7 +1668,7 @@ function villageHtml(c, uid) {
   const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
   const markers = spots.map(([k, sp]) => `<div class="w-marker${v.at === k ? " on" : ""}" data-w-spot="${k}" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
   const me = VILLAGE_SPOTS[v.at ?? "inn"] ?? VILLAGE_SPOTS.inn;
-  const counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me" title="${esc(x.name)}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
+  const counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me${x.id === c?.id ? " mine" : ""}" ${x.id === c?.id ? "" : `data-w-open="${esc(x.id)}" `}title="${esc(x.name)}${x.id === c?.id ? "" : ": act for him"}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
   let card = "";
   if (v.at === "inn") {
     const need = Math.max(0, (c.maxHp ?? 0) - (c.hp ?? 0)), toHeal = need ? need * 2 + 1 : 0;
@@ -1675,12 +1685,12 @@ function villageHtml(c, uid) {
     card = `<h3>Market <small>${esc(c.where ?? world.home)}</small></h3><div class="note">Stalls on the green, market days and most others. Buy at Book I's prices; the traders give half for what you sell (ruling). ${c.coins?.gp ?? 0} gp \u00b7 carrying ${sh.load} (${sh.move}\u2033 move)</div>
       <div class="w-shop"><div><h4>What he carries</h4><div class="rs-carts">${carried || `<div class="note">Nothing.</div>`}</div></div><div><h4>For sale</h4><div class="rs-shoplist" style="max-height:300px"><table><thead><tr><th>Item</th><th class="num">Weight</th><th class="num">Cost</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div></div>
       <div class="row" style="justify-content:flex-end"><button id="wLeave">Leave</button></div>`;
-  } else {
-    const others = here.filter((x) => x.id !== c.id).map((x) => esc(x.name)).join(", ");
-    card = `<h3>${esc(c.where ?? world.home)} <small>${esc(place.kind ?? "village")}</small></h3><div class="note">${esc(place.desc ?? "")}</div><div class="note">${others ? `Also here: ${others}.` : "No one else of the party is here."}</div>
-      <div class="w-act"><h4>Places</h4><div class="row">${spots.map(([k]) => `<button data-w-spot="${k}">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</button>`).join("")}</div><div class="note">Later: stable, smith, shrine, notice board.</div></div>`;
   }
-  return `<div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb" style="top:auto;bottom:10px">${esc(c.name)} is ${v.at === "inn" ? `at ${esc(place.inn)}` : v.at === "market" ? "at the market" : "in the street"}</div></div><div class="w-card">${card}</div>`;
+  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${c.day ?? table.game?.day ?? 1}`) + (card ? `<div class="w-card">${card}</div>` : "");
+}
+/** The art, locked to its own shape and centred on the stage, with the pins and tokens over it. */
+function villageMapHtml(placeName, place, markers, counters, crumb) {
+  return `<div class="vgbox"><div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb">${crumb}${!PLAYER ? ` \u00b7 <a href="#" id="wAll">the referee's map</a>` : ""}</div></div></div>`;
 }
 /** The referee looking into a settlement with no character: the map, who is there, and a way to walk any of them. */
 function villageLookHtml(placeName, place, here, uid) {
@@ -1688,12 +1698,8 @@ function villageLookHtml(placeName, place, here, uid) {
   const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
   const markers = spots.map(([k, sp]) => `<div class="w-marker" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
   const me = VILLAGE_SPOTS.inn;
-  const counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me" title="${esc(x.name)}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
-  const rows = here.map((x) => `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(doingOf(x))} <button data-w-open="${esc(x.id)}">Open</button></span></div>`).join("");
-  const card = `<h3>${esc(placeName)} <small>${esc(place.kind ?? "village")}</small></h3><div class="note">${esc(place.desc ?? "")}</div>
-    <div class="w-act"><h4>Who is here</h4><div class="rs-carts">${rows || `<div class="note">No one of the party.</div>`}</div><div class="note">Open a character to act for him: rest, rumours, the market, the road.</div></div>
-    ${place.inn ? `<div class="note">${esc(place.inn)}${place.market ? " \u00b7 a market" : ""}${place.shrine ? " \u00b7 a shrine" : ""}</div>` : ""}`;
-  return `<div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb" style="top:auto;bottom:10px">${esc(placeName)} \u00b7 the referee looking in</div></div><div class="w-card">${card}</div>`;
+  const c = null, counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me${x.id === c?.id ? " mine" : ""}" ${x.id === c?.id ? "" : `data-w-open="${esc(x.id)}" `}title="${esc(x.name)}${x.id === c?.id ? "" : ": act for him"}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
+  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 the referee looking in`);
 }
 const VILLAGE_SVG = `<defs><pattern id="vg" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#7d9060" stroke-width=".7"/></pattern></defs><rect width="860" height="680" fill="#8fa36b"/><rect width="860" height="680" fill="url(#vg)"/>
 <path d="M0 560 C120 520 180 600 300 560 S520 500 640 560 S800 620 860 580 L860 680 L0 680Z" fill="#6f93b4"/><path d="M0 560 C120 520 180 600 300 560 S520 500 640 560 S800 620 860 580" fill="none" stroke="#5c7f9f" stroke-width="3"/>
@@ -3662,11 +3668,12 @@ $("#showTargets").addEventListener("click", () => { state.showTargets = !state.s
 $("#logToggle").addEventListener("click", () => setLogOpen($("#stage").classList.contains("log-closed")));
 /* ---------- the sidebar: icon tabs (Foundry's paradigm). Clicking the open tab folds the sidebar away. ---------- */
 let sbTab = (() => { try { return localStorage.getItem("odd.sbtab") || "chat"; } catch { return "chat"; } })();
-function showTab(tab, fromClick) {
-  const icon = document.querySelector(`.sb-icon[data-sbtab="${tab}"]`);
-  if (!icon || icon.hidden) tab = "chat";
-  if (fromClick && tab === sbTab && !$("#stage").classList.contains("log-closed")) { setLogOpen(false); return; }
-  if ($("#stage").classList.contains("log-closed")) setLogOpen(true);
+function showTab(tab, fromClick, quiet) {
+  let icon = document.querySelector(`.sb-icon[data-sbtab="${tab}"]`);
+  if (!icon || icon.hidden) { tab = "chat"; icon = document.querySelector('.sb-icon[data-sbtab="chat"]'); }
+  // fold only when the tab the person clicked is the one he can see open (the icon lit AND its pane showing), never on a stale sbTab
+  if (fromClick && tab === sbTab && icon?.classList.contains("on") && document.querySelector(`.sb-pane[data-sbpane="${tab}"]`)?.classList.contains("on") && !$("#stage").classList.contains("log-closed")) { setLogOpen(false); return; }
+  if (!quiet && $("#stage").classList.contains("log-closed")) setLogOpen(true);
   sbTab = tab; try { localStorage.setItem("odd.sbtab", tab); } catch {}
   document.querySelectorAll(".sb-icon").forEach((b) => b.classList.toggle("on", b.dataset.sbtab === tab));
   document.querySelectorAll(".sb-pane").forEach((p) => p.classList.toggle("on", p.dataset.sbpane === tab));
@@ -4384,6 +4391,7 @@ addCharacter("A", "cleric", 1, "chain+shield", "mace", 9);
 addCharacter("A", "magic-user", 1, "none", "dagger", 13);
 addMonsters("B", "orc", 6);
 deploy(); render(); initialView();
+showTab(sbTab, false, true); // light the open tab and show its pane to match (the page used to open on Chat with no tab lit, so the first click on Chat folded the sidebar)
 if (PLAYER && !TABLE) { // a standalone fight link; on the table the role is the game's (setTableRole)
   document.body.classList.add("player-mode");
   document.querySelector("header.top h1").textContent = "OD\u0026D fight \u00b7 player";
