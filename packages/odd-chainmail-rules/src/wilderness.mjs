@@ -82,9 +82,12 @@ export function hexCorners(cx, cy, size) {
  * one mountain hex). `hexAt(h)` returns the referee's hex or null for unmapped;
  * walking into the unmapped stops the day with reason "unmapped".
  */
+export function allowanceOf(mode = "foot", largeParty = 0) {
+  const a = MOVE[mode] ?? MOVE.foot;
+  return largeParty > 1000 ? a - 2 : largeParty > 100 ? a - 1 : a;
+}
 export function planDay({ from, dir = null, to = null, mode = "foot", hexAt, largeParty = 0 }) {
-  let allowance = MOVE[mode] ?? MOVE.foot;
-  if (largeParty > 1000) allowance -= 2; else if (largeParty > 100) allowance -= 1;
+  const allowance = allowanceOf(mode, largeParty);
   const path = []; let at = { ...from }, spent = 0, reason = "spent";
   for (;;) {
     const d = dir ?? (to ? toward(at, to) : null);
@@ -99,6 +102,46 @@ export function planDay({ from, dir = null, to = null, mode = "foot", hexAt, lar
     if (spent >= allowance) { reason = "spent"; break; }
   }
   return { path, end: at, spent, allowance, reason };
+}
+
+/* ---------- a day walked a hex at a time (Kurt, Nov 2026): the party goes where it is sent, the day's factors counted ---------- */
+const canEnter = (spent, cost, allowance) => Number.isFinite(cost) && (spent === 0 || spent + cost <= allowance);
+/**
+ * Where a party can still get to today, having spent `spent` factors: { allowance, left, hexes: { "q,r": { spent, path } } },
+ * the cheapest way to each. As in planDay, the first hex of the day is always entered, and the day ends when the factors are gone.
+ */
+export function reach({ from, spent = 0, mode = "foot", hexAt, largeParty = 0 }) {
+  const allowance = allowanceOf(mode, largeParty), hexes = {}, start = key(from.q, from.r);
+  const best = new Map([[start, { spent, path: [] }]]), open = [start];
+  while (open.length) {
+    open.sort((a, b) => best.get(a).spent - best.get(b).spent);
+    const k = open.shift(), at = best.get(k);
+    if (at.spent >= allowance) continue;
+    for (const next of ring(parse(k))) {
+      const hex = hexAt(next); if (!hex) continue;
+      const cost = hexCost(hex); if (!canEnter(at.spent, cost, allowance)) continue;
+      const nk = key(next.q, next.r), total = at.spent + cost;
+      if (best.has(nk) && best.get(nk).spent <= total) continue;
+      best.set(nk, { spent: total, path: [...at.path, next] }); hexes[nk] = best.get(nk);
+      if (!open.includes(nk)) open.push(nk);
+    }
+  }
+  return { allowance, left: Math.max(0, allowance - spent), hexes };
+}
+/** Walk a path of adjacent hexes as far as the day allows: { path, end, spent, allowance, reason } (arrived | spent | water | unmapped | astray). */
+export function walkPath({ from, path = [], spent = 0, mode = "foot", hexAt, largeParty = 0 }) {
+  const allowance = allowanceOf(mode, largeParty), walked = [];
+  let at = { q: from.q, r: from.r }, reason = "arrived";
+  for (const step of path) {
+    if (!step || distance(at, step) !== 1) { reason = "astray"; break; }
+    const hex = hexAt(step);
+    if (!hex) { reason = "unmapped"; break; }
+    const cost = hexCost(hex);
+    if (!Number.isFinite(cost)) { reason = "water"; break; }
+    if (!canEnter(spent, cost, allowance)) { reason = "spent"; break; }
+    walked.push({ q: step.q, r: step.r, t: hex.t ?? "clear", cost, place: hex.place ?? null }); spent += cost; at = { q: step.q, r: step.r };
+  }
+  return { path: walked, end: at, spent, allowance, reason };
 }
 
 /* ---------- Book III WILDERNESS WANDERING MONSTERS ---------- */
@@ -326,6 +369,17 @@ function runSelfTests() {
   d = planDay({ from: { q: 0, r: 0 }, dir: "S", hexAt });
   ok(d.path.length === 1 && d.path[0].t === "river" && d.spent === 3, "the first hex of the day is always entered: the river crossing takes the day");
   ok(planDay({ from: { q: 0, r: 0 }, dir: "N", largeParty: 150, hexAt }).allowance === 2, "a party over 100 loses a hex");
+  let rc = reach({ from: { q: 0, r: 0 }, hexAt });
+  ok(rc.left === 3 && rc.hexes["1,-1"].spent === 1 && rc.hexes["2,-2"].spent === 3 && rc.hexes["2,-2"].path.length === 2, "from Langstead the day reaches Fosscraig by the track, two hexes for three factors");
+  ok(rc.hexes["0,1"].spent === 3 && !Object.values(rc.hexes).some((h) => h.spent > 3 && h.path.length > 1), "the river is a day's work, and only the first hex may overrun the day");
+  rc = reach({ from: { q: 1, r: -1 }, spent: 1, hexAt });
+  ok(rc.left === 2 && rc.hexes["2,-2"]?.spent === 3 && rc.hexes["0,0"].spent === 2, "a hex walked: two factors left reach the crag or home again");
+  ok(Object.keys(reach({ from: { q: 1, r: -1 }, spent: 3, hexAt }).hexes).length === 0, "the day spent: nowhere left to go");
+  let wp = walkPath({ from: { q: 0, r: 0 }, path: [{ q: 1, r: -1 }, { q: 2, r: -2 }], hexAt });
+  ok(wp.reason === "arrived" && wp.spent === 3 && wp.path[1].place === "Fosscraig", "walking the path a hex at a time arrives the same");
+  wp = walkPath({ from: { q: 1, r: -1 }, path: [{ q: 2, r: -2 }], spent: 2, hexAt });
+  ok(wp.reason === "spent" && wp.path.length === 0 && wp.end.q === 1, "one factor left does not climb the crag");
+  ok(walkPath({ from: { q: 0, r: 0 }, path: [{ q: 2, r: -2 }], hexAt }).reason === "astray" && walkPath({ from: { q: 0, r: 0 }, path: [{ q: 0, r: 1 }, { q: 0, r: 2 }], hexAt }).path.length === 1, "a path goes hex to hex, and stops when the day is gone");
   const seq = (...v) => { let i = 0; return () => v[i++]; };
   let e = wanderingMonster("clear", seq(1, 3)); ok(e.type === "men" && e.kind === "Necromancer", "clear, d8 1 men, d12 3 Necromancer");
   e = wanderingMonster("mountains", seq(1, 7)); ok(e.kind === "Cavemen", "mountain men column");

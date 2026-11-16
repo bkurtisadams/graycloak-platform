@@ -42,6 +42,13 @@ async function brom(g, uid = "bob", name = "Brom") {
   const f = await g.rcall(uid, { op: "finish", id }); assert.equal(f.ok, true, f.error);
   return id;
 }
+/** A day on the road: the walk (its first step rolls for lost), then camp (the day's wandering-monster check). */
+async function walkDay(g, uid, id, how, moveDice = [1], campDice = [1]) {
+  g.setDice(...moveDice); const m = await g.call(uid, { op: "move", id, ...how });
+  if (!m.ok) return { m, c: null };
+  g.setDice(...campDice); const c = await g.call(uid, { op: "camp", id });
+  return { m, c };
+}
 const chat = (store, who) => [...store.docs.entries()].filter(([k]) => k.startsWith(`oddCampaigns/c1/chat/${who}/`)).map(([, v]) => v);
 
 test("the map: players know the home village and its ring; the referee sees the whole key", async () => {
@@ -56,14 +63,20 @@ test("the map: players know the home village and its ring; the referee sees the 
 
 test("walking: a day toward Fosscraig by the track arrives; the hexes become known; the end-of-day check can bring a monster", async () => {
   const g = game(); const id = await brom(g);
-  g.setDice(1, 6, 1, 3); // lost? (clear never) · encounter d6=6 on mountains: yes · d8=1 men · d12=3 Brigands (mountain column)
+  g.setDice(1); // lost? (clear never)
   const r = await g.call("bob", { op: "move", ids: [id], to: { q: 2, r: -2 } });
   assert.equal(r.code, "bad-request", "nobody knows the way to a hex off the players' map");
   const r2 = await g.call("bob", { op: "move", ids: [id], dir: "NE" });
   assert.equal(r2.ok, true, r2.error); assert.equal(r2.day, 2); assert.equal(r2.path.length, 2); assert.equal(r2.place, "Fosscraig"); assert.equal(r2.lost, false);
-  assert.equal(r2.encounter.type, "men"); assert.equal(r2.encounter.kind, "Brigands");
-  const ch = g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
-  assert.deepEqual(ch.hex, { q: 2, r: -2 }); assert.equal(ch.where, "Fosscraig"); assert.equal(ch.doing, "encounter"); assert.equal(ch.day, 2); assert.equal(ch.daysWalked, 1);
+  assert.equal(r2.spent, 3); assert.equal(r2.left, 0);
+  let ch = g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  assert.deepEqual(ch.hex, { q: 2, r: -2 }); assert.equal(ch.where, "Fosscraig"); assert.equal(ch.doing, "road"); assert.equal(ch.day, 2); assert.equal(ch.dayMoved, 3);
+  assert.equal((await g.call("bob", { op: "move", ids: [id], dir: "N" })).code, "bad-request", "the day's march is done");
+  g.setDice(6, 1, 3); // the day's end: encounter d6=6 on mountains: yes · d8=1 men · d12=3 Brigands (mountain column)
+  const c = await g.call("bob", { op: "camp", id });
+  assert.equal(c.ok, true, c.error); assert.equal(c.day, 2); assert.equal(c.encounter.type, "men"); assert.equal(c.encounter.kind, "Brigands");
+  ch = g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  assert.equal(ch.doing, "encounter"); assert.equal(ch.daysWalked, 1); assert.equal(ch.dayMoved, 0);
   const known = g.store.docs.get(g.p.known).hexes;
   assert.equal(known["1,-1"].t, "clear"); assert.equal(known["2,-2"].place, "Fosscraig"); assert.ok(!known["3,-3"], "a ruin doesn't teach its ring");
   assert.equal((await g.call("bob", { op: "move", ids: [id], dir: "N" })).code, "bad-request", "an encounter waits on the referee");
@@ -77,16 +90,14 @@ test("walking: a day toward Fosscraig by the track arrives; the hexes become kno
 
 test("lost in the woods: the die picks the direction; six days then rest; camp rolls twice", async () => {
   const g = game(); const id = await brom(g);
-  g.setDice(1, 1); // lost (clear never); encounter d6=1 no
-  let r = await g.call("bob", { op: "move", ids: [id], dir: "NW" }); assert.equal(r.ok, true, r.error);
+  let { m: r, c } = await walkDay(g, "bob", id, { dir: "NW" }); assert.equal(r.ok, true, r.error); assert.equal(c.ok, true, c.error); // lost (clear never); the night's d6=1: nothing
   const ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
   assert.equal(r.path.length, 2, "the clear hex and Kingwold by its track (1 + 1), the next wood (2) is too far");
   assert.equal(ch().where, "Kingwold"); assert.equal(ch().doing, "town", "a village: he's in town");
   assert.ok(g.store.docs.get(g.p.known).hexes["-3,0"], "a village teaches its ring");
-  g.setDice(1, 4, 1); // starting on woods: lost on a 1 → direction die 4 = S; encounter d6=1 no
-  r = await g.call("bob", { op: "move", ids: [id], dir: "NE" });
-  assert.equal(r.ok, true, r.error); assert.equal(r.lost, true); assert.equal(r.end.r, 1, "went S instead");
-  for (let d = 0; d < 4; d++) { g.setDice(6, 1); r = await g.call("bob", { op: "move", ids: [id], dir: "SE" }); assert.equal(r.ok, true, r.error); }
+  ({ m: r, c } = await walkDay(g, "bob", id, { dir: "NE" }, [1, 4])); // starting on woods: lost on a 1 → direction die 4 = S
+  assert.equal(r.ok, true, r.error); assert.equal(r.lost, true); assert.equal(r.end.r, 1, "went S instead"); assert.equal(r.left, 0, "a lost party's day is spent");
+  for (let d = 0; d < 4; d++) { ({ m: r, c } = await walkDay(g, "bob", id, { dir: "SE" }, [6])); assert.equal(r.ok, true, r.error); assert.equal(c.ok, true, c.error); }
   assert.equal(ch().daysWalked, 6);
   assert.equal((await g.call("bob", { op: "move", ids: [id], dir: "N" })).code, "bad-request", "six days: rest first");
   g.setDice(1, 6, 1, 1); // camp: first check no, second yes → men, Bandits
@@ -129,12 +140,12 @@ test("the market: a finished character buys at cost and sells at half, only wher
   r = await g.call("bob", { op: "enter", id, place: "road" }); assert.equal(r.ok, true); assert.equal(ch().doing, "road");
 });
 
+const MEET = [6, 3, 2, 5, 5, 1, 2, 3, 4, 3, 4, 5, 6];
 test("the meeting (pass 9): the day's end rolls how many, surprise and the distance; evade uses Book III's table, then pursuit", async () => {
   const g = game(); const id = await brom(g);
-  // walk NE: lost no (clear never) · encounter d6=6 on mountains · d8=3 giant · d12=2 Goblins · surprise 5,5 none · sighting 4d6: 1,2,3,4 = 100 yards · number 4d10: 3,4,5,6 = 18 x 10
-  g.setDice(1, 6, 3, 2, 5, 5, 1, 2, 3, 4, 3, 4, 5, 6);
-  const r = await g.call("bob", { op: "move", ids: [id], dir: "NE" });
-  assert.equal(r.ok, true, r.error); assert.equal(r.encounter.kind, "Goblins");
+  // walk NE: lost no (clear never); camp: encounter d6=6 on mountains · d8=3 giant · d12=2 Goblins · surprise 5,5 none · sighting 4d6: 1,2,3,4 = 100 yards · number 4d10: 3,4,5,6 = 18 x 10
+  const { m, c: r } = await walkDay(g, "bob", id, { dir: "NE" }, [1], MEET);
+  assert.equal(m.ok, true, m.error); assert.equal(r.ok, true, r.error); assert.equal(r.encounter.kind, "Goblins");
   const ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
   const e = ch().encounter;
   assert.equal(e.number, 180); assert.equal(e.max, 400); assert.equal(e.yards, 100); assert.equal(e.surprise, null); assert.equal(e.monsterKey, "goblin");
@@ -143,7 +154,7 @@ test("the meeting (pass 9): the day's end rolls how many, surprise and the dista
   assert.equal((await g.call("kurt", { op: "adjust", id, number: 8 })).ok, true); assert.equal(ch().encounter.number, 8);
   // evade: party of 1, 8 of 400 = 2% (<=25%): 50, +25 faster = 75; rolled 40: slipped
   g.setDice(40);
-  const ev = await g.call("bob", { op: "evade", ids: [id] });
+  const ev = await g.call("bob", { op: "evade", id });
   assert.equal(ev.ok, true, JSON.stringify(ev)); assert.equal(ev.outcome, "evaded"); assert.equal(ev.chance, 75);
   assert.equal(ch().doing, "road"); assert.equal(ch().encounter, null); assert.equal(ch().lastEncounter.outcome, "evaded");
   assert.ok(chat(g.store, "ann").some((x) => /evaded the Goblins/.test(x.text)));
@@ -151,7 +162,7 @@ test("the meeting (pass 9): the day's end rolls how many, surprise and the dista
 
 test("the meeting: a failed evasion is pursued; parley rolls the reaction; stand waits on the referee", async () => {
   const g = game(); const id = await brom(g);
-  g.setDice(1, 6, 3, 2, 5, 5, 1, 2, 3, 4, 3, 4, 5, 6); await g.call("bob", { op: "move", ids: [id], dir: "NE" });
+  await walkDay(g, "bob", id, { dir: "NE" }, [1], MEET);
   const ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
   // evade: 180/400 = 45%: 70 base +25 faster = 95; rolled 99: fails. pursuit: dir d6=4 (S), goblins not faster so never caught; on d6=5: give up
   g.setDice(99, 4, 50, 5);
@@ -159,23 +170,22 @@ test("the meeting: a failed evasion is pursued; parley rolls the reaction; stand
   assert.equal(ev.ok, true, JSON.stringify(ev)); assert.equal(ev.outcome, "escaped"); assert.equal(ev.restOwed, 0.5);
   assert.deepEqual(ch().hex, { q: 2, r: -1 }, "ran a hex S from the crag"); assert.equal(ch().doing, "road");
   // another meeting, this time parley: reaction 2d6 = 4 + 5 = 9 positive
-  g.setDice(6, 6, 3, 2, 5, 5, 1, 2, 3, 4, 3, 4, 5, 6); let r = await g.call("bob", { op: "move", ids: [id], dir: "N" }); assert.equal(r.encounter?.kind, "Goblins", r.error);
+  let r = (await walkDay(g, "bob", id, { dir: "N" }, [6], MEET)).c; assert.equal(r?.encounter?.kind, "Goblins", r?.error);
   g.setDice(4, 5);
   r = await g.call("bob", { op: "parley", id }); assert.equal(r.ok, true, r.error); assert.equal(r.reaction, "positive");
   assert.equal(ch().doing, "encounter", "still the referee's to resolve"); assert.equal(ch().encounter.outcome, "parley");
   assert.equal((await g.call("bob", { op: "evade", ids: [id] })).code, "bad-request", "one choice");
   assert.equal((await g.call("kurt", { op: "resolve", id })).ok, true); assert.equal(ch().doing, "road");
   // stand
-  g.setDice(6, 6, 3, 2, 5, 5, 1, 2, 3, 4, 3, 4, 5, 6); r = await g.call("bob", { op: "move", ids: [id], dir: "N" }); assert.equal(r.encounter?.kind, "Goblins", r.error);
-  r = await g.call("bob", { op: "stand", ids: [id] }); assert.equal(r.outcome, "stand"); assert.equal(ch().encounter.choice, "stand");
+  r = (await walkDay(g, "bob", id, { dir: "N" }, [6], MEET)).c; assert.equal(r?.encounter?.kind, "Goblins", r?.error);
+  r = await g.call("bob", { op: "stand", id }); assert.equal(r.outcome, "stand"); assert.equal(ch().encounter.choice, "stand");
 });
 
 test("a titled man on the road (Book III): the Lord's band is rolled at the meeting and waits for the fight", async () => {
   const g = game(); const id = await brom(g);
   // walk NE: lost no · encounter d6=6 on mountains · d8=1 men · d12=4 Lord (mountain column) · then the band's dice (defaults to 3s: 2d6 men = 6, levels, hp...)
-  g.setDice(1, 6, 1, 4);
-  const r = await g.call("bob", { op: "move", ids: [id], dir: "NE" });
-  assert.equal(r.ok, true, r.error); assert.equal(r.encounter.kind, "Lord");
+  const { m, c: r } = await walkDay(g, "bob", id, { dir: "NE" }, [1], [6, 1, 4]);
+  assert.equal(m.ok, true, m.error); assert.equal(r.ok, true, r.error); assert.equal(r.encounter.kind, "Lord");
   const e = g.store.docs.get(`oddCampaigns/c1/characters/${id}`).encounter;
   assert.ok(e.band, "a band"); assert.equal(e.band.leader.level, 9); assert.equal(e.band.leader.cls, "fighter"); assert.equal(e.band.mounted, true);
   assert.ok(e.band.men.length >= 2 && e.band.men.length <= 12 && e.band.men.every((m) => m.level >= 1 && m.level <= 4), "2-12 men of 1st-4th");
@@ -195,4 +205,72 @@ test("paint (pass 10): the referee edits the key in place; a hex the players kno
   const m = await g.call("kurt", { op: "map" }); assert.equal(m.hexes["3,-3"].place, "Hoarfell"); assert.equal(m.places.Hoarfell.kind, "castle");
   assert.equal((await g.call("bob", { op: "map" })).hexes["3,-3"], undefined, "not known: nothing to the players");
   assert.equal((await g.call("kurt", { op: "paint", q: 3, r: -3, t: "lava" })).code, "bad-request");
+});
+
+/* ---------- pass 17: parties ---------- */
+test("parties (pass 17): a company forms, walks a hex at a time on its leader's say, and splits", async () => {
+  const g = game(); const brm = await brom(g), bera = await brom(g, "bob", "Bera"), ada = await brom(g, "ann", "Ada");
+  const ch = (id) => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  let m = await g.call("ann", { op: "map" });
+  assert.equal(m.parties.length, 3, "everyone in Langstead, each a party of one; Ann sees those in her hex");
+  assert.equal((await g.call("ann", { op: "party", ids: [brm] })).code, "forbidden", "nobody conscripts another's character");
+  let r = await g.call("bob", { op: "party", ids: [brm, bera] }); assert.equal(r.ok, true, r.error); assert.equal(r.party, brm);
+  r = await g.call("ann", { op: "party", ids: [ada], with: bera }); assert.equal(r.ok, true, r.error); assert.equal(r.party, brm, "she joins under their leader");
+  assert.equal(r.parties.length, 1); assert.deepEqual(r.parties[0].members.map((x) => x.name), ["Brom", "Bera", "Ada"]); assert.equal(r.parties[0].walks, false, "Ann doesn't lead it");
+  assert.equal((await g.call("ann", { op: "move", id: ada, path: [{ q: 1, r: -1 }] })).code, "forbidden", "the leader's player walks the party");
+  g.setDice(1);
+  r = await g.call("bob", { op: "move", id: bera, path: [{ q: 1, r: -1 }] }); assert.equal(r.ok, true, r.error);
+  assert.equal(r.day, 2); assert.equal(r.spent, 1); assert.equal(r.left, 2);
+  for (const id of [brm, bera, ada]) { assert.deepEqual(ch(id).hex, { q: 1, r: -1 }); assert.equal(ch(id).dayMoved, 1); assert.equal(ch(id).party, brm); assert.equal(ch(id).day, 2); }
+  r = await g.call("bob", { op: "move", id: brm, path: [{ q: 0, r: -1 }, { q: 1, r: -2 }] });
+  assert.equal(r.ok, true, r.error); assert.equal(r.day, 2, "the same day"); assert.equal(r.path.length, 2); assert.equal(r.left, 0);
+  assert.equal((await g.call("bob", { op: "move", id: brm, path: [{ q: 1, r: -1 }] })).code, "bad-request", "the day's march is done");
+  // Ann takes Ada her own way: the day she has walked goes with her
+  r = await g.call("ann", { op: "party", ids: [ada] }); assert.equal(r.ok, true, r.error); assert.equal(ch(ada).party, ada);
+  assert.equal(r.parties.find((x) => x.id === ada).left, 0);
+  assert.equal((await g.call("ann", { op: "move", id: ada, path: [{ q: 1, r: -1 }] })).code, "bad-request");
+  g.setDice(1); r = await g.call("ann", { op: "camp", id: ada }); assert.equal(r.ok, true, r.error); assert.equal(r.rested, false); assert.equal(ch(ada).daysWalked, 1);
+  assert.equal(ch(brm).dayMoved, 3, "the others have not camped yet");
+  g.setDice(1); r = await g.call("ann", { op: "move", id: ada, path: [{ q: 1, r: -1 }] }); assert.equal(r.ok, true, r.error); assert.equal(r.day, 3);
+  assert.equal((await g.call("ann", { op: "party", ids: [ada], with: brm })).code, "bad-request", "a party forms in one hex");
+  // the lead passes; a leader who dies is replaced by the eldest
+  assert.equal((await g.call("ann", { op: "lead", id: bera })).code, "forbidden");
+  r = await g.call("bob", { op: "lead", id: bera }); assert.equal(r.ok, true, r.error); assert.equal(ch(brm).party, bera);
+  g.store.docs.set(`oddCampaigns/c1/characters/${bera}`, { ...ch(bera), doing: "dead" });
+  r = await g.call("bob", { op: "parties" });
+  const left = r.parties.find((x) => x.members.some((y) => y.id === brm)); assert.equal(left.id, brm); assert.equal(left.members.length, 1);
+  assert.ok(chat(g.store, "referee").some((x) => /Ada joined Brom's party/.test(x.text)) && chat(g.store, "referee").some((x) => /Ada went his own way|Ada went/.test(x.text)));
+});
+
+test("parties: the walk stops where the day runs out; a path goes hex to hex; strangers elsewhere stay unseen", async () => {
+  const g = game(); const brm = await brom(g), ada = await brom(g, "ann", "Ada");
+  const ch = (id) => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  g.setDice(1);
+  assert.equal((await g.call("bob", { op: "move", id: brm, path: [{ q: 2, r: -2 }] })).code, "bad-request", "not a neighbour");
+  // NE (clear, 1), then N of that into what the map really holds: whatever it costs, the walk never overruns the day
+  const r = await g.call("bob", { op: "move", id: brm, path: [{ q: 1, r: -1 }, { q: 2, r: -2 }, { q: 3, r: -3 }, { q: 4, r: -4 }] });
+  assert.equal(r.ok, true, r.error); assert.ok(r.spent <= 3 && r.path.length < 4 && r.reason !== "arrived", JSON.stringify(r));
+  assert.equal(ch(brm).dayMoved, r.spent);
+  const seen = (await g.call("ann", { op: "parties" })).parties;
+  assert.equal(seen.length, 1, "Ann sees only her own: Brom is over the hill and not hers to see"); assert.equal(seen[0].id, ada);
+  assert.equal((await g.call("kurt", { op: "parties" })).parties.length, 2, "the referee sees every party");
+});
+
+test("parties: the leader takes the party into the village and out; an encounter is the whole party's, answered by its leader", async () => {
+  const g = game(); const brm = await brom(g), ada = await brom(g, "ann", "Ada");
+  const ch = (id) => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  await g.call("ann", { op: "party", ids: [ada], with: brm });
+  let r = await g.call("bob", { op: "enter", id: brm, place: "road" }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch(brm).doing, "road"); assert.equal(ch(ada).doing, "road", "the party goes with its leader");
+  r = await g.call("ann", { op: "enter", id: ada, place: "Langstead" }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch(ada).doing, "town"); assert.equal(ch(brm).doing, "road", "a member moves only himself");
+  g.setDice(1); r = await g.call("bob", { op: "move", id: brm, path: [{ q: 1, r: -1 }] }); assert.equal(r.ok, true, r.error);
+  g.setDice(...MEET); r = await g.call("bob", { op: "camp", id: brm }); assert.equal(r.encounter?.kind, "Goblins", r.error);
+  assert.equal(ch(ada).doing, "encounter"); assert.equal(ch(brm).doing, "encounter");
+  assert.equal((await g.call("ann", { op: "evade", id: ada })).code, "forbidden", "the leader answers for the party");
+  assert.equal((await g.call("ann", { op: "party", ids: [ada] })).code, "bad-request", "nobody slips off while an encounter waits");
+  r = await g.call("bob", { op: "stand", id: brm }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch(ada).encounter.choice, "stand");
+  r = await g.call("kurt", { op: "resolve", id: ada }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch(brm).doing, "road"); assert.equal(ch(ada).doing, "road", "resolved for the whole party");
 });

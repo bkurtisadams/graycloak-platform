@@ -33,6 +33,7 @@ export * from "./src/charge-morale.mjs";
 export * from "./src/exploration.mjs";
 export * as wilderness from "./src/wilderness.mjs";
 export * as westmark from "./src/westmark.mjs";
+export * as parties from "./src/parties.mjs";
 export * as underworld from "./src/underworld.mjs";
 export * as dungeonGen from "./src/dungeon-gen.mjs";
 export * as fightRunner from "./src/runner.mjs";

@@ -169,6 +169,11 @@ Changes made during extraction:
   hogs), giant weasel, carnivorous ape (white apes), giant scorpion, and
   fire, boring and bombardier beetles (fire and boring roll on Table 4).
   Only Thouls are still without data.
+- 0.39.0: parties (Kurt, Nov 2026: the Fellowship, one company that splits
+  and joins at any time). `parties`: a character carries `party` (his
+  leader's id) and `dayMoved`; `partiesOf`, `regroup`, `lead`, `mayWalk`.
+  `wilderness.reach` and `wilderness.walkPath` walk a day a hex at a time
+  within the day's factors (the first hex is always entered, as before).
 
 ## Open items
 
