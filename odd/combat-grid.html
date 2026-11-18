@@ -440,6 +440,12 @@ body.table.lobby #strip, body.table.lobby #subline, body.table.lobby #openSetup,
 .actionbar.mini .ab-status { flex: 0 0 auto; flex-direction: row; align-self: center; border-left: 1px solid #c9d8e2; padding-left: 10px; gap: 8px; }
 .actionbar.mini .ab-status .k { display: none; }
 .actionbar.mini .ab-status button { min-height: 32px; width: auto; padding: 4px 12px; }
+.ab-row { display: flex; align-items: flex-start; gap: 10px; }
+.ab-tile { flex: 0 0 auto; width: 52px; height: 52px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--type); font-size: 1.25rem; font-weight: 700; color: var(--card); background: var(--pencil); }
+.ab-tile.a { background: var(--side-a); } .ab-tile.b { background: var(--side-b); }
+.actionbar.mini .ab-tile { width: 28px; height: 28px; font-size: .8rem; }
+.actionbar.mini .ab-row { align-items: center; }
+@media (max-width: 700px) { .ab-tile { width: 40px; height: 40px; font-size: 1rem; } }
 .ab-who { display: flex; flex-direction: column; gap: 4px; min-width: 170px; max-width: 280px; }
 .ab-name { font-size: 1.05rem; font-weight: 700; }
 .ab-name.a { color: var(--side-a); } .ab-name.b { color: var(--side-b); }
@@ -3291,7 +3297,23 @@ function drawActionBar() {
   // On a phone the bar is a bottom sheet under the map; on a desktop it floats over the map's foot.
   const phone = window.matchMedia("(max-width: 700px)").matches;
   if (phone && el.parentElement === wrap) wrap.after(el); else if (!phone && el.parentElement !== wrap) wrap.appendChild(el);
-  if (!f || !f.placed) { el.hidden = true; return; }
+  if (!f || !f.placed) {
+    const idle = state.phase === "fight" && !document.body.classList.contains("lobby") && state.figures.some((g) => g.placed);
+    if (!idle) { el.hidden = true; return; }
+    el.hidden = false;
+    const mine = PLAYER ? state.figures.filter((g) => g.mine && g.placed) : [];
+    const why = waitReason({});
+    el.innerHTML = `
+    <div class="ab-row">
+      <span class="ab-tile none" aria-hidden="true">?</span>
+      <div class="ab-who"><span class="ab-name">No figure selected</span>
+        <span class="ab-sub">${mine.length ? "Pick one of yours, or click any figure on the map." : "Click a figure on the map or a Tracker row."}</span>
+        ${mine.length ? `<span class="ab-switch">${mine.map((g) => `<button type="button" data-pick="${g.id}" title="${esc(g.name)}">${esc(g.charId ? g.name : tokenLabel(g))}${needsReady(g) && !isReadyFig(g) ? " •" : ""}</button>`).join("")}</span>` : ""}</div>
+    </div>
+    <div class="ab-actions">${why ? `<span class="ab-k ab-hint">${esc(why)}</span>` : ""}</div>`;
+    el.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => { state.selected = Number(b.dataset.pick); ensureVisible(byId(state.selected)); render(); }));
+    return;
+  }
   el.hidden = false;
   const p = combatProfile(f); const t = f.target != null ? byId(f.target) : null;
   const full = f.kind === "pc" ? (CLASSES.find((c) => c.id === f.cls)?.label ?? "") : (mon(f)?.name ?? "");
@@ -3347,6 +3369,7 @@ function drawActionBar() {
   }
   el.innerHTML = `
     <div class="ab-row">
+      <span class="ab-tile ${f.side === "A" ? "a" : "b"}" aria-hidden="true">${esc(tokenLabel(f))}</span>
       <div class="ab-who">${switcher(f)}<span class="ab-name ${f.side === "A" ? "a" : "b"}">${online.on && state.phase !== "setup" ? `<a href="#" id="abCentre" title="Centre the map on ${esc(f.name)}" style="color:inherit;text-decoration:none">${esc(f.charId ? f.name : tokenLabel(f))} \u00b7 ${esc(full)}</a>` : `${esc(f.charId ? f.name : tokenLabel(f))} \u00b7 ${esc(full)}`}</span>
         ${PLAYER ? "" : `<span class="ab-sub">${f.kind === "pc" && f.level ? `level ${f.level} \u00b7 ` : ""}<span class="ab-term" role="button" tabindex="0" data-tip="fc" title="${esc(fcTip(p))}">${esc(p.fcLabel)}</span> \u00b7 ${p.profileAttack ? "natural attack" : esc((WEAPON_LABEL[p.weaponId] ?? "").toLowerCase())}${f.missile && f.mine !== false ? ` \u00b7 ${esc(MISSILE_LABEL[f.missile].toLowerCase())}${ms.ammoLeft(f) != null ? `, ${ms.ammoLeft(f)} ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][ms.ammoLeft(f) === 1 ? 0 : 1]}` : ""}` : ""} \u00b7 AC ${f.ac}</span>`}
         <div class="ab-hp ab-stats">${hp == null ? "" : `<div class="hpbar"><div style="width:${Math.round(frac * 100)}%;background:${frac > 0.5 ? "#4caf50" : frac > 0.25 ? "#e0a100" : "#e0453a"}"></div></div>${hpTxt ? `<span>${hpTxt} hp</span>` : ""}`}${PLAYER && ammo != null ? `<span>\u00b7 ${esc(ammo)}</span>` : ""}</div>
