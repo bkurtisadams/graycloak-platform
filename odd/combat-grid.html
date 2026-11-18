@@ -627,6 +627,18 @@ header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
 :root[data-theme="dark"] .ab-tipline { background: #24323f; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ab-tipline { background: #24323f; } }
 @media (min-width: 701px) and (pointer: coarse) { .ab-actions button, .ab-status button { min-height: 44px; } }
+.ab-tray { flex: 1 1 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+@container (min-width: 540px) { .ab-tray { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.ab-actions .ab-tray button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 0; min-height: 46px; padding: 3px 4px 2px; line-height: 1.15; }
+.ab-tray .sk { position: absolute; left: 5px; top: 2px; font-family: var(--type); font-size: .68rem; color: var(--pencil); }
+.ab-tray .sl { font-weight: 600; font-size: .8rem; }
+.ab-tray .ss { font-size: .7rem; color: var(--pencil); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ab-tray button.on .sk, .ab-tray button.on .ss { color: inherit; }
+.ab-actions .ab-tray button:disabled { border-style: dashed; border-color: #8a96a1; background: var(--paper) !important; color: var(--pencil) !important; opacity: 1; cursor: default; }
+.ab-actions .ab-tray button.open { border-width: 2px; }
+.ab-spells { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 4px; }
+@media (min-width: 701px) { .ab-actions:has(.ab-tray) { flex: 1 1 300px; min-width: 0; max-width: 580px; container-type: inline-size; } }
+@media (max-width: 700px) { .ab-tray, .ab-spells { grid-column: 1 / -1; } .ab-tray { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 /* Player's page (?player): the fight panel replaces setup; referee tools are hidden. */
 body.player-mode [data-pane="setup"] > :not(#playerPane):not(.pkeep) { display: none !important; }
 body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:not(.online-fight):not(.table) #chatForm, body.player-mode #chips { display: none !important; }
@@ -2447,7 +2459,7 @@ function waitReason(f) {
   return "";
 }
 /** The card's small explanations, opened by a tap or a click on a dotted term (one open at a time). */
-let abTip = null;
+let abTip = null, abCast = null;
 function fcTip(p) {
   if (p.profileAttack) return `${p.fcLabel}: attacks with its natural weapons, one die per hit die on the monster table.`;
   return `Fights as ${p.fcLabel} (Men & Magic, Fighting Capability): ${p.dice} ${p.dice === 1 ? "die" : "dice"} in melee${p.bonus ? `, +${p.bonus} to hit${p.dice > 1 ? " on one of them" : ""}` : ""}.`;
@@ -3328,12 +3340,21 @@ function drawActionBar() {
   const acts = []; let hint = "", cap = fight && state.step === "orders" ? "Declare this round's order: everyone's fire, spells and melee resolve together once all are confirmed." : "";
   if (fight && state.step === "orders") {
     // Orders (Kurt, Oct 2026): only what is declared here; the movement buttons belong to the move steps
-    if (f.missile && ms.ammoLeft(f) !== 0) acts.push(btn("fire", `Fire ${MISSILE_LABEL[f.missile].toLowerCase()}${t && f.action === "fire" ? ` \u2192 ${tokenLabel(t)}` : ""}`, f.action === "fire"));
-    acts.push(btn("melee", t && f.action === "melee" && f.stance !== "parry" ? `Melee \u2192 ${tokenLabel(t)}` : "Melee", f.action === "melee" && f.stance !== "parry"));
-    if (f.kind === "pc") for (const sp of combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered)) acts.push(btn(`cast:${sp.id}`, `Cast ${sp.name}`, f.action === `cast:${sp.id}`));
-    if (!p.profileAttack) acts.push(btn("parry", "Parry", f.action === "melee" && f.stance === "parry"));
-    if (f.missile && f.kind === "pc") acts.push(btn("passthrough", "Pass-through", f.action === "passthrough", "", PASS_TIP));
-    acts.push(btn("hold", "Hold", f.action === "hold", "quiet"));
+    const spells = f.kind === "pc" ? combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered) : [];
+    const casting = (f.action ?? "").startsWith("cast:") ? spells.find((x) => x.id === f.action.slice(5)) : null;
+    const wpn = p.profileAttack ? "natural attack" : (WEAPON_LABEL[p.weaponId] ?? "").toLowerCase();
+    const noShot = !f.missile ? "no missile" : ms.ammoLeft(f) === 0 ? `out of ${ms.AMMO_NAME[ms.AMMO_TYPE[f.missile]][1]}` : "";
+    const arrow = t ? `→ ${tokenLabel(t)}` : "", melee = f.action === "melee" && f.stance !== "parry";
+    const slot = (n, id, label, sub, on, dead, title = "") => `<button data-act="${id}" data-slot="${n}" class="${on === "open" ? "open" : on ? "on" : ""}"${dead ? " disabled" : ""}${title ? ` title="${esc(title)}"` : ""}><span class="sk">${n}</span><span class="sl">${esc(label)}</span><span class="ss">${esc(dead || sub)}</span></button>`;
+    acts.push(`<div class="ab-tray">${[
+      slot(1, "fire", "Fire", f.action === "fire" && arrow ? arrow : f.missile ? MISSILE_LABEL[f.missile].toLowerCase() : "", f.action === "fire", noShot),
+      slot(2, "melee", "Melee", melee && arrow ? arrow : wpn, melee, ""),
+      slot(3, spells.length === 1 ? `cast:${spells[0].id}` : "castmenu", "Cast", casting ? casting.name : spells.length === 1 ? spells[0].name : `${spells.length} spells`, casting ? true : abCast === f.id ? "open" : false, spells.length ? "" : "no spells"),
+      slot(4, "parry", "Parry", wpn, f.action === "melee" && f.stance === "parry", p.profileAttack ? "no weapon" : ""),
+      slot(5, "passthrough", "Pass-through", "hold fire", f.action === "passthrough", noShot || (f.kind !== "pc" ? "characters only" : ""), PASS_TIP),
+      slot(6, "hold", "Hold", "no attack", f.action === "hold", ""),
+    ].join("")}</div>`);
+    if (abCast === f.id && spells.length > 1) acts.push(`<div class="ab-spells">${spells.map((sp) => btn(`cast:${sp.id}`, sp.name, f.action === `cast:${sp.id}`)).join("")}</div>`);
   } else if (fight) {
     // Phase-driven card (Kurt, Oct 2026): each step shows only what can be done in it. Fire, spells,
     // melee, parry and hold are declared in Orders; the move steps keep movement; pass-through fire
@@ -3396,6 +3417,8 @@ function drawActionBar() {
   el.querySelectorAll("[data-tip]").forEach((t) => { const go = () => { abTip = abTip === t.dataset.tip ? null : t.dataset.tip; drawActionBar(); }; t.onclick = go; t.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } }; });
   el.querySelectorAll("[data-act]").forEach((b) => (b.onclick = () => {
     const a = b.dataset.act;
+    if (a === "castmenu") { abCast = abCast === f.id ? null : f.id; renderActionBar(); return; }
+    abCast = null;
     if (a === "melee") order(f, { action: "melee", stance: "attack" });
     else if (a === "parry") order(f, { action: "melee", stance: "parry" });
     else if (a === "hold") order(f, { action: "hold" });
@@ -3927,6 +3950,7 @@ $("#map").addEventListener("mouseleave", () => { state.hover = null; renderOverl
 document.addEventListener("keydown", (e) => {
   if (e.target.matches?.("input, select")) return;
   if (state.cast && e.key === "Escape") { exitCast("Casting cancelled."); return; }
+  if (/^[1-6]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !state.cast) { const b = document.querySelector(`#actionbar [data-slot="${e.key}"]`); if (b) { e.preventDefault(); if (!b.disabled) b.click(); return; } }
   if (state.cast && e.key === "Enter") { confirmCast(); return; }
   if (e.key === "Escape") { state.selected = null; state.group = new Set(); hideCtx(); if (state.measure.on) toggleMeasure(false); render(); }
   if (e.key === "m" || e.key === "M") toggleMeasure();
