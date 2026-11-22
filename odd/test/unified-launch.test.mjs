@@ -64,7 +64,9 @@ test("a character underground is shown the level, and the party at the ruin can 
   assert.match(body("renderLobbyStage"), /if \(lobby\.view\?\.delve\) \{ renderDelveStage\(el, g, uid\); return; \}/);
   assert.match(body("openWorld"), /if \(c\?\.under\) \{ openDelve\(c\.under\.lid, id\); return; \}/);
   assert.match(body("defaultScene"), /if \(pick\?\.under\)/);
-  assert.match(body("partyBarHtml"), /id="pbDown"/);
+  assert.match(body("partyBarHtml"), /id="pbEnter"/);
+  assert.match(body("sceneAt"), /kind: "dungeon"[\s\S]*kind: "village"/, "a hex's scene: an open dungeon level, or a settlement");
+  assert.match(body("villageMapHtml"), /id="wLeaveScene"/, "a town scene is left by its Leave button");
 });
 
 test("a fight's viewer is the player himself or the referee", () => {

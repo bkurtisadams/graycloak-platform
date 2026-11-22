@@ -412,7 +412,12 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .vgscene:has(.ps-strip) .vgbox { bottom: 90px; }
 .lobbystage .vgscene .vgbox .w-map.village { position: relative; inset: auto; width: min(100cqw, calc(100cqh * 860 / 680)); height: auto; aspect-ratio: 860 / 680; flex: none; border: 1px solid #1f2b38; }
 .lobbystage .vgscene .w-crumb { z-index: 3; }
-.lobbystage .w-me[data-w-open] { cursor: pointer; }
+.lobbystage .w-me[data-w-open], .lobbystage .w-me[data-w-tok] { cursor: pointer; }
+.lobbystage .w-me[data-w-tok] { width: 34px; height: 34px; font-size: 13px; touch-action: none; user-select: none; }
+.lobbystage .w-me.can { cursor: grab; } .lobbystage .w-me.drag { cursor: grabbing; z-index: 6; box-shadow: 0 0 0 2px rgba(0,0,0,.3), 0 6px 12px rgba(0,0,0,.4); }
+.lobbystage .w-me.mine { outline: 3px solid #f5d78a; outline-offset: 2px; }
+.lobbystage .w-me i { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; font: 700 11px var(--type); font-style: normal; color: #1f2b38; background: rgba(251,253,254,.92); border-radius: 3px; padding: 0 5px; white-space: nowrap; pointer-events: none; }
+.lobbystage .vg-leave { position: absolute; top: 10px; right: 10px; z-index: 5; min-height: 40px; padding: 4px 16px; border: 1px solid #1f2b38; border-radius: 6px; background: #1f2b38 !important; color: #fbfdfe !important; font-weight: 600; font-size: .92rem; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
 .lobbystage .w-toast { position: absolute; left: 12px; bottom: 104px; max-width: min(560px, calc(100% - 380px)); z-index: 4; background: var(--card); color: var(--ink); border: 1px solid #d9a85a; border-radius: 4px; padding: 6px 12px; font-size: .9rem; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
 .lobbystage .w-toast.bad { border-color: var(--red); color: var(--red); }
 .lobbystage .ps-dock { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; align-items: center; gap: 12px; padding: 8px 12px; min-height: 44px; background: var(--card); border-top: 1px solid #9fb2c0; }
@@ -1739,8 +1744,7 @@ function villageHtml(c, uid) {
   if (!c) return villageLookHtml(placeName, place, here, uid);
   const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
   const markers = spots.map(([k, sp]) => `<div class="w-marker${v.at === k ? " on" : ""}" data-w-spot="${k}" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
-  const me = VILLAGE_SPOTS[v.at ?? "inn"] ?? VILLAGE_SPOTS.inn;
-  const counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me${x.id === c?.id ? " mine" : ""}" ${x.id === c?.id ? "" : `data-w-open="${esc(x.id)}" `}title="${esc(x.name)}${x.id === c?.id ? "" : ": act for him"}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
+  const counters = villageTokensHtml(here, c, uid);
   let card = "";
   if (v.at === "inn") {
     const need = Math.max(0, (c.maxHp ?? 0) - (c.hp ?? 0)), toHeal = need ? need * 2 + 1 : 0;
@@ -1749,28 +1753,34 @@ function villageHtml(c, uid) {
         <div class="row"><select id="wRestDays"><option value="1">a day</option><option value="3">3 days</option><option value="7">a week</option>${need ? `<option value="${toHeal}" selected>until healed (${toHeal} days)</option>` : ""}</select><button id="wRest" ${world.busy ? "disabled" : ""}>Rest</button></div></div>
       <div class="w-act"><h4>Hear the talk</h4><div class="note">Buy a round (10\u201360 gp) and slip the barman a coin (1\u201310 gp): one rumour from the referee's list, true or not. What you hear goes to your chat.</div><div class="row"><button class="done" id="wRumour" ${world.busy || (c.coins?.gp ?? 0) < 11 ? "disabled" : ""}>Buy a round</button><span class="note">${(c.coins?.gp ?? 0) < 11 ? "not enough gold for a round" : "costs 1d6 \u00d7 10 + 1d10 gp"}</span></div></div>
       <div class="w-act"><h4>Hire</h4><div class="note">Post a notice or send servitors round: 100\u2013600 gp a week. Comes with the hirelings pass.</div><div class="row"><button disabled>Post a notice</button></div></div>
-      <div class="row" style="justify-content:flex-end"><button id="wLeave">Leave</button></div>`;
+      <div class="row" style="justify-content:flex-end"><button id="wLeave">Step outside</button></div>`;
   } else if (v.at === "market") {
     const rows = rs.SHOP.map((e) => { const why = rs.buyProblem(c, e.key, { town: true }) ?? ""; return `<tr${why ? ' class="no"' : ""} title="${esc(why)}"><td>${esc(e.name)}</td><td class="num">${e.system?.weight ?? 0}</td><td class="num">${e.cost} gp</td><td class="act"><button data-w-buy="${e.key}" ${why || world.busy ? "disabled" : ""}>Buy</button></td></tr>`; }).join("");
     const carried = (c.items ?? []).map((it, i) => { const e = rs.EQUIPMENT_BY_KEY?.[it.key] ?? rs.SHOP.find((x) => x.key === it.key); return e ? `<div class="rs-cart"><span>${esc(e.name)}${it.qty > 1 ? ` \u00d7${it.qty}` : ""}</span><span class="num">${Math.floor(e.cost / 2)} gp <button data-w-sell="${i}" ${world.busy ? "disabled" : ""}>sell</button></span></div>` : ""; }).join("");
     const sh = rs.sheetFor(c);
     card = `<h3>Market <small>${esc(c.where ?? world.home)}</small></h3><div class="note">Stalls on the green, market days and most others. Buy at Book I's prices; the traders give half for what you sell (ruling). ${c.coins?.gp ?? 0} gp \u00b7 carrying ${sh.load} (${sh.move}\u2033 move)</div>
       <div class="w-shop"><div><h4>What he carries</h4><div class="rs-carts">${carried || `<div class="note">Nothing.</div>`}</div></div><div><h4>For sale</h4><div class="rs-shoplist" style="max-height:300px"><table><thead><tr><th>Item</th><th class="num">Weight</th><th class="num">Cost</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div></div>
-      <div class="row" style="justify-content:flex-end"><button id="wLeave">Leave</button></div>`;
+      <div class="row" style="justify-content:flex-end"><button id="wLeave">Step outside</button></div>`;
   }
   return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${c.day ?? table.game?.day ?? 1}`) + (card ? `<div class="w-card">${card}</div>` : "");
 }
 /** The art, locked to its own shape and centred on the stage, with the pins and tokens over it. */
 function villageMapHtml(placeName, place, markers, counters, crumb) {
-  return `<div class="vgbox"><div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb">${crumb}${!PLAYER ? ` \u00b7 <a href="#" id="wAll">the referee's map</a>` : ""}</div></div></div>`;
+  return `<div class="vgbox"><div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb">${crumb} \u00b7 drag a token to move it; onto a pin to go in</div><button type="button" class="vg-leave" id="wLeaveScene" title="${lobby.view?.id ? `Out of ${esc(placeName)}, onto the kingdom map` : "Back to the kingdom map"}">Leave ${esc(placeName)}</button></div></div>`;
+}
+/** The tokens in a settlement: each where its player last put it (a fresh arrival stands by the inn). */
+function villageTokensHtml(here, c, uid) {
+  return here.map((x, i) => {
+    const p = table.game.people?.[x.owner] ?? {}, at = x.spot ?? { x: VILLAGE_SPOTS.inn.x - 34 - i * 30, y: VILLAGE_SPOTS.inn.y + 44 }, can = !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER;
+    return `<div class="w-me${x.id === c?.id ? " mine" : ""}${can ? " can" : ""}" data-w-tok="${esc(x.id)}" title="${esc(x.name)}${can ? ": drag to move him; onto a pin to go in" : ""}" style="left:${at.x / 8.6}%;top:${at.y / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}"><span>${esc((x.name ?? "?").slice(0, 2))}</span><i>${esc(x.name ?? "")}</i></div>`;
+  }).join("");
 }
 /** The referee looking into a settlement with no character: the map, who is there, and a way to walk any of them. */
 function villageLookHtml(placeName, place, here, uid) {
   const v = lobby.view;
   const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
   const markers = spots.map(([k, sp]) => `<div class="w-marker" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
-  const me = VILLAGE_SPOTS.inn;
-  const c = null, counters = here.map((x, i) => { const p = table.game.people?.[x.owner] ?? {}; return `<div class="w-me${x.id === c?.id ? " mine" : ""}" ${x.id === c?.id ? "" : `data-w-open="${esc(x.id)}" `}title="${esc(x.name)}${x.id === c?.id ? "" : ": act for him"}" style="left:${(me.x - 30 - i * 24) / 8.6}%;top:${(me.y + 38) / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}">${esc((x.name ?? "?")[0])}</div>`; }).join("");
+  const counters = villageTokensHtml(here, null, uid);
   return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 the referee looking in`);
 }
 const VILLAGE_SVG = `<defs><pattern id="vg" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#7d9060" stroke-width=".7"/></pattern></defs><rect width="860" height="680" fill="#8fa36b"/><rect width="860" height="680" fill="url(#vg)"/>
@@ -1782,12 +1792,43 @@ const VILLAGE_SVG = `<defs><pattern id="vg" width="40" height="40" patternUnits=
 <g fill="#4f6b3a"><circle cx="90" cy="120" r="26"/><circle cx="130" cy="160" r="22"/><circle cx="60" cy="200" r="20"/><circle cx="760" cy="420" r="30"/><circle cx="800" cy="470" r="22"/><circle cx="720" cy="470" r="18"/></g>
 <text x="20" y="640" font-family="Courier Prime, monospace" font-size="12" fill="#2b3b4a">the ford \u00b7 the river</text><text x="700" y="80" font-family="Courier Prime, monospace" font-size="12" fill="#2b3b4a">north-east \u00b7 the track to Fosscraig</text><text x="30" y="110" font-family="Courier Prime, monospace" font-size="12" fill="#1f2b38">west \u00b7 Kingwold</text>
 <line x1="40" y1="660" x2="120" y2="660" stroke="#1f2b38" stroke-width="2"/><text x="124" y="664" font-family="Courier Prime, monospace" font-size="11" fill="#1f2b38">2\u2033 = 20 yards</text>`;
+/** Out of the settlement: the viewer's own characters there leave together as one party, onto the kingdom map. */
+async function leaveScene(c, uid) {
+  if (!c) { openWorld(null); return; }
+  const place = c.where ?? world.home, mine = table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === place && x.owner === c.owner && x.id !== c.id && (!PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER));
+  if (mine.length && !confirm(`${c.name} leaves ${place} with ${mine.map((x) => x.name).join(" and ")}?\n\nOK: they go together as one party. Cancel: nobody leaves.`)) return;
+  if (mine.length) { const j = await worldOp("party", { ids: mine.map((x) => x.id), with: c.id }); if (!j.ok) return; }
+  const r = await worldOp("enter", { id: c.id, place: "road" });
+  if (r.ok) { world.vb = null; world.msg = `Out of ${place}. Drag the party\u2019s token to a lit hex to travel.`; lobby.view = { id: c.id, at: null, dest: null, who: null }; refreshParties(); renderLobbyStage(); }
+}
 function bindVillage(el, c, uid) {
-  el.querySelectorAll("[data-w-open]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.wOpen)));
+  $("#wLeaveScene")?.addEventListener("click", () => leaveScene(c, uid));
+  // tokens: a click picks the character to act for; a drag stands him somewhere, and onto a pin takes him in
+  const map = el.querySelector(".w-map.village");
+  el.querySelectorAll("[data-w-tok]").forEach((t) => {
+    const id = t.dataset.wTok, can = t.classList.contains("can");
+    t.addEventListener("pointerdown", (ev) => {
+      if (ev.button !== 0) return; ev.preventDefault();
+      const x0 = ev.clientX, y0 = ev.clientY, box = map.getBoundingClientRect(); let drag = false;
+      const at = (m) => ({ x: Math.max(12, Math.min(848, ((m.clientX - box.left) / box.width) * 860)), y: Math.max(12, Math.min(668, ((m.clientY - box.top) / box.height) * 680)) });
+      const move = (m) => { if (!drag && Math.hypot(m.clientX - x0, m.clientY - y0) < 6) return; if (!can) return; drag = true; t.classList.add("drag"); const q = at(m); t.style.left = `${q.x / 8.6}%`; t.style.top = `${q.y / 6.8}%`; };
+      const up = async (u) => {
+        window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+        if (!drag) { if (id !== c?.id) openWorld(id); return; }
+        const q = at(u), place = world.places[lobby.view.place ?? charOf(id)?.where ?? world.home] ?? {};
+        const pin = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]).find(([, sp]) => Math.hypot(sp.x - q.x, sp.y - 16 - q.y) < 46)?.[0] ?? null;
+        const ch = charOf(id); if (ch) ch.spot = { x: Math.round(q.x), y: Math.round(q.y) };
+        online.api.world("spot", table.cid, { id, x: q.x, y: q.y });
+        if (pin === "road") { lobby.view = { id, at: null, dest: null, who: null }; await leaveScene(charOf(id), uid); if (charOf(id)?.doing === "town") renderLobbyStage(); return; }
+        lobby.lastChar = id; lobby.view = { id, at: pin, dest: null, who: null }; renderLobbyStage();
+      };
+      window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+    });
+  });
   if (!c) return;
   el.querySelectorAll("[data-w-spot]").forEach((b) => b.addEventListener("click", async () => {
     const k = b.dataset.wSpot;
-    if (k === "road") { const r = await worldOp("enter", { id: c.id, place: "road" }); if (r.ok) { lobby.view = { id: c.id, at: null, dest: null, who: null }; renderLobbyStage(); } return; }
+    if (k === "road") { await leaveScene(c, uid); return; }
     lobby.view.at = k; renderLobbyStage();
   }));
   $("#wLeave")?.addEventListener("click", () => { lobby.view.at = null; renderLobbyStage(); });
@@ -1822,18 +1863,56 @@ function hexMapHtml(c, uid) {
   const sp = c ? partyFor(c.id) : null, rc = reachOf(sp);
   const lit = rc ? Object.keys(rc.hexes).map((k) => `<polygon points="${wmap.polyOf(k, SZ)}" fill="rgba(245,215,138,.2)" stroke="#e0a400" stroke-width="2"/>`).join("") : "";
   const byHex = {}; for (const pt of world.parties ?? []) { const k = wl.key(pt.hex.q, pt.hex.r); if (H[k]) (byHex[k] ??= []).push(pt); }
+  const ts = tokenScale();
   const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((pt, i) => {
-    const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), lead = pt.members[0], col = table.game.people?.[lead.owner]?.color ?? "#2f5c8a", cx = px - 16 + i * 22, cy = py - 16, on = sp?.id === pt.id;
+    const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), lead = pt.members[0], col = table.game.people?.[lead.owner]?.color ?? "#2f5c8a", on = sp?.id === pt.id;
+    const ox = (H[k].place ? -20 : 0) + i * 30, oy = H[k].place ? -18 : 0, cx = px + ox * ts, cy = py + oy * ts; // offsets grow with the token, so it never sits on the place's name
     const open = pt.members.find((m) => m.mine && charOf(m.id)) ?? pt.members.find((m) => charOf(m.id));
-    const names = pt.members.map((m) => m.name).join(", ");
-    return `<g${open ? ` data-w-party="${esc(open.id)}" style="cursor:pointer" role="button" aria-label="Select ${esc(names)}"` : ""}><title>${esc(names)}${pt.members.length > 1 ? ` \u00b7 ${esc(lead.name)} leads` : ""}${pt.encounter ? " \u00b7 an encounter waits" : ""}</title>${on ? `<circle cx="${cx}" cy="${cy}" r="16" fill="none" stroke="#b3362b" stroke-width="3"/>` : ""}<circle cx="${cx}" cy="${cy}" r="12" fill="${esc(col)}" stroke="#fbfdfe" stroke-width="2"/><text x="${cx}" y="${cy + 4}" font-size="12" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${pt.members.length > 1 ? pt.members.length : esc((lead.name ?? "?")[0])}</text></g>`; })).join("");
-  const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wSheet">${sheet}</g><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${realms}<g id="wReach" pointer-events="none">${lit}</g>${places}<g id="wPlan" pointer-events="none"></g>${counters}</svg>`;
+    const names = pt.members.map((m) => m.name).join(", "), label = pt.members.length > 1 ? `${lead.name} +${pt.members.length - 1}` : lead.name ?? "?";
+    const tip = `${names}${pt.members.length > 1 ? ` · ${lead.name} leads` : ""}${pt.encounter ? " · an encounter waits" : ""}${pt.walks ? " · drag to a lit hex to move" : ""}`;
+    return `<g class="w-pt${on ? " on" : ""}" data-bx="${px}" data-by="${py}" data-ox="${ox}" data-oy="${oy}" data-pt="${esc(pt.id)}" transform="translate(${cx} ${cy}) scale(${ts})"${open ? ` data-w-party="${esc(open.id)}" role="button" aria-label="${esc(names)}: the party"` : ""} style="cursor:${pt.walks ? "grab" : "pointer"}"><title>${esc(tip)}</title>
+      ${on ? `<circle r="22" fill="rgba(245,215,138,.35)" stroke="#b3362b" stroke-width="3"/>` : ""}<ellipse cx="0" cy="15" rx="12" ry="4" fill="rgba(0,0,0,.3)"/>
+      <circle r="15" fill="${esc(col)}" stroke="#1f2b38" stroke-width="4"/><circle r="15" fill="${esc(col)}" stroke="#fbfdfe" stroke-width="2.5"/>
+      <text y="5" font-size="15" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${pt.members.length > 1 ? pt.members.length : esc((lead.name ?? "?")[0])}</text>
+      <text y="31" font-size="11" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3.5" paint-order="stroke" pointer-events="none">${esc(label)}</text></g>`; })).join("");
+  // a scene on the selected party's hex: the way in, as a button on the map
+  const hereK = sp ? wl.key(sp.hex.q, sp.hex.r) : null, hereH = hereK ? H[hereK] : null, into = sp?.walks && !sp.encounter && hereH?.place ? sceneAt(hereH.place) : null;
+  const enter = into ? (() => { const { x, y } = wl.toPixel(sp.hex, SZ), w = into.label.length * 7.4 + 22; return `<g class="w-pt w-enter" data-bx="${x}" data-by="${y + 26}" data-ox="0" data-oy="24" transform="translate(${x} ${y + 26 + 24 * ts}) scale(${ts})" data-w-enter="${esc(into.kind)}" role="button" aria-label="${esc(into.label)}" style="cursor:pointer"><title>${esc(into.tip)}</title><rect x="${-w / 2}" y="-11" width="${w}" height="22" rx="11" fill="#1f2b38" stroke="#fbfdfe" stroke-width="2"/><text y="4" font-size="12" font-weight="700" text-anchor="middle" font-family="Source Serif 4, Georgia, serif" fill="#fbfdfe">${esc(into.label)}</text></g>`; })() : "";
+  const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wSheet">${sheet}</g><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${realms}<g id="wReach" pointer-events="none">${lit}</g><g pointer-events="none">${places}</g><g id="wPlan" pointer-events="none"></g>${enter}${counters}</svg>`;
   const key = world.showKey ? wmap.legendHtml({ full: world.full && !asPlayers }) : "";
   const toggle = world.full && world.known ? ` \u00b7 <label class="w-asplayers"><input type="checkbox" id="wAsPlayers" ${asPlayers ? "checked" : ""}> as the players see it</label>` : "";
   const waiting = sp?.encounter ? sp.members.map((m) => charOf(m.id)).find((x) => x?.doing === "encounter") : null;
   const card = (waiting ? encounterPromptHtml(waiting, uid, world.hexes[hexKeyOf(waiting)] ?? { t: "clear" }) : "") + (PLAYER ? "" : `${waiting ? `<div class="w-act"></div>` : ""}${refereeMapCard(uid)}${hexPanelHtml(c, uid)}`);
   return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">Day ${table.game?.day ?? 1} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
 }
+/** A party's token keeps its size on screen: drawn larger as the map is zoomed out to the whole kingdom. */
+const tokenScale = () => Math.max(1, Math.min(4, (world.vb?.w ?? 1040) / 1040));
+/** The scene a place on the kingdom map leads into, for a party standing on its hex: a settlement, or an open dungeon level. */
+function sceneAt(place) {
+  const pl = world.places[place] ?? {}, lvl = Object.entries(world.dungeons ?? {}).find(([, d]) => d.place === place && d.status === "open");
+  if (lvl) return { kind: "dungeon", lid: lvl[0], label: "Enter the dungeon", tip: `Down the stairs into ${lvl[1].name}` };
+  if (["village", "town", "city"].includes(pl.kind)) return { kind: "village", place, label: `Enter ${place}`, tip: `Into ${place}` };
+  return null;
+}
+/** The selected party goes into the scene on its hex. */
+async function enterSceneHere(sp) {
+  const h = world.hexes[wl.key(sp.hex.q, sp.hex.r)], into = h?.place ? sceneAt(h.place) : null, mine = sp.members.find((m) => m.mine)?.id ?? sp.id;
+  if (!into || world.busy) return;
+  if (into.kind === "dungeon") {
+    const r = await worldOp("delveEnter", { lid: into.lid, id: sp.id });
+    if (r.ok) { Object.assign(delve, { lid: into.lid, view: r.delve, vb: null, userVb: false, error: "", msg: "Down the stairs. The air is cold." }); lobby.view = { delve: into.lid, id: mine }; refreshParties(); renderLobbyStage(); }
+    return;
+  }
+  const r = await worldOp("enter", { id: sp.id, place: into.place });
+  if (r.ok) { lobby.view = { id: mine, at: null, dest: null, who: null }; renderLobbyStage(); }
+}
+/** The party walks a path the reach gave: the server counts the day's factors and rolls what the road brings. */
+async function walkParty(sp, want) {
+  const r = await worldOp("move", { id: sp.id, path: want });
+  if (r.ok) { world.msg = r.lost ? `Day ${r.day}. Lost! The party wandered ${r.path.map((x) => x.t).join(", ")} and the day is gone.` : r.path.length < want.length ? `Harder going than it looked: the party stopped short${r.left ? "" : ", the day gone"}.` : r.place ? `The party reached ${r.place}.` : ""; renderLobbyStage(); }
+  return r;
+}
+let hexDragAt = 0;
 /* ---------- pass 17 (Nov 2026): parties. The party is the counter on the map; it walks where it is sent, the day's factors counted ---------- */
 const partyFor = (id) => (world.parties ?? []).find((pt) => pt.members.some((m) => m.id === id)) ?? null;
 let partiesTimer = null;
@@ -1860,7 +1939,7 @@ function renderHexScene(el, c, uid) {
 }
 /** The dock under the map: the selected party's members, the parties standing with it, the day, and Camp. */
 function partyBarHtml(uid, sp, c) {
-  if (!sp) return `<div class="ps-dock"><span class="note">${PLAYER ? "Set out with one of your characters from the Actors tab, or click your party on the map." : "Click a party on the map to walk it."}</span></div>`;
+  if (!sp) return `<div class="ps-dock"><span class="note">${PLAYER ? "Your characters are in town: leave the scene there to come out onto the map." : (world.parties ?? []).length ? "Drag a party\u2019s token to a lit hex to move it, or click it to select it." : "No party is on the road. A party comes onto this map when it leaves its town scene."}</span></div>`;
   const multi = sp.members.length > 1, leadMine = sp.members[0].mine, free = !sp.encounter && !world.busy;
   const chips = sp.members.map((m, i) => {
     const x = charOf(m.id), p = table.game?.people?.[m.owner] ?? {}, hp = x?.hp ?? m.hp, max = x?.maxHp ?? m.maxHp;
@@ -1873,10 +1952,10 @@ function partyBarHtml(uid, sp, c) {
   const others = near.map((pt) => `<div class="pb-other"><span>${esc(pt.members.map((m) => m.name).join(", "))}</span><button data-pb-join="${esc(pt.id)}" ${mine.length && free && !pt.encounter ? "" : "disabled"} title="${mine.length === sp.members.length ? "The party joins them" : "Yours join them"}, under ${esc(pt.members[0].name)}">Join</button></div>`).join("");
   const hexHere = world.hexes[wl.key(sp.hex.q, sp.hex.r)] ?? {};
   const line1 = sp.encounter ? `Day ${sp.day}` : sp.spent > 0 ? `Day ${sp.day} \u00b7 ${sp.spent} of ${sp.allowance} moved` : `Day ${sp.day + 1} \u00b7 ${sp.allowance} to move`;
-  const line2 = sp.encounter ? "an encounter waits" : !sp.walks ? `${esc(sp.members[0].name)} leads: his player walks the party` : sp.spent === 0 && sp.mustRest ? "the party must rest a day first" : sp.left > 0 ? "click a lit hex to walk there" : "the day's march is done";
+  const line2 = sp.encounter ? "an encounter waits" : !sp.walks ? `${esc(sp.members[0].name)} leads: his player walks the party` : sp.spent === 0 && sp.mustRest ? "the party must rest a day first" : sp.left > 0 ? "drag the party, or click a lit hex, to walk there" : "the day's march is done";
   const camp = `<button class="done" id="pbCamp" ${sp.walks && free ? "" : "disabled"} title="${sp.spent > 0 ? "End the day here: the night's check for wandering monsters" : "A full day's rest here: two checks for wandering monsters"}">${sp.spent > 0 ? "Make camp" : "Rest a day"}</button>`;
-  const lvl = Object.entries(world.dungeons ?? {}).find(([, d]) => d.place === hexHere.place && d.status === "open");
-  const down = lvl && hexHere.place ? `<button class="done" id="pbDown" data-lid="${esc(lvl[0])}" ${sp.walks && free ? "" : "disabled"} title="Down the stairs into ${esc(lvl[1].name)}">Go down</button>` : "";
+  const into = hexHere.place ? sceneAt(hexHere.place) : null;
+  const down = into ? `<button class="done" id="pbEnter" ${sp.walks && free ? "" : "disabled"} title="${esc(into.tip)}">${esc(into.label)}</button>` : "";
   return `<div class="ps-dock"><div class="pb-scroll"><div class="pb-party">${chips}</div>${others ? `<div class="pb-near"><span class="pb-k">ALSO IN ${esc(hexNo(wl.key(sp.hex.q, sp.hex.r)))}</span>${others}</div>` : ""}</div><div class="pb-day"><b>${line1}</b><span>${line2}${hexHere.place ? ` \u00b7 at ${esc(hexHere.place)}` : ""}</span></div>${down}${camp}</div>`;
 }
 function bindPartyBar(el, sp) {
@@ -1885,10 +1964,7 @@ function bindPartyBar(el, sp) {
   el.querySelectorAll("[data-pb-leave]").forEach((b) => b.addEventListener("click", stop(async (t) => { const id = t.dataset.pbLeave, r = await worldOp("party", { ids: [id] }); if (r.ok && lobby.view) { world.msg = `${charOf(id)?.name ?? "He"} goes his own way.`; renderLobbyStage(); } })));
   el.querySelectorAll("[data-pb-lead]").forEach((b) => b.addEventListener("click", stop((t) => worldOp("lead", { id: t.dataset.pbLead }))));
   el.querySelectorAll("[data-pb-join]").forEach((b) => b.addEventListener("click", stop(async (t) => { const r = await worldOp("party", { ids: sp.members.filter((m) => m.mine).map((m) => m.id), with: t.dataset.pbJoin }); if (r.ok) { world.msg = ""; renderLobbyStage(); } })));
-  $("#pbDown")?.addEventListener("click", async (ev) => {
-    const lid = ev.currentTarget.dataset.lid, mine = sp.members.find((m) => m.mine)?.id ?? sp.id, r = await worldOp("delveEnter", { lid, id: sp.id });
-    if (r.ok) { Object.assign(delve, { lid, view: r.delve, vb: null, userVb: false, error: "", msg: "Down the stairs. The air is cold." }); lobby.view = { delve: lid, id: mine }; refreshParties(); renderLobbyStage(); }
-  });
+  $("#pbEnter")?.addEventListener("click", () => enterSceneHere(sp));
   $("#pbCamp")?.addEventListener("click", async () => {
     const r = await worldOp("camp", { id: sp.id });
     if (r.ok) { world.msg = r.rested ? `Day ${r.day}. A day's rest.${r.encounter ? ` ${r.encounter.kind} (${r.encounter.type}) found the camp. The referee decides.` : " Nothing came."}` : `Day ${r.day} ends.${r.encounter ? ` In the night: ${r.encounter.kind} (${r.encounter.type}). Evade, parley or stand.` : " A quiet night."}`; renderLobbyStage(); }
@@ -1940,7 +2016,7 @@ function bindHexMap(el, c, uid) {
   const walker = sp?.walks ? (sp.members.find((m) => m.mine) ?? sp.members[0]) : null;
   $("#wKey")?.addEventListener("click", (ev) => { ev.preventDefault(); world.showKey = !world.showKey; renderLobbyStage(); });
   if (svg) {
-    const apply = () => svg.setAttribute("viewBox", `${world.vb.x} ${world.vb.y} ${world.vb.w} ${world.vb.h}`);
+    const apply = () => { svg.setAttribute("viewBox", `${world.vb.x} ${world.vb.y} ${world.vb.w} ${world.vb.h}`); const s = tokenScale(); svg.querySelectorAll(".w-pt").forEach((g) => g.setAttribute("transform", `translate(${Number(g.dataset.bx) + Number(g.dataset.ox) * s} ${Number(g.dataset.by) + Number(g.dataset.oy) * s}) scale(${s})`)); };
     const toWorld = (ev) => { const r = svg.getBoundingClientRect(); return { x: world.vb.x + ((ev.clientX - r.left) / r.width) * world.vb.w, y: world.vb.y + ((ev.clientY - r.top) / r.height) * world.vb.h, r }; };
     svg.addEventListener("wheel", (ev) => { ev.preventDefault(); const z = ev.deltaY > 0 ? 1.15 : 1 / 1.15, m = toWorld(ev), vb = world.vb; const w = Math.min(4000, Math.max(120, vb.w * z)), h = vb.h * (w / vb.w); world.vb = { x: m.x - (m.x - vb.x) * (w / vb.w), y: m.y - (m.y - vb.y) * (h / vb.h), w, h }; apply(); }, { passive: false });
     svg.addEventListener("contextmenu", (ev) => ev.preventDefault());
@@ -1958,26 +2034,48 @@ function bindHexMap(el, c, uid) {
         if (!h && !to) return;
         plan.innerHTML = to ? `<polyline points="${[sp.hex, ...to.path].map((s) => { const q = wl.toPixel(s, HEX_SZ); return `${q.x},${q.y}`; }).join(" ")}" fill="none" stroke="#b3362b" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>` : "";
         const facts = h ? `${h.t}${h.track ? ", track" : ""}${h.ford ? ", ford" : ""}${h.place ? ` \u00b7 ${h.place}${h.rumoured ? "?" : ""}` : ""} \u00b7 ${Number.isFinite(wl.hexCost(h)) ? `cost ${wl.hexCost(h)}` : "no crossing on foot"}` : "unknown country";
-        const walk = to ? ` \u00b7 walk here: ${Math.min(to.spent, rc.allowance)} of ${rc.allowance} moved${h ? "" : " if it is clear going"}` : k === here && h?.place && world.places[h.place]?.kind === "village" && walker ? ` \u00b7 click to go into ${h.place}` : "";
+        const walk = to ? ` \u00b7 walk here: ${Math.min(to.spent, rc.allowance)} of ${rc.allowance} moved${h ? "" : " if it is clear going"}` : k === here && h?.place && sceneAt(h.place) && walker ? ` \u00b7 click to ${sceneAt(h.place).kind === "dungeon" ? "enter the dungeon" : `enter ${h.place}`}` : "";
         tip.textContent = `${hexNo(k)} \u00b7 ${facts}${walk}`; tip.hidden = false;
         poly.classList.add("hover");
       });
       poly.addEventListener("pointermove", (ev) => { const r = wrap.getBoundingClientRect(); tip.style.left = `${Math.max(8, Math.min(ev.clientX - r.left + 12, r.width - tip.offsetWidth - 8))}px`; tip.style.top = `${Math.max(8, ev.clientY - r.top - 30)}px`; });
       poly.addEventListener("pointerleave", () => { tip.hidden = true; plan.innerHTML = ""; poly.classList.remove("hover"); });
       poly.addEventListener("click", async () => { const k = poly.dataset.wHex;
+        if (Date.now() - hexDragAt < 350) return; // a token was just dropped here: the drop moved it
         if (!PLAYER && world.paint.mode === "brush") return; // the stroke painted; nothing to select
         if (!PLAYER && world.paint.mode === "fill" && world.paint.t && world.hexes[k]) { const ks = wmap.floodKeys(world.hexes, k); if (ks.length > 1 && !confirm(`Fill ${ks.length} hexes of ${world.hexes[k].t} with ${world.paint.t}?`)) return; const res = await worldOp("paint", { hexes: ks.map((kk) => wl.parse(kk)), t: world.paint.t }); if (res.ok) await loadWorld(true); return; }
-        if (rc?.hexes[k] && !world.busy) {
-          const want = rc.hexes[k].path, r = await worldOp("move", { id: sp.id, path: want });
-          if (r.ok) { world.msg = r.lost ? `Day ${r.day}. Lost! The party wandered ${r.path.map((x) => x.t).join(", ")} and the day is gone.` : r.path.length < want.length ? `Harder going than it looked: the party stopped short${r.left ? "" : ", the day gone"}.` : r.place ? `The party reached ${r.place}.` : ""; renderLobbyStage(); }
-          return;
-        }
+        if (rc?.hexes[k] && !world.busy) { await walkParty(sp, rc.hexes[k].path); return; }
         const h = world.hexes[k];
-        if (k === here && walker && h?.place && world.places[h.place]?.kind === "village" && !sp.encounter) { const r = await worldOp("enter", { id: walker.id, place: h.place }); if (r.ok) { lobby.view = { id: c.id, at: null, dest: null, who: null }; renderLobbyStage(); } return; }
+        if (k === here && walker && h?.place && sceneAt(h.place) && !sp.encounter) { await enterSceneHere(sp); return; }
         if (PLAYER) return;
         v.sel = k; renderLobbyStage(); });
     });
-    svg.querySelectorAll("[data-w-party]").forEach((g) => g.addEventListener("click", (ev) => { ev.stopPropagation(); openWorld(g.dataset.wParty); }));
+    svg.querySelector("[data-w-enter]")?.addEventListener("click", (ev) => { ev.stopPropagation(); if (sp) enterSceneHere(sp); });
+    // a party's token: a click selects it; a drag carries it to a lit hex and the party walks there
+    svg.querySelectorAll(".w-pt[data-pt]").forEach((g) => {
+      const pt = (world.parties ?? []).find((x) => x.id === g.dataset.pt), openId = g.dataset.wParty ?? null;
+      g.addEventListener("click", (ev) => { ev.stopPropagation(); if (Date.now() - hexDragAt < 350) return; if (openId && sp?.id !== pt?.id) openWorld(openId); });
+      g.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0 || !pt?.walks || world.busy) return;
+        ev.stopPropagation();
+        const x0 = ev.clientX, y0 = ev.clientY, reach = reachOf(pt); let drag = false;
+        const move = (m) => {
+          if (!drag && Math.hypot(m.clientX - x0, m.clientY - y0) < 6) return;
+          if (!reach) return;
+          if (!drag) { drag = true; g.style.pointerEvents = "none"; g.style.cursor = "grabbing"; $("#wReach").innerHTML = Object.keys(reach.hexes).map((k) => `<polygon points="${wmap.polyOf(k, HEX_SZ)}" fill="rgba(245,215,138,.25)" stroke="#e0a400" stroke-width="2"/>`).join(""); }
+          const w = toWorld(m); g.setAttribute("transform", `translate(${w.x} ${w.y}) scale(${tokenScale()})`);
+        };
+        const up = async (u) => {
+          window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+          if (!drag) return;
+          hexDragAt = Date.now();
+          const k = document.elementFromPoint(u.clientX, u.clientY)?.dataset?.wHex ?? null, to = k ? reach.hexes[k] : null;
+          if (openId) { lobby.view.id = openId; lobby.lastChar = openId; }
+          if (to) await walkParty(pt, to.path); else { if (k && k !== wl.key(pt.hex.q, pt.hex.r)) world.msg = "Too far for what is left of the day: drop the party on a lit hex."; renderLobbyStage(); }
+        };
+        window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+      });
+    });
     el.querySelectorAll("[data-w-open]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.wOpen)));
     $("#wAsPlayers")?.addEventListener("change", (ev) => { world.asPlayers = ev.target.checked; world.vb = null; renderLobbyStage(); });
     $("#wLayout")?.addEventListener("click", async () => { if (!confirm("Lay out the whole kingdom over this map? Hexes you painted stay as painted.")) return; const res = await worldOp("layout", {}); if (res.ok) { world.vb = null; await loadWorld(true); } });

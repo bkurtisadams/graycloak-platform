@@ -23,6 +23,7 @@
 //   rest   {id, days}      complete rest at an inn: hp back (none day 1, one every other day after); his clock moves on
 //   rumour {id}            the rounds of the taverns (10-60 gp + 1-10 gp): one rumour, marked on the known map if it names a hex
 //   shop   {id, buy|sell}  the market: buy at cost, sell at half (finished characters, in a village with a market)
+//   spot   {id, x, y}        where his token stands on the settlement's map (dragged in the town scene).
 //   enter  {id, place}     into the village he stands in (where = place, doing = town) or out onto the road (doing = road);
 //                          the whole party if he leads it
 //   evade   {id}           the party's leader: Book III's evasion table (party size vs their share of their possible number, surprise, woods, speed), then pursuit
@@ -232,6 +233,14 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         return done({ ok: true, party: g.party });
       }
 
+      if (op === "spot") { // where his token stands on the settlement's map (a drag in the town scene)
+        const one = byId(ids[0]);
+        if (!ref && !owns(one, uid)) return refuse("forbidden", "not your character");
+        if (one.doing !== "town") return refuse("bad-request", "he isn't in a settlement");
+        const n = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v)) || 0));
+        put(one.id, { ...one, spot: { x: n(data.x, 860), y: n(data.y, 680) } });
+        return done({ ok: true });
+      }
       if (op === "enter") {
         const one = byId(ids[0]);
         if (one.doing === "dead") return refuse("bad-request", "he is dead");
