@@ -60,6 +60,13 @@ test("the sidebar is five tabs, Fights folded into the Tracker (approved mockup 
   assert.doesNotMatch(body("renderRoster"), /xp \\u00b7 next|<table/, "one row per character; xp and gp live on the sheet");
 });
 
+test("a character underground is shown the level, and the party at the ruin can go down (pass 18)", () => {
+  assert.match(body("renderLobbyStage"), /if \(lobby\.view\?\.delve\) \{ renderDelveStage\(el, g, uid\); return; \}/);
+  assert.match(body("openWorld"), /if \(c\?\.under\) \{ openDelve\(c\.under\.lid, id\); return; \}/);
+  assert.match(body("defaultScene"), /if \(pick\?\.under\)/);
+  assert.match(body("partyBarHtml"), /id="pbDown"/);
+});
+
 test("a fight's viewer is the player himself or the referee", () => {
   assert.match(grid, /const viewer = PLAYER \? api\.user\?\.uid : "referee";/);
 });

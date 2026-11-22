@@ -8,6 +8,8 @@
 //   oddChat         a chat line or a /roll, to everyone or privately (no fid: the lobby)
 //   oddWorld        the map (pass 7): the players' hex sheet, a day's walk, camp, an inn's rest and rumours, the market
 //                   and (pass 16) the dungeon levels: dungeon, dungeonMake, dungeonPaint, dungeonRoom, dungeonRestock, dungeonUndo, dungeonOpen
+//                   and (pass 18) exploring them: delve, delveEnter, delveMove, delveDoor, delveSearch, delveRest, delveEnd, delveLeave,
+//                   delveParty, delveLead, delveEvade, delveParley, delveStand, delveAdjust, delveResolve (delve-service.mjs)
 //   oddCampaign     the game: open, join, profile, here, invite, live, reset, role, remove
 //   oddCharacter    the roster (pass 4): roll, basics, buy, sell, finish, ready, remember, rename, notes, delete
 // Both return { ok, rev, ... } or { ok: false, code, error }; only a call

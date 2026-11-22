@@ -174,6 +174,13 @@ Changes made during extraction:
   leader's id) and `dayMoved`; `partiesOf`, `regroup`, `lead`, `mayWalk`.
   `wilderness.reach` and `wilderness.walkPath` walk a day a hex at a time
   within the day's factors (the first hex is always entered, as before).
+- 0.40.0: exploring a dungeon level. `delve`: a turn is the slowest member's
+  rate x 20 feet (Book III with Men & Magic's encumbrance; Kurt, Nov 2026),
+  doubled in flight; the players' map (`reveal`, `maskedCells`), walking over
+  what is known (`pathTo`, `reach`), doors, secret doors, the flight route
+  and its corners and doors for the pursuit dice. Light is not tracked yet:
+  the party sees 30 feet down a passage (a reading). `wanderingNumber` is a
+  reading awaiting a ruling.
 
 ## Open items
 

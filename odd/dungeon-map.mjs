@@ -24,7 +24,7 @@ function doorBar(L, x, y) {
 }
 
 /** The level as SVG: rock, floor squares, doors, stairs, traps, room numbers (red with a monster), gold dots for treasure, the selected room outlined. */
-export function levelSvg(L, { sel = null, id = "dgSvg" } = {}) {
+export function levelSvg(L, { sel = null, id = "dgSvg", over = "" } = {}) {
   const S = CELL, out = [];
   out.push(`<rect x="0" y="0" width="${L.width * S}" height="${L.height * S}" fill="${DG.rock}"/>`);
   L.cells.forEach((row, y) => {
@@ -52,7 +52,45 @@ export function levelSvg(L, { sel = null, id = "dgSvg" } = {}) {
   }
   if (sel) { const r = (L.rooms ?? []).find((x) => x.id === sel); if (r) out.push(`<rect x="${r.x * S - 1.5}" y="${r.y * S - 1.5}" width="${r.w * S + 3}" height="${r.h * S + 3}" fill="none" stroke="${DG.sel}" stroke-width="3" pointer-events="none"/>`); }
   const vb = extentOf(L);
-  return `<svg id="${id}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escape(L.name ?? "Dungeon level")} map">${out.join("")}<g id="${id}Ghost"></g></svg>`;
+  return `<svg id="${id}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escape(L.name ?? "Dungeon level")} map">${out.join("")}${over}<g id="${id}Ghost"></g></svg>`;
+}
+
+/* ---------- pass 18: the level as it is explored ---------- */
+const runsOf = (has, w, h) => { const out = []; for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { if (!has(x, y)) continue; const x0 = x; while (x + 1 < w && has(x + 1, y)) x++; out.push([x0, y, x - x0 + 1]); } return out; };
+/** A party's counter: its leader's player's colour, a gold ring when it is the one selected. */
+export function countersSvg(parties, { sel = null, colourOf = () => DG.ink } = {}) {
+  const S = CELL;
+  return parties.map((pt, i) => {
+    const same = parties.slice(0, i).filter((o) => o.at.x === pt.at.x && o.at.y === pt.at.y).length, cx = pt.at.x * S + S / 2 + same * 5, cy = pt.at.y * S + S / 2;
+    return `<g data-dv-party="${escape(pt.id)}" style="cursor:pointer"><title>${escape(pt.members.map((m) => m.name).join(", "))}</title>${pt.id === sel ? `<circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="#f5d78a" stroke-width="2"/>` : ""}<circle cx="${cx}" cy="${cy}" r="5.5" fill="${escape(colourOf(pt))}" stroke="#ffffff" stroke-width="1.5"/></g>`;
+  }).join("");
+}
+/** For the referee's map: the squares the players have seen, tinted, and the parties below. */
+export function exploredOver(V, opts = {}) {
+  const S = CELL, seen = V.seen ?? [];
+  const tint = runsOf((x, y) => seen[y]?.[x] === "1", V.width, V.height).map(([x, y, n]) => `<rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="#f5d78a" fill-opacity="0.4" pointer-events="none"/>`).join("");
+  return `<g id="dgSeen">${tint}</g>${countersSvg(V.parties ?? [], opts)}`;
+}
+/** The box round what the players have seen, a few squares of dark round it. */
+export function seenExtent(V, pad = 4) {
+  let x0 = V.width, y0 = V.height, x1 = -1, y1 = -1;
+  V.cells.forEach((row, y) => { for (let x = 0; x < row.length; x++) if (row[x] !== " " && row[x] !== "#") { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } });
+  if (x1 < 0) return { x: 0, y: 0, w: V.width * CELL, h: V.height * CELL };
+  return { x: (x0 - pad) * CELL, y: (y0 - pad) * CELL, w: (x1 - x0 + 1 + pad * 2) * CELL, h: (y1 - y0 + 1 + pad * 2) * CELL };
+}
+/** The players' map (approved mockup, Nov 2026): the seen squares on plain black, the squares still in reach lit, the parties' counters. */
+export function delveSvg(V, { reach = [], sel = null, colourOf, id = "dvSvg" } = {}) {
+  const S = CELL, at = (x, y) => V.cells[y]?.[x] ?? " ", floor = (x, y) => { const c = at(x, y); return c !== " " && c !== "#"; };
+  const out = [`<defs><pattern id="${id}Grid" width="${S}" height="${S}" patternUnits="userSpaceOnUse"><path d="M${S} 0H0V${S}" fill="none" stroke="${DG.grid}" stroke-width="0.6"/></pattern></defs>`];
+  for (const [x, y, n] of runsOf(floor, V.width, V.height)) out.push(`<rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="${DG.floor}"/><rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="url(#${id}Grid)"/>`);
+  for (const c of reach) out.push(`<rect x="${c.x * S}" y="${c.y * S}" width="${S}" height="${S}" fill="#f5d78a" fill-opacity="0.6"/>`);
+  const L = { cells: V.cells.map((r) => r.replace(/ /g, "#")) };
+  V.cells.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const kind = DOOR[row[x]]; if (!kind) continue; const v = doorBar(L, x, y) === "v"; out.push(v ? `<rect x="${x * S + S / 2 - 1.5}" y="${y * S + 1.5}" width="3" height="${S - 3}" fill="${DG[kind]}"/>` : `<rect x="${x * S + 1.5}" y="${y * S + S / 2 - 1.5}" width="${S - 3}" height="3" fill="${DG[kind]}"/>`); } });
+  for (const st of V.stairs ?? []) out.push(`<g><title>Stairs ${st.dir === "up" ? "up to the ruin" : "down a level"}</title>${[0, 1, 2, 3].map((i) => `<line x1="${st.x * S + 2}" y1="${st.y * S + 2 + i * 2.4}" x2="${st.x * S + S - 2}" y2="${st.y * S + 2 + i * 2.4}" stroke="${DG.ink}" stroke-width="1"/>`).join("")}</g>`);
+  for (const t of V.sprung ?? []) out.push(`<g><title>${escape(`A trap, sprung: ${t.text}`)}</title><path d="M${t.x * S + 2.5} ${t.y * S + 2.5}L${t.x * S + S - 2.5} ${t.y * S + S - 2.5}M${t.x * S + S - 2.5} ${t.y * S + 2.5}L${t.x * S + 2.5} ${t.y * S + S - 2.5}" stroke="${DG.red}" stroke-width="1.6"/></g>`);
+  out.push(countersSvg(V.parties ?? [], { sel, colourOf }));
+  const vb = seenExtent(V);
+  return `<svg id="${id}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escape(V.name ?? "The level")}: the players' map">${out.join("")}</svg>`;
 }
 
 /** The key in the corner of the stage. */

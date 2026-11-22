@@ -37,7 +37,8 @@
 // Rulings (Kurt, Oct 2026): a lone character walks as a party of one; the players start knowing the home village and its ring.
 
 import { isReferee } from "./campaign-service.mjs";
-import { createDungeonOps } from "./dungeon-service.mjs";
+import { createDungeonOps, DUNGEONS, dungeonPath } from "./dungeon-service.mjs";
+import { createDelveOps } from "./delve-service.mjs";
 
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 
@@ -55,6 +56,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
   const dungeons = rules.dungeonGen ? createDungeonOps({ rules, now, rollDie }) : null;
+  const delves = rules.dungeonGen && rules.delve ? createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey: (name) => W.key(PLACES[name].q, PLACES[name].r), hexKey: (ch) => { const h = ch.hex ?? PLACES[W.WESTMARK.home]; return W.key(h.q, h.r); } }) : null;
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
   const d6 = () => rollDie(6);
@@ -118,16 +120,18 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       if (!camp) return refuse("not-found", "no such game");
       const ref = isReferee(camp, uid);
       if (!ref && !(camp.members ?? []).includes(uid)) return refuse("forbidden", "you are not in this game");
+      if (String(op ?? "").startsWith("delve")) return delves ? delves.handle(tx, { op, data, cid, uid, ref, camp, p, log }) : refuse("bad-request", "exploring isn't deployed");
       if (String(op ?? "").startsWith("dungeon")) return dungeons ? dungeons.handle(tx, { op, data, cid, ref }) : refuse("bad-request", "the dungeon levels aren't deployed");
       const { map, known, seeded } = await loadMaps(tx, p);
       const save = () => { if (seeded) { tx.set(p.map, clean(map)); } tx.set(p.known, clean(known)); };
       const all = ((await tx.list(p.characters)) ?? []).filter((c) => c && ID.test(c.id ?? ""));
       const byId = (id) => all.find((c) => c.id === id) ?? null;
       const hk = (ch) => { const h = hexOf(ch); return W.key(h.q, h.r); };
-      const partyHolding = (id) => P.partyOf(all, id, hk);
+      const above = () => all.filter((c) => !c.under); // a party underground is off the kingdom map until it climbs out (pass 18)
+      const partyHolding = (id) => P.partyOf(above(), id, hk);
       /** The parties this viewer may know of: his own and those he can see, and any standing in a hex with one of his. */
       const summary = () => {
-        const list = P.partiesOf(all, hk), mine = new Set(all.filter((c) => owns(c, uid)).map(hk)), allowance = W.allowanceOf("foot");
+        const list = P.partiesOf(above(), hk), mine = new Set(above().filter((c) => owns(c, uid)).map(hk)), allowance = W.allowanceOf("foot");
         return list.filter((pt) => ref || mine.has(pt.hex) || pt.members.some((m) => roster.levelOf(m, uid) >= roster.OWNERSHIP.LIMITED)).map((pt) => {
           const within = ref || pt.members.some((m) => owns(m, uid)), spent = Math.min(allowance, P.daySpent(pt)), { q, r } = W.parse(pt.hex);
           return clean({ id: pt.id, hex: { q, r }, spent, allowance, left: allowance - spent, day: Math.max(camp.day ?? 1, ...pt.members.map((m) => m.day ?? 1)),
@@ -139,7 +143,8 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
 
       if (op === "map") {
         const rumours = ref ? (await tx.get(p.rumours)) ?? {} : undefined;
-        const levels = ref && dungeons ? await dungeons.summary(tx, cid) : undefined;
+        const every = dungeons ? await dungeons.summary(tx, cid) : undefined;
+        const levels = !every ? undefined : ref ? every : Object.fromEntries(Object.entries(every).filter(([, d]) => d.status === "open")); // the players hear of a level once it is open
         if (seeded) save();
         const places = { ...PLACES };
         for (const [k, h] of Object.entries(map.hexes)) if (h.place && !places[h.place]) { const { q, r } = W.parse(k); places[h.place] = { q, r, kind: h.kind ?? "village", desc: "" }; }
@@ -197,6 +202,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const ch = byId(id); if (!ch) return refuse("not-found", "no such character");
         if (own && !ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
         if (ch.status !== "ready") return refuse("bad-request", `${ch.name || "he"} isn't finished`);
+        if (ch.under) return refuse("bad-request", `${ch.name || "he"} is underground`);
       }
       const day0 = camp.day ?? 1;
       const put = (id, ch) => { const next = clean({ ...ch, updatedAt: now() }); tx.set(p.character(id), next); const i = all.findIndex((c) => c.id === id); if (i >= 0) all[i] = next; };
@@ -208,7 +214,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const movers = ids.map(byId), target = data.with != null && ID.test(data.with) ? partyHolding(data.with) : null;
         if (data.with != null && !target) return refuse("not-found", "no such party");
         if (movers.some((c) => c.doing === "encounter") || target?.members.some((c) => c.doing === "encounter")) return refuse("bad-request", "an encounter waits on the referee: the party stays as it is until it's settled");
-        const g = P.regroup(all, ids, target ? target.id : null, hk);
+        const g = P.regroup(above(), ids, target ? target.id : null, hk);
         if (!g.ok) return refuse("bad-request", g.error);
         for (const [id, pid] of Object.entries(g.set)) put(id, { ...byId(id), party: pid });
         const now2 = partyHolding(ids[0]);
@@ -220,7 +226,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       if (op === "lead") {
         if (!party) return refuse("bad-request", "he isn't travelling");
         if (!ref && !owns(party.leader, uid)) return refuse("forbidden", "only the leader's player hands the lead on");
-        const g = P.lead(all, ids[0], hk);
+        const g = P.lead(above(), ids[0], hk);
         for (const [id, pid] of Object.entries(g.set)) put(id, { ...byId(id), party: pid });
         log(tx, p, camp, `${byId(ids[0]).name} leads the party now.`);
         return done({ ok: true, party: g.party });
@@ -351,7 +357,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         let band = party;
         if (ids.length > 1 && !ids.every((id) => band.members.some((m) => m.id === id))) {
           if (!ref && ids.some((id) => !owns(byId(id), uid))) return refuse("forbidden", "not your character");
-          const g = P.regroup(all, ids, null, hk);
+          const g = P.regroup(above(), ids, null, hk);
           if (!g.ok) return refuse("bad-request", "the party must start in one hex");
           for (const [id, pid] of Object.entries(g.set)) { const i = all.findIndex((c) => c.id === id); all[i] = { ...all[i], party: pid }; }
           band = partyHolding(ids[0]);

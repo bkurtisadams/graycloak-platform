@@ -199,7 +199,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       const amount = Math.floor((m?.award ?? 0) * (1 + (sh.xpBonus ?? 0) / 100));
       const gained = rules.cappedAward(ch.cls, ch.level ?? 1, ch.xp ?? 0, amount);
       const hp = Math.max(0, Math.trunc(Number(f.hp ?? ch.hp)) || 0), dead = hp <= 0;
-      const next = { ...ch, hp, xp: (ch.xp ?? 0) + gained, coins: { ...ch.coins, ...(f.inv?.coins ?? {}) }, encounter: null, doing: dead ? "dead" : ch.doing === "encounter" ? "road" : ch.doing ?? "road", ...(dead ? { diedIn: title } : {}), updatedAt: now() };
+      const next = { ...ch, hp, xp: (ch.xp ?? 0) + gained, coins: { ...ch.coins, ...(f.inv?.coins ?? {}) }, encounter: null, ...(ch.encounter?.underground && ch.encounter.room ? { roomSettled: { lid: ch.encounter.lid, room: ch.encounter.room } } : {}), doing: dead ? "dead" : ch.doing === "encounter" ? "road" : ch.doing ?? "road", ...(dead ? { diedIn: title } : {}), updatedAt: now() };
       tx.set(`oddCampaigns/${cid}/characters/${f.charId}`, clean(next));
       out.push({ id: f.charId, name: ch.name, hp, maxHp: ch.maxHp, xp: gained, dead });
       lines.push(`${ch.name}: ${dead ? "slain" : `hp ${hp}/${ch.maxHp}`}${gained ? `, +${gained} xp` : ""}`);

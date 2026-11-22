@@ -36,6 +36,7 @@ export * as westmark from "./src/westmark.mjs";
 export * as parties from "./src/parties.mjs";
 export * as underworld from "./src/underworld.mjs";
 export * as dungeonGen from "./src/dungeon-gen.mjs";
+export * as delve from "./src/delve.mjs";
 export * as fightRunner from "./src/runner.mjs";
 export * as board from "./src/board.mjs";
 export * as movement from "./src/movement.mjs";
