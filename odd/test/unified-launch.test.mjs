@@ -67,11 +67,14 @@ test("a character underground is shown the level, and the party at the ruin can 
   assert.match(body("partyBarHtml"), /id="pbEnter"/);
   assert.match(body("sceneAt"), /kind: "dungeon"[\s\S]*kind: "village"/, "a hex's scene: an open dungeon level, or a settlement");
   assert.match(body("villageMapHtml"), /id="wLeaveScene"/, "a town scene is left by its Leave button");
+  assert.match(body("hexMapHtml"), /class="w-pt\$\{on \? " on" : ""\}" data-hexk=/, "one Party token to a hex");
 });
 
-test("the page and the server carry the same build number, and the header shows it", async () => {
+test("the header shows the page's build, and the server in the repo is new enough for the page", async () => {
   const { SERVER_BUILD } = await import("../functions/world-service.mjs");
-  assert.equal(/const BUILD = "(v\d+\.\d+\.\d+)";/.exec(grid)?.[1], SERVER_BUILD);
+  const n = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s); return Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]); };
+  const page = /const BUILD = "(v\d+\.\d+\.\d+)";/.exec(grid)?.[1], need = /const SERVER_NEEDED = "(v\d+\.\d+\.\d+)";/.exec(grid)?.[1];
+  assert.ok(n(need) <= n(SERVER_BUILD) && n(SERVER_BUILD) <= n(page), `${need} <= ${SERVER_BUILD} <= ${page}`);
   assert.ok(grid.includes('<span class="ver" id="ver"></span>'));
 });
 

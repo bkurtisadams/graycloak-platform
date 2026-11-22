@@ -53,7 +53,7 @@ export const worldPaths = (cid) => ({
   chat: (who, id) => `oddCampaigns/${cid}/chat/${who}/entries/${id}`,
 });
 
-/** The platform build this server code belongs to; the page shows it beside its own and says so when they differ. */
+/** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
 export const SERVER_BUILD = "v1.557.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n) }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;

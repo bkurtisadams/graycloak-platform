@@ -380,6 +380,17 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .w-map polygon.unk.sel { stroke: #c8941a; stroke-width: 2; }
 .lobbystage .w-map polygon.hover { filter: brightness(1.08); }
 .lobbystage .w-map.hex svg { background: #efe6cf; }
+.lobbystage .w-pop { position: absolute; z-index: 5; width: 250px; box-sizing: border-box; background: #fbfdfe; color: #1f2b38; border: 1px solid #1f2b38; border-radius: 6px; padding: 8px 10px; box-shadow: 0 3px 10px rgba(0,0,0,.3); font-size: .86rem; display: flex; flex-direction: column; gap: 6px; }
+.lobbystage .w-pop[hidden] { display: none; }
+.lobbystage .w-pop .wp-top { display: flex; align-items: center; justify-content: space-between; font-family: var(--type); font-size: .8rem; }
+.lobbystage .w-pop .wp-top button { border: 0; background: transparent !important; font-size: 1.1rem; line-height: 1; padding: 0 4px; min-height: 0; }
+.lobbystage .w-pop .wp-pt { border: 1px solid #c9d8e2; border-radius: 5px; padding: 5px 7px; display: flex; flex-direction: column; gap: 2px; }
+.lobbystage .w-pop .wp-pt.on { border: 2px solid #b3362b; background: #fff8ec; } .lobbystage .w-pop .wp-pt.in { border-style: dashed; color: #56616d; }
+.lobbystage .w-pop .wp-h { display: flex; align-items: center; justify-content: space-between; gap: 6px; font: 11px var(--type); color: #56616d; text-transform: uppercase; letter-spacing: .03em; }
+.lobbystage .w-pop .wp-h i { font-style: normal; color: #b3362b; } .lobbystage .w-pop .wp-h button { min-height: 26px; padding: 1px 10px; font-size: .78rem; text-transform: none; }
+.lobbystage .w-pop .wp-m { display: flex; align-items: baseline; gap: 6px; } .lobbystage .w-pop .wp-m .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: center; }
+.lobbystage .w-pop .wp-m small { color: #56616d; font-size: .76rem; flex: 1 1 auto; } .lobbystage .w-pop .wp-m .hp { font: 11px var(--type); }
+.lobbystage .w-pop .note { font-size: .76rem; }
 .lobbystage .w-tip { position: absolute; background: var(--ink); color: var(--card); border-radius: 4px; padding: 4px 8px; font-family: var(--type); font-size: .74rem; white-space: nowrap; pointer-events: none; z-index: 4; }
 .lobbystage .w-crumb { position: absolute; left: 10px; top: 10px; background: var(--card); border: 1px solid #9fb2c0; border-radius: 4px; padding: 5px 9px; font-size: .8rem; z-index: 2; max-width: 60%; }
 .lobbystage .w-key { position: absolute; right: 10px; bottom: 10px; background: var(--card); border: 1px solid #9fb2c0; border-radius: 4px; padding: 6px 9px; font-family: var(--type); font-size: .72rem; display: grid; grid-template-columns: auto auto; gap: 2px 10px; z-index: 2; }
@@ -1693,14 +1704,16 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.557.00";
+const BUILD = "v1.558.00";
+/** The oldest game server this page works with: raised only when a change needs the server redeployed. */
+const SERVER_NEEDED = "v1.557.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
   const el = $("#ver"); if (!el) return;
-  const s = world.server, page = buildNo(BUILD), srv = buildNo(s?.build);
+  const s = world.server, page = buildNo(BUILD), srv = buildNo(s?.build), need = buildNo(SERVER_NEEDED);
   world.behind = !world.loaded ? "" : !s ? "The game server is older than this page and doesn\u2019t report a version. Run C:\\graycloak-platform\\odd\\functions\\deploy.bat, then reload."
-    : srv < page ? `The game server is on ${s.build}, behind this page. Run C:\\graycloak-platform\\odd\\functions\\deploy.bat, then reload.`
+    : srv < need ? `The game server is on ${s.build}; this page needs ${SERVER_NEEDED} or later. Run C:\\graycloak-platform\\odd\\functions\\deploy.bat, then reload.`
     : srv > page ? `This page is older than the game server (${s.build}). Reload with Ctrl+F5.` : "";
   el.textContent = world.behind ? `${BUILD} \u00b7 server ${s?.build ?? "out of date"}` : BUILD;
   el.classList.toggle("bad", !!world.behind);
@@ -1881,30 +1894,41 @@ function hexMapHtml(c, uid) {
   const sp = c ? partyFor(c.id) : null, rc = reachOf(sp);
   const lit = rc ? Object.keys(rc.hexes).map((k) => `<polygon points="${wmap.polyOf(k, SZ)}" fill="rgba(245,215,138,.2)" stroke="#e0a400" stroke-width="2"/>`).join("") : "";
   const byHex = {}; for (const pt of world.parties ?? []) { const k = wl.key(pt.hex.q, pt.hex.r); if (H[k]) (byHex[k] ??= []).push(pt); }
-  const ts = tokenScale();
-  const counters = Object.entries(byHex).flatMap(([k, list]) => list.map((pt, i) => {
-    const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), lead = pt.members[0], col = table.game.people?.[lead.owner]?.color ?? "#2f5c8a", on = sp?.id === pt.id;
-    const ox = (H[k].place ? -20 : 0) + i * 30, oy = H[k].place ? -18 : 0, cx = px + ox * ts, cy = py + oy * ts; // offsets grow with the token, so it never sits on the place's name
-    const open = pt.members.find((m) => m.mine && charOf(m.id)) ?? pt.members.find((m) => charOf(m.id));
-    const names = pt.members.map((m) => m.name).join(", "), label = pt.members.length > 1 ? `${lead.name} +${pt.members.length - 1}` : lead.name ?? "?";
-    const tip = `${names}${pt.members.length > 1 ? ` · ${lead.name} leads` : ""}${pt.encounter ? " · an encounter waits" : ""}${pt.walks ? " · drag to a lit hex to move" : ""}`;
-    return `<g class="w-pt${on ? " on" : ""}" data-bx="${px}" data-by="${py}" data-ox="${ox}" data-oy="${oy}" data-pt="${esc(pt.id)}" transform="translate(${cx} ${cy}) scale(${ts})"${open ? ` data-w-party="${esc(open.id)}" role="button" aria-label="${esc(names)}: the party"` : ""} style="cursor:${pt.walks ? "grab" : "pointer"}"><title>${esc(tip)}</title>
-      ${on ? `<circle r="22" fill="rgba(245,215,138,.35)" stroke="#b3362b" stroke-width="3"/>` : ""}<ellipse cx="0" cy="15" rx="12" ry="4" fill="rgba(0,0,0,.3)"/>
-      <circle r="15" fill="${esc(col)}" stroke="#1f2b38" stroke-width="4"/><circle r="15" fill="${esc(col)}" stroke="#fbfdfe" stroke-width="2.5"/>
-      <text y="5" font-size="15" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe">${pt.members.length > 1 ? pt.members.length : esc((lead.name ?? "?")[0])}</text>
-      <text y="31" font-size="11" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#1f2b38" stroke="#fbfdfe" stroke-width="3.5" paint-order="stroke" pointer-events="none">${esc(label)}</text></g>`; })).join("");
-  // a scene on the selected party's hex: the way in, as a button on the map
+  // one Party token to a hex (Kurt, Nov 2026): it fits inside the hex, its ring a segment per member in his player's colour, its number how many are on the road there
+  const colOf = (m) => table.game.people?.[m.owner]?.color ?? "#2f5c8a";
+  const counters = Object.entries(byHex).map(([k, list]) => {
+    const road = list.filter(onRoad); if (!road.length) return "";
+    const { x: px, y: py } = wl.toPixel(wl.parse(k), SZ), place = !!H[k].place, cx = place ? px - 17 : px, cy = place ? py - 17 : py, R = place ? 9.5 : 14;
+    const all = road.flatMap((pt) => pt.members), on = road.some((pt) => pt.id === sp?.id), can = road.some((pt) => pt.walks);
+    const ring = all.length === 1 ? `<circle cx="${cx}" cy="${cy}" r="${R + 2}" fill="none" stroke="${esc(colOf(all[0]))}" stroke-width="3.2"/>`
+      : all.map((m, i) => { const a0 = (i / all.length) * 2 * Math.PI - Math.PI / 2, a1 = ((i + 1) / all.length) * 2 * Math.PI - Math.PI / 2 - 0.12, rr = R + 2; return `<path d="M${cx + rr * Math.cos(a0)} ${cy + rr * Math.sin(a0)}A${rr} ${rr} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${cx + rr * Math.cos(a1)} ${cy + rr * Math.sin(a1)}" fill="none" stroke="${esc(colOf(m))}" stroke-width="3.2"/>`; }).join("");
+    const tip = `${road.map((pt) => pt.members.map((m) => m.name).join(", ")).join(" · ")}${road.length > 1 ? ` · ${road.length} parties` : road[0].members.length > 1 ? ` · ${road[0].members[0].name} leads` : ""}${road.some((pt) => pt.encounter) ? " · an encounter waits" : ""}${can ? " · click for who is here; drag to a lit hex to move" : ""}`;
+    return `<g class="w-pt${on ? " on" : ""}" data-hexk="${k}" data-x="${cx}" data-y="${cy}" role="button" aria-label="Party: ${esc(all.map((m) => m.name).join(", "))}" style="cursor:${can ? "grab" : "pointer"}"><title>${esc(tip)}</title>
+      ${on ? `<circle cx="${cx}" cy="${cy}" r="${R + 6.5}" fill="rgba(245,215,138,.55)" stroke="#b3362b" stroke-width="2"/>` : ""}${road.length > 1 ? `<circle cx="${cx + 3}" cy="${cy + 3}" r="${R + 3.6}" fill="#1f2b38" opacity=".45"/>` : ""}
+      <circle cx="${cx}" cy="${cy}" r="${R + 3.6}" fill="#fbfdfe" stroke="#1f2b38" stroke-width="1"/>${ring}<circle cx="${cx}" cy="${cy}" r="${R - 0.4}" fill="#1f2b38"/>
+      <text x="${cx}" y="${cy + R * 0.36}" font-size="${R * 1.05}" font-weight="700" text-anchor="middle" font-family="Courier Prime, monospace" fill="#fbfdfe" pointer-events="none">${all.length > 1 ? all.length : esc((all[0].name ?? "?")[0])}</text></g>`; }).join("");
+  // a scene on the selected party's hex: its symbol on the map is the way in
   const hereK = sp ? wl.key(sp.hex.q, sp.hex.r) : null, hereH = hereK ? H[hereK] : null, into = sp?.walks && !sp.encounter && hereH?.place ? sceneAt(hereH.place) : null;
-  const enter = into ? (() => { const { x, y } = wl.toPixel(sp.hex, SZ), w = into.label.length * 7.4 + 22; return `<g class="w-pt w-enter" data-bx="${x}" data-by="${y + 26}" data-ox="0" data-oy="24" transform="translate(${x} ${y + 26 + 24 * ts}) scale(${ts})" data-w-enter="${esc(into.kind)}" role="button" aria-label="${esc(into.label)}" style="cursor:pointer"><title>${esc(into.tip)}</title><rect x="${-w / 2}" y="-11" width="${w}" height="22" rx="11" fill="#1f2b38" stroke="#fbfdfe" stroke-width="2"/><text y="4" font-size="12" font-weight="700" text-anchor="middle" font-family="Source Serif 4, Georgia, serif" fill="#fbfdfe">${esc(into.label)}</text></g>`; })() : "";
-  const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wSheet">${sheet}</g><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${realms}<g id="wReach" pointer-events="none">${lit}</g><g pointer-events="none">${places}</g><g id="wPlan" pointer-events="none"></g>${enter}${counters}</svg>`;
+  const enter = into ? (() => { const { x, y } = wl.toPixel(sp.hex, SZ); return `<g data-w-enter="${esc(into.kind)}" role="button" aria-label="${esc(into.label)}" style="cursor:pointer"><title>${esc(into.label)}: ${esc(into.tip)}</title><rect x="${x - 13}" y="${y - 22}" width="26" height="26" rx="6" fill="rgba(245,215,138,.85)" stroke="#b3362b" stroke-width="2"><animate attributeName="stroke-opacity" values="1;.25;1" dur="1.6s" repeatCount="indefinite"/></rect></g>`; })() : "";
+  const vb = world.vb, svg = `<svg id="wHexSvg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg"><defs>${HEX_SYMBOLS}</defs><g id="wSheet">${sheet}</g><g id="wHexes">${hexes}</g>${rivers}${tracks}${fords}${realms}<g id="wReach" pointer-events="none">${lit}</g>${enter}<g pointer-events="none">${places}</g><g id="wPlan" pointer-events="none"></g>${counters}</svg>`;
   const key = world.showKey ? wmap.legendHtml({ full: world.full && !asPlayers }) : "";
   const toggle = world.full && world.known ? ` \u00b7 <label class="w-asplayers"><input type="checkbox" id="wAsPlayers" ${asPlayers ? "checked" : ""}> as the players see it</label>` : "";
   const waiting = sp?.encounter ? sp.members.map((m) => charOf(m.id)).find((x) => x?.doing === "encounter") : null;
   const card = (waiting ? encounterPromptHtml(waiting, uid, world.hexes[hexKeyOf(waiting)] ?? { t: "clear" }) : "") + (PLAYER ? "" : `${waiting ? `<div class="w-act"></div>` : ""}${refereeMapCard(uid)}${hexPanelHtml(c, uid)}`);
-  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">Day ${table.game?.day ?? 1} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
+  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${partyPopHtml(byHex, sp)}${key}<div class="w-crumb">Day ${table.game?.day ?? 1} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
 }
-/** A party's token keeps its size on screen: drawn larger as the map is zoomed out to the whole kingdom. */
-const tokenScale = () => Math.max(1, Math.min(4, (world.vb?.w ?? 1040) / 1040));
+/** A party is on the kingdom map while any of its members is out of town; in town it is inside the town's scene. */
+const onRoad = (pt) => pt.members.some((m) => m.doing !== "town");
+/** Who is on a hex, opened from its Party token: each party with its members, and whoever is inside the town there. */
+function partyPopHtml(byHex, sp) {
+  const k = world.pop, list = k ? byHex[k] : null; if (!list) return "";
+  const h = viewHexes()[k] ?? {}, person = (m) => table.game.people?.[m.owner] ?? {};
+  const mem = (m) => `<div class="wp-m"><span class="dot" style="background:${esc(person(m).color ?? "#888")}"></span><b>${esc(m.name)}</b><small>${esc(clsAbbr(m))} ${m.level ?? 1}${person(m).name ? ` \u00b7 ${esc(person(m).name)}` : ""}</small>${m.maxHp ? `<span class="hp">hp ${m.hp}/${m.maxHp}</span>` : ""}</div>`;
+  const road = list.filter(onRoad), town = list.filter((pt) => !onRoad(pt));
+  const rows = road.map((pt) => `<div class="wp-pt${pt.id === sp?.id ? " on" : ""}"><div class="wp-h"><span>${pt.members.length > 1 ? `Party of ${pt.members.length} \u00b7 ${esc(pt.members[0].name)} leads` : "Alone"}${pt.encounter ? " \u00b7 an encounter waits" : ""}</span>${pt.id === sp?.id ? `<i>selected</i>` : `<button type="button" data-wp-sel="${esc((pt.members.find((m) => m.mine && charOf(m.id)) ?? pt.members.find((m) => charOf(m.id)))?.id ?? "")}">Select</button>`}</div>${pt.members.map(mem).join("")}</div>`).join("");
+  const inside = town.length ? `<div class="wp-pt in"><div class="wp-h"><span>Inside ${esc(h.place ?? "the town")}</span></div>${town.flatMap((pt) => pt.members).map(mem).join("")}</div>` : "";
+  return `<div class="w-pop" id="wPop" data-hexk="${k}" hidden><div class="wp-top"><b>${esc(hexNo(k))}${h.place ? ` \u00b7 ${esc(h.place)}` : ""}</b><button type="button" id="wPopX" aria-label="Close">\u00d7</button></div>${rows}${inside}${road.length > 1 ? `<div class="note">Select a party to move it. Parties on the same hex join from the strip under the map.</div>` : ""}</div>`;
+}
 /** The scene a place on the kingdom map leads into, for a party standing on its hex: a settlement, or an open dungeon level. */
 function sceneAt(place) {
   const pl = world.places[place] ?? {}, lvl = Object.entries(world.dungeons ?? {}).find(([, d]) => d.place === place && d.status === "open");
@@ -1958,7 +1982,7 @@ function renderHexScene(el, c, uid) {
 /** The dock under the map: the selected party's members, the parties standing with it, the day, and Camp. */
 function partyBarHtml(uid, sp, c) {
   if (!sp && world.behind) return `<div class="ps-dock"><span class="note bad">${esc(world.behind)} Until then parties can\u2019t be shown or moved on this map.</span></div>`;
-  if (!sp) return `<div class="ps-dock"><span class="note">${PLAYER ? "Your characters are in town: leave the scene there to come out onto the map." : (world.parties ?? []).length ? "Drag a party\u2019s token to a lit hex to move it, or click it to select it." : "No party is on the road. A party comes onto this map when it leaves its town scene."}</span></div>`;
+  if (!sp) return `<div class="ps-dock"><span class="note">${PLAYER ? "Your characters are in town: leave the scene there to come out onto the map." : (world.parties ?? []).some(onRoad) ? "Click a Party token to see who is there; drag it to a lit hex to move the party." : "No party is on the road. A party comes onto this map when it leaves its town scene."}</span></div>`;
   const multi = sp.members.length > 1, leadMine = sp.members[0].mine, free = !sp.encounter && !world.busy;
   const chips = sp.members.map((m, i) => {
     const x = charOf(m.id), p = table.game?.people?.[m.owner] ?? {}, hp = x?.hp ?? m.hp, max = x?.maxHp ?? m.maxHp;
@@ -2035,7 +2059,11 @@ function bindHexMap(el, c, uid) {
   const walker = sp?.walks ? (sp.members.find((m) => m.mine) ?? sp.members[0]) : null;
   $("#wKey")?.addEventListener("click", (ev) => { ev.preventDefault(); world.showKey = !world.showKey; renderLobbyStage(); });
   if (svg) {
-    const apply = () => { svg.setAttribute("viewBox", `${world.vb.x} ${world.vb.y} ${world.vb.w} ${world.vb.h}`); const s = tokenScale(); svg.querySelectorAll(".w-pt").forEach((g) => g.setAttribute("transform", `translate(${Number(g.dataset.bx) + Number(g.dataset.ox) * s} ${Number(g.dataset.by) + Number(g.dataset.oy) * s}) scale(${s})`)); };
+    const placePop = () => { const pop = $("#wPop"), tok = pop ? svg.querySelector(`.w-pt[data-hexk="${pop.dataset.hexk}"]`) : null; if (!pop) return; if (!tok) { pop.hidden = true; return; } const r = tok.getBoundingClientRect(), w = el.querySelector(".w-map").getBoundingClientRect(); pop.hidden = false; pop.style.left = `${Math.max(8, Math.min(r.right - w.left + 10, w.width - pop.offsetWidth - 8))}px`; pop.style.top = `${Math.max(48, Math.min(r.top - w.top - 10, w.height - pop.offsetHeight - 8))}px`; };
+    const apply = () => { svg.setAttribute("viewBox", `${world.vb.x} ${world.vb.y} ${world.vb.w} ${world.vb.h}`); placePop(); };
+    placePop();
+    $("#wPopX")?.addEventListener("click", () => { world.pop = null; renderLobbyStage(); });
+    el.querySelectorAll("[data-wp-sel]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.wpSel) openWorld(b.dataset.wpSel); }));
     const toWorld = (ev) => { const r = svg.getBoundingClientRect(); return { x: world.vb.x + ((ev.clientX - r.left) / r.width) * world.vb.w, y: world.vb.y + ((ev.clientY - r.top) / r.height) * world.vb.h, r }; };
     svg.addEventListener("wheel", (ev) => { ev.preventDefault(); const z = ev.deltaY > 0 ? 1.15 : 1 / 1.15, m = toWorld(ev), vb = world.vb; const w = Math.min(4000, Math.max(120, vb.w * z)), h = vb.h * (w / vb.w); world.vb = { x: m.x - (m.x - vb.x) * (w / vb.w), y: m.y - (m.y - vb.y) * (h / vb.h), w, h }; apply(); }, { passive: false });
     svg.addEventListener("contextmenu", (ev) => ev.preventDefault());
@@ -2061,6 +2089,7 @@ function bindHexMap(el, c, uid) {
       poly.addEventListener("pointerleave", () => { tip.hidden = true; plan.innerHTML = ""; poly.classList.remove("hover"); });
       poly.addEventListener("click", async () => { const k = poly.dataset.wHex;
         if (Date.now() - hexDragAt < 350) return; // a token was just dropped here: the drop moved it
+        if (world.pop) { world.pop = null; $("#wPop")?.remove(); }
         if (!PLAYER && world.paint.mode === "brush") return; // the stroke painted; nothing to select
         if (!PLAYER && world.paint.mode === "fill" && world.paint.t && world.hexes[k]) { const ks = wmap.floodKeys(world.hexes, k); if (ks.length > 1 && !confirm(`Fill ${ks.length} hexes of ${world.hexes[k].t} with ${world.paint.t}?`)) return; const res = await worldOp("paint", { hexes: ks.map((kk) => wl.parse(kk)), t: world.paint.t }); if (res.ok) await loadWorld(true); return; }
         if (rc?.hexes[k] && !world.busy) { await walkParty(sp, rc.hexes[k].path); return; }
@@ -2070,27 +2099,34 @@ function bindHexMap(el, c, uid) {
         v.sel = k; renderLobbyStage(); });
     });
     svg.querySelector("[data-w-enter]")?.addEventListener("click", (ev) => { ev.stopPropagation(); if (sp) enterSceneHere(sp); });
-    // a party's token: a click selects it; a drag carries it to a lit hex and the party walks there
-    svg.querySelectorAll(".w-pt[data-pt]").forEach((g) => {
-      const pt = (world.parties ?? []).find((x) => x.id === g.dataset.pt), openId = g.dataset.wParty ?? null;
-      g.addEventListener("click", (ev) => { ev.stopPropagation(); if (Date.now() - hexDragAt < 350) return; if (openId && sp?.id !== pt?.id) openWorld(openId); });
+    // the Party token: a click shows who is there (and selects a lone party); a drag carries the party to a lit hex and it walks there
+    svg.querySelectorAll(".w-pt[data-hexk]").forEach((g) => {
+      const k = g.dataset.hexk, road = (world.parties ?? []).filter((pt) => wl.key(pt.hex.q, pt.hex.r) === k && onRoad(pt));
+      const openOf = (pt) => (pt.members.find((m) => m.mine && charOf(m.id)) ?? pt.members.find((m) => charOf(m.id)))?.id ?? null;
+      const mover = () => (sp && sp.walks && road.some((pt) => pt.id === sp.id) ? sp : road.filter((pt) => pt.walks).length === 1 ? road.find((pt) => pt.walks) : null);
+      g.addEventListener("click", (ev) => {
+        ev.stopPropagation(); if (Date.now() - hexDragAt < 350) return;
+        world.pop = world.pop === k && (road.length !== 1 || sp?.id === road[0].id) ? null : k;
+        const only = road.length === 1 ? openOf(road[0]) : null;
+        if (only && sp?.id !== road[0].id) openWorld(only); else renderLobbyStage();
+      });
       g.addEventListener("pointerdown", (ev) => {
-        if (ev.button !== 0 || !pt?.walks || world.busy) return;
+        if (ev.button !== 0 || world.busy) return;
         ev.stopPropagation();
-        const x0 = ev.clientX, y0 = ev.clientY, reach = reachOf(pt); let drag = false;
+        const pt = mover(), x0 = ev.clientX, y0 = ev.clientY, reach = pt ? reachOf(pt) : null, bx = Number(g.dataset.x), by = Number(g.dataset.y); let drag = false;
         const move = (m) => {
           if (!drag && Math.hypot(m.clientX - x0, m.clientY - y0) < 6) return;
-          if (!reach) return;
-          if (!drag) { drag = true; g.style.pointerEvents = "none"; g.style.cursor = "grabbing"; $("#wReach").innerHTML = Object.keys(reach.hexes).map((k) => `<polygon points="${wmap.polyOf(k, HEX_SZ)}" fill="rgba(245,215,138,.25)" stroke="#e0a400" stroke-width="2"/>`).join(""); }
-          const w = toWorld(m); g.setAttribute("transform", `translate(${w.x} ${w.y}) scale(${tokenScale()})`);
+          if (!drag && !reach) { window.removeEventListener("pointermove", move); if (road.filter((x) => x.walks).length > 1) { world.pop = k; world.msg = "Several parties stand here: select the one to move."; renderLobbyStage(); } return; }
+          if (!drag) { drag = true; g.style.pointerEvents = "none"; g.style.cursor = "grabbing"; const pop = $("#wPop"); if (pop) pop.hidden = true; $("#wReach").innerHTML = Object.keys(reach.hexes).map((hk) => `<polygon points="${wmap.polyOf(hk, HEX_SZ)}" fill="rgba(245,215,138,.25)" stroke="#e0a400" stroke-width="2"/>`).join(""); }
+          const w = toWorld(m); g.setAttribute("transform", `translate(${w.x - bx} ${w.y - by})`);
         };
         const up = async (u) => {
           window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
           if (!drag) return;
-          hexDragAt = Date.now();
-          const k = document.elementFromPoint(u.clientX, u.clientY)?.dataset?.wHex ?? null, to = k ? reach.hexes[k] : null;
+          hexDragAt = Date.now(); world.pop = null;
+          const to = document.elementFromPoint(u.clientX, u.clientY)?.dataset?.wHex ?? null, hit = to ? reach.hexes[to] : null, openId = openOf(pt);
           if (openId) { lobby.view.id = openId; lobby.lastChar = openId; }
-          if (to) await walkParty(pt, to.path); else { if (k && k !== wl.key(pt.hex.q, pt.hex.r)) world.msg = "Too far for what is left of the day: drop the party on a lit hex."; renderLobbyStage(); }
+          if (hit) await walkParty(pt, hit.path); else { if (to && to !== k) world.msg = "Too far for what is left of the day: drop the party on a lit hex."; renderLobbyStage(); }
         };
         window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
       });
