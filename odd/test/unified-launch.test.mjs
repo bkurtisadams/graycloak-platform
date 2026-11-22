@@ -47,9 +47,17 @@ test("signing out stops the watchers and the presence heartbeat, then goes back 
 test("the referee and the players get the same stage: the scene, with a player's onboarding cards first", () => {
   const code = body("renderLobbyStage");
   before(code, "if (PLAYER && renderPlayerOnboarding(el, g, uid))", "lobby.view = defaultScene(uid)", "a player's welcome and first roll come before the scene");
-  assert.match(code, /if \(lobby\.view\) \{ renderWorldStage\(el, g, uid\); renderBoardPanel\(\); return; \}/, "both roles see the scene, the board beside it");
+  assert.match(code, /if \(lobby\.view\) \{ renderWorldStage\(el, g, uid\); return; \}/, "both roles see the scene");
   assert.match(code, /if \(lobby\.view\?\.dungeon && !PLAYER\)/, "a dungeon draft is the referee's alone");
   assert.match(body("defaultScene"), /if \(!PLAYER\) return \{ id: null/, "the referee opens on the kingdom map");
+});
+
+test("the sidebar is five tabs, Fights folded into the Tracker (approved mockup 18 Nov 2026)", () => {
+  const tabs = [...grid.matchAll(/class="sb-icon" data-sbtab="(\w+)"/g)].map((m) => m[1]);
+  assert.deepEqual(tabs, ["chat", "party", "tracker", "scenes", "settings"]);
+  for (const id of ["tkFight", "tkNew", "tkEnd", "acSearch", "acRoll", "scSearch", "actorsList"]) assert.ok(grid.includes(`id="${id}"`), id);
+  assert.match(body("renderGameSettings"), /"My profile"[\s\S]*"Players and invitations"[\s\S]*"Sign out"/, "Settings is three buttons; the forms are dialogs");
+  assert.doesNotMatch(body("renderRoster"), /xp \\u00b7 next|<table/, "one row per character; xp and gp live on the sheet");
 });
 
 test("a fight's viewer is the player himself or the referee", () => {

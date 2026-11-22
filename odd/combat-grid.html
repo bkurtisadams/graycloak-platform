@@ -159,6 +159,46 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .stage:not(.log-closed) .sb-icon { flex: 1 1 0; width: auto; height: 48px; border-left: 0; border-bottom: 3px solid transparent; }
 .stage:not(.log-closed) .sb-icon.on { border-bottom-color: #f5d78a; }
 .sb-stack { display: flex; flex-direction: column; gap: 10px; }
+/* the tabs cleaned up (approved mockup 18 Nov 2026): one thin head strip, a flat list of rows, forms in dialogs */
+.stage:not(.log-closed) .sb-icons { background: var(--card); border-bottom: 1px solid #b7c7d2; border-radius: 0; }
+.stage:not(.log-closed) .sb-icon { height: 52px; color: var(--ink) !important; font-size: 12px; background: transparent !important; }
+.stage:not(.log-closed) .sb-icon.on { border-bottom-color: #c9962e; font-weight: 700; }
+.sb-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid #b7c7d2; }
+.sb-head[hidden] { display: none; }
+.sb-head input[type=search] { flex: 1 1 auto; min-width: 0; min-height: 32px; padding: 3px 8px; border: 1px solid #8a96a1; border-radius: 5px; font: inherit; font-size: .88rem; }
+.sbtn { min-height: 32px; padding: 3px 10px; border: 1px solid var(--ink); border-radius: 5px; font: inherit; font-size: .82rem; }
+.sbtn[hidden] { display: none; }
+.sb-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 6px 0; }
+.sb-list > .note { padding: 6px 14px; font-size: .88rem; }
+.sb-grp { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 14px 2px; font-size: .82rem; color: var(--pencil); }
+.sb-grp b { color: var(--ink); } .sb-grp span { font-family: var(--type); font-size: .75rem; }
+.ac-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 0 4px 14px; cursor: pointer; }
+.ac-row:hover, .ac-row:focus-visible { background: var(--floor); outline: none; }
+.ac-row.limited { cursor: default; }
+.ac-tok { width: 34px; height: 34px; flex: none; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); color: #fbfdfe; display: flex; align-items: center; justify-content: center; font: 700 14px var(--type); }
+.ac-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.ac-body small { font-size: .82rem; color: var(--pencil); margin-left: 3px; }
+.ac-body .ac-sub { font-size: .82rem; color: var(--pencil); }
+.ac-row.draft .ac-body b { font-style: italic; color: var(--pencil); }
+.ac-hp { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font: 12px var(--type); flex: none; }
+.ac-bar { display: block; width: 44px; height: 5px; border-radius: 3px; background: #c9d8e2; }
+.ac-bar i { display: block; height: 5px; border-radius: 3px; background: #4caf50; }
+.ac-bar i.hurt { background: #d9a85a; } .ac-bar i.bad { background: var(--red); }
+.ac-kebab { width: 32px; min-height: 40px; flex: none; border: 0; padding: 0; background: transparent !important; color: var(--pencil) !important; display: flex; align-items: center; justify-content: center; }
+.ac-kebab:hover { color: var(--ink) !important; }
+.tk-pick { flex-basis: 100%; display: flex; align-items: center; gap: 6px; }
+.tk-pick[hidden] { display: none; }
+.tk-pick select { flex: 1 1 0; width: 0; min-width: 0; min-height: 32px; border: 1px solid #8a96a1; border-radius: 5px; font: inherit; font-size: .88rem; }
+.sb-head .tk-filters { flex-basis: 100%; padding: 0; align-items: center; }
+.tk-when { margin-left: auto; font: 12px var(--type); color: var(--pencil); }
+.set-name { display: flex; flex-direction: column; } .set-name b { font-size: 1.06rem; } .set-name span { font-size: .82rem; color: var(--pencil); }
+.set-big { min-height: 52px; display: flex; flex-direction: column; justify-content: center; padding: 6px 14px !important; border: 1px solid var(--ink); border-radius: 6px; text-align: left; font-size: .94rem !important; }
+.set-big span { font-size: .82rem; color: var(--pencil); }
+#dlgBody .sbcard { border: 0; padding: 0; }
+#dlgBody .sbcard + .sbcard { border-top: 1px solid #b7c7d2; border-radius: 0; padding-top: 10px; margin-top: 10px; }
+#dlgBody .dlg-lab { font-size: .82rem; color: var(--pencil); }
+#dlgBody .people { border: 0; padding: 0; }
+#dlgBody .dg-key { max-height: 60vh; overflow-y: auto; }
 /* Foundry's players list: who is here, each with his assigned character */
 .sb-players { flex: 0 0 auto; border-top: 1px solid #d5dbe3; padding: 6px 12px 8px; font-size: .82rem; max-height: 9.5em; overflow-y: auto; }
 .sb-players .pl { display: flex; align-items: center; gap: 6px; line-height: 1.5; }
@@ -406,8 +446,6 @@ body.table.lobby #strip, body.table.lobby #subline, body.table.lobby #openSetup,
 .floatwin.folded .fw-body { display: none; }
 .map-col { min-width: 0; }
 .logpanel { display: flex; flex-direction: column; height: max(520px, calc(100vh - 250px)); background: var(--card); border: 1px solid #9fb2c0; border-radius: 6px; overflow: hidden; }
-.logpanel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #c5d1d9; }
-.logpanel-head h2 { margin: 0; font-size: 1rem; }
 .logpanel #log { flex: 1 1 auto; max-height: none; overflow-y: auto; padding: 8px 10px; }
 .chatbar { display: flex; gap: 6px; padding: 8px; border-top: 1px solid #c5d1d9; background: #f4f7f9; }
 .chatbar select { max-width: 120px; }
@@ -522,19 +560,16 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 /* the scene frame (approved mockup 25 Oct 2026): the stage is always a scene; the breadcrumb says which */
 header.top .crumb { font-size: .9rem; color: var(--ink); margin-left: 14px; }
 header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
-.sb-board .lcard.board { padding: 8px; box-shadow: none; border: 0; background: transparent; }
-.sb-board .lcard.board .ls-head h2 { font-size: 1rem; }
-.sb-board .lcard.board .ls-here { display: none; }
-.sb-board .lcard.board table { font-size: .78rem; }
-.sb-board .lcard.board .ls-ctl { flex-wrap: wrap; }
-.sb-board .lcard.board .strip { display: none; }
-.sc-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 5px 8px; border: 1px solid #d5dbe3; border-radius: 6px; background: var(--card); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; color: var(--ink); }
-.sc-row.sub { margin-left: 16px; width: calc(100% - 16px); }
-.sc-row.on { border: 2px solid var(--red); background: #f1f5fb; padding: 4px 7px; }
-.sc-row b { font-size: .9rem; } .sc-row b small { font-weight: 400; font-size: .7rem; color: var(--pencil); margin-left: 4px; }
-.sc-row .sc-who { font-family: var(--type); font-size: .72rem; color: var(--pencil); }
-.sc-row .sc-body { display: flex; flex-direction: column; gap: 1px; flex: 1 1 auto; min-width: 0; }
-.sc-row .sc-open { font-size: .72rem; color: var(--pencil); flex: none; }
+.sc-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px 4px 14px; box-sizing: border-box; color: var(--ink); cursor: pointer; }
+.sc-row.sub { padding-left: 30px; }
+.sc-row:hover, .sc-row:focus-visible { background: var(--floor); outline: none; }
+.sc-row.on { background: #e3e9ee; }
+.sc-row b small { font-weight: 400; font-size: .82rem; color: var(--pencil); margin-left: 4px; }
+.sc-row .sc-who { font-size: .82rem; color: var(--pencil); }
+.sc-row .sc-body { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 1.3; }
+.sc-more { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 4px 14px 4px 30px; border: 0; border-radius: 0; background: transparent !important; color: var(--pencil) !important; text-align: left; font-size: .88rem; }
+.sc-more svg { transition: transform .1s; } .sc-more[aria-expanded="true"] svg { transform: rotate(90deg); }
+.sc-row .sc-open { font: 11px var(--type); padding: 0 5px; border: 1px solid var(--pencil); border-radius: 3px; color: var(--ink); flex: none; }
 .w-asplayers { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 :root[data-theme="dark"] .sc-row.on { background: #24323f; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sc-row.on { background: #24323f; } }
@@ -542,13 +577,11 @@ header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
 .tk-filters { display: flex; gap: 6px; padding: 8px 12px 0; flex-wrap: wrap; }
 .tk-filters button { font: inherit; font-size: .8rem; padding: 3px 10px; min-height: 26px; border: 1px solid #b7c7d2; border-radius: 999px; background: var(--card); color: var(--ink); cursor: pointer; }
 .tk-filters button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
-.tk-group { display: flex; flex-direction: column; gap: 6px; }
-.tk-head { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 2px 0; }
-.tk-head b { font-size: .7rem; letter-spacing: .08em; }
-.tk-head b.a { color: var(--side-a); } .tk-head b.b { color: var(--side-b); } .tk-head b.d { color: var(--pencil); }
-.tk-head span { font-size: .78rem; color: var(--pencil); }
-.tk-row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 5px 8px; border: 1px solid #d5dbe3; border-radius: 6px; background: var(--card); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; color: var(--ink); }
-.tk-row.sel { border: 2px solid var(--red); background: #f1f5fb; padding: 4px 7px; }
+.tk-group { display: flex; flex-direction: column; }
+.sb-grp b.a { color: var(--side-a); } .sb-grp b.b { color: var(--side-b); } .sb-grp b.d { color: var(--pencil); }
+.tk-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 2px 14px; border: 0; border-radius: 0; background: transparent !important; font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; color: var(--ink); }
+.tk-row:hover { background: var(--floor) !important; }
+.tk-row.sel { background: #e3e9ee !important; box-shadow: inset 3px 0 0 var(--red); }
 .tk-row.down { opacity: .55; }
 .tk-mark { width: 16px; height: 16px; border-radius: 50%; flex: none; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
 .tk-mark.ready { background: var(--ink); color: #fff; }
@@ -558,18 +591,17 @@ header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
 .tk-mark.none { border: 1px solid #c5d1d9; }
 .tk-mark.down { color: var(--pencil); }
 .tk-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.tk-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 auto; }
-.tk-name { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .9rem; }
+.tk-name { display: flex; align-items: center; gap: 6px; font-size: .94rem; flex: 1 1 auto; min-width: 0; }
 .tk-name.a { color: var(--side-a); } .tk-name.b { color: var(--side-b); }
 .tk-tag { font-size: .62rem; font-weight: 400; border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; color: var(--pencil); line-height: 15px; }
-.tk-sub { font-family: var(--type); font-size: .74rem; color: var(--ink); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.tk-sub .hpbar { width: 52px; height: 6px; display: inline-block; vertical-align: middle; }
-.tk-sub .hpbar > div { height: 6px; }
-.tk-right { font-size: .76rem; color: var(--pencil); flex: none; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.tk-hp { font: 12px var(--type); min-width: 34px; text-align: right; flex: none; }
+.tk-hp .hpbar { width: 34px; height: 5px; display: inline-block; vertical-align: middle; background: #c9d8e2; border-radius: 3px; overflow: hidden; }
+.tk-hp .hpbar > div { height: 5px; }
+.tk-right { font: 12px var(--type); color: var(--pencil); flex: none; display: flex; align-items: center; gap: 4px; }
 .tk-st { font-family: var(--type); font-size: .68rem; border: 1px solid #b7c7d2; border-radius: 3px; padding: 0 4px; }
 .tk-st.bad { color: var(--red); border-color: var(--red); }
-:root[data-theme="dark"] .tk-row.sel, :root[data-theme="dark"] .tk-mark.auto { background: #24323f; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tk-row.sel, :root:not([data-theme="light"]) .tk-mark.auto { background: #24323f; } }
+:root[data-theme="dark"] .tk-row.sel { background: #24323f !important; } :root[data-theme="dark"] .tk-mark.auto { background: #24323f; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .tk-row.sel { background: #24323f !important; } :root:not([data-theme="light"]) .tk-mark.auto { background: #24323f; } }
 .people { border-bottom: 1px solid #c9d8e2; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .people[hidden] { display: none; }
 .people h2 { margin: 0; font-size: 1rem; }
@@ -699,10 +731,10 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <p class="step" id="stepText"></p>
  </div>
  <aside class="logpanel sidebar" id="logpanel" aria-label="Sidebar">
-  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="tracker" title="Tracker" aria-label="Tracker" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2"/></svg><span>Tracker</span></button><button type="button" class="sb-icon" data-sbtab="scenes" title="Scenes" aria-label="Scenes"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 4v14M15 6v14" stroke="currentColor" stroke-width="2"/></svg><span>Scenes</span></button><button type="button" class="sb-icon" data-sbtab="fights" title="Fights" aria-label="Fights"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5M15 5h4v4M19 19L5 5M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Fights</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
+  <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="tracker" title="Tracker" aria-label="Tracker" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2"/></svg><span>Tracker</span></button><button type="button" class="sb-icon" data-sbtab="scenes" title="Scenes" aria-label="Scenes"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 4v14M15 6v14" stroke="currentColor" stroke-width="2"/></svg><span>Scenes</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
   <div class="sb-panes">
    <section class="sb-pane on" data-sbpane="chat" aria-label="Log and chat">
-  <div class="logpanel-head"><h2>Chat</h2><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
+  <div class="sb-head"><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
   <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
   <form class="chatbar" id="chatForm" autocomplete="off">
    <select id="chatAs" aria-label="Speak as"></select>
@@ -711,17 +743,12 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
    <button type="submit">Send</button>
   </form>
    </section>
-   <section class="sb-pane" data-sbpane="party" aria-label="Actors"><div class="logpanel-head"><h2>Actors</h2></div><div class="sb-body"><div class="sb-board" id="boardPanel"></div>
-  <div id="rosterPanel"></div>
-  <section class="people" id="peoplePanel" hidden aria-label="Who runs what"><div id="peopleList"></div></section>
-    <div id="partyNote" class="note"></div></div></section>
-   <section class="sb-pane" data-sbpane="tracker" aria-label="Tracker"><div class="logpanel-head"><h2>Tracker</h2><span class="note" id="tkWhen"></span></div>
-    <div class="tk-filters" id="tkFilters"><button type="button" data-tkf="all" class="on">All</button><button type="button" data-tkf="waiting">Waiting</button><button type="button" data-tkf="mine">Mine</button></div>
-    <div class="sb-body" id="tracker" style="gap:14px"></div>
-    <div class="sb-players" id="tkNote">A row selects the figure and pings it on the map; double-click opens the sheet. Hollow mark = still to act this step, filled = ready, dashed = moves next step.</div></section>
-   <section class="sb-pane" data-sbpane="scenes" aria-label="Scenes"><div class="logpanel-head"><h2>Scenes</h2><span class="note" id="scNote"></span></div><div class="sb-body" id="gamePlaces"></div></section>
-   <section class="sb-pane" data-sbpane="fights" aria-label="Fights"><div class="logpanel-head"><h2>Fights</h2></div><div class="sb-body" id="gameFights"></div></section>
-   <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="logpanel-head"><h2>Settings</h2></div><div class="sb-body"><div id="gamePlayers" class="sb-stack"></div><div id="gameSettings" class="sb-stack"></div></div></section>
+   <section class="sb-pane" data-sbpane="party" aria-label="Actors"><div class="sb-head"><input type="search" id="acSearch" placeholder="Search actors" aria-label="Search actors"><button type="button" class="sbtn" id="acRoll">Roll a character</button></div><div class="sb-list" id="actorsList"></div></section>
+   <section class="sb-pane" data-sbpane="tracker" aria-label="Tracker"><div class="sb-head"><div class="tk-pick" id="tkPick" hidden><select id="tkFight" aria-label="Fight"></select><button type="button" class="sbtn" id="tkNew" title="Set up a new fight">New</button><button type="button" class="sbtn" id="tkEnd" title="End the live fight: its outcome goes back to the characters">End</button></div>
+    <div class="tk-filters" id="tkFilters"><button type="button" data-tkf="all" class="on">All</button><button type="button" data-tkf="waiting">Waiting</button><button type="button" data-tkf="mine">Mine</button><span class="tk-when" id="tkWhen"></span></div></div>
+    <div class="sb-list" id="tracker"></div></section>
+   <section class="sb-pane" data-sbpane="scenes" aria-label="Scenes"><div class="sb-head"><input type="search" id="scSearch" placeholder="Search scenes" aria-label="Search scenes"><button type="button" class="sbtn" id="scRumours" title="What a round of drinks buys at each inn" hidden>Rumours</button></div><div class="sb-list" id="gamePlaces"></div></section>
+   <section class="sb-pane" data-sbpane="settings" aria-label="Settings"><div class="sb-head" id="setHead" hidden></div><div class="sb-body" id="setBody"></div></section>
   </div>
   <div class="sb-players" id="sbPlayers" aria-label="Players" hidden></div>
 
@@ -1339,9 +1366,9 @@ function startTableWatchers() {
   const api = online.api; if (!api) return;
   table.unsubs = [
     api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } }),
-    api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); if (sbTab === "settings") renderGamePlayers(); }),
+    api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); renderGamePlayers(); }),
     api.watchFolders(table.cid, (list) => { table.folders = list; if (sbTab === "party") renderRoster(); }),
-    api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; refreshParties(); renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); } if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER })
+    api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; refreshParties(); renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") renderGameSettings(); renderProfile(); renderGamePlayers(); if (charSheet.id) renderCharSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER })
   ].filter((u) => typeof u === "function");
 }
 function stopTableWatchers() { for (const u of table.unsubs ?? []) u(); table.unsubs = []; }
@@ -1362,7 +1389,7 @@ function changeTableRole(player) {
   if (fid) { api.closeFight(); $("#log").innerHTML = ""; openOnline(table.cid, fid); }
   loadTableFights();
 }
-async function loadTableFights() { try { table.fights = await online.api.listFightsOf(table.cid, PLAYER); } catch { table.fights = []; } if (sbTab === "fights") renderGameFights(); renderLobbyStage(); }
+async function loadTableFights() { try { table.fights = await online.api.listFightsOf(table.cid, PLAYER); } catch { table.fights = []; } if (sbTab === "tracker") renderTracker(); renderLobbyStage(); }
 /** The game changed: names, presence, roles, and which fight is live. */
 function applyGame() {
   const g = table.game, api = online.api; if (!g || !api) return;
@@ -1379,7 +1406,7 @@ function applyGame() {
   // the Setup's Players list offers the game's members: refresh it when they change
   const mk = (g.members ?? []).join(",") + "|" + Object.values(g.people ?? {}).map((p) => p.name).join(",");
   if (!PLAYER && mk !== table.membersKey) { table.membersKey = mk; roster.cid = null; loadRoster(); }
-  renderPresence(); renderLobbyStage(); renderSidebar(); refreshChatTo(); refreshChatAs();
+  renderPresence(); renderLobbyStage(); renderSidebar(); renderProfile(); renderGamePlayers(); refreshChatTo(); refreshChatAs();
   if (!live && !table.lobbyChat) startLobbyChat();
 }
 /** Back to the table between fights: close the fight here, without a reload. */
@@ -1425,12 +1452,13 @@ function renderLobbyStage() {
   const g = table.game, show = TABLE && !!g && !online.api?.fight && !table.setup;
   el.hidden = !show; document.body.classList.toggle("lobby", show);
   if (sbTab === "scenes") renderScenes();
+  renderKeyDialog();
   if (!show) { if (TABLE && online.api?.fight) setCrumb(["The Westmark", (table.fights ?? []).find((f) => f.fid === online.api.fight.fid)?.title || "the fight"]); return; }
   const uid = meUid();
   if (PLAYER && renderPlayerOnboarding(el, g, uid)) { setCrumb(["The Westmark"]); return; } // the welcome card, the first roll, a draft being finished: cards before the scene
   if (!lobby.view) lobby.view = defaultScene(uid);
-  if (lobby.view?.dungeon && !PLAYER) { renderDungeonStage(el, g, uid); renderBoardPanel(); return; }
-  if (lobby.view) { renderWorldStage(el, g, uid); renderBoardPanel(); return; }
+  if (lobby.view?.dungeon && !PLAYER) { renderDungeonStage(el, g, uid); return; }
+  if (lobby.view) { renderWorldStage(el, g, uid); return; }
   renderBoard(el, g, uid, !PLAYER); // no scene to show (a player with nothing on the map): the board
 }
 /** The scene the stage opens on: the referee's kingdom map; a player's selected (or first) character's scene. */
@@ -1439,12 +1467,6 @@ function defaultScene(uid) {
   const mine = myChars(uid).filter((c) => c.status === "ready" && c.doing !== "dead");
   const pick = mine.find((c) => c.id === lobby.lastChar) ?? mine[0];
   return pick ? { id: pick.id, at: null, dest: null, who: null } : null;
-}
-/** The campaign board, in the Actors pane: the same rows and controls, beside the scene instead of in place of it. */
-function renderBoardPanel() {
-  const el = $("#boardPanel"), g = table.game; if (!el || !g) return;
-  if (sbTab !== "party") return;
-  renderBoard(el, g, meUid(), !PLAYER);
 }
 /** The breadcrumb in the header. */
 function setCrumb(parts) {
@@ -1487,7 +1509,7 @@ function renderBoard(el, g, uid, ref) {
   el.innerHTML = `<div class="lcard board"><div class="ls-head"><h2>${esc(g.name ?? "The game")}</h2><span class="ls-day">Day ${day} \u00b7 ${week}${ordinal(week)} week of the campaign</span><span class="ls-here">${here}</span></div>
     <div class="ls-ctl">${ctl}</div>
     ${lobby.error ? `<div class="rs-err">${esc(lobby.error)}</div>` : ""}
-    <div class="ls-tblwrap"><table class="ls-tbl"><thead><tr><th>Player</th><th>Character</th><th>hp</th><th>xp \u00b7 next</th><th>gp</th><th>Where</th><th>Doing</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="8" class="note">${ref ? "No characters yet. Players roll their own; the join link is in the Players tab." : "No characters yet."}</td></tr>`}</tbody></table></div>
+    <div class="ls-tblwrap"><table class="ls-tbl"><thead><tr><th>Player</th><th>Character</th><th>hp</th><th>xp \u00b7 next</th><th>gp</th><th>Where</th><th>Doing</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="8" class="note">${ref ? "No characters yet. Players roll their own; the join link is under Settings." : "No characters yet."}</td></tr>`}</tbody></table></div>
     <div class="note">${ref ? "A row opens the sheet. The map shows every party on the referee's map; an encounter waits there for you to open a fight or let them go." : "A row opens the sheet. Set out takes a character into Langstead and onto the road; the others' rows show what the referee shares."}</div>${partyStripHtml(uid)}</div>`;
   bindPartyStrip(el);
   el.querySelectorAll("[data-ls-row]").forEach((tr) => tr.addEventListener("click", (e) => { if (e.target.closest("button")) return; const c = charOf(tr.dataset.lsRow); if (c && c.status !== "draft") openCharSheet(c.id); }));
@@ -1497,14 +1519,16 @@ function renderBoard(el, g, uid, ref) {
   $("#lsRoll")?.addEventListener("click", rollAnother);
   el.querySelectorAll("[data-ls-out]").forEach((b) => b.addEventListener("click", () => openWorld(b.dataset.lsOut)));
   $("#lsNew")?.addEventListener("click", () => { table.setup = true; renderLobbyStage(); openDrawer("setup"); });
-  $("#lsDay")?.addEventListener("click", async () => {
-    const n = prompt("Advance the campaign by how many days? (a wilderness move is a day, a dungeon expedition a week)", "1"); if (n == null) return;
-    const r = await online.api.game("advance", table.cid, { days: Number(n) });
-    if (r.ok) { table.game = { ...table.game, ...r.game }; lobby.error = ""; } else lobby.error = r.error ?? "That didn't work.";
-    renderLobbyStage();
-  });
+  $("#lsDay")?.addEventListener("click", advanceDay);
   $("#lsLink")?.addEventListener("click", async (e) => { try { await navigator.clipboard.writeText(joinUrl()); e.target.textContent = "Copied"; setTimeout(() => { e.target.textContent = "Join link"; }, 1500); } catch { showTab("settings"); } });
   $("#lsInvite")?.addEventListener("click", () => showTab("settings"));
+}
+async function advanceDay(e) {
+  e?.preventDefault?.();
+  const n = prompt("Advance the campaign by how many days? (a wilderness move is a day, a dungeon expedition a week)", "1"); if (n == null) return;
+  const r = await online.api.game("advance", table.cid, { days: Number(n) });
+  if (r.ok) { table.game = { ...table.game, ...r.game }; lobby.error = ""; world.error = ""; } else world.error = lobby.error = r.error ?? "That didn't work.";
+  renderLobbyStage(); if (sbTab === "settings") renderGameSettings();
 }
 /** A player's way onto the board: his name and colour, then his first character. True while one of those holds the stage. */
 function renderPlayerOnboarding(el, g, uid) {
@@ -1605,28 +1629,34 @@ function openFightForEncounter(ch) {
 /* ---------- pass 8: the referee's rumours, one settlement at a time (Places tab) ---------- */
 const rumourEd = { place: null, rows: null, busy: false, msg: "" };
 function renderRumourEditor(tab) {
-  if (!world.loaded) { if (!world.loading) loadWorld().then(() => { if (sbTab === "scenes") renderScenes(); }); tab.insertAdjacentHTML("beforeend", `<div class="sbcard"><h3>Rumours</h3><div class="note">loading the map\u2026</div></div>`); return; }
+  if (!world.loaded) { if (!world.loading) loadWorld().then(redrawRumours); tab.insertAdjacentHTML("beforeend", `<div class="note">loading the map\u2026</div>`); return; }
   const inns = Object.entries(world.places).filter(([, p]) => p.inn).map(([k]) => k);
   if (!rumourEd.place || !inns.includes(rumourEd.place)) rumourEd.place = inns[0] ?? null;
   if (rumourEd.rows === null || rumourEd.rows.place !== rumourEd.place) { const own = world.rumours?.[rumourEd.place]; rumourEd.rows = { place: rumourEd.place, list: (own?.length ? own : world.defaults?.[rumourEd.place] ?? []).map((r) => ({ text: r.text ?? "", truth: !!r.truth, hex: r.reveals ? `${r.reveals.q},${r.reveals.r}` : "" })), own: !!own?.length }; }
   const rows = rumourEd.rows.list.map((r, i) => `<div class="rm-row"><textarea data-rm-text="${i}" rows="2" placeholder="What the barman says">${esc(r.text)}</textarea><div class="row"><label class="chk"><input type="checkbox" data-rm-truth="${i}" ${r.truth ? "checked" : ""}> true</label><label class="chk">hex <input data-rm-hex="${i}" value="${esc(r.hex)}" placeholder="q,r" style="width:4.5em" title="a hex the rumour reveals on the players' map, as q,r (Fosscraig is 2,-2)"></label><button data-rm-del="${i}" title="remove">\u2715</button></div></div>`).join("");
-  tab.insertAdjacentHTML("beforeend", `<div class="sbcard" id="rumourCard"><h3>Rumours <select id="rmPlace">${inns.map((k) => `<option value="${esc(k)}" ${k === rumourEd.place ? "selected" : ""}>${esc(k)}</option>`).join("")}</select></h3>
+  tab.insertAdjacentHTML("beforeend", `<div class="sbcard" id="rumourCard"><h3><select id="rmPlace" aria-label="Settlement">${inns.map((k) => `<option value="${esc(k)}" ${k === rumourEd.place ? "selected" : ""}>${esc(k)}</option>`).join("")}</select></h3>
     <div class="note">What a round of drinks buys at ${esc(world.places[rumourEd.place]?.inn ?? "the inn")}: one of these, picked at random, fresh ones first. The truth flag is yours alone; a hex paints the players' map as rumoured until walked.${rumourEd.rows.own ? "" : " These are the key's defaults until you save your own."}</div>
     <div class="rm-rows">${rows || `<div class="note">No rumours yet.</div>`}</div>
     <div class="row"><button id="rmAdd">Add a rumour</button><button class="done" id="rmSave" ${rumourEd.busy ? "disabled" : ""}>Save</button>${rumourEd.msg ? `<span class="note">${esc(rumourEd.msg)}</span>` : ""}</div></div>`);
   const card = $("#rumourCard"), read = () => { rumourEd.rows.list = [...card.querySelectorAll(".rm-row")].map((row) => ({ text: row.querySelector("textarea").value, truth: row.querySelector("[data-rm-truth]").checked, hex: row.querySelector("[data-rm-hex]").value.trim() })); };
-  $("#rmPlace").addEventListener("change", (e) => { rumourEd.place = e.target.value; rumourEd.rows = null; rumourEd.msg = ""; renderScenes(); });
-  $("#rmAdd").addEventListener("click", () => { read(); rumourEd.rows.list.push({ text: "", truth: true, hex: "" }); renderScenes(); });
-  card.querySelectorAll("[data-rm-del]").forEach((b) => b.addEventListener("click", () => { read(); rumourEd.rows.list.splice(Number(b.dataset.rmDel), 1); renderScenes(); }));
+  $("#rmPlace").addEventListener("change", (e) => { rumourEd.place = e.target.value; rumourEd.rows = null; rumourEd.msg = ""; redrawRumours(); });
+  $("#rmAdd").addEventListener("click", () => { read(); rumourEd.rows.list.push({ text: "", truth: true, hex: "" }); redrawRumours(); });
+  card.querySelectorAll("[data-rm-del]").forEach((b) => b.addEventListener("click", () => { read(); rumourEd.rows.list.splice(Number(b.dataset.rmDel), 1); redrawRumours(); }));
   $("#rmSave").addEventListener("click", async () => {
     read();
     const list = rumourEd.rows.list.filter((r) => r.text.trim()).map((r) => { const m = /^(-?\d+)\s*,\s*(-?\d+)$/.exec(r.hex); return { text: r.text.trim(), truth: r.truth, ...(m ? { reveals: { q: Number(m[1]), r: Number(m[2]) } } : {}) }; });
-    rumourEd.busy = true; rumourEd.msg = ""; renderScenes();
+    rumourEd.busy = true; rumourEd.msg = ""; redrawRumours();
     const r = await online.api.world("rumours", table.cid, { place: rumourEd.place, list });
     rumourEd.busy = false; rumourEd.msg = r.ok ? `Saved ${r.count}.` : r.error ?? "That didn't work.";
     if (r.ok) { world.rumours = { ...(world.rumours ?? {}), [rumourEd.place]: list }; rumourEd.rows = null; }
-    renderScenes();
+    redrawRumours();
   });
+}
+/** The rumours, out of the Scenes tab and into a dialog (approved mockup 18 Nov 2026: forms open as dialogs). */
+function openRumours() { dlg.kind = "rumours"; openDialog("Rumours", "", sideAt()); redrawRumours(); }
+function redrawRumours() {
+  const b = $("#dlgBody"); if ($("#dlgWin").hidden || dlg.kind !== "rumours") return;
+  b.innerHTML = ""; renderRumourEditor(b);
 }
 /* ---------- pass 7 (approved boards 8-9, 24 Oct 2026): Langstead and the hex map ---------- */
 const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Langstead", full: false, laidOut: true, busy: false, error: "", msg: "", paint: { mode: "hex", t: null } };
@@ -1778,7 +1808,7 @@ function hexMapHtml(c, uid) {
   const toggle = world.full && world.known ? ` \u00b7 <label class="w-asplayers"><input type="checkbox" id="wAsPlayers" ${asPlayers ? "checked" : ""}> as the players see it</label>` : "";
   const waiting = sp?.encounter ? sp.members.map((m) => charOf(m.id)).find((x) => x?.doing === "encounter") : null;
   const card = (waiting ? encounterPromptHtml(waiting, uid, world.hexes[hexKeyOf(waiting)] ?? { t: "clear" }) : "") + (PLAYER ? "" : `${waiting ? `<div class="w-act"></div>` : ""}${refereeMapCard(uid)}${hexPanelHtml(c, uid)}`);
-  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
+  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${key}<div class="w-crumb">Day ${table.game?.day ?? 1} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
 }
 /* ---------- pass 17 (Nov 2026): parties. The party is the counter on the map; it walks where it is sent, the day's factors counted ---------- */
 const partyFor = (id) => (world.parties ?? []).find((pt) => pt.members.some((m) => m.id === id)) ?? null;
@@ -1801,11 +1831,12 @@ function renderHexScene(el, c, uid) {
   el.innerHTML = `<div class="lcard world hexscene"><div class="w-wrap">${hexMapHtml(c, uid)}</div>${toast}${partyBarHtml(uid, sp, c)}</div>`;
   bindPartyStrip(el); bindPartyBar(el, sp);
   $("#wAll")?.addEventListener("click", (e) => { e.preventDefault(); openWorld(null); });
+  $("#wDay")?.addEventListener("click", advanceDay);
   bindHexMap(el, c, uid);
 }
 /** The dock under the map: the selected party's members, the parties standing with it, the day, and Camp. */
 function partyBarHtml(uid, sp, c) {
-  if (!sp) return `<div class="ps-dock"><span class="note">${PLAYER ? "Set out with one of your characters from the board, or click your party on the map." : "Click a party on the map to walk it."}</span></div>`;
+  if (!sp) return `<div class="ps-dock"><span class="note">${PLAYER ? "Set out with one of your characters from the Actors tab, or click your party on the map." : "Click a party on the map to walk it."}</span></div>`;
   const multi = sp.members.length > 1, leadMine = sp.members[0].mine, free = !sp.encounter && !world.busy;
   const chips = sp.members.map((m, i) => {
     const x = charOf(m.id), p = table.game?.people?.[m.owner] ?? {}, hp = x?.hp ?? m.hp, max = x?.maxHp ?? m.maxHp;
@@ -1868,7 +1899,7 @@ function refereeMapCard(uid) {
   const pending = table.chars.filter((x) => x.status === "ready" && x.doing === "encounter");
   const rows = table.chars.filter((x) => x.status === "ready" && x.doing !== "dead").map((x) => { const k = hexKeyOf(x), h = world.hexes[k] ?? {}; return `<div class="rs-cart"><span>${esc(x.name)} <span class="note">(${esc(table.game.people?.[x.owner]?.name ?? "")})</span></span><span class="num">${esc(h.place ?? h.t ?? "?")} \u00b7 ${esc(doingOf(x))}${PLAYER && rs.levelOf(x, uid) < rs.OWNERSHIP.OWNER ? "" : ` <button data-w-open="${esc(x.id)}" title="Walk, camp or enter a village with this party">Open</button>`}</span></div>`; }).join("");
   const layout = world.full && !world.laidOut ? `<div class="w-act"><h4>The kingdom</h4><div class="note">This map is the old 91-hex key. Lay out the whole Westmark (28 \u00d7 22, the Grey Water to the south-west, the Fells, four neighbours); what you have painted stays, and the players' known hexes are refreshed to match.</div><div class="row"><button class="done" id="wLayout" ${world.busy ? "disabled" : ""}>Lay out the kingdom</button></div></div>` : "";
-  return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3>${layout}<div class="note">${world.full ? "Every party, and what waits on you; Open a row or click a party on the map to walk it. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the board."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
+  return `<h3>${world.full ? "The referee's map" : "The players' map"} <small>${Object.keys(world.hexes).length} hexes</small></h3>${layout}<div class="note">${world.full ? "Every party, and what waits on you; Open a row or click a party on the map to walk it. The players see only what they've walked or heard." : "What the party has walked or heard of. Set out with one of your own characters from the Actors tab."}</div><div class="rs-carts">${rows || `<div class="note">No one on the map.</div>`}</div>
     ${pending.length && !PLAYER ? `<div class="w-act"><h4>Encounters</h4>${(() => { const seen = new Set(); return pending.filter((x) => { const k = hexKeyOf(x); if (seen.has(k)) return false; seen.add(k); return true; }).map((x) => { const k = hexKeyOf(x), e = x.encounter ?? {}, who = pending.filter((y) => hexKeyOf(y) === k).map((y) => esc(y.name)).join(", ");
       const bandLine = e.band ? `${esc(e.band.leader.name)}, ${esc(e.kind)} (${esc(rs.CLASS_LABEL[e.band.leader.cls] ?? e.band.leader.cls)} ${e.band.leader.level}${e.band.leader.magic?.length ? `, magic: ${esc(e.band.leader.magic.join(", "))}` : ""}), ${e.band.men.length} men of 1st\u20134th level${e.band.mounted ? ", mounted" : ""}, ${esc(e.band.disposition)}. ` : "";
       const said = e.outcome === "parley" ? `They hailed them: reaction <b>${esc(e.reaction?.result ?? "")}</b>${e.reaction?.total != null ? ` (2d6 ${e.reaction.dice?.join("+") ?? ""} = ${e.reaction.total})` : e.reaction?.why ? ` (${esc(e.reaction.why)})` : ""}.` : e.outcome === "caught" ? `They ran and were caught. ${esc((e.log ?? []).join(" "))}` : e.outcome === "stand" ? "They stand and fight." : "No choice yet.";
@@ -1973,23 +2004,23 @@ function renderGamePlayers() {
   const g = table.game, el = $("#gamePlayers"); if (!g || !el) return;
   const uid = online.api.user.uid, ref = isRefOf(g, uid), creator = g.refereeUid === uid;
   if (!ref) { el.innerHTML = ""; return; }
+  if (el.contains(document.activeElement) && document.activeElement.tagName === "INPUT" && !document.activeElement.readOnly) return; // an address being typed is not redrawn away
   const on = (u) => u === uid || (table.presence[u] && Date.now() - table.presence[u] < ONLINE_MS);
   const members = [...(g.members ?? [])].sort((a, b) => (a === g.refereeUid ? -1 : b === g.refereeUid ? 1 : 0));
   // Foundry's User Management: a row per user with his role; his character as in his User Configuration
   const rows = members.map((u) => {
     const p = g.people?.[u] ?? {}, isCreator = u === g.refereeUid, isRef = (g.referees ?? []).includes(u);
-    const role = isCreator ? `<select disabled title="The Creator made the game"><option>Creator</option></select>`
+    const role = isCreator ? `<span class="note" title="The Creator made the game">Creator</span>`
       : `<select data-grole="${esc(u)}" ${creator ? "" : "disabled title=\"Only the Creator changes roles\""}><option value="player" ${isRef ? "" : "selected"}>Player</option><option value="referee" ${isRef ? "selected" : ""}>Co-referee</option></select>`;
     const own = table.chars.filter((c) => rs.levelOf(c, u) >= 3 && c.status === "ready");
     const charSel = `<select data-gchar="${esc(u)}" title="His assigned character"><option value="">no character</option>${own.map((c) => `<option value="${esc(c.id)}" ${p.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>`;
     return `<div class="um-row"><span class="dot" style="background:${esc(p.color ?? "#999")}"></span><span><b>${esc(p.name ?? "Player")}</b>${u === uid ? " (you)" : ""}<br><span class="note">${on(u) ? "here" : table.presence[u] ? `last seen ${seenAgo(table.presence[u])}` : "not seen yet"}</span></span><span style="display:flex;flex-direction:column;gap:3px">${role}${charSel}</span>${creator && !isCreator ? `<button class="um-del" data-gremove="${esc(u)}" title="Remove from the game (resets the join link)" aria-label="Remove">\u{1F5D1}</button>` : "<span></span>"}</div>`;
   }).join("");
-  const n = members.filter(on).length;
-  el.innerHTML = `<div class="sbcard"><h3>User Management <span class="note">${n} of ${members.length} here</span></h3>${rows}</div>`
-    + (ref ? `<div class="sbcard"><h3>Join link</h3><div class="note">Anyone with this link who signs in joins as a player.</div><div class="row"><input readonly id="gJoin" value="${esc(joinUrl())}" style="flex:1;min-width:0;font-family:var(--type);font-size:.8rem"><button id="gCopyJ">Copy</button>${creator ? `<button id="gReset">Reset</button>` : ""}</div>
-      <div class="row"><input id="gEmails" placeholder="Invite by email" style="flex:1;min-width:0"><button id="gInvite">Send</button></div>
+  el.innerHTML = `<div class="sbcard">${rows}</div>`
+    + `<div class="sbcard"><label class="dlg-lab" for="gJoin">Join link: anyone who signs in with it joins as a player</label><div class="row"><input readonly id="gJoin" value="${esc(joinUrl())}" style="flex:1;min-width:0;font-family:var(--type);font-size:.8rem"><button id="gCopyJ">Copy</button>${creator ? `<button id="gReset">Reset</button>` : ""}</div>
+      <label class="dlg-lab" for="gEmails">Invite by email</label><div class="row"><input id="gEmails" placeholder="name@example.com" style="flex:1;min-width:0"><button id="gInvite" class="primary">Send</button></div>
       ${(g.invited ?? []).length ? `<div class="note">Pending: ${g.invited.map((e) => `${esc(e)} <a href="#" data-guninv="${esc(e)}">cancel</a>`).join(" \u00b7 ")}</div>` : ""}
-      <div class="note">Game URL: <span style="font-family:var(--type)">${esc(gameUrl())}</span> <a href="#" id="gCopyG">copy</a></div><div class="bad" id="gErr"></div></div>` : "");
+      <div class="note">Game URL: <span style="font-family:var(--type)">${esc(gameUrl())}</span> <a href="#" id="gCopyG">copy</a></div><div class="bad" id="gErr"></div></div>`;
   const api = online.api, cid = table.cid;
   const copy = (txt, b) => { navigator.clipboard?.writeText(txt).catch(() => {}); b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1500); };
   $("#gCopyJ")?.addEventListener("click", (e) => copy(joinUrl(), e.target));
@@ -2005,6 +2036,7 @@ function renderGamePlayers() {
   el.querySelectorAll("[data-gchar]").forEach((sel) => sel.addEventListener("change", async () => { const r = await api.game("profile", cid, { uid: sel.dataset.gchar, character: sel.value || null }); if (!r.ok) $("#gErr").textContent = r.error; }));
   el.querySelectorAll("[data-gremove]").forEach((b) => b.addEventListener("click", () => { const nm = g.people?.[b.dataset.gremove]?.name ?? "this player"; if (confirm(`Remove ${nm} from the game? The join link is reset.`)) { table.menuFor = null; api.game("remove", cid, { uid: b.dataset.gremove }); } }));
 }
+const scn = { q: "", more: false };
 function renderScenes() {
   const g = table.game, el = $("#gamePlaces"); if (!g || !el) return;
   const uid = meUid(), v = lobby.view, inFight = !!online.api?.fight;
@@ -2012,40 +2044,58 @@ function renderScenes() {
   const ready = table.chars.filter((c) => c.status === "ready" && c.doing !== "dead");
   const mine = (c) => !PLAYER || rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER;
   const names = (list) => list.map((c) => esc(c.name)).join(", ");
-  const row = ({ title, kind, who, on, sub, act, tag = null }) => `<button type="button" class="sc-row${sub ? " sub" : ""}${on ? " on" : ""}" ${act}><span class="sc-body"><b>${esc(title)}<small>${esc(kind)}</small></b>${who ? `<span class="sc-who">${who}</span>` : ""}</span>${on || tag ? `<span class="sc-open">${esc(tag ?? "open")}</span>` : ""}</button>`;
+  const q = scn.q.trim().toLowerCase(), hit = (t) => !q || String(t).toLowerCase().includes(q);
+  const row = ({ title, kind, who, on, sub, act, tag = "", extra = "" }) => !hit(title) ? "" : `<div role="button" tabindex="0" class="sc-row${sub ? " sub" : ""}${on ? " on" : ""}" ${act}><span class="sc-body"><b>${esc(title)}<small>${esc(kind)}</small></b>${who ? `<span class="sc-who">${who}</span>` : ""}</span>${tag || on ? `<span class="sc-open">${esc(tag || "viewing")}</span>` : ""}${extra}</div>`;
   // the kingdom
   const onKingdom = !inFight && v && !v.place && !v.dungeon && (!v.id || charOf(v.id)?.doing !== "town");
   const byPlace = {}; for (const c of ready) { if (c.doing === "town") (byPlace[c.where ?? world.home] ??= []).push(c); }
   const roadFolk = ready.filter((c) => c.doing !== "town");
-  const kingdomWho = PLAYER ? names(roadFolk.filter(mine).length ? roadFolk.filter(mine) : []) : roadFolk.map((c) => `${esc(c.name)} \u00b7 ${esc(doingOf(c))}`).join("; ");
+  const kingdomWho = PLAYER ? names(roadFolk.filter(mine)) : roadFolk.map((c) => `${esc(c.name)} · ${esc(doingOf(c))}`).join("; ");
   let html = row({ title: "The Westmark", kind: "kingdom", who: kingdomWho || (PLAYER ? "" : "no one on the road"), on: onKingdom, act: `data-sc-kingdom` });
-  // settlements: every village, town and city for the referee; for a player, where his characters are
+  // settlements: a player's are where his characters are; the referee's empty ones fold into one row
   const settlements = Object.entries(world.places ?? {}).filter(([, p]) => ["village", "town", "city"].includes(p.kind)).sort(([a], [b]) => a.localeCompare(b));
+  let empty = "", emptyN = 0;
   for (const [name, p] of settlements) {
     const here = byPlace[name] ?? [];
     if (PLAYER && !here.some(mine)) continue;
     const onHere = !inFight && v && ((v.place === name && !v.id) || (v.id && charOf(v.id)?.doing === "town" && (charOf(v.id)?.where ?? world.home) === name));
-    html += row({ title: name, kind: p.kind, who: names(here) || (PLAYER ? "" : "no one"), on: onHere, sub: true, act: `data-sc-place="${esc(name)}" data-sc-char="${esc(here.find(mine)?.id ?? "")}"` });
+    const r = row({ title: name, kind: p.kind, who: names(here) || (PLAYER ? "" : "no one"), on: onHere, sub: true, act: `data-sc-place="${esc(name)}" data-sc-char="${esc(here.find(mine)?.id ?? "")}"` });
+    if (here.length || onHere || q) html += r; else { empty += r; emptyN++; }
   }
   // dungeons: the levels under the ruins (pass 16), the referee's for now
-  if (!PLAYER) for (const [lid, d] of Object.entries(world.dungeons ?? {})) {
-    const st = lid === dungeon.lid && dungeon.loaded ? (dungeon.level?.status ?? null) : d.status;
-    html += row({ title: d.name, kind: "dungeon", who: `nobody \u00b7 ${st === "open" ? "open" : st === "draft" ? "draft" : "not yet mapped"}`, on: !inFight && v?.dungeon === lid, sub: true, act: `data-sc-dungeon="${esc(lid)}"`, tag: st === "draft" || st === "open" ? st : "" });
-  }
-  // the live fight
-  if (live) html += row({ title: lf?.title ?? "The fight", kind: `battle \u00b7 live${lf?.round ? ` \u00b7 round ${lf.round}` : ""}`, who: PLAYER ? "" : "the page is in it when it is open", on: inFight, act: `data-sc-fight="${esc(live)}"` });
   const showKey = !PLAYER && !inFight && v?.dungeon && dungeon.lid === v.dungeon && dungeon.level;
-  el.innerHTML = (showKey ? `<div class="sc-list short">${html}</div>` : html) + (!PLAYER && live ? `<div class="row"><button id="plEnd">End the fight</button></div>` : "") + (showKey ? `<div><div class="dg-keyhead"><h3>Level key</h3><span>${esc(dmap.countsText(dungeon.level))}</span></div><div class="dg-key">${dmap.keyRowsHtml(dungeon.level, dungeon.sel)}</div></div>` : "");
-  $("#scNote").textContent = PLAYER ? "where your characters are" : "settlements and dungeons under the kingdom; a live fight is a scene too";
-  el.querySelector("[data-sc-kingdom]")?.addEventListener("click", () => { if (PLAYER) { const c = roadFolk.find(mine) ?? myChars(uid)[0]; if (c) openWorld(c.id); } else openWorld(null); });
-  el.querySelectorAll("[data-sc-place]").forEach((b) => b.addEventListener("click", () => { const cid = b.dataset.scChar; if (PLAYER) { if (cid) openWorld(cid); } else openWorld(null, b.dataset.scPlace); }));
-  el.querySelector("[data-sc-fight]")?.addEventListener("click", () => { if (!online.api?.fight) openOnline(table.cid, live); });
-  el.querySelectorAll("[data-sc-dungeon]").forEach((b) => b.addEventListener("click", () => openDungeon(b.dataset.scDungeon)));
-  el.querySelectorAll("[data-dg-room]").forEach((b) => b.addEventListener("click", () => { dungeon.sel = dungeon.sel === b.dataset.dgRoom ? null : b.dataset.dgRoom; dungeon.picking = false; renderLobbyStage(); }));
-  if (showKey) { el.querySelector(".sc-row.on")?.scrollIntoView({ block: "nearest" }); el.querySelector(".dg-krow.on")?.scrollIntoView({ block: "nearest" }); }
-  if (!PLAYER && !(v?.dungeon && !inFight)) renderRumourEditor(el);
-  $("#plEnd")?.addEventListener("click", endLiveFight);
+  if (!PLAYER) for (const [lid, d] of Object.entries(world.dungeons ?? {})) {
+    const st = lid === dungeon.lid && dungeon.loaded ? (dungeon.level?.status ?? null) : d.status, mapped = st === "draft" || st === "open";
+    html += row({ title: d.name, kind: "dungeon", who: mapped ? "nobody" : "nobody · not yet mapped", on: !inFight && v?.dungeon === lid, sub: true, act: `data-sc-dungeon="${esc(lid)}"`, tag: mapped ? st : "", extra: showKey && v.dungeon === lid ? `<button type="button" class="sbtn" data-sc-key title="The level's rooms, in a window of their own">Key</button>` : "" });
+  }
+  if (emptyN) html += `<button type="button" class="sc-more" id="scMore" aria-expanded="${scn.more}"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Other settlements, no one there <span class="note">(${emptyN})</span></button>${scn.more ? empty : ""}`;
+  // the live fight
+  const inIt = inFight ? ready.filter((c) => mine(c) && state.figures.some((x) => x.charId === c.id)) : [];
+  if (live) html += row({ title: lf?.title ?? "The fight", kind: `battle${lf?.round ? ` · round ${lf.round}` : ""}`, who: names(inIt), on: inFight, act: `data-sc-fight="${esc(live)}"`, tag: "live" });
+  el.innerHTML = html || `<div class="note">${q ? "No scene by that name." : "No scenes yet."}</div>`;
+  $("#scRumours").hidden = PLAYER;
+  const go = (b, fn) => { b.addEventListener("click", (e) => { if (!e.target.closest("button")) fn(); }); b.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target === b) fn(); }); };
+  el.querySelectorAll("[data-sc-kingdom]").forEach((b) => go(b, () => { if (PLAYER) { const c = roadFolk.find(mine) ?? myChars(uid)[0]; if (c) openWorld(c.id); } else openWorld(null); }));
+  el.querySelectorAll("[data-sc-place]").forEach((b) => go(b, () => { const cid = b.dataset.scChar; if (PLAYER) { if (cid) openWorld(cid); } else openWorld(null, b.dataset.scPlace); }));
+  el.querySelectorAll("[data-sc-fight]").forEach((b) => go(b, () => { if (!online.api?.fight) openOnline(table.cid, live); }));
+  el.querySelectorAll("[data-sc-dungeon]").forEach((b) => go(b, () => openDungeon(b.dataset.scDungeon)));
+  el.querySelector("[data-sc-key]")?.addEventListener("click", openKeyDialog);
+  $("#scMore")?.addEventListener("click", () => { scn.more = !scn.more; renderScenes(); });
 }
+$("#scSearch").addEventListener("input", (e) => { scn.q = e.target.value; renderScenes(); });
+$("#scRumours").addEventListener("click", openRumours);
+/** The Level key, popped out of the Scenes tab: it follows the level on the stage and closes when the stage leaves it. */
+function openKeyDialog() { dlg.kind = "key"; openDialog(`Level key: ${world.dungeons?.[dungeon.lid]?.name ?? "the level"}`, "", sideAt()); renderKeyDialog(); }
+function renderKeyDialog() {
+  if ($("#dlgWin").hidden || dlg.kind !== "key") return;
+  if (PLAYER || online.api?.fight || !dungeon.level || lobby.view?.dungeon !== dungeon.lid) { $("#dlgWin").hidden = true; return; }
+  const b = $("#dlgBody"), top = b.querySelector(".dg-key")?.scrollTop ?? 0;
+  b.innerHTML = `<div class="dlg-lab">${esc(dmap.countsText(dungeon.level))}</div><div class="dg-key">${dmap.keyRowsHtml(dungeon.level, dungeon.sel)}</div>`;
+  const key = b.querySelector(".dg-key"); key.scrollTop = top; key.querySelector(".dg-krow.on")?.scrollIntoView({ block: "nearest" });
+  b.querySelectorAll("[data-dg-room]").forEach((x) => x.addEventListener("click", () => { dungeon.sel = dungeon.sel === x.dataset.dgRoom ? null : x.dataset.dgRoom; dungeon.picking = false; renderLobbyStage(); }));
+}
+/** Where a dialog opened from the sidebar sits: beside it, over the map. */
+const sideAt = () => ({ x: $("#logpanel").getBoundingClientRect().left - 440, y: 120 });
 /* ---------- pass 16 (approved mockup, Nov 2026): a dungeon level on the stage, the referee's side ---------- */
 const dungeon = { lid: null, level: null, loaded: false, loading: false, busy: false, error: "", editing: false, tool: "floor", sel: null, vb: null, picking: false, gen: null };
 const DG_TOOLS = [["floor", "Floor"], ["rock", "Rock"], ["room", "Room \u25ad"], ["door", "Door"], ["secret", "Secret door"], ["oneway", "One-way door"], ["stairs", "Stairs down"], ["trap", "Trap"]];
@@ -2216,31 +2266,62 @@ function bindDungeon(el, L) {
   if (pickSel) { const sync = () => { const [t, i] = pickSel.value.split(":").map(Number), row = uw.MONSTER_LEVEL_TABLES[t].rows[i]; kindSel.hidden = !row.options; kindSel.innerHTML = (row.options ?? []).map((k) => `<option value="${esc(k)}">${esc(MONSTERS.find((x) => x.key === k)?.name ?? k)}</option>`).join(""); }; pickSel.addEventListener("change", sync); sync(); }
   $("#dgNote")?.addEventListener("change", (e) => dungeonOp("dungeonRoom", { room, act: "note", text: e.target.value }));
 }
-function renderGameFights() {
-  const el = $("#gameFights"); if (!el || !table.game) return;
-  const list = table.fights, live = table.game.live?.fid;
-  const rows = list === null ? `<div class="note">loading\u2026</div>` : !list.length ? `<div class="note">${PLAYER ? "No fights you were in yet." : "No fights yet."}</div>`
-    : list.slice(0, 20).map((f) => `<div class="sbcard ${f.fid === live ? "live" : ""}"><h3>${esc(f.title || f.fid)}${f.fid === live ? ` <span class="livebadge">LIVE</span>` : ""}</h3><div class="note">${f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ""} \u00b7 ${f.phase === "over" ? "over" : f.phase === "fight" ? `round ${f.round ?? 0}` : ""}</div>${PLAYER || f.fid === live ? "" : `<div class="row"><button data-gopen="${esc(f.fid)}">Open \u00b7 pulls the party in</button></div>`}</div>`).join("");
-  el.innerHTML = (PLAYER ? "" : `<div class="row"><button class="done" id="gfNew">New fight</button></div>`) + rows;
-  $("#gfNew")?.addEventListener("click", async () => { if (live) await online.api.game("live", table.cid, { fid: null }); table.setup = true; renderLobbyStage(); openDrawer("setup"); });
-  el.querySelectorAll("[data-gopen]").forEach((b) => b.addEventListener("click", () => online.api.game("live", table.cid, { fid: b.dataset.gopen })));
+/** The Tracker's head (approved mockup 18 Nov 2026): the Fights tab folded in as a fight picker with New and End. */
+function renderTrackerHead() {
+  const pick = $("#tkPick"), g = TABLE ? table.game : null; if (!pick) return;
+  pick.hidden = !g; if (!g) return;
+  const live = g.live?.fid ?? null, list = table.fights, sel = $("#tkFight");
+  const label = (x) => `${x.title || x.fid}${x.fid === live ? " · live" : x.phase === "over" ? " · over" : x.phase === "fight" ? ` · round ${x.round ?? 0}` : ""}`;
+  const rows = (list ?? []).slice(0, 20);
+  const opts = (list === null ? `<option value="">loading…</option>` : live ? "" : `<option value="">${rows.length ? "No fight open" : PLAYER ? "No fights you were in yet" : "No fights yet"}</option>`)
+    + (live && !rows.some((x) => x.fid === live) ? `<option value="${esc(live)}" selected>The fight · live</option>` : "")
+    + rows.map((x) => `<option value="${esc(x.fid)}" ${x.fid === live ? "selected" : ""} title="${x.createdAt ? esc(new Date(x.createdAt).toLocaleDateString()) : ""}">${esc(label(x))}</option>`).join("");
+  if (document.activeElement !== sel) sel.innerHTML = opts;
+  sel.disabled = PLAYER || !rows.length; sel.title = PLAYER ? "The referee opens fights" : "Pick a fight to open it: that pulls the party in";
+  $("#tkNew").hidden = $("#tkEnd").hidden = PLAYER; $("#tkEnd").disabled = !live;
 }
+$("#tkFight").addEventListener("change", (e) => {
+  const fid = e.target.value, live = table.game?.live?.fid ?? null, x = (table.fights ?? []).find((y) => y.fid === fid);
+  e.target.blur();
+  if (fid && fid !== live && confirm(`Open ${x?.title || "this fight"}? That pulls the party in.`)) online.api.game("live", table.cid, { fid });
+  else renderTrackerHead();
+});
+$("#tkNew").addEventListener("click", async () => {
+  if (table.game?.live?.fid) { if (!confirm("A fight is live. End it first? Its outcome goes back to the characters.")) return; if (!(await endLiveFight())) return; }
+  table.setup = true; renderLobbyStage(); openDrawer("setup");
+});
+$("#tkEnd").addEventListener("click", () => { if (confirm("End the fight? Its outcome goes back to the characters.")) endLiveFight(); });
 function renderGameSettings() {
-  const el = $("#gameSettings"); if (!el) return;
-  const g = table.game, uid = online.api?.user?.uid, me = g?.people?.[uid] ?? {};
+  const head = $("#setHead"), el = $("#setBody"); if (!el) return;
+  const g = TABLE ? table.game : null, uid = meUid(), n = (g?.members ?? []).length;
+  head.hidden = !g;
+  if (g) { const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1; head.innerHTML = `<div class="set-name"><b>${esc(g.name ?? "The game")}</b><span>The Westmark · Day ${day} · ${week}${ordinal(week)} week of the campaign</span></div>`; }
+  const big = (id, t, sub) => `<button type="button" class="set-big" id="${id}"><b>${t}</b><span>${sub}</span></button>`;
+  el.innerHTML = big("setProfile", "My profile", g ? "Name, colour and character" : "The character card")
+    + (isRefOf(g, uid) ? big("setPlayers", "Players and invitations", `${n} player${n === 1 ? "" : "s"} · join link · invite by email`) : "")
+    + (online.on && state.phase !== "setup" && state.people ? big("setPeople", "Who runs what", "This fight's figures by player, and who calls initiative") : "")
+    + (online.api?.user ? big("setOut", "Sign out", `Signed in as ${esc(online.api.user.email ?? online.api.user.displayName ?? "")}`) : "");
+  $("#setProfile").addEventListener("click", () => { dlg.kind = "profile"; openDialog("My profile", `<div id="gameSettings" class="sb-stack"></div>`, sideAt()); renderProfile(); });
+  $("#setPlayers")?.addEventListener("click", () => { dlg.kind = "players"; openDialog("Players and invitations", `<div id="gamePlayers"></div>`, sideAt()); renderGamePlayers(); });
+  $("#setPeople")?.addEventListener("click", () => { dlg.kind = "people"; openDialog("Who runs what", `<section class="people" id="peoplePanel"><div id="peopleList"></div></section>`, sideAt()); renderPeople(); });
+  $("#setOut")?.addEventListener("click", () => { if (confirm("Sign out?")) online.api.signOut().then(() => location.reload()); });
+}
+/** My profile, in its dialog: name, character, colour, and where the character card sits. */
+function renderProfile() {
+  const el = $("#gameSettings"); if (!el || $("#dlgWin").hidden || dlg.kind !== "profile") return;
+  if (el.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+  const g = TABLE ? table.game : null, uid = online.api?.user?.uid, me = g?.people?.[uid] ?? {};
   const taken = new Set(Object.entries(g?.people ?? {}).filter(([u]) => u !== uid).map(([, p]) => p.color));
-  el.innerHTML = (g ? `<div class="sbcard"><h3>You at the table</h3><div class="row"><input id="gsName" value="${esc(me.name ?? "")}" maxlength="60" style="flex:1"><button id="gsSave">Save</button></div>
+  el.innerHTML = (g ? `<div class="sbcard"><label class="dlg-lab" for="gsName">Your name in the game</label><div class="row"><input id="gsName" value="${esc(me.name ?? "")}" maxlength="60" style="flex:1"><button id="gsSave">Save</button></div>
       <div class="row"><label style="display:flex;gap:6px;align-items:center">Your character <select id="gsChar"><option value="">none</option>${table.chars.filter((c) => rs.levelOf(c, uid) >= 3 && c.status === "ready").map((c) => `<option value="${esc(c.id)}" ${me.character === c.id ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label></div>
-      <div class="row">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-gscol="${c}" aria-label="colour ${c}" style="width:24px;height:24px;border-radius:50%;padding:0;border:${c === me.color ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"};background:${c}"></button>`).join("")}</div><div class="bad" id="gsErr"></div></div>` : "")
-    + `<div class="sbcard"><h3>The character card</h3><div class="row"><button id="gsDock">Dock it at the foot of the map</button><button id="gsFold">${abPlace.mini ? "Unfold it" : "Fold it to a line"}</button></div></div>`
-    + (online.api?.user ? `<div class="sbcard"><h3>Account</h3><div class="note">Signed in as ${esc(online.api.user.email ?? online.api.user.displayName ?? "")}</div><div class="row"><button id="gsOut">Sign out</button></div></div>` : "");
+      <div class="dlg-lab">Your colour</div><div class="row">${fv.PLAYER_COLOURS.filter((c) => !taken.has(c)).map((c) => `<button data-gscol="${c}" aria-label="colour ${c}" style="width:24px;height:24px;border-radius:50%;padding:0;border:${c === me.color ? "3px solid #fff;outline:2px solid " + c : "1px solid #fff"};background:${c} !important"></button>`).join("")}</div><div class="bad" id="gsErr"></div></div>` : "")
+    + `<div class="sbcard"><div class="dlg-lab">The character card</div><div class="row"><button id="gsDock">Dock it at the foot of the map</button><button id="gsFold">${abPlace.mini ? "Unfold it" : "Fold it to a line"}</button></div></div>`;
   const save = async (data) => { const r = await online.api.game("profile", table.cid, data); $("#gsErr").textContent = r.ok ? "" : r.error; };
   $("#gsSave")?.addEventListener("click", () => save({ name: $("#gsName").value }));
   $("#gsChar")?.addEventListener("change", (e) => save({ character: e.target.value || null }));
   el.querySelectorAll("[data-gscol]").forEach((b) => b.addEventListener("click", () => save({ color: b.dataset.gscol })));
   $("#gsDock").addEventListener("click", () => { delete abPlace.x; delete abPlace.y; saveAbPlace(); renderActionBar(); });
-  $("#gsFold").addEventListener("click", () => { abPlace.mini = !abPlace.mini; saveAbPlace(); renderActionBar(); renderGameSettings(); });
-  $("#gsOut")?.addEventListener("click", () => { if (confirm("Sign out?")) online.api.signOut().then(() => location.reload()); });
+  $("#gsFold").addEventListener("click", () => { abPlace.mini = !abPlace.mini; saveAbPlace(); renderActionBar(); renderProfile(); });
 }
 
 /* ---------- the game (pass 3): the lobby, and the live fight that pulls every page along ---------- */
@@ -3198,21 +3279,22 @@ function trackerRow(f) {
   const mark = trackerMark(f), own = PLAYER ? !!f.mine : true, sel = state.selected === f.id || state.group.has(f.id);
   const p = personOf(f), col = p?.color ?? null, tag = trackerTag(f);
   const kind = f.kind === "pc" ? `${CLS_SHORT[f.cls] ?? ""} ${f.level ?? 1}` : `HD ${f.hd ?? mon(f)?.hd?.count ?? "?"}`;
-  const hp = hpText(f) ? `${hpText(f)} hp` : f.hpScaled ? `<span class="hpbar"><div style="width:${Math.round(Math.max(0, f.hp) / f.maxHp * 100)}%;background:${f.hp / f.maxHp > 0.5 ? "#4caf50" : f.hp / f.maxHp > 0.25 ? "#e0a100" : "#e0453a"}"></div></span>` : "";
-  const mv = state.phase === "fight" && own && present(f) ? esc(moveText(f)) : "";
-  const sub = [esc(kind), hp, mv].filter(Boolean).join(" \u00b7 ");
+  const hp = hpText(f) ? esc(hpText(f)) : f.hpScaled ? `<span class="hpbar"><div style="width:${Math.round(Math.max(0, f.hp) / f.maxHp * 100)}%;background:${f.hp / f.maxHp > 0.5 ? "#4caf50" : f.hp / f.maxHp > 0.25 ? "#e0a100" : "#e0453a"}"></div></span>` : "";
+  const mv = state.phase === "fight" && own && present(f) ? moveText(f) : "";
   const word = mark === "ready" ? "ready" : mark === "todo" ? (state.step === "orders" ? "to order" : (f.moved ?? 0) > 0 ? "moving" : "to act") : mark === "auto" ? "behaviour" : "";
   const markSvg = mark === "ready" ? `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="2"/></svg>`
     : mark === "down" ? `<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="2"/></svg>` : "";
   const title = { ready: "Ready", todo: "Still to act", next: "Moves next step", auto: "Moved by its behaviour", held: "Can't act", down: "Down", none: "" }[mark];
-  return `<button type="button" class="tk-row ${sel ? "sel" : ""} ${present(f) ? "" : "down"}" data-tk="${f.id}" title="${esc(f.name)}: select and ping">
-    <span class="tk-mark ${mark === "held" ? "none" : mark}" title="${title}">${markSvg}</span>${col ? `<span class="tk-dot" style="background:${esc(col)}"></span>` : `<span class="tk-dot"></span>`}
-    <span class="tk-body"><span class="tk-name ${f.side === "A" ? "a" : "b"}"><span>${esc(tokenLabel(f))}</span>${tag ? `<span class="tk-tag">${tag}</span>` : ""}</span><span class="tk-sub">${sub}</span></span>
-    <span class="tk-right">${word ? `<span>${word}</span>` : ""}${trackerStatus(f)}</span></button>`;
+  const tip = [f.name, kind.trim(), mv, title].filter(Boolean).join(" \u00b7 ");
+  return `<button type="button" class="tk-row ${sel ? "sel" : ""} ${present(f) ? "" : "down"}" data-tk="${f.id}" title="${esc(tip)}. Click selects and pings it on the map; double-click opens the sheet.">
+    <span class="tk-mark ${mark === "held" ? "none" : mark}">${markSvg}</span>${col ? `<span class="tk-dot" style="background:${esc(col)}" title="${esc(p?.name ?? "")}"></span>` : ""}
+    <span class="tk-name ${f.side === "A" ? "a" : "b"}"><span>${esc(tokenLabel(f))}</span>${tag ? `<span class="tk-tag">${tag}</span>` : ""}</span>
+    <span class="tk-right">${word ? `<span>${word}</span>` : ""}${trackerStatus(f)}</span><span class="tk-hp">${hp}</span></button>`;
 }
 function renderTracker() {
   const el = $("#tracker"); if (!el) return;
-  const figs = state.figures.filter((f) => f.placed || state.phase !== "setup");
+  renderTrackerHead();
+  const figs = TABLE && state.phase === "setup" && !table.setup ? [] : state.figures.filter((f) => f.placed || state.phase !== "setup");
   const mine = new Set(myFigs().map((f) => f.id));
   const keep = (f) => tkFilter === "all" ? true : tkFilter === "mine" ? mine.has(f.id) : trackerMark(f) === "todo";
   const ms = movingSide(), st = state.step ?? "";
@@ -3223,12 +3305,12 @@ function renderTracker() {
     if (st.startsWith("move-")) return ms === side ? "moving" : "moves next";
     return st === "orders" ? "orders" : st === "init" || st === "elect" ? "" : "resolving";
   };
-  const group = (label, cls, note, rows) => rows.length ? `<div class="tk-group"><div class="tk-head"><b class="${cls}">${label}</b><span>${note}</span></div>${rows.join("")}</div>` : "";
+  const group = (label, cls, note, rows) => rows.length ? `<div class="tk-group"><div class="sb-grp"><b class="${cls}">${label}</b><span>${note}</span></div>${rows.join("")}</div>` : "";
   const up = (side) => figs.filter((f) => f.side === side && present(f) && keep(f)).map(trackerRow);
   const down = figs.filter((f) => !present(f) && keep(f)).map(trackerRow);
   const first = PLAYER && figs.some((f) => f.mine && f.side === "B") ? "B" : "A", second = other(first);
-  const html = group(`SIDE ${first}`, first.toLowerCase(), count(first), up(first)) + group(`SIDE ${second}`, second.toLowerCase(), count(second), up(second)) + group("DOWN", "d", String(down.length), down);
-  el.innerHTML = html || `<div class="note">${tkFilter === "waiting" ? "No one is waiting." : tkFilter === "mine" ? "None of your figures are in this fight." : "No figures yet."}</div>`;
+  const html = group(`Side ${first}`, first.toLowerCase(), count(first), up(first)) + group(`Side ${second}`, second.toLowerCase(), count(second), up(second)) + group("Down", "d", String(down.length), down);
+  el.innerHTML = html || `<div class="note">${tkFilter === "waiting" ? "No one is waiting." : tkFilter === "mine" ? "None of your figures are in this fight." : TABLE && state.phase === "setup" ? "No fight is open." : "No figures yet."}</div>`;
   $("#tkWhen").textContent = state.phase === "fight" ? `Round ${state.round} \u00b7 ${$("#phaseNow").textContent}` : state.phase === "over" ? "Fight over" : "";
   el.querySelectorAll("[data-tk]").forEach((b) => {
     const f = byId(Number(b.dataset.tk));
@@ -3464,14 +3546,34 @@ const charSheet = { id: null, tab: "sheet", spells: false, error: "", busy: fals
 const charOf = (id) => table.chars.find((c) => c.id === id) ?? null;
 const meUid = () => online.api?.user?.uid ?? null;
 const iRef = () => TABLE && isRefOf(table.game, meUid());
+/** The Actors tab (approved mockup 18 Nov 2026): one row per character under where he is and what he's doing. A click opens the sheet; the three dots hold the rest. */
 function renderRoster() {
-  renderBoardPanel();
-  const el = $("#rosterPanel"); if (!el) return;
-  if (!TABLE || !table.game) { el.innerHTML = ""; return; }
-  const focus = document.activeElement?.id === "adSearch", caret = focus ? $("#adSearch").selectionStart : 0;
-  el.innerHTML = rui.directoryHtml(rs, { chars: table.chars, folders: table.folders, me: meUid(), ref: iRef(), people: table.game.people, search: table.adSearch, open: new Set(table.folders.filter((f) => !table.adClosed.has(f.id)).map((f) => f.id)), sort: table.adSort });
-  if (focus) { const i = $("#adSearch"); i.focus(); i.setSelectionRange(caret, caret); }
+  const el = $("#actorsList"), g = table.game; if (!el) return;
+  if (!TABLE || !g) { el.innerHTML = ""; return; }
+  const uid = meUid(), ref = iRef(), q = table.adSearch.trim().toLowerCase();
+  const groupOf = (c) => c.status === "draft" ? "Being rolled" : c.doing === "dead" || (c.hp ?? 1) <= 0 ? "Dead" : `${c.where ?? world.home} · ${c.doing === "encounter" ? "an encounter" : doingOf(c).split(" · ")[0]}`;
+  const rank = (k) => (k === "Being rolled" ? 1 : k === "Dead" ? 2 : 0), nameOf = (u) => g.people?.[u]?.name ?? "";
+  const groups = new Map();
+  for (const c of table.chars.filter((c) => !q || (c.name || "").toLowerCase().includes(q)).sort((a, b) => nameOf(a.owner).localeCompare(nameOf(b.owner)) || (a.name || "~").localeCompare(b.name || "~"))) { const k = groupOf(c); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+  const row = (c) => {
+    const lvl = ref ? 3 : rs.levelOf(c, uid), p = g.people?.[c.owner] ?? {}, draft = c.status === "draft", sh = draft || lvl < 2 ? null : rs.sheetFor(c);
+    const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
+    const tip = lvl < 2 ? "Limited: you see his name only" : draft ? "Still being rolled" : `${sh.classLabel} ${c.level ?? 1} · ${sh.alignLabel} · ${sh.title} · xp ${(c.xp ?? 0).toLocaleString()}${sh.nextXp ? ` of ${sh.nextXp.toLocaleString()}` : ""} · ${c.coins?.gp ?? 0} gp. Click for the sheet.`;
+    return `<div class="ac-row${draft ? " draft" : ""}${lvl < 2 ? " limited" : ""}" data-actor="${esc(c.id)}" tabindex="0" title="${esc(tip)}"><span class="ac-tok" style="background:${esc(p.color ?? "#7b8794")}">${esc((c.name || "?").trim().slice(0, 2))}</span>
+      <span class="ac-body"><span><b>${esc(c.name || "New character")}</b>${sh ? `<small>${esc(sh.classLabel)} ${c.level ?? 1}</small>` : draft ? `<small>rolling</small>` : ""}</span><span class="ac-sub">${esc(p.name ?? "Player")}${c.owner === uid ? " (you)" : ""}</span></span>
+      ${sh ? `<span class="ac-hp">${c.hp}/${c.maxHp}<span class="ac-bar"><i class="${tone}" style="width:${pct}%"></i></span></span>` : ""}<button type="button" class="ac-kebab" data-ac-menu="${esc(c.id)}" aria-label="Actions for ${esc(c.name || "this character")}" title="Actions"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="13" r="1.5" fill="currentColor"/></svg></button></div>`;
+  };
+  el.innerHTML = (lobby.error ? `<div class="note bad">${esc(lobby.error)}</div>` : "") + ([...groups.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([k, list]) => `<div class="sb-grp"><b>${esc(k)}</b><span>${list.length} character${list.length === 1 ? "" : "s"}</span></div>${list.map(row).join("")}`).join("")
+    || `<div class="note">${q ? "No character by that name." : ref ? "No characters yet. Players roll their own; the join link is under Settings." : "No characters yet. Roll one."}</div>`);
 }
+/** What an owner can do with his character from the three dots, ahead of Foundry's own items. */
+function actorActsHtml(c) {
+  if (!c || rs.levelOf(c, meUid()) < rs.OWNERSHIP.OWNER) return "";
+  const items = c.status === "draft" ? [["finish", "Finish rolling"], ["discard", "Throw away"]] : c.doing === "dead" || online.api?.fight ? [] : [["out", c.doing === "encounter" ? "Encounter" : c.doing === "road" ? "The road" : "Set out"]];
+  return items.map(([k, l]) => `<button type="button" role="menuitem" data-am="${k}">${esc(l)}</button>`).join("");
+}
+$("#acSearch").addEventListener("input", (e) => { table.adSearch = e.target.value; renderRoster(); });
+$("#acRoll").addEventListener("click", async (e) => { const b = e.currentTarget; b.disabled = true; if (iRef()) await createActor(null); else await rollAnother(); b.disabled = false; });
 // folders start open; the ones a viewer folds stay folded in his browser
 const saveAdOpen = () => { try { localStorage.setItem("odd.adClosed", JSON.stringify([...table.adClosed])); } catch {} };
 const levelHere = (ch) => (iRef() ? 3 : rs.levelOf(ch, meUid()));
@@ -3604,7 +3706,7 @@ $("#dlgBody").addEventListener("click", async (e) => {
 const menu = { kind: null, id: null };
 function showActorMenu(kind, id, x, y) {
   const m = $("#actorMenu"); Object.assign(menu, { kind, id });
-  m.innerHTML = kind === "actor" ? rui.actorMenuHtml(rs, charOf(id), { me: meUid(), ref: iRef() }) : rui.folderMenuHtml();
+  m.innerHTML = kind === "actor" ? actorActsHtml(charOf(id)) + rui.actorMenuHtml(rs, charOf(id), { me: meUid(), ref: iRef() }) : rui.folderMenuHtml();
   m.hidden = false; const r = m.getBoundingClientRect();
   m.style.left = `${Math.min(x, window.innerWidth - r.width - 8)}px`; m.style.top = `${Math.min(y, window.innerHeight - r.height - 8)}px`;
   m.querySelector("button")?.focus();
@@ -3617,7 +3719,10 @@ $("#actorMenu").addEventListener("click", async (e) => {
   const k = b.dataset.am, id = menu.id, at = { x: Math.max(8, $("#actorMenu").getBoundingClientRect().left - 440), y: 120 }; hideActorMenu();
   const ch = menu.kind === "actor" ? charOf(id) : null, f = menu.kind === "folder" ? table.folders.find((x) => x.id === id) : null;
   const call = async (op, data) => { const r = await online.api.character(op, table.cid, data); if (!r.ok) alert(r.error ?? "The server refused."); return r; };
-  if (k === "edit") openCharSheet(id);
+  if (k === "out") openWorld(id);
+  else if (k === "finish") { if (PLAYER) { lobby.editing = id; lobby.error = ""; renderLobbyStage(); } else openCharSheet(id); }
+  else if (k === "discard") { if (confirm(`Throw ${ch.name || "this character"} away? It can't be undone.`)) charOp(id, "delete", {}, lobby); }
+  else if (k === "edit") openCharSheet(id);
   else if (k === "ownership") ownershipDialog(id, at);
   else if (k === "export") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(ch, null, 2)], { type: "application/json" })); a.download = `${(ch.name || "character").replace(/[^\w-]+/g, "_")}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
   else if (k === "clear") call("move", { id, folder: null });
@@ -3628,49 +3733,15 @@ $("#actorMenu").addEventListener("click", async (e) => {
   else if (k === "fnew") createActor(id);
   else if (k === "fremove") { if (confirm(`Remove the folder ${f?.name ?? ""}? What is in it moves up a level; no actor is deleted.`)) call("folder-delete", { folder: id }); }
 });
-const panel = $("#rosterPanel");
-panel.addEventListener("click", async (e) => {
+const panel = $("#actorsList");
+const openActor = (id) => { const ch = charOf(id); if (!ch) return; if (ch.status === "draft" && PLAYER && rs.levelOf(ch, meUid()) >= rs.OWNERSHIP.OWNER) { lobby.editing = id; lobby.error = ""; renderLobbyStage(); } else if (levelHere(ch) >= 2) openCharSheet(id); };
+panel.addEventListener("click", (e) => {
   const b = e.target.closest("button");
-  if (b) {
-    if ("adCreate" in b.dataset) { b.disabled = true; await createActor(null); b.disabled = false; }
-    else if ("adFolder" in b.dataset) folderDialog(null, null);
-    else if ("adSort" in b.dataset) { table.adSort = table.adSort === "name" ? "made" : "name"; try { localStorage.setItem("odd.adSort", table.adSort); } catch {} renderRoster(); }
-    else if ("adCollapse" in b.dataset) { for (const f of table.folders) table.adClosed.add(f.id); saveAdOpen(); renderRoster(); }
-    else if (b.dataset.fsub) folderDialog(null, b.dataset.fsub);
-    else if (b.dataset.fnew) createActor(b.dataset.fnew);
-    else if (b.dataset.rsOpen) openCharSheet(b.dataset.rsOpen);
-    return;
-  }
-  const head = e.target.closest("[data-fhead]");
-  if (head) { const id = head.dataset.fhead; if (table.adClosed.has(id)) table.adClosed.delete(id); else table.adClosed.add(id); saveAdOpen(); renderRoster(); return; }
-  const row = e.target.closest("[data-actor]");
-  if (row) { const ch = charOf(row.dataset.actor); if (ch && levelHere(ch) >= 2) openCharSheet(ch.id); }
+  if (b) { if (b.dataset.acMenu) { const r = b.getBoundingClientRect(); showActorMenu("actor", b.dataset.acMenu, r.left, r.bottom); } return; }
+  const row = e.target.closest("[data-actor]"); if (row) openActor(row.dataset.actor);
 });
-panel.addEventListener("keydown", (e) => { const row = e.target.closest?.("[data-actor]"); if (row && e.key === "Enter") openCharSheet(row.dataset.actor); });
-panel.addEventListener("input", (e) => { if (e.target.id === "adSearch") { table.adSearch = e.target.value; renderRoster(); } });
-panel.addEventListener("contextmenu", (e) => {
-  const row = e.target.closest("[data-actor]"), head = e.target.closest("[data-fhead]");
-  if (row) { e.preventDefault(); showActorMenu("actor", row.dataset.actor, e.clientX, e.clientY); }
-  else if (head && iRef()) { e.preventDefault(); showActorMenu("folder", head.dataset.fhead, e.clientX, e.clientY); }
-});
-// the referee drags actors (and folders) into folders, or out to the top level
-panel.addEventListener("dragstart", (e) => {
-  const row = e.target.closest?.("[data-actor]"), head = e.target.closest?.("[data-fhead]");
-  if (!iRef() || (!row && !head)) return;
-  e.dataTransfer.setData("text/plain", row ? `actor:${row.dataset.actor}` : `folder:${head.dataset.fhead}`); e.dataTransfer.effectAllowed = "move";
-});
-const dropTarget = (e) => e.target.closest?.("[data-fhead], [data-folder-root]");
-panel.addEventListener("dragover", (e) => { const t = dropTarget(e); if (!t || !iRef()) return; e.preventDefault(); panel.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop")); t.classList.add("drop"); });
-panel.addEventListener("dragleave", (e) => { const t = dropTarget(e); if (t && !t.contains(e.relatedTarget)) t.classList.remove("drop"); });
-panel.addEventListener("drop", async (e) => {
-  const t = dropTarget(e); panel.querySelectorAll(".drop").forEach((x) => x.classList.remove("drop"));
-  if (!t || !iRef()) return; e.preventDefault();
-  const [kind, id] = (e.dataTransfer.getData("text/plain") || "").split(":"), to = t.dataset.fhead ?? null;
-  if (!id || id === to) return;
-  const r = kind === "actor" ? await online.api.character("move", table.cid, { id, folder: to }) : await online.api.character("folder-update", table.cid, { folder: id, parent: to });
-  if (!r.ok) alert(r.error ?? "The server refused.");
-  else if (to) { table.adClosed.delete(to); saveAdOpen(); }
-});
+panel.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches?.("[data-actor]")) openActor(e.target.dataset.actor); });
+panel.addEventListener("contextmenu", (e) => { const row = e.target.closest("[data-actor]"); if (row) { e.preventDefault(); showActorMenu("actor", row.dataset.actor, e.clientX, e.clientY); } });
 /** Setup (the referee, between fights): every finished character onto side A, run by his player. */
 function addParty() {
   const have = new Set(state.figures.map((f) => f.charId).filter(Boolean));
@@ -3730,10 +3801,10 @@ document.querySelectorAll("[data-logf]").forEach((b) => b.addEventListener("clic
   $("#log").dataset.f = b.dataset.logf;
   document.querySelectorAll("[data-logf]").forEach((x) => x.classList.toggle("on", x === b));
 }));
-/** Which tabs show: Party once online, Players and Fights in a game, Places for its referees. */
+/** Which tabs show: Chat and Settings always; Actors, Tracker and Scenes in a game (the Tracker also in any fight). */
 function sidebarTabs() {
   const inGame = TABLE && !!table.game, ref = inGame && isRefOf(table.game, online.api?.user?.uid);
-  const vis = { chat: true, party: online.on, tracker: state.phase !== "setup", scenes: inGame, fights: inGame, settings: true };
+  const vis = { chat: true, party: inGame, tracker: inGame || state.phase !== "setup", scenes: inGame, settings: true };
   document.querySelectorAll(".sb-icon").forEach((b) => (b.hidden = !vis[b.dataset.sbtab]));
   if (!vis[sbTab]) showTab("chat");
 }
@@ -3741,9 +3812,8 @@ function renderSidebar() {
   sidebarTabs();
   if (sbTab === "scenes") renderScenes();
   else if (sbTab === "tracker") renderTracker();
-  else if (sbTab === "fights") renderGameFights();
-  else if (sbTab === "settings") { renderGameSettings(); renderGamePlayers(); }
-  else if (sbTab === "party") { renderRoster(); $("#partyNote").textContent = online.api?.fight || !TABLE ? "" : "Who runs which character shows here during a fight."; }
+  else if (sbTab === "settings") renderGameSettings();
+  else if (sbTab === "party") renderRoster();
 }
 /** Who can speak: the referee, either side, or any character on the board; online, a player as himself or one of his own. */
 function chatSpeakers() {
