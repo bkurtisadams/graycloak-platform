@@ -81,3 +81,10 @@ test("the header shows the page's build, and the server in the repo is new enoug
 test("a fight's viewer is the player himself or the referee", () => {
   assert.match(grid, /const viewer = PLAYER \? api\.user\?\.uid : "referee";/);
 });
+
+test("a fight the game opened: found by the monster's key, and anyone in it goes back to the dungeon when it is over", () => {
+  assert.ok(grid.includes("MONSTERS.find((x) => x.key === e.monsterKey)"));
+  assert.ok(grid.includes('function autoOver() { return !!(online.on && online.header?.auto && state.phase === "over"); }'));
+  assert.ok(grid.includes('if (autoOver()) { backToScene(); return; }'));
+  assert.ok(grid.includes("The fight opens on this part of the level; the game runs the monsters."));
+});

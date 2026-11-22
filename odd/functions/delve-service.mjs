@@ -21,7 +21,10 @@
 // Only the referee: delveAdjust {lid, id, number}; delveResolve {lid, id, cleared?}.
 // Rulings (Kurt, Nov 2026): rate × 20 feet a turn at the slowest member's rate, doubled in flight; the game maps for
 // the players; light is left out of this pass; the leader's player walks the party and the referee may.
-// Not yet: the game opening and running the fight itself (the next pass); until then a stand waits on the referee.
+// Pass 19 (Kurt: always, and the referee can step in): a meeting that comes to blows is opened by the game itself as
+// the campaign's live fight, on that part of the level (delve.fightSetup), the monsters run by the game. A stand,
+// a flight that is caught, and a hostile reaction all open it. A monster with no record (the tables' classed men,
+// Thouls) still waits on the referee.
 // Traps: the spring roll is made and the trap's text told; its harm is the referee's to apply. One-way doors open
 // from either side for now (the level doesn't record which way they face).
 
@@ -29,7 +32,7 @@ export const delvePath = (cid, lid) => `oddCampaigns/${cid}/delves/${lid}`;
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const TRAIL = 60;
 
-export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey, hexKey }) {
+export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey, hexKey, openFightIn = null, isReferee = () => false }) {
   const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster;
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
@@ -38,7 +41,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
   const names = (list) => list.map((c) => c.name).join(", ");
   const monsterOf = (m) => rules.MONSTERS.find((x) => x.key === m?.key) ?? rules.MONSTERS.find((x) => `${x.name}s`.toLowerCase() === String(m?.name ?? "").toLowerCase()) ?? null;
   const cellKey = (ch) => `${ch.under.lid}:${ch.under.x},${ch.under.y}`;
-  const blank = () => ({ seen: null, found: [], passed: [], sprung: [], noise: [], cleared: {}, numbers: {} });
+  const blank = () => ({ seen: null, found: [], passed: [], sprung: [], noise: [], cleared: {}, numbers: {}, peace: {} });
   const stateOf = (pt) => ({ turn: 1, spent: 0, sinceRest: 0, rested: 0, fled: false, viaDoor: false, trail: [], listened: [], checks: [], ...pt.leader.under });
 
   async function handle(tx, { op, data, cid, uid, ref, camp, p, log }) {
@@ -141,6 +144,24 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       say(`${L.name}, turn ${state.turn}: ${who} ${source === "room" ? "came upon" : "met wandering"} ${monster.name} (${number}) at ${feetOff} feet. ${surprise === "party" ? "The party is surprised." : surprise === "monsters" ? "The party surprised them." : "Neither side is surprised."}`);
       return e;
     };
+    /** The meeting comes to blows: the game opens the fight on this part of the level. Returns its id, or null where it can't (no stats). */
+    const toBlows = (state, e) => {
+      const m = monsterOf({ key: e.monsterKey, name: e.kind }), n = Math.max(0, Math.min(40, Math.trunc(Number(e.number)) || 0));
+      const fighters = pt.members.filter((c) => (c.hp ?? 1) > 0);
+      if (!openFightIn || camp.live || !m || !n || !fighters.length) return null;
+      const lay = D.fightSetup(L, { at: { x: state.x, y: state.y }, trail: (state.trail ?? []).map(([x, y]) => ({ x, y })), feet: e.feet ?? 60, room: e.room ? (L.rooms ?? []).find((r) => r.id === e.room) ?? null : null, found, party: fighters.map(() => 1), monsters: Array(n).fill(m.size ?? 1) });
+      const figures = []; let id = 1;
+      fighters.forEach((c, i) => { const at = lay.party[i], f = roster.toFigure(c, { id: id++, side: "A" }); figures.push({ ...f, ...(at ? { x: at.x, y: at.y, facing: at.facing, placed: true } : { placed: false }) }); });
+      lay.monsters.forEach((at, i) => { if (at) figures.push({ id: id++, side: "B", kind: "monster", monsterKey: m.key, name: `${m.name} ${i + 1}`, ac: m.ac, size: m.size ?? 1, stance: "attack", target: null, action: "melee", x: at.x, y: at.y, facing: at.facing, placed: true }); });
+      if (!figures.some((f) => f.side === "B") || !figures.some((f) => f.side === "A" && f.placed)) return null;
+      const control = Object.fromEntries(figures.map((f) => [f.id, f.side === "B" ? "game" : (() => { const o = fighters.find((c) => c.id === f.charId)?.owner, lead = fighters[0].owner; return o && !isReferee(camp, o) ? o : lead && !isReferee(camp, lead) ? lead : "referee"; })()]));
+      const fid = `delve-${now().toString(36)}-${rollDie(1000000).toString(36)}`;
+      const r = openFightIn(tx, { cid, fid, title: `${e.kind} \u00b7 ${L.name} \u00b7 turn ${state.turn}`, uid, camp, control, extra: { delve: { lid, room: e.room ?? null } },
+        state: { figures, nextId: id, phase: "setup", round: 0, step: "init", firstSide: null, contacts: new Map(), winner: null, width: D.FIGHT_W, height: D.FIGHT_H, walls: lay.walls, chests: [] } });
+      if (!r.ok) return null;
+      tx.set(`oddCampaigns/${cid}`, clean({ ...camp, live: { fid, at: now() } }));
+      return fid;
+    };
     /** The turn ends: the count toward rest, the wandering-monster check on a d6. */
     const endTurn = (state, { resting = false } = {}) => {
       const roll = d6(), next = { ...state, turn: state.turn + 1, spent: 0, sinceRest: resting ? state.sinceRest : state.sinceRest + 1, checks: [...(state.checks ?? []), { turn: state.turn, roll }].slice(-6) };
@@ -169,24 +190,41 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       }
       if (!walks) return refuse("forbidden", "the party's leader answers for it");
       if (enc.choice && !ref) return refuse("bad-request", `the party already chose to ${enc.choice}`);
+      if (op === "delveParley" && enc.parleyed) return refuse("bad-request", "the party has hailed them already");
       if (op === "delveStand") {
-        every(() => ({ encounter: { ...enc, choice: "stand", outcome: "stand" } }));
-        say(`${who} stand to meet the ${enc.kind}. The referee opens the fight.`);
-        return done({ outcome: "stand" });
+        const fid = toBlows(st, enc);
+        every(() => ({ encounter: { ...enc, choice: "stand", outcome: "stand", fid } }));
+        say(`${who} stand to meet the ${enc.kind}. ${fid ? "The fight is on." : "The referee opens the fight."}`);
+        return done({ outcome: "stand", fid });
       }
       if (op === "delveParley") {
         const m = monsterOf({ key: enc.monsterKey, name: enc.kind });
         const r = rules.encounterReaction({ intelligence: m?.mind?.intelligence ?? "average", surprisedParty: enc.surprise === "party", monsterSurprised: enc.surprise === "monsters", distanceFeet: enc.feet ?? 60 }, () => (rollDie(6) - 0.5) / 6);
         const text = r.rolled ? `2d6 = ${r.dice.join("+")}${r.mods?.total ? ` ${r.mods.total > 0 ? "+" : ""}${r.mods.total}` : ""} = ${r.total}: ${r.result}` : `no roll: ${r.why}`;
-        every(() => ({ encounter: { ...enc, choice: "parley", outcome: "parley", reaction: { result: r.result, total: r.total ?? null, dice: r.dice ?? null, why: r.why ?? null } } }));
-        say(`${who} hail the ${enc.kind}. Reaction ${text}. The referee puts words to it.`);
-        return done({ outcome: "parley", reaction: r.result, text });
+        const reaction = { result: r.result, total: r.total ?? null, dice: r.dice ?? null, why: r.why ?? null }, ER = rules.EncounterReaction ?? {};
+        // the game reads the dice itself (Kurt: always): hostile, it is a fight; friendly, they let the party be; between, the party must run or stand
+        if (r.result === ER.NEGATIVE) {
+          const fid = toBlows(st, enc);
+          every(() => ({ encounter: { ...enc, choice: "parley", outcome: fid ? "attacked" : "parley", reaction, fid } }));
+          say(`${who} hail the ${enc.kind}. Reaction ${text}. ${fid ? "They attack: the fight is on." : "The referee opens the fight."}`);
+          return done({ outcome: fid ? "attacked" : "parley", reaction: r.result, text: `${text}. They attack.`, fid });
+        }
+        if (r.result === ER.POSITIVE) {
+          if (enc.room) { doc.peace = { ...(doc.peace ?? {}), [enc.room]: true }; save(); }
+          every(() => ({ encounter: null, lastEncounter: { ...enc, choice: "parley", outcome: "friendly", reaction } }));
+          say(`${who} hail the ${enc.kind}. Reaction ${text}. They let the party be.`);
+          return done({ outcome: "friendly", reaction: r.result, text: `${text}. They let the party be.` });
+        }
+        every(() => ({ encounter: { ...enc, parleyed: true, reaction } }));
+        say(`${who} hail the ${enc.kind}. Reaction ${text}. They stand wary: the party must run or stand.`);
+        return done({ outcome: "wary", reaction: r.result, text: `${text}. They stand wary: run, or stand.` });
       }
       // evade: Book III, Avoiding Monsters
       if (!U.mayAvoid({ monstersSurprisedParty: enc.surprise === "party", feet: enc.feet ?? Infinity, monstersSurprised: enc.surprise === "monsters" })) {
-        every(() => ({ encounter: { ...enc, choice: "evade", outcome: "caught", log: [`Surprised within ${U.NO_AVOID_FEET} feet: no getting away.`] } }));
-        say(`${who} were surprised within ${U.NO_AVOID_FEET} feet of the ${enc.kind}: there is no getting away. The referee opens the fight.`);
-        return done({ outcome: "caught" });
+        const fid = toBlows(st, enc);
+        every(() => ({ encounter: { ...enc, choice: "evade", outcome: "caught", fid, log: [`Surprised within ${U.NO_AVOID_FEET} feet: no getting away.`] } }));
+        say(`${who} were surprised within ${U.NO_AVOID_FEET} feet of the ${enc.kind}: there is no getting away. ${fid ? "The fight is on." : "The referee opens the fight."}`);
+        return done({ outcome: "caught", fid });
       }
       const f = D.flightRoute(L, st.trail.map(([x, y]) => ({ x, y })), at, D.turnFeet(rate, { flight: true }) / D.SQUARE_FEET), lines = [];
       let shaken = false;
@@ -195,9 +233,10 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       if (!shaken) lines.push(!f.route.length ? "Nowhere known to run." : caught ? `They are as fast as the party (${enc.monsterMove}" against ${rate}").` : `The party is faster (${rate}" against ${enc.monsterMove}") and draws out of sight.`);
       const cut = st.trail.length - f.route.length - (f.route.length && st.trail.at(-1)?.[0] === at.x && st.trail.at(-1)?.[1] === at.y ? 1 : 0);
       const next = { ...st, x: f.end.x, y: f.end.y, turn: st.turn + 1, spent: 0, sinceRest: st.sinceRest + 1, fled: true, rested: 0, viaDoor: false, trail: [...st.trail.slice(0, Math.max(0, cut)), [f.end.x, f.end.y]].slice(-TRAIL) };
-      setParty(pt, next, () => (caught ? { encounter: { ...enc, choice: "evade", outcome: "caught", feet: 10, log: lines } } : { encounter: null, lastEncounter: { ...enc, choice: "evade", outcome: "escaped", log: lines } }));
-      say(`${who} ran from the ${enc.kind}, ${f.route.length * 10} feet back the way they came. ${lines.join(" ")}${caught ? " Caught: the referee opens the fight." : " They got away; the next rest is doubled."}`);
-      return done({ outcome: caught ? "caught" : "escaped", log: lines });
+      const fid = caught ? toBlows(next, { ...enc, feet: 10, room: null }) : null;
+      setParty(pt, next, () => (caught ? { encounter: { ...enc, choice: "evade", outcome: "caught", feet: 10, fid, log: lines } } : { encounter: null, lastEncounter: { ...enc, choice: "evade", outcome: "escaped", log: lines } }));
+      say(`${who} ran from the ${enc.kind}, ${f.route.length * 10} feet back the way they came. ${lines.join(" ")}${caught ? (fid ? " Caught: the fight is on." : " Caught: the referee opens the fight.") : " They got away; the next rest is doubled."}`);
+      return done({ outcome: caught ? "caught" : "escaped", log: lines, fid });
     }
 
     if (!walks) return refuse("forbidden", "the party's leader walks it; take your own out of the party to go your own way");
@@ -235,7 +274,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
         const t = D.trapAt(L, c.x, c.y);
         if (t && !doc.sprung.some((s) => s.x === t.x && s.y === t.y) && U.trapSprings(d6())) { doc.sprung.push({ x: t.x, y: t.y, text: t.text, turn: next.turn }); events.push(`A trap springs: ${t.text}.`); stop = true; }
         const room = D.cellAt(L, c.x, c.y) === "r" ? D.roomAt(L, c.x, c.y) : null, mon = room ? L.stock?.[room.id]?.monster : null;
-        if (mon && !doc.cleared[room.id]) { met = meet(next, mon, "room", room); stop = true; }
+        if (mon && !doc.cleared[room.id] && !doc.peace?.[room.id]) { met = meet(next, mon, "room", room); stop = true; }
         if (stop) break;
       }
       setParty(pt, next, () => (met ? { encounter: met } : {})); save();

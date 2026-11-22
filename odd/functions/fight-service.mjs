@@ -142,6 +142,27 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     });
   }
 
+  /**
+   * A fight the game opens itself (pass 19, Nov 2026: a meeting underground comes to blows), inside the caller's
+   * transaction: state is a set-up fight (figures placed, walls cut), control { figureId: uid | "referee" | "game" }.
+   * No one need be the referee: a side the game runs moves itself, and any player in the fight may settle it once
+   * it is over (header.auto). Writes only; the caller makes it the game's live fight.
+   */
+  function openIn(tx, { cid, fid, title = "", state, control, camp, uid, extra = {} }) {
+    state.control = { ...control };
+    const people = { referee: { name: String(camp?.people?.[camp?.refereeUid]?.name ?? "Referee").slice(0, 60), color: REFEREE_COLOUR } };
+    for (const v of Object.values(control)) if (v !== "referee" && v !== "game" && !people[v]) people[v] = { name: String(camp?.people?.[v]?.name ?? "Player").slice(0, 60), color: camp?.people?.[v]?.color ?? PLAYER_COLOURS[0] };
+    state.people = people;
+    const wrong = fightStart.setupProblems(state);
+    if (wrong.length) return refuse("bad-request", wrong.join("; "));
+    const { rng, event: opened } = fightStart.openFight(state, newSeed());
+    const events = [opened, { type: "round", round: state.round ?? 0 }, ...session.advance(state, rng)];
+    const p = fightPaths(cid, fid);
+    writeFight(tx, p, state, events, { rev: 1, uid, header: { title: String(title).slice(0, 120), createdBy: uid, createdAt: now(), auto: true, ...extra } });
+    tx.set(p.initial, clean(fightStore.toStored(state)));
+    return { ok: true, fid };
+  }
+
   const VERB = { move: "moved", "close-on": "closed in", "group-move": "moved as a group", "split-fire": "fired in mid-move", "charge-mode": "changed charge", orders: "changed orders", "draw-weapon": "drew a weapon", ready: "marked Ready", unready: "took Ready back", "undo-move": "undid a move", gm: "GM tool", leader: "set a leader", parley: "parleyed", "offer-service": "offered service", elect: "elected", "force-next": "advanced the step", "step-back": "went back a step" };
   const describe = (state, rec) => {
     const a = rec.action ?? {}, ids = [a.id, a.pcId, ...(a.ids ?? [])].filter((x) => x != null);
@@ -183,7 +204,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
    * picked up stay with the fight for now (fight items and pack items have different shapes). Once per
    * fight; the referee's End the fight does it. A fight may be settled before it is over (the party fled).
    */
-  async function settle(tx, p, cid, uid, camp, header, state) {
+  async function settle(tx, p, cid, uid, camp, header, state, fid = null) {
     if (header.settled) return refuse("settled", "this fight was settled already");
     const party = state.figures.filter((f) => f.charId && f.side === "A");
     const chars = [];
@@ -210,6 +231,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const at = now(), id = `${String(at).padStart(14, "0")}-fight-${Math.floor(Math.random() * 1e6)}`;
     const entry = clean({ id, at, uid: "world", person: "The fight", color: null, as: null, side: null, to: "all", toName: null, text: `${title}: ${lines.join("; ") || "no roster characters in it"}.` });
     for (const r of ["referee", ...members]) tx.set(`oddCampaigns/${cid}/chat/${r}/entries/${id}`, entry);
+    // a fight the game opened closes itself: no referee need be there to send everyone back to the scene
+    if (header.auto && camp?.live?.fid === fid) tx.set(p.campaign, clean({ ...camp, live: null }));
     return { ok: true, rev: header.rev, settled: out };
   }
 
@@ -229,7 +252,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
       const who = whoIs(state, camp, uid);
       if (!who) return refuse("forbidden", "you are not in this fight");
       if (action.type === "undo") return who.referee ? undo(tx, p, uid, camp, header) : refuse("forbidden", "only the referee undoes");
-      if (action.type === "settle") return who.referee ? settle(tx, p, cid, uid, camp, header, state) : refuse("forbidden", "only the referee settles a fight");
+      if (action.type === "settle") return who.referee || (header.auto && state.phase === "over") ? settle(tx, p, cid, uid, camp, header, state, fid) : refuse("forbidden", header.auto ? "the fight isn't over yet" : "only the referee settles a fight");
       const r = session.applyAs(state, who, action, fightStore.rngOf(state));
       if (!r.ok) return refuse("refused", r.error, { rev: header.rev });
       const next = header.rev + 1;
@@ -325,5 +348,5 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     });
   }
 
-  return { create, act, remove, chat, playersOf };
+  return { create, act, remove, chat, playersOf, openIn };
 }

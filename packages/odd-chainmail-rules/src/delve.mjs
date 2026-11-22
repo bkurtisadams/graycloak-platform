@@ -15,7 +15,14 @@
  * by type" and doubles it for a party of 4-6. wanderingNumber() takes creatures of one hit die or less as the
  * "Orcs and the like" that come in groups (1d6), two or three hit dice as 1d3, bigger things alone, each
  * multiplied for every three adventurers.
+ *
+ * A meeting that comes to blows is fought on that part of the level (0.41.0): fightSetup() cuts the fight board's
+ * window out of the level's sheet (three board cells to a 10' square), stands the party on its square with the
+ * rest behind it down the way it came, and the monsters at the sighting distance along the passages, or across
+ * their room. Doors stand open for the fight; an unfound secret door is wall.
  */
+
+import { dir8 } from "./engagement.mjs";
 
 export const WALK = new Set([".", "r"]);
 export const DOOR = new Set(["+", "o"]);
@@ -138,7 +145,52 @@ export function wanderingNumber({ hd = 1, partySize = 1 } = {}, d) {
   return base * Math.max(1, Math.ceil(partySize / 3));
 }
 
+/* ---------- a meeting that comes to blows ---------- */
+export const FIGHT_W = 54, FIGHT_H = 30, CELLS_PER_SQUARE = 3; // the fight board: cells of 3 1/3 feet, 180 by 100 feet
+/**
+ * The fight board for a meeting: { ox, oy (the window's corner, in level squares), walls (rows of booleans, true a
+ * wall), party: [{x, y, facing}], monsters: [{x, y, facing}], from (the monsters' square) }. `party` and `monsters`
+ * list each figure's size in cells (1 for a man). A figure with no room left on the board is left out (null).
+ */
+export function fightSetup(L, { at, trail = [], feet = 60, room = null, found = new Set(), party = [1], monsters = [1] }) {
+  const open = (x, y) => { const c = cellAt(L, x, y); return c !== "#" && (c !== SECRET || found.has(key(x, y))); };
+  const floodFrom = (src) => { const d = new Map([[key(src.x, src.y), 0]]), q = [src]; while (q.length) { const c = q.shift(); for (const [dx, dy] of N4) { const n = { x: c.x + dx, y: c.y + dy }, k = key(n.x, n.y); if (!d.has(k) && open(n.x, n.y)) { d.set(k, d.get(key(c.x, c.y)) + 1); q.push(n); } } } return d; };
+  const xy = (k) => { const [x, y] = k.split(",").map(Number); return { x, y }; };
+  const fromParty = floodFrom(at), want = Math.max(1, Math.min(9, Math.round(feet / SQUARE_FEET)));
+  const behind = new Set(trail.map((c) => key(c.x, c.y)));
+  // where the monsters stand: across their room, or the sighting distance off down the passages, ahead rather than back the way the party came
+  let cands = [...fromParty.entries()].filter(([, d]) => d > 0 && d <= 9).map(([k, d]) => ({ ...xy(k), d }));
+  if (room) { const inRoom = cands.filter((c) => c.x >= room.x && c.x < room.x + room.w && c.y >= room.y && c.y < room.y + room.h); if (inRoom.length) cands = inRoom; }
+  const score = (c) => Math.abs(c.d - want) * 10 + (behind.has(key(c.x, c.y)) ? 5 : 0) - Math.hypot(c.x - at.x, c.y - at.y) / 10;
+  const from = cands.sort((a, b) => score(a) - score(b) || a.y - b.y || a.x - b.x)[0] ?? at;
+  const W = FIGHT_W / CELLS_PER_SQUARE, H = FIGHT_H / CELLS_PER_SQUARE;
+  const fit = (a, b, size) => Math.min(Math.max(Math.floor((a + b) / 2) - Math.floor(size / 2) + 1, Math.max(a, b) - size + 1), Math.min(a, b));
+  const ox = fit(at.x, from.x, W), oy = fit(at.y, from.y, H);
+  const walls = Array.from({ length: FIGHT_H }, (_, cy) => Array.from({ length: FIGHT_W }, (_, cx) => !open(ox + Math.floor(cx / CELLS_PER_SQUARE), oy + Math.floor(cy / CELLS_PER_SQUARE))));
+  const taken = new Set(), inWin = (c) => c.x >= ox && c.x < ox + W && c.y >= oy && c.y < oy + H;
+  const free = (cx, cy, size) => { for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) { const x = cx + i, y = cy + j; if (x < 0 || y < 0 || x >= FIGHT_W || y >= FIGHT_H || walls[y][x] || taken.has(key(x, y))) return false; } return true; };
+  const CELL_ORDER = [[1, 1], [1, 0], [1, 2], [0, 1], [2, 1], [0, 0], [2, 0], [0, 2], [2, 2]];
+  const stand = (sizes, squares, toward) => sizes.map((size) => {
+    for (const sq of squares) for (const [i, j] of CELL_ORDER) {
+      const cx = (sq.x - ox) * CELLS_PER_SQUARE + i, cy = (sq.y - oy) * CELLS_PER_SQUARE + j;
+      if (!free(cx, cy, size)) continue;
+      for (let b = 0; b < size; b++) for (let a = 0; a < size; a++) taken.add(key(cx + a, cy + b));
+      return { x: cx, y: cy, facing: dir8(toward.x - sq.x, toward.y - sq.y) ?? 0 };
+    }
+    return null;
+  });
+  const fromMon = floodFrom(from);
+  const order = (dist, avoid) => [...dist.entries()].map(([k, d]) => ({ ...xy(k), d })).filter(inWin).sort((a, b) => a.d - b.d || (avoid.get(key(b.x, b.y)) ?? 99) - (avoid.get(key(a.x, a.y)) ?? 99));
+  // the party on its square, the overflow away from the monsters; the monsters on theirs, the overflow away from the party
+  const partySquares = order(fromParty, fromMon).filter((c) => (fromMon.get(key(c.x, c.y)) ?? 99) >= Math.min(2, fromMon.get(key(at.x, at.y)) ?? 2) || (c.x === at.x && c.y === at.y));
+  const P = stand(party, partySquares, from);
+  const monSquares = order(fromMon, fromParty).filter((c) => (fromParty.get(key(c.x, c.y)) ?? 99) >= Math.min(2, fromParty.get(key(from.x, from.y)) ?? 2) || (c.x === from.x && c.y === from.y));
+  const M = stand(monsters, monSquares, at);
+  return { ox, oy, walls, party: P, monsters: M, from: { x: from.x, y: from.y } };
+}
+
 function runSelfTests() {
+  const sqOf2 = (s, c) => ({ x: s.ox + Math.floor(c.x / 3), y: s.oy + Math.floor(c.y / 3) });
   let pass = 0;
   const ok = (c, l) => { if (!c) throw new Error(`FAIL: ${l}`); pass++; };
   // a passage east from a room, a door, a room beyond; a secret door north of the passage
@@ -173,6 +225,20 @@ function runSelfTests() {
   ok(flightRoute(L, [], { x: 6, y: 3 }, 4).route.length === 0, "no trail, nowhere to run");
   const d = (n) => n;
   ok(wanderingNumber({ hd: 1, partySize: 3 }, d) === 6 && wanderingNumber({ hd: 1, partySize: 4 }, d) === 12 && wanderingNumber({ hd: 3, partySize: 2 }, d) === 3 && wanderingNumber({ hd: 6, partySize: 6 }, d) === 2, "how many come");
+  // a fight: the party of three at the passage's west end, goblins met 40 feet off down the passage
+  const fs = fightSetup(L, { at: { x: 3, y: 2 }, trail: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }], feet: 40, party: [1, 1, 1], monsters: [1, 1, 1, 1] });
+  ok(fs.walls.length === FIGHT_H && fs.walls[0].length === FIGHT_W, "the board is the fight's size");
+  ok(fs.from.x === 7 && fs.from.y === 2, "the monsters stand the sighting distance down the passage, ahead of the party");
+  const wallAt = (c) => fs.walls[c.y][c.x], sqOf = (c) => ({ x: fs.ox + Math.floor(c.x / 3), y: fs.oy + Math.floor(c.y / 3) });
+  ok([...fs.party, ...fs.monsters].every((c) => c && !wallAt(c)), "everyone stands on floor");
+  ok(new Set([...fs.party, ...fs.monsters].map((c) => key(c.x, c.y))).size === 7, "no two on one cell");
+  ok(fs.party.every((c) => sqOf(c).x === 3 && sqOf(c).y === 2) && fs.monsters.every((c) => sqOf(c).x >= 7), "each side on its own square");
+  ok(fs.party[0].facing === 0 && fs.monsters[0].facing === 4, "the sides face each other");
+  ok(fs.walls[(2 - fs.oy) * 3][(6 - fs.ox) * 3] === false && fs.walls[(1 - fs.oy) * 3][(4 - fs.ox) * 3] === true, "a door stands open for the fight; an unfound secret door is wall");
+  const big = fightSetup(L, { at: { x: 3, y: 2 }, trail: [{ x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }], feet: 20, party: Array(12).fill(1), monsters: [2] });
+  ok(big.party.every(Boolean) && big.party.some((c) => sqOf2(big, c).x < 3) && big.monsters[0], "a big party spills back down the way it came; a large monster finds four free cells");
+  const inRoom = fightSetup(L, { at: { x: 7, y: 2 }, feet: 20, room: L.rooms[1], party: [1], monsters: [1, 1] });
+  ok(inRoom.monsters.every((c) => { const s = sqOf2(inRoom, c); return s.x >= 7 && s.x <= 8 && s.y >= 2 && s.y <= 3; }), "a room's keepers are met in their room");
   console.log(`delve.mjs: all self-tests passed (${pass})`);
 }
 

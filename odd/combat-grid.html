@@ -1451,6 +1451,7 @@ function leaveFight() {
   if (!PLAYER) resetFight(); else { Object.assign(state, { phase: "setup", figures: [], selected: null }); render(); }
   $("#log").innerHTML = "";
   loadTableFights();
+  if (lobby.view?.delve) loadDelve(true);
 }
 function startLobbyChat() {
   stopLobbyChat();
@@ -1648,7 +1649,7 @@ function openFightForEncounter(ch) {
   const party = table.chars.filter((x) => x.status === "ready" && (u ? x.encounter && x.under?.lid === u.lid && x.under.x === u.x && x.under.y === u.y : x.doing === "encounter" && hexKeyOf(x) === k));
   const e = ch.encounter ?? {}, kind = String(e.kind ?? "");
   const low = kind.toLowerCase(), guesses = [low, low.replace(/s$/, ""), low.replace(/es$/, ""), low.replace(/ves$/, "f"), low.replace(/ies$/, "y")];
-  const m = e.band ? null : MONSTERS.find((x) => guesses.includes(x.name.toLowerCase())) ?? MONSTERS.find((x) => guesses.includes(x.key));
+  const m = e.band ? null : MONSTERS.find((x) => x.key === e.monsterKey) ?? MONSTERS.find((x) => guesses.includes(x.name.toLowerCase())) ?? MONSTERS.find((x) => guesses.includes(x.key));
   let count = 0;
   if (m && e.underground) count = Math.max(0, Math.min(60, Math.trunc(Number(e.number)) || 0)); // underground the number is set on the meeting already
   else if (m) { const n = prompt(`How many ${kind} come to the fight? Book II says ${m.reference?.numberAppearing ?? "?"}; the dice said ${e.number ?? "?"}.`, String(Math.min(e.number ?? 6, 20))); if (n == null) return; count = Math.max(0, Math.min(60, Math.trunc(Number(n)) || 0)); }
@@ -1704,9 +1705,9 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.558.00";
+const BUILD = "v1.559.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.557.00";
+const SERVER_NEEDED = "v1.559.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -2359,15 +2360,17 @@ function delveMeetingCard(sp) {
   const m = sp.meeting, busy = delve.busy ? "disabled" : "", lead = sp.members[0];
   if (!m.type) return `<section class="dv-card enc" aria-label="A meeting"><h3>${esc(m.kind)}</h3><div class="note">${esc(lead.name)}'s party has met them.</div></section>`;
   const head = `<h3>${esc(m.kind)}<small>${m.type === "room" ? "in the room" : "wandering"} \u00b7 turn ${m.turn}</small></h3><div class="note">${m.number != null ? `${m.number} of them, ` : ""}seen at ${m.feet} feet. ${delveSurprise(m)}</div>`;
-  const said = m.outcome === "parley" ? `The party hailed them. Reaction: <b>${esc(m.reaction?.result ?? "")}</b>${m.reaction?.total != null ? ` (2d6 = ${m.reaction.total})` : m.reaction?.why ? ` (${esc(m.reaction.why)})` : ""}.`
+  const react = m.reaction ? `Reaction: <b>${esc(m.reaction.result ?? "")}</b>${m.reaction.total != null ? ` (2d6 = ${m.reaction.total})` : m.reaction.why ? ` (${esc(m.reaction.why)})` : ""}.` : "";
+  const said = m.outcome === "attacked" ? `The party hailed them. ${react} They attack.` : m.outcome === "parley" ? `The party hailed them. Reaction: <b>${esc(m.reaction?.result ?? "")}</b>${m.reaction?.total != null ? ` (2d6 = ${m.reaction.total})` : m.reaction?.why ? ` (${esc(m.reaction.why)})` : ""}.`
     : m.outcome === "caught" ? `The party ran and was caught. ${esc((m.log ?? []).join(" "))}` : m.outcome === "stand" ? "The party stands to meet them." : "";
   const refs = PLAYER ? "" : `<div class="dv-act"><h4>The referee</h4><div class="row"><label class="note" for="dvNum">How many come</label><input id="dvNum" type="number" min="0" max="500" value="${m.number ?? 1}" style="width:64px"><button type="button" data-dv="adjust" ${busy}>Set</button></div><div class="row"><button type="button" class="primary" data-dv="fight" ${busy}>Open the fight here</button><button type="button" data-dv="pass" ${busy}>Let them pass</button><button type="button" data-dv="cleared" ${busy} title="The meeting is over and these monsters are gone from the level">Dealt with</button></div></div>`;
-  if (m.choice) return `<section class="dv-card enc" aria-label="A meeting">${head}<div class="note">${said}</div>${PLAYER ? `<div class="note">Waiting on the referee.</div>` : refs}</section>`;
+  if (m.choice && m.fid) return `<section class="dv-card enc" aria-label="A meeting">${head}<div class="note">${said}</div><div class="note"><b>The fight is on.</b></div>${table.game?.live?.fid === m.fid ? "" : refs}</section>`;
+  if (m.choice) return `<section class="dv-card enc" aria-label="A meeting">${head}<div class="note">${said}</div>${PLAYER ? `<div class="note">${table.game?.live ? "Another fight is under way: this one waits on the referee." : "These have no fighting statistics yet: waiting on the referee."}</div>` : refs}</section>`;
   const cannot = !sp.walks ? "disabled" : busy, mayRun = uw.mayAvoid({ monstersSurprisedParty: m.surprise === "party", feet: m.feet, monstersSurprised: m.surprise === "monsters" });
   return `<section class="dv-card enc" aria-label="A meeting">${head}
     <div class="dv-act"><h4>Evade</h4><div class="note">${mayRun ? `The party may run, back the way it came. They follow while they can see it within ${uw.PURSUIT_SIGHT_FEET} feet; a corner or a door shakes them on a 3 to 6.` : `Surprised within ${uw.NO_AVOID_FEET} feet: there is no getting away.`}</div><div class="row"><button type="button" class="primary" data-dv="evade" ${cannot}>Run for it</button></div></div>
-    <div class="dv-act"><h4>Parley</h4><div class="note">The reaction roll, 2d6. The referee puts words to it.</div><div class="row"><button type="button" data-dv="parley" ${cannot}>Hail them</button></div></div>
-    <div class="dv-act"><h4>Stand</h4><div class="note">The referee opens the fight on this part of the level.</div><div class="row"><button type="button" class="red" data-dv="stand" ${cannot}>Stand and fight</button></div></div>
+    ${m.parleyed ? `<div class="dv-act"><h4>Parley</h4><div class="note">The party hailed them. ${react} They stand wary: run, or stand.</div></div>` : `<div class="dv-act"><h4>Parley</h4><div class="note">The reaction roll, 2d6: hostile and they attack, friendly and they let the party be.</div><div class="row"><button type="button" data-dv="parley" ${cannot}>Hail them</button></div></div>`}
+    <div class="dv-act"><h4>Stand</h4><div class="note">The fight opens on this part of the level; the game runs the monsters.</div><div class="row"><button type="button" class="red" data-dv="stand" ${cannot}>Stand and fight</button></div></div>
     ${sp.walks ? "" : `<div class="note">${esc(lead.name)} leads: his player answers for the party.</div>`}${refs}</section>`;
 }
 /** What the party stands beside: doors to listen at or force, the stairs out. */
@@ -3506,10 +3509,19 @@ function renderDetail() {
 }
 /* ---------- phase strip, figure chips, action bar, drawer ---------- */
 const LAYOUT_NAME = { corridor: "10' corridor", room: "40' room with corridors", open: "Open floor" };
+/** A fight the game opened itself, now over: anyone in it sends the party back to its scene. */
+function autoOver() { return !!(online.on && online.header?.auto && state.phase === "over"); }
+async function backToScene() {
+  const btn = $("#step"); btn.disabled = true;
+  const r = await online.api.send({ type: "settle" }, fightStore.RULES_VERSION);
+  if (!r.ok && r.code !== "settled") { btn.disabled = false; $("#dragInfo").innerHTML = `<span class="bad">${esc(r.error ?? "The fight couldn't be settled.")}</span>`; return; }
+  if (r.settled?.length) delve.msg = `After the fight: ${r.settled.map((x) => `${x.name} ${x.dead ? "slain" : `hp ${x.hp}/${x.maxHp}`}${x.xp ? `, +${x.xp} xp` : ""}`).join("; ")}.`;
+  if (r.code === "settled" && !PLAYER) await online.api.game("live", table.cid, { fid: null });
+}
 function stepLabel() {
   if (PLAYER) {
     if (state.phase === "setup") return "Open a fight";
-    if (state.phase === "over") return "Fight over";
+    if (state.phase === "over") return autoOver() ? "Back to the dungeon" : "Fight over";
     const wait = online.header?.waitingOn ?? [], me = online.api?.user?.uid;
     if (state.step.startsWith("move-")) return wait.length ? `Waiting on ${wait.map((w) => w === "referee" ? (state.people?.referee?.name ?? "the referee") : w === me ? "you" : (state.people?.[w]?.name ?? "a player")).join(", ")}` : `Side ${state.step.slice(5)} moves`;
     if (state.step === "elect") return `Side ${state.init.winner} chooses`;
@@ -3518,7 +3530,7 @@ function stepLabel() {
   if (state.phase === "setup") return online.on ? "Start fight online" : "Start fight";
   if (online.on && state.phase === "fight" && !state.step.startsWith("move-") && state.step !== "elect" && state.step !== "orders") return "The server resolves this step";
   if (online.on && state.phase === "fight" && (state.step.startsWith("move-") || state.step === "orders")) { const n = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length; return n ? (state.step === "orders" ? (n === 1 ? "Confirm my orders" : `Confirm orders for my ${n} figures`) : (n === 1 ? "My figure is done moving" : `My ${n} figures are done moving`)) : "Waiting on the players"; }
-  if (state.phase === "over") return "Fight over";
+  if (state.phase === "over") return autoOver() ? "Back to the dungeon" : "Fight over";
   if (state.step === "init") return state.round ? "Next round" : "Roll initiative";
   if (state.step === "elect") return "Choose to move first or last";
   if (state.step.startsWith("move-")) {
@@ -3546,7 +3558,7 @@ function renderStrip() {
   }).join("");
   $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "orders" ? "Orders" : st === "missiles" ? "Missiles & spells" : "Melee";
   const btn = $("#step"); btn.textContent = stepLabel(); btn.hidden = electing;
-  btn.disabled = state.phase === "over" || (online.on && state.phase === "fight" && !st.startsWith("move-") && st !== "orders")
+  btn.disabled = (state.phase === "over" && !autoOver()) || (online.on && state.phase === "fight" && !st.startsWith("move-") && st !== "orders")
     || (PLAYER && state.phase === "fight")
     || (online.on && state.phase === "fight" && (st.startsWith("move-") || st === "orders") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
   const mayElect = electing && (!PLAYER || (online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
@@ -4480,7 +4492,7 @@ $("#electLast").addEventListener("click", () => elect("counter"));
 $("#prevStep").addEventListener("click", () => { const r = runAction({ type: "step-back" }); if (!r.ok && r.error) $("#dragInfo").textContent = r.error; afterStepChange(); });
 $("#nextStepBtn").addEventListener("click", () => { if (online.on) runAction({ type: "force-next" }); else nextStep(); });
 $("#undoBtn").addEventListener("click", () => { if (online.on) runAction({ type: "undo" }); else localUndoPop(); });
-$("#step").addEventListener("click", () => { if (PLAYER) { if (state.phase === "setup") openDrawer("setup"); else nextStep(); return; } if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
+$("#step").addEventListener("click", () => { if (autoOver()) { backToScene(); return; } if (PLAYER) { if (state.phase === "setup") openDrawer("setup"); else nextStep(); return; } if (state.phase === "setup") { startFight(); if (state.phase === "fight") nextStep(); } else nextStep(); });
 $("#reset").addEventListener("click", resetFight);
 $("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
 try { const v = localStorage.getItem("odd-empty-click"); if (v) $("#emptyClick").value = v; } catch {}

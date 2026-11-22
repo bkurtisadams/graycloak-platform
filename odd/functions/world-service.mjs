@@ -54,12 +54,12 @@ export const worldPaths = (cid) => ({
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.557.00";
-export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n) }) {
+export const SERVER_BUILD = "v1.559.00";
+export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
   const dungeons = rules.dungeonGen ? createDungeonOps({ rules, now, rollDie }) : null;
-  const delves = rules.dungeonGen && rules.delve ? createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey: (name) => W.key(PLACES[name].q, PLACES[name].r), hexKey: (ch) => { const h = ch.hex ?? PLACES[W.WESTMARK.home]; return W.key(h.q, h.r); } }) : null;
+  const delves = rules.dungeonGen && rules.delve ? createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey: (name) => W.key(PLACES[name].q, PLACES[name].r), hexKey: (ch) => { const h = ch.hex ?? PLACES[W.WESTMARK.home]; return W.key(h.q, h.r); }, openFightIn: fights?.openIn ?? null, isReferee }) : null;
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
   const d6 = () => rollDie(6);

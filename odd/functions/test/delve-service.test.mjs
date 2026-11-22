@@ -6,6 +6,7 @@ import { createCharacterService } from "../character-service.mjs";
 import { createWorldService, worldPaths } from "../world-service.mjs";
 import { dungeonPath } from "../dungeon-service.mjs";
 import { delvePath } from "../delve-service.mjs";
+import { createFightService, fightPaths } from "../fight-service.mjs";
 
 function memoryStore() {
   const docs = new Map(), copy = (v) => structuredClone(v);
@@ -41,7 +42,8 @@ async function game({ level = LEVEL() } = {}) {
   let n = 0, dice = [], i = 0;
   const rollDie = (sides) => { const v = dice[i++]; return v == null ? Math.min(3, sides) : Math.min(v, sides); };
   const roster = createCharacterService({ rules, store, now: () => 1000 + n, rollDie: () => 4, newId: () => `ch${++n}` });
-  const world = createWorldService({ rules, store, now: () => 2000, rollDie });
+  const fights = createFightService({ rules, store, now: () => 2000, newSeed: () => 7 });
+  const world = createWorldService({ rules, store, now: () => 2000, rollDie, fights });
   const rcall = (uid, data) => roster.handle({ uid, data: { cid: "c1", ...data } });
   const call = (uid, data) => world.handle({ uid, data: { cid: "c1", lid: "fosscraig-1", ...data } });
   const setDice = (...v) => { dice = v; i = 0; };
@@ -55,7 +57,7 @@ async function game({ level = LEVEL() } = {}) {
   };
   if (level) store.docs.set(dungeonPath("c1", "fosscraig-1"), level);
   const ch = (id) => store.docs.get(p.character(id));
-  return { store, call, setDice, make, ch, p };
+  return { store, call, setDice, make, ch, p, fights };
 }
 const down = async (g, ...ids) => { if (ids.length > 1) await g.call("kurt", { op: "party", lid: undefined, ids }); const r = await g.call("kurt", { op: "delveEnter", id: ids[0] }); assert.equal(r.ok, true, r.error); return r; };
 
@@ -126,6 +128,7 @@ test("a 6 at the turn's end brings wandering monsters; the party answers before 
   assert.equal((await g.call("kurt", { op: "delveAdjust", id: brom, number: 2 })).delve.parties[0].meeting.number, 2);
   const s = await g.call("bob", { op: "delveStand", id: brom });
   assert.equal(s.delve.parties[0].meeting.choice, "stand");
+  assert.ok(s.fid, "the game opens the fight itself");
   const done = await g.call("kurt", { op: "delveResolve", id: brom });
   assert.equal(done.delve.parties[0].meeting, null);
   assert.equal((await g.call("bob", { op: "delveMove", id: brom, to: { x: 3, y: 1 } })).ok, true);
@@ -153,6 +156,47 @@ test("a door: listen once a turn, force it on a 1 or 2, and the room's monsters 
   const on = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
   assert.equal(on.delve.parties[0].meeting, null); assert.deepEqual(on.delve.parties[0].at, { x: 10, y: 2 });
   assert.equal(g.store.docs.get(delvePath("c1", "fosscraig-1")).cleared.R2, true);
+});
+
+test("standing opens the fight on the level, the game runs the monsters, and a player settles it when it is over", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom"), ann = await g.make("ann", "Ansel"); await down(g, brom, ann);
+  await g.call("bob", { op: "delveMove", id: brom, to: { x: 4, y: 1 } }); await g.call("bob", { op: "delveMove", id: brom, to: { x: 7, y: 1 } });
+  g.setDice(2); await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
+  g.setDice(4, 4, 4); await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  const s = await g.call("bob", { op: "delveStand", id: brom });
+  assert.equal(s.ok, true, s.error); assert.ok(s.fid);
+  assert.equal(g.store.docs.get("oddCampaigns/c1").live.fid, s.fid, "every page is pulled into it");
+  const p = fightPaths("c1", s.fid), h = g.store.docs.get(p.fight);
+  assert.equal(h.auto, true); assert.deepEqual(h.delve, { lid: "fosscraig-1", room: "R2" }); assert.deepEqual(h.players, ["ann", "bob"]);
+  const st = rules.fightStore.fromStored(g.store.docs.get(p.state));
+  const pcs = st.figures.filter((f) => f.side === "A"), mons = st.figures.filter((f) => f.side === "B");
+  assert.equal(pcs.length, 2); assert.ok(mons.length >= 1 && mons.every((m) => m.monsterKey === "goblin" && m.placed && m.hp >= 1));
+  assert.ok(st.figures.every((f) => f.placed && !st.walls[f.y][f.x]), "everyone on the level's floor");
+  assert.ok(st.walls.some((r) => r.some(Boolean)), "the level's walls are the fight's");
+  assert.ok(mons.every((m) => st.control[m.id] === "game") && st.control[pcs[0].id] === "bob" && st.control[pcs[1].id] === "ann");
+  const act = (uid, action) => g.fights.act({ uid, data: { cid: "c1", fid: s.fid, rev: g.store.docs.get(p.fight).rev, rules: rules.fightStore.RULES_VERSION, action } });
+  assert.match((await act("bob", { type: "settle" })).error, /isn't over/);
+  const raw = g.store.docs.get(p.state); g.store.docs.set(p.state, { ...raw, phase: "over", winner: "A", figures: raw.figures.map((f) => (f.side === "B" ? { ...f, hp: 0 } : f)) });
+  const out = await act("bob", { type: "settle" });
+  assert.equal(out.ok, true, out.error);
+  assert.equal(g.store.docs.get("oddCampaigns/c1").live, null, "the fight closes itself");
+  assert.equal(g.ch(brom).encounter ?? null, null); assert.deepEqual(g.ch(brom).roomSettled, { lid: "fosscraig-1", room: "R2" });
+  const on = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  assert.equal(on.ok, true, on.error); assert.equal(on.delve.parties[0].meeting, null);
+});
+
+test("a hail: hostile is a fight, friendly lets the party be, between leaves run or stand", async () => {
+  for (const [dice, outcome] of [[[1, 1], "attacked"], [[6, 6], "friendly"], [[3, 4], "wary"]]) {
+    const g = await game(); const brom = await g.make("bob", "Brom"); await down(g, brom);
+    await g.call("bob", { op: "delveMove", id: brom, to: { x: 4, y: 1 } }); await g.call("bob", { op: "delveMove", id: brom, to: { x: 7, y: 1 } });
+    g.setDice(2); await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
+    g.setDice(4, 4, 4); await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+    g.setDice(...dice); const r = await g.call("bob", { op: "delveParley", id: brom });
+    assert.equal(r.ok, true, r.error); assert.equal(r.outcome, outcome, r.text);
+    if (outcome === "attacked") assert.ok(r.fid && g.store.docs.get("oddCampaigns/c1").live);
+    if (outcome === "friendly") { assert.equal(r.delve.parties[0].meeting, null); const on = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } }); assert.equal(on.delve.parties[0].meeting, null, "they stay friendly"); }
+    if (outcome === "wary") { assert.match((await g.call("bob", { op: "delveParley", id: brom })).error, /hailed/); assert.ok((await g.call("bob", { op: "delveStand", id: brom })).fid); }
+  }
 });
 
 test("a trap springs on a 1 or 2 and stops the walk; a search finds a secret door on a 1 or 2", async () => {

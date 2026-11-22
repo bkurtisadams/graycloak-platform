@@ -82,5 +82,5 @@ const games = createCampaignService({ palette: rules.fightView.PLAYER_COLOURS, r
 export const oddCampaign = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => games.handle({ uid: signedIn(request), email: request.auth.token.email, name: request.auth.token.name || request.auth.token.email, data: request.data }));
 const roster = createCharacterService({ rules, store, rollDie: (n) => randomInt(1, n + 1), newId: () => `ch${Date.now().toString(36)}${randomInt(36 ** 4).toString(36)}` });
 export const oddCharacter = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => roster.handle({ uid: signedIn(request), data: request.data }));
-const world = createWorldService({ rules, store, rollDie: (n) => randomInt(1, n + 1) });
+const world = createWorldService({ rules, store, rollDie: (n) => randomInt(1, n + 1), fights: service });
 export const oddWorld = onCall({ timeoutSeconds: 30, memory: '256MiB' }, (request) => world.handle({ uid: signedIn(request), data: request.data }));

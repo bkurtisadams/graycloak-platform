@@ -181,6 +181,10 @@ Changes made during extraction:
   and its corners and doors for the pursuit dice. Light is not tracked yet:
   the party sees 30 feet down a passage (a reading). `wanderingNumber` is a
   reading awaiting a ruling.
+- 0.41.0: a meeting underground is fought on that part of the level.
+  `delve.fightSetup` cuts the 54 x 30 fight board out of the level's sheet
+  (three cells to a 10' square) and stands both sides on it at the sighting
+  distance.
 
 ## Open items
 
