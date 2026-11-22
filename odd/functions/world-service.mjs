@@ -53,6 +53,8 @@ export const worldPaths = (cid) => ({
   chat: (who, id) => `oddCampaigns/${cid}/chat/${who}/entries/${id}`,
 });
 
+/** The platform build this server code belongs to; the page shows it beside its own and says so when they differ. */
+export const SERVER_BUILD = "v1.557.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n) }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
@@ -149,7 +151,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (seeded) save();
         const places = { ...PLACES };
         for (const [k, h] of Object.entries(map.hexes)) if (h.place && !places[h.place]) { const { q, r } = W.parse(k); places[h.place] = { q, r, kind: h.kind ?? "village", desc: "" }; }
-        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { known: known.hexes } : {}), ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}), ...(levels ? { dungeons: levels } : {}), parties: summary() };
+        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { known: known.hexes } : {}), ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}), ...(levels ? { dungeons: levels } : {}), parties: summary(), server: { build: SERVER_BUILD, rules: rules.fightStore?.RULES_VERSION ?? null } };
       }
 
       if (op === "rumours") {

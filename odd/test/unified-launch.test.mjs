@@ -69,6 +69,12 @@ test("a character underground is shown the level, and the party at the ruin can 
   assert.match(body("villageMapHtml"), /id="wLeaveScene"/, "a town scene is left by its Leave button");
 });
 
+test("the page and the server carry the same build number, and the header shows it", async () => {
+  const { SERVER_BUILD } = await import("../functions/world-service.mjs");
+  assert.equal(/const BUILD = "(v\d+\.\d+\.\d+)";/.exec(grid)?.[1], SERVER_BUILD);
+  assert.ok(grid.includes('<span class="ver" id="ver"></span>'));
+});
+
 test("a fight's viewer is the player himself or the referee", () => {
   assert.match(grid, /const viewer = PLAYER \? api\.user\?\.uid : "referee";/);
 });
