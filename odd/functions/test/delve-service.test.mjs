@@ -197,6 +197,13 @@ test("a meeting stood before the game opened fights itself can be stood again, a
   assert.match((await g.call("bob", { op: "delveStand", id: brom })).error, /already/);
   const h = await game(); const b2 = await h.make("bob", "Brom"); await down(h, b2);
   h.setDice(6, 1, 1, 4, 5, 5); await h.call("bob", { op: "delveEnd", id: b2 });
+  // a meeting whose row names several kinds but carries no pick (older data) is diced for when it comes to blows
+  const k = await game(); const b3 = await k.make("bob", "Brom"); await down(k, b3);
+  k.setDice(6, 1, 1, 4, 5, 5); await k.call("bob", { op: "delveEnd", id: b3 });
+  const p3 = k.p.character(b3); k.store.docs.set(p3, { ...k.store.docs.get(p3), encounter: { ...k.store.docs.get(p3).encounter, kind: "Lizards", monsterKey: null, number: 1, choice: "stand" } });
+  k.setDice(2); const lz = await k.call("bob", { op: "delveStand", id: b3 });
+  assert.ok(lz.fid, lz.text);
+  assert.match(rules.fightStore.fromStored(k.store.docs.get(fightPaths("c1", lz.fid).state)).figures.find((f) => f.side === "B").monsterKey, /^lizard-(giant|subterranean)$/);
   const p2 = h.p.character(b2); h.store.docs.set(p2, { ...h.store.docs.get(p2), encounter: { ...h.store.docs.get(p2).encounter, kind: "Thouls", monsterKey: null } });
   const t = await h.call("bob", { op: "delveStand", id: b2 });
   assert.equal(t.fid, null); assert.match(t.text, /Thouls have no fighting statistics yet/);

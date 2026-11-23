@@ -39,7 +39,13 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
   const d6 = () => rollDie(6), rng = () => (rollDie(1000000) - 1) / 1000000;
   const owns = (ch, uid) => roster.levelOf(ch, uid) >= roster.OWNERSHIP.OWNER;
   const names = (list) => list.map((c) => c.name).join(", ");
-  const monsterOf = (m) => rules.MONSTERS.find((x) => x.key === m?.key) ?? rules.MONSTERS.find((x) => `${x.name}s`.toLowerCase() === String(m?.name ?? "").toLowerCase()) ?? null;
+  // a row that names several kinds (Lizards: giant or subterranean) and carries no pick yet (an older level's stock, an older meeting) is diced for here
+  const rowOf = (name) => { for (const t of Object.values(rules.underworld.MONSTER_LEVEL_TABLES ?? {})) { const r = (t.rows ?? []).find((x) => x.name.toLowerCase() === String(name ?? "").toLowerCase()); if (r) return r; } return null; };
+  const monsterOf = (m) => {
+    const byKey = (k) => (k ? rules.MONSTERS.find((x) => x.key === k) : null) ?? null, name = String(m?.name ?? "").toLowerCase();
+    const row = byKey(m?.key) ? null : rowOf(name);
+    return byKey(m?.key) ?? rules.MONSTERS.find((x) => `${x.name}s`.toLowerCase() === name) ?? byKey(row?.key) ?? (row?.options ? byKey(row.options[rollDie(row.options.length) - 1]) : null);
+  };
   const cellKey = (ch) => `${ch.under.lid}:${ch.under.x},${ch.under.y}`;
   const blank = () => ({ seen: null, found: [], passed: [], sprung: [], noise: [], cleared: {}, numbers: {}, peace: {} });
   const stateOf = (pt) => ({ turn: 1, spent: 0, sinceRest: 0, rested: 0, fled: false, viaDoor: false, trail: [], listened: [], checks: [], ...pt.leader.under });
