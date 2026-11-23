@@ -185,6 +185,23 @@ test("standing opens the fight on the level, the game runs the monsters, and a p
   assert.equal(on.ok, true, on.error); assert.equal(on.delve.parties[0].meeting, null);
 });
 
+test("a meeting stood before the game opened fights itself can be stood again, and a monster without statistics says why", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom"); await down(g, brom);
+  g.setDice(6, 1, 1, 4, 5, 5); await g.call("bob", { op: "delveEnd", id: brom });
+  const path = g.p.character(brom), old = g.store.docs.get(path);
+  g.store.docs.set(path, { ...old, encounter: { ...old.encounter, kind: "Lizards", monsterKey: "lizard-giant", number: 1, choice: "stand", outcome: "stand" } });
+  const s = await g.call("bob", { op: "delveStand", id: brom });
+  assert.equal(s.ok, true, s.error); assert.ok(s.fid, s.text);
+  const st = rules.fightStore.fromStored(g.store.docs.get(fightPaths("c1", s.fid).state));
+  assert.deepEqual(st.figures.filter((f) => f.side === "B").map((f) => [f.monsterKey, f.placed]), [["lizard-giant", true]]);
+  assert.match((await g.call("bob", { op: "delveStand", id: brom })).error, /already/);
+  const h = await game(); const b2 = await h.make("bob", "Brom"); await down(h, b2);
+  h.setDice(6, 1, 1, 4, 5, 5); await h.call("bob", { op: "delveEnd", id: b2 });
+  const p2 = h.p.character(b2); h.store.docs.set(p2, { ...h.store.docs.get(p2), encounter: { ...h.store.docs.get(p2).encounter, kind: "Thouls", monsterKey: null } });
+  const t = await h.call("bob", { op: "delveStand", id: b2 });
+  assert.equal(t.fid, null); assert.match(t.text, /Thouls have no fighting statistics yet/);
+});
+
 test("a hail: hostile is a fight, friendly lets the party be, between leaves run or stand", async () => {
   for (const [dice, outcome] of [[[1, 1], "attacked"], [[6, 6], "friendly"], [[3, 4], "wary"]]) {
     const g = await game(); const brom = await g.make("bob", "Brom"); await down(g, brom);
