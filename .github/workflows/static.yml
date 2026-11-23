@@ -93,7 +93,7 @@ jobs:
           grep -c "online.mjs?v=$V" gcc/odd/combat-grid.html
           echo "assembled gcc/odd and gcc/packages/odd-chainmail-rules (imports stamped $V)"
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@v4
         with:
           path: './gcc'
           include-hidden-files: true
