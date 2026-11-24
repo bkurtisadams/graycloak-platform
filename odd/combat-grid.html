@@ -747,6 +747,9 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
     <button id="electFirst" class="done" hidden title="Chainmail p.8: the initiative winner chooses">Move first</button>
     <button id="electLast" class="done" hidden title="Chainmail p.8: move last (counter-move) to see the enemy's move first">Move last</button>
     <span class="readybox" id="readyBox" hidden><span id="readySide">Side A ready</span> <span class="count" id="readyCount">0 of 0</span> <span class="why">The step resolves when all are ready.</span></span>
+    <button id="fightOn" class="done primary" hidden title="One click for the round: your figures stay where they are, keep their orders, and the round resolves">Fight on</button>
+    <button id="fightOut" class="done" hidden title="Keep fighting round after round on the same orders, until someone drops, breaks off or the fight ends">Fight it out</button>
+    <button id="fightStop" class="done" hidden>Stop</button>
     <button id="step" class="done" disabled>Start fight</button>
     <button id="undoBtn" class="stepnav" hidden>Undo</button>
   </div>
@@ -1705,7 +1708,7 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.561.00";
+const BUILD = "v1.562.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
 const SERVER_NEEDED = "v1.561.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
@@ -2700,7 +2703,7 @@ function openOnline(cid, fid) {
   followGame(cid, fid);
   // the referee opening a fight makes it the game's live fight: players' pages follow
   if (!PLAYER && !(TABLE && table.game?.live?.fid === fid)) api.game("live", cid, { fid }).catch?.(() => {});
-  $("#log").innerHTML = ""; online.header = null; online.lastStep = null;
+  $("#log").innerHTML = ""; online.header = null; online.lastStep = null; online.auto = null;
   const viewer = PLAYER ? api.user?.uid : "referee";
   if (!viewer) { $("#onlineNote").textContent = "Sign in first."; return; }
   if (!PLAYER) { $("#playerLink").value = `${location.origin}${location.pathname}?player&cid=${encodeURIComponent(cid)}&fid=${encodeURIComponent(fid)}`; $("#playerLinkBox").hidden = false; }
@@ -2713,7 +2716,7 @@ function openOnline(cid, fid) {
       // the player's page always shows one of his own characters in the bar, unless he clicked another figure
       if (PLAYER && (state.selected == null || !byId(state.selected))) { const assigned = table.game?.people?.[online.api?.user?.uid]?.character; const own = (assigned && state.figures.find((f) => f.mine && f.charId === assigned && present(f))) ?? state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();
-      renderOnlineNote();
+      renderOnlineNote(); driveAuto(); renderAutoButtons();
     },
     onEntry: (entry) => {
       const phase = entry.events.find((e) => e.type === "melee" || e.type === "missiles");
@@ -2837,11 +2840,40 @@ function orderPreview(f, t) {
   }
   return `<div class="ab-preview" style="flex-basis:100%">${lines.join("")}</div>`;
 }
-/** Mark figures Ready; if that would close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). */
+/* ---------- the round in one click (Kurt, Nov 2026: a fight toe to toe took four clicks a round, none of them a choice) ---------- */
+const meCtl = () => (PLAYER ? online.api?.user?.uid : "referee");
+/** No one else decides anything in this fight: every figure is this page's or the game's. */
+function aloneInFight() { const c = Object.values(state.control ?? {}); return online.on && c.length > 0 && c.every((v) => v === "game" || v === meCtl()); }
+const mineUp = () => myFigs().filter((f) => f.placed && active(f));
+/** This page's figures are in the fight already: at least one in contact with a foe. The rest stand where they are on their standing orders. */
+function allEngaged() { return mineUp().some((f) => engagementsOf(f).some((x) => present(x.e))); }
+function stopAuto(why = "") { if (!online.auto) return; online.auto = null; if (why) $("#dragInfo").textContent = why; renderAutoButtons(); }
+function startAuto(mode) { online.auto = { mode, round: state.round, up: mineUp().length, sent: "" }; driveAuto(); renderAutoButtons(); }
+/** One step of the round for this page's figures: the election, then Ready on each step, once per step. */
+function driveAuto() {
+  const a = online.auto; if (!a) return;
+  if (!online.on || state.phase !== "fight") { stopAuto(); return; }
+  if (state.round !== a.round) {
+    if (a.mode !== "out") { stopAuto(); return; }
+    if (mineUp().length < a.up) { stopAuto("Stopped: one of yours is down."); return; }
+    a.round = state.round;
+  }
+  if (!allEngaged()) { stopAuto(a.mode === "out" ? "Stopped: none of yours is in contact any more." : ""); return; }
+  const key = `${state.round}:${state.step}`; if (a.sent === key) return;
+  if (state.step === "elect") { if (mayElectHere() && (PLAYER || rd.callerOf(state, state.init.winner) === "referee")) { a.sent = key; runAction({ type: "elect", side: state.init.winner, choice: "move" }); } return; }
+  if (state.step.startsWith("move-") || state.step === "orders") { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) { a.sent = key; document.querySelector(".lastready")?.remove(); runAction({ type: "ready", ids }); } }
+}
+function renderAutoButtons() {
+  const on = !!online.auto, can = online.on && state.phase === "fight" && !on && allEngaged() && (state.step !== "elect" || mayElectHere()) && (state.step === "elect" || myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
+  $("#fightOn").hidden = !can; $("#fightOut").hidden = !can || !aloneInFight();
+  $("#fightStop").hidden = !on || online.auto.mode !== "out";
+  $("#step").classList.toggle("primary", !can && !on);
+}
+/** Mark figures Ready; if that would close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). Alone in the fight there is no one to wrong: no asking. */
 function markReady(ids, anchor) {
   const left = state.figures.filter((g) => needsReady(g) && !isReadyFig(g)).map((g) => g.id);
   const last = left.length > 0 && left.every((id) => ids.includes(id));
-  if (!last) { runAction({ type: "ready", ids }); return; }
+  if (!last || aloneInFight()) { runAction({ type: "ready", ids }); return; }
   document.querySelector(".lastready")?.remove();
   const box = document.createElement("div");
   box.className = "lastready"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Resolve now?");
@@ -3524,6 +3556,8 @@ function stepLabel() {
     if (state.phase === "setup") return "Open a fight";
     if (state.phase === "over") return autoOver() ? "Back to the dungeon" : "Fight over";
     const wait = online.header?.waitingOn ?? [], me = online.api?.user?.uid;
+    const mineLeft = state.phase === "fight" && (state.step.startsWith("move-") || state.step === "orders") ? myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length : 0;
+    if (mineLeft) return state.step === "orders" ? (mineLeft === 1 ? "Confirm my orders" : `Confirm orders for my ${mineLeft} figures`) : (mineLeft === 1 ? "My figure is done moving" : `My ${mineLeft} figures are done moving`);
     if (state.step.startsWith("move-")) return wait.length ? `Waiting on ${wait.map((w) => w === "referee" ? (state.people?.referee?.name ?? "the referee") : w === me ? "you" : (state.people?.[w]?.name ?? "a player")).join(", ")}` : `Side ${state.step.slice(5)} moves`;
     if (state.step === "elect") return `Side ${state.init.winner} chooses`;
     return "The server resolves this step";
@@ -3560,10 +3594,9 @@ function renderStrip() {
   $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "orders" ? "Orders" : st === "missiles" ? "Missiles & spells" : "Melee";
   const btn = $("#step"); btn.textContent = stepLabel(); btn.hidden = electing;
   btn.disabled = (state.phase === "over" && !autoOver()) || (online.on && state.phase === "fight" && !st.startsWith("move-") && st !== "orders")
-    || (PLAYER && state.phase === "fight")
     || (online.on && state.phase === "fight" && (st.startsWith("move-") || st === "orders") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
   const mayElect = electing && (!PLAYER || (online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
-  btn.hidden = mayElect || (PLAYER && state.phase === "fight") || (!online.on && state.phase === "fight"); // the player's page shows the Ready count; local play steps with Next
+  btn.hidden = mayElect || (PLAYER && state.phase === "fight" && !myFigs().some((f) => needsReady(f) && !isReadyFig(f))) || (!online.on && state.phase === "fight"); // a player sees it while any of his figures still owes a Ready: one click for all of them // the player's page shows the Ready count; local play steps with Next
   document.body.classList.toggle("online-fight", online.on && state.phase !== "setup");
   // ◀ Previous / Next ▶ / Undo: the referee's (and local play's), as on the Chainmail board
   const ref = !PLAYER && fight;
@@ -3577,7 +3610,7 @@ function renderStrip() {
     $("#undoBtn").disabled = !online.on && !localUndo.length;
     $("#undoBtn").title = online.on ? "Undo the last action, for everyone" : localUndo.length ? "Undo the last action" : "Nothing to undo";
   }
-  $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect;
+  $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect; renderAutoButtons();
   if (electing) { $("#electFirst").textContent = `Side ${state.init.winner}: move first`; $("#electLast").textContent = `Side ${state.init.winner}: move last`; }
   // online, the fight's own name (the server seeds the dice, and the Setup boxes may not match the fight open)
   $("#subline").textContent = online.on && online.header ? (online.header.title || "Online fight") : `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
@@ -4489,6 +4522,9 @@ document.addEventListener("click", (e) => {
 $("#layout").addEventListener("change", (e) => { state.chests = []; state.walls = buildWalls(e.target.value); deploy(); render(); initialView(); });
 $("#start").addEventListener("click", startFight);
 $("#electFirst").addEventListener("click", () => elect("move"));
+$("#fightOn").addEventListener("click", () => startAuto("round"));
+$("#fightOut").addEventListener("click", () => startAuto("out"));
+$("#fightStop").addEventListener("click", () => stopAuto("Stopped."));
 $("#electLast").addEventListener("click", () => elect("counter"));
 $("#prevStep").addEventListener("click", () => { const r = runAction({ type: "step-back" }); if (!r.ok && r.error) $("#dragInfo").textContent = r.error; afterStepChange(); });
 $("#nextStepBtn").addEventListener("click", () => { if (online.on) runAction({ type: "force-next" }); else nextStep(); });
