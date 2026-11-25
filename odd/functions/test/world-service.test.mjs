@@ -282,3 +282,19 @@ test("parties: the leader takes the party into the village and out; an encounter
   r = await g.call("kurt", { op: "resolve", id: ada }); assert.equal(r.ok, true, r.error);
   assert.equal(ch(brm).doing, "road"); assert.equal(ch(ada).doing, "road", "resolved for the whole party");
 });
+
+test("the campaign day runs by the calendar: those in town are carried on, a party out in the wilderness keeps its own days (v1.565.00)", async () => {
+  const g = game(); const id = await brom(g); const DAY = 86400000, ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  const camp = () => g.store.docs.get("oddCampaigns/c1"), clock = (daysAgo) => g.store.docs.set("oddCampaigns/c1", { ...camp(), clock: { day: 1, at: 1000 - daysAgo * DAY } });
+  clock(3); // three days of actual time since the clock started: it is day 4
+  g.setDice(1); let r = await g.call("bob", { op: "move", ids: [id], dir: "NE" });
+  assert.equal(r.ok, true, r.error); assert.equal(r.day, 5, "he set out from town on the campaign's day 4: his first day's walk is day 5");
+  g.setDice(1); await g.call("bob", { op: "camp", id });
+  assert.equal(ch().doing, "road");
+  clock(10); // a week more goes by at home
+  g.setDice(1); r = await g.call("bob", { op: "move", ids: [id], to: { q: 0, r: 0 } });
+  assert.equal(r.ok, true, r.error); assert.equal(r.day, 6, "out in the wilderness his own days count, not the calendar's");
+  g.store.docs.set(`oddCampaigns/c1/characters/${id}`, { ...ch(), hex: { q: 0, r: 0 }, where: "Langstead", doing: "town" });
+  const m = await g.call("bob", { op: "map" });
+  assert.equal(m.parties.find((x) => x.members.some((y) => y.id === id)).day, 11, "back in town, the campaign day carries him on");
+});

@@ -602,6 +602,7 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 .readybox .why { color: var(--pencil); }
 /* the scene frame (approved mockup 25 Oct 2026): the stage is always a scene; the breadcrumb says which */
 header.top .crumb { font-size: .9rem; color: var(--ink); margin-left: 14px; }
+header.top .daychip { font-family: var(--type); font-size: .78rem; color: var(--ink); margin-left: 14px; padding: 1px 8px; border: 1px solid #b7c7d2; border-radius: 999px; background: var(--card); white-space: nowrap; }
 header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
 .sc-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px 4px 14px; box-sizing: border-box; color: var(--ink); cursor: pointer; }
 .sc-row.sub { padding-left: 30px; }
@@ -735,7 +736,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
 <body>
 <header class="top">
   <h1>OD&amp;D combat tester</h1><span class="ver" id="ver"></span>
-  <span class="crumb" id="crumb" hidden></span><span class="sub" id="subline">40' room with corridors · seed 1974</span>
+  <span class="crumb" id="crumb" hidden></span><span class="daychip" id="dayChip" hidden></span><span class="sub" id="subline">40' room with corridors · seed 1974</span>
   <div class="grow"></div>
   <span class="presence" id="hereDots" aria-label="Here now"></span>
   <a id="toLobby" class="btn" hidden href="#" title="End the fight: everyone goes back to the table between fights">End the fight</a>
@@ -1522,7 +1523,24 @@ function defaultScene(uid) {
 function setCrumb(parts) {
   const el = $("#crumb"); if (!el) return;
   el.hidden = !parts?.length; el.innerHTML = (parts ?? []).map((t) => esc(t)).join("<i>\u203a</i>");
+  renderDay();
 }
+/**
+ * The campaign day (v1.565.00, Book III: a week of actual time is a week of game time): the game's clock {day, at} and
+ * a day more for every day of actual time since. A character in town or underground is carried on by it; one out in
+ * the wilderness keeps his own count of days.
+ */
+const DAY_MS = 86400000;
+const campDay = (g = table.game) => (g?.clock ? g.clock.day + Math.max(0, Math.floor((Date.now() - g.clock.at) / DAY_MS)) : g?.day ?? 1);
+const charDay = (c) => (c.day == null ? campDay() : !c.under && (c.doing === "road" || c.doing === "encounter") ? c.day : Math.max(c.day, campDay()));
+function renderDay() {
+  const el = $("#dayChip"); if (!el) return;
+  el.hidden = !TABLE || !table.game; if (el.hidden) return;
+  const day = campDay(), week = Math.floor((day - 1) / 7) + 1;
+  el.textContent = `Day ${day} \u00b7 week ${week}`;
+  el.title = "The campaign day: a day of actual time is a day of game time. A party out in the wilderness keeps its own days; a dungeon expedition takes a week.";
+}
+setInterval(renderDay, 300000);
 /* ---------- pass 6 (approved boards 5-7, 24 Oct 2026): the campaign board, one row per character ---------- */
 const DOING = { town: "in town", rest: "resting", road: "on the road", fight: "in a fight", dungeon: "underground", dead: "dead" };
 function doingOf(c) {
@@ -1550,7 +1568,7 @@ function boardRows(g, uid, ref) {
 function renderBoard(el, g, uid, ref) {
   const on = (u) => u === uid || (table.presence?.[u] && Date.now() - table.presence[u] < ONLINE_MS);
   const here = (g.members ?? []).map((u) => { const p = g.people?.[u] ?? {}; return `<span><span class="dot${on(u) ? "" : " off"}" style="${on(u) ? "background" : "border-color"}:${esc(p.color ?? "#888")}"></span>${esc(p.name ?? "Player")}${isRefOf(g, u) ? ", referee" : ""}</span>`; }).join("");
-  const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1;
+  const day = campDay(g), week = Math.floor((day - 1) / 7) + 1;
   const fights = (table.fights ?? []).slice(0, 5);
   const ctl = ref
     ? `<button class="done" id="lsNew">Open a fight</button><button id="lsDay">Advance the day</button><button id="lsLink">Join link</button><button id="lsInvite">Invite by email</button>${fights.length ? `<span class="note">Recent: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</span>` : ""}`
@@ -1632,7 +1650,7 @@ function partyStripHtml(uid, { acting = null, nearKey = null, place = null } = {
     const p = table.game?.people?.[c.owner] ?? {}, mine = rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER, dead = c.doing === "dead" || (c.hp ?? 1) <= 0;
     const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
     const away = place ? !(c.doing === "town" && (c.where ?? world.home) === place) : nearKey && hexKeyOf(c) !== nearKey;
-    return `<div class="ps-ch${c.id === acting ? " on" : ""}${away ? " away" : ""}" data-ps-open="${esc(c.id)}" title="${esc(c.name)}: open the sheet"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(c.name)} <small>${clsAbbr(c)} ${c.level ?? 1}${mine ? "" : ` \u00b7 ${esc(p.name ?? "")}`}</small></div><div class="bar"><i class="${tone}" style="width:${dead ? 0 : pct}%"></i></div><div class="s"><span>${dead ? "dead" : `hp ${c.hp}/${c.maxHp}`}</span><span>${esc(c.where ?? world.home)} \u00b7 ${esc(doingOf(c).split(" \u00b7 ")[0])}</span></div></div>`;
+    return `<div class="ps-ch${c.id === acting ? " on" : ""}${away ? " away" : ""}" data-ps-open="${esc(c.id)}" title="${esc(c.name)}: open the sheet"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(c.name)} <small>${clsAbbr(c)} ${c.level ?? 1}${mine ? "" : ` \u00b7 ${esc(p.name ?? "")}`}</small></div><div class="bar"><i class="${tone}" style="width:${dead ? 0 : pct}%"></i></div><div class="s"><span>${dead ? "dead" : `hp ${c.hp}/${c.maxHp}`}</span><span>${esc(c.where ?? world.home)} \u00b7 ${esc(doingOf(c).split(" \u00b7 ")[0])}${dead ? "" : ` \u00b7 day ${charDay(c)}`}</span></div></div>`;
   }).join("");
   return `<div class="ps-strip">${chips}</div>`;
 }
@@ -1716,7 +1734,7 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.564.00";
+const BUILD = "v1.565.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
 const SERVER_NEEDED = "v1.561.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
@@ -1805,7 +1823,7 @@ function villageHtml(c, uid) {
       <div class="w-shop"><div><h4>What he carries</h4><div class="rs-carts">${carried || `<div class="note">Nothing.</div>`}</div></div><div><h4>For sale</h4><div class="rs-shoplist" style="max-height:300px"><table><thead><tr><th>Item</th><th class="num">Weight</th><th class="num">Cost</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div></div>
       <div class="row" style="justify-content:flex-end"><button id="wLeave">Step outside</button></div>`;
   }
-  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${c.day ?? table.game?.day ?? 1}`) + (card ? `<div class="w-card">${card}</div>` : "");
+  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${charDay(c)}`) + (card ? `<div class="w-card">${card}</div>` : "");
 }
 /** The art, locked to its own shape and centred on the stage, with the pins and tokens over it. */
 function villageMapHtml(placeName, place, markers, counters, crumb) {
@@ -1927,7 +1945,7 @@ function hexMapHtml(c, uid) {
   const toggle = world.full && world.known ? ` \u00b7 <label class="w-asplayers"><input type="checkbox" id="wAsPlayers" ${asPlayers ? "checked" : ""}> as the players see it</label>` : "";
   const waiting = sp?.encounter ? sp.members.map((m) => charOf(m.id)).find((x) => x?.doing === "encounter") : null;
   const card = (waiting ? encounterPromptHtml(waiting, uid, world.hexes[hexKeyOf(waiting)] ?? { t: "clear" }) : "") + (PLAYER ? "" : `${waiting ? `<div class="w-act"></div>` : ""}${refereeMapCard(uid)}${hexPanelHtml(c, uid)}`);
-  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${partyPopHtml(byHex, sp)}${key}<div class="w-crumb">Day ${table.game?.day ?? 1} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
+  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${partyPopHtml(byHex, sp)}${key}<div class="w-crumb">Day ${campDay()} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
 }
 /** A party is on the kingdom map while any of its members is out of town; in town it is inside the town's scene. */
 const onRoad = (pt) => pt.members.some((m) => m.doing !== "town");
@@ -2405,7 +2423,9 @@ function renderDelveStage(el, g, uid) {
   const sp = delvePartyFor(V), busy = delve.busy ? "disabled" : "";
   const colourOf = (pt) => table.game?.people?.[pt.members[0]?.owner]?.color ?? "#1f2b38";
   const reach = delveReach(V, sp);
-  const turn = !sp ? "No party on this level" : sp.meeting ? `Turn ${sp.turn} \u00b7 ${sp.meeting.type === "room" ? "a room's keepers" : "wandering monsters"}` : sp.restDue ? `Turn ${sp.turn} \u00b7 the party must rest ${sp.restTurns > 1 ? "two turns" : "a turn"}` : `Turn ${sp.turn} \u00b7 ${sp.left} feet left of ${sp.feet} \u00b7 rest due in ${sp.restIn} turn${sp.restIn === 1 ? "" : "s"}`;
+  const mins = sp ? (sp.turn - 1) * 10 + Math.round(((sp.spent ?? 0) / (sp.feet || 1)) * 10) : 0, below = mins < 60 ? `${mins} minutes below` : `${Math.floor(mins / 60)} hr${mins % 60 ? ` ${mins % 60} min` : ""} below`;
+  const turn0 = !sp ? "No party on this level" : sp.meeting ? `Turn ${sp.turn} \u00b7 ${sp.meeting.type === "room" ? "a room's keepers" : "wandering monsters"}` : sp.restDue ? `Turn ${sp.turn} \u00b7 the party must rest ${sp.restTurns > 1 ? "two turns" : "a turn"}` : `Turn ${sp.turn} \u00b7 ${sp.left} feet left of ${sp.feet} \u00b7 rest due in ${sp.restIn} turn${sp.restIn === 1 ? "" : "s"}`;
+  const turn = sp ? `${sp.day ? `Day ${sp.day} \u00b7 ` : ""}${turn0} \u00b7 ${below}` : turn0;
   const top = `<div class="dg-top"><span class="dg-pill">10 feet a square \u00b7 a turn is ten minutes \u00b7 wheel zooms, right-drag pans</span><span class="dg-chip">${turn}</span>${PLAYER ? "" : `<span class="dg-acts"><button type="button" data-dv="refmap">The referee\u2019s map</button></span>`}</div>`;
   const toast = delve.error ? `<span class="dv-toast bad">${esc(delve.error)}</span>` : delve.msg ? `<span class="dv-toast">${esc(delve.msg)}</span>` : "";
   const card = !sp ? "" : sp.meeting ? delveMeetingCard(sp) : delveHereCard(sp);
@@ -2662,7 +2682,7 @@ function renderGameSettings() {
   const head = $("#setHead"), el = $("#setBody"); if (!el) return;
   const g = TABLE ? table.game : null, uid = meUid(), n = (g?.members ?? []).length;
   head.hidden = !g;
-  if (g) { const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1; head.innerHTML = `<div class="set-name"><b>${esc(g.name ?? "The game")}</b><span>The Westmark · Day ${day} · ${week}${ordinal(week)} week of the campaign</span></div>`; }
+  if (g) { const day = campDay(g), week = Math.floor((day - 1) / 7) + 1; head.innerHTML = `<div class="set-name"><b>${esc(g.name ?? "The game")}</b><span>The Westmark · Day ${day} · ${week}${ordinal(week)} week of the campaign</span></div>`; }
   const big = (id, t, sub) => `<button type="button" class="set-big" id="${id}"><b>${t}</b><span>${sub}</span></button>`;
   el.innerHTML = big("setProfile", "My profile", g ? "Name, colour and character" : "The character card")
     + (isRefOf(g, uid) ? big("setPlayers", "Players and invitations", `${n} player${n === 1 ? "" : "s"} · join link · invite by email`) : "")
@@ -3966,7 +3986,7 @@ function renderRoster() {
     const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
     const tip = lvl < 2 ? "Limited: you see his name only" : draft ? "Still being rolled" : `${sh.classLabel} ${c.level ?? 1} · ${sh.alignLabel} · ${sh.title} · xp ${(c.xp ?? 0).toLocaleString()}${sh.nextXp ? ` of ${sh.nextXp.toLocaleString()}` : ""} · ${c.coins?.gp ?? 0} gp. Click for the sheet.`;
     return `<div class="ac-row${draft ? " draft" : ""}${lvl < 2 ? " limited" : ""}" data-actor="${esc(c.id)}" tabindex="0" title="${esc(tip)}"><span class="ac-tok" style="background:${esc(p.color ?? "#7b8794")}">${esc((c.name || "?").trim().slice(0, 2))}</span>
-      <span class="ac-body"><span><b>${esc(c.name || "New character")}</b>${sh ? `<small>${esc(sh.classLabel)} ${c.level ?? 1}</small>` : draft ? `<small>rolling</small>` : ""}</span><span class="ac-sub">${esc(p.name ?? "Player")}${c.owner === uid ? " (you)" : ""}</span></span>
+      <span class="ac-body"><span><b>${esc(c.name || "New character")}</b>${sh ? `<small>${esc(sh.classLabel)} ${c.level ?? 1}</small>` : draft ? `<small>rolling</small>` : ""}</span><span class="ac-sub">${esc(p.name ?? "Player")}${c.owner === uid ? " (you)" : ""}${draft || c.doing === "dead" ? "" : ` \u00b7 day ${charDay(c)}`}</span></span>
       ${sh ? `<span class="ac-hp">${c.hp}/${c.maxHp}<span class="ac-bar"><i class="${tone}" style="width:${pct}%"></i></span></span>` : ""}<button type="button" class="ac-kebab" data-ac-menu="${esc(c.id)}" aria-label="Actions for ${esc(c.name || "this character")}" title="Actions"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="13" r="1.5" fill="currentColor"/></svg></button></div>`;
   };
   el.innerHTML = (lobby.error ? `<div class="note bad">${esc(lobby.error)}</div>` : "") + ([...groups.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([k, list]) => `<div class="sb-grp"><b>${esc(k)}</b><span>${list.length} character${list.length === 1 ? "" : "s"}</span></div>${list.map(row).join("")}`).join("")

@@ -38,6 +38,13 @@ export const campaignPaths = (cid) => ({
   fight: (fid) => `oddCampaigns/${cid}/fights/${fid}`
 });
 
+/**
+ * The campaign day (v1.565.00, Book III: a week of actual time is a week of game time). The game keeps a clock
+ * {day, at}: that day at that moment, and a day more for every day of actual time since. A game from before the clock
+ * stands on its stored day until the referee next opens it, which starts the clock.
+ */
+export const DAY_MS = 86400000;
+export const campaignDay = (camp, nowMs) => (camp?.clock ? camp.clock.day + Math.max(0, Math.floor((nowMs - camp.clock.at) / DAY_MS)) : camp?.day ?? 1);
 /** The referee of a game: its Creator or a co-referee. */
 export const isReferee = (camp, uid) => !!camp && !!uid && (camp.refereeUid === uid || (camp.referees ?? []).includes(uid));
 
@@ -47,7 +54,7 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
   const freeColour = (people, except) => palette.find((c) => !Object.entries(people ?? {}).some(([u, p]) => u !== except && p?.color === c)) ?? palette[0];
   /** What the caller gets back: the game as he may see it (the join code only for referees). */
   const summary = (camp, uid) => ({
-    name: camp.name ?? null, day: camp.day ?? 1, refereeUid: camp.refereeUid, referees: camp.referees ?? [], members: camp.members ?? [], people: camp.people ?? {},
+    name: camp.name ?? null, day: campaignDay(camp, now()), clock: camp.clock ?? null, refereeUid: camp.refereeUid, referees: camp.referees ?? [], members: camp.members ?? [], people: camp.people ?? {},
     live: camp.live ?? null, invited: isReferee(camp, uid) ? camp.invited ?? [] : undefined, joinCode: isReferee(camp, uid) ? camp.joinCode : undefined,
     you: { uid, referee: isReferee(camp, uid), creator: camp.refereeUid === uid }
   });
@@ -70,12 +77,12 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
       if (op === 'open') {
         if (camp) {
           if (!isReferee(camp, uid)) return camp.members?.includes(uid) ? { ok: true, game: summary(camp, uid) } : refuse('forbidden', 'you are not in this game');
-          if (camp.joinCode && camp.members && camp.people?.[uid]) return { ok: true, game: summary(camp, uid) };
+          if (camp.joinCode && camp.members && camp.people?.[uid]) return camp.clock ? { ok: true, game: summary(camp, uid) } : write({ ...camp, clock: { day: camp.day ?? 1, at: now() } });
           // an odd campaign from before pass 3 (fights only): give it the game's fields
           return write({ ...camp, referees: camp.referees ?? [], members: [...new Set([...(camp.members ?? []), camp.refereeUid])], people: { ...(camp.people ?? {}), [camp.refereeUid]: camp.people?.[camp.refereeUid] ?? { name: String(name || 'Referee').slice(0, 60), color: refereeColour, role: 'creator' } }, joinCode: camp.joinCode ?? newCode(), invited: camp.invited ?? [], live: camp.live ?? null, name: camp.name ?? gcc?.name ?? null });
         }
         if (gcc && gcc.ownerUid !== uid) return refuse('forbidden', "only the campaign's owner on GCC starts its game");
-        return write({ refereeUid: uid, referees: [], members: [uid], people: { [uid]: { name: String(name || 'Referee').slice(0, 60), color: refereeColour, role: 'creator' } }, joinCode: newCode(), invited: [], live: null, name: String(data.name ?? gcc?.name ?? 'OD&D game').slice(0, 120), system: 'odd', createdAt: now() });
+        return write({ refereeUid: uid, referees: [], members: [uid], people: { [uid]: { name: String(name || 'Referee').slice(0, 60), color: refereeColour, role: 'creator' } }, joinCode: newCode(), invited: [], live: null, name: String(data.name ?? gcc?.name ?? 'OD&D game').slice(0, 120), system: 'odd', createdAt: now(), day: 1, clock: { day: 1, at: now() } });
       }
       if (!camp) return refuse('not-found', "this game hasn't been started yet: the referee opens it first");
       const member = (camp.members ?? []).includes(uid), ref = isReferee(camp, uid), creator = camp.refereeUid === uid;
@@ -140,11 +147,12 @@ export function createCampaignService({ palette, refereeColour, store, now = () 
       }
 
       if (!creator) return refuse('forbidden', 'only the Creator does that');
-      // the campaign day (Book III: a wilderness move is a day, a dungeon expedition a week); the referee advances it
+      // the campaign day runs by the calendar; the referee may also put it on by hand (the clock is moved on with it)
       if (op === 'advance') {
         if (!isReferee(camp, uid)) return refuse('forbidden', 'only the referee advances the day');
         const days = Math.min(30, Math.max(1, Math.trunc(Number(data.days ?? 1)) || 1));
-        return write({ ...camp, day: (camp.day ?? 1) + days });
+        const day = campaignDay(camp, now()) + days;
+        return write({ ...camp, day, clock: { day, at: now() } });
       }
       if (op === 'reset') return write({ ...camp, joinCode: newCode() });
       if (op === 'role') {

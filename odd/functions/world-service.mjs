@@ -37,7 +37,7 @@
 // Dungeon levels (pass 16): the ops whose names start "dungeon" go to dungeon-service.mjs; the referee's map lists the levels.
 // Rulings (Kurt, Oct 2026): a lone character walks as a party of one; the players start knowing the home village and its ring.
 
-import { isReferee } from "./campaign-service.mjs";
+import { isReferee, campaignDay } from "./campaign-service.mjs";
 import { createDungeonOps, DUNGEONS, dungeonPath } from "./dungeon-service.mjs";
 import { createDelveOps } from "./delve-service.mjs";
 
@@ -98,6 +98,11 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
     for (const r of [...new Set(to)]) tx.set(p.chat(r, id), entry);
     return { id, at };
   }
+  /**
+   * A character's own day (Book III, Time: a record of each player). Actual time is counted off for those in town or
+   * underground, so the campaign day carries them on; one out in the wilderness keeps his own count of days.
+   */
+  const dayOf = (ch, campDay) => (ch.day == null ? campDay : !ch.under && (ch.doing === "road" || ch.doing === "encounter") ? ch.day : Math.max(ch.day, campDay));
   const ownersOf = (list) => [...new Set(list.map((c) => c.owner).filter(Boolean))];
   const sOf = (list) => (list.length === 1 ? "s" : "");
 
@@ -126,8 +131,9 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
     if (!ID.test(cid ?? "")) return refuse("bad-request", "no such game");
     const p = worldPaths(cid);
     return store.run(async (tx) => {
-      const camp = await tx.get(p.campaign);
-      if (!camp) return refuse("not-found", "no such game");
+      const stored = await tx.get(p.campaign);
+      if (!stored) return refuse("not-found", "no such game");
+      const camp = { ...stored, day: campaignDay(stored, now()) }; // the campaign day by the calendar (v1.565.00)
       const ref = isReferee(camp, uid);
       if (!ref && !(camp.members ?? []).includes(uid)) return refuse("forbidden", "you are not in this game");
       if (String(op ?? "").startsWith("delve")) return delves ? delves.handle(tx, { op, data, cid, uid, ref, camp, p, log }) : refuse("bad-request", "exploring isn't deployed");
@@ -144,7 +150,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const list = P.partiesOf(above(), hk), mine = new Set(above().filter((c) => owns(c, uid)).map(hk)), allowance = W.allowanceOf("foot");
         return list.filter((pt) => ref || mine.has(pt.hex) || pt.members.some((m) => roster.levelOf(m, uid) >= roster.OWNERSHIP.LIMITED)).map((pt) => {
           const within = ref || pt.members.some((m) => owns(m, uid)), spent = Math.min(allowance, P.daySpent(pt)), { q, r } = W.parse(pt.hex);
-          return clean({ id: pt.id, hex: { q, r }, spent, allowance, left: allowance - spent, day: Math.max(camp.day ?? 1, ...pt.members.map((m) => m.day ?? 1)),
+          return clean({ id: pt.id, hex: { q, r }, spent, allowance, left: allowance - spent, day: Math.max(...pt.members.map((m) => dayOf(m, camp.day ?? 1))),
             mustRest: pt.members.some((m) => W.mustRest(m.daysWalked ?? 0)) || pt.members.some((m) => (m.restOwed ?? 0) >= 1), encounter: pt.members.some((m) => m.doing === "encounter"),
             walks: P.mayWalk(pt, uid, { referee: ref, owns }),
             members: pt.members.map((m) => ({ id: m.id, name: m.name ?? "", owner: m.owner ?? null, cls: m.cls ?? null, level: m.level ?? 1, doing: m.doing ?? null, where: m.where ?? null, mine: ref || owns(m, uid), ...(within || roster.levelOf(m, uid) >= roster.OWNERSHIP.OBSERVER ? { hp: m.hp ?? 0, maxHp: m.maxHp ?? 0 } : {}) })) });
@@ -269,7 +275,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const days = Math.min(60, Math.max(1, Math.trunc(Number(data.days ?? 1)) || 1));
         const healed = Math.min(W.healingAfter(days), Math.max(0, (ch.maxHp ?? 0) - (ch.hp ?? 0)));
         const day = Math.max(ch.day ?? day0, day0) + days;
-        put(id, { ...ch, hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed });
+        put(id, { ...ch, hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed, expedition: null }); // rested in town: the next descent is a new expedition
         log(tx, p, camp, `Day ${day}. ${ch.name} rested ${days} day${days === 1 ? "" : "s"} at ${placeInfo(place).inn}${healed ? ` and healed ${healed} hit point${healed === 1 ? "" : "s"}` : ""}.`, null, { kind: "travel" });
         return done({ ok: true, healed, day });
       }
@@ -384,7 +390,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const waiting = members.find((c) => c.doing === "encounter");
         if (waiting) return refuse("bad-request", `${waiting.name} has an encounter waiting on the referee`);
         const h0 = hexOf(band.leader), terrain0 = map.hexes[W.key(h0.q, h0.r)]?.t ?? "clear";
-        const spent0 = P.daySpent(band), today = Math.max(day0, ...members.map((c) => c.day ?? day0));
+        const spent0 = P.daySpent(band), today = Math.max(...members.map((c) => dayOf(c, day0)));
         const asCh = members.map((ch) => ({ id: ch.id, ch }));
 
         if (op === "camp") {

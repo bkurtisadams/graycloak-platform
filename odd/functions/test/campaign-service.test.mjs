@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as rules from "../../../packages/odd-chainmail-rules/index.js";
-import { createCampaignService, isReferee } from "../campaign-service.mjs";
+import { createCampaignService, isReferee, campaignDay } from "../campaign-service.mjs";
 import { createFightService, fightPaths } from "../fight-service.mjs";
 
 const { fightStore } = rules;
@@ -159,4 +159,19 @@ test("the campaign day: 1 to begin with; the referee advances it, a player may n
   assert.equal((await call(g, "kurt", { op: "advance", cid: "c1", days: 0 })).game.day, 9, "at least a day");
   await call(g, "dave", { op: "join", cid: "c1", code: o.game.joinCode }, { name: "Dave" });
   assert.equal((await call(g, "dave", { op: "advance", cid: "c1" })).code, "forbidden");
+});
+
+test("the campaign clock: a day of actual time is a day of game time; advancing by hand moves the clock on (v1.565.00)", async () => {
+  const store = memoryStore(); let t = 1000; const DAY = 86400000;
+  const g = createCampaignService({ palette: rules.fightView.PLAYER_COLOURS, refereeColour: rules.fightView.REFEREE_COLOUR, store, now: () => t, newCode: () => "CODEX" });
+  store.docs.set("campaigns/c1", { ownerUid: "kurt", name: "Castle Blackrock" });
+  const o = await call(g, "kurt", { op: "open", cid: "c1" }, { name: "Kurt" });
+  assert.equal(o.game.day, 1); assert.deepEqual(o.game.clock, { day: 1, at: 1000 });
+  t += 2 * DAY + 5; assert.equal((await call(g, "kurt", { op: "open", cid: "c1" }, { name: "Kurt" })).game.day, 3);
+  const a = await call(g, "kurt", { op: "advance", cid: "c1", days: 7 }); assert.equal(a.game.day, 10); assert.deepEqual(a.game.clock, { day: 10, at: t });
+  t += DAY; assert.equal(campaignDay(store.docs.get("oddCampaigns/c1"), t), 11);
+  // a game from before the clock: it stands on its day until the referee next opens it
+  const old = { ...store.docs.get("oddCampaigns/c1"), day: 20 }; delete old.clock; store.docs.set("oddCampaigns/c1", old);
+  assert.equal(campaignDay(old, t + 9 * DAY), 20);
+  const s = await call(g, "kurt", { op: "open", cid: "c1" }, { name: "Kurt" }); assert.deepEqual(s.game.clock, { day: 20, at: t });
 });

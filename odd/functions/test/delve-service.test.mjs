@@ -279,3 +279,21 @@ test("splitting underground, and climbing out", async () => {
   const map = await g.call("bob", { op: "map" });
   assert.equal(map.parties.some((pt) => pt.members.some((m) => m.id === brom)), true, "back on the kingdom map");
 });
+
+test("a dungeon expedition is a week, charged on going down, and covers every descent until an inn rest (v1.565.00)", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom");
+  const d = await down(g, brom);
+  assert.equal(g.ch(brom).day, 8, "day 1 and a week"); assert.equal(g.ch(brom).expedition, true); assert.equal(d.delve.parties[0].day, 8);
+  const told = () => [...g.store.docs.entries()].filter(([k]) => k.startsWith("oddCampaigns/c1/chat/referee/")).map(([, v]) => v.text).filter((t) => /went down the stairs/.test(t));
+  assert.match(told()[0], /The expedition takes a week: it is day 8\./);
+  assert.equal((await g.call("bob", { op: "delveLeave", id: brom })).ok, true); assert.equal(g.ch(brom).day, 8);
+  await down(g, brom);
+  assert.equal(g.ch(brom).day, 8, "the same expedition: no second week"); assert.ok(told().some((t) => !/takes a week/.test(t)));
+  await g.call("bob", { op: "delveLeave", id: brom });
+  // a night at the inn in Langstead ends the expedition
+  const home = rules.westmark.PLACES.Langstead, at = rules.westmark.PLACES.Fosscraig;
+  g.store.docs.set(g.p.character(brom), { ...g.ch(brom), hex: { q: home.q, r: home.r }, where: "Langstead", doing: "town" });
+  const r = await g.call("bob", { op: "rest", id: brom, days: 1 }); assert.equal(r.ok, true, r.error); assert.equal(r.day, 9); assert.ok(!g.ch(brom).expedition);
+  g.store.docs.set(g.p.character(brom), { ...g.ch(brom), hex: { q: at.q, r: at.r }, where: "Fosscraig", doing: "road" });
+  await down(g, brom); assert.equal(g.ch(brom).day, 16, "a new expedition, a new week");
+});

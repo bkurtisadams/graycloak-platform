@@ -31,6 +31,7 @@
 export const delvePath = (cid, lid) => `oddCampaigns/${cid}/delves/${lid}`;
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const TRAIL = 60;
+const U_WEEK = 7;
 
 export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey, hexKey, openFightIn = null, isReferee = () => false }) {
   const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster;
@@ -77,7 +78,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const parties = P.partiesOf(below(), cellKey).map((pt) => {
         const st = stateOf(pt), rate = rateOf(pt), feet = D.turnFeet(rate), within = ref || pt.members.some((m) => owns(m, uid));
         const rest = rules.restDue({ turnsSinceRest: st.sinceRest, fledOrPursuedSinceRest: st.fled }), enc = pt.leader.encounter?.underground ? pt.leader.encounter : null;
-        return clean({ id: pt.id, at: { x: st.x, y: st.y }, turn: st.turn, rate, feet, spent: st.spent, left: Math.max(0, feet - st.spent), quarter: quarterOf(feet), sinceRest: st.sinceRest,
+        return clean({ id: pt.id, at: { x: st.x, y: st.y }, day: Math.max(...pt.members.map((m) => Math.max(m.day ?? 1, camp.day ?? 1))), turn: st.turn, rate, feet, spent: st.spent, left: Math.max(0, feet - st.spent), quarter: quarterOf(feet), sinceRest: st.sinceRest,
           restDue: rest.due, restTurns: rest.restTurns - (st.rested ?? 0), restIn: Math.max(0, 5 - st.sinceRest), walks: P.mayWalk(pt, uid, { referee: ref, owns }),
           stairs: D.stairsAt(L, st.x, st.y)?.dir ?? null, onDoor: D.DOOR.has(D.cellAt(L, st.x, st.y)),
           doors: D.doorsBeside(L, st.x, st.y).map((c) => ({ ...c, side: D.sideOf({ x: st.x, y: st.y }, c), listened: st.listened.includes(`${c.x},${c.y}@${st.turn}`) })),
@@ -104,8 +105,12 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const at = D.entrance(L); if (!at) return refuse("bad-request", "the level has no stairs up");
       doc.seen = D.reveal(L, doc.seen, at.x, at.y, found);
       const st = { lid, x: at.x, y: at.y, turn: 1, spent: 0, sinceRest: 0, rested: 0, fled: false, viaDoor: false, trail: [[at.x, at.y]], listened: [], checks: [] };
-      for (const m of pt.members) put(m.id, { ...m, under: st, doing: "dungeon", where: L.name, encounter: null });
-      save(); say(`${names(pt.members)} went down the stairs into ${L.name}.`, null, "travel", { arrive: L.name, owners: owners(pt.members) });
+      // Book III, Time: a dungeon expedition is a week (the preparations and a day's descent). Kurt (25 Nov 2026): charged
+      // on going down, and the one week covers every descent until the character next rests in town.
+      const d0 = camp.day ?? 1, fresh = pt.members.filter((m) => !m.expedition), dayAfter = (m) => (m.day ?? d0) + (m.expedition ? 0 : U_WEEK);
+      const told = fresh.length ? ` The expedition takes a week${fresh.length < pt.members.length ? ` (${names(fresh)})` : ""}: it is day ${Math.max(...pt.members.map(dayAfter))}.` : "";
+      for (const m of pt.members) put(m.id, { ...m, under: st, doing: "dungeon", where: L.name, encounter: null, day: dayAfter(m), expedition: true });
+      save(); say(`${names(pt.members)} went down the stairs into ${L.name}.${told}`, null, "travel", { arrive: L.name, owners: owners(pt.members) });
       return done();
     }
 
@@ -264,7 +269,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const s = D.stairsAt(L, at.x, at.y);
       if (!s) return refuse("bad-request", "the party isn't on the stairs");
       if (s.dir !== "up") return refuse("bad-request", "the level below isn't laid out yet");
-      for (const m of pt.members) put(m.id, { ...m, under: null, doing: "road", where: info.place });
+      for (const m of pt.members) put(m.id, { ...m, under: null, doing: "road", where: info.place, day: Math.max(m.day ?? 1, camp.day ?? 1) }); // actual time was counted off while he was below
       say(`${who} climbed out of ${L.name} after ${st.turn - 1} turn${st.turn === 2 ? "" : "s"} below.`, null, "travel", { arrive: info.place, owners: owners(pt.members) });
       return done({ left: true });
     }
