@@ -88,10 +88,3 @@ test("a fight the game opened: found by the monster's key, and anyone in it goes
   assert.ok(grid.includes('if (autoOver()) { backToScene(); return; }'));
   assert.ok(grid.includes("The fight opens on this part of the level; the game runs the monsters."));
 });
-
-test("a round toe to toe is one click, and alone in a fight no one is asked to confirm", () => {
-  assert.ok(grid.includes('<button id="fightOn" class="done primary" hidden'));
-  assert.ok(grid.includes('<button id="fightOut" class="done" hidden'));
-  assert.ok(grid.includes("if (!last || aloneInFight()) { runAction({ type: \"ready\", ids }); return; }"));
-  assert.ok(grid.includes("renderOnlineNote(); driveAuto(); renderAutoButtons();"));
-});

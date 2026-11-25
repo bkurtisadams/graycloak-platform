@@ -229,9 +229,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     // the lobby chat hears how it ended
     const members = (camp?.members ?? []).filter((u) => !isReferee(camp, u));
     const at = now(), id = `${String(at).padStart(14, "0")}-fight-${Math.floor(Math.random() * 1e6)}`;
-    // a fight with no roster characters in it changed nobody: only the referee's chat hears of it
-    const entry = clean({ id, at, uid: "world", person: "The fight", color: null, as: null, side: null, to: lines.length ? "all" : "referee", toName: null, kind: lines.length ? "fight" : "ruling", text: `${title}: ${lines.join("; ") || "no roster characters in it"}.` });
-    for (const r of ["referee", ...(lines.length ? members : [])]) tx.set(`oddCampaigns/${cid}/chat/${r}/entries/${id}`, entry);
+    const entry = clean({ id, at, uid: "world", person: "The fight", color: null, as: null, side: null, to: "all", toName: null, text: `${title}: ${lines.join("; ") || "no roster characters in it"}.` });
+    for (const r of ["referee", ...members]) tx.set(`oddCampaigns/${cid}/chat/${r}/entries/${id}`, entry);
     // a fight the game opened closes itself: no referee need be there to send everyone back to the scene
     if (header.auto && camp?.live?.fid === fid) tx.set(p.campaign, clean({ ...camp, live: null }));
     return { ok: true, rev: header.rev, settled: out };
