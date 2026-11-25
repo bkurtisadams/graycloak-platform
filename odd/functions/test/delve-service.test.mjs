@@ -142,15 +142,25 @@ test("a door: listen once a turn, force it on a 1 or 2, and the room's monsters 
   g.setDice(1); const l = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "listen" });
   assert.equal(l.heard, true); assert.match(l.text, /Brom hears something/);
   assert.match((await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "listen" })).error, /listened/);
+  // v1.564.00: listening and each try at the door are a quarter turn, opened or not
+  const q = v.quarter; assert.equal(q, v.feet / 4); assert.equal(l.delve.parties[0].spent, v.spent + q);
   g.setDice(3); const no = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
-  assert.equal(no.open, false); assert.deepEqual(no.delve.parties[0].at, { x: 7, y: 1 });
+  assert.equal(no.open, false); assert.deepEqual(no.delve.parties[0].at, { x: 7, y: 1 }); assert.equal(no.delve.parties[0].spent, v.spent + 2 * q, "a failed try costs its quarter turn");
+  if (no.delve.parties[0].left < q) {
+    assert.match((await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" })).error, /quarter turn/, "no trying on with the turn used up");
+    g.setDice(1); assert.equal((await g.call("bob", { op: "delveEnd", id: brom })).ok, true);
+  }
   g.setDice(2); const yes = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
   assert.equal(yes.open, true); assert.deepEqual(yes.delve.parties[0].at, { x: 8, y: 1 }); assert.equal(yes.delve.parties[0].onDoor, true);
   assert.equal(yes.delve.cells[1][9], "r");
-  g.setDice(4, 4, 4); const into = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  assert.equal(yes.delve.parties[0].left, 0, "the walk, the listening and two tries have used the turn");
+  g.setDice(1); assert.equal((await g.call("bob", { op: "delveEnd", id: brom })).ok, true);
+  g.setDice(4, 4, 1); const into = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  assert.equal(into.ok, true, into.error);
   const m = into.delve.parties[0].meeting;
   assert.deepEqual(into.delve.parties[0].at, { x: 9, y: 1 }, "the walk stops at the room's edge");
   assert.equal(m.type, "room"); assert.equal(m.kind, "Goblins"); assert.equal(m.room, "R2"); assert.ok(m.feet <= 20);
+  assert.equal(m.surprise, null, "the failed try warned them: a 1 on their die surprises nobody");
   // the referee settles it as dealt with: the room is clear from then on
   await g.call("kurt", { op: "delveResolve", id: brom, cleared: true });
   const on = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });

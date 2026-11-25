@@ -11,7 +11,7 @@
 //   delveEnter   {lid, id}              the party at the ruin goes down the stairs (the level must be open)
 //   delveMove    {lid, id, to}          walk over known squares within the turn's feet; a trap, a secret door an elf
 //                                       senses, or a room's monsters stop the walk
-//   delveDoor    {lid, id, at, act}     listen at, or force, a door beside the party
+//   delveDoor    {lid, id, at, act}     listen at, or force, a door beside the party: a quarter turn each, opened or not
 //   delveSearch  {lid, id}              a whole turn searching the walls touching the party's square
 //   delveRest    {lid, id}              a whole turn motionless
 //   delveEnd     {lid, id}              the turn ends: the wandering-monster check
@@ -66,6 +66,8 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
     const save = () => tx.set(delvePath(cid, lid), clean({ ...doc, found: [...found], updatedAt: now() }));
     const rateOf = (pt) => D.partyRate(pt.members.map((m) => roster.sheetFor(m).move || 12));
     const setParty = (pt, st, extra = () => ({})) => { for (const m of pt.members) put(m.id, { ...m, under: { ...st, lid }, ...extra(m) }); };
+    // Kurt (25 Nov 2026), by Book III's "what portion of a turn": a try at forcing a door, or listening at one, is a quarter turn
+    const quarterOf = (turnFeet) => Math.max(D.SQUARE_FEET, Math.ceil(turnFeet / 4));
     const say = (text, readers = null, kind = "event", extra = {}) => log(tx, p, camp, text, readers, { kind, ...extra });
     const owners = (list) => [...new Set(list.map((c) => c.owner).filter(Boolean))];
 
@@ -75,7 +77,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const parties = P.partiesOf(below(), cellKey).map((pt) => {
         const st = stateOf(pt), rate = rateOf(pt), feet = D.turnFeet(rate), within = ref || pt.members.some((m) => owns(m, uid));
         const rest = rules.restDue({ turnsSinceRest: st.sinceRest, fledOrPursuedSinceRest: st.fled }), enc = pt.leader.encounter?.underground ? pt.leader.encounter : null;
-        return clean({ id: pt.id, at: { x: st.x, y: st.y }, turn: st.turn, rate, feet, spent: st.spent, left: Math.max(0, feet - st.spent), sinceRest: st.sinceRest,
+        return clean({ id: pt.id, at: { x: st.x, y: st.y }, turn: st.turn, rate, feet, spent: st.spent, left: Math.max(0, feet - st.spent), quarter: quarterOf(feet), sinceRest: st.sinceRest,
           restDue: rest.due, restTurns: rest.restTurns - (st.rested ?? 0), restIn: Math.max(0, 5 - st.sinceRest), walks: P.mayWalk(pt, uid, { referee: ref, owns }),
           stairs: D.stairsAt(L, st.x, st.y)?.dir ?? null, onDoor: D.DOOR.has(D.cellAt(L, st.x, st.y)),
           doors: D.doorsBeside(L, st.x, st.y).map((c) => ({ ...c, side: D.sideOf({ x: st.x, y: st.y }, c), listened: st.listened.includes(`${c.x},${c.y}@${st.turn}`) })),
@@ -144,7 +146,8 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const m = monsterOf(monster), key = room ? room.id : null;
       const number = key && doc.numbers[key] != null ? doc.numbers[key] : monster.npc ? 1 : D.wanderingNumber({ hd: m?.hd?.count ?? 1, partySize: pt.members.length }, rollDie);
       if (key) doc.numbers[key] = number;
-      const surprise = U.surpriseUnderground({ partyD6: d6(), monstersD6: d6(), partyLit: true, throughDoor: !!state.viaDoor, monstersAware: false });
+      // a door a failed forcing has warned: what is behind it is waiting, and can't be surprised
+      const surprise = U.surpriseUnderground({ partyD6: d6(), monstersD6: d6(), partyLit: true, throughDoor: !!state.viaDoor, monstersAware: !!state.viaWarned });
       const sight = U.sightingFeet(rng, surprise === "party"), feetOff = room ? Math.min(sight, Math.max(room.w, room.h) * 10) : sight;
       const e = clean({ underground: true, lid, type: source, kind: monster.name, monsterKey: m?.key ?? monster.key ?? null, number, max: number, feet: feetOff, yards: null, surprise,
         room: key, turn: state.turn, monsterMove: m?.move?.ground ?? 12, partyMove: rate, where: L.name, day: camp.day ?? 1, choice: null, outcome: null, log: [] });
@@ -275,7 +278,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const next = { ...st }, events = []; let met = null, here = at;
       for (const c of path) {
         if (feet - next.spent < D.SQUARE_FEET) break;
-        next.viaDoor = D.DOOR.has(D.cellAt(L, here.x, here.y));
+        next.viaDoor = D.DOOR.has(D.cellAt(L, here.x, here.y)); next.viaWarned = next.viaDoor && doc.noise.includes(D.key(here.x, here.y));
         next.x = c.x; next.y = c.y; next.spent += D.SQUARE_FEET; next.trail = [...next.trail, [c.x, c.y]].slice(-TRAIL); here = c;
         doc.seen = D.reveal(L, doc.seen, c.x, c.y, found);
         let stop = false;
@@ -301,29 +304,32 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       if (!door) return refuse("bad-request", "no door there beside the party");
       const side = D.sideOf(at, door), k = D.key(door.x, door.y), { room } = D.beyondDoor(L, door, at);
       const mon = room && !doc.cleared[room.id] ? L.stock?.[room.id]?.monster : null, m = mon ? monsterOf(mon) : null;
+      const quarter = quarterOf(feet), short = "not enough of the turn left for that (a quarter turn): end the turn";
       if (data.act === "listen") {
         const tag = `${k}@${st.turn}`;
         if (st.listened.includes(tag)) return refuse("bad-request", "the party has listened at this door this turn");
+        if (feet - st.spent < quarter) return refuse("bad-request", short);
         const heard = pt.members.filter((c) => U.noiseHeard(c.race, d6(), { undead: m?.folder === "undead" }) && mon);
-        setParty(pt, { ...st, listened: [...st.listened, tag].slice(-12) });
+        setParty(pt, { ...st, spent: st.spent + quarter, listened: [...st.listened, tag].slice(-12) });
         const text = heard.length ? `${names(heard)} hear${heard.length === 1 ? "s" : ""} something moving beyond the ${side} door.` : `Nothing is heard at the ${side} door.`;
         say(`${L.name}, turn ${st.turn}: ${text}`, [...new Set(pt.members.map((c) => c.owner).filter(Boolean))]);
         return done({ heard: heard.length > 0, text });
       }
       if (data.act !== "force") return refuse("bad-request", "listen, or force it?");
       if (rest.due) return refuse("bad-request", "the party must rest before it goes on");
-      if (feet - st.spent < D.SQUARE_FEET) return refuse("bad-request", "no movement left this turn: end the turn");
+      if (feet - st.spent < quarter) return refuse("bad-request", short);
       const forcers = pt.members.slice(0, U.MAX_DOOR_FORCERS), rolls = forcers.map((c) => ({ name: c.name, roll: d6(), small: String(c.race ?? "").toLowerCase() === "halfling" }));
       const open = rolls.some((r) => U.doorForced(r.roll, { small: r.small })), dice = rolls.map((r) => `${r.name} ${r.roll}`).join(", ");
       if (!open) {
         if (!doc.noise.includes(k)) doc.noise.push(k);
+        setParty(pt, { ...st, spent: st.spent + quarter });
         save(); const text = `The ${side} door holds (${dice}).`;
         say(`${L.name}, turn ${st.turn}: ${text}`);
         return done({ open: false, text });
       }
       doc.seen = D.reveal(L, doc.seen, door.x, door.y, found);
       if (room) { const far = D.beyondDoor(L, door, at).far; doc.seen = D.reveal(L, doc.seen, far.x, far.y, found); } // the door open, the room beyond is seen
-      setParty(pt, { ...st, x: door.x, y: door.y, spent: st.spent + D.SQUARE_FEET, viaDoor: true, trail: [...st.trail, [door.x, door.y]].slice(-TRAIL) }); save();
+      setParty(pt, { ...st, x: door.x, y: door.y, spent: st.spent + quarter, viaDoor: true, trail: [...st.trail, [door.x, door.y]].slice(-TRAIL) }); save();
       const text = `The ${side} door gives (${dice}).`;
       say(`${L.name}, turn ${st.turn}: ${text}`);
       return done({ open: true, text });
