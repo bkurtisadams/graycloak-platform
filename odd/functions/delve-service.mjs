@@ -151,7 +151,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const m = monsterOf(monster), key = room ? room.id : null;
       const number = key && doc.numbers[key] != null ? doc.numbers[key] : monster.npc ? 1 : D.wanderingNumber({ hd: m?.hd?.count ?? 1, partySize: pt.members.length }, rollDie);
       if (key) doc.numbers[key] = number;
-      // a door a failed forcing has warned: what is behind it is waiting, and can't be surprised
+      // a door forced open: what is behind it has heard, and can't be surprised
       const surprise = U.surpriseUnderground({ partyD6: d6(), monstersD6: d6(), partyLit: true, throughDoor: !!state.viaDoor, monstersAware: !!state.viaWarned });
       const sight = U.sightingFeet(rng, surprise === "party"), feetOff = room ? Math.min(sight, Math.max(room.w, room.h) * 10) : sight;
       const e = clean({ underground: true, lid, type: source, kind: monster.name, monsterKey: m?.key ?? monster.key ?? null, number, max: number, feet: feetOff, yards: null, surprise,
@@ -283,7 +283,9 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const next = { ...st }, events = []; let met = null, here = at;
       for (const c of path) {
         if (feet - next.spent < D.SQUARE_FEET) break;
-        next.viaDoor = D.DOOR.has(D.cellAt(L, here.x, here.y)); next.viaWarned = next.viaDoor && doc.noise.includes(D.key(here.x, here.y));
+        next.viaDoor = D.DOOR.has(D.cellAt(L, here.x, here.y)); 
+        // Kurt (25 Nov 2026): a door forced open, at the first try or the fifth, means what is in the room is not surprised
+        next.viaWarned = next.viaDoor && (st.forced === D.key(here.x, here.y) || doc.noise.includes(D.key(here.x, here.y))); next.forced = null;
         next.x = c.x; next.y = c.y; next.spent += D.SQUARE_FEET; next.trail = [...next.trail, [c.x, c.y]].slice(-TRAIL); here = c;
         doc.seen = D.reveal(L, doc.seen, c.x, c.y, found);
         let stop = false;
@@ -334,7 +336,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       }
       doc.seen = D.reveal(L, doc.seen, door.x, door.y, found);
       if (room) { const far = D.beyondDoor(L, door, at).far; doc.seen = D.reveal(L, doc.seen, far.x, far.y, found); } // the door open, the room beyond is seen
-      setParty(pt, { ...st, x: door.x, y: door.y, spent: st.spent + quarter, viaDoor: true, trail: [...st.trail, [door.x, door.y]].slice(-TRAIL) }); save();
+      setParty(pt, { ...st, x: door.x, y: door.y, spent: st.spent + quarter, viaDoor: true, forced: k, trail: [...st.trail, [door.x, door.y]].slice(-TRAIL) }); save();
       const text = `The ${side} door gives (${dice}).`;
       say(`${L.name}, turn ${st.turn}: ${text}`);
       return done({ open: true, text });

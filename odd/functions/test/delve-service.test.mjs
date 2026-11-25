@@ -297,3 +297,16 @@ test("a dungeon expedition is a week, charged on going down, and covers every de
   g.store.docs.set(g.p.character(brom), { ...g.ch(brom), hex: { q: at.q, r: at.r }, where: "Fosscraig", doing: "road" });
   await down(g, brom); assert.equal(g.ch(brom).day, 16, "a new expedition, a new week");
 });
+
+test("a door forced at the first try: what is in the room is not surprised, though the party may be (v1.566.00)", async () => {
+  const go = async (dice) => {
+    const g = await game(); const brom = await g.make("bob", "Brom"); await down(g, brom);
+    await g.call("bob", { op: "delveMove", id: brom, to: { x: 4, y: 1 } }); await g.call("bob", { op: "delveMove", id: brom, to: { x: 7, y: 1 } });
+    g.setDice(2); const yes = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
+    assert.equal(yes.open, true, yes.error);
+    g.setDice(...dice); const into = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+    assert.equal(into.ok, true, into.error); return into.delve.parties[0].meeting;
+  };
+  assert.equal((await go([4, 4, 1])).surprise, null, "a 1 on the monsters' die surprises nobody behind a forced door");
+  assert.equal((await go([4, 1, 4])).surprise, "party", "those at the door can still be caught off guard");
+});
