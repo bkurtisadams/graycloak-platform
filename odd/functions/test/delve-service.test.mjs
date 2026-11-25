@@ -142,15 +142,25 @@ test("a door: listen once a turn, force it on a 1 or 2, and the room's monsters 
   g.setDice(1); const l = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "listen" });
   assert.equal(l.heard, true); assert.match(l.text, /Brom hears something/);
   assert.match((await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "listen" })).error, /listened/);
+  // v1.564.00: listening and each try at the door are a quarter turn, opened or not
+  const q = v.quarter; assert.equal(q, v.feet / 4); assert.equal(l.delve.parties[0].spent, v.spent + q);
   g.setDice(3); const no = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
-  assert.equal(no.open, false); assert.deepEqual(no.delve.parties[0].at, { x: 7, y: 1 });
+  assert.equal(no.open, false); assert.deepEqual(no.delve.parties[0].at, { x: 7, y: 1 }); assert.equal(no.delve.parties[0].spent, v.spent + 2 * q, "a failed try costs its quarter turn");
+  if (no.delve.parties[0].left < q) {
+    assert.match((await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" })).error, /quarter turn/, "no trying on with the turn used up");
+    g.setDice(1); assert.equal((await g.call("bob", { op: "delveEnd", id: brom })).ok, true);
+  }
   g.setDice(2); const yes = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
   assert.equal(yes.open, true); assert.deepEqual(yes.delve.parties[0].at, { x: 8, y: 1 }); assert.equal(yes.delve.parties[0].onDoor, true);
   assert.equal(yes.delve.cells[1][9], "r");
-  g.setDice(4, 4, 4); const into = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  assert.equal(yes.delve.parties[0].left, 0, "the walk, the listening and two tries have used the turn");
+  g.setDice(1); assert.equal((await g.call("bob", { op: "delveEnd", id: brom })).ok, true);
+  g.setDice(4, 4, 1); const into = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  assert.equal(into.ok, true, into.error);
   const m = into.delve.parties[0].meeting;
   assert.deepEqual(into.delve.parties[0].at, { x: 9, y: 1 }, "the walk stops at the room's edge");
   assert.equal(m.type, "room"); assert.equal(m.kind, "Goblins"); assert.equal(m.room, "R2"); assert.ok(m.feet <= 20);
+  assert.equal(m.surprise, null, "he forced the door himself: their surprise is no use to him (v1.567.00)");
   // the referee settles it as dealt with: the room is clear from then on
   await g.call("kurt", { op: "delveResolve", id: brom, cleared: true });
   const on = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
@@ -183,6 +193,34 @@ test("standing opens the fight on the level, the game runs the monsters, and a p
   assert.equal(g.ch(brom).encounter ?? null, null); assert.deepEqual(g.ch(brom).roomSettled, { lid: "fosscraig-1", room: "R2" });
   const on = await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
   assert.equal(on.ok, true, on.error); assert.equal(on.delve.parties[0].meeting, null);
+});
+
+test("a meeting stood before the game opened fights itself can be stood again, and a monster without statistics says why", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom"); await down(g, brom);
+  g.setDice(6, 1, 1, 4, 5, 5); await g.call("bob", { op: "delveEnd", id: brom });
+  const path = g.p.character(brom), old = g.store.docs.get(path);
+  g.store.docs.set(path, { ...old, encounter: { ...old.encounter, kind: "Lizards", monsterKey: "lizard-giant", number: 1, choice: "stand", outcome: "stand" } });
+  const s = await g.call("bob", { op: "delveStand", id: brom });
+  assert.equal(s.ok, true, s.error); assert.ok(s.fid, s.text);
+  const st = rules.fightStore.fromStored(g.store.docs.get(fightPaths("c1", s.fid).state));
+  assert.deepEqual(st.figures.filter((f) => f.side === "B").map((f) => [f.monsterKey, f.placed]), [["lizard-giant", true]]);
+  assert.match((await g.call("bob", { op: "delveStand", id: brom })).error, /already/);
+  const h = await game(); const b2 = await h.make("bob", "Brom"); await down(h, b2);
+  h.setDice(6, 1, 1, 4, 5, 5); await h.call("bob", { op: "delveEnd", id: b2 });
+  // a meeting whose row names several kinds but carries no pick (older data) is diced for when it comes to blows
+  const k = await game(); const b3 = await k.make("bob", "Brom"); await down(k, b3);
+  k.setDice(6, 1, 1, 4, 5, 5); await k.call("bob", { op: "delveEnd", id: b3 });
+  const p3 = k.p.character(b3); k.store.docs.set(p3, { ...k.store.docs.get(p3), encounter: { ...k.store.docs.get(p3).encounter, kind: "Lizards", monsterKey: null, number: 1, choice: "stand" } });
+  k.setDice(2); const lz = await k.call("bob", { op: "delveStand", id: b3 });
+  assert.ok(lz.fid, lz.text);
+  assert.match(rules.fightStore.fromStored(k.store.docs.get(fightPaths("c1", lz.fid).state)).figures.find((f) => f.side === "B").monsterKey, /^lizard-(giant|subterranean)$/);
+  const p2 = h.p.character(b2); h.store.docs.set(p2, { ...h.store.docs.get(p2), encounter: { ...h.store.docs.get(p2).encounter, kind: "Thouls", monsterKey: null } });
+  const t = await h.call("bob", { op: "delveStand", id: b2 });
+  assert.equal(t.fid, null); assert.match(t.text, /Thouls have no fighting statistics yet/);
+  // v1.563.00: stood again with nothing changed, the chat isn't told again; one man stands, he doesn't "stand"
+  assert.equal((await h.call("bob", { op: "delveStand", id: b2 })).fid, null);
+  const said = [...h.store.docs.entries()].filter(([k2]) => k2.startsWith("oddCampaigns/c1/chat/referee/")).map(([, v]) => v).filter((e) => /to meet the Thouls/.test(e.text));
+  assert.equal(said.length, 1, said.map((e) => e.text).join(" | ")); assert.match(said[0].text, /^\S+ stands to meet/); assert.equal(said[0].kind, "meeting");
 });
 
 test("a hail: hostile is a fight, friendly lets the party be, between leaves run or stand", async () => {
@@ -240,4 +278,38 @@ test("splitting underground, and climbing out", async () => {
   assert.equal(out.left, true); assert.equal(g.ch(brom).under, null); assert.equal(g.ch(brom).doing, "road"); assert.equal(g.ch(brom).where, "Fosscraig");
   const map = await g.call("bob", { op: "map" });
   assert.equal(map.parties.some((pt) => pt.members.some((m) => m.id === brom)), true, "back on the kingdom map");
+});
+
+test("a dungeon expedition is a week, charged on going down, and covers every descent until an inn rest (v1.565.00)", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom");
+  const d = await down(g, brom);
+  assert.equal(g.ch(brom).day, 8, "day 1 and a week"); assert.equal(g.ch(brom).expedition, true); assert.equal(d.delve.parties[0].day, 8);
+  const told = () => [...g.store.docs.entries()].filter(([k]) => k.startsWith("oddCampaigns/c1/chat/referee/")).map(([, v]) => v.text).filter((t) => /went down the stairs/.test(t));
+  assert.match(told()[0], /The expedition takes a week: it is day 8\./);
+  assert.equal((await g.call("bob", { op: "delveLeave", id: brom })).ok, true); assert.equal(g.ch(brom).day, 8);
+  await down(g, brom);
+  assert.equal(g.ch(brom).day, 8, "the same expedition: no second week"); assert.ok(told().some((t) => !/takes a week/.test(t)));
+  await g.call("bob", { op: "delveLeave", id: brom });
+  // a night at the inn in Langstead ends the expedition
+  const home = rules.westmark.PLACES.Langstead, at = rules.westmark.PLACES.Fosscraig;
+  g.store.docs.set(g.p.character(brom), { ...g.ch(brom), hex: { q: home.q, r: home.r }, where: "Langstead", doing: "town" });
+  const r = await g.call("bob", { op: "rest", id: brom, days: 1 }); assert.equal(r.ok, true, r.error); assert.equal(r.day, 9); assert.ok(!g.ch(brom).expedition);
+  g.store.docs.set(g.p.character(brom), { ...g.ch(brom), hex: { q: at.q, r: at.r }, where: "Fosscraig", doing: "road" });
+  await down(g, brom); assert.equal(g.ch(brom).day, 16, "a new expedition, a new week");
+});
+
+test("those who force a door get nothing from surprise; what is behind it can still be surprised (v1.567.00)", async () => {
+  const go = async (names, dice) => {
+    const g = await game(); const ids = []; for (const n of names) ids.push(await g.make("bob", n)); await down(g, ...ids);
+    await g.call("bob", { op: "delveMove", id: ids[0], to: { x: 4, y: 1 } }); await g.call("bob", { op: "delveMove", id: ids[0], to: { x: 7, y: 1 } });
+    g.setDice(2, 2, 2); const yes = await g.call("bob", { op: "delveDoor", id: ids[0], at: { x: 8, y: 1 }, act: "force" });
+    assert.equal(yes.open, true, yes.error);
+    g.setDice(...dice); const into = await g.call("bob", { op: "delveMove", id: ids[0], to: { x: 10, y: 2 } });
+    assert.equal(into.ok, true, into.error); return { m: into.delve.parties[0].meeting, ids };
+  };
+  const alone = await go(["Brom"], [4, 4, 1]);
+  assert.equal(alone.m.surprise, null, "he was at the door: their surprise is no use to him"); assert.deepEqual(alone.m.forcers, alone.ids);
+  assert.equal((await go(["Brom"], [4, 1, 4])).m.surprise, "party", "those at the door can still be caught off guard");
+  const four = await go(["Brom", "Leal", "Aeld", "Wyn"], [4, 4, 1]);
+  assert.equal(four.m.surprise, "monsters", "coming through a door they can be surprised, and the fourth man gains by it"); assert.deepEqual(four.m.forcers, four.ids.slice(0, 3));
 });

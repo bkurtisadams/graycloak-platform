@@ -219,8 +219,15 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .logchips { display: flex; gap: 4px; flex-wrap: wrap; }
 .logchips button { font: inherit; font-size: .75rem; padding: 1px 8px; border: 1px solid #c9d2dd; border-radius: 999px; background: #fff; color: var(--pencil); min-height: 0; }
 .logchips button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
-#log[data-f="fight"] .chat { display: none; }
-#log[data-f="chat"] > :not(.chat) { display: none; }
+#log[data-f="fight"] .chat:not(.k-meeting):not(.k-fight) { display: none; }
+#log[data-f="chat"] > :not(.chat), #log[data-f="chat"] .chat:not(.k-say) { display: none; }
+#log:not([data-f="journal"]) .chat.k-travel { display: none; }
+#log[data-f="journal"] > :not(.k-travel) { display: none; }
+.chat.k-ruling { color: var(--pencil); font-style: italic; }
+.arrive { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 7; pointer-events: none; text-align: center; font-family: var(--serif); color: #fbfdfe; text-shadow: 0 2px 6px rgba(0,0,0,.75), 0 0 2px rgba(0,0,0,.9); opacity: 0; transition: opacity .5s; }
+.arrive.on { opacity: 1; }
+.arrive b { display: block; font-size: 2rem; letter-spacing: .06em; line-height: 1.15; }
+.arrive span { font-size: .95rem; }
 #log[data-f="dice"] > :not(.chat):not(.diceroll), #log[data-f="dice"] .chat:not(:has(.roll)) { display: none; }
 .sbcard { border: 1px solid #d5dbe3; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 .sbcard.live { border-color: var(--ink); background: #f1f5fb; }
@@ -595,6 +602,7 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 .readybox .why { color: var(--pencil); }
 /* the scene frame (approved mockup 25 Oct 2026): the stage is always a scene; the breadcrumb says which */
 header.top .crumb { font-size: .9rem; color: var(--ink); margin-left: 14px; }
+header.top .daychip { font-family: var(--type); font-size: .78rem; color: var(--ink); margin-left: 14px; padding: 1px 8px; border: 1px solid #b7c7d2; border-radius: 999px; background: var(--card); white-space: nowrap; }
 header.top .crumb i { font-style: normal; color: #8a96a1; margin: 0 6px; }
 .sc-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px 4px 14px; box-sizing: border-box; color: var(--ink); cursor: pointer; }
 .sc-row.sub { padding-left: 30px; }
@@ -728,7 +736,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
 <body>
 <header class="top">
   <h1>OD&amp;D combat tester</h1><span class="ver" id="ver"></span>
-  <span class="crumb" id="crumb" hidden></span><span class="sub" id="subline">40' room with corridors · seed 1974</span>
+  <span class="crumb" id="crumb" hidden></span><span class="daychip" id="dayChip" hidden></span><span class="sub" id="subline">40' room with corridors · seed 1974</span>
   <div class="grow"></div>
   <span class="presence" id="hereDots" aria-label="Here now"></span>
   <a id="toLobby" class="btn" hidden href="#" title="End the fight: everyone goes back to the table between fights">End the fight</a>
@@ -747,6 +755,9 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
     <button id="electFirst" class="done" hidden title="Chainmail p.8: the initiative winner chooses">Move first</button>
     <button id="electLast" class="done" hidden title="Chainmail p.8: move last (counter-move) to see the enemy's move first">Move last</button>
     <span class="readybox" id="readyBox" hidden><span id="readySide">Side A ready</span> <span class="count" id="readyCount">0 of 0</span> <span class="why">The step resolves when all are ready.</span></span>
+    <button id="fightOn" class="done primary" hidden title="One click for the round: your figures stay where they are, keep their orders, and the round resolves">Fight on</button>
+    <button id="fightOut" class="done" hidden title="Keep fighting round after round on the same orders, until someone drops, breaks off or the fight ends">Fight it out</button>
+    <button id="fightStop" class="done" hidden>Stop</button>
     <button id="step" class="done" disabled>Start fight</button>
     <button id="undoBtn" class="stepnav" hidden>Undo</button>
   </div>
@@ -762,6 +773,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
     <div id="mini" title="Minimap: click to jump"><svg id="miniSvg" aria-label="Minimap"></svg></div>
     <div class="actionbar" id="actionbar"></div>
     <div class="lobbystage" id="lobbyStage" hidden></div>
+    <div class="arrive" id="arrive" role="status" aria-live="polite"></div>
   </div>
   <p id="dragInfo" aria-live="polite"></p>
   <p class="step" id="stepText"></p>
@@ -770,7 +782,7 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
   <nav class="sb-icons" aria-label="Sidebar tabs"><button type="button" class="sb-icon" data-sbtab="chat" title="Chat" aria-label="Chat"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H9l-5 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Chat</span></button><button type="button" class="sb-icon" data-sbtab="party" title="Actors" aria-label="Actors"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="9" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 19c0-3 3-5 6-5s6 2 6 5M14 14c3 0 6 1.5 6 5" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Actors</span></button><button type="button" class="sb-icon" data-sbtab="tracker" title="Tracker" aria-label="Tracker" hidden><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2"/></svg><span>Tracker</span></button><button type="button" class="sb-icon" data-sbtab="scenes" title="Scenes" aria-label="Scenes"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 4v14M15 6v14" stroke="currentColor" stroke-width="2"/></svg><span>Scenes</span></button><button type="button" class="sb-icon" data-sbtab="settings" title="Settings" aria-label="Settings"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2"/></svg><span>Settings</span></button></nav>
   <div class="sb-panes">
    <section class="sb-pane on" data-sbpane="chat" aria-label="Log and chat">
-  <div class="sb-head"><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
+  <div class="sb-head"><span class="logchips" id="logChips"><button type="button" data-logf="all" class="on">All</button><button type="button" data-logf="fight">Fight</button><button type="button" data-logf="chat">Chat</button><button type="button" data-logf="dice">Dice</button><button type="button" data-logf="journal" title="Where each party walked, day by day">Journal</button></span><button id="logToggle" title="Hide or show the sidebar" aria-expanded="true" hidden>Hide</button></div>
   <div id="log"><p class="empty">Place both sides, then start the fight.</p></div>
   <form class="chatbar" id="chatForm" autocomplete="off">
    <select id="chatAs" aria-label="Speak as"></select>
@@ -1456,7 +1468,7 @@ function leaveFight() {
 function startLobbyChat() {
   stopLobbyChat();
   const api = online.api, viewer = PLAYER ? api.user.uid : "referee";
-  table.lobbyChat = api.lobbyChat(table.cid, viewer, (e) => chatLine(e));
+  table.lobbyChat = api.lobbyChat(table.cid, viewer, (e, live) => chatLine(e, live));
 }
 function stopLobbyChat() { table.lobbyChat?.(); table.lobbyChat = null; }
 /** Foundry's players list at the foot of the sidebar: everyone in the game, here or away, with his assigned character. */
@@ -1511,7 +1523,24 @@ function defaultScene(uid) {
 function setCrumb(parts) {
   const el = $("#crumb"); if (!el) return;
   el.hidden = !parts?.length; el.innerHTML = (parts ?? []).map((t) => esc(t)).join("<i>\u203a</i>");
+  renderDay();
 }
+/**
+ * The campaign day (v1.565.00, Book III: a week of actual time is a week of game time): the game's clock {day, at} and
+ * a day more for every day of actual time since. A character in town or underground is carried on by it; one out in
+ * the wilderness keeps his own count of days.
+ */
+const DAY_MS = 86400000;
+const campDay = (g = table.game) => (g?.clock ? g.clock.day + Math.max(0, Math.floor((Date.now() - g.clock.at) / DAY_MS)) : g?.day ?? 1);
+const charDay = (c) => (c.day == null ? campDay() : !c.under && (c.doing === "road" || c.doing === "encounter") ? c.day : Math.max(c.day, campDay()));
+function renderDay() {
+  const el = $("#dayChip"); if (!el) return;
+  el.hidden = !TABLE || !table.game; if (el.hidden) return;
+  const day = campDay(), week = Math.floor((day - 1) / 7) + 1;
+  el.textContent = `Day ${day} \u00b7 week ${week}`;
+  el.title = "The campaign day: a day of actual time is a day of game time. A party out in the wilderness keeps its own days; a dungeon expedition takes a week.";
+}
+setInterval(renderDay, 300000);
 /* ---------- pass 6 (approved boards 5-7, 24 Oct 2026): the campaign board, one row per character ---------- */
 const DOING = { town: "in town", rest: "resting", road: "on the road", fight: "in a fight", dungeon: "underground", dead: "dead" };
 function doingOf(c) {
@@ -1539,7 +1568,7 @@ function boardRows(g, uid, ref) {
 function renderBoard(el, g, uid, ref) {
   const on = (u) => u === uid || (table.presence?.[u] && Date.now() - table.presence[u] < ONLINE_MS);
   const here = (g.members ?? []).map((u) => { const p = g.people?.[u] ?? {}; return `<span><span class="dot${on(u) ? "" : " off"}" style="${on(u) ? "background" : "border-color"}:${esc(p.color ?? "#888")}"></span>${esc(p.name ?? "Player")}${isRefOf(g, u) ? ", referee" : ""}</span>`; }).join("");
-  const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1;
+  const day = campDay(g), week = Math.floor((day - 1) / 7) + 1;
   const fights = (table.fights ?? []).slice(0, 5);
   const ctl = ref
     ? `<button class="done" id="lsNew">Open a fight</button><button id="lsDay">Advance the day</button><button id="lsLink">Join link</button><button id="lsInvite">Invite by email</button>${fights.length ? `<span class="note">Recent: ${fights.map((f) => esc(f.title || f.fid)).join(" \u00b7 ")}</span>` : ""}`
@@ -1621,7 +1650,7 @@ function partyStripHtml(uid, { acting = null, nearKey = null, place = null } = {
     const p = table.game?.people?.[c.owner] ?? {}, mine = rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER, dead = c.doing === "dead" || (c.hp ?? 1) <= 0;
     const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
     const away = place ? !(c.doing === "town" && (c.where ?? world.home) === place) : nearKey && hexKeyOf(c) !== nearKey;
-    return `<div class="ps-ch${c.id === acting ? " on" : ""}${away ? " away" : ""}" data-ps-open="${esc(c.id)}" title="${esc(c.name)}: open the sheet"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(c.name)} <small>${clsAbbr(c)} ${c.level ?? 1}${mine ? "" : ` \u00b7 ${esc(p.name ?? "")}`}</small></div><div class="bar"><i class="${tone}" style="width:${dead ? 0 : pct}%"></i></div><div class="s"><span>${dead ? "dead" : `hp ${c.hp}/${c.maxHp}`}</span><span>${esc(c.where ?? world.home)} \u00b7 ${esc(doingOf(c).split(" \u00b7 ")[0])}</span></div></div>`;
+    return `<div class="ps-ch${c.id === acting ? " on" : ""}${away ? " away" : ""}" data-ps-open="${esc(c.id)}" title="${esc(c.name)}: open the sheet"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(c.name)} <small>${clsAbbr(c)} ${c.level ?? 1}${mine ? "" : ` \u00b7 ${esc(p.name ?? "")}`}</small></div><div class="bar"><i class="${tone}" style="width:${dead ? 0 : pct}%"></i></div><div class="s"><span>${dead ? "dead" : `hp ${c.hp}/${c.maxHp}`}</span><span>${esc(c.where ?? world.home)} \u00b7 ${esc(doingOf(c).split(" \u00b7 ")[0])}${dead ? "" : ` \u00b7 day ${charDay(c)}`}</span></div></div>`;
   }).join("");
   return `<div class="ps-strip">${chips}</div>`;
 }
@@ -1705,9 +1734,9 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.559.00";
+const BUILD = "v1.567.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.559.00";
+const SERVER_NEEDED = "v1.561.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -1794,7 +1823,7 @@ function villageHtml(c, uid) {
       <div class="w-shop"><div><h4>What he carries</h4><div class="rs-carts">${carried || `<div class="note">Nothing.</div>`}</div></div><div><h4>For sale</h4><div class="rs-shoplist" style="max-height:300px"><table><thead><tr><th>Item</th><th class="num">Weight</th><th class="num">Cost</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div></div>
       <div class="row" style="justify-content:flex-end"><button id="wLeave">Step outside</button></div>`;
   }
-  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${c.day ?? table.game?.day ?? 1}`) + (card ? `<div class="w-card">${card}</div>` : "");
+  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${charDay(c)}`) + (card ? `<div class="w-card">${card}</div>` : "");
 }
 /** The art, locked to its own shape and centred on the stage, with the pins and tokens over it. */
 function villageMapHtml(placeName, place, markers, counters, crumb) {
@@ -1916,7 +1945,7 @@ function hexMapHtml(c, uid) {
   const toggle = world.full && world.known ? ` \u00b7 <label class="w-asplayers"><input type="checkbox" id="wAsPlayers" ${asPlayers ? "checked" : ""}> as the players see it</label>` : "";
   const waiting = sp?.encounter ? sp.members.map((m) => charOf(m.id)).find((x) => x?.doing === "encounter") : null;
   const card = (waiting ? encounterPromptHtml(waiting, uid, world.hexes[hexKeyOf(waiting)] ?? { t: "clear" }) : "") + (PLAYER ? "" : `${waiting ? `<div class="w-act"></div>` : ""}${refereeMapCard(uid)}${hexPanelHtml(c, uid)}`);
-  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${partyPopHtml(byHex, sp)}${key}<div class="w-crumb">Day ${table.game?.day ?? 1} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
+  return `<div class="w-map hex" data-w-fit="${minX},${minY},${maxX - minX},${maxY - minY}">${svg}<div class="w-tip" id="wTip" hidden></div>${partyPopHtml(byHex, sp)}${key}<div class="w-crumb">Day ${campDay()} \u00b7 5 miles a hex \u00b7 a move is a day${world.full && !asPlayers ? "" : ` \u00b7 ${keys.length} hexes known`} \u00b7 <a href="#" id="wFit">fit</a> \u00b7 <a href="#" id="wKey">${world.showKey ? "hide the key" : "key"}</a>${!PLAYER && c ? ` \u00b7 <a href="#" id="wAll">every party</a>` : ""}${PLAYER ? "" : ` \u00b7 <a href="#" id="wDay" title="Move the campaign's calendar on">advance the day</a>`}${toggle}</div></div>${card ? `<div class="w-card${waiting ? " enc" : ""}">${card}</div>` : ""}`;
 }
 /** A party is on the kingdom map while any of its members is out of town; in town it is inside the town's scene. */
 const onRoad = (pt) => pt.members.some((m) => m.doing !== "town");
@@ -2359,16 +2388,17 @@ const delveSurprise = (m) => (m.surprise === "party" ? "The party is surprised."
 function delveMeetingCard(sp) {
   const m = sp.meeting, busy = delve.busy ? "disabled" : "", lead = sp.members[0];
   if (!m.type) return `<section class="dv-card enc" aria-label="A meeting"><h3>${esc(m.kind)}</h3><div class="note">${esc(lead.name)}'s party has met them.</div></section>`;
-  const head = `<h3>${esc(m.kind)}<small>${m.type === "room" ? "in the room" : "wandering"} \u00b7 turn ${m.turn}</small></h3><div class="note">${m.number != null ? `${m.number} of them, ` : ""}seen at ${m.feet} feet. ${delveSurprise(m)}</div>`;
+  const head = `<h3>${esc(m.kind)}<small>${m.type === "room" ? "in the room" : "wandering"} \u00b7 turn ${m.turn}</small></h3><div class="note">${m.number != null ? `${m.number} of them, ` : ""}seen at ${m.feet} feet. ${delveSurprise(m)}${m.surprise === "monsters" && m.forcers?.length ? ` Those who forced the door (${esc(sp.members.filter((x) => m.forcers.includes(x.id)).map((x) => x.name).join(", "))}) gain nothing by it.` : ""}</div>`;
   const react = m.reaction ? `Reaction: <b>${esc(m.reaction.result ?? "")}</b>${m.reaction.total != null ? ` (2d6 = ${m.reaction.total})` : m.reaction.why ? ` (${esc(m.reaction.why)})` : ""}.` : "";
   const said = m.outcome === "attacked" ? `The party hailed them. ${react} They attack.` : m.outcome === "parley" ? `The party hailed them. Reaction: <b>${esc(m.reaction?.result ?? "")}</b>${m.reaction?.total != null ? ` (2d6 = ${m.reaction.total})` : m.reaction?.why ? ` (${esc(m.reaction.why)})` : ""}.`
     : m.outcome === "caught" ? `The party ran and was caught. ${esc((m.log ?? []).join(" "))}` : m.outcome === "stand" ? "The party stands to meet them." : "";
-  const refs = PLAYER ? "" : `<div class="dv-act"><h4>The referee</h4><div class="row"><label class="note" for="dvNum">How many come</label><input id="dvNum" type="number" min="0" max="500" value="${m.number ?? 1}" style="width:64px"><button type="button" data-dv="adjust" ${busy}>Set</button></div><div class="row"><button type="button" class="primary" data-dv="fight" ${busy}>Open the fight here</button><button type="button" data-dv="pass" ${busy}>Let them pass</button><button type="button" data-dv="cleared" ${busy} title="The meeting is over and these monsters are gone from the level">Dealt with</button></div></div>`;
+  const refs = PLAYER ? "" : `<div class="dv-act"><h4>The referee</h4><div class="row"><label class="note" for="dvNum">How many come</label><input id="dvNum" type="number" min="0" max="500" value="${m.number ?? 1}" style="width:64px"><button type="button" data-dv="adjust" ${busy}>Set</button></div><div class="row"><button type="button" data-dv="pass" ${busy}>Let them pass</button><button type="button" data-dv="cleared" ${busy} title="The meeting is over and these monsters are gone from the level">Dealt with</button></div></div>`;
   if (m.choice && m.fid) return `<section class="dv-card enc" aria-label="A meeting">${head}<div class="note">${said}</div><div class="note"><b>The fight is on.</b></div>${table.game?.live?.fid === m.fid ? "" : refs}</section>`;
-  if (m.choice) return `<section class="dv-card enc" aria-label="A meeting">${head}<div class="note">${said}</div>${PLAYER ? `<div class="note">${table.game?.live ? "Another fight is under way: this one waits on the referee." : "These have no fighting statistics yet: waiting on the referee."}</div>` : refs}</section>`;
+  if (m.choice) return `<section class="dv-card enc" aria-label="A meeting">${head}<div class="note">${said}</div>
+    <div class="dv-act"><h4>The fight</h4><div class="note">${table.game?.live ? "Another fight is under way; this one opens when it is done." : "The fight opens on this part of the level; the game runs the monsters."}</div><div class="row"><button type="button" class="red" data-dv="stand" ${!sp.walks || table.game?.live ? "disabled" : busy}>Fight</button>${PLAYER ? "" : `<button type="button" data-dv="fight" ${busy} title="The old way: set both sides up yourself on an open floor">Set it up by hand</button>`}</div></div>${refs}</section>`;
   const cannot = !sp.walks ? "disabled" : busy, mayRun = uw.mayAvoid({ monstersSurprisedParty: m.surprise === "party", feet: m.feet, monstersSurprised: m.surprise === "monsters" });
   return `<section class="dv-card enc" aria-label="A meeting">${head}
-    <div class="dv-act"><h4>Evade</h4><div class="note">${mayRun ? `The party may run, back the way it came. They follow while they can see it within ${uw.PURSUIT_SIGHT_FEET} feet; a corner or a door shakes them on a 3 to 6.` : `Surprised within ${uw.NO_AVOID_FEET} feet: there is no getting away.`}</div><div class="row"><button type="button" class="primary" data-dv="evade" ${cannot}>Run for it</button></div></div>
+    <div class="dv-act"><h4>Evade</h4><div class="note">${mayRun ? `The party may run, back the way it came. They follow while they can see it within ${uw.PURSUIT_SIGHT_FEET} feet; a corner or a door shakes them on a 3 to 6.` : `Surprised within ${uw.NO_AVOID_FEET} feet: there is no getting away.`}</div><div class="row"><button type="button" class="primary" data-dv="evade" ${mayRun ? cannot : "disabled title=\"There is no getting away\""}>Run for it</button></div></div>
     ${m.parleyed ? `<div class="dv-act"><h4>Parley</h4><div class="note">The party hailed them. ${react} They stand wary: run, or stand.</div></div>` : `<div class="dv-act"><h4>Parley</h4><div class="note">The reaction roll, 2d6: hostile and they attack, friendly and they let the party be.</div><div class="row"><button type="button" data-dv="parley" ${cannot}>Hail them</button></div></div>`}
     <div class="dv-act"><h4>Stand</h4><div class="note">The fight opens on this part of the level; the game runs the monsters.</div><div class="row"><button type="button" class="red" data-dv="stand" ${cannot}>Stand and fight</button></div></div>
     ${sp.walks ? "" : `<div class="note">${esc(lead.name)} leads: his player answers for the party.</div>`}${refs}</section>`;
@@ -2376,16 +2406,19 @@ function delveMeetingCard(sp) {
 /** What the party stands beside: doors to listen at or force, the stairs out. */
 function delveHereCard(sp) {
   if (!sp.walks) return "";
-  const busy = delve.busy ? "disabled" : "", parts = [];
+  const busy = delve.busy ? "disabled" : "", parts = [], qf = sp.quarter ?? Math.max(10, Math.ceil(sp.feet / 4));
   for (const d of sp.doors) parts.push(`<div class="dv-act"><h4>A door, to the ${esc(d.side)}</h4>
-    <div class="note">Listening, a man hears on a 1 in 6; an elf, dwarf or halfling on a 1 or 2. The undead make no sound.</div><div class="row"><button type="button" data-dv-listen="${d.x},${d.y}" ${d.listened ? "disabled title=\"The party has listened here this turn\"" : busy}>Listen</button></div>
-    <div class="note">Doors are stuck: a 1 or 2 on a d6 opens it, and up to three try at once. A failed try warns whatever is behind it.</div><div class="row"><button type="button" class="primary" data-dv-force="${d.x},${d.y}" ${sp.left < 10 || sp.restDue ? "disabled" : busy}>Force the door</button></div></div>`);
+    <div class="note">Listening, a man hears on a 1 in 6; an elf, dwarf or halfling on a 1 or 2. The undead make no sound. Listening takes a quarter turn (${qf} feet of the turn).</div><div class="row"><button type="button" data-dv-listen="${d.x},${d.y}" ${d.listened ? "disabled title=\"The party has listened here this turn\"" : sp.left < qf ? "disabled title=\"Not enough of the turn left: end the turn\"" : busy}>Listen</button></div>
+    <div class="note">Doors are stuck: a 1 or 2 on a d6 opens it, and up to three try at once. Each try takes a quarter turn (${qf} feet of the turn), opened or not. Those who force it get nothing from surprise: if what is behind it is surprised, only the rest of the party gains.</div><div class="row"><button type="button" class="primary" data-dv-force="${d.x},${d.y}" ${sp.restDue ? "disabled" : sp.left < qf ? "disabled title=\"Not enough of the turn left: end the turn\"" : busy}>Force the door</button></div></div>`);
   if (sp.stairs === "up") parts.push(`<div class="dv-act"><h4>The stairs up</h4><div class="note">Out of the dungeon, to the ruin above.</div><div class="row"><button type="button" data-dv="leave" ${busy}>Climb out</button></div></div>`);
   if (sp.stairs === "down") parts.push(`<div class="dv-act"><h4>Stairs down</h4><div class="note">The level below isn't laid out yet.</div></div>`);
   return parts.length ? `<section class="dv-card" aria-label="Here">${sp.onDoor ? `<div class="note">The party stands in the doorway; the door swings shut behind it.</div>` : ""}${parts.join("")}</section>` : "";
 }
 function renderDelveStage(el, g, uid) {
-  const V = delve.view, info = world.dungeons?.[delve.lid] ?? { place: "Fosscraig", name: "Fosscraig \u00b7 Level 1", level: 1 };
+  const V0 = delve.view, info = world.dungeons?.[delve.lid] ?? { place: "Fosscraig", name: "Fosscraig \u00b7 Level 1", level: 1 };
+  // the referee is sent the whole level; this scene shows it as the players know it unless he unticks the box (v1.566.00)
+  const canMask = !!(V0?.full && V0.seen && V0.cells), masked = canMask && delve.asPlayers !== false, lit = (c) => dl.isSeen(V0.seen, c.x, c.y);
+  const V = masked ? { ...V0, cells: dl.maskedCells({ cells: V0.cells }, V0.seen, new Set((V0.found ?? []).map((c) => dl.key(c.x, c.y)))), stairs: (V0.stairs ?? []).filter(lit), sprung: (V0.sprung ?? []).filter(lit) } : V0;
   setCrumb(["The Westmark", info.place, `Level ${info.level}`]);
   const here = lobby.view.id ? charOf(lobby.view.id) : null;
   if (here && !here.under && !delve.busy) { openWorld(here.id); return; } // he has climbed out
@@ -2393,8 +2426,10 @@ function renderDelveStage(el, g, uid) {
   const sp = delvePartyFor(V), busy = delve.busy ? "disabled" : "";
   const colourOf = (pt) => table.game?.people?.[pt.members[0]?.owner]?.color ?? "#1f2b38";
   const reach = delveReach(V, sp);
-  const turn = !sp ? "No party on this level" : sp.meeting ? `Turn ${sp.turn} \u00b7 ${sp.meeting.type === "room" ? "a room's keepers" : "wandering monsters"}` : sp.restDue ? `Turn ${sp.turn} \u00b7 the party must rest ${sp.restTurns > 1 ? "two turns" : "a turn"}` : `Turn ${sp.turn} \u00b7 ${sp.left} feet left of ${sp.feet} \u00b7 rest due in ${sp.restIn} turn${sp.restIn === 1 ? "" : "s"}`;
-  const top = `<div class="dg-top"><span class="dg-pill">10 feet a square \u00b7 a turn is ten minutes \u00b7 wheel zooms, right-drag pans</span><span class="dg-chip">${turn}</span>${PLAYER ? "" : `<span class="dg-acts"><button type="button" data-dv="refmap">The referee\u2019s map</button></span>`}</div>`;
+  const mins = sp ? (sp.turn - 1) * 10 + Math.round(((sp.spent ?? 0) / (sp.feet || 1)) * 10) : 0, below = mins < 60 ? `${mins} minutes below` : `${Math.floor(mins / 60)} hr${mins % 60 ? ` ${mins % 60} min` : ""} below`;
+  const turn0 = !sp ? "No party on this level" : sp.meeting ? `Turn ${sp.turn} \u00b7 ${sp.meeting.type === "room" ? "a room's keepers" : "wandering monsters"}` : sp.restDue ? `Turn ${sp.turn} \u00b7 the party must rest ${sp.restTurns > 1 ? "two turns" : "a turn"}` : `Turn ${sp.turn} \u00b7 ${sp.left} feet left of ${sp.feet} \u00b7 rest due in ${sp.restIn} turn${sp.restIn === 1 ? "" : "s"}`;
+  const turn = sp ? `${sp.day ? `Day ${sp.day} \u00b7 ` : ""}${turn0} \u00b7 ${below}` : turn0;
+  const top = `<div class="dg-top"><span class="dg-pill">10 feet a square \u00b7 a turn is ten minutes \u00b7 wheel zooms, right-drag pans</span><span class="dg-chip">${turn}</span>${PLAYER ? "" : `<span class="dg-acts">${canMask ? `<label class="dg-pill w-asplayers" title="Unticked, the whole level shows, as only the referee knows it"><input type="checkbox" id="dvAsPlayers" ${masked ? "checked" : ""}> as the players see it</label>` : ""}<button type="button" data-dv="refmap">The referee\u2019s map</button></span>`}</div>`;
   const toast = delve.error ? `<span class="dv-toast bad">${esc(delve.error)}</span>` : delve.msg ? `<span class="dv-toast">${esc(delve.msg)}</span>` : "";
   const card = !sp ? "" : sp.meeting ? delveMeetingCard(sp) : delveHereCard(sp);
   const multi = sp && sp.members.length > 1, free = sp && !sp.meeting && !delve.busy;
@@ -2413,6 +2448,7 @@ function renderDelveStage(el, g, uid) {
   bindDelve(el, V, sp, reach);
 }
 function bindDelve(el, V, sp, reach) {
+  $("#dvAsPlayers")?.addEventListener("change", (ev) => { delve.asPlayers = ev.target.checked; delve.vb = null; delve.userVb = false; renderLobbyStage(); });
   const svg = $("#dvSvg"), stage = el.querySelector(".dg-stage"), tip = $("#dgTip"), S = dmap.CELL;
   const ext = dmap.seenExtent(V), key = `${ext.x},${ext.y},${ext.w},${ext.h}`;
   const inView = (vb) => sp && sp.at.x * S >= vb.x && sp.at.x * S <= vb.x + vb.w && sp.at.y * S >= vb.y && sp.at.y * S <= vb.y + vb.h;
@@ -2650,7 +2686,7 @@ function renderGameSettings() {
   const head = $("#setHead"), el = $("#setBody"); if (!el) return;
   const g = TABLE ? table.game : null, uid = meUid(), n = (g?.members ?? []).length;
   head.hidden = !g;
-  if (g) { const day = g.day ?? 1, week = Math.floor((day - 1) / 7) + 1; head.innerHTML = `<div class="set-name"><b>${esc(g.name ?? "The game")}</b><span>The Westmark · Day ${day} · ${week}${ordinal(week)} week of the campaign</span></div>`; }
+  if (g) { const day = campDay(g), week = Math.floor((day - 1) / 7) + 1; head.innerHTML = `<div class="set-name"><b>${esc(g.name ?? "The game")}</b><span>The Westmark · Day ${day} · ${week}${ordinal(week)} week of the campaign</span></div>`; }
   const big = (id, t, sub) => `<button type="button" class="set-big" id="${id}"><b>${t}</b><span>${sub}</span></button>`;
   el.innerHTML = big("setProfile", "My profile", g ? "Name, colour and character" : "The character card")
     + (isRefOf(g, uid) ? big("setPlayers", "Players and invitations", `${n} player${n === 1 ? "" : "s"} · join link · invite by email`) : "")
@@ -2699,7 +2735,7 @@ function openOnline(cid, fid) {
   followGame(cid, fid);
   // the referee opening a fight makes it the game's live fight: players' pages follow
   if (!PLAYER && !(TABLE && table.game?.live?.fid === fid)) api.game("live", cid, { fid }).catch?.(() => {});
-  $("#log").innerHTML = ""; online.header = null; online.lastStep = null;
+  $("#log").innerHTML = ""; online.header = null; online.lastStep = null; online.auto = null;
   const viewer = PLAYER ? api.user?.uid : "referee";
   if (!viewer) { $("#onlineNote").textContent = "Sign in first."; return; }
   if (!PLAYER) { $("#playerLink").value = `${location.origin}${location.pathname}?player&cid=${encodeURIComponent(cid)}&fid=${encodeURIComponent(fid)}`; $("#playerLinkBox").hidden = false; }
@@ -2712,7 +2748,7 @@ function openOnline(cid, fid) {
       // the player's page always shows one of his own characters in the bar, unless he clicked another figure
       if (PLAYER && (state.selected == null || !byId(state.selected))) { const assigned = table.game?.people?.[online.api?.user?.uid]?.character; const own = (assigned && state.figures.find((f) => f.mine && f.charId === assigned && present(f))) ?? state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();
-      renderOnlineNote();
+      renderOnlineNote(); driveAuto(); renderAutoButtons();
     },
     onEntry: (entry) => {
       const phase = entry.events.find((e) => e.type === "melee" || e.type === "missiles");
@@ -2836,11 +2872,40 @@ function orderPreview(f, t) {
   }
   return `<div class="ab-preview" style="flex-basis:100%">${lines.join("")}</div>`;
 }
-/** Mark figures Ready; if that would close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). */
+/* ---------- the round in one click (Kurt, Nov 2026: a fight toe to toe took four clicks a round, none of them a choice) ---------- */
+const meCtl = () => (PLAYER ? online.api?.user?.uid : "referee");
+/** No one else decides anything in this fight: every figure is this page's or the game's. */
+function aloneInFight() { const c = Object.values(state.control ?? {}); return online.on && c.length > 0 && c.every((v) => v === "game" || v === meCtl()); }
+const mineUp = () => myFigs().filter((f) => f.placed && active(f));
+/** This page's figures are in the fight already: at least one in contact with a foe. The rest stand where they are on their standing orders. */
+function allEngaged() { return mineUp().some((f) => engagementsOf(f).some((x) => present(x.e))); }
+function stopAuto(why = "") { if (!online.auto) return; online.auto = null; if (why) $("#dragInfo").textContent = why; renderAutoButtons(); }
+function startAuto(mode) { online.auto = { mode, round: state.round, up: mineUp().length, sent: "" }; driveAuto(); renderAutoButtons(); }
+/** One step of the round for this page's figures: the election, then Ready on each step, once per step. */
+function driveAuto() {
+  const a = online.auto; if (!a) return;
+  if (!online.on || state.phase !== "fight") { stopAuto(); return; }
+  if (state.round !== a.round) {
+    if (a.mode !== "out") { stopAuto(); return; }
+    if (mineUp().length < a.up) { stopAuto("Stopped: one of yours is down."); return; }
+    a.round = state.round;
+  }
+  if (!allEngaged()) { stopAuto(a.mode === "out" ? "Stopped: none of yours is in contact any more." : ""); return; }
+  const key = `${state.round}:${state.step}`; if (a.sent === key) return;
+  if (state.step === "elect") { if (mayElectHere() && (PLAYER || rd.callerOf(state, state.init.winner) === "referee")) { a.sent = key; runAction({ type: "elect", side: state.init.winner, choice: "move" }); } return; }
+  if (state.step.startsWith("move-") || state.step === "orders") { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) { a.sent = key; document.querySelector(".lastready")?.remove(); runAction({ type: "ready", ids }); } }
+}
+function renderAutoButtons() {
+  const on = !!online.auto, can = online.on && state.phase === "fight" && !on && allEngaged() && (state.step !== "elect" || mayElectHere()) && (state.step === "elect" || myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
+  $("#fightOn").hidden = !can; $("#fightOut").hidden = !can || !aloneInFight();
+  $("#fightStop").hidden = !on || online.auto.mode !== "out";
+  $("#step").classList.toggle("primary", !can && !on);
+}
+/** Mark figures Ready; if that would close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). Alone in the fight there is no one to wrong: no asking. */
 function markReady(ids, anchor) {
   const left = state.figures.filter((g) => needsReady(g) && !isReadyFig(g)).map((g) => g.id);
   const last = left.length > 0 && left.every((id) => ids.includes(id));
-  if (!last) { runAction({ type: "ready", ids }); return; }
+  if (!last || aloneInFight()) { runAction({ type: "ready", ids }); return; }
   document.querySelector(".lastready")?.remove();
   const box = document.createElement("div");
   box.className = "lastready"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Resolve now?");
@@ -3523,6 +3588,8 @@ function stepLabel() {
     if (state.phase === "setup") return "Open a fight";
     if (state.phase === "over") return autoOver() ? "Back to the dungeon" : "Fight over";
     const wait = online.header?.waitingOn ?? [], me = online.api?.user?.uid;
+    const mineLeft = state.phase === "fight" && (state.step.startsWith("move-") || state.step === "orders") ? myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).length : 0;
+    if (mineLeft) return state.step === "orders" ? (mineLeft === 1 ? "Confirm my orders" : `Confirm orders for my ${mineLeft} figures`) : (mineLeft === 1 ? "My figure is done moving" : `My ${mineLeft} figures are done moving`);
     if (state.step.startsWith("move-")) return wait.length ? `Waiting on ${wait.map((w) => w === "referee" ? (state.people?.referee?.name ?? "the referee") : w === me ? "you" : (state.people?.[w]?.name ?? "a player")).join(", ")}` : `Side ${state.step.slice(5)} moves`;
     if (state.step === "elect") return `Side ${state.init.winner} chooses`;
     return "The server resolves this step";
@@ -3559,10 +3626,9 @@ function renderStrip() {
   $("#phaseNow").textContent = !fight ? (state.phase === "over" ? "Fight over" : "Setup") : st === "elect" ? `Side ${state.init.winner} won initiative` : st === "init" ? (state.round ? `Round ${state.round} over` : "Ready") : st.startsWith("move-") ? `Side ${st.slice(5)} moves` : st === "orders" ? "Orders" : st === "missiles" ? "Missiles & spells" : "Melee";
   const btn = $("#step"); btn.textContent = stepLabel(); btn.hidden = electing;
   btn.disabled = (state.phase === "over" && !autoOver()) || (online.on && state.phase === "fight" && !st.startsWith("move-") && st !== "orders")
-    || (PLAYER && state.phase === "fight")
     || (online.on && state.phase === "fight" && (st.startsWith("move-") || st === "orders") && !myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
   const mayElect = electing && (!PLAYER || (online.header?.waitingOn ?? []).includes(online.api?.user?.uid));
-  btn.hidden = mayElect || (PLAYER && state.phase === "fight") || (!online.on && state.phase === "fight"); // the player's page shows the Ready count; local play steps with Next
+  btn.hidden = mayElect || (PLAYER && state.phase === "fight" && !myFigs().some((f) => needsReady(f) && !isReadyFig(f))) || (!online.on && state.phase === "fight"); // a player sees it while any of his figures still owes a Ready: one click for all of them // the player's page shows the Ready count; local play steps with Next
   document.body.classList.toggle("online-fight", online.on && state.phase !== "setup");
   // ◀ Previous / Next ▶ / Undo: the referee's (and local play's), as on the Chainmail board
   const ref = !PLAYER && fight;
@@ -3576,7 +3642,7 @@ function renderStrip() {
     $("#undoBtn").disabled = !online.on && !localUndo.length;
     $("#undoBtn").title = online.on ? "Undo the last action, for everyone" : localUndo.length ? "Undo the last action" : "Nothing to undo";
   }
-  $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect;
+  $("#electFirst").hidden = !mayElect; $("#electLast").hidden = !mayElect; renderAutoButtons();
   if (electing) { $("#electFirst").textContent = `Side ${state.init.winner}: move first`; $("#electLast").textContent = `Side ${state.init.winner}: move last`; }
   // online, the fight's own name (the server seeds the dice, and the Setup boxes may not match the fight open)
   $("#subline").textContent = online.on && online.header ? (online.header.title || "Online fight") : `${LAYOUT_NAME[$("#layout").value]} \u00b7 seed ${$("#seed").value}`;
@@ -3924,7 +3990,7 @@ function renderRoster() {
     const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
     const tip = lvl < 2 ? "Limited: you see his name only" : draft ? "Still being rolled" : `${sh.classLabel} ${c.level ?? 1} · ${sh.alignLabel} · ${sh.title} · xp ${(c.xp ?? 0).toLocaleString()}${sh.nextXp ? ` of ${sh.nextXp.toLocaleString()}` : ""} · ${c.coins?.gp ?? 0} gp. Click for the sheet.`;
     return `<div class="ac-row${draft ? " draft" : ""}${lvl < 2 ? " limited" : ""}" data-actor="${esc(c.id)}" tabindex="0" title="${esc(tip)}"><span class="ac-tok" style="background:${esc(p.color ?? "#7b8794")}">${esc((c.name || "?").trim().slice(0, 2))}</span>
-      <span class="ac-body"><span><b>${esc(c.name || "New character")}</b>${sh ? `<small>${esc(sh.classLabel)} ${c.level ?? 1}</small>` : draft ? `<small>rolling</small>` : ""}</span><span class="ac-sub">${esc(p.name ?? "Player")}${c.owner === uid ? " (you)" : ""}</span></span>
+      <span class="ac-body"><span><b>${esc(c.name || "New character")}</b>${sh ? `<small>${esc(sh.classLabel)} ${c.level ?? 1}</small>` : draft ? `<small>rolling</small>` : ""}</span><span class="ac-sub">${esc(p.name ?? "Player")}${c.owner === uid ? " (you)" : ""}${draft || c.doing === "dead" ? "" : ` \u00b7 day ${charDay(c)}`}</span></span>
       ${sh ? `<span class="ac-hp">${c.hp}/${c.maxHp}<span class="ac-bar"><i class="${tone}" style="width:${pct}%"></i></span></span>` : ""}<button type="button" class="ac-kebab" data-ac-menu="${esc(c.id)}" aria-label="Actions for ${esc(c.name || "this character")}" title="Actions"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="13" r="1.5" fill="currentColor"/></svg></button></div>`;
   };
   el.innerHTML = (lobby.error ? `<div class="note bad">${esc(lobby.error)}</div>` : "") + ([...groups.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([k, list]) => `<div class="sb-grp"><b>${esc(k)}</b><span>${list.length} character${list.length === 1 ? "" : "s"}</span></div>${list.map(row).join("")}`).join("")
@@ -4198,12 +4264,39 @@ function refreshChatTo() {
   sel.innerHTML = list.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join("");
   if (list.some(([v]) => v === was)) sel.value = was;
 }
-/** A chat line from the server. */
-function chatLine(e) {
-  const to = e.to && e.to !== "all" ? ` <span class="note">to ${esc(e.toName ?? "")}</span>` : "";
+/**
+ * What a chat line is, for the chips (v1.563.00): what someone says ("say"), or one of the game's own: "travel" (the
+ * Journal), "meeting", "fight", "party", "event", "ruling" (the referee's). Lines from before the game marked them are read by their words.
+ */
+function chatKind(e) {
+  if (e.kind) return e.kind;
+  if (e.uid !== "world") return "say";
+  const t = e.text ?? "";
+  if (/^The referee (let|makes) |no roster characters in it/.test(t)) return "ruling";
+  if (/stands? to meet|hails? the |evaded the |ran from the |came upon|met wandering|At the day's end|were found by|surprised within/.test(t)) return "meeting";
+  if (/ walked | went down the stairs| climbed out of | rested \d+ day| made camp in | rested a day in /.test(t)) return "travel";
+  return e.person === "The fight" ? "fight" : "event";
+}
+/** The place's name over the map as a party comes to it: the referee sees every arrival, a player his own party's. */
+let arriveTimer = null;
+function showArrival(e) {
+  const el = $("#arrive"); if (!el || !e.arrive) return;
+  if (PLAYER && !(e.owners ?? []).includes(online.api?.user?.uid)) return;
+  const who = (e.text ?? "").replace(/^Day \d+\.\s*/, "").split(/ (?:lost their way and )?(?:walked|went down|climbed out) /)[0];
+  el.innerHTML = `<b>${esc(e.arrive)}</b>${who && who.length < 80 ? `<span>${esc(who)}</span>` : ""}`;
+  el.classList.add("on"); clearTimeout(arriveTimer); arriveTimer = setTimeout(() => el.classList.remove("on"), 3500);
+}
+/** A chat line from the server (live: it came while the page was open, not with the lines already there). */
+function chatLine(e, live = false) {
+  const kind = chatKind(e), mine = kind === "ruling" || !(e.to && e.to !== "all");
+  if (kind === "ruling" && PLAYER) return;
+  const to = mine ? "" : ` <span class="note">to ${esc(e.toName ?? "")}</span>`;
   const body = e.roll ? `rolls ${esc(e.roll.expr)}: <span class="roll">[${e.roll.dice.join(", ")}]</span> = <b>${e.roll.total}</b>` : esc(e.text ?? "");
+  const html = `<div class="chat k-${esc(kind)}${mine ? "" : " private"}" data-chat="${esc(e.id ?? "")}"><span style="color:${esc(e.color ?? "var(--ink)")};font-weight:700">${e.as ? esc(e.as) : esc(e.person)}</span>${e.as && e.as !== e.person ? ` <span class="note">(${esc(e.person)})</span>` : ""}${to}${e.roll ? " " : ": "}${body}</div>`;
   $("#log").querySelector(".empty")?.remove();
-  logAppend(`<div class="chat${e.to && e.to !== "all" ? " private" : ""}"><span style="color:${esc(e.color ?? "var(--ink)")};font-weight:700">${e.as ? esc(e.as) : esc(e.person)}</span>${e.as && e.as !== e.person ? ` <span class="note">(${esc(e.person)})</span>` : ""}${to}${e.roll ? " " : ": "}${body}</div>`);
+  const was = e.id ? [...$("#log").querySelectorAll("[data-chat]")].find((x) => x.dataset.chat === e.id) : null;
+  if (was) was.outerHTML = html; else logAppend(html);
+  if (live && kind === "travel") showArrival(e);
 }
 function refreshChatAs() {
   const sel = $("#chatAs"), list = chatSpeakers(), key = list.map((x) => x.join(":")).join("|");
@@ -4243,7 +4336,7 @@ $("#chatForm").addEventListener("submit", async (e) => {
   const roll = /^\/(roll|r)\s+/i.test(text) ? chatRoll(text.replace(/^\/(roll|r)\s+/i, "")) : null;
   const body = roll ? `rolls ${roll.expr}: <span class="roll">[${roll.dice.join(", ")}]</span> = <b>${roll.total}</b>` : /^\/(roll|r)\b/i.test(text) ? `<span class="note">Try /roll 2d6 or /roll 1d20+1.</span>` : esc(text);
   $("#log").querySelector(".empty")?.remove();
-  logAppend(`<div class="chat"><span class="${cls}">${esc(name)}</span>${roll ? " " : ": "}${body}</div>`);
+  logAppend(`<div class="chat k-say"><span class="${cls}">${esc(name)}</span>${roll ? " " : ": "}${body}</div>`);
   $("#chatText").value = "";
 });
 $("#chips").addEventListener("click", (e) => { const c = e.target.closest("[data-chip]"); if (!c) return; const f = byId(Number(c.dataset.chip)); setGroup([f.id]); ensureVisible(f); });
@@ -4488,6 +4581,9 @@ document.addEventListener("click", (e) => {
 $("#layout").addEventListener("change", (e) => { state.chests = []; state.walls = buildWalls(e.target.value); deploy(); render(); initialView(); });
 $("#start").addEventListener("click", startFight);
 $("#electFirst").addEventListener("click", () => elect("move"));
+$("#fightOn").addEventListener("click", () => startAuto("round"));
+$("#fightOut").addEventListener("click", () => startAuto("out"));
+$("#fightStop").addEventListener("click", () => stopAuto("Stopped."));
 $("#electLast").addEventListener("click", () => elect("counter"));
 $("#prevStep").addEventListener("click", () => { const r = runAction({ type: "step-back" }); if (!r.ok && r.error) $("#dragInfo").textContent = r.error; afterStepChange(); });
 $("#nextStepBtn").addEventListener("click", () => { if (online.on) runAction({ type: "force-next" }); else nextStep(); });
