@@ -172,11 +172,15 @@ export async function connectOnline({ emulators = false } = {}) {
     watchPresence(cid, cb) {
       return fsSdk.onSnapshot(fsSdk.collection(db, `oddCampaigns/${cid}/presence`), (snap) => cb(Object.fromEntries(snap.docs.map((d) => [d.id, d.data().seen ?? 0]))), () => {});
     },
-    /** The lobby's chat for this viewer ("referee" or his uid): onChat(entry) once per line, oldest first. */
+    /**
+     * The lobby's chat for this viewer ("referee" or his uid): onChat(entry, live) once per line, oldest first, and
+     * again when a line is rewritten (a day's walk is one line). live is false for the lines already there on opening.
+     */
     lobbyChat(cid, viewer, onChat) {
-      const said = new Set();
+      const said = new Set(); let live = false;
       return fsSdk.onSnapshot(fsSdk.query(fsSdk.collection(db, `oddCampaigns/${cid}/chat/${viewer}/entries`), fsSdk.orderBy('at')), (snap) => {
-        for (const c of snap.docChanges()) { const e = c.doc.data(); if (c.type !== 'added' || said.has(e.id)) continue; said.add(e.id); onChat(e); }
+        for (const c of snap.docChanges()) { const e = c.doc.data(); if (c.type === 'removed' || (c.type === 'added' && said.has(e.id))) continue; said.add(e.id); onChat(e, live); }
+        live = true;
       }, () => {});
     },
     sayInLobby: (cid, data) => call(chatCall, { cid, ...data }),

@@ -85,14 +85,21 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
     return { ...enc, terrain, number: na ? na.n : null, max: na ? na.max : null, dice: na ? na.dice : null, monsterKey: m?.key ?? null, surprise, yards, speed, partyMove, choice: null, outcome: null, log: [] };
   }
 
-  /** A line in the lobby chat for the referee and the named readers (or every player). */
+  /**
+   * A line in the lobby chat for the referee and the named readers (or every player). extra.kind sorts it for the
+   * chat's chips (v1.563.00): "travel" (the Journal), "meeting", "event", "party", "ruling" (the referee's own).
+   * extra.id and extra.at rewrite a line already written (a day's walk is one line, added to as the party goes on).
+   */
   function log(tx, p, camp, text, readers = null, extra = {}) {
     const all = (camp.members ?? []).filter((u) => !isReferee(camp, u));
     const to = readers ? ["referee", ...readers] : ["referee", ...all];
-    const at = now(), id = `${String(at).padStart(14, "0")}-world-${Math.floor(Math.random() * 1e6)}`;
-    const entry = clean({ id, at, uid: "world", person: W.WESTMARK.name, color: null, as: null, side: null, to: readers ? "referee" : "all", toName: readers ? null : null, text, ...extra });
+    const at = extra.at ?? now(), id = extra.id ?? `${String(at).padStart(14, "0")}-world-${Math.floor(Math.random() * 1e6)}`;
+    const entry = clean({ uid: "world", person: W.WESTMARK.name, color: null, as: null, side: null, to: readers ? "referee" : "all", toName: readers ? null : null, text, kind: "event", ...extra, id, at });
     for (const r of [...new Set(to)]) tx.set(p.chat(r, id), entry);
+    return { id, at };
   }
+  const ownersOf = (list) => [...new Set(list.map((c) => c.owner).filter(Boolean))];
+  const sOf = (list) => (list.length === 1 ? "s" : "");
 
   async function loadMaps(tx, p) {
     let map = await tx.get(p.map), known = await tx.get(p.known);
@@ -221,7 +228,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (!g.ok) return refuse("bad-request", g.error);
         for (const [id, pid] of Object.entries(g.set)) put(id, { ...byId(id), party: pid });
         const now2 = partyHolding(ids[0]);
-        log(tx, p, camp, target ? `${nameList(movers)} joined ${now2.leader.name}'s party.` : movers.length === 1 ? `${movers[0].name} went his own way.` : `${nameList(movers)} set off as a party of their own, ${movers[0].name} leading.`);
+        log(tx, p, camp, target ? `${nameList(movers)} joined ${now2.leader.name}'s party.` : movers.length === 1 ? `${movers[0].name} went his own way.` : `${nameList(movers)} set off as a party of their own, ${movers[0].name} leading.`, null, { kind: "party" });
         return done({ ok: true, party: g.party });
       }
 
@@ -231,7 +238,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (!ref && !owns(party.leader, uid)) return refuse("forbidden", "only the leader's player hands the lead on");
         const g = P.lead(above(), ids[0], hk);
         for (const [id, pid] of Object.entries(g.set)) put(id, { ...byId(id), party: pid });
-        log(tx, p, camp, `${byId(ids[0]).name} leads the party now.`);
+        log(tx, p, camp, `${byId(ids[0]).name} leads the party now.`, null, { kind: "party" });
         return done({ ok: true, party: g.party });
       }
 
@@ -263,7 +270,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const healed = Math.min(W.healingAfter(days), Math.max(0, (ch.maxHp ?? 0) - (ch.hp ?? 0)));
         const day = Math.max(ch.day ?? day0, day0) + days;
         put(id, { ...ch, hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed });
-        log(tx, p, camp, `Day ${day}. ${ch.name} rested ${days} day${days === 1 ? "" : "s"} at ${placeInfo(place).inn}${healed ? ` and healed ${healed} hit point${healed === 1 ? "" : "s"}` : ""}.`);
+        log(tx, p, camp, `Day ${day}. ${ch.name} rested ${days} day${days === 1 ? "" : "s"} at ${placeInfo(place).inn}${healed ? ` and healed ${healed} hit point${healed === 1 ? "" : "s"}` : ""}.`, null, { kind: "travel" });
         return done({ ok: true, healed, day });
       }
 
@@ -305,7 +312,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (op === "resolve") {
           if (!ref) return refuse("forbidden", "only the referee resolves an encounter");
           for (const ch of met) put(ch.id, { ...ch, doing: "road", encounter: null });
-          log(tx, p, camp, `The referee let ${nameList(party.members)} go on.`);
+          log(tx, p, camp, `The referee let ${nameList(party.members)} go on.`, [], { kind: "ruling" });
           return done({ ok: true });
         }
         const enc0 = met[0]?.encounter;
@@ -317,14 +324,14 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
           if (!ref) return refuse("forbidden", "the number is the referee's option");
           const number = Math.max(0, Math.min(5000, Math.trunc(Number(data.number)) || 0));
           every((ch) => ({ encounter: { ...ch.encounter, number, adjusted: true } }));
-          log(tx, p, camp, `The referee makes it ${number} ${enc0.kind}.`);
+          log(tx, p, camp, `The referee makes it ${number} ${enc0.kind}.`, [], { kind: "ruling" });
           return done({ ok: true, number });
         }
         if (!walks) return refuse("forbidden", "the party's leader answers for it");
         if (enc0.choice && !ref) return refuse("bad-request", `the party already chose to ${enc0.choice}: the referee has it`);
         if (op === "stand") {
           every((ch) => ({ encounter: { ...ch.encounter, choice: "stand", outcome: "stand" } }));
-          log(tx, p, camp, `${names} stand to meet the ${enc0.kind}. The referee opens the fight.`);
+          if (enc0.choice !== "stand") log(tx, p, camp, `${names} stand${sOf(met)} to meet the ${enc0.kind}. The referee opens the fight.`, null, { kind: "meeting" });
           return done({ ok: true, outcome: "stand" });
         }
         if (op === "parley") {
@@ -332,7 +339,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
           const r = rules.encounterReaction({ intelligence: enc0.band ? "intelligent" : m?.mind?.intelligence ?? "average", surprisedParty: enc0.surprise === "monsters", monsterSurprised: enc0.surprise === "party", distanceFeet: (enc0.yards ?? 100) * 3 }, () => (rollDie(6) - 0.5) / 6);
           const text = r.rolled ? `2d6 = ${r.dice.join("+")}${r.mods?.total ? ` ${r.mods.total > 0 ? "+" : ""}${r.mods.total}` : ""} = ${r.total}: ${r.result}` : `no roll: ${r.why}`;
           every((ch) => ({ encounter: { ...ch.encounter, choice: "parley", outcome: "parley", reaction: { result: r.result, total: r.total ?? null, dice: r.dice ?? null, why: r.why ?? null } } }));
-          log(tx, p, camp, `${names} hail the ${enc0.kind}. Reaction ${text}. The referee puts words to it.`);
+          log(tx, p, camp, `${names} hail${sOf(met)} the ${enc0.kind}. Reaction ${text}. The referee puts words to it.`, null, { kind: "meeting" });
           return done({ ok: true, outcome: "parley", reaction: r.result, text });
         }
         // evade: Book III's table, then pursuit if it fails
@@ -342,7 +349,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const log2 = [`Evade: ${ev.notes.join("; ")} = ${ev.chance}%; rolled ${roll}: ${slipped ? "slipped away" : "they come after you"}.`];
         if (slipped) {
           every((ch) => ({ doing: "road", encounter: null, lastEncounter: { ...ch.encounter, choice: "evade", outcome: "evaded" } }));
-          log(tx, p, camp, `${names} evaded the ${enc0.kind}. ${log2[0]}`);
+          log(tx, p, camp, `${names} evaded the ${enc0.kind}. ${log2[0]}`, null, { kind: "meeting" });
           return done({ ok: true, outcome: "evaded", chance: ev.chance, roll });
         }
         let at = { ...h0 }, restOwed = 0, caught = false, steps = 0;
@@ -359,7 +366,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (caught) every((ch) => ({ hex: at, where, restOwed: (ch.restOwed ?? 0) + restOwed, encounter: { ...ch.encounter, choice: "evade", outcome: "caught", terrain: endHex?.t ?? terrain, yards: 10, log: log2 } }));
         else every((ch) => ({ hex: at, where, doing: "road", restOwed: (ch.restOwed ?? 0) + restOwed, encounter: null, lastEncounter: { ...ch.encounter, choice: "evade", outcome: "escaped", log: log2 } }));
         save();
-        log(tx, p, camp, `${names} ran from the ${enc0.kind}. ${log2.join(" ")}${caught ? " The referee opens the fight." : ` Half a day's rest owed for each hex run (${restOwed}).`}`);
+        log(tx, p, camp, `${names} ran from the ${enc0.kind}. ${log2.join(" ")}${caught ? " The referee opens the fight." : ` Half a day's rest owed for each hex run (${restOwed}).`}`, null, { kind: "meeting" });
         return done({ ok: true, outcome: caught ? "caught" : "escaped", chance: ev.chance, roll, end: at, restOwed, log: log2 });
       }
 
@@ -386,7 +393,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
             const enc = W.hasEncounter(terrain0, d6()) ? W.wanderingMonster(terrain0, rollDie) : null;
             const met = enc ? meeting({ ...enc, day: today }, asCh, terrain0) : null;
             for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: h0, day: today, dayMoved: 0, daysWalked: (ch.daysWalked ?? 0) + 1, doing: enc ? "encounter" : ch.doing, encounter: met });
-            log(tx, p, camp, `Day ${today}. ${names} made camp in the ${W.TERRAIN[terrain0].label}.${met ? ` At the day's end: ${met.band ? `${met.band.leader.name}, a ${met.kind}, with ${met.band.men.length} men${met.band.mounted ? ", mounted" : ""}` : `${met.kind} (${met.type})${met.number ? `, about ${met.number}` : ""}`}, ${met.yards} yards off${met.surprise === "monsters" ? ", and they have the drop on you" : met.surprise === "party" ? ", unaware of you" : ""}. Evade, parley or stand.` : " A quiet night."}`);
+            log(tx, p, camp, `Day ${today}. ${names} made camp in the ${W.TERRAIN[terrain0].label}.${met ? ` At the day's end: ${met.band ? `${met.band.leader.name}, a ${met.kind}, with ${met.band.men.length} men${met.band.mounted ? ", mounted" : ""}` : `${met.kind} (${met.type})${met.number ? `, about ${met.number}` : ""}`}, ${met.yards} yards off${met.surprise === "monsters" ? ", and they have the drop on you" : met.surprise === "party" ? ", unaware of you" : ""}. Evade, parley or stand.` : " A quiet night."}`, null, { kind: met ? "meeting" : "travel" });
             return done({ ok: true, day: today, encounter: enc, rested: false });
           }
           // a day at rest on the road: two dice for wandering monsters
@@ -395,7 +402,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
           for (let i = 0; i < 2 && !enc; i++) if (W.hasEncounter(terrain0, d6())) enc = W.wanderingMonster(terrain0, rollDie);
           const met = enc ? meeting({ ...enc, day }, asCh, terrain0) : null;
           for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: h0, day, dayMoved: 0, daysWalked: 0, restOwed: 0, doing: enc ? "encounter" : ch.doing === "town" ? "town" : "road", encounter: met });
-          log(tx, p, camp, `Day ${day}. ${names} rested a day in the ${W.TERRAIN[terrain0].label}${enc ? ` and were found by ${enc.kind} (${enc.type}).` : ". Nothing came."}`);
+          log(tx, p, camp, `Day ${day}. ${names} rested a day in the ${W.TERRAIN[terrain0].label}${enc ? ` and were found by ${enc.kind} (${enc.type}).` : ". Nothing came."}`, null, { kind: enc ? "meeting" : "travel" });
           return done({ ok: true, day, encounter: enc, rested: true });
         }
 
@@ -430,10 +437,14 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (village) learnRing(known, map, end);
         const where = endPlace ?? W.TERRAIN[endHex?.t ?? "clear"].label;
         const spent = lost ? Math.max(walk.spent, allowance) : walk.spent;
-        for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: { q: end.q, r: end.r }, where, doing: village ? "town" : "road", day, dayMoved: spent, encounter: null });
+        // the day's walk is one line in the Journal, added to as the party goes on (the action bar counts the day's march)
+        const trek0 = spent0 > 0 && band.leader.trek?.day === day && band.leader.trek.party === band.id ? band.leader.trek : null;
+        const legs = [...(trek0?.legs ?? []), ...walk.path.map((s) => s.t)].slice(-24), astray = !!trek0?.lost || lost;
+        const wrote = log(tx, p, camp, `Day ${day}. ${names} ${astray ? "lost their way and " : ""}walked ${trek0 ? "on" : heading ?? "on"} (${legs.join(", ")})${endPlace ? ` and reached ${endPlace}` : ""}.`, null,
+          { kind: "travel", ...(trek0 ? { id: trek0.id, at: trek0.at } : {}), ...(endPlace ? { arrive: endPlace, owners: ownersOf(members) } : {}) });
+        const trek = { id: wrote.id, at: wrote.at, day, party: band.id, legs, lost: astray };
+        for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: { q: end.q, r: end.r }, where, doing: village ? "town" : "road", day, dayMoved: spent, encounter: null, trek });
         save();
-        const walked = walk.path.map((s) => s.t).join(", ");
-        log(tx, p, camp, `Day ${day}. ${names} ${lost ? "lost their way and " : ""}walked ${heading ?? "on"} (${walked})${endPlace ? ` and reached ${endPlace}` : ""}. ${Math.min(spent, allowance)} of the day's ${allowance} spent${spent >= allowance ? ": time to make camp" : ""}.`);
         return done({ ok: true, day, lost, path: walk.path, end, reason: walk.reason, place: endPlace, spent, allowance, left: Math.max(0, allowance - spent), party: band.id });
       }
 

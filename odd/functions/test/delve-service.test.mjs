@@ -207,6 +207,10 @@ test("a meeting stood before the game opened fights itself can be stood again, a
   const p2 = h.p.character(b2); h.store.docs.set(p2, { ...h.store.docs.get(p2), encounter: { ...h.store.docs.get(p2).encounter, kind: "Thouls", monsterKey: null } });
   const t = await h.call("bob", { op: "delveStand", id: b2 });
   assert.equal(t.fid, null); assert.match(t.text, /Thouls have no fighting statistics yet/);
+  // v1.563.00: stood again with nothing changed, the chat isn't told again; one man stands, he doesn't "stand"
+  assert.equal((await h.call("bob", { op: "delveStand", id: b2 })).fid, null);
+  const said = [...h.store.docs.entries()].filter(([k2]) => k2.startsWith("oddCampaigns/c1/chat/referee/")).map(([, v]) => v).filter((e) => /to meet the Thouls/.test(e.text));
+  assert.equal(said.length, 1, said.map((e) => e.text).join(" | ")); assert.match(said[0].text, /^\S+ stands to meet/); assert.equal(said[0].kind, "meeting");
 });
 
 test("a hail: hostile is a fight, friendly lets the party be, between leaves run or stand", async () => {

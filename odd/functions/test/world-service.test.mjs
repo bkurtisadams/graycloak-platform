@@ -86,6 +86,12 @@ test("walking: a day toward Fosscraig by the track arrives; the hexes become kno
   const lines = chat(g.store, "referee").map((e) => e.text);
   assert.ok(lines.some((t) => /Day 2\. Brom walked NE .*reached Fosscraig/.test(t)) && lines.some((t) => /Brigands/.test(t)), lines.join(" | "));
   assert.ok(chat(g.store, "ann").length >= 1, "every player reads the day's line");
+  // v1.563.00: the lines are sorted for the chat's chips, and the referee's own say stays in his chat
+  const walk = chat(g.store, "ann").find((e) => /walked NE/.test(e.text));
+  assert.equal(walk.kind, "travel"); assert.equal(walk.arrive, "Fosscraig"); assert.deepEqual(walk.owners, ["bob"]); assert.doesNotMatch(walk.text, /spent|make camp/);
+  assert.equal(chat(g.store, "ann").find((e) => /Brigands/.test(e.text)).kind, "meeting");
+  assert.equal(chat(g.store, "referee").find((e) => /The referee let Brom go on/.test(e.text)).kind, "ruling");
+  assert.ok(!chat(g.store, "ann").some((e) => /The referee let/.test(e.text)), "a ruling is the referee's own");
 });
 
 test("lost in the woods: the die picks the direction; six days then rest; camp rolls twice", async () => {
@@ -224,6 +230,8 @@ test("parties (pass 17): a company forms, walks a hex at a time on its leader's 
   for (const id of [brm, bera, ada]) { assert.deepEqual(ch(id).hex, { q: 1, r: -1 }); assert.equal(ch(id).dayMoved, 1); assert.equal(ch(id).party, brm); assert.equal(ch(id).day, 2); }
   r = await g.call("bob", { op: "move", id: brm, path: [{ q: 0, r: -1 }, { q: 1, r: -2 }] });
   assert.equal(r.ok, true, r.error); assert.equal(r.day, 2, "the same day"); assert.equal(r.path.length, 2); assert.equal(r.left, 0);
+  const day2 = chat(g.store, "ann").filter((e) => e.kind === "travel" && /^Day 2\./.test(e.text));
+  assert.equal(day2.length, 1, "the day's walk is one line, added to as the party goes on"); assert.equal((day2[0].text.match(/clear|woods|mountains|hills|swamp/g) ?? []).length, 3, day2[0].text);
   assert.equal((await g.call("bob", { op: "move", id: brm, path: [{ q: 1, r: -1 }] })).code, "bad-request", "the day's march is done");
   // Ann takes Ada her own way: the day she has walked goes with her
   r = await g.call("ann", { op: "party", ids: [ada] }); assert.equal(r.ok, true, r.error); assert.equal(ch(ada).party, ada);
