@@ -313,3 +313,19 @@ test("those who force a door get nothing from surprise; what is behind it can st
   const four = await go(["Brom", "Leal", "Aeld", "Wyn"], [4, 4, 1]);
   assert.equal(four.m.surprise, "monsters", "coming through a door they can be surprised, and the fourth man gains by it"); assert.deepEqual(four.m.forcers, four.ids.slice(0, 3));
 });
+
+test("the marching order: the leader's player sets it, the view lists the party by rank, the front rank forces the door (v1.568.00)", async () => {
+  const g = await game(); const ids = []; for (const n of ["Brom", "Leal", "Aeld", "Wyn"]) ids.push(await g.make("bob", n)); await down(g, ...ids);
+  const [brom, leal, aeld, wyn] = ids;
+  let v = (await g.call("bob", { op: "delve" })).delve.parties[0];
+  assert.deepEqual(v.members.map((m) => [m.name, m.rank]), [["Brom", 0], ["Leal", 0], ["Aeld", 0], ["Wyn", 1]]); assert.equal(v.leader, brom);
+  assert.match((await g.call("ann", { op: "delveMarch", id: brom, order: [wyn] })).error, /leader/);
+  const r = await g.call("bob", { op: "delveMarch", id: brom, order: [wyn, aeld] }); assert.equal(r.ok, true, r.error);
+  assert.deepEqual(r.order, [wyn, aeld, brom, leal], "those not named keep their order behind");
+  v = r.delve.parties[0];
+  assert.deepEqual(v.members.map((m) => [m.name, m.rank]), [["Wyn", 0], ["Aeld", 0], ["Brom", 0], ["Leal", 1]]); assert.equal(v.leader, brom, "the leader need not walk in front");
+  await g.call("bob", { op: "delveMove", id: brom, to: { x: 4, y: 1 } }); await g.call("bob", { op: "delveMove", id: brom, to: { x: 7, y: 1 } });
+  assert.deepEqual((await g.call("bob", { op: "delve" })).delve.parties[0].trail.slice(-2), [[6, 1], [7, 1]], "the last squares walked: the column trails back along them");
+  g.setDice(5, 5, 5); const no = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
+  assert.match(no.text, /holds \(Wyn 5, Aeld 5, Brom 5\)/, "the front rank is at the door, not Leal");
+});

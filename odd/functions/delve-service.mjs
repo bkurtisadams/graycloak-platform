@@ -11,6 +11,7 @@
 //   delveEnter   {lid, id}              the party at the ruin goes down the stairs (the level must be open)
 //   delveMove    {lid, id, to}          walk over known squares within the turn's feet; a trap, a secret door an elf
 //                                       senses, or a room's monsters stop the walk
+//   delveMarch   {id, order}            the leader's player or the referee: the marching order, front rank first
 //   delveDoor    {lid, id, at, act}     listen at, or force, a door beside the party: a quarter turn each, opened or not
 //   delveSearch  {lid, id}              a whole turn searching the walls touching the party's square
 //   delveRest    {lid, id}              a whole turn motionless
@@ -32,6 +33,12 @@ export const delvePath = (cid, lid) => `oddCampaigns/${cid}/delves/${lid}`;
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const TRAIL = 60;
 const U_WEEK = 7;
+/**
+ * The marching order (v1.568.00): the party's members by the place each was given (`march`), those never placed after
+ * them as the party lists them. Three walk abreast in a ten-foot passage, so the first three are the front rank.
+ */
+export const ABREAST = 3;
+export const marching = (members) => members.map((m, i) => [m, i]).sort((a, b) => (a[0].march ?? 1e6) - (b[0].march ?? 1e6) || a[1] - b[1]).map(([m]) => m);
 
 export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey, hexKey, openFightIn = null, isReferee = () => false }) {
   const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster;
@@ -83,7 +90,8 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
           stairs: D.stairsAt(L, st.x, st.y)?.dir ?? null, onDoor: D.DOOR.has(D.cellAt(L, st.x, st.y)),
           doors: D.doorsBeside(L, st.x, st.y).map((c) => ({ ...c, side: D.sideOf({ x: st.x, y: st.y }, c), listened: st.listened.includes(`${c.x},${c.y}@${st.turn}`) })),
           meeting: enc ? (within ? enc : { kind: enc.kind }) : null, ...(ref ? { checks: st.checks } : {}),
-          members: pt.members.map((m) => ({ id: m.id, name: m.name ?? "", owner: m.owner ?? null, cls: m.cls ?? null, level: m.level ?? 1, mine: ref || owns(m, uid), ...(within || roster.levelOf(m, uid) >= roster.OWNERSHIP.OBSERVER ? { hp: m.hp ?? 0, maxHp: m.maxHp ?? 0 } : {}) })) });
+          trail: (st.trail ?? []).slice(-6), leader: pt.leader.id,
+          members: marching(pt.members).map((m, i) => ({ id: m.id, name: m.name ?? "", rank: Math.floor(i / ABREAST), owner: m.owner ?? null, cls: m.cls ?? null, level: m.level ?? 1, mine: ref || owns(m, uid), ...(within || roster.levelOf(m, uid) >= roster.OWNERSHIP.OBSERVER ? { hp: m.hp ?? 0, maxHp: m.maxHp ?? 0 } : {}) })) });
       });
       const shown = (c) => ref || D.isSeen(doc.seen, c.x, c.y);
       return clean({ lid, name: L.name, level: L.level, status: L.status, width: L.width, height: L.height, full: ref,
@@ -137,6 +145,15 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
     const st = stateOf(pt), at = { x: st.x, y: st.y }, rate = rateOf(pt), feet = D.turnFeet(rate);
     const enc = pt.leader.encounter?.underground ? pt.leader.encounter : null;
     const who = names(pt.members), solo = pt.members.length === 1 ? "s" : "";
+
+    if (op === "delveMarch") {
+      if (!walks) return refuse("forbidden", "the party's leader sets the marching order");
+      const mine = new Set(pt.members.map((m) => m.id)), asked = [...new Set((Array.isArray(data.order) ? data.order : []).map(String))].filter((id) => mine.has(id));
+      if (!asked.length) return refuse("bad-request", "which order?");
+      const order = [...asked, ...marching(pt.members).map((m) => m.id).filter((id) => !asked.includes(id))];
+      order.forEach((id, i) => put(id, { ...byId(id), march: i }));
+      return done({ order });
+    }
 
     if (op === "delveLead") {
       if (!ref && !owns(pt.leader, uid)) return refuse("forbidden", "only the leader's player hands the lead on");
@@ -328,7 +345,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       if (data.act !== "force") return refuse("bad-request", "listen, or force it?");
       if (rest.due) return refuse("bad-request", "the party must rest before it goes on");
       if (feet - st.spent < quarter) return refuse("bad-request", short);
-      const forcers = pt.members.slice(0, U.MAX_DOOR_FORCERS), rolls = forcers.map((c) => ({ name: c.name, roll: d6(), small: String(c.race ?? "").toLowerCase() === "halfling" }));
+      const forcers = marching(pt.members).slice(0, U.MAX_DOOR_FORCERS), rolls = forcers.map((c) => ({ name: c.name, roll: d6(), small: String(c.race ?? "").toLowerCase() === "halfling" }));
       const open = rolls.some((r) => U.doorForced(r.roll, { small: r.small })), dice = rolls.map((r) => `${r.name} ${r.roll}`).join(", ");
       if (!open) {
         if (!doc.noise.includes(k)) doc.noise.push(k);

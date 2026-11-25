@@ -65,6 +65,35 @@ export function countersSvg(parties, { sel = null, colourOf = () => DG.ink } = {
     return `<g data-dv-party="${escape(pt.id)}" style="cursor:pointer"><title>${escape(pt.members.map((m) => m.name).join(", "))}</title>${pt.id === sel ? `<circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="#f5d78a" stroke-width="2"/>` : ""}<circle cx="${cx}" cy="${cy}" r="5.5" fill="${escape(colourOf(pt))}" stroke="#ffffff" stroke-width="1.5"/></g>`;
   }).join("");
 }
+/**
+ * Where each member of a party stands (v1.568.00, approved mockup 25 Nov 2026): the column in marching order, three
+ * abreast in a ten-foot passage, the front rank at the head of the party's square and the rest trailing back along the
+ * squares it last walked. [{ id, name, x, y }] in the map's units.
+ */
+export function columnSpots(pt, abreast = 3) {
+  const S = CELL, mid = (p) => ({ x: p[0] * S + S / 2, y: p[1] * S + S / 2 }), tr = (pt.trail ?? []).slice().reverse();
+  const line = [mid([pt.at.x, pt.at.y])];
+  if (tr[0] && tr[0][0] === pt.at.x && tr[0][1] === pt.at.y) for (let i = 1; i < tr.length; i++) { if (Math.abs(tr[i - 1][0] - tr[i][0]) + Math.abs(tr[i - 1][1] - tr[i][1]) !== 1) break; line.push(mid(tr[i])); }
+  const unit = (a, b) => { const dx = b.x - a.x, dy = b.y - a.y, n = Math.hypot(dx, dy) || 1; return { x: dx / n, y: dy / n }; };
+  const ahead = line.length > 1 ? unit(line[1], line[0]) : { x: 1, y: 0 };
+  line.unshift({ x: line[0].x + (ahead.x * S) / 3, y: line[0].y + (ahead.y * S) / 3 });
+  const along = (d) => {
+    for (let i = 1; i < line.length; i++) { const len = Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y); if (d <= len) { const u = unit(line[i - 1], line[i]); return { x: line[i - 1].x + u.x * d, y: line[i - 1].y + u.y * d, u }; } d -= len; }
+    const u = unit(line[line.length - 2], line[line.length - 1]), end = line[line.length - 1];
+    return { x: end.x + u.x * d, y: end.y + u.y * d, u };
+  };
+  const ranks = []; pt.members.forEach((m, i) => { (ranks[Math.floor(i / abreast)] ??= []).push(m); });
+  return ranks.flatMap((row, r) => { const p = along((r * 2 * S) / 3); return row.map((m, j) => { const off = ((j - (row.length - 1) / 2) * S) / 3; return { id: m.id, name: m.name, x: p.x + p.u.y * off, y: p.y - p.u.x * off }; }); });
+}
+/** The parties as their figures: a small token for each member, his player's colour and his initial; a gold ring marks the chosen party among several. */
+export function columnsSvg(parties, { sel = null, colourOfMember = () => DG.ink } = {}) {
+  const S = CELL, r = S * 0.14;
+  return parties.map((pt) => {
+    const ring = pt.id === sel && parties.length > 1 ? `<circle cx="${pt.at.x * S + S / 2}" cy="${pt.at.y * S + S / 2}" r="${S * 0.8}" fill="none" stroke="#f5d78a" stroke-width="0.8"/>` : "";
+    const toks = columnSpots(pt).map((t, i) => `<circle cx="${t.x.toFixed(2)}" cy="${t.y.toFixed(2)}" r="${r.toFixed(2)}" fill="${escape(colourOfMember(pt.members[i]))}" stroke="#ffffff" stroke-width="0.4"/><text x="${t.x.toFixed(2)}" y="${(t.y + 0.72).toFixed(2)}" text-anchor="middle" font-size="2.1" font-weight="700" fill="#ffffff" font-family="Courier Prime, monospace" pointer-events="none">${escape(String(t.name ?? "?").slice(0, 1))}</text>`).join("");
+    return `<g data-dv-party="${escape(pt.id)}" style="cursor:pointer"><title>${escape(pt.members.map((m) => m.name).join(", "))}</title>${ring}${toks}</g>`;
+  }).join("");
+}
 /** For the referee's map: the squares the players have seen, tinted, and the parties below. */
 export function exploredOver(V, opts = {}) {
   const S = CELL, seen = V.seen ?? [];
@@ -79,16 +108,17 @@ export function seenExtent(V, pad = 4) {
   return { x: (x0 - pad) * CELL, y: (y0 - pad) * CELL, w: (x1 - x0 + 1 + pad * 2) * CELL, h: (y1 - y0 + 1 + pad * 2) * CELL };
 }
 /** The players' map (approved mockup, Nov 2026): the seen squares on plain black, the squares still in reach lit, the parties' counters. */
-export function delveSvg(V, { reach = [], sel = null, colourOf, id = "dvSvg" } = {}) {
+export function delveSvg(V, { reach = [], sel = null, colourOfMember, id = "dvSvg" } = {}) {
   const S = CELL, at = (x, y) => V.cells[y]?.[x] ?? " ", floor = (x, y) => { const c = at(x, y); return c !== " " && c !== "#"; };
-  const out = [`<defs><pattern id="${id}Grid" width="${S}" height="${S}" patternUnits="userSpaceOnUse"><path d="M${S} 0H0V${S}" fill="none" stroke="${DG.grid}" stroke-width="0.6"/></pattern></defs>`];
-  for (const [x, y, n] of runsOf(floor, V.width, V.height)) out.push(`<rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="${DG.floor}"/><rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="url(#${id}Grid)"/>`);
-  for (const c of reach) out.push(`<rect x="${c.x * S}" y="${c.y * S}" width="${S}" height="${S}" fill="#f5d78a" fill-opacity="0.6"/>`);
+  // each ten-foot square is nine (3 1/3 feet a cell, the fight's own grid), drawn faintly under the squares' lines
+  const out = [`<defs><pattern id="${id}Grid" width="${S}" height="${S}" patternUnits="userSpaceOnUse"><path d="M${S} 0H0V${S}" fill="none" stroke="#9fb3c2" stroke-width="0.5"/></pattern><pattern id="${id}Sub" width="${S / 3}" height="${S / 3}" patternUnits="userSpaceOnUse"><path d="M${S / 3} 0H0V${S / 3}" fill="none" stroke="#e3eaef" stroke-width="0.25"/></pattern></defs>`];
+  for (const [x, y, n] of runsOf(floor, V.width, V.height)) out.push(`<rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="${DG.floor}"/><rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="url(#${id}Sub)"/><rect x="${x * S}" y="${y * S}" width="${n * S}" height="${S}" fill="url(#${id}Grid)"/>`);
+  for (const c of reach) out.push(`<rect x="${c.x * S}" y="${c.y * S}" width="${S}" height="${S}" fill="#f5d78a" fill-opacity="0.55"/>`);
   const L = { cells: V.cells.map((r) => r.replace(/ /g, "#")) };
   V.cells.forEach((row, y) => { for (let x = 0; x < row.length; x++) { const kind = DOOR[row[x]]; if (!kind) continue; const v = doorBar(L, x, y) === "v"; out.push(v ? `<rect x="${x * S + S / 2 - 1.5}" y="${y * S + 1.5}" width="3" height="${S - 3}" fill="${DG[kind]}"/>` : `<rect x="${x * S + 1.5}" y="${y * S + S / 2 - 1.5}" width="${S - 3}" height="3" fill="${DG[kind]}"/>`); } });
   for (const st of V.stairs ?? []) out.push(`<g><title>Stairs ${st.dir === "up" ? "up to the ruin" : "down a level"}</title>${[0, 1, 2, 3].map((i) => `<line x1="${st.x * S + 2}" y1="${st.y * S + 2 + i * 2.4}" x2="${st.x * S + S - 2}" y2="${st.y * S + 2 + i * 2.4}" stroke="${DG.ink}" stroke-width="1"/>`).join("")}</g>`);
   for (const t of V.sprung ?? []) out.push(`<g><title>${escape(`A trap, sprung: ${t.text}`)}</title><path d="M${t.x * S + 2.5} ${t.y * S + 2.5}L${t.x * S + S - 2.5} ${t.y * S + S - 2.5}M${t.x * S + S - 2.5} ${t.y * S + 2.5}L${t.x * S + 2.5} ${t.y * S + S - 2.5}" stroke="${DG.red}" stroke-width="1.6"/></g>`);
-  out.push(countersSvg(V.parties ?? [], { sel, colourOf }));
+  out.push(columnsSvg(V.parties ?? [], { sel, colourOfMember }));
   const vb = seenExtent(V);
   return `<svg id="${id}" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escape(V.name ?? "The level")}: the players' map">${out.join("")}</svg>`;
 }

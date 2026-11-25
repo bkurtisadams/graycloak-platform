@@ -360,8 +360,17 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .dv-toast.bad { border-color: #b3362b; color: #b3362b; }
 .lobbystage .dv-dock { display: flex; align-items: center; gap: 10px; overflow-x: auto; }
 .lobbystage .dv-dock .ps-ch { min-width: 118px; }
+.lobbystage .dv-dock .ps-ch[draggable] { flex-direction: row; align-items: center; gap: 8px; cursor: grab; }
+.lobbystage .dv-dock .ps-ch .mo-b { display: flex; flex-direction: column; gap: 3px; flex: 1 1 auto; min-width: 0; }
+.lobbystage .dv-dock .ps-ch.drag { opacity: .45; } .lobbystage .dv-dock .ps-ch.over { border-color: #c98a2b; box-shadow: inset 0 0 0 2px #c98a2b; }
+.lobbystage .mo-grip { flex: 0 0 auto; fill: var(--pencil); }
+.lobbystage .mo-rank { display: flex; flex-direction: column; gap: 4px; flex: 0 0 auto; }
+.lobbystage .mo-rank .mo-h { font-family: var(--type); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--pencil); }
+.lobbystage .mo-rank .mo-row { display: flex; gap: 6px; }
+.lobbystage .dv-dock:has(.mo-rank) { align-items: flex-end; flex-wrap: wrap; row-gap: 8px; } .lobbystage .dv-dock:has(.mo-rank) .dv-note { align-self: center; flex: 1 1 220px; }
 .lobbystage .dv-dock .dv-note { flex: 1 1 auto; min-width: 120px; font-size: 13px; color: var(--pencil); }
-.lobbystage .dv-dock > button { min-height: 44px; padding: 4px 12px; font-size: .88rem; flex: 0 0 auto; white-space: nowrap; }
+.lobbystage .dv-dock .dv-acts { display: flex; gap: 8px; flex: 0 0 auto; margin-left: auto; }
+.lobbystage .dv-dock .dv-acts > button { min-height: 44px; padding: 4px 12px; font-size: .88rem; flex: 0 0 auto; white-space: nowrap; }
 .lobbystage .dv-dock .ps-ch button { min-height: 0; font-size: .74rem; padding: 1px 8px; }
 .lobbystage .dv-dock .pb-other { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border: 1px dashed #9fb2c0; border-radius: 6px; font-size: .86rem; white-space: nowrap; }
 .lobbystage .dg-tip { position: absolute; pointer-events: none; background: #1f2b38; color: #fff; font-size: 12px; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
@@ -1734,9 +1743,9 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.567.00";
+const BUILD = "v1.568.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.561.00";
+const SERVER_NEEDED = "v1.568.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -2386,7 +2395,7 @@ function delveReach(V, sp) {
 const delveSurprise = (m) => (m.surprise === "party" ? "The party is surprised." : m.surprise === "monsters" ? "The party has surprised them." : "Neither side is surprised.");
 /** A meeting underground: the party's three answers (Book III, Avoiding Monsters), then the referee's part. */
 function delveMeetingCard(sp) {
-  const m = sp.meeting, busy = delve.busy ? "disabled" : "", lead = sp.members[0];
+  const m = sp.meeting, busy = delve.busy ? "disabled" : "", lead = delveLead(sp);
   if (!m.type) return `<section class="dv-card enc" aria-label="A meeting"><h3>${esc(m.kind)}</h3><div class="note">${esc(lead.name)}'s party has met them.</div></section>`;
   const head = `<h3>${esc(m.kind)}<small>${m.type === "room" ? "in the room" : "wandering"} \u00b7 turn ${m.turn}</small></h3><div class="note">${m.number != null ? `${m.number} of them, ` : ""}seen at ${m.feet} feet. ${delveSurprise(m)}${m.surprise === "monsters" && m.forcers?.length ? ` Those who forced the door (${esc(sp.members.filter((x) => m.forcers.includes(x.id)).map((x) => x.name).join(", "))}) gain nothing by it.` : ""}</div>`;
   const react = m.reaction ? `Reaction: <b>${esc(m.reaction.result ?? "")}</b>${m.reaction.total != null ? ` (2d6 = ${m.reaction.total})` : m.reaction.why ? ` (${esc(m.reaction.why)})` : ""}.` : "";
@@ -2404,12 +2413,17 @@ function delveMeetingCard(sp) {
     ${sp.walks ? "" : `<div class="note">${esc(lead.name)} leads: his player answers for the party.</div>`}${refs}</section>`;
 }
 /** What the party stands beside: doors to listen at or force, the stairs out. */
+/** A party's leader underground: the view lists its members in marching order, so the leader is named, not first (v1.568.00). */
+const delveLead = (pt) => pt.members.find((m) => m.id === pt.leader) ?? pt.members[0];
+const MO_GRIP = `<svg class="mo-grip" width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">${[3, 8, 13].map((y) => `<circle cx="2" cy="${y}" r="1.4"/><circle cx="8" cy="${y}" r="1.4"/>`).join("")}</svg>`;
 function delveHereCard(sp) {
   if (!sp.walks) return "";
   const busy = delve.busy ? "disabled" : "", parts = [], qf = sp.quarter ?? Math.max(10, Math.ceil(sp.feet / 4));
+  const front = sp.members.filter((x) => (x.rank ?? 0) === 0).slice(0, 3).map((x) => x.name), forcedBy = sp.members.length > 1 ? `The front rank forces it: <b>${esc(front.join(", "))}</b>.` : `<b>${esc(front[0] ?? "He")}</b> forces it.`;
   for (const d of sp.doors) parts.push(`<div class="dv-act"><h4>A door, to the ${esc(d.side)}</h4>
-    <div class="note">Listening, a man hears on a 1 in 6; an elf, dwarf or halfling on a 1 or 2. The undead make no sound. Listening takes a quarter turn (${qf} feet of the turn).</div><div class="row"><button type="button" data-dv-listen="${d.x},${d.y}" ${d.listened ? "disabled title=\"The party has listened here this turn\"" : sp.left < qf ? "disabled title=\"Not enough of the turn left: end the turn\"" : busy}>Listen</button></div>
-    <div class="note">Doors are stuck: a 1 or 2 on a d6 opens it, and up to three try at once. Each try takes a quarter turn (${qf} feet of the turn), opened or not. Those who force it get nothing from surprise: if what is behind it is surprised, only the rest of the party gains.</div><div class="row"><button type="button" class="primary" data-dv-force="${d.x},${d.y}" ${sp.restDue ? "disabled" : sp.left < qf ? "disabled title=\"Not enough of the turn left: end the turn\"" : busy}>Force the door</button></div></div>`);
+    <div class="note">${forcedBy} A 1 or 2 on a d6 opens it. Each try takes a quarter turn (${qf} feet), opened or not.</div>
+    <div class="note">Those who force it get nothing from surprise.</div>
+    <div class="row"><button type="button" data-dv-listen="${d.x},${d.y}" ${d.listened ? "disabled title=\"The party has listened here this turn\"" : sp.left < qf ? "disabled title=\"Not enough of the turn left: end the turn\"" : `${busy} title="A quarter turn (${qf} feet). A man hears on a 1 in 6; an elf, dwarf or halfling on a 1 or 2. The undead make no sound."`}>Listen</button><button type="button" class="primary" data-dv-force="${d.x},${d.y}" ${sp.restDue ? "disabled" : sp.left < qf ? "disabled title=\"Not enough of the turn left: end the turn\"" : busy}>Force the door</button></div></div>`);
   if (sp.stairs === "up") parts.push(`<div class="dv-act"><h4>The stairs up</h4><div class="note">Out of the dungeon, to the ruin above.</div><div class="row"><button type="button" data-dv="leave" ${busy}>Climb out</button></div></div>`);
   if (sp.stairs === "down") parts.push(`<div class="dv-act"><h4>Stairs down</h4><div class="note">The level below isn't laid out yet.</div></div>`);
   return parts.length ? `<section class="dv-card" aria-label="Here">${sp.onDoor ? `<div class="note">The party stands in the doorway; the door swings shut behind it.</div>` : ""}${parts.join("")}</section>` : "";
@@ -2424,30 +2438,55 @@ function renderDelveStage(el, g, uid) {
   if (here && !here.under && !delve.busy) { openWorld(here.id); return; } // he has climbed out
   if (!V || !V.cells) { el.innerHTML = `<div class="lcard world dungeon"><div class="dg-stage dark"><div class="dg-over"><div class="dg-top">${delve.error ? `<span class="dv-toast bad">${esc(delve.error)}</span>` : V ? `<span class="dg-pill">None of your characters is on this level.</span>` : `<span class="dg-pill">Lighting the lamps\u2026</span>`}</div></div></div></div>`; if (!V && !delve.loading && !delve.error) loadDelve(); return; }
   const sp = delvePartyFor(V), busy = delve.busy ? "disabled" : "";
-  const colourOf = (pt) => table.game?.people?.[pt.members[0]?.owner]?.color ?? "#1f2b38";
+  const colourOfMember = (m) => table.game?.people?.[m?.owner]?.color ?? "#1f2b38";
   const reach = delveReach(V, sp);
   const mins = sp ? (sp.turn - 1) * 10 + Math.round(((sp.spent ?? 0) / (sp.feet || 1)) * 10) : 0, below = mins < 60 ? `${mins} minutes below` : `${Math.floor(mins / 60)} hr${mins % 60 ? ` ${mins % 60} min` : ""} below`;
   const turn0 = !sp ? "No party on this level" : sp.meeting ? `Turn ${sp.turn} \u00b7 ${sp.meeting.type === "room" ? "a room's keepers" : "wandering monsters"}` : sp.restDue ? `Turn ${sp.turn} \u00b7 the party must rest ${sp.restTurns > 1 ? "two turns" : "a turn"}` : `Turn ${sp.turn} \u00b7 ${sp.left} feet left of ${sp.feet} \u00b7 rest due in ${sp.restIn} turn${sp.restIn === 1 ? "" : "s"}`;
   const turn = sp ? `${sp.day ? `Day ${sp.day} \u00b7 ` : ""}${turn0} \u00b7 ${below}` : turn0;
-  const top = `<div class="dg-top"><span class="dg-pill">10 feet a square \u00b7 a turn is ten minutes \u00b7 wheel zooms, right-drag pans</span><span class="dg-chip">${turn}</span>${PLAYER ? "" : `<span class="dg-acts">${canMask ? `<label class="dg-pill w-asplayers" title="Unticked, the whole level shows, as only the referee knows it"><input type="checkbox" id="dvAsPlayers" ${masked ? "checked" : ""}> as the players see it</label>` : ""}<button type="button" data-dv="refmap">The referee\u2019s map</button></span>`}</div>`;
+  const top = `<div class="dg-top"><span class="dg-pill">10 feet a square \u00b7 each square is nine \u00b7 wheel zooms, right-drag pans</span><span class="dg-chip">${turn}</span>${PLAYER ? "" : `<span class="dg-acts">${canMask ? `<label class="dg-pill w-asplayers" title="Unticked, the whole level shows, as only the referee knows it"><input type="checkbox" id="dvAsPlayers" ${masked ? "checked" : ""}> as the players see it</label>` : ""}<button type="button" data-dv="refmap">The referee\u2019s map</button></span>`}</div>`;
   const toast = delve.error ? `<span class="dv-toast bad">${esc(delve.error)}</span>` : delve.msg ? `<span class="dv-toast">${esc(delve.msg)}</span>` : "";
   const card = !sp ? "" : sp.meeting ? delveMeetingCard(sp) : delveHereCard(sp);
-  const multi = sp && sp.members.length > 1, free = sp && !sp.meeting && !delve.busy;
-  const chips = !sp ? "" : sp.members.map((m, i) => {
+  const multi = !!sp && sp.members.length > 1, free = !!sp && !sp.meeting && !delve.busy;
+  // the marching order (approved mockup 25 Nov 2026): the party by rank, three abreast, each name dragged to its place
+  const leadId = sp ? delveLead(sp).id : null, mayOrder = !!(sp && multi && sp.walks && free);
+  const chip = (m) => {
     const x = charOf(m.id), p = table.game?.people?.[m.owner] ?? {}, hp = x?.hp ?? m.hp, max = x?.maxHp ?? m.maxHp;
     const pct = max ? Math.max(0, Math.min(100, Math.round(((hp ?? 0) / max) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
-    return `<div class="ps-ch${i === 0 ? " on" : ""}" ${x ? `data-ps-open="${esc(m.id)}" title="${esc(m.name)}: open the sheet"` : ""}><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(m.name)} <small>${esc(clsAbbr(m))} ${m.level ?? 1}${multi && i === 0 ? " \u00b7 leads" : ""}</small></div>${max ? `<div class="bar"><i class="${tone}" style="width:${pct}%"></i></div>` : ""}<div class="s"><span>${max ? `hp ${hp}/${max}` : ""}</span><span class="pb-acts">${multi && m.mine ? `<button type="button" data-dv-leave="${esc(m.id)}" ${free ? "" : "disabled"} title="${esc(m.name)} leaves the party and goes his own way">Leave</button>` : ""}</span></div></div>`;
-  }).join("");
+    return `<div class="ps-ch${m.id === leadId ? " on" : ""}" data-mo="${esc(m.id)}" ${mayOrder ? `draggable="true" tabindex="0" aria-label="${esc(m.name)}: drag, or press the left and right arrows, to change his place in the marching order"` : ""} ${x ? `data-ps-open="${esc(m.id)}" title="${esc(m.name)}: open the sheet"` : ""}>${mayOrder ? MO_GRIP : ""}<div class="mo-b"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(m.name)} <small>${esc(clsAbbr(m))} ${m.level ?? 1}${multi && m.id === leadId ? " \u00b7 leads" : ""}</small></div>${max ? `<div class="bar"><i class="${tone}" style="width:${pct}%"></i></div>` : ""}<div class="s"><span>${max ? `hp ${hp}/${max}` : ""}</span><span class="pb-acts">${multi && m.mine ? `<button type="button" data-dv-leave="${esc(m.id)}" ${free ? "" : "disabled"} title="${esc(m.name)} leaves the party and goes his own way">Leave</button>` : ""}</span></div></div></div>`;
+  };
+  const rankNames = ["Front rank", "Second rank", "Third rank", "Fourth rank", "Fifth rank"], byRank = [];
+  for (const m of sp?.members ?? []) (byRank[m.rank ?? 0] ??= []).push(m);
+  const chips = !sp ? "" : !multi ? sp.members.map(chip).join("") : byRank.filter(Boolean).map((row) => `<div class="mo-rank"><div class="mo-h">${esc(rankNames[row[0].rank ?? 0] ?? `Rank ${(row[0].rank ?? 0) + 1}`)}</div><div class="mo-row">${row.map(chip).join("")}</div></div>`).join("");
   const near = !sp ? [] : V.parties.filter((pt) => pt.id !== sp.id && pt.at.x === sp.at.x && pt.at.y === sp.at.y);
   const others = near.map((pt) => `<div class="pb-other"><span>${esc(pt.members.map((m) => m.name).join(", "))}</span><button type="button" data-dv-join="${esc(pt.id)}" ${free && !pt.meeting && sp.members.some((m) => m.mine) ? "" : "disabled"}>Join</button></div>`).join("");
-  const note = !sp ? "" : sp.meeting ? (sp.meeting.choice ? "Waiting on the referee." : sp.walks ? "The party must answer." : `Waiting on the party\u2019s leader: ${esc(sp.members[0].name)}.`) : !sp.walks ? `${esc(sp.members[0].name)} leads: his player walks the party.` : sp.restDue ? "One turn in six is spent resting." : sp.left < 10 ? "The turn\u2019s movement is spent." : "Click a lit square to walk there. The party moves at its slowest member\u2019s rate.";
+  const note = !sp ? "" : sp.meeting ? (sp.meeting.choice ? "Waiting on the referee." : sp.walks ? "The party must answer." : `Waiting on the party\u2019s leader: ${esc(delveLead(sp).name)}.`) : !sp.walks ? `${esc(delveLead(sp).name)} leads: his player walks the party.` : sp.restDue ? "One turn in six is spent resting." : sp.left < 10 ? "The turn\u2019s movement is spent." : multi ? "Drag a name to change the marching order. Three walk abreast in a ten-foot passage. The front rank forces doors and meets what is ahead." : "Click a lit square to walk there. The party moves at its slowest member\u2019s rate.";
   const acts = !sp || !sp.walks || sp.meeting ? "" : `<button type="button" data-dv="search" ${sp.spent > 0 || sp.restDue ? "disabled" : busy} title="A whole turn searching the walls here for secret doors: found on a 1 or 2, an elf on 1 to 4">Search here</button><button type="button" data-dv="rest" ${sp.spent > 0 ? "disabled" : busy} title="A whole turn motionless">Rest a turn</button><button type="button" class="done" data-dv="end" ${busy} title="The turn ends: a d6 is thrown for wandering monsters, and a 6 brings them">End the turn</button>`;
-  el.innerHTML = `<div class="lcard world dungeon"><div class="dg-stage dark">${dmap.delveSvg(V, { reach, sel: sp?.id ?? null, colourOf })}<div class="dg-over">${top}${toast}<div class="dg-mid">${card}</div></div><div class="dg-tip" id="dgTip" hidden></div></div>
-    <div class="dv-dock">${chips}${others}<span class="dv-note">${note}</span>${acts}</div></div>`;
+  el.innerHTML = `<div class="lcard world dungeon"><div class="dg-stage dark">${dmap.delveSvg(V, { reach, sel: sp?.id ?? null, colourOfMember })}<div class="dg-over">${top}${toast}<div class="dg-mid">${card}</div></div><div class="dg-tip" id="dgTip" hidden></div></div>
+    <div class="dv-dock">${chips}${others}<span class="dv-note">${note}</span>${acts ? `<span class="dv-acts">${acts}</span>` : ""}</div></div>`;
   bindPartyStrip(el);
   bindDelve(el, V, sp, reach);
 }
 function bindDelve(el, V, sp, reach) {
+  // the marching order: drop a name on another to take his place (before him, or after when dropped on his right half); the arrow keys move the one in focus
+  const order = () => sp.members.map((m) => m.id), march = (ids) => delveOp("delveMarch", { id: sp.id, order: ids });
+  el.querySelectorAll(".ps-ch[draggable]").forEach((ch) => {
+    const id = ch.dataset.mo;
+    ch.addEventListener("dragstart", (ev) => { delve.dragMo = id; ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", id); ch.classList.add("drag"); });
+    ch.addEventListener("dragend", () => { delve.dragMo = null; el.querySelectorAll(".ps-ch.drag, .ps-ch.over").forEach((x) => x.classList.remove("drag", "over")); });
+    ch.addEventListener("dragover", (ev) => { if (delve.dragMo && delve.dragMo !== id) { ev.preventDefault(); ch.classList.add("over"); } });
+    ch.addEventListener("dragleave", () => ch.classList.remove("over"));
+    ch.addEventListener("drop", (ev) => {
+      ev.preventDefault(); const from = delve.dragMo; delve.dragMo = null; if (!from || from === id) return;
+      const box = ch.getBoundingClientRect(), after = ev.clientX > box.left + box.width / 2, ids = order().filter((x) => x !== from);
+      ids.splice(ids.indexOf(id) + (after ? 1 : 0), 0, from); march(ids);
+    });
+    ch.addEventListener("keydown", (ev) => {
+      const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : 0; if (!step) return;
+      const ids = order(), i = ids.indexOf(id), j = i + step; if (j < 0 || j >= ids.length) return;
+      ev.preventDefault(); [ids[i], ids[j]] = [ids[j], ids[i]]; delve.focusMo = id; march(ids);
+    });
+  });
+  if (delve.focusMo) { el.querySelector(`.ps-ch[data-mo="${CSS.escape(delve.focusMo)}"]`)?.focus(); delve.focusMo = null; }
   $("#dvAsPlayers")?.addEventListener("change", (ev) => { delve.asPlayers = ev.target.checked; delve.vb = null; delve.userVb = false; renderLobbyStage(); });
   const svg = $("#dvSvg"), stage = el.querySelector(".dg-stage"), tip = $("#dgTip"), S = dmap.CELL;
   const ext = dmap.seenExtent(V), key = `${ext.x},${ext.y},${ext.w},${ext.h}`;
@@ -2491,7 +2530,7 @@ function bindDelve(el, V, sp, reach) {
     parley: () => delveOp("delveParley", { id: sp.id }), stand: () => delveOp("delveStand", { id: sp.id }),
     adjust: () => delveOp("delveAdjust", { id: sp.id, number: Number($("#dvNum")?.value ?? 1) }),
     pass: () => delveOp("delveResolve", { id: sp.id }), cleared: () => delveOp("delveResolve", { id: sp.id, cleared: true }),
-    fight: () => { const c = charOf(sp.members[0].id); if (c) openFightForEncounter(c); },
+    fight: () => { const c = charOf(delveLead(sp).id); if (c) openFightForEncounter(c); },
     refmap: () => openDungeon(delve.lid)
   };
   el.querySelectorAll("[data-dv]").forEach((b) => b.addEventListener("click", () => acts[b.dataset.dv]?.()));
@@ -2501,7 +2540,7 @@ function delveRefCard(V) {
   if (!V?.parties?.length) return "";
   const rows = V.parties.map((pt) => {
     const m = pt.meeting, checks = (pt.checks ?? []).map((c) => `turn ${c.turn}, a ${c.roll}`).join("; ");
-    return `<div class="dv-act"><h4>${esc(pt.members.map((x) => x.name).join(", "))}</h4><div class="note">Turn ${pt.turn}, led by ${esc(pt.members[0].name)}. ${checks ? `Wandering checks: ${checks}.` : "No wandering checks yet."}</div>
+    return `<div class="dv-act"><h4>${esc(pt.members.map((x) => x.name).join(", "))}</h4><div class="note">Turn ${pt.turn}, led by ${esc(delveLead(pt).name)}. ${checks ? `Wandering checks: ${checks}.` : "No wandering checks yet."}</div>
       ${m ? `<div class="note"><b class="mon">${esc(m.kind)}</b>${m.number != null ? ` (${m.number})` : ""}, ${m.type === "room" ? "in their room" : "wandering"}, at ${m.feet} feet. ${delveSurprise(m)} ${m.choice ? `The party chose to ${esc(m.choice)}${m.outcome && m.outcome !== m.choice ? `: ${esc(m.outcome)}` : ""}.` : "The party has not chosen yet."}</div>` : ""}
       <div class="row"><button type="button" class="primary" data-dv-walk="${esc(pt.members[0].id)}">${m ? "See to it" : "Walk the party"}</button></div></div>`;
   }).join("");
@@ -2529,7 +2568,7 @@ function renderDungeonStage(el, g, uid) {
   const tools = dungeon.editing ? `<div class="dg-tools"><span class="lab">Tool</span>${DG_TOOLS.map(([k, t]) => `<button type="button" class="${dungeon.tool === k ? "on" : ""}" data-dg-tool="${k}">${t}</button>`).join("")}<span class="foot"><button type="button" data-dg="undo" ${busy || (L.undoable ? "" : "disabled")}>Undo</button><button type="button" class="primary" data-dg="done">Done</button></span></div>` : "";
   const V = open && delve.lid === dungeon.lid ? delve.view : null;
   if (open && !V && !delve.loading && !delve.error) { Object.assign(delve, { lid: dungeon.lid, view: null, vb: null, userVb: false }); loadDelve(true); }
-  const over = V ? dmap.exploredOver(V, { colourOf: (pt) => table.game?.people?.[pt.members[0]?.owner]?.color ?? "#1f2b38" }) : "";
+  const over = V ? dmap.exploredOver(V, { colourOf: (pt) => table.game?.people?.[delveLead(pt)?.owner]?.color ?? "#1f2b38" }) : "";
   el.innerHTML = `<div class="lcard world dungeon">${err}<div class="dg-stage${dungeon.editing ? " editing" : ""}">${dmap.levelSvg(L, { sel: dungeon.sel, over })}<div class="dg-over">${top}<div class="dg-mid">${tools}${dungeon.sel ? dungeonRoomCard(L, dungeon.sel) : dungeon.editing ? "" : delveRefCard(V)}</div></div>${dmap.legendHtml()}<div class="dg-tip" id="dgTip" hidden></div></div><div class="dg-party">${dungeonPartyNote()}</div></div>`;
   bindDungeon(el, L);
   el.querySelectorAll("[data-dv-walk]").forEach((b) => b.addEventListener("click", () => openDelve(dungeon.lid, b.dataset.dvWalk)));
