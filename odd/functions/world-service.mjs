@@ -23,6 +23,9 @@
 //   rest   {id, days}      complete rest at an inn: hp back (none day 1, one every other day after); his clock moves on
 //   rumour {id}            the rounds of the taverns (10-60 gp + 1-10 gp): one rumour, marked on the known map if it names a hex
 //   shop   {id, buy|sell}  the market: buy at cost, sell at half (finished characters, in a village with a market)
+//   stow   {id, item|gp}   at an inn: one of an item, or gold, into the strongbox the innkeeper keeps for him there (v1.573.00)
+//   fetch  {id, item|gp}   and out of it again; what is in a strongbox is not carried, and is his estate if he dies
+//   heir   {id, name, relation}  the relative who inherits his estate (Book I, Relatives): named, changed, or with no name unnamed
 //   give   {id, to, item|gp}  hand one of an item, or gold, to a character standing with him: in the same village, or of
 //                          his party on the road (v1.569.00). What he may not use, he may not be handed (as at the shop).
 //   march  {id, order}     the marching order of characters standing together, front rank first (v1.570.00): each his own
@@ -59,7 +62,7 @@ export const worldPaths = (cid) => ({
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.571.00";
+export const SERVER_BUILD = "v1.573.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
@@ -223,7 +226,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       const many = ["move", "camp", "evade", "stand", "party"].includes(op);
       const ids = many && Array.isArray(data.ids) ? [...new Set(data.ids.filter((x) => ID.test(x ?? "")))].slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];
       if (!ids.length) return refuse("bad-request", "which character?");
-      const own = ["rest", "rumour", "shop", "give", "party"].includes(op);
+      const own = ["rest", "rumour", "shop", "give", "party", "stow", "fetch", "heir"].includes(op);
       for (const id of ids) {
         const ch = byId(id); if (!ch) return refuse("not-found", "no such character");
         if (own && !ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
@@ -331,6 +334,41 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         return { ok: true, cost, text: r.text };
       }
 
+      if (op === "heir") {
+        const ch = byId(ids[0]), text = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max), name = text(data.name, 40), relation = text(data.relation, 40);
+        put(ch.id, { ...ch, heir: name ? { name, relation: relation || "relative" } : null });
+        return { ok: true, character: { id: ch.id, ...byId(ch.id) } };
+      }
+      if (op === "stow" || op === "fetch") {
+        const ch = byId(ids[0]), h = hexOf(ch), place = placeAt(map.hexes, h);
+        if (!place || !placeInfo(place)?.inn || ch.doing !== "town") return refuse("bad-request", "there is no inn here to keep a strongbox");
+        const boxes = { ...(ch.strongbox ?? {}) }, box = { gp: boxes[place]?.gp ?? 0, items: (boxes[place]?.items ?? []).map((i) => ({ ...i })) }, has = ch.coins?.gp ?? 0;
+        let next = ch, what;
+        if (data.gp != null) {
+          const gp = Math.trunc(Number(data.gp)), from = op === "stow" ? has : box.gp;
+          if (!(gp >= 1)) return refuse("bad-request", "how much gold?");
+          if (gp > from) return refuse("bad-request", op === "stow" ? `he has ${has} gp` : `there are ${box.gp} gp in the strongbox`);
+          box.gp += op === "stow" ? gp : -gp; next = { ...ch, coins: { ...ch.coins, gp: has + (op === "stow" ? -gp : gp) } }; what = `${gp} gp`;
+        } else if (op === "stow") {
+          const index = Number(data.item), it = ch.items?.[index], e = it ? roster.SHOP.find((x) => x.key === it.key) ?? null : null;
+          if (!e) return refuse("bad-request", "put what in?");
+          const out = roster.sell(ch, index, { town: true }); if (!out.ok) return refuse("bad-request", out.error); // the shop's own way of taking one of a thing from his pack (and his hand)
+          next = { ...out.ch, coins: { ...out.ch.coins, gp: has } };
+          const same = box.items.find((i) => i.key === it.key); if (same) same.qty = (same.qty ?? 1) + 1; else box.items.push({ key: it.key, qty: 1 });
+          what = e.name;
+        } else {
+          const index = Number(data.item), it = box.items[index], e = it ? roster.SHOP.find((x) => x.key === it.key) ?? null : null;
+          if (!e) return refuse("bad-request", "take what out?");
+          const into = roster.buy({ ...ch, coins: { ...ch.coins, gp: has + e.cost } }, it.key, { town: true }); // as if bought, less the price: what he may not carry twice stays in the box
+          if (!into.ok) return refuse("bad-request", into.error);
+          next = { ...into.ch, coins: { ...into.ch.coins, gp: has } };
+          if ((it.qty ?? 1) > 1) it.qty -= 1; else box.items.splice(index, 1);
+          what = e.name;
+        }
+        if (box.gp > 0 || box.items.length) boxes[place] = box; else delete boxes[place];
+        put(ch.id, { ...next, strongbox: boxes });
+        return { ok: true, character: { id: ch.id, ...byId(ch.id) }, what };
+      }
       if (op === "give") {
         const ch = byId(ids[0]), to = ID.test(data.to ?? "") ? byId(data.to) : null;
         if (!to || to.id === ch.id || !P.travels(to) || to.status !== "ready") return refuse("bad-request", "give it to whom?");

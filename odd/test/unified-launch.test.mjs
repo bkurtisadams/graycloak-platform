@@ -94,7 +94,7 @@ test("a fight the game opened: found by the monster's key, and anyone in it goes
 
 test("village-ui.mjs loads on its own and gives the page what it draws the village with (v1.572.00)", async () => {
   const vg = await import("../village-ui.mjs");
-  for (const name of ["VILLAGE_SPOTS", "villageSpots", "villageSpotName", "villageSvg", "villageDoorsHtml", "villageMapHtml", "villageTokensHtml", "doorCardHtml", "innCardHtml", "tradePanelHtml", "villageDockHtml", "VILLAGE_CSS"]) assert.ok(vg[name] != null, `village-ui.mjs exports ${name}`);
+  for (const name of ["VILLAGE_SPOTS", "villageSpots", "villageSpotName", "villageSvg", "villageDoorsHtml", "villageMapHtml", "villageTokensHtml", "doorCardHtml", "innPanelHtml", "tradePanelHtml", "villageDockHtml", "VILLAGE_CSS"]) assert.ok(vg[name] != null, `village-ui.mjs exports ${name}`);
   assert.match(vg.villageSvg({ inn: "The Ox and Ford", market: true }), /The Ox and Ford[\s\S]*Market/);
   assert.doesNotMatch(vg.villageSvg({}), /Market<|innkeeper/, "a place with no inn or market is drawn without them");
   assert.match(vg.doorCardHtml("road", {}, "Langstead"), /Leave by the road/);

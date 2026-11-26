@@ -1,7 +1,7 @@
 // village-ui.mjs — the settlement scene's drawing and markup, with no page state (v1.572.00, 25 Nov 2026).
 // combat-grid.html keeps the state, the requests and the event binding; it hands these functions the place, the
 // characters and what the viewer may do (env), and gets strings back. Moved out of the page unchanged:
-// the village from above, its doors and tokens, the door and inn cards, the market's trade panel and the dock.
+// the village from above, its doors and tokens, the door card, the inn's panel, the market's trade panel and the dock.
 //
 // env: { rs (the rules package's roster), people (uid -> {name, color}), may(character) (the viewer may move him),
 //        busy (a request is out), view (the page's lobby.view), clsAbbr(character), grip (the drag handle's svg) }
@@ -68,17 +68,36 @@ export function doorCardHtml(k, place, placeName) {
   const sp = VILLAGE_SPOTS[k], says = { inn: "Rest and rumours. The innkeeper is at his door. Hiring and the strongbox come with a later pass.", market: "Stalls on the green: buy at Book I\u2019s prices, sell for half, and hand things to one another.", road: `Out of ${placeName}, onto the kingdom map.`, smith: "Not open yet: the smith comes with a later pass.", stable: "Not open yet: the stable comes with a later pass.", shrine: "Not open yet: the shrine comes with a later pass.", board: "Not open yet: notices and hiring come with a later pass." }[k];
   return `<h3>${esc(villageSpotName(k, place))} <small>${esc(sp.kind)}</small></h3><div class="note">${esc(says)}</div><div class="row">${k === "road" ? `<button type="button" class="primary" id="vgRoad">Leave by the road</button>` : `<button type="button" class="primary" id="vgGoIn" data-k="${k}" ${sp.open ? "" : "disabled"}>Go in</button>`}</div>`;
 }
-/** The inn's card: rest, the talk of the taverns, and hiring to come. */
-export function innCardHtml(env, c, place) {
-  const need = Math.max(0, (c.maxHp ?? 0) - (c.hp ?? 0)), toHeal = need * 2;
-  return `<h3>${esc(place.inn)} <small>inn \u00b7 ${esc(c.where ?? env.home)}</small></h3><div class="note">A long low house by the green. Rush-strewn floor, one fire, the ford's carters at the benches.</div>
-      <div class="w-act"><h4>Rest here</h4><div class="note">Complete rest: nothing the first day, then a hit point every other day: one after two days, two after four (Book III). ${need ? `${esc(c.name)} is at ${c.hp} of ${c.maxHp}: ${toHeal} days to heal fully.` : `${esc(c.name)} is at ${c.hp} of ${c.maxHp}; nothing to heal.`}</div>
-        <div class="row"><select id="wRestDays"><option value="1">a day</option><option value="3">3 days</option><option value="7">a week</option>${need ? `<option value="${toHeal}" selected>until healed (${toHeal} days)</option>` : ""}</select><button id="wRest" ${env.busy ? "disabled" : ""}>Rest</button></div></div>
-      <div class="w-act"><h4>Hear the talk</h4><div class="note">Buy a round (10\u201360 gp) and slip the barman a coin (1\u201310 gp): one rumour from the referee's list, true or not. What you hear goes to your chat.</div><div class="row"><button class="done" id="wRumour" ${env.busy || (c.coins?.gp ?? 0) < 11 ? "disabled" : ""}>Buy a round</button><span class="note">${(c.coins?.gp ?? 0) < 11 ? "not enough gold for a round" : "costs 1d6 \u00d7 10 + 1d10 gp"}</span></div></div>
-      <div class="w-act"><h4>Hire</h4><div class="note">Post a notice or send servitors round: 100\u2013600 gp a week. Comes with the hirelings pass.</div><div class="row"><button disabled>Post a notice</button></div></div>
-      <div class="row" style="justify-content:flex-end"><button id="wLeave">Step outside</button></div>`;
+/**
+ * The inn (approved mockup 25 Nov 2026, v1.573.00): one panel over the dimmed village. Rest, the talk of the taverns,
+ * the strongbox the innkeeper keeps for him, and his heir. Hiring men-at-arms is drawn with Book III's prices and
+ * comes with the next pass. env also gives heal(days) (hit points a rest of that many days regains) and dayOf(character).
+ */
+export function innPanelHtml(env, c, here, place, placeName) {
+  const v = env.view, busy = env.busy ? "disabled" : "", gp = c.coins?.gp ?? 0, mine = here.filter((x) => env.may(x));
+  const who = mine.map((x) => `<button type="button" class="tr-who${x.id === c.id ? " on" : ""}" data-tr-who="${esc(x.id)}" ${x.id === c.id ? 'aria-pressed="true"' : ""}>${esc(x.name)}</button>`).join("");
+  const nameOf = (key) => env.rs.EQUIPMENT_BY_KEY?.[key]?.name ?? env.rs.SHOP.find((x) => x.key === key)?.name ?? key;
+  const need = Math.max(0, (c.maxHp ?? 0) - (c.hp ?? 0)), days = Math.max(1, Math.min(60, Math.trunc(Number(v.restDays)) || (need ? need * 2 : 1))), heals = Math.min(env.heal(days), need);
+  const rest = `<div class="inn-box"><h4>Rest</h4><div class="note">Nothing the first day, then one hit point every other day. Resting here also ends a dungeon expedition.</div>
+    <div class="inn-row"><label for="innDays">Days</label><input id="innDays" type="number" min="1" max="60" value="${days}"><button type="button" class="primary" id="wRest" ${busy}>Rest</button><span class="note">${esc(c.name)} is at ${c.hp} of ${c.maxHp}.</span></div>
+    <div class="note">${days === 1 ? "A day" : `${days} days`}: ${esc(c.name)} heals ${heals || "nothing"}${heals && heals === need ? ", all he has lost," : ""} and his day moves on to ${env.dayOf(c) + days}.</div></div>`;
+  const rumours = `<div class="inn-box"><h4>Rumours</h4><div class="note">The rounds of the taverns: 10 to 60 gp and 1 to 10 gp more, for one rumour. One that names a place marks it on the map.</div>
+    <div class="inn-row"><button type="button" id="wRumour" ${env.busy || gp < 11 ? "disabled" : ""}>Buy a round</button>${gp < 11 ? `<span class="note">not enough gold for a round</span>` : ""}</div></div>`;
+  const hire = `<div class="inn-box"><h4>Hire men-at-arms</h4>${[["Light Foot", 2], ["Heavy Foot", 3], ["Archers", 5], ["Crossbowmen", 4]].map(([n, cost]) => `<div class="tr-row"><span class="tr-n">${n}</span><span class="tr-p">${cost} gp a month</span></div>`).join("")}
+    <div class="inn-row"><button type="button" disabled>Post a notice</button><span class="note">Notices cost 100 to 600 gp a week (Book III). Hiring comes with the next pass.</span></div></div>`;
+  const box = c.strongbox?.[placeName] ?? { gp: 0, items: [] };
+  const inBox = (box.gp ? `<div class="tr-row"><span class="tr-n">${box.gp} gp</span><label for="sbOutGp" class="sr">Gold to take out</label><input id="sbOutGp" type="number" min="1" max="${box.gp}" value="${box.gp}"><button type="button" id="sbOut" ${busy}>Take out</button></div>` : "")
+    + (box.items ?? []).map((it, i) => `<div class="tr-row"><span class="tr-n">${esc(nameOf(it.key))}${it.qty > 1 ? ` \u00d7${it.qty}` : ""}</span><button type="button" data-sb-out="${i}" ${busy}>Take out</button></div>`).join("");
+  const carried = (gp ? `<div class="tr-row"><span class="tr-n">${gp} gp</span><label for="sbInGp" class="sr">Gold to put in</label><input id="sbInGp" type="number" min="1" max="${gp}" value="${gp}"><button type="button" id="sbIn" ${busy}>Put in</button></div>` : "")
+    + (c.items ?? []).map((it, i) => `<div class="tr-row"><span class="tr-n">${esc(nameOf(it.key))}${it.qty > 1 ? ` \u00d7${it.qty}` : ""}</span><button type="button" data-sb-in="${i}" ${busy}>Put in</button></div>`).join("");
+  const h = c.heir, heir = v.heirEdit
+    ? `<div class="inn-heir"><label for="heirName">Heir\u2019s name</label><input id="heirName" type="text" maxlength="40" value="${esc(h?.name ?? "")}"><label for="heirRel">who he is to ${esc(c.name)}</label><input id="heirRel" type="text" maxlength="40" placeholder="his brother" value="${esc(h?.relation ?? "")}"><button type="button" class="primary" id="heirSave" ${busy}>Save</button><button type="button" id="heirCancel">Cancel</button></div>`
+    : `<div class="inn-heir"><div class="inn-heirsays">${h ? `<b>Heir: ${esc(h.name)}, ${esc(h.relation)}.</b> <span class="note">If ${esc(c.name)} dies, ${esc(h.name)} inherits his estate less 10% and starts at first level. What ${esc(c.name)} carried stays with his body.</span>` : `<b>No heir named.</b> <span class="note">A named relative inherits the estate less 10% and starts at first level. With no heir, what is left here is lost.</span>`}</div><button type="button" id="heirEdit" ${busy}>${h ? "Change heir" : "Name an heir"}</button></div>`;
+  const strong = `<div class="inn-box"><h4>Strongbox <small>kept by the innkeeper</small></h4><div class="sb-cols"><div class="sb-col"><div class="tr-cap">In the strongbox</div>${inBox || `<div class="note">Nothing.</div>`}</div><div class="sb-col"><div class="tr-cap">${esc(c.name)} carries</div>${carried || `<div class="note">Nothing.</div>`}</div></div>${heir}</div>`;
+  return `<div class="tr-veil"></div><section class="tr-panel inn-panel" aria-label="${esc(place.inn ?? "The inn")}">
+    <div class="tr-head"><h3>${esc(place.inn ?? "The inn")} <small>the inn \u00b7 ${esc(placeName)}</small></h3><div class="tr-whos">${who}</div><span class="tr-purse">${gp} gp</span><button type="button" class="primary" id="wLeave">Done</button></div>
+    <div class="inn-grid">${rest}${rumours}</div><div class="inn-grid">${hire}${strong}</div></section>`;
 }
-
 /**
  * The market (approved mockup 25 Nov 2026): one panel over the dimmed village. What the market sells at Book I's prices,
  * what the character carries (the traders give half; anything may be handed to a character standing with him), gold
@@ -115,6 +134,20 @@ export function villageDockHtml(env, c, g, placeName) {
 
 /** The styles of the trade panel, the doors and the dock (the page adds them to its own). */
 export const VILLAGE_CSS = `
+/* the inn's panel (approved mockup 25 Nov 2026) */
+.lobbystage .inn-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.lobbystage .inn-box { flex: 1 1 300px; min-width: 0; border: 1px solid #b7c7d2; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.lobbystage .inn-box h4 { margin: 0; font-size: 1.02rem; display: flex; align-items: baseline; gap: 8px; }
+.lobbystage .inn-box h4 small { font-family: var(--type); font-size: .7rem; font-weight: 400; color: var(--pencil); }
+.lobbystage .inn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .85rem; }
+.lobbystage .inn-panel input { width: 64px; font: inherit; font-size: .9rem; padding: 5px 8px; border: 1px solid #b7c7d2; border-radius: 6px; }
+.lobbystage .inn-panel input[type="text"] { width: 130px; }
+.lobbystage .inn-panel button:not(.tr-who) { font: inherit; font-size: .82rem; font-weight: 600; min-height: 32px; padding: 3px 12px; border: 1px solid #b7c7d2; border-radius: 6px; cursor: pointer; }
+.lobbystage .inn-panel button:disabled { opacity: .45; cursor: default; }
+.lobbystage .sb-cols { display: flex; flex-wrap: wrap; gap: 14px; }
+.lobbystage .sb-col { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lobbystage .inn-heir { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #b7c7d2; font-size: .85rem; }
+.lobbystage .inn-heir .inn-heirsays { flex: 1 1 200px; }
 /* the market's trade panel (approved mockup 25 Nov 2026) */
 .lobbystage .tr-veil { position: absolute; inset: 0; background: rgba(31,43,56,.45); z-index: 3; }
 .lobbystage .tr-panel { position: absolute; left: 5%; right: 5%; top: 50px; max-height: calc(100% - 150px); box-sizing: border-box; z-index: 4; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; background: var(--card); border: 1px solid var(--ink); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }

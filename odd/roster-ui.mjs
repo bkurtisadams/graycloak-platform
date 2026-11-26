@@ -172,7 +172,9 @@ export function sheetHtml(rs, ch, { tab = "sheet", canEdit, ref, people, me, edi
       <table class="rs-table"><thead><tr><th>Carried</th><th class="num">Weight</th></tr></thead><tbody>${items || `<tr><td colspan="2" class="note">Nothing.</td></tr>`}</tbody></table>
       <div class="rs-kv"><span>Coins</span><span>${n(ch.coins?.gp)} gp${ch.coins?.sp ? ` \u00b7 ${n(ch.coins.sp)} sp` : ""}${ch.coins?.cp ? ` \u00b7 ${n(ch.coins.cp)} cp` : ""}</span>
       <span>Load</span><span><b>${n(sh.load)}</b> \u00b7 move ${sh.move}\u2033${enc.nextMove && enc.headroom != null ? `<br><span class="note">${n(enc.headroom)} more before ${enc.nextMove}\u2033</span>` : enc.over ? `<br><span class="rs-warn">over the 3,000 most a man can carry</span>` : ""}</span></div>
-      <div class="rs-foot">Load counts armour, weapons, a pack and sundries (80) and what he carries; coins weigh 1 each (Men & Magic p.15). Buying more comes with towns.</div></div>`;
+      <div class="rs-kv"><span>Heir</span><span>${ch.heir ? `${esc(ch.heir.name)}, ${esc(ch.heir.relation)} <span class="note">inherits his estate less 10%, and starts at first level</span>` : `None named. <span class="note">An heir is named at an inn.</span>`}</span>
+      <span>Estate</span><span>${Object.entries(ch.strongbox ?? {}).map(([place, box]) => `${esc(place)}: ${[box.gp ? `${n(box.gp)} gp` : "", ...(box.items ?? []).map((it) => `${esc(rs.SHOP.find((x) => x.key === it.key)?.name ?? it.key)}${it.qty > 1 ? ` \u00d7${it.qty}` : ""}`)].filter(Boolean).join(", ")}`).join("<br>") || `Nothing left in a strongbox. <span class="note">What he carries stays with his body if he dies.</span>`}</span></div>
+      <div class="rs-foot">Load counts armour, weapons, a pack and sundries (80) and what he carries; coins weigh 1 each (Men & Magic p.15). What is in a strongbox is not carried.</div></div>`;
   }
   if (tab === "notes") {
     return `${tabs}${err}<div class="rs-pad">

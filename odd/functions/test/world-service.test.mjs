@@ -344,3 +344,22 @@ test("meeting: whoever is behind is moved up to the other's day; the company's t
   r = await g.call("bob", { op: "spots", id: a, spots: [{ id: a, x: 300, y: 300 }, { id: c, x: 326, y: 300 }] });
   assert.match(r.error, /not your character/); assert.deepEqual(ch(a).spot, { x: 100, y: 120 }, "one refused: nobody moved");
 });
+
+test("the strongbox at the inn, and the heir: what is put away isn't carried, and comes out again (v1.573.00)", async () => {
+  const g = game(); const id = await brom(g, "bob", "Brom"), ann = await brom(g, "ann", "Ada");
+  const ch = () => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  const gold = ch().coins.gp, i = ch().items.findIndex((x) => x.key === "sword");
+  let r = await g.call("bob", { op: "stow", id, gp: 5 }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch().coins.gp, gold - 5); assert.deepEqual(ch().strongbox, { Langstead: { gp: 5, items: [] } });
+  r = await g.call("bob", { op: "stow", id, item: i }); assert.equal(r.ok, true, r.error); assert.equal(r.what, "Sword");
+  assert.ok(!ch().items.some((x) => x.key === "sword")); assert.deepEqual(ch().strongbox.Langstead.items, [{ key: "sword", qty: 1 }]); assert.equal(ch().coins.gp, gold - 5, "no gold changes hands");
+  assert.match((await g.call("bob", { op: "fetch", id, gp: 99 })).error, /5 gp in the strongbox/);
+  assert.match((await g.call("ann", { op: "fetch", id, gp: 1 })).error, /not your character/);
+  r = await g.call("bob", { op: "fetch", id, item: 0 }); assert.equal(r.ok, true, r.error); assert.ok(ch().items.some((x) => x.key === "sword"));
+  r = await g.call("bob", { op: "fetch", id, gp: 5 }); assert.equal(r.ok, true, r.error); assert.equal(ch().coins.gp, gold); assert.deepEqual(ch().strongbox, {}, "an empty box is no box");
+  r = await g.call("bob", { op: "heir", id, name: "  Brand ", relation: "his brother" }); assert.equal(r.ok, true, r.error); assert.deepEqual(ch().heir, { name: "Brand", relation: "his brother" });
+  r = await g.call("bob", { op: "heir", id, name: "" }); assert.equal(ch().heir ?? null, null, "no name: no heir");
+  // no inn, no strongbox
+  g.store.docs.set(`oddCampaigns/c1/characters/${id}`, { ...ch(), doing: "road", hex: { q: 1, r: -1 }, where: "clear" });
+  assert.match((await g.call("bob", { op: "stow", id, gp: 1 })).error, /no inn here/);
+});
