@@ -175,6 +175,23 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .sb-grp { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 8px 14px 2px; font-size: .82rem; color: var(--pencil); }
 .sb-grp b { color: var(--ink); } .sb-grp span { font-family: var(--type); font-size: .75rem; }
 .ac-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 0 4px 14px; cursor: pointer; }
+/* the parties in the Actors tab (approved mockup 25 Nov 2026) */
+.pt-wrap { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.pt-cap { font-family: var(--type); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--pencil); }
+.pt-card { border: 1px solid var(--ink); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.pt-card.over, .pt-new.over { border-color: #c98a2b; box-shadow: inset 0 0 0 2px #c98a2b; }
+.pt-h { display: flex; align-items: baseline; gap: 8px; } .pt-h b { flex: 1 1 auto; font-size: .95rem; } .pt-h span { font-family: var(--type); font-size: 11px; color: var(--pencil); white-space: nowrap; }
+.pt-row { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 4px 4px 10px; border: 1px solid #b7c7d2; border-radius: 6px; background: var(--card); cursor: pointer; }
+.pt-row[draggable] { cursor: grab; } .pt-row.drag { opacity: .45; } .pt-row:hover, .pt-row:focus-visible { background: var(--floor); outline: none; }
+.pt-row .mo-grip { flex: none; fill: var(--pencil); } .pt-row .pt-nogrip { width: 10px; flex: none; }
+.pt-row .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pt-row .pt-n { flex: 1 1 auto; min-width: 0; font-size: .9rem; } .pt-row .pt-n small { font-family: var(--type); font-size: 11px; color: var(--pencil); }
+.pt-leads { font-family: var(--type); font-size: 11px; border: 1px solid var(--ink); border-radius: 4px; padding: 0 5px; }
+.pt-lead { font: inherit; font-size: .8rem; font-weight: 600; min-height: 30px; padding: 2px 10px; border: 1px solid #b7c7d2; border-radius: 6px; cursor: pointer; }
+.pt-new { border: 2px dashed #9fb2c0; border-radius: 8px; padding: 14px; text-align: center; font-size: .82rem; color: var(--pencil); }
+.pt-note { font-size: .82rem; }
+.pt-else { border: 1px solid #b7c7d2; border-radius: 8px; padding: 8px 10px; } .pt-else summary { cursor: pointer; font-size: .9rem; } .pt-else summary small { font-family: var(--type); font-size: 11px; color: var(--pencil); }
+.pt-else[open] { display: flex; flex-direction: column; gap: 6px; } .pt-else[open] summary { margin-bottom: 6px; }
 .ac-row:hover, .ac-row:focus-visible { background: var(--floor); outline: none; }
 .ac-row.limited { cursor: default; }
 .ac-tok { width: 34px; height: 34px; flex: none; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); color: #fbfdfe; display: flex; align-items: center; justify-content: center; font: 700 14px var(--type); }
@@ -1568,12 +1585,14 @@ function setCrumb(parts) {
   const el = $("#crumb"); if (!el) return;
   el.hidden = !parts?.length; el.innerHTML = (parts ?? []).map((t) => esc(t)).join("<i>\u203a</i>");
   renderDay();
+  if (rosterReady) renderRoster(); // the Actors tab lists the parties where the scene is
 }
 /**
  * The campaign day (v1.565.00, Book III: a week of actual time is a week of game time): the game's clock {day, at} and
  * a day more for every day of actual time since. A character in town or underground is carried on by it; one out in
  * the wilderness keeps his own count of days.
  */
+let rosterReady = false;
 const DAY_MS = 86400000;
 const campDay = (g = table.game) => (g?.clock ? g.clock.day + Math.max(0, Math.floor((Date.now() - g.clock.at) / DAY_MS)) : g?.day ?? 1);
 const charDay = (c) => (c.day == null ? campDay() : !c.under && (c.doing === "road" || c.doing === "encounter") ? c.day : Math.max(c.day, campDay()));
@@ -1790,9 +1809,9 @@ const villageSpotName = (k, place) => (k === "inn" ? place.inn ?? "The inn" : k 
 const villageSpots = (place) => Object.entries(VILLAGE_SPOTS).filter(([k]) => (k === "inn" || k === "market" ? !!place[k] : true));
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.570.00";
+const BUILD = "v1.571.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.570.00";
+const SERVER_NEEDED = "v1.571.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -1881,13 +1900,13 @@ function villageHtml(c, uid) {
 /** Who is in the settlement with this character, and may be moved by this viewer. */
 const villageHere = (placeName) => table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === placeName);
 /**
- * Who walks with a character in the village (v1.570.00): his party if others of it are here, else his player's own
- * characters here (the company that leaves by the road together), in marching order. Only those this viewer may move.
+ * Who walks with a character in the village: his party, and only his party (v1.571.00: a party is who its members say
+ * it is, one alone included; the Actors tab is where characters join and leave). In marching order, and only those
+ * this viewer may move.
  */
 function villageGroup(c, uid, placeName) {
   const here = villageHere(placeName), pid = (x) => x.party ?? x.id, may = (x) => !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER;
-  let g = here.filter((x) => pid(x) === pid(c)); if (g.length < 2) g = here.filter((x) => x.owner === c.owner);
-  g = g.filter(may); if (!g.some((x) => x.id === c.id)) g.unshift(c);
+  let g = here.filter((x) => pid(x) === pid(c)).filter(may); if (!g.some((x) => x.id === c.id)) g.unshift(c);
   return g.map((x, i) => [x, i]).sort((a, b) => (a[0].march ?? 1e6) - (b[0].march ?? 1e6) || a[1] - b[1]).map(([x]) => x);
 }
 /** The dock under the village (the mockup's): the company by rank, the hint, and the road out. */
@@ -1899,15 +1918,19 @@ function villageDockHtml(c, uid, placeName) {
   };
   const names = ["Front rank", "Second rank", "Third rank", "Fourth rank", "Fifth rank"], ranks = []; g.forEach((m, i) => (ranks[Math.floor(i / 3)] ??= []).push(m));
   const chips = multi ? ranks.map((row, r) => `<div class="mo-rank"><div class="mo-h">${names[r] ?? `Rank ${r + 1}`}</div><div class="mo-row">${row.map(chip).join("")}</div></div>`).join("") : g.map(chip).join("");
-  const note = multi ? "Click to walk; the party follows its leader. The people of the village stand on the map, and so do other players\u2019 characters." : "Click to walk. The people of the village stand on the map, and so do other players\u2019 characters.";
+  const note = multi ? "Click to walk; the party follows its leader. The people of the village stand on the map, and so do other players\u2019 characters." : "Click to walk. He is alone: parties are made in the Actors tab, by dragging one character onto another.";
   return `<div class="ps-strip dv-dock vg-dock">${chips}<span class="dv-note">${note}</span><span class="dv-acts"><button type="button" id="wLeaveScene" title="Out of ${esc(placeName)}, onto the kingdom map" ${world.busy ? "disabled" : ""}>Leave by the road</button></span></div>`;
 }
 /** The company walks: the one acted for goes to the spot, the rest fall in behind him along the way he came. */
 function villageWalk(c, uid, placeName, to) {
   const g = villageGroup(c, uid, placeName), from = c.spot ?? to, dx = from.x - to.x, dy = from.y - to.y, n = Math.hypot(dx, dy) || 1, ux = n > 1 ? dx / n : -0.7, uy = n > 1 ? dy / n : 0.7;
-  [c, ...g.filter((x) => x.id !== c.id)].forEach((m, i) => {
-    const at = { x: Math.round(Math.max(12, Math.min(848, to.x + ux * 26 * i))), y: Math.round(Math.max(12, Math.min(668, to.y + uy * 26 * i))) };
-    m.spot = at; online.api.world("spot", table.cid, { id: m.id, x: at.x, y: at.y });
+  const walkers = [c, ...g.filter((x) => x.id !== c.id)], was = walkers.map((m) => m.spot ?? null);
+  const spots = walkers.map((m, i) => ({ id: m.id, x: Math.round(Math.max(12, Math.min(848, to.x + ux * 26 * i))), y: Math.round(Math.max(12, Math.min(668, to.y + uy * 26 * i))) }));
+  walkers.forEach((m, i) => { m.spot = { x: spots[i].x, y: spots[i].y }; });
+  // one request for the whole company (v1.571.00): the server places every token or none, and a refusal puts them back
+  Promise.resolve(online.api.world("spots", table.cid, { id: c.id, spots })).then((r) => {
+    if (r?.ok !== false) return;
+    walkers.forEach((m, i) => { const x = charOf(m.id); if (x) x.spot = was[i]; }); world.error = r.error ?? "They couldn\u2019t walk there."; renderLobbyStage();
   });
 }
 /** The doors on the map: a spot to click at each (or, for the referee looking in, only to read). */
@@ -1958,9 +1981,7 @@ ${place.inn ? man(424, 392, "I", "The innkeeper") : ""}${place.market ? man(566,
 /** Out of the settlement: the viewer's own characters there leave together as one party, onto the kingdom map. */
 async function leaveScene(c, uid) {
   if (!c) { openWorld(null); return; }
-  const place = c.where ?? world.home, mine = table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === place && x.owner === c.owner && x.id !== c.id && (!PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER));
-  if (mine.length && !confirm(`${c.name} leaves ${place} with ${mine.map((x) => x.name).join(" and ")}?\n\nOK: they go together as one party. Cancel: nobody leaves.`)) return;
-  if (mine.length) { const j = await worldOp("party", { ids: mine.map((x) => x.id), with: c.id }); if (!j.ok) return; }
+  const place = c.where ?? world.home; // his party goes with him, and nobody else (v1.571.00): others join in the Actors tab first
   const r = await worldOp("enter", { id: c.id, place: "road" });
   if (r.ok) { world.vb = null; world.msg = `Out of ${place}. Drag the party\u2019s token to a lit hex to travel.`; lobby.view = { id: c.id, at: null, dest: null, who: null }; refreshParties(); renderLobbyStage(); }
 }
@@ -4167,23 +4188,72 @@ const iRef = () => TABLE && isRefOf(table.game, meUid());
 /** The Actors tab (approved mockup 18 Nov 2026): one row per character under where he is and what he's doing. A click opens the sheet; the three dots hold the rest. */
 function renderRoster() {
   const el = $("#actorsList"), g = table.game; if (!el) return;
+  rosterReady = true;
   if (!TABLE || !g) { el.innerHTML = ""; return; }
   const uid = meUid(), ref = iRef(), q = table.adSearch.trim().toLowerCase();
-  const groupOf = (c) => c.status === "draft" ? "Being rolled" : c.doing === "dead" || (c.hp ?? 1) <= 0 ? "Dead" : `${c.where ?? world.home} · ${c.doing === "encounter" ? "an encounter" : doingOf(c).split(" · ")[0]}`;
-  const rank = (k) => (k === "Being rolled" ? 1 : k === "Dead" ? 2 : 0), nameOf = (u) => g.people?.[u]?.name ?? "";
-  const groups = new Map();
-  for (const c of table.chars.filter((c) => !q || (c.name || "").toLowerCase().includes(q)).sort((a, b) => nameOf(a.owner).localeCompare(nameOf(b.owner)) || (a.name || "~").localeCompare(b.name || "~"))) { const k = groupOf(c); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+  const alive = (c) => c.status === "ready" && c.doing !== "dead" && (c.hp ?? 1) > 0, nameOf = (u) => g.people?.[u]?.name ?? "";
+  const shown = table.chars.filter((c) => !q || (c.name || "").toLowerCase().includes(q));
   const row = (c) => {
     const lvl = ref ? 3 : rs.levelOf(c, uid), p = g.people?.[c.owner] ?? {}, draft = c.status === "draft", sh = draft || lvl < 2 ? null : rs.sheetFor(c);
     const pct = c.maxHp ? Math.max(0, Math.min(100, Math.round(((c.hp ?? 0) / c.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
-    const tip = lvl < 2 ? "Limited: you see his name only" : draft ? "Still being rolled" : `${sh.classLabel} ${c.level ?? 1} · ${sh.alignLabel} · ${sh.title} · xp ${(c.xp ?? 0).toLocaleString()}${sh.nextXp ? ` of ${sh.nextXp.toLocaleString()}` : ""} · ${c.coins?.gp ?? 0} gp. Click for the sheet.`;
+    const tip = lvl < 2 ? "Limited: you see his name only" : draft ? "Still being rolled" : `${sh.classLabel} ${c.level ?? 1} \u00b7 ${sh.alignLabel} \u00b7 ${sh.title} \u00b7 xp ${(c.xp ?? 0).toLocaleString()}${sh.nextXp ? ` of ${sh.nextXp.toLocaleString()}` : ""} \u00b7 ${c.coins?.gp ?? 0} gp. Click for the sheet.`;
     return `<div class="ac-row${draft ? " draft" : ""}${lvl < 2 ? " limited" : ""}" data-actor="${esc(c.id)}" tabindex="0" title="${esc(tip)}"><span class="ac-tok" style="background:${esc(p.color ?? "#7b8794")}">${esc((c.name || "?").trim().slice(0, 2))}</span>
       <span class="ac-body"><span><b>${esc(c.name || "New character")}</b>${sh ? `<small>${esc(sh.classLabel)} ${c.level ?? 1}</small>` : draft ? `<small>rolling</small>` : ""}</span><span class="ac-sub">${esc(p.name ?? "Player")}${c.owner === uid ? " (you)" : ""}${draft || c.doing === "dead" ? "" : ` \u00b7 day ${charDay(c)}`}</span></span>
-      ${sh ? `<span class="ac-hp">${c.hp}/${c.maxHp}<span class="ac-bar"><i class="${tone}" style="width:${pct}%"></i></span></span>` : ""}<button type="button" class="ac-kebab" data-ac-menu="${esc(c.id)}" aria-label="Actions for ${esc(c.name || "this character")}" title="Actions"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="13" r="1.5" fill="currentColor"/></svg></button></div>`;
+      ${sh ? `<span class="ac-hp">${c.hp}/${c.maxHp}<span class="ac-bar"><i class="${tone}" style="width:${pct}%"></i></span></span>` : ""}${KEBAB(c)}</div>`;
   };
-  el.innerHTML = (lobby.error ? `<div class="note bad">${esc(lobby.error)}</div>` : "") + ([...groups.entries()].sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b)).map(([k, list]) => `<div class="sb-grp"><b>${esc(k)}</b><span>${list.length} character${list.length === 1 ? "" : "s"}</span></div>${list.map(row).join("")}`).join("")
-    || `<div class="note">${q ? "No character by that name." : ref ? "No characters yet. Players roll their own; the join link is under Settings." : "No characters yet. Roll one."}</div>`);
+  /* The parties (approved mockup 25 Nov 2026): a card to each party where the scene is, its members in marching order;
+     a character is dragged onto a party to join it, or onto the new party to go apart. Parties elsewhere fold under their place. */
+  const areaOf = (c) => (c.under ? `u|${c.under.lid}` : `h|${hexKeyOf(c)}`), spotOf = (c) => (c.under ? `${areaOf(c)}|${c.under.x},${c.under.y}` : areaOf(c)), pidOf = (c) => c.party ?? c.id;
+  const byParty = new Map(); for (const c of shown.filter(alive)) { const k = `${pidOf(c)}|${spotOf(c)}`; if (!byParty.has(k)) byParty.set(k, []); byParty.get(k).push(c); }
+  const parties = [...byParty.values()].map((list) => {
+    const members = list.map((c, i) => [c, i]).sort((a, b) => (a[0].march ?? 1e6) - (b[0].march ?? 1e6) || (a[0].createdAt ?? 0) - (b[0].createdAt ?? 0) || a[1] - b[1]).map(([c]) => c);
+    const leader = members.find((c) => c.id === pidOf(c)) ?? members.slice().sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
+    return { leader, members, area: areaOf(leader), where: leader.where ?? world.home, under: !!leader.under, day: Math.max(...members.map(charDay)) };
+  }).sort((a, b) => (a.leader.name ?? "").localeCompare(b.leader.name ?? ""));
+  const acting = lobby.view?.id ? charOf(lobby.view.id) : null, hereArea = acting && alive(acting) ? areaOf(acting) : null, busy = world.busy || delve.busy;
+  const RANKS = ["front rank", "second rank", "third rank", "fourth rank", "fifth rank"], may = (c) => ref || rs.levelOf(c, uid) >= rs.OWNERSHIP.OWNER;
+  const ptRow = (pt, c, i, live) => {
+    const lvl = ref ? 3 : rs.levelOf(c, uid), p = g.people?.[c.owner] ?? {}, multi = pt.members.length > 1, lead = c.id === pt.leader.id;
+    const sub = lvl < 2 ? esc(p.name ?? "") : `${esc(clsAbbr(c))} ${c.level ?? 1} \u00b7 ${multi ? RANKS[Math.floor(i / 3)] ?? `rank ${Math.floor(i / 3) + 1}` : esc(p.name ?? "Player")}`;
+    const drag = live && may(c) && !busy && !c.encounter && c.doing !== "encounter";
+    return `<div class="pt-row${lvl < 2 ? " limited" : ""}" data-actor="${esc(c.id)}" tabindex="0" ${drag ? 'draggable="true"' : ""} title="${esc(c.name)}: click for the sheet${drag ? "; drag onto a party to join it" : ""}">${drag ? MO_GRIP : `<span class="pt-nogrip"></span>`}<span class="dot" style="background:${esc(p.color ?? "#7b8794")}"></span><span class="pt-n"><b>${esc(c.name || "?")}</b> <small>${sub}</small></span>${multi ? (lead ? `<span class="pt-leads">leads</span>` : live && (ref || rs.levelOf(pt.leader, uid) >= rs.OWNERSHIP.OWNER) ? `<button type="button" class="pt-lead" data-pt-lead="${esc(c.id)}" ${busy ? "disabled" : ""} title="Hand the lead to ${esc(c.name)}">Lead</button>` : "") : ""}${KEBAB(c)}</div>`;
+  };
+  const ptCard = (pt, live) => `<div class="pt-card" data-pt="${esc(pt.leader.id)}"><div class="pt-h"><b>${pt.members.length > 1 ? `${esc(pt.leader.name)}\u2019s party` : esc(pt.leader.name)}</b><span>${pt.members.length > 1 ? pt.members.length : "alone"} \u00b7 day ${pt.day}</span></div>${pt.members.map((c, i) => ptRow(pt, c, i, live)).join("")}</div>`;
+  const areas = new Map(); for (const pt of parties) { if (!areas.has(pt.area)) areas.set(pt.area, []); areas.get(pt.area).push(pt); }
+  const headOf = (list) => `Parties ${list[0].under || list[0].leader.doing === "town" ? "in" : "at"} ${list[0].where}`;
+  const hereHtml = (list) => `<div class="pt-cap">${esc(headOf(list))}</div>${list.map((pt) => ptCard(pt, true)).join("")}<div class="pt-new" data-pt-new="1">A new party: drop a character here</div><div class="note pt-note">Drag a character onto a party to join it, or onto the new party to set out apart. Only characters standing together can join. The order within a party is its marching order.</div>`;
+  const elseHtml = (list) => list.map((pt) => `<details class="pt-else"><summary><b>${pt.members.length > 1 ? `${esc(pt.leader.name)}\u2019s party` : esc(pt.leader.name)}</b> <small>${pt.members.length > 1 ? `${pt.members.length} \u00b7 ` : ""}${esc(pt.where)} \u00b7 day ${pt.day}</small></summary>${pt.members.map((c, i) => ptRow(pt, c, i, false)).join("")}</details>`).join("");
+  const here = (hereArea ? areas.get(hereArea) ?? [] : []).slice().sort((x, y) => y.members.some((m) => m.id === acting.id) - x.members.some((m) => m.id === acting.id)), rest = [...areas.entries()].filter(([k]) => k !== hereArea).map(([, list]) => list);
+  const partiesHtml = (here.length ? hereHtml(here) : "") + (rest.length ? `<div class="pt-cap">${here.length ? "Elsewhere" : "Parties"}</div>${rest.map(elseHtml).join("")}` : "");
+  const others = [["Being rolled", shown.filter((c) => c.status === "draft")], ["Dead", shown.filter((c) => c.status !== "draft" && !alive(c))]].filter(([, list]) => list.length)
+    .map(([k, list]) => `<div class="sb-grp"><b>${k}</b><span>${list.length} character${list.length === 1 ? "" : "s"}</span></div>${list.sort((a, b) => nameOf(a.owner).localeCompare(nameOf(b.owner)) || (a.name || "~").localeCompare(b.name || "~")).map(row).join("")}`).join("");
+  el.innerHTML = (lobby.error ? `<div class="note bad">${esc(lobby.error)}</div>` : "") + ((partiesHtml || others) ? `<div class="pt-wrap">${partiesHtml}</div>${others}`
+    : `<div class="note">${q ? "No character by that name." : ref ? "No characters yet. Players roll their own; the join link is under Settings." : "No characters yet. Roll one."}</div>`);
+  // joining, going apart, the marching order and the lead
+  const partyOp = (c, ids, withId) => (c.under ? delveOp("delveParty", { ids, ...(withId ? { with: withId } : {}) }) : worldOp("party", { ids, ...(withId ? { with: withId } : {}) }));
+  el.querySelectorAll("[data-pt-lead]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); const c = charOf(b.dataset.ptLead); if (c) (c.under ? delveOp("delveLead", { id: c.id }) : worldOp("lead", { id: c.id })); }));
+  el.querySelectorAll(".pt-row[draggable]").forEach((r) => {
+    r.addEventListener("dragstart", (ev) => { lobby.dragPt = r.dataset.actor; ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", r.dataset.actor); r.classList.add("drag"); });
+    r.addEventListener("dragend", () => { lobby.dragPt = null; el.querySelectorAll(".drag, .over").forEach((x) => x.classList.remove("drag", "over")); });
+  });
+  el.querySelectorAll(".pt-wrap .pt-card, .pt-new").forEach((box) => {
+    if (box.closest(".pt-else")) return;
+    box.addEventListener("dragover", (ev) => { if (lobby.dragPt) { ev.preventDefault(); box.classList.add("over"); } });
+    box.addEventListener("dragleave", (ev) => { if (!box.contains(ev.relatedTarget)) box.classList.remove("over"); });
+    box.addEventListener("drop", (ev) => {
+      ev.preventDefault(); box.classList.remove("over"); const id = lobby.dragPt, c = id ? charOf(id) : null; lobby.dragPt = null; if (!c) return;
+      if (box.dataset.ptNew) { if (here.find((pt) => pt.members.some((m) => m.id === id))?.members.length > 1) partyOp(c, [id], null); return; }
+      const pt = here.find((x) => x.leader.id === box.dataset.pt); if (!pt) return;
+      if (!pt.members.some((m) => m.id === id)) { partyOp(c, [id], pt.leader.id); return; }
+      // within his own party: the marching order, dropped before the row he lands on (after it, on its lower half)
+      const onRow = ev.target.closest?.(".pt-row"), ids = pt.members.map((m) => m.id).filter((x) => x !== id); if (!onRow || onRow.dataset.actor === id) return;
+      const rb = onRow.getBoundingClientRect(); ids.splice(ids.indexOf(onRow.dataset.actor) + (ev.clientY > rb.top + rb.height / 2 ? 1 : 0), 0, id);
+      ids.forEach((x, n) => { const m = charOf(x); if (m) m.march = n; });
+      if (c.under) delveOp("delveMarch", { id: pt.leader.id, order: ids }); else { online.api.world("march", table.cid, { id, order: ids }); renderLobbyStage(); }
+    });
+  });
 }
+const KEBAB = (c) => `<button type="button" class="ac-kebab" data-ac-menu="${esc(c.id)}" aria-label="Actions for ${esc(c.name || "this character")}" title="Actions"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="3" r="1.5" fill="currentColor"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/><circle cx="8" cy="13" r="1.5" fill="currentColor"/></svg></button>`;
 /** What an owner can do with his character from the three dots, ahead of Foundry's own items. */
 function actorActsHtml(c) {
   if (!c || rs.levelOf(c, meUid()) < rs.OWNERSHIP.OWNER) return "";

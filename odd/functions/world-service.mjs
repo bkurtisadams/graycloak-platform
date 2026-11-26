@@ -27,6 +27,7 @@
 //                          his party on the road (v1.569.00). What he may not use, he may not be handed (as at the shop).
 //   march  {id, order}     the marching order of characters standing together, front rank first (v1.570.00): each his own
 //                          player's, or the referee's, to place. It goes with them onto the road and underground.
+//   spots  {id, spots}     the company's tokens moved together on the settlement's map, all or none (v1.571.00)
 //   spot   {id, x, y}        where his token stands on the settlement's map (dragged in the town scene).
 //   enter  {id, place}     into the village he stands in (where = place, doing = town) or out onto the road (doing = road);
 //                          the whole party if he leads it
@@ -58,7 +59,7 @@ export const worldPaths = (cid) => ({
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.570.00";
+export const SERVER_BUILD = "v1.571.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
@@ -107,6 +108,11 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
    * underground, so the campaign day carries them on; one out in the wilderness keeps his own count of days.
    */
   const dayOf = (ch, campDay) => (ch.day == null ? campDay : !ch.under && (ch.doing === "road" || ch.doing === "encounter") ? ch.day : Math.max(ch.day, campDay));
+  /**
+   * Kurt (25 Nov 2026), on Book III's reconciling of time: when characters trade, join a party or otherwise meet, whoever
+   * is behind is moved up to the other's day. Nobody acts in another's past, and nothing is refused.
+   */
+  const dayTogether = (list, campDay) => Math.max(...list.map((c) => dayOf(c, campDay)));
   const ownersOf = (list) => [...new Set(list.map((c) => c.owner).filter(Boolean))];
   const sOf = (list) => (list.length === 1 ? "s" : "");
 
@@ -237,7 +243,8 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const g = P.regroup(above(), ids, target ? target.id : null, hk);
         if (!g.ok) return refuse("bad-request", g.error);
         for (const [id, pid] of Object.entries(g.set)) put(id, { ...byId(id), party: pid });
-        const now2 = partyHolding(ids[0]);
+        const now2 = partyHolding(ids[0]), met = dayTogether(now2.members, day0);
+        for (const m of now2.members) if ((m.day ?? null) !== met) put(m.id, { ...byId(m.id), day: met }); // they travel together from the later one's day
         log(tx, p, camp, target ? `${nameList(movers)} joined ${now2.leader.name}'s party.` : movers.length === 1 ? `${movers[0].name} went his own way.` : `${nameList(movers)} set off as a party of their own, ${movers[0].name} leading.`, null, { kind: "party" });
         return done({ ok: true, party: g.party });
       }
@@ -261,6 +268,17 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         }
         order.forEach((id, i) => put(id, { ...byId(id), march: i }));
         return done({ ok: true, order });
+      }
+      if (op === "spots") { // the company walks: every token placed in the one transaction, or none
+        const first = byId(ids[0]), list = (Array.isArray(data.spots) ? data.spots : []).slice(0, 24), n = (v, max) => Math.max(0, Math.min(max, Math.round(Number(v)) || 0));
+        if (!list.length) return refuse("bad-request", "who walks where?");
+        for (const s of list) {
+          const ch = ID.test(s?.id ?? "") ? byId(s.id) : null;
+          if (!ch || ch.doing !== "town" || ch.under || hk(ch) !== hk(first)) return refuse("bad-request", "they aren't together in a settlement");
+          if (!ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
+        }
+        for (const s of list) put(s.id, { ...byId(s.id), spot: { x: n(s.x, 860), y: n(s.y, 680) } });
+        return done({ ok: true });
       }
       if (op === "spot") { // where his token stands on the settlement's map (a drag in the town scene)
         const one = byId(ids[0]);
@@ -334,6 +352,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
           if (!into.ok) return refuse("bad-request", `${to.name}: ${into.error}`);
           giver = { ...out.ch, coins: { ...out.ch.coins, gp: ch.coins?.gp ?? 0 } }; taker = { ...into.ch, coins: { ...into.ch.coins, gp: to.coins?.gp ?? 0 } }; what = e.name;
         }
+        const met = dayTogether([ch, to], day0); giver = { ...giver, day: met }; taker = { ...taker, day: met }; // they met to do it: the one behind is moved up
         put(ch.id, giver); put(to.id, taker);
         if ((ch.owner ?? null) !== (to.owner ?? null)) log(tx, p, camp, `${ch.name} gave ${to.name} ${what}.`, null, { kind: "party" });
         return { ok: true, character: { id: ch.id, ...giver }, other: { id: to.id, ...taker }, gave: what };

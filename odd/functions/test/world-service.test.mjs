@@ -328,3 +328,19 @@ test("the marching order in a village: each player places his own, and two days'
   g.store.docs.set(`oddCampaigns/c1/characters/${a}`, { ...ch(a), hp: 1, maxHp: 6 });
   r = await g.call("bob", { op: "rest", id: a, days: 2 }); assert.equal(r.healed, 1, "one point after the second day");
 });
+
+test("meeting: whoever is behind is moved up to the other's day; the company's tokens move together or not at all (v1.571.00)", async () => {
+  const g = game(); const a = await brom(g, "bob", "Brom"), b = await brom(g, "bob", "Leal"), c = await brom(g, "ann", "Ada");
+  const ch = (id) => g.store.docs.get(`oddCampaigns/c1/characters/${id}`), set = (id, more) => g.store.docs.set(`oddCampaigns/c1/characters/${id}`, { ...ch(id), ...more });
+  set(a, { day: 12 }); set(b, { day: 19 });
+  let r = await g.call("bob", { op: "give", id: a, to: b, gp: 1 }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch(a).day, 19, "the giver was behind: he is moved up"); assert.equal(ch(b).day, 19);
+  set(c, { day: 30 });
+  r = await g.call("ann", { op: "party", ids: [c], with: a }); assert.equal(r.ok, true, r.error);
+  assert.equal(ch(a).day, 30, "joined by one who is ahead, the party goes on from her day"); assert.equal(ch(c).day, 30);
+  assert.equal(ch(b).day, 19, "Leal is no part of that party: his day stands");
+  r = await g.call("bob", { op: "spots", id: a, spots: [{ id: a, x: 100, y: 120 }, { id: b, x: 126, y: 120 }] }); assert.equal(r.ok, true, r.error);
+  assert.deepEqual([ch(a).spot, ch(b).spot], [{ x: 100, y: 120 }, { x: 126, y: 120 }]);
+  r = await g.call("bob", { op: "spots", id: a, spots: [{ id: a, x: 300, y: 300 }, { id: c, x: 326, y: 300 }] });
+  assert.match(r.error, /not your character/); assert.deepEqual(ch(a).spot, { x: 100, y: 120 }, "one refused: nobody moved");
+});
