@@ -62,9 +62,9 @@ export const worldPaths = (cid) => ({
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.573.00";
+export const SERVER_BUILD = "v1.574.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
-  const { roster, wilderness: W, westmark: WM, parties: P } = rules;
+  const { roster, wilderness: W, westmark: WM, parties: P, menAtArms: M } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
   const dungeons = rules.dungeonGen ? createDungeonOps({ rules, now, rollDie }) : null;
   const delves = rules.dungeonGen && rules.delve ? createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey: (name) => W.key(PLACES[name].q, PLACES[name].r), hexKey: (ch) => { const h = ch.hex ?? PLACES[W.WESTMARK.home]; return W.key(h.q, h.r); }, openFightIn: fights?.openIn ?? null, isReferee }) : null;
@@ -226,7 +226,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       const many = ["move", "camp", "evade", "stand", "party"].includes(op);
       const ids = many && Array.isArray(data.ids) ? [...new Set(data.ids.filter((x) => ID.test(x ?? "")))].slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];
       if (!ids.length) return refuse("bad-request", "which character?");
-      const own = ["rest", "rumour", "shop", "give", "party", "stow", "fetch", "heir"].includes(op);
+      const own = ["rest", "rumour", "shop", "give", "party", "stow", "fetch", "heir", "notice", "hire", "dismiss"].includes(op);
       for (const id of ids) {
         const ch = byId(id); if (!ch) return refuse("not-found", "no such character");
         if (own && !ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
@@ -236,6 +236,17 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       const day0 = camp.day ?? 1;
       const put = (id, ch) => { const next = clean({ ...ch, updatedAt: now() }); tx.set(p.character(id), next); const i = all.findIndex((c) => c.id === id); if (i >= 0) all[i] = next; };
       const done = (out) => ({ ...out, parties: summary() });
+      /**
+       * Pay day (Book III, Men-at-Arms: so much a month): each month that has come due by `day` is paid from his gold;
+       * the month he cannot pay, the men leave his service. Returns him as he is after it, and tells his player.
+       */
+      const afterPay = (ch, day) => { const s = M && ch.troops ? M.settlePay(ch.troops, ch.coins?.gp ?? 0, day) : null; return s && (s.paid || s.left) ? { ...ch, troops: s.troops, coins: { ...ch.coins, gp: s.gp } } : ch; };
+      const pay = (ch, day) => {
+        if (!M || !ch.troops) return ch;
+        const s = M.settlePay(ch.troops, ch.coins?.gp ?? 0, day); if (!s.paid && !s.left) return ch;
+        log(tx, p, camp, `Day ${day}. ${s.left ? `${ch.name} could not pay his men-at-arms (${M.describe(ch.troops)}; ${M.monthlyPay(ch.troops)} gp a month) and they left his service.` : `${ch.name} paid his men-at-arms ${s.paid} gp${s.months > 1 ? ` for ${s.months} months` : ""}; they are paid to day ${s.troops.paidTo}.`}`, ch.owner ? [ch.owner] : null, { kind: "event" });
+        return { ...ch, troops: s.troops, coins: { ...ch.coins, gp: s.gp } };
+      };
       const nameList = (list) => list.map((c) => c.name).join(", ");
       const leaderSays = "the party's leader walks it; take your own out of the party to go your own way";
 
@@ -310,7 +321,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const days = Math.min(60, Math.max(1, Math.trunc(Number(data.days ?? 1)) || 1));
         const healed = Math.min(W.healingAfter(days), Math.max(0, (ch.maxHp ?? 0) - (ch.hp ?? 0)));
         const day = Math.max(ch.day ?? day0, day0) + days;
-        put(id, { ...ch, hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed, expedition: null }); // rested in town: the next descent is a new expedition
+        put(id, { ...pay(ch, day), hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed, expedition: null }); // rested in town: the next descent is a new expedition
         log(tx, p, camp, `Day ${day}. ${ch.name} rested ${days} day${days === 1 ? "" : "s"} at ${placeInfo(place).inn}${healed ? ` and healed ${healed} hit point${healed === 1 ? "" : "s"}` : ""}.`, null, { kind: "travel" });
         return done({ ok: true, healed, day });
       }
@@ -338,6 +349,50 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const ch = byId(ids[0]), text = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max), name = text(data.name, 40), relation = text(data.relation, 40);
         put(ch.id, { ...ch, heir: name ? { name, relation: relation || "relative" } : null });
         return { ok: true, character: { id: ch.id, ...byId(ch.id) } };
+      }
+      /*
+       * Men-at-arms (Book III; v1.574.00). notice: a week of notices at the inn, 100-600 gp, each type sought rolled for
+       * by itself. hire: men who answered are taken into service, a month's pay down. dismiss: men are let go.
+       */
+      if (op === "notice" || op === "hire" || op === "dismiss") {
+        if (!M) return refuse("bad-request", "hiring isn't deployed");
+        const ch0 = byId(ids[0]), h = hexOf(ch0), place = placeAt(map.hexes, h), info = placeInfo(place);
+        if (ch0.doing === "dead") return refuse("bad-request", "he is dead");
+        const today = dayOf(ch0, day0), type = String(data.type ?? ""), n = Math.trunc(Number(data.n ?? 1));
+        if (op === "dismiss") {
+          const has = M.menOf(ch0.troops)[type] ?? 0;
+          if (!has || !(n >= 1)) return refuse("bad-request", "dismiss whom?");
+          const ch = pay(ch0, today), gone = Math.min(n, M.menOf(ch.troops)[type] ?? 0);
+          if (gone) log(tx, p, camp, `Day ${today}. ${ch.name} let ${gone} ${gone === 1 ? M.TROOPS[type].one : M.TROOPS[type].name} go.`, ch.owner ? [ch.owner] : null, { kind: "travel" });
+          put(ch.id, { ...ch, troops: M.dismiss(ch.troops, type, n) });
+          return { ok: true, character: { id: ch.id, ...byId(ch.id) } };
+        }
+        if (!info?.inn || ch0.doing !== "town") return refuse("bad-request", "notices are posted at an inn");
+        const offered = M.offeredAt(info);
+        if (op === "notice") {
+          const spend = M.noticeSpend(data.gp), types = [...new Set((Array.isArray(data.types) ? data.types : []).map(String))].filter((k) => offered.includes(k));
+          if (!types.length) return refuse("bad-request", offered.length ? "which men is he looking for?" : `no men-at-arms are to be had in ${place}`);
+          const day = Math.max(ch0.day ?? day0, day0) + M.NOTICE.days, gp = afterPay(ch0, day).coins?.gp ?? 0;
+          if (gp < spend) return refuse("bad-request", `a week of notices at that rate costs ${spend} gp; he has ${gp}${gp < (ch0.coins?.gp ?? 0) ? " once his men are paid" : ""}`);
+          const ch = pay(ch0, day);
+          const found = {}, rolls = {};
+          for (const k of types) { const a = M.answer(info.kind, spend, rollDie); rolls[k] = { pct: a.pct, chance: a.chance }; if (a.n) found[k] = a.n; }
+          const healed = Math.min(W.healingAfter(M.NOTICE.days), Math.max(0, (ch.maxHp ?? 0) - (ch.hp ?? 0)));
+          const came = M.describe({ men: found }), none = types.filter((k) => !found[k]).map((k) => M.TROOPS[k].name);
+          put(ch.id, { ...ch, coins: { ...ch.coins, gp: gp - spend }, hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed, expedition: null, notice: { place, day, spend, found, rolls } });
+          log(tx, p, camp, `Day ${day}. ${ch.name} posted notices at ${info.inn} for a week (${spend} gp). ${came ? `${came} answered` : "Nobody answered"}${came && none.length ? `; no ${none.join(" or ")}` : ""}.${healed ? ` He healed ${healed} hit point${healed === 1 ? "" : "s"} in the week.` : ""}`, ch.owner ? [ch.owner] : null, { kind: "travel" });
+          return done({ ok: true, character: { id: ch.id, ...byId(ch.id) }, found, day });
+        }
+        const note = ch0.notice, waiting = note && note.place === place && today <= note.day + M.NOTICE.days ? note.found?.[type] ?? 0 : 0;
+        if (!M.TROOPS[type] || !(n >= 1)) return refuse("bad-request", "hire whom?");
+        if (n > waiting) return refuse("bad-request", waiting ? `only ${waiting} ${M.TROOPS[type].name} answered his notices` : `no ${M.TROOPS[type].name} are waiting on him here: post notices first`);
+        const dry = afterPay(ch0, today), gp = dry.coins?.gp ?? 0, cost = M.hireCost(dry.troops, type, n, today);
+        if (M.countOf(dry.troops) + n > M.ARMORER_CAP) return refuse("bad-request", `he needs an Armorer to keep more than ${M.ARMORER_CAP} fighters (Book III)`);
+        if (gp < cost) return refuse("bad-request", `their pay to the next pay day is ${cost} gp; he has ${gp}`);
+        const ch = pay(ch0, today), troops = M.hire(ch.troops, type, n, today), found = { ...note.found, [type]: waiting - n }; if (!found[type]) delete found[type];
+        put(ch.id, { ...ch, coins: { ...ch.coins, gp: gp - cost }, troops, notice: { ...note, found } });
+        log(tx, p, camp, `Day ${today}. ${ch.name} took ${n} ${n === 1 ? M.TROOPS[type].one : M.TROOPS[type].name} into service at ${M.TROOPS[type].pay} gp a month each (${cost} gp down; paid to day ${troops.paidTo}).`, ch.owner ? [ch.owner] : null, { kind: "travel" });
+        return { ok: true, character: { id: ch.id, ...byId(ch.id) }, cost };
       }
       if (op === "stow" || op === "fetch") {
         const ch = byId(ids[0]), h = hexOf(ch), place = placeAt(map.hexes, h);
@@ -495,7 +550,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
             // the day's march ends here: the day's one check for wandering monsters, by the terrain the party stops on
             const enc = W.hasEncounter(terrain0, d6()) ? W.wanderingMonster(terrain0, rollDie) : null;
             const met = enc ? meeting({ ...enc, day: today }, asCh, terrain0) : null;
-            for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: h0, day: today, dayMoved: 0, daysWalked: (ch.daysWalked ?? 0) + 1, doing: enc ? "encounter" : ch.doing, encounter: met });
+            for (const ch of members) put(ch.id, { ...pay(ch, today), party: band.id, hex: h0, day: today, dayMoved: 0, daysWalked: (ch.daysWalked ?? 0) + 1, doing: enc ? "encounter" : ch.doing, encounter: met });
             log(tx, p, camp, `Day ${today}. ${names} made camp in the ${W.TERRAIN[terrain0].label}.${met ? ` At the day's end: ${met.band ? `${met.band.leader.name}, a ${met.kind}, with ${met.band.men.length} men${met.band.mounted ? ", mounted" : ""}` : `${met.kind} (${met.type})${met.number ? `, about ${met.number}` : ""}`}, ${met.yards} yards off${met.surprise === "monsters" ? ", and they have the drop on you" : met.surprise === "party" ? ", unaware of you" : ""}. Evade, parley or stand.` : " A quiet night."}`, null, { kind: met ? "meeting" : "travel" });
             return done({ ok: true, day: today, encounter: enc, rested: false });
           }
@@ -504,7 +559,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
           let enc = null;
           for (let i = 0; i < 2 && !enc; i++) if (W.hasEncounter(terrain0, d6())) enc = W.wanderingMonster(terrain0, rollDie);
           const met = enc ? meeting({ ...enc, day }, asCh, terrain0) : null;
-          for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: h0, day, dayMoved: 0, daysWalked: 0, restOwed: 0, doing: enc ? "encounter" : ch.doing === "town" ? "town" : "road", encounter: met });
+          for (const ch of members) put(ch.id, { ...pay(ch, day), party: band.id, hex: h0, day, dayMoved: 0, daysWalked: 0, restOwed: 0, doing: enc ? "encounter" : ch.doing === "town" ? "town" : "road", encounter: met });
           log(tx, p, camp, `Day ${day}. ${names} rested a day in the ${W.TERRAIN[terrain0].label}${enc ? ` and were found by ${enc.kind} (${enc.type}).` : ". Nothing came."}`, null, { kind: enc ? "meeting" : "travel" });
           return done({ ok: true, day, encounter: enc, rested: true });
         }
@@ -546,7 +601,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         const wrote = log(tx, p, camp, `Day ${day}. ${names} ${astray ? "lost their way and " : ""}walked ${trek0 ? "on" : heading ?? "on"} (${legs.join(", ")})${endPlace ? ` and reached ${endPlace}` : ""}.`, null,
           { kind: "travel", ...(trek0 ? { id: trek0.id, at: trek0.at } : {}), ...(endPlace ? { arrive: endPlace, owners: ownersOf(members) } : {}) });
         const trek = { id: wrote.id, at: wrote.at, day, party: band.id, legs, lost: astray };
-        for (const ch of members) put(ch.id, { ...ch, party: band.id, hex: { q: end.q, r: end.r }, where, doing: village ? "town" : "road", day, dayMoved: spent, encounter: null, trek });
+        for (const ch of members) put(ch.id, { ...pay(ch, day), party: band.id, hex: { q: end.q, r: end.r }, where, doing: village ? "town" : "road", day, dayMoved: spent, encounter: null, trek });
         save();
         return done({ ok: true, day, lost, path: walk.path, end, reason: walk.reason, place: endPlace, spent, allowance, left: Math.max(0, allowance - spent), party: band.id });
       }

@@ -902,7 +902,7 @@ import {
   talksAtAll, avoidsForce, encounterReaction, groupLanguages, characterLanguages, parleyOptions, isHostileTongue, ALIGNMENT_TONGUE, offerService, serviceGate, orcLairMoraleExempt,
   parryCounterBlows, melee as ml, missileStep as mst, talk as tk, fightRunner, movement as mv, behaviour as bh, missiles as ms, board as bd,
   drainLevels, risesAs, ghoulTouch, trollRound, stopsRegeneration, gazeCheck, reflectedGaze, poisonBite, petrifySave, BLIND, areaSpellDice, saveForHalf, lightningStartOk,
-  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl, westmark as wm, underworld as uw, delve as dl
+  fightStore, fightStart, looting as lt, readiness as rd, fightView as fv, orders as od, roster as rs, wilderness as wl, westmark as wm, underworld as uw, delve as dl, menAtArms as maa
 } from "../packages/odd-chainmail-rules/index.js";
 import { connectOnline } from "./online.mjs";
 import * as wmap from "./world-map.mjs";
@@ -1763,6 +1763,7 @@ const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Lan
 /** The village's drawing and markup live in village-ui.mjs (v1.572.00); these are the names the page has always used. */
 const VILLAGE_SPOTS = vg.VILLAGE_SPOTS, villageSpotName = vg.villageSpotName, villageSpots = vg.villageSpots, villageDoorsHtml = vg.villageDoorsHtml;
 /** What the village's markup needs to know of the page: the rules, the players, what this viewer may move, and whether a request is out. */
+const b_troop = (k, n) => (n === 1 ? maa.TROOPS[k]?.one : maa.TROOPS[k]?.name) ?? k;
 const villageEnv = (uid) => ({ rs, people: table.game?.people, may: (x) => !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER, busy: world.busy, view: lobby.view, home: world.home, clsAbbr, grip: MO_GRIP, heal: wl.healingAfter, dayOf: charDay });
 const villageMapHtml = (placeName, place, markers, counters, crumb) => vg.villageMapHtml(placeName, place, markers, counters, crumb, !!lobby.view?.id);
 const villageTokensHtml = (here, c, uid) => vg.villageTokensHtml(villageEnv(uid), here, c);
@@ -1770,9 +1771,9 @@ const tradePanelHtml = (c, uid, here, placeName) => vg.tradePanelHtml(villageEnv
 const villageDockHtml = (c, uid, placeName) => vg.villageDockHtml(villageEnv(uid), c, villageGroup(c, uid, placeName), placeName);
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.573.00";
+const BUILD = "v1.574.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.573.00";
+const SERVER_NEEDED = "v1.574.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -1956,12 +1957,24 @@ function bindVillage(el, c, uid) {
   $("#heirEdit")?.addEventListener("click", () => { lobby.view.heirEdit = true; renderLobbyStage(); $("#heirName")?.focus(); });
   $("#heirCancel")?.addEventListener("click", () => { lobby.view.heirEdit = false; renderLobbyStage(); });
   $("#heirSave")?.addEventListener("click", async () => { const r = await put("heir", { name: $("#heirName").value, relation: $("#heirRel").value }); if (r.ok) { lobby.view.heirEdit = false; renderLobbyStage(); } });
+  // men-at-arms (v1.574.00): the notices, hiring those who answered, letting men go
+  el.querySelectorAll("[data-ma-type]").forEach((b) => b.addEventListener("change", () => { const skip = new Set(lobby.view.noticeSkip ?? []); if (b.checked) skip.delete(b.dataset.maType); else skip.add(b.dataset.maType); lobby.view.noticeSkip = [...skip]; renderLobbyStage(); }));
+  $("#maGp")?.addEventListener("change", (ev) => { lobby.view.noticeGp = Number(ev.target.value); renderLobbyStage(); $("#maGp")?.focus(); });
+  $("#maPost")?.addEventListener("click", async () => {
+    const types = [...el.querySelectorAll("[data-ma-type]")].filter((b) => b.checked).map((b) => b.dataset.maType), gp = Number($("#maGp").value);
+    const r = await worldOp("notice", { id: c.id, gp, types });
+    if (r.ok) { const came = Object.entries(r.found ?? {}).map(([k, n]) => `${n} ${b_troop(k, n)}`).join(", "); world.msg = `A week of notices for ${gp} gp: ${came ? `${came} answered` : "nobody answered"}. It is day ${r.day}.`; lobby.view.hireN = null; }
+    renderLobbyStage();
+  });
+  el.querySelectorAll("[data-ma-n]").forEach((b) => b.addEventListener("change", () => { lobby.view.hireN = { ...(lobby.view.hireN ?? {}), [b.dataset.maN]: Math.max(1, Math.trunc(Number(b.value)) || 1) }; renderLobbyStage(); }));
+  el.querySelectorAll("[data-ma-hire]").forEach((b) => b.addEventListener("click", async () => { const k = b.dataset.maHire, n = Math.max(1, Math.trunc(Number(el.querySelector(`[data-ma-n="${k}"]`)?.value)) || 1); const r = await put("hire", { type: k, n }); if (r.ok) { world.msg = `${n} ${b_troop(k, n)} hired for ${r.cost} gp.`; lobby.view.hireN = null; renderLobbyStage(); } }));
+  el.querySelectorAll("[data-ma-go]").forEach((b) => b.addEventListener("click", () => put("dismiss", { type: b.dataset.maGo, n: 1 })));
   $("#wRest")?.addEventListener("click", async () => { const days = Math.max(1, Math.trunc(Number($("#innDays")?.value)) || 1); const r = await worldOp("rest", { id: c.id, days }); if (r.ok) world.msg = `${c.name} rested ${days} day${days === 1 ? "" : "s"}${r.healed ? ` and healed ${r.healed}` : ""}. It is day ${r.day}.`; renderLobbyStage(); });
   $("#wRumour")?.addEventListener("click", async () => { const r = await worldOp("rumour", { id: c.id }); if (r.ok) world.msg = `For ${r.cost} gp: \u201c${r.text}\u201d`; renderLobbyStage(); });
   el.querySelectorAll("[data-w-buy]").forEach((b) => b.addEventListener("click", () => worldOp("shop", { id: c.id, buy: b.dataset.wBuy })));
   el.querySelectorAll("[data-w-sell]").forEach((b) => b.addEventListener("click", () => worldOp("shop", { id: c.id, sell: Number(b.dataset.wSell) })));
   // the trade panel: another pack, and giving to the character named in the "to" box
-  el.querySelectorAll("[data-tr-who]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.trWho === c.id) return; lobby.lastChar = b.dataset.trWho; lobby.view = { ...lobby.view, id: b.dataset.trWho, giveTo: null, restDays: null, heirEdit: false }; world.msg = ""; world.error = ""; renderLobbyStage(); }));
+  el.querySelectorAll("[data-tr-who]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.trWho === c.id) return; lobby.lastChar = b.dataset.trWho; lobby.view = { ...lobby.view, id: b.dataset.trWho, giveTo: null, restDays: null, heirEdit: false, hireN: null }; world.msg = ""; world.error = ""; renderLobbyStage(); }));
   $("#trTo")?.addEventListener("change", (ev) => { lobby.view.giveTo = ev.target.value; renderLobbyStage(); });
   const gave = (r) => { if (r.ok && r.other) { const i = table.chars.findIndex((x) => x.id === r.other.id); if (i >= 0) table.chars[i] = r.other; world.msg = `${c.name} gave ${charOf(r.other.id)?.name ?? "him"} ${r.gave}.`; renderLobbyStage(); } };
   const toId = () => $("#trTo")?.value;

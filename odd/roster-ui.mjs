@@ -10,6 +10,7 @@
 // shown is worked out by the rules package (roster.sheetFor); every change is
 // a request to oddCharacter, and the page redraws when the roster changes.
 // ---------------------------------------------------------------------------
+import * as M from "../packages/odd-chainmail-rules/src/men-at-arms.mjs";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const AB = { str: "STR", int: "INT", wis: "WIS", con: "CON", dex: "DEX", cha: "CHA" };
@@ -179,6 +180,7 @@ export function sheetHtml(rs, ch, { tab = "sheet", canEdit, ref, people, me, edi
   if (tab === "notes") {
     return `${tabs}${err}<div class="rs-pad">
       <div class="rs-kv"><span>Player</span><span>${esc(ch.owner === me ? "you" : people?.[ch.owner]?.name ?? "a player")}</span>
+      <span>Men-at-arms</span><span>${M.countOf(ch.troops) ? `${esc(M.describe(ch.troops))} <span class="note">${M.monthlyPay(ch.troops)} gp a month, paid to day ${ch.troops.paidTo}</span>` : `None. <span class="note">Notices are posted at an inn.</span>`}</span>
       <span>Hirelings</span><span>${ch.hirelings?.length ? ch.hirelings.map((h) => esc(h.name)).join(", ") : "None yet: hiring comes with towns."} <span class="note">Charisma ${ch.abilities.cha}: up to ${sh.hirelingsMax}.</span></span></div>
       ${canEdit ? `<textarea id="rsNotes" rows="8" maxlength="${rs.NOTES_MAX}" placeholder="Background, what he owes, what he has seen...">${esc(ch.notes ?? "")}</textarea><div class="row"><button type="button" data-rs-notes>Save notes</button>${canEdit ? ` <button type="button" class="linkish" data-rs-rename>Rename</button>` : ""}</div>` : `<div class="rs-notes">${esc(ch.notes || "No notes.")}</div>`}
       ${ref ? `<div class="row rs-danger"><button type="button" data-rs-delete>Delete this character</button> <span class="note">referee only; it can't be undone</span></div>` : ""}</div>`;

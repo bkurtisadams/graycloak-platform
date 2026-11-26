@@ -5,6 +5,7 @@
 //
 // env: { rs (the rules package's roster), people (uid -> {name, color}), may(character) (the viewer may move him),
 //        busy (a request is out), view (the page's lobby.view), clsAbbr(character), grip (the drag handle's svg) }
+import * as M from "../packages/odd-chainmail-rules/src/men-at-arms.mjs";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -69,6 +70,30 @@ export function doorCardHtml(k, place, placeName) {
   return `<h3>${esc(villageSpotName(k, place))} <small>${esc(sp.kind)}</small></h3><div class="note">${esc(says)}</div><div class="row">${k === "road" ? `<button type="button" class="primary" id="vgRoad">Leave by the road</button>` : `<button type="button" class="primary" id="vgGoIn" data-k="${k}" ${sp.open ? "" : "disabled"}>Go in</button>`}</div>`;
 }
 /**
+ * The inn's hiring box (v1.574.00; Book III, Men-at-Arms). The men in his service and their pay day; the men who
+ * answered his last week of notices, to be hired; and the notices themselves: which types, and what he spends.
+ */
+function hireBoxHtml(env, c, place, placeName) {
+  const v = env.view, busy = env.busy ? "disabled" : "", gp = c.coins?.gp ?? 0, day = env.dayOf(c);
+  const offered = M.offeredAt(place), men = M.menOf(c.troops), count = M.countOf(c.troops);
+  const serving = count ? `<div class="tr-cap">In his service · ${M.monthlyPay(c.troops)} gp a month · paid to day ${c.troops.paidTo}</div>`
+    + Object.entries(men).map(([k, n]) => `<div class="tr-row"><span class="tr-n">${n} ${n === 1 ? M.TROOPS[k].one : M.TROOPS[k].name}</span><span class="tr-p">${M.TROOPS[k].pay} gp each</span><button type="button" data-ma-go="${k}" title="No pay is returned" ${busy}>Let one go</button></div>`).join("")
+    + (day >= c.troops.paidTo ? `<div class="note ma-due">Their pay is due. It is taken from his gold when he next rests, posts notices or travels; if he cannot pay, they leave.</div>` : "") : "";
+  const note = c.notice, live = note && note.place === placeName && day <= note.day + M.NOTICE.days ? Object.entries(note.found ?? {}).filter(([k, n]) => M.TROOPS[k] && n > 0) : [];
+  const waiting = live.length ? `<div class="tr-cap">Answered his notices · they wait until day ${note.day + M.NOTICE.days}</div>`
+    + live.map(([k, n]) => { const most = Math.min(n, M.ARMORER_CAP - count), want = Math.max(1, Math.min(most, Math.trunc(Number(v.hireN?.[k])) || most)), cost = M.hireCost(c.troops, k, want, day);
+      return `<div class="tr-row"><span class="tr-n">${n} ${n === 1 ? M.TROOPS[k].one : M.TROOPS[k].name}</span><label for="maN-${k}" class="sr">How many ${M.TROOPS[k].name} to hire</label><input id="maN-${k}" data-ma-n="${k}" type="number" min="1" max="${Math.max(1, most)}" value="${want}"><button type="button" class="primary" data-ma-hire="${k}" title="${most < 1 ? `An Armorer is needed to keep more than ${M.ARMORER_CAP} fighters` : cost > gp ? `He has ${gp} gp` : `${M.TROOPS[k].pay} gp a month each`}" ${env.busy || most < 1 || cost > gp ? "disabled" : ""}>Hire for ${cost} gp</button></div>`; }).join("") : "";
+  if (!offered.length) return `<div class="inn-box"><h4>Hire men-at-arms</h4>${serving}<div class="note">No men-at-arms are to be had in ${esc(placeName)}.</div></div>`;
+  const spend = M.noticeSpend(v.noticeGp ?? M.NOTICE.min), picked = offered.filter((k) => !v.noticeSkip?.includes(k));
+  const types = offered.map((k) => `<label class="ma-type"><input type="checkbox" data-ma-type="${k}" ${picked.includes(k) ? "checked" : ""}> ${M.TROOPS[k].name} <span class="tr-p">${M.TROOPS[k].pay} gp a month</span></label>`).join("");
+  const spends = []; for (let g = M.NOTICE.min; g <= M.NOTICE.max; g += M.NOTICE.step) spends.push(`<option value="${g}" ${g === spend ? "selected" : ""}>${g} gp</option>`);
+  const short = gp < spend, dice = M.FIND[place.kind]?.dice ?? 1;
+  const post = `<div class="tr-cap">Post notices · a week, 100 to 600 gp (Book III)</div><div class="ma-types">${types}</div>
+    <div class="inn-row"><label for="maGp">Spend</label><select id="maGp">${spends.join("")}</select><button type="button" id="maPost" ${env.busy || short || !picked.length ? "disabled" : ""}>Post notices for a week</button>${short ? `<span class="note">he has ${gp} gp</span>` : ""}</div>
+    <div class="note">At ${spend} gp each type has ${M.findChance(place.kind, spend)} chances in 100 of answering, ${dice}d6 men if it does. The week passes at the inn and counts as rest; his day moves on to ${day + M.NOTICE.days}.</div>`;
+  return `<div class="inn-box"><h4>Hire men-at-arms</h4>${serving}${waiting}${post}<div class="note">Hired men march with him, but do not yet stand in a fight: that comes with the next pass.</div></div>`;
+}
+/**
  * The inn (approved mockup 25 Nov 2026, v1.573.00): one panel over the dimmed village. Rest, the talk of the taverns,
  * the strongbox the innkeeper keeps for him, and his heir. Hiring men-at-arms is drawn with Book III's prices and
  * comes with the next pass. env also gives heal(days) (hit points a rest of that many days regains) and dayOf(character).
@@ -83,8 +108,7 @@ export function innPanelHtml(env, c, here, place, placeName) {
     <div class="note">${days === 1 ? "A day" : `${days} days`}: ${esc(c.name)} heals ${heals || "nothing"}${heals && heals === need ? ", all he has lost," : ""} and his day moves on to ${env.dayOf(c) + days}.</div></div>`;
   const rumours = `<div class="inn-box"><h4>Rumours</h4><div class="note">The rounds of the taverns: 10 to 60 gp and 1 to 10 gp more, for one rumour. One that names a place marks it on the map.</div>
     <div class="inn-row"><button type="button" id="wRumour" ${env.busy || gp < 11 ? "disabled" : ""}>Buy a round</button>${gp < 11 ? `<span class="note">not enough gold for a round</span>` : ""}</div></div>`;
-  const hire = `<div class="inn-box"><h4>Hire men-at-arms</h4>${[["Light Foot", 2], ["Heavy Foot", 3], ["Archers", 5], ["Crossbowmen", 4]].map(([n, cost]) => `<div class="tr-row"><span class="tr-n">${n}</span><span class="tr-p">${cost} gp a month</span></div>`).join("")}
-    <div class="inn-row"><button type="button" disabled>Post a notice</button><span class="note">Notices cost 100 to 600 gp a week (Book III). Hiring comes with the next pass.</span></div></div>`;
+  const hire = hireBoxHtml(env, c, place, placeName);
   const box = c.strongbox?.[placeName] ?? { gp: 0, items: [] };
   const inBox = (box.gp ? `<div class="tr-row"><span class="tr-n">${box.gp} gp</span><label for="sbOutGp" class="sr">Gold to take out</label><input id="sbOutGp" type="number" min="1" max="${box.gp}" value="${box.gp}"><button type="button" id="sbOut" ${busy}>Take out</button></div>` : "")
     + (box.items ?? []).map((it, i) => `<div class="tr-row"><span class="tr-n">${esc(nameOf(it.key))}${it.qty > 1 ? ` \u00d7${it.qty}` : ""}</span><button type="button" data-sb-out="${i}" ${busy}>Take out</button></div>`).join("");
@@ -146,6 +170,12 @@ export const VILLAGE_CSS = `
 .lobbystage .inn-panel button:disabled { opacity: .45; cursor: default; }
 .lobbystage .sb-cols { display: flex; flex-wrap: wrap; gap: 14px; }
 .lobbystage .sb-col { flex: 1 1 150px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.lobbystage .ma-types { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .88rem; }
+.lobbystage .ma-type { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; cursor: pointer; }
+.lobbystage .inn-panel .ma-type input { width: auto; padding: 0; }
+.lobbystage .inn-panel select { font: inherit; font-size: .9rem; padding: 5px 8px; border: 1px solid #b7c7d2; border-radius: 6px; }
+.lobbystage .inn-box .tr-cap { margin-top: 2px; }
+.lobbystage .ma-due { color: #8a2c1c; }
 .lobbystage .inn-heir { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 8px; border-top: 1px solid #b7c7d2; font-size: .85rem; }
 .lobbystage .inn-heir .inn-heirsays { flex: 1 1 200px; }
 /* the market's trade panel (approved mockup 25 Nov 2026) */

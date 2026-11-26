@@ -363,3 +363,42 @@ test("the strongbox at the inn, and the heir: what is put away isn't carried, an
   g.store.docs.set(`oddCampaigns/c1/characters/${id}`, { ...ch(), doing: "road", hex: { q: 1, r: -1 }, where: "clear" });
   assert.match((await g.call("bob", { op: "stow", id, gp: 1 })).error, /no inn here/);
 });
+
+test("men-at-arms (v1.574.00): a week of notices at the inn, the men who answer hired, paid by the month, and gone when unpaid", async () => {
+  const g = game(); const id = await brom(g), path = `oddCampaigns/c1/characters/${id}`;
+  const ch = () => g.store.docs.get(path), set = (o) => g.store.docs.set(path, { ...ch(), ...o });
+  set({ coins: { ...ch().coins, gp: 50 }, doing: "town" });
+  assert.equal((await g.call("bob", { op: "notice", id, gp: 100, types: ["lightFoot"] })).code, "bad-request", "100 gp at the least");
+  assert.equal((await g.call("bob", { op: "hire", id, type: "lightFoot", n: 1 })).code, "bad-request", "nobody is waiting until notices are posted");
+  set({ coins: { ...ch().coins, gp: 400 }, hp: 1, maxHp: 6 });
+  assert.equal((await g.call("bob", { op: "notice", id, gp: 300, types: ["longbow"] })).code, "bad-request", "a village has no Longbowmen");
+  assert.equal((await g.call("ann", { op: "notice", id, gp: 300, types: ["archer"] })).code, "forbidden");
+  // 300 gp in a village: 60%. Light Foot d%=60 (they come), 1d6=4; Heavy Foot d%=61 (they don't); Archers d%=10, 1d6=2
+  g.setDice(60, 4, 61, 10, 2);
+  let r = await g.call("bob", { op: "notice", id, gp: 300, types: ["lightFoot", "heavyFoot", "archer", "longbow"] });
+  assert.equal(r.ok, true, r.error); assert.deepEqual(r.found, { lightFoot: 4, archer: 2 }); assert.equal(r.day, 8, "the week passes");
+  assert.equal(ch().coins.gp, 100); assert.equal(ch().day, 8); assert.equal(ch().hp, 4, "a week at the inn is a week's rest"); assert.equal(ch().notice.place, "Langstead");
+  assert.ok(chat(g.store, "bob").some((e) => /posted notices at The Ox and Ford for a week \(300 gp\)\. 4 Light Foot, 2 Archers answered; no Heavy Foot\./.test(e.text) && e.kind === "travel"));
+  assert.equal(chat(g.store, "ann").some((e) => /posted notices/.test(e.text)), false, "his own business");
+  assert.equal((await g.call("bob", { op: "hire", id, type: "lightFoot", n: 5 })).code, "bad-request", "only four answered");
+  assert.equal((await g.call("bob", { op: "hire", id, type: "heavyFoot", n: 1 })).code, "bad-request");
+  r = await g.call("bob", { op: "hire", id, type: "lightFoot", n: 3 });
+  assert.equal(r.ok, true, r.error); assert.equal(r.cost, 6); assert.deepEqual(ch().troops, { men: { lightFoot: 3 }, paidTo: 38 }); assert.equal(ch().coins.gp, 94); assert.deepEqual(ch().notice.found, { lightFoot: 1, archer: 2 });
+  r = await g.call("bob", { op: "hire", id, type: "archer", n: 2 });
+  assert.equal(r.cost, 10); assert.deepEqual(ch().troops, { men: { lightFoot: 3, archer: 2 }, paidTo: 38 }); assert.equal(ch().coins.gp, 84);
+  // pay day: 16 gp a month. Resting 30 days brings day 38 and one month due
+  r = await g.call("bob", { op: "rest", id, days: 30 });
+  assert.equal(r.day, 38); assert.equal(ch().coins.gp, 68); assert.equal(ch().troops.paidTo, 68);
+  assert.ok(chat(g.store, "bob").some((e) => /Brom paid his men-at-arms 16 gp; they are paid to day 68\./.test(e.text)));
+  assert.equal((await g.call("bob", { op: "hire", id, type: "lightFoot", n: 1 })).code, "bad-request", "those who answered don't wait more than a week");
+  r = await g.call("bob", { op: "dismiss", id, type: "archer", n: 1 });
+  assert.equal(r.ok, true, r.error); assert.deepEqual(ch().troops.men, { lightFoot: 3, archer: 1 });
+  // the month he cannot pay, they go
+  set({ coins: { ...ch().coins, gp: 5 } });
+  r = await g.call("bob", { op: "rest", id, days: 30 });
+  assert.equal(ch().troops, null); assert.equal(ch().coins.gp, 5);
+  assert.ok(chat(g.store, "bob").some((e) => /could not pay his men-at-arms \(3 Light Foot, 1 Archer; 11 gp a month\) and they left his service/.test(e.text)));
+  // nothing written when the notice is refused for want of gold
+  const lines = chat(g.store, "bob").length;
+  assert.equal((await g.call("bob", { op: "notice", id, gp: 100, types: ["archer"] })).code, "bad-request"); assert.equal(chat(g.store, "bob").length, lines);
+});

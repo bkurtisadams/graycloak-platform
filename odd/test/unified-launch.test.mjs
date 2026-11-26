@@ -100,3 +100,18 @@ test("village-ui.mjs loads on its own and gives the page what it draws the villa
   assert.match(vg.doorCardHtml("road", {}, "Langstead"), /Leave by the road/);
   assert.match(grid, /import \* as vg from "\.\/village-ui\.mjs";/);
 });
+
+test("the inn's hiring box (v1.574.00): the men in service, those who answered, and the notices, from the rules' own numbers", async () => {
+  const vg = await import("../village-ui.mjs"), rules = await import("../../packages/odd-chainmail-rules/index.js");
+  const c = { id: "c1", name: "Brom", coins: { gp: 342 }, hp: 4, maxHp: 4, items: [], troops: { men: { lightFoot: 3 }, paidTo: 38 }, notice: { place: "Langstead", day: 8, found: { heavyFoot: 5 } } };
+  const env = { rs: rules.roster, may: () => true, busy: false, view: { at: "inn" }, heal: rules.wilderness.healingAfter, dayOf: () => 12 };
+  const html = vg.innPanelHtml(env, c, [c], { kind: "village", inn: "The Ox and Ford" }, "Langstead");
+  assert.match(html, /In his service · 6 gp a month · paid to day 38/); assert.match(html, /data-ma-go="lightFoot"/);
+  assert.match(html, /data-ma-hire="heavyFoot"[^>]*>Hire for 13 gp</, "five Heavy Foot for the 26 days left to pay day");
+  assert.match(html, /data-ma-type="archer"/); assert.doesNotMatch(html, /data-ma-type="longbow"/, "a village has no Longbowmen");
+  assert.match(html, /At 100 gp each type has 50 chances in 100/);
+  const late = vg.innPanelHtml({ ...env, dayOf: () => 16 }, c, [c], { kind: "village", inn: "The Ox and Ford" }, "Langstead");
+  assert.doesNotMatch(late, /data-ma-hire/, "those who answered wait a week, no longer");
+  const grid = readFileSync(new URL("../combat-grid.html", import.meta.url), "utf8");
+  for (const op of ['worldOp("notice"', 'put("hire"', 'put("dismiss"']) assert.ok(grid.includes(op), op);
+});
