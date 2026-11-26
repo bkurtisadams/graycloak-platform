@@ -618,6 +618,9 @@ body.online-fight #chips, body.online-fight .strip label.auto { display: none !i
 .ab-undomove { font: inherit; font-size: .85rem; min-height: 32px; padding: 2px 10px; align-self: flex-start; }
 .lastready { position: absolute; right: 250px; width: 300px; background: var(--card); border: 1px solid var(--ink); border-radius: 6px; box-shadow: 0 6px 18px rgba(0,0,0,.3); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; z-index: 6; font-family: var(--serif); }
 .lastready .btns { display: flex; gap: 8px; }
+.lastready .lr-row { display: flex; flex-direction: column; gap: 6px; font-size: .92rem; }
+.lastready .lr-fix { display: flex; gap: 6px; flex-wrap: wrap; }
+.lastready .lr-fix button { min-height: 32px; padding: 4px 10px; }
 .lastready button { min-height: 44px; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
 .yourmove { display: flex; align-items: center; gap: 12px; padding: 10px 24px; background: #2f5c8a; color: #fbfdfe; font-family: var(--serif); }
 .yourmove[hidden] { display: none; }
@@ -879,6 +882,13 @@ body.player-mode #reset, body.player-mode .strip label.auto, body.player-mode:no
     <div class="bar pkeep">
       <label for="emptyClick">Left-click on empty floor</label>
       <select id="emptyClick"><option value="deselect">Deselect</option><option value="clear">Deselect and clear all targets</option><option value="nothing">Do nothing</option></select>
+    </div>
+    <div class="bar pkeep">
+      <label style="white-space:nowrap" title="A figure on a melee order with no usable target, and exactly one enemy in contact, takes that enemy as his target when you mark him Ready. It never replaces a target you chose, and never touches Hold, Parry, Fire or a spell."><input type="checkbox" id="autoTarget" checked> Melee: target the only enemy in contact</label>
+    </div>
+    <div class="bar pkeep">
+      <label for="electPref">When your side wins the initiative</label>
+      <select id="electPref"><option value="ask">Ask each round</option><option value="first">Always move first</option><option value="last">Always move last</option></select>
     </div>
     <div class="panel" id="side-A"></div>
     <div class="panel" id="side-B"></div>
@@ -1374,14 +1384,29 @@ function sendOnline(action) {
   const api = online.api;
   if (!api?.fight) return { ok: false, error: "No online fight is open." };
   renderOnlineNote("Sending\u2026");
-  api.send(action, fightStore.RULES_VERSION).then((res) => {
-    renderOnlineNote();
-    if (!res.ok) {
-      const why = res.code === "stale" ? "Someone else acted first; showing the latest." : res.code === "rules" ? `${res.error} (the server runs a different rules version: redeploy or reload)` : res.error ?? res.code;
-      $("#dragInfo").innerHTML = `<span class="bad">${esc(why)}</span>`;
-    }
-  });
+  api.send(action, fightStore.RULES_VERSION).then((res) => { renderOnlineNote(); if (!res.ok) sendRefused(res, null); });
   return { ok: true, pending: true, events: [] };
+}
+/** A refusal that came from the server's own rules, as against a call that never got an answer (v1.582.00). */
+const noAnswer = (res) => !["stale", "rules", "bad-request", "forbidden", "not-found", "closed", "settled"].includes(res.code) && /^(functions\/)?(internal|unavailable|deadline-exceeded|cancelled|unknown|error)$/.test(String(res.code ?? "error"));
+function sendRefused(res, auto) {
+  const why = res.code === "stale" ? "Someone else acted first; showing the latest." : res.code === "rules" ? `${res.error} (the server runs a different rules version: redeploy or reload)` : noAnswer(res) ? `No answer from the server (${res.error ?? res.code}). It may or may not have gone through: look at the fight before going on.` : res.error ?? res.code;
+  $("#dragInfo").innerHTML = `<span class="bad">${esc(why)}</span>`;
+  if (auto) autoRefused(auto, res, why);
+}
+/** Several actions in order, each sent only when the one before was accepted. items: [{ action, note }]; a note goes in the log once its action is in. */
+async function doAll(items, { auto = null } = {}) {
+  const say = (it) => { if (it.note) logAppend(`<div class="card note">${esc(it.note)}</div>`); };
+  if (!(online.on && state.phase !== "setup")) { for (const it of items) { const r = runAction(it.action); if (!r.ok) return r; say(it); } render(); return { ok: true }; }
+  const api = online.api; if (!api?.fight) return { ok: false, error: "No online fight is open." };
+  for (const it of items) {
+    renderOnlineNote("Sending\u2026");
+    const res = await api.send(it.action, fightStore.RULES_VERSION);
+    renderOnlineNote();
+    if (!res.ok) { sendRefused(res, auto); return res; }
+    say(it);
+  }
+  return { ok: true };
 }
 /** The referee's view replaces the fight on this page; selection, camera and panels stay as they are. */
 function adoptView(v) {
@@ -1772,7 +1797,7 @@ const tradePanelHtml = (c, uid, here, placeName) => vg.tradePanelHtml(villageEnv
 const villageDockHtml = (c, uid, placeName) => vg.villageDockHtml(villageEnv(uid), c, villageGroup(c, uid, placeName), placeName);
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.581.00";
+const BUILD = "v1.582.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
 const SERVER_NEEDED = "v1.577.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
@@ -2869,7 +2894,7 @@ function openOnline(cid, fid) {
   followGame(cid, fid);
   // the referee opening a fight makes it the game's live fight: players' pages follow
   if (!PLAYER && !(TABLE && table.game?.live?.fid === fid)) api.game("live", cid, { fid }).catch?.(() => {});
-  $("#log").innerHTML = ""; online.header = null; online.lastStep = null; online.auto = null;
+  $("#log").innerHTML = ""; online.header = null; online.lastStep = null; online.auto = null; online.electSent = null;
   const viewer = PLAYER ? api.user?.uid : "referee";
   if (!viewer) { $("#onlineNote").textContent = "Sign in first."; return; }
   if (!PLAYER) { $("#playerLink").value = `${location.origin}${location.pathname}?player&cid=${encodeURIComponent(cid)}&fid=${encodeURIComponent(fid)}`; $("#playerLinkBox").hidden = false; }
@@ -2882,7 +2907,7 @@ function openOnline(cid, fid) {
       // the player's page always shows one of his own characters in the bar, unless he clicked another figure
       if (PLAYER && (state.selected == null || !byId(state.selected))) { const assigned = table.game?.people?.[online.api?.user?.uid]?.character; const own = (assigned && state.figures.find((f) => f.mine && f.charId === assigned && present(f))) ?? state.figures.find((f) => f.mine && f.placed && present(f)) ?? state.figures.find((f) => f.mine); if (own) state.selected = own.id; }
       if (state.step !== online.lastStep) { online.lastStep = state.step; afterStepChange(); } else render();
-      renderOnlineNote(); driveAuto(); renderAutoButtons();
+      renderOnlineNote(); electByPref(); driveAuto(); renderAutoButtons();
     },
     onEntry: (entry) => {
       const phase = entry.events.find((e) => e.type === "melee" || e.type === "missiles");
@@ -3011,11 +3036,62 @@ const meCtl = () => (PLAYER ? online.api?.user?.uid : "referee");
 /** No one else decides anything in this fight: every figure is this page's or the game's. */
 function aloneInFight() { const c = Object.values(state.control ?? {}); return online.on && c.length > 0 && c.every((v) => v === "game" || v === meCtl()); }
 const mineUp = () => myFigs().filter((f) => f.placed && active(f));
-/** This page's figures are in the fight already: at least one in contact with a foe. The rest stand where they are on their standing orders. */
-function allEngaged() { return mineUp().some((f) => engagementsOf(f).some((x) => present(x.e))); }
+/**
+ * What a figure's order will come to as he stands (v1.582.00; Kurt, 26 Nov 2026). ok: it does something, or he is idle on
+ * purpose (Hold, pass-through fire, Parry). auto: a melee order with no usable target and exactly one enemy in contact,
+ * who becomes his target at Ready (a setting). decide: the player must choose (several enemies in contact, a living
+ * target out of reach with another in contact, fire or a spell with nothing to aim at). idle: no one in reach.
+ */
+const autoTargetOn = () => $("#autoTarget")?.checked !== false;
+const electPref = () => $("#electPref")?.value ?? "ask";
+const foesInContact = (f) => state.figures.filter((e) => e.side !== f.side && e.placed !== false && present(e) && adjacent(e, f));
+function orderCheck(f) {
+  const a = f.action ?? "melee", t0 = f.target != null ? byId(f.target) : null, t = t0 && present(t0) ? t0 : null, ok = { state: "ok", fights: true };
+  if (a === "hold" || a === "passthrough") return { state: "ok", fights: false };
+  if (a === "fire") {
+    if (!t) return { state: "decide", text: `${f.name} is to fire but has no target.`, fixes: [] };
+    const pv = ms.firePreview(state, f, t); return pv.ok ? ok : { state: "decide", text: `${f.name} can't fire at ${t.name}: ${pv.why}.`, fixes: [] };
+  }
+  if (a.startsWith("cast:")) {
+    const sp = combatSpellsFor(f.cls, f.slotsLeft ?? [], f.remembered).find((x) => x.id === a.slice(5));
+    return f.castAim || t || sp?.id === "protectionEvil" ? ok : { state: "decide", text: `${f.name}: ${sp?.name ?? "the spell"} has no target or aim point.`, fixes: [] };
+  }
+  if (t && adjacent(f, t)) return ok;
+  if (f.stance === "parry") return { state: "ok", fights: false };
+  const foes = foesInContact(f), aim = (e) => ({ label: `Target ${e.name}`, patch: { target: e.id } }), list = (xs) => xs.map((e) => e.name).join(", ");
+  if (!foes.length) return { state: "idle", text: `${f.name} has no one in reach${t ? ` (his target, ${t.name}, is out of reach)` : ""} and will stand.`, fixes: [{ label: "Hold", patch: { action: "hold" }, title: "He holds until you give him another order" }] };
+  if (t) return { state: "decide", text: `${f.name} targets ${t.name}, who is out of reach. In contact: ${list(foes)}.`, fixes: foes.map(aim) };
+  if (foes.length === 1) return autoTargetOn() ? { state: "auto", fights: true, foe: foes[0] } : { state: "decide", text: `${f.name} has no target. In contact: ${foes[0].name}.`, fixes: foes.map(aim) };
+  return { state: "decide", text: `${f.name} has no target and ${foes.length} enemies in contact: ${list(foes)}.`, fixes: foes.map(aim) };
+}
+/** The target orders that go ahead of Ready: each figure with exactly one enemy in contact and no usable target takes him. */
+const targetItems = (figs) => figs.map((f) => ({ f, c: orderCheck(f) })).filter((x) => x.c.state === "auto").map(({ f, c }) => ({ action: { type: "orders", id: f.id, target: c.foe.id }, note: `${f.name} takes ${c.foe.name} as ${f.kind === "pc" ? "his" : "its"} target: the only enemy in contact.` }));
+function sendReady(ids, opts = {}) {
+  const figs = ids.map(byId).filter(Boolean);
+  return doAll([...(isOrders() ? targetItems(figs) : []), { action: { type: "ready", ids } }], opts);
+}
+/** Why Fight on can't run this page's figures as they stand: each must have an order that does something or be idle on purpose, and one must be fighting. "" when it can. */
+function autoBlock() {
+  const checks = mineUp().map((f) => orderCheck(f)), bad = checks.find((c) => c.state === "decide" || c.state === "idle");
+  if (bad) return `${bad.text} ${bad.state === "idle" ? "Move him, or set him to Hold." : "Give him his order first."}`;
+  return checks.some((c) => c.fights) ? "" : "none of yours is in contact with the enemy.";
+}
 function stopAuto(why = "") { if (!online.auto) return; online.auto = null; if (why) $("#dragInfo").textContent = why; renderAutoButtons(); }
-function startAuto(mode) { online.auto = { mode, round: state.round, up: mineUp().length, sent: "" }; driveAuto(); renderAutoButtons(); }
-/** One step of the round for this page's figures: the election, then Ready on each step, once per step. */
+function startAuto(mode) { online.auto = { mode, round: state.round, up: mineUp().length, sent: "", retried: "" }; driveAuto(); renderAutoButtons(); }
+/** A refused command under Fight on. Stale: the fight moved first, so nothing of ours ran; look again once and resend if it still applies. Anything else stops the run and says why. */
+function autoRefused(key, res, why) {
+  const a = online.auto; if (!a) return;
+  if (res.code === "stale" && a.retried !== key) { a.retried = key; a.sent = ""; setTimeout(driveAuto, 600); return; }
+  stopAuto(`Stopped: ${res.code === "stale" ? "the fight moved on twice under the same command; look at it and go on by hand." : why}`);
+}
+const mayCallHere = () => mayElectHere() && (PLAYER || rd.callerOf(state, state.init.winner) === "referee");
+/** The standing election (a setting): always first or always last, sent once a round when the call is this page's. */
+function electByPref() {
+  if (!online.on || online.auto || !mayCallHere() || electPref() === "ask") return;
+  const key = `${state.round}:elect`; if (online.electSent === key) return; online.electSent = key;
+  sendOnline({ type: "elect", side: state.init.winner, choice: electPref() === "last" ? "counter" : "move" });
+}
+/** One step of the round for this page's figures: the election (asked, unless the setting answers it), then Ready on each step, once per step. */
 function driveAuto() {
   const a = online.auto; if (!a) return;
   if (!online.on || state.phase !== "fight") { stopAuto(); return; }
@@ -3024,33 +3100,63 @@ function driveAuto() {
     if (mineUp().length < a.up) { stopAuto("Stopped: one of yours is down."); return; }
     a.round = state.round;
   }
-  if (!allEngaged()) { stopAuto(a.mode === "out" ? "Stopped: none of yours is in contact any more." : ""); return; }
   const key = `${state.round}:${state.step}`; if (a.sent === key) return;
-  if (state.step === "elect") { if (mayElectHere() && (PLAYER || rd.callerOf(state, state.init.winner) === "referee")) { a.sent = key; runAction({ type: "elect", side: state.init.winner, choice: "move" }); } return; }
-  if (state.step.startsWith("move-") || state.step === "orders") { const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (ids.length) { a.sent = key; document.querySelector(".lastready")?.remove(); runAction({ type: "ready", ids }); } }
+  if (state.step === "elect") {
+    if (!mayCallHere()) return;
+    if (electPref() === "ask") { $("#dragInfo").textContent = "Your side won the initiative: move first or last? The fight goes on when you choose."; return; }
+    a.sent = key; doAll([{ action: { type: "elect", side: state.init.winner, choice: electPref() === "last" ? "counter" : "move" } }], { auto: key }); return;
+  }
+  if (state.step.startsWith("move-") || state.step === "orders") {
+    const ids = myFigs().filter((f) => needsReady(f) && !isReadyFig(f)).map((f) => f.id); if (!ids.length) return;
+    const why = autoBlock(); if (why) { stopAuto(`Stopped: ${why}`); return; }
+    a.sent = key; document.querySelector(".lastready")?.remove(); sendReady(ids, { auto: key });
+  }
 }
 function renderAutoButtons() {
-  const on = !!online.auto, can = online.on && state.phase === "fight" && !on && allEngaged() && (state.step !== "elect" || mayElectHere()) && (state.step === "elect" || myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
-  $("#fightOn").hidden = !can; $("#fightOut").hidden = !can || !aloneInFight();
+  const on = !!online.auto, base = online.on && state.phase === "fight" && !on && (state.step !== "elect" || mayElectHere()) && (state.step === "elect" || myFigs().some((f) => needsReady(f) && !isReadyFig(f)));
+  const why = base ? autoBlock() : "", none = /^none of yours/.test(why), can = base && !why;
+  for (const b of [$("#fightOn"), $("#fightOut")]) { b.dataset.tip ??= b.title; b.disabled = base && !!why; b.title = why && !none ? `Not yet: ${why}` : b.dataset.tip; }
+  $("#fightOn").hidden = !base || none; $("#fightOut").hidden = !base || none || !aloneInFight();
   $("#fightStop").hidden = !on || online.auto.mode !== "out";
   $("#step").classList.toggle("primary", !can && !on);
 }
-/** Mark figures Ready; if that would close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). Alone in the fight there is no one to wrong: no asking. */
+function placeReadyBox(box, anchor) {
+  $("#wrap").appendChild(box);
+  const bar = $("#actionbar"); box.style.bottom = `${(bar && !bar.hidden && !bar.classList.contains("free") ? bar.offsetHeight : 0) + 24}px`;
+  if (anchor === $("#step")) { box.style.top = "12px"; box.style.bottom = ""; }
+  box.querySelector("[data-no]").onclick = () => box.remove();
+  box.querySelector("[data-go]").focus();
+}
+/**
+ * Mark figures Ready. At Orders, an order that will do nothing is shown first with its fix (v1.582.00). If Ready would
+ * close the step, ask first (Kurt, Oct 2026: a mis-click there can't be taken back). Alone in the fight there is no one to wrong: no asking.
+ */
 function markReady(ids, anchor) {
   const left = state.figures.filter((g) => needsReady(g) && !isReadyFig(g)).map((g) => g.id);
   const last = left.length > 0 && left.every((id) => ids.includes(id));
-  if (!last || aloneInFight()) { runAction({ type: "ready", ids }); return; }
   document.querySelector(".lastready")?.remove();
+  const probs = isOrders() ? ids.map(byId).filter(Boolean).map((f) => ({ f, c: orderCheck(f) })).filter((x) => x.c.state === "decide" || x.c.state === "idle") : [];
+  if (probs.length) {
+    const box = document.createElement("div");
+    box.className = "lastready"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Orders that will do nothing");
+    const goText = (n) => `${last ? "Ready and resolve" : "Ready"}${n ? " anyway" : ""}`;
+    box.innerHTML = `<b>${probs.length > 1 ? "These orders" : "This order"} will do nothing this round.</b>${probs.map((p, i) => `<div class="lr-row" data-row="${i}"><span>${esc(p.c.text)}</span>${p.c.fixes.length ? `<span class="lr-fix">${p.c.fixes.map((x, j) => `<button type="button" data-fix="${i}:${j}"${x.title ? ` title="${esc(x.title)}"` : ""}>${esc(x.label)}</button>`).join("")}</span>` : ""}</div>`).join("")}<div class="btns"><button type="button" class="primary" data-go>${goText(probs.length)}</button><button type="button" data-no>Not yet</button></div>`;
+    box.querySelectorAll("[data-fix]").forEach((b) => (b.onclick = () => {
+      const [i, j] = b.dataset.fix.split(":").map(Number), p = probs[i];
+      runAction({ type: "orders", id: p.f.id, ...p.c.fixes[j].patch });
+      box.querySelector(`[data-row="${i}"]`)?.remove();
+      box.querySelector("[data-go]").textContent = goText(box.querySelectorAll(".lr-row").length);
+    }));
+    box.querySelector("[data-go]").onclick = () => { box.remove(); sendReady(ids); render(); };
+    placeReadyBox(box, anchor); return;
+  }
+  if (!last || aloneInFight()) { sendReady(ids); return; }
   const box = document.createElement("div");
   box.className = "lastready"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Resolve now?");
   const names = ids.map((id) => byId(id)?.name).filter(Boolean), list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0];
   box.innerHTML = `<b>Everyone else is ready.</b><span>Marking ${esc(list)} ${isOrders() ? "resolves the round now: fire, spells, then melee." : "ends this move now."}</span><div class="btns"><button type="button" class="primary" data-go>Resolve</button><button type="button" data-no>Not yet</button></div>`;
-  const wrapBox = $("#wrap"); wrapBox.appendChild(box);
-  const bar = $("#actionbar"); box.style.bottom = `${(bar && !bar.hidden && !bar.classList.contains("free") ? bar.offsetHeight : 0) + 24}px`;
-  if (anchor === $("#step")) { box.style.top = "12px"; box.style.bottom = ""; }
-  box.querySelector("[data-go]").onclick = () => { box.remove(); runAction({ type: "ready", ids }); render(); };
-  box.querySelector("[data-no]").onclick = () => box.remove();
-  box.querySelector("[data-go]").focus();
+  box.querySelector("[data-go]").onclick = () => { box.remove(); sendReady(ids); render(); };
+  placeReadyBox(box, anchor);
 }
 /** Local play's Undo (online, the server keeps the record): the fight as it stood before each action. */
 const localUndo = [];
@@ -4656,6 +4762,7 @@ $("#map").addEventListener("click", (e) => {
     const tx = x - off, ty = y - off;
     const legal = state.phase === "setup" ? fits(sel, tx, ty) : !!(reachFor(sel).get(`${tx},${ty}`) && !reachFor(sel).get(`${tx},${ty}`).passOnly);
     if (legal) { moveTo(sel, tx, ty); return; }
+    if (state.phase === "fight") { $("#dragInfo").textContent = `${sel.name} can't reach that square this move. Esc lets go of the selection.`; return; }
   }
   emptyClick();
 });
@@ -4677,7 +4784,7 @@ $("#map").addEventListener("mousemove", (e) => {
 });
 $("#map").addEventListener("mouseleave", () => { state.hover = null; renderOverlay(); });
 document.addEventListener("keydown", (e) => {
-  if (e.target.matches?.("input, select")) return;
+  if (e.target.matches?.("input, select, textarea, [contenteditable]")) return;
   if (state.cast && e.key === "Escape") { exitCast("Casting cancelled."); return; }
   if (/^[1-6]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !state.cast) { const b = document.querySelector(`#actionbar [data-slot="${e.key}"]`); if (b) { e.preventDefault(); if (!b.disabled) b.click(); return; } }
   if (state.cast && e.key === "Enter") { confirmCast(); return; }
@@ -4795,6 +4902,9 @@ $("#reset").addEventListener("click", resetFight);
 $("#tapTarget").checked = window.matchMedia?.("(pointer: coarse)").matches ?? false;
 try { const v = localStorage.getItem("odd-empty-click"); if (v) $("#emptyClick").value = v; } catch {}
 $("#emptyClick").addEventListener("change", (e) => { try { localStorage.setItem("odd-empty-click", e.target.value); } catch {} });
+try { if (localStorage.getItem("odd-auto-target") === "0") $("#autoTarget").checked = false; const v = localStorage.getItem("odd-elect-pref"); if (v) $("#electPref").value = v; } catch {}
+$("#autoTarget").addEventListener("change", (e) => { try { localStorage.setItem("odd-auto-target", e.target.checked ? "1" : "0"); } catch {} renderAutoButtons(); });
+$("#electPref").addEventListener("change", (e) => { try { localStorage.setItem("odd-elect-pref", e.target.value); } catch {} electByPref(); driveAuto(); });
 /* ---------- camera: pan, zoom, minimap, default view ---------- */
 const BASE = 28 / PX; // screen px per world unit at zoom 1 (28px per 3⅓' cell)
 const cam = { x: W * PX / 2, y: H * PX / 2, z: 1 };
