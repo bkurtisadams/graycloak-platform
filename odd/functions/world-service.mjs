@@ -58,13 +58,14 @@ export const worldPaths = (cid) => ({
   map: `oddCampaigns/${cid}/world/map`,
   known: `oddCampaigns/${cid}/world/known`,
   rumours: `oddCampaigns/${cid}/world/rumours`,
+  loyalty: `oddCampaigns/${cid}/world/loyalty`, // the referee's: no player's page can read under world/
   chat: (who, id) => `oddCampaigns/${cid}/chat/${who}/entries/${id}`,
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.576.00";
+export const SERVER_BUILD = "v1.577.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
-  const { roster, wilderness: W, westmark: WM, parties: P, menAtArms: M } = rules;
+  const { roster, wilderness: W, westmark: WM, parties: P, menAtArms: M, retainers: RT } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
   const dungeons = rules.dungeonGen ? createDungeonOps({ rules, now, rollDie }) : null;
   const delves = rules.dungeonGen && rules.delve ? createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey: (name) => W.key(PLACES[name].q, PLACES[name].r), hexKey: (ch) => { const h = ch.hex ?? PLACES[W.WESTMARK.home]; return W.key(h.q, h.r); }, openFightIn: fights?.openIn ?? null, isReferee }) : null;
@@ -172,12 +173,13 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
 
       if (op === "map") {
         const rumours = ref ? (await tx.get(p.rumours)) ?? {} : undefined;
+        const loyalty = ref ? ((await tx.get(p.loyalty)) ?? {}).of ?? {} : undefined;
         const every = dungeons ? await dungeons.summary(tx, cid) : undefined;
         const levels = !every ? undefined : ref ? every : Object.fromEntries(Object.entries(every).filter(([, d]) => d.status === "open")); // the players hear of a level once it is open
         if (seeded) save();
         const places = { ...PLACES };
         for (const [k, h] of Object.entries(map.hexes)) if (h.place && !places[h.place]) { const { q, r } = W.parse(k); places[h.place] = { q, r, kind: h.kind ?? "village", desc: "" }; }
-        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { known: known.hexes } : {}), ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}), ...(levels ? { dungeons: levels } : {}), parties: summary(), server: { build: SERVER_BUILD, rules: rules.fightStore?.RULES_VERSION ?? null } };
+        return { ok: true, home: W.WESTMARK.home, places, hexes: ref ? map.hexes : known.hexes, full: ref, laidOut: !!map.laidOut, ...(ref ? { known: known.hexes } : {}), ...(ref ? { loyalty } : {}), ...(ref ? { rumours, defaults: { [W.WESTMARK.home]: W.WESTMARK.rumours } } : {}), ...(levels ? { dungeons: levels } : {}), parties: summary(), server: { build: SERVER_BUILD, rules: rules.fightStore?.RULES_VERSION ?? null } };
       }
 
       if (op === "rumours") {
@@ -226,7 +228,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       const many = ["move", "camp", "evade", "stand", "party"].includes(op);
       const ids = many && Array.isArray(data.ids) ? [...new Set(data.ids.filter((x) => ID.test(x ?? "")))].slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];
       if (!ids.length) return refuse("bad-request", "which character?");
-      const own = ["rest", "rumour", "shop", "give", "party", "stow", "fetch", "heir", "notice", "hire", "dismiss"].includes(op);
+      const own = ["rest", "rumour", "shop", "give", "party", "stow", "fetch", "heir", "notice", "hire", "dismiss", "seek", "offer", "release"].includes(op);
       for (const id of ids) {
         const ch = byId(id); if (!ch) return refuse("not-found", "no such character");
         if (own && !ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
@@ -234,7 +236,8 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         if (ch.under) return refuse("bad-request", `${ch.name || "he"} is underground`);
       }
       const day0 = camp.day ?? 1;
-      const put = (id, ch) => { const next = clean({ ...ch, updatedAt: now() }); tx.set(p.character(id), next); const i = all.findIndex((c) => c.id === id); if (i >= 0) all[i] = next; };
+      const loyalty = op === "offer" || op === "release" ? (await tx.get(p.loyalty)) ?? { of: {} } : null; // read before anything is written
+      const put = (id, ch) => { const next = clean({ ...ch, updatedAt: now() }); tx.set(p.character(id), next); const i = all.findIndex((c) => c.id === id); if (i >= 0) all[i] = next; else all.push(next); };
       const done = (out) => ({ ...out, parties: summary() });
       /**
        * Pay day (Book III, Men-at-Arms: so much a month): each month that has come due by `day` is paid from his gold;
@@ -350,6 +353,83 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         put(ch.id, { ...ch, heir: name ? { name, relation: relation || "relative" } : null });
         return { ok: true, character: { id: ch.id, ...byId(ch.id) } };
       }
+      /*
+       * Retainers (Book I, Non-Player Characters; v1.577.00). seek: he advertises at the inn for one of a class.
+       * offer: gold and terms put to the one who came forward, on Book I's two dice. release: a retainer is let go.
+       * Loyalty is rolled when he enters service and kept in world/loyalty, where only the referee's requests reach.
+       */
+      if (op === "seek" || op === "offer") {
+        if (!RT) return refuse("bad-request", "retainers aren't deployed");
+        const ch0 = byId(ids[0]), h = hexOf(ch0), place = placeAt(map.hexes, h), info = placeInfo(place);
+        if (ch0.doing === "dead") return refuse("bad-request", "he is dead");
+        if (ch0.retainer) return refuse("bad-request", `${ch0.name} is in service himself`);
+        if (!info?.inn || ch0.doing !== "town") return refuse("bad-request", "retainers are sought at an inn");
+        const serving = all.filter((c) => c.retainer?.of === ch0.id && c.doing !== "dead"), most = RT.hirelingsFor(ch0.abilities?.cha).max;
+        if (serving.length >= most) return refuse("bad-request", `Charisma ${ch0.abilities?.cha}: he may keep ${most} and has ${serving.length}`);
+        const today = dayOf(ch0, day0), label = (cls) => roster.CLASS_LABEL[cls] ?? cls;
+        if (op === "seek") {
+          const cls = String(data.cls ?? ""), method = String(data.method ?? ""), way = RT.SEEK[method];
+          if (!RT.RETAINER_CLASSES.includes(cls)) return refuse("bad-request", "one of which class?");
+          if (!way) return refuse("bad-request", "seek him how?");
+          if (!RT.seekChance(info.kind, method)) return refuse("bad-request", `nobody is to be found that way in ${place}`);
+          const start = Math.max(ch0.day ?? day0, day0), want = way.daily ? Math.max(1, Math.min(RT.SEEK_MAX_DAYS, Math.trunc(Number(data.days)) || 1)) : way.days;
+          const purse = afterPay(ch0, start + want).coins?.gp ?? 0; // what he can count on if his men's pay falls due in the meantime
+          const r = RT.seek(info.kind, method, { days: want, gp: purse, roll: rollDie });
+          if (!r.days) return refuse("bad-request", way.daily ? `he hasn't the gold for a day of it; he has ${purse} gp` : `the notices cost ${way.cost} gp; he has ${purse}`);
+          const day = start + r.days, ch = pay(ch0, day), gp = (ch.coins?.gp ?? 0) - r.spent;
+          const healed = Math.min(W.healingAfter(r.days), Math.max(0, (ch.maxHp ?? 0) - (ch.hp ?? 0)));
+          const applicant = r.found ? { place, day, cls, name: rules.generateMedievalName?.({ style: "commoner", culture: "generic" }) || `a ${label(cls)}`, last: 0 } : null;
+          put(ch.id, { ...ch, coins: { ...ch.coins, gp }, hex: h, where: place, doing: "town", day, daysWalked: 0, dayMoved: 0, restOwed: 0, hp: (ch.hp ?? 0) + healed, expedition: null, applicant });
+          log(tx, p, camp, `Day ${day}. ${ch.name} sought a ${label(cls)} at ${info.inn} (${way.name.toLowerCase()}, ${r.days} day${r.days === 1 ? "" : "s"}, ${r.spent} gp). ${applicant ? `${applicant.name} came forward and waits on an offer.` : `Nobody came forward${r.short ? "; his gold ran short" : ""}.`}`, ch.owner ? [ch.owner] : null, { kind: "travel" });
+          return done({ ok: true, character: { id: ch.id, ...byId(ch.id) }, found: !!applicant, name: applicant?.name ?? null, days: r.days, spent: r.spent, day });
+        }
+        const ap = ch0.applicant, live = ap && ap.place === place && today <= ap.day + RT.SEEK_MAX_DAYS;
+        if (!live) return refuse("bad-request", "nobody waits on his offer here: seek one first");
+        const gp = Math.trunc(Number(data.gp)), terms = RT.TERMS[data.terms] ? data.terms : "wages", has = afterPay(ch0, today).coins?.gp ?? 0;
+        if (!(gp >= RT.MIN_OFFER)) return refuse("bad-request", `no man is tempted into service for less than ${RT.MIN_OFFER} gp (Book I)`);
+        if (gp <= (ap.last ?? 0)) return refuse("bad-request", `he was uncertain at ${ap.last} gp: offer more`);
+        if (gp > has) return refuse("bad-request", `he has ${has} gp`);
+        const o = RT.makeOffer(d6(), d6(), gp, ch0.abilities?.cha);
+        const dice = `2d6 [${o.dice.join(",")}]${o.offer ? ` +${o.offer} for the offer` : ""}${o.charisma ? ` ${o.charisma > 0 ? "+" : "−"}${Math.abs(o.charisma)} for Charisma` : ""} = ${o.total}`;
+        const said = `Day ${today}. ${ch0.name} offered ${ap.name}, a ${label(ap.cls)}, ${gp} gp (${RT.TERMS[terms]}): ${dice}.`;
+        const mine = ch0.owner ? [ch0.owner] : null;
+        if (!o.accepts) {
+          put(ch0.id, { ...pay(ch0, today), applicant: o.open ? { ...ap, last: gp } : null });
+          log(tx, p, camp, `${said} ${o.open ? "He is uncertain: a better offer may sway him." : o.key === "Attack" ? "He takes it as an insult, and it nearly comes to blows; he is gone." : "He refuses, and is gone."}`, mine, { kind: "event" });
+          return { ok: true, character: { id: ch0.id, ...byId(ch0.id) }, result: o.key, total: o.total, accepted: false, open: o.open };
+        }
+        // he enters service: a first-level character rolled as any other, equipped from his own starting gold
+        let made = roster.rollCharacter(d6);
+        const based = roster.setBasics(made, { name: ap.name, race: "human", cls: ap.cls, alignment: ch0.alignment ?? "neutral" }); if (!based.ok) return refuse("bad-request", based.error);
+        made = based.ch;
+        for (const key of RT.RETAINER_KIT[ap.cls] ?? []) { const b = roster.buy(made, key); if (b.ok) made = b.ch; }
+        const fin = roster.finish(made, d6); if (!fin.ok) return refuse("bad-request", fin.error);
+        const rid = `ret-${now().toString(36)}-${rollDie(1000000).toString(36)}`, owner = ch0.owner ?? null;
+        const loyal = RT.rollLoyalty([d6(), d6(), d6()], ch0.abilities?.cha, o.loyaltyBonus);
+        const ch = pay(ch0, today), band = partyHolding(ch.id);
+        const ret = roster.withAccess({ ...fin.ch, id: rid, owner, ownership: { default: roster.OWNERSHIP.NONE, ...(owner ? { [owner]: roster.OWNERSHIP.OWNER } : {}) }, folder: ch.folder ?? null, createdAt: now(),
+          hex: h, where: place, doing: "town", day: today, party: band?.id ?? ch.id, march: 99, ...(ch.spot ? { spot: ch.spot } : {}), retainer: { of: ch.id, ofName: ch.name, terms, offer: gp, since: today, place } }, camp.members ?? []);
+        put(rid, ret);
+        put(ch.id, { ...ch, party: band?.id ?? ch.id, coins: { ...ch.coins, gp: (ch.coins?.gp ?? 0) - gp }, applicant: null, hirelings: [...(ch.hirelings ?? []).filter((x) => x.id !== rid), { id: rid, name: ret.name }] });
+        tx.set(p.loyalty, clean({ of: { ...(loyalty.of ?? {}), [rid]: { score: loyal.score, dice: loyal.dice, charisma: loyal.charisma, bonus: loyal.bonus, hirer: ch.id, day: today } } }));
+        log(tx, p, camp, `${said} ${o.key === "Enthusiast" ? "He is eager for it, and" : "He accepts, and"} enters ${ch.name}'s service.`, mine, { kind: "party" });
+        log(tx, p, camp, `${ret.name}'s loyalty to ${ch.name}: 3d6 [${loyal.dice.join(",")}]${loyal.charisma ? ` ${loyal.charisma > 0 ? "+" : "−"}${Math.abs(loyal.charisma)} Charisma` : ""}${loyal.bonus ? ` +${loyal.bonus} enthusiast` : ""} = ${loyal.score}: ${loyal.morale.deserts ? "he will desert at the first opportunity" : loyal.morale.neverChecks ? "he need never check morale" : loyal.morale.mod ? `${loyal.morale.mod > 0 ? "+" : "−"}${Math.abs(loyal.morale.mod)} on his morale dice` : "average, nothing on his morale dice"}. The players are not told.`, [], { kind: "ruling" });
+        return done({ ok: true, character: { id: ch.id, ...byId(ch.id) }, retainer: { id: rid, ...byId(rid) }, result: o.key, total: o.total, accepted: true });
+      }
+      if (op === "release") {
+        const r0 = byId(ids[0]), master = r0.retainer ? byId(r0.retainer.of) : null;
+        if (!r0.retainer) return refuse("bad-request", `${r0.name} is nobody's retainer`);
+        const today = dayOf(r0, day0), g = P.regroup(above(), [r0.id], null, hk);
+        const freed = roster.setOwnership({ ...r0, retainer: null, served: { of: r0.retainer.of, ofName: r0.retainer.ofName ?? master?.name ?? "", until: today } }, { default: roster.OWNERSHIP.NONE }, camp.members ?? []);
+        if (!freed.ok) return refuse("bad-request", freed.error);
+        if (g.ok) for (const [id, pid] of Object.entries(g.set)) if (id !== r0.id) put(id, { ...byId(id), party: pid });
+        put(r0.id, { ...freed.ch, party: r0.id });
+        if (master) put(master.id, { ...byId(master.id), hirelings: (byId(master.id).hirelings ?? []).filter((x) => x.id !== r0.id) });
+        const of = { ...(loyalty.of ?? {}) }; delete of[r0.id]; tx.set(p.loyalty, clean({ of }));
+        log(tx, p, camp, `Day ${today}. ${master?.name ?? "His master"} released ${r0.name} from his service.`, master?.owner ? [master.owner] : null, { kind: "party" });
+        return done({ ok: true, released: r0.id });
+      }
+
       /*
        * Men-at-arms (Book III; v1.574.00). notice: a week of notices at the inn, 100-600 gp, each type sought rolled for
        * by itself. hire: men who answered are taken into service, a month's pay down. dismiss: men are let go.

@@ -123,3 +123,23 @@ test("hired men go into the referee's fights with their master, and morale names
   assert.match(grid, /for \(const c of add\) addMenOf\(c\);/, "Setup's Add the party");
   assert.ok(grid.includes("esc(e.plural ?? `${e.name}s`)"), "Heavy Foot, not Heavy Foots");
 });
+
+test("the inn's retainers box (v1.577.00): those in service, the one who came forward and the offer, or the seeking", async () => {
+  const vg = await import("../village-ui.mjs"), rules = await import("../../packages/odd-chainmail-rules/index.js");
+  const leal = { id: "c2", name: "Leal", cls: "fighter", level: 1, retainer: { of: "c1", ofName: "Brom", terms: "share" } };
+  const c = { id: "c1", name: "Brom", coins: { gp: 342 }, hp: 4, maxHp: 4, items: [], abilities: { cha: 13 }, hirelings: [{ id: "c2", name: "Leal" }], applicant: { place: "Langstead", day: 10, cls: "cleric", name: "Matthew Walker", last: 100 } };
+  const env = { rs: rules.roster, may: () => true, busy: false, view: { at: "inn" }, heal: rules.wilderness.healingAfter, dayOf: () => 12 }, place = { kind: "village", inn: "The Ox and Ford" };
+  let html = vg.innPanelHtml(env, c, [c, leal], place, "Langstead");
+  assert.match(html, /Charisma 13: up to 5 · he has 1/); assert.match(html, /data-rt-release="c2"/); assert.match(html, /wages and a half share of treasure/);
+  assert.match(html, /<b>Matthew Walker<\/b><span>a Cleric of the first level/); assert.match(html, /id="rtGp" type="number" min="101" step="50" value="200"/, "he was uncertain at 100: more is wanted");
+  assert.match(html, /\+1 for this offer/); assert.match(html, /\+1 for Charisma/); assert.doesNotMatch(html, /id="rtSeek"/);
+  html = vg.innPanelHtml(env, { ...c, applicant: null }, [c, leal], place, "Langstead");
+  assert.match(html, /id="rtSeek"/); assert.match(html, /Post notices: 10 gp, 7 days/); assert.match(html, /20 chances in 100 that one comes forward in the week/);
+  html = vg.innPanelHtml(env, leal, [c, leal], place, "Langstead");
+  assert.match(html, /Leal is in Brom’s service/); assert.doesNotMatch(html, /id="rtSeek"/);
+  const grid = readFileSync(new URL("../combat-grid.html", import.meta.url), "utf8");
+  for (const op of ['worldOp("seek"', 'put("offer"', 'worldOp("release"']) assert.ok(grid.includes(op), op);
+  const rui = await import("../roster-ui.mjs"), sheet = (ref) => rui.sheetHtml(rules.roster, { ...leal, owner: "bob", abilities: { str: 10, int: 10, wis: 10, con: 10, dex: 10, cha: 10 }, items: [], ready: {}, coins: { gp: 0 }, hp: 4, maxHp: 4, xp: 0, race: "human", alignment: "law", retainer: { ...leal.retainer, since: 3, offer: 200 } }, { tab: "notes", canEdit: true, ref, people: {}, me: "bob", loyalty: { score: 10, dice: [2, 3, 4], charisma: 1, bonus: 0 } });
+  assert.match(sheet(true), /Loyalty<\/span><span>10/); assert.doesNotMatch(sheet(false), /Loyalty/, "a player's sheet never shows it");
+  assert.match(sheet(false), /A retainer of Brom since day 3, for 200 gp/);
+});

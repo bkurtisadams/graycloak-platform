@@ -213,7 +213,7 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const monsters = state.figures.filter((f) => f.side === "B" && f.monsterKey && down(f)).map((f) => { const m = rules.MONSTERS.find((x) => x.key === f.monsterKey); return m ? { count: m.hd.count, bonus: m.hd.bonus ?? 0 } : null; }).filter(Boolean);
     const gpOf = (coins) => rules.coinsToGp(coins ?? {});
     const treasureValue = chars.reduce((s, { f, ch }) => s + Math.max(0, gpOf(f.inv?.coins) - gpOf(ch.coins)), 0);
-    const settled = rules.settleEncounter({ monsters, treasureValue, members: chars.map(({ f, ch }) => ({ id: f.charId, level: ch.level ?? 1, fought: true, lootCut: 1 })), mode: "individual" });
+    const settled = rules.settleEncounter({ monsters, treasureValue, members: chars.map(({ f, ch }) => ({ id: f.charId, level: ch.level ?? 1, fought: true, lootCut: 1, hireling: !!ch.retainer })), mode: "individual" });
     const title = header.title || "the fight", out = [], lines = [];
     // hired men who stood in the fight (v1.575.00): the dead come off their master's roll; if he fell, the rest leave his service
     const M = rules.menAtArms ?? null, stood = {};

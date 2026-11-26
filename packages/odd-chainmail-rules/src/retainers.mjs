@@ -76,6 +76,79 @@ export function reactionFor(total) {
   return { key: band.key, loyaltyBonus: band.loyaltyBonus ?? 0 };
 }
 
+/* ------------------------------------------------------------------ seeking and hiring (the online game, v1.577.00) */
+
+/** Book I: only the lowest level of character types can be hired. The classes a player may seek. */
+export const RETAINER_CLASSES = Object.freeze(["fighter", "magic-user", "cleric", "thief"]);
+/**
+ * Ways of advertising for a retainer and what they cost (Kurt, 25 Nov 2026; Book I says only that it costs money and
+ * takes time): notices 10 gp for 7 days; asking around 1d6 gp a day; the round of the inns 1d6 x 10 gp a day.
+ */
+export const SEEK = Object.freeze({
+  notices: Object.freeze({ name: "Post notices", days: 7, daily: false, cost: 10 }),
+  asking: Object.freeze({ name: "Ask around", daily: true, mult: 1 }),
+  inns: Object.freeze({ name: "The round of the inns", daily: true, mult: 10 }),
+});
+export const SEEK_MAX_DAYS = 7;
+/**
+ * The chance in 100 that an applicant comes forward: for the notices, once for their week; for the others, each day.
+ * Starting numbers for the referee to change.
+ */
+export const SEEK_CHANCE = Object.freeze({
+  village: Object.freeze({ notices: 20, asking: 10, inns: 20 }),
+  town: Object.freeze({ notices: 40, asking: 15, inns: 30 }),
+  city: Object.freeze({ notices: 60, asking: 20, inns: 40 }),
+});
+export function seekChance(kind, method) { return SEEK_CHANCE[kind]?.[method] ?? 0; }
+/**
+ * Look for a retainer: `roll(n)` gives 1..n, `gp` is the gold he can spend, `days` how long he keeps at a daily way.
+ * A day he cannot pay for ends the search. Returns { found, days, spent, costs, rolls }.
+ */
+export function seek(kind, method, { days = 1, gp = 0, roll }) {
+  const m = SEEK[method], chance = seekChance(kind, method); if (!m) return null;
+  if (!m.daily) {
+    if (gp < m.cost) return { found: false, days: 0, spent: 0, costs: [], rolls: [], chance, short: true };
+    const pct = roll(100);
+    return { found: pct <= chance, days: m.days, spent: m.cost, costs: [m.cost], rolls: [pct], chance };
+  }
+  const out = { found: false, days: 0, spent: 0, costs: [], rolls: [], chance };
+  for (let d = 0; d < Math.max(1, Math.min(SEEK_MAX_DAYS, Math.trunc(days) || 1)); d++) {
+    const cost = roll(6) * m.mult;
+    if (gp - out.spent < cost) { out.short = true; break; }
+    const pct = roll(100);
+    out.days += 1; out.spent += cost; out.costs.push(cost); out.rolls.push(pct);
+    if (pct <= chance) { out.found = true; break; }
+  }
+  return out;
+}
+
+/** Book I: a minimum offer of 100 gp is needed to tempt a human into service. */
+export const MIN_OFFER = 100;
+/** Kurt (25 Nov 2026): +1 on the offer's dice for each 100 gp over the minimum, never more than +3. */
+export function offerBonus(gp) { return Math.max(0, Math.min(3, Math.floor(((Math.trunc(Number(gp)) || 0) - MIN_OFFER) / 100))); }
+/** What is promised beyond the offer (Kurt, 25 Nov 2026): his wages alone, or his wages and a half share of treasure. */
+export const TERMS = Object.freeze({ wages: "wages only", share: "wages and a half share of treasure" });
+/**
+ * The offer: two dice, the offer's bonus, and Charisma's loyalty adjustment (Kurt, 25 Nov 2026). Uncertain leaves
+ * the door open to a better offer; anything under 6 does not (Book I).
+ */
+export function makeOffer(d1, d2, gp, cha) {
+  const offer = offerBonus(gp), charisma = hirelingsFor(cha).loyaltyBase, total = d1 + d2 + offer + charisma, r = reactionFor(total);
+  return { dice: [d1, d2], offer, charisma, total, key: r.key, loyaltyBonus: r.loyaltyBonus, accepts: r.key === "Accepts" || r.key === "Enthusiast", open: r.key === "Uncertain" };
+}
+/** Loyalty (Book I): three dice, adjusted for Charisma, and +3 for one who came in an enthusiast. The referee's to keep. */
+export function rollLoyalty(dice, cha, bonus = 0) {
+  const charisma = hirelingsFor(cha).loyaltyBase, score = dice.reduce((s, n) => s + n, 0) + charisma + bonus;
+  return { dice: [...dice], charisma, bonus, score, morale: loyaltyMorale(score) };
+}
+/** What a 1st-level retainer buys with his own starting gold, in this order, as far as it goes. */
+export const RETAINER_KIT = Object.freeze({
+  fighter: Object.freeze(["sword", "mail", "shield", "helmet"]),
+  cleric: Object.freeze(["mace", "mail", "shield"]),
+  "magic-user": Object.freeze(["dagger"]),
+  thief: Object.freeze(["sword", "leather"]),
+});
+
 /* Self-tests — Node only. */
 function runSelfTests() {
   let pass = 0;
@@ -108,6 +181,19 @@ function runSelfTests() {
   ok(reactionFor(12).key === "Enthusiast" && reactionFor(12).loyaltyBonus === 3, "12 enthusiast +3");
   ok(reactionFor(15).key === "Enthusiast", "above 12 still enthusiast");
 
+  // Seeking and the offer.
+  const seqd = (list) => { let i = 0; return () => list[i++]; };
+  ok(seekChance("village", "notices") === 20 && seekChance("city", "inns") === 40 && seekChance("ruin", "inns") === 0, "the chance by settlement and way");
+  let sk = seek("village", "notices", { gp: 50, roll: seqd([20]) }); ok(sk.found && sk.days === 7 && sk.spent === 10, "notices: 10 gp, a week, one roll");
+  ok(seek("village", "notices", { gp: 9, roll: seqd([1]) }).short, "no gold for the notices");
+  sk = seek("town", "inns", { days: 5, gp: 500, roll: seqd([3, 31, 2, 30]) }); ok(sk.found && sk.days === 2 && sk.spent === 50 && sk.costs.join() === "30,20", "the inns: 1d6 x 10 a day, stopping the day one comes");
+  sk = seek("town", "asking", { days: 3, gp: 5, roll: seqd([2, 99, 4, 1]) }); ok(!sk.found && sk.days === 1 && sk.spent === 2 && sk.short, "a day he can't pay for ends it");
+  ok(offerBonus(100) === 0 && offerBonus(199) === 0 && offerBonus(200) === 1 && offerBonus(400) === 3 && offerBonus(5000) === 3, "+1 a 100 gp over the minimum, capped at +3");
+  let of = makeOffer(4, 4, 100, 10); ok(of.total === 8 && of.open && !of.accepts, "8: uncertain, the door stays open");
+  of = makeOffer(4, 4, 200, 10); ok(of.total === 9 && of.accepts && of.loyaltyBonus === 0, "9 with a better offer: accepts");
+  of = makeOffer(5, 5, 300, 13); ok(of.total === 13 && of.key === "Enthusiast" && of.loyaltyBonus === 3 && of.charisma === 1, "Charisma on the dice; an enthusiast");
+  of = makeOffer(2, 2, 100, 4); ok(of.total === 2 && of.key === "Attack" && !of.open, "a poor Charisma can turn him ugly");
+  const ly = rollLoyalty([3, 4, 5], 16, 3); ok(ly.score === 17 && ly.morale.mod === 2, "loyalty: 3d6, Charisma, the enthusiast's +3");
   console.log(`retainers.mjs — all self-tests passed (${pass} assertions).`);
 }
 

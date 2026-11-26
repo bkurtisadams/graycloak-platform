@@ -35,6 +35,7 @@ export * as wilderness from "./src/wilderness.mjs";
 export * as westmark from "./src/westmark.mjs";
 export * as parties from "./src/parties.mjs";
 export * as menAtArms from "./src/men-at-arms.mjs";
+export * as retainers from "./src/retainers.mjs";
 export * as underworld from "./src/underworld.mjs";
 export * as dungeonGen from "./src/dungeon-gen.mjs";
 export * as delve from "./src/delve.mjs";

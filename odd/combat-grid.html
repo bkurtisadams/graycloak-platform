@@ -1772,9 +1772,9 @@ const tradePanelHtml = (c, uid, here, placeName) => vg.tradePanelHtml(villageEnv
 const villageDockHtml = (c, uid, placeName) => vg.villageDockHtml(villageEnv(uid), c, villageGroup(c, uid, placeName), placeName);
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.576.00";
+const BUILD = "v1.577.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.576.00";
+const SERVER_NEEDED = "v1.577.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -1793,7 +1793,7 @@ async function loadWorld(force = false) {
   world.loading = true; renderLobbyStage();
   const r = await online.api.world("map", table.cid);
   world.loading = false;
-  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.known = r.known ?? null; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.defaults = r.defaults ?? {}; world.dungeons = r.dungeons ?? {}; world.parties = r.parties ?? []; world.server = r.server ?? null; world.error = ""; }
+  if (r.ok) { world.loaded = true; world.hexes = r.hexes ?? {}; world.known = r.known ?? null; world.places = r.places ?? {}; world.home = r.home ?? "Langstead"; world.full = !!r.full; world.laidOut = r.laidOut !== false; world.rumours = r.rumours ?? {}; world.loyalty = r.loyalty ?? null; world.defaults = r.defaults ?? {}; world.dungeons = r.dungeons ?? {}; world.parties = r.parties ?? []; world.server = r.server ?? null; world.error = ""; }
   else world.error = r.error ?? "Couldn't load the map.";
   renderVersion();
   renderLobbyStage();
@@ -1958,6 +1958,26 @@ function bindVillage(el, c, uid) {
   $("#heirEdit")?.addEventListener("click", () => { lobby.view.heirEdit = true; renderLobbyStage(); $("#heirName")?.focus(); });
   $("#heirCancel")?.addEventListener("click", () => { lobby.view.heirEdit = false; renderLobbyStage(); });
   $("#heirSave")?.addEventListener("click", async () => { const r = await put("heir", { name: $("#heirName").value, relation: $("#heirRel").value }); if (r.ok) { lobby.view.heirEdit = false; renderLobbyStage(); } });
+  // retainers (v1.577.00): seeking one, the offer, releasing him
+  const seeks = (k, id, num) => $(id)?.addEventListener("change", (ev) => { lobby.view[k] = num ? Number(ev.target.value) : ev.target.value; renderLobbyStage(); $(id)?.focus(); });
+  seeks("seekCls", "#rtCls"); seeks("seekMethod", "#rtMethod"); seeks("seekDays", "#rtDays", true); seeks("offerGp", "#rtGp", true); seeks("offerTerms", "#rtTerms");
+  $("#rtSeek")?.addEventListener("click", async () => {
+    const r = await worldOp("seek", { id: c.id, cls: $("#rtCls").value, method: $("#rtMethod").value, days: Number($("#rtDays")?.value) || 1 });
+    if (r.ok) { world.msg = `${r.days} day${r.days === 1 ? "" : "s"} and ${r.spent} gp: ${r.found ? `${r.name} came forward` : "nobody came forward"}. It is day ${r.day}.`; lobby.view.offerGp = null; }
+    renderLobbyStage();
+  });
+  $("#rtOffer")?.addEventListener("click", async () => {
+    const r = await put("offer", { gp: Math.trunc(Number($("#rtGp").value)) || 0, terms: $("#rtTerms").value });
+    if (!r.ok) return;
+    if (r.retainer && !table.chars.some((x) => x.id === r.retainer.id)) table.chars.push(r.retainer);
+    world.msg = `The dice came to ${r.total}: ${r.accepted ? `${r.retainer?.name ?? "he"} enters ${c.name}’s service` : r.open ? "he is uncertain, and may be offered more" : "he refuses, and is gone"}.`; lobby.view.offerGp = null;
+    renderLobbyStage(); if (r.accepted) renderRoster?.();
+  });
+  el.querySelectorAll("[data-rt-release]").forEach((b) => b.addEventListener("click", async () => {
+    const who = charOf(b.dataset.rtRelease); if (!who || !confirm(`Release ${who.name} from service? He leaves the party and is the referee’s again.`)) return;
+    const r = await worldOp("release", { id: who.id });
+    if (r.ok) { if (PLAYER) table.chars = table.chars.filter((x) => x.id !== who.id); if (lobby.view.id === who.id) lobby.view.id = who.retainer?.of ?? lobby.view.id; world.msg = `${who.name} is released.`; await loadWorld(true); }
+  }));
   // men-at-arms (v1.574.00): the notices, hiring those who answered, letting men go
   el.querySelectorAll("[data-ma-type]").forEach((b) => b.addEventListener("change", () => { const skip = new Set(lobby.view.noticeSkip ?? []); if (b.checked) skip.delete(b.dataset.maType); else skip.add(b.dataset.maType); lobby.view.noticeSkip = [...skip]; renderLobbyStage(); }));
   $("#maGp")?.addEventListener("change", (ev) => { lobby.view.noticeGp = Number(ev.target.value); renderLobbyStage(); $("#maGp")?.focus(); });
@@ -1975,7 +1995,7 @@ function bindVillage(el, c, uid) {
   el.querySelectorAll("[data-w-buy]").forEach((b) => b.addEventListener("click", () => worldOp("shop", { id: c.id, buy: b.dataset.wBuy })));
   el.querySelectorAll("[data-w-sell]").forEach((b) => b.addEventListener("click", () => worldOp("shop", { id: c.id, sell: Number(b.dataset.wSell) })));
   // the trade panel: another pack, and giving to the character named in the "to" box
-  el.querySelectorAll("[data-tr-who]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.trWho === c.id) return; lobby.lastChar = b.dataset.trWho; lobby.view = { ...lobby.view, id: b.dataset.trWho, giveTo: null, restDays: null, heirEdit: false, hireN: null }; world.msg = ""; world.error = ""; renderLobbyStage(); }));
+  el.querySelectorAll("[data-tr-who]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.trWho === c.id) return; lobby.lastChar = b.dataset.trWho; lobby.view = { ...lobby.view, id: b.dataset.trWho, giveTo: null, restDays: null, heirEdit: false, hireN: null, offerGp: null }; world.msg = ""; world.error = ""; renderLobbyStage(); }));
   $("#trTo")?.addEventListener("change", (ev) => { lobby.view.giveTo = ev.target.value; renderLobbyStage(); });
   const gave = (r) => { if (r.ok && r.other) { const i = table.chars.findIndex((x) => x.id === r.other.id); if (i >= 0) table.chars[i] = r.other; world.msg = `${c.name} gave ${charOf(r.other.id)?.name ?? "him"} ${r.gave}.`; renderLobbyStage(); } };
   const toId = () => $("#trTo")?.value;
@@ -4187,7 +4207,7 @@ function renderCharSheet() {
   body.innerHTML = ch.status === "draft" && canEdit
     ? rui.chargenHtml(rs, ch, { error: charSheet.error, busy: charSheet.busy })
     : ch.status === "draft" ? `<div class="note">${esc(table.game?.people?.[ch.owner]?.name ?? "A player")} is still rolling this character.</div>`
-    : rui.sheetHtml(rs, ch, { tab: charSheet.tab, canEdit, ref: iRef(), people: table.game?.people, me: meUid(), editingSpells: charSheet.spells, spellPick: charSheet.spellPick, error: charSheet.error });
+    : rui.sheetHtml(rs, ch, { tab: charSheet.tab, canEdit, ref: iRef(), people: table.game?.people, me: meUid(), editingSpells: charSheet.spells, spellPick: charSheet.spellPick, error: charSheet.error, loyalty: world.loyalty?.[ch.id] ?? null });
   if (keep != null && $("#rsNotes")) { $("#rsNotes").value = keep; $("#rsNotes").focus(); }
 }
 /** One request to oddCharacter for a character; st holds busy/error for the card that asked (the sheet window or the stage). The roster listener redraws, the answer is shown at once. */

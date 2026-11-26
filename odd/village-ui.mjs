@@ -6,6 +6,7 @@
 // env: { rs (the rules package's roster), people (uid -> {name, color}), may(character) (the viewer may move him),
 //        busy (a request is out), view (the page's lobby.view), clsAbbr(character), grip (the drag handle's svg) }
 import * as M from "../packages/odd-chainmail-rules/src/men-at-arms.mjs";
+import * as RT from "../packages/odd-chainmail-rules/src/retainers.mjs";
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -94,6 +95,38 @@ function hireBoxHtml(env, c, place, placeName) {
   return `<div class="inn-box"><h4>Hire men-at-arms</h4>${serving}${waiting}${post}<div class="note">Hired men march with him and stand with the party in a fight, each a normal man: one hit die, fighting as a Man. They check morale by their type, and the dead come off the roll.</div></div>`;
 }
 /**
+ * The inn's retainers box (v1.577.00; Book I, Non-Player Characters). Those in his service; the one who came forward,
+ * with the offer to put to him; and the seeking: which class, and by which way of advertising.
+ */
+function retainerBoxHtml(env, c, here, place, placeName) {
+  const v = env.view, busy = env.busy ? "disabled" : "", gp = c.coins?.gp ?? 0, day = env.dayOf(c), label = (cls) => env.rs.CLASS_LABEL[cls] ?? cls;
+  if (c.retainer) return `<div class="inn-box"><h4>Retainers</h4><div class="note">${esc(c.name)} is in ${esc(c.retainer.ofName || "another")}’s service (${esc(RT.TERMS[c.retainer.terms] ?? "wages only")}), and hires nobody himself.</div><div class="inn-row"><button type="button" data-rt-release="${esc(c.id)}" ${busy}>Release him</button><span class="note">He leaves the party and is the referee’s again.</span></div></div>`;
+  const cha = c.abilities?.cha ?? 10, limit = RT.hirelingsFor(cha), kept = (c.hirelings ?? []).length, full = kept >= limit.max;
+  const head = `<h4>Retainers <small>Charisma ${cha}: up to ${limit.max} · he has ${kept}</small></h4>`;
+  const serving = (c.hirelings ?? []).length ? `<div class="tr-cap">In his service</div>` + c.hirelings.map((hl) => { const r = here.find((x) => x.id === hl.id);
+    return `<div class="tr-row"><span class="tr-n">${esc(hl.name)}</span><span class="tr-p">${r ? `${esc(label(r.cls))} ${r.level ?? 1} · ${esc(RT.TERMS[r.retainer?.terms] ?? "")}` : "not here"}</span>${r ? `<button type="button" data-rt-release="${esc(hl.id)}" title="He leaves the party and is the referee’s again" ${busy}>Release</button>` : ""}</div>`; }).join("") : "";
+  const kind = place.kind, ap = c.applicant, live = ap && ap.place === placeName && day <= ap.day + RT.SEEK_MAX_DAYS;
+  const told = `<div class="note">One who enters service is a first-level character of his own, equipped from his own gold and moved by you. He earns a half share of experience.</div>`;
+  if (live) {
+    const least = Math.max(RT.MIN_OFFER, (ap.last ?? 0) + 1), offer = Math.max(least, Math.trunc(Number(v.offerGp)) || Math.max(RT.MIN_OFFER, (ap.last ?? 0) + 100)), terms = RT.TERMS[v.offerTerms] ? v.offerTerms : "wages";
+    const plus = RT.offerBonus(offer), ch = limit.loyaltyBase, sign = (n) => `${n > 0 ? "+" : "−"}${Math.abs(n)}`;
+    return `<div class="inn-box">${head}${serving}<div class="tr-cap">Came forward · waits until day ${ap.day + RT.SEEK_MAX_DAYS}</div>
+      <div class="inn-row"><b>${esc(ap.name)}</b><span>a ${esc(label(ap.cls))} of the first level</span>${ap.last ? `<span class="note">uncertain at ${ap.last} gp: he wants more</span>` : ""}</div>
+      <div class="inn-row"><label for="rtGp">Offer</label><input id="rtGp" type="number" min="${least}" step="50" value="${offer}"><span>gp, and</span><label for="rtTerms" class="sr">Terms</label><select id="rtTerms">${Object.entries(RT.TERMS).map(([k, t]) => `<option value="${k}" ${k === terms ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>
+        <button type="button" class="primary" id="rtOffer" ${env.busy || offer > gp || full ? "disabled" : ""}>Make the offer</button>${offer > gp ? `<span class="note">he has ${gp} gp</span>` : ""}</div>
+      <div class="note">Two dice (Book I): 9 or better and he accepts, 6 to 8 he is uncertain and may be offered more, less and he is gone. On the dice: ${plus ? `+${plus} for this offer` : "nothing for an offer of the least"} (+1 for each 100 gp over ${RT.MIN_OFFER}, to +3)${ch ? `, ${sign(ch)} for Charisma` : ""}. The gold is paid only if he accepts.</div>${told}</div>`;
+  }
+  if (!RT.SEEK_CHANCE[kind]) return `<div class="inn-box">${head}${serving}<div class="note">Nobody is to be hired in ${esc(placeName)}.</div></div>`;
+  const cls = RT.RETAINER_CLASSES.includes(v.seekCls) ? v.seekCls : "fighter", method = RT.SEEK[v.seekMethod] ? v.seekMethod : "notices", way = RT.SEEK[method];
+  const days = way.daily ? Math.max(1, Math.min(RT.SEEK_MAX_DAYS, Math.trunc(Number(v.seekDays)) || 3)) : way.days, least = way.daily ? way.mult : way.cost;
+  const ways = Object.entries(RT.SEEK).map(([k, w]) => `<option value="${k}" ${k === method ? "selected" : ""}>${esc(w.name)}: ${w.daily ? `1d6${w.mult > 1 ? ` × ${w.mult}` : ""} gp a day` : `${w.cost} gp, ${w.days} days`}</option>`).join("");
+  const seekRow = full ? `<div class="note">He keeps as many as his Charisma allows.</div>` : `<div class="tr-cap">Seek one</div>
+    <div class="inn-row"><label for="rtCls">A</label><select id="rtCls">${RT.RETAINER_CLASSES.map((k) => `<option value="${k}" ${k === cls ? "selected" : ""}>${esc(label(k))}</option>`).join("")}</select><label for="rtMethod" class="sr">How</label><select id="rtMethod">${ways}</select>
+      ${way.daily ? `<label for="rtDays">for up to</label><input id="rtDays" type="number" min="1" max="${RT.SEEK_MAX_DAYS}" value="${days}"><span>days</span>` : ""}<button type="button" id="rtSeek" ${env.busy || gp < least ? "disabled" : ""}>Seek</button>${gp < least ? `<span class="note">he has ${gp} gp</span>` : ""}</div>
+    <div class="note">${way.daily ? `Each day there are ${RT.seekChance(kind, method)} chances in 100 that one comes forward; the search ends the day one does.` : `${RT.seekChance(kind, method)} chances in 100 that one comes forward in the week.`} The days pass at the inn and count as rest. Only men of the first level are to be hired (Book I).</div>`;
+  return `<div class="inn-box">${head}${serving}${seekRow}${told}</div>`;
+}
+/**
  * The inn (approved mockup 25 Nov 2026, v1.573.00): one panel over the dimmed village. Rest, the talk of the taverns,
  * the strongbox the innkeeper keeps for him, and his heir. Hiring men-at-arms is drawn with Book III's prices and
  * comes with the next pass. env also gives heal(days) (hit points a rest of that many days regains) and dayOf(character).
@@ -120,7 +153,7 @@ export function innPanelHtml(env, c, here, place, placeName) {
   const strong = `<div class="inn-box"><h4>Strongbox <small>kept by the innkeeper</small></h4><div class="sb-cols"><div class="sb-col"><div class="tr-cap">In the strongbox</div>${inBox || `<div class="note">Nothing.</div>`}</div><div class="sb-col"><div class="tr-cap">${esc(c.name)} carries</div>${carried || `<div class="note">Nothing.</div>`}</div></div>${heir}</div>`;
   return `<div class="tr-veil"></div><section class="tr-panel inn-panel" aria-label="${esc(place.inn ?? "The inn")}">
     <div class="tr-head"><h3>${esc(place.inn ?? "The inn")} <small>the inn \u00b7 ${esc(placeName)}</small></h3><div class="tr-whos">${who}</div><span class="tr-purse">${gp} gp</span><button type="button" class="primary" id="wLeave">Done</button></div>
-    <div class="inn-grid">${rest}${rumours}</div><div class="inn-grid">${hire}${strong}</div></section>`;
+    <div class="inn-grid">${rest}${rumours}</div><div class="inn-grid">${hire}${retainerBoxHtml(env, c, here, place, placeName)}</div><div class="inn-grid">${strong}</div></section>`;
 }
 /**
  * The market (approved mockup 25 Nov 2026): one panel over the dimmed village. What the market sells at Book I's prices,

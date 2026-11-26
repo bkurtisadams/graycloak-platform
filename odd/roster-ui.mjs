@@ -11,6 +11,7 @@
 // a request to oddCharacter, and the page redraws when the roster changes.
 // ---------------------------------------------------------------------------
 import * as M from "../packages/odd-chainmail-rules/src/men-at-arms.mjs";
+import * as RT from "../packages/odd-chainmail-rules/src/retainers.mjs";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const AB = { str: "STR", int: "INT", wis: "WIS", con: "CON", dex: "DEX", cha: "CHA" };
@@ -157,7 +158,7 @@ function abilityBoxes(rs, ch, sh, { rolled = false } = {}) {
 }
 
 /** The sheet of a finished character: tab is "sheet", "gear" or "notes". */
-export function sheetHtml(rs, ch, { tab = "sheet", canEdit, ref, people, me, editingSpells = false, spellPick = null, error = "" }) {
+export function sheetHtml(rs, ch, { tab = "sheet", canEdit, ref, people, me, editingSpells = false, spellPick = null, error = "", loyalty = null }) {
   const sh = rs.sheetFor(ch), lvl = ch.level ?? 1;
   const tabs = `<div class="rs-tabs" role="tablist">${[["sheet", "Sheet"], ["gear", "Gear"], ["notes", "Notes"]].map(([k, l]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-rs-tab="${k}">${l}</button>`).join("")}</div>`;
   const err = error ? `<div class="rs-err">${esc(error)}</div>` : "";
@@ -180,8 +181,10 @@ export function sheetHtml(rs, ch, { tab = "sheet", canEdit, ref, people, me, edi
   if (tab === "notes") {
     return `${tabs}${err}<div class="rs-pad">
       <div class="rs-kv"><span>Player</span><span>${esc(ch.owner === me ? "you" : people?.[ch.owner]?.name ?? "a player")}</span>
+      ${ch.retainer ? `<span>In service</span><span>A retainer of ${esc(ch.retainer.ofName || "another")} since day ${ch.retainer.since}, for ${n(ch.retainer.offer)} gp and ${esc(RT.TERMS[ch.retainer.terms] ?? "wages only")}. <span class="note">He earns a half share of experience.</span></span>` : ""}
+      ${ref && ch.retainer ? `<span>Loyalty</span><span>${loyalty ? `${loyalty.score} <span class="note">3d6 [${(loyalty.dice ?? []).join(",")}]${loyalty.charisma ? `, ${loyalty.charisma > 0 ? "+" : "\u2212"}${Math.abs(loyalty.charisma)} Charisma` : ""}${loyalty.bonus ? `, +${loyalty.bonus} enthusiast` : ""}: ${(() => { const m = RT.loyaltyMorale(loyalty.score); return m.deserts ? "will desert at the first opportunity" : m.neverChecks ? "need never check morale" : m.mod ? `${m.mod > 0 ? "+" : "\u2212"}${Math.abs(m.mod)} on his morale dice` : "average"; })()}. Only the referee sees this.</span>` : `<span class="note">Not loaded: open the map once.</span>`}</span>` : ""}
       <span>Men-at-arms</span><span>${M.countOf(ch.troops) ? `${esc(M.describe(ch.troops))} <span class="note">${M.monthlyPay(ch.troops)} gp a month, paid to day ${ch.troops.paidTo}</span>` : `None. <span class="note">Notices are posted at an inn.</span>`}</span>
-      <span>Hirelings</span><span>${ch.hirelings?.length ? ch.hirelings.map((h) => esc(h.name)).join(", ") : "None yet: hiring comes with towns."} <span class="note">Charisma ${ch.abilities.cha}: up to ${sh.hirelingsMax}.</span></span></div>
+      <span>Hirelings</span><span>${ch.hirelings?.length ? ch.hirelings.map((h) => esc(h.name)).join(", ") : "None. Retainers are sought at an inn."} <span class="note">Charisma ${ch.abilities.cha}: up to ${sh.hirelingsMax}.</span></span></div>
       ${canEdit ? `<textarea id="rsNotes" rows="8" maxlength="${rs.NOTES_MAX}" placeholder="Background, what he owes, what he has seen...">${esc(ch.notes ?? "")}</textarea><div class="row"><button type="button" data-rs-notes>Save notes</button>${canEdit ? ` <button type="button" class="linkish" data-rs-rename>Rename</button>` : ""}</div>` : `<div class="rs-notes">${esc(ch.notes || "No notes.")}</div>`}
       ${ref ? `<div class="row rs-danger"><button type="button" data-rs-delete>Delete this character</button> <span class="note">referee only; it can't be undone</span></div>` : ""}</div>`;
   }

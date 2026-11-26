@@ -402,3 +402,48 @@ test("men-at-arms (v1.574.00): a week of notices at the inn, the men who answer 
   const lines = chat(g.store, "bob").length;
   assert.equal((await g.call("bob", { op: "notice", id, gp: 100, types: ["archer"] })).code, "bad-request"); assert.equal(chat(g.store, "bob").length, lines);
 });
+
+test("retainers (v1.577.00): sought at the inn, hired on Book I's two dice, loyalty kept from the players, and released", async () => {
+  const g = game(); const id = await brom(g), path = (x) => `oddCampaigns/c1/characters/${x}`;
+  const ch = (x = id) => g.store.docs.get(path(x)), set = (o) => g.store.docs.set(path(id), { ...ch(), ...o });
+  set({ coins: { ...ch().coins, gp: 500 }, doing: "town", abilities: { ...ch().abilities, cha: 13 } });
+  assert.equal((await g.call("bob", { op: "offer", id, gp: 100 })).code, "bad-request", "nobody waits until one is sought");
+  assert.equal((await g.call("bob", { op: "seek", id, cls: "paladin", method: "notices" })).code, "bad-request");
+  assert.equal((await g.call("ann", { op: "seek", id, cls: "fighter", method: "notices" })).code, "forbidden");
+  // the round of the inns in a village, 20 in 100 a day: day one 1d6=3 (30 gp), d%=50, nobody; day two 1d6=2 (20 gp), d%=20, one comes
+  g.setDice(3, 50, 2, 20);
+  let r = await g.call("bob", { op: "seek", id, cls: "fighter", method: "inns", days: 5 });
+  assert.equal(r.ok, true, r.error); assert.equal(r.found, true); assert.equal(r.days, 2); assert.equal(r.spent, 50); assert.equal(ch().coins.gp, 450); assert.equal(ch().day, 3);
+  const name = ch().applicant.name; assert.ok(name && ch().applicant.cls === "fighter");
+  assert.equal((await g.call("bob", { op: "offer", id, gp: 50 })).code, "bad-request", "100 gp at the least");
+  // 100 gp, Charisma 13 (+1): 3+4+1 = 8, uncertain; he stays, and wants more
+  g.setDice(3, 4);
+  r = await g.call("bob", { op: "offer", id, gp: 100, terms: "share" });
+  assert.equal(r.ok, true, r.error); assert.equal(r.result, "Uncertain"); assert.equal(r.accepted, false); assert.equal(ch().coins.gp, 450, "no gold changes hands"); assert.equal(ch().applicant.last, 100);
+  assert.equal((await g.call("bob", { op: "offer", id, gp: 100 })).code, "bad-request", "a better offer, not the same one");
+  // 200 gp: 3+4 +1 offer +1 Charisma = 9, accepts. Then his own dice: 18 for abilities, 3 for gold, 1 for hit points; loyalty 3d6 = 2,3,4 +1 = 10
+  g.setDice(3, 4, ...Array(18).fill(3), 4, 4, 4, 5, 7, 2, 3, 4); // (the 7 goes to his record's id)
+  r = await g.call("bob", { op: "offer", id, gp: 200, terms: "share" });
+  assert.equal(r.ok, true, r.error); assert.equal(r.accepted, true); assert.equal(ch().coins.gp, 250); assert.equal(ch().applicant, null);
+  const rid = r.retainer.id, ret = ch(rid);
+  assert.equal(ret.name, name); assert.equal(ret.cls, "fighter"); assert.equal(ret.level, 1); assert.equal(ret.status, "ready"); assert.equal(ret.owner, "bob"); assert.equal(ret.doing, "town");
+  assert.deepEqual(ret.retainer, { of: id, ofName: "Brom", terms: "share", offer: 200, since: 3, place: "Langstead" });
+  assert.ok(ret.items.some((i) => i.key === "sword") && ret.items.some((i) => i.key === "mail"), "equipped from his own 120 gp");
+  assert.equal(ret.party, ch().party ?? id, "he travels with his master"); assert.deepEqual(ch().hirelings, [{ id: rid, name }]);
+  assert.equal(JSON.stringify(ret).includes("loyal"), false, "nothing of his loyalty is on the record a player can read");
+  assert.deepEqual(g.store.docs.get(g.p.loyalty).of[rid], { score: 10, dice: [2, 3, 4], charisma: 1, bonus: 0, hirer: id, day: 3 });
+  assert.ok(chat(g.store, "referee").some((e) => /loyalty to Brom: 3d6 \[2,3,4\] \+1 Charisma = 10: average/.test(e.text) && e.kind === "ruling"));
+  assert.equal(chat(g.store, "bob").some((e) => /loyalty/.test(e.text)), false, "the player is not told");
+  assert.ok(chat(g.store, "bob").some((e) => /2d6 \[3,4\] \+1 for the offer \+1 for Charisma = 9\. He accepts, and enters Brom's service\./.test(e.text)));
+  assert.equal((await g.call("kurt", { op: "map" })).loyalty[rid].score, 10, "the referee's map request carries it");
+  assert.equal((await g.call("bob", { op: "map" })).loyalty, undefined);
+  assert.equal((await g.call("bob", { op: "seek", id: rid, cls: "fighter", method: "notices" })).code, "bad-request", "a retainer hires nobody");
+  // released: he is the referee's again
+  r = await g.call("bob", { op: "release", id: rid });
+  assert.equal(r.ok, true, r.error); assert.equal(ch(rid).retainer, null); assert.equal(ch(rid).owner ?? null, null); assert.deepEqual(ch(rid).viewers, []); assert.deepEqual(ch().hirelings, []);
+  assert.equal(g.store.docs.get(g.p.loyalty).of[rid], undefined);
+  // the Charisma limit
+  set({ abilities: { ...ch().abilities, cha: 3 } });
+  g.store.docs.set(path("x1"), { ...ch(rid), id: "x1", retainer: { of: id } });
+  assert.match((await g.call("bob", { op: "seek", id, cls: "cleric", method: "notices" })).error, /Charisma 3: he may keep 1 and has 1/);
+});
