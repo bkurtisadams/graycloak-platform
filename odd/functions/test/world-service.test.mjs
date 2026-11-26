@@ -298,3 +298,22 @@ test("the campaign day runs by the calendar: those in town are carried on, a par
   const m = await g.call("bob", { op: "map" });
   assert.equal(m.parties.find((x) => x.members.some((y) => y.id === id)).day, 11, "back in town, the campaign day carries him on");
 });
+
+test("giving: an item or gold passes to a character standing with him, by the shop's rules for what he may carry (v1.569.00)", async () => {
+  const g = game(); const brom_ = brom, bromId = await brom_(g, "bob", "Brom"), leal = await brom_(g, "bob", "Leal"), ada = await brom_(g, "ann", "Ada");
+  const ch = (id) => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  const gold0 = ch(bromId).coins.gp, i = ch(bromId).items.findIndex((x) => x.key === "sword"); assert.ok(i >= 0);
+  let r = await g.call("bob", { op: "give", id: bromId, to: leal, gp: 5 });
+  assert.equal(r.ok, true, r.error); assert.equal(ch(bromId).coins.gp, gold0 - 5); assert.equal(r.other.coins.gp, ch(leal).coins.gp);
+  assert.match((await g.call("bob", { op: "give", id: bromId, to: leal, gp: 99999 })).error, /he has/);
+  const had = ch(leal).items.filter((x) => x.key === "sword").length;
+  r = await g.call("bob", { op: "give", id: bromId, to: leal, item: i });
+  assert.equal(r.ok, true, r.error); assert.equal(r.gave, "Sword"); assert.ok(!ch(bromId).items.some((x) => x.key === "sword")); assert.equal(ch(leal).items.filter((x) => x.key === "sword").length, had + 1);
+  assert.equal(ch(bromId).coins.gp, gold0 - 5, "no gold changes hands for a gift"); assert.notEqual(ch(bromId).ready?.weapon, "sword");
+  assert.match((await g.call("ann", { op: "give", id: bromId, to: ada, gp: 1 })).error, /not your character/);
+  r = await g.call("bob", { op: "give", id: bromId, to: ada, gp: 1 }); assert.equal(r.ok, true, r.error);
+  assert.ok([...g.store.docs.entries()].some(([k, v]) => k.includes("/chat/ann/") && /Brom gave Ada 1 gp/.test(v.text)), "a gift between players is told");
+  // out on the road, only his own party
+  g.store.docs.set(`oddCampaigns/c1/characters/${leal}`, { ...ch(leal), doing: "road", hex: { q: 1, r: -1 }, where: "clear" });
+  assert.match((await g.call("bob", { op: "give", id: bromId, to: leal, gp: 1 })).error, /isn't with him/);
+});

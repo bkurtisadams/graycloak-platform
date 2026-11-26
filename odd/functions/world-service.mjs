@@ -23,6 +23,8 @@
 //   rest   {id, days}      complete rest at an inn: hp back (none day 1, one every other day after); his clock moves on
 //   rumour {id}            the rounds of the taverns (10-60 gp + 1-10 gp): one rumour, marked on the known map if it names a hex
 //   shop   {id, buy|sell}  the market: buy at cost, sell at half (finished characters, in a village with a market)
+//   give   {id, to, item|gp}  hand one of an item, or gold, to a character standing with him: in the same village, or of
+//                          his party on the road (v1.569.00). What he may not use, he may not be handed (as at the shop).
 //   spot   {id, x, y}        where his token stands on the settlement's map (dragged in the town scene).
 //   enter  {id, place}     into the village he stands in (where = place, doing = town) or out onto the road (doing = road);
 //                          the whole party if he leads it
@@ -54,7 +56,7 @@ export const worldPaths = (cid) => ({
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.568.00";
+export const SERVER_BUILD = "v1.569.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
@@ -213,7 +215,7 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
       const many = ["move", "camp", "evade", "stand", "party"].includes(op);
       const ids = many && Array.isArray(data.ids) ? [...new Set(data.ids.filter((x) => ID.test(x ?? "")))].slice(0, 12) : ID.test(data.id ?? "") ? [data.id] : [];
       if (!ids.length) return refuse("bad-request", "which character?");
-      const own = ["rest", "rumour", "shop", "party"].includes(op);
+      const own = ["rest", "rumour", "shop", "give", "party"].includes(op);
       for (const id of ids) {
         const ch = byId(id); if (!ch) return refuse("not-found", "no such character");
         if (own && !ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
@@ -297,6 +299,32 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         save();
         log(tx, p, camp, `${ch.name} bought a round at ${placeInfo(place).inn} (${cost} gp) and heard: "${r.text}"`, [ch.owner], { rumour: { truth: r.truth } });
         return { ok: true, cost, text: r.text };
+      }
+
+      if (op === "give") {
+        const ch = byId(ids[0]), to = ID.test(data.to ?? "") ? byId(data.to) : null;
+        if (!to || to.id === ch.id || !P.travels(to) || to.status !== "ready") return refuse("bad-request", "give it to whom?");
+        const both = (a, b) => !b.under && hk(a) === hk(b) && (a.doing === "town" ? b.doing === "town" : P.partyIdOf(a) === P.partyIdOf(b));
+        if (!P.travels(ch) || !both(ch, to)) return refuse("bad-request", `${to.name} isn't with him`);
+        let giver, taker, what;
+        if (data.gp != null) {
+          const gp = Math.trunc(Number(data.gp)), has = ch.coins?.gp ?? 0;
+          if (!(gp >= 1)) return refuse("bad-request", "how much gold?");
+          if (gp > has) return refuse("bad-request", `he has ${has} gp`);
+          giver = { ...ch, coins: { ...ch.coins, gp: has - gp } }; taker = { ...to, coins: { ...to.coins, gp: (to.coins?.gp ?? 0) + gp } }; what = `${gp} gp`;
+        } else {
+          const index = Number(data.item), it = ch.items?.[index], e = it ? roster.SHOP.find((x) => x.key === it.key) ?? null : null;
+          if (!e) return refuse("bad-request", "give what?");
+          // the shop's own rules move the thing: one of it leaves his pack (and his hand, if it was his readied weapon), and the
+          // other takes it as if bought, less the price, so what his class may not use or carry twice he is not handed
+          const out = roster.sell(ch, index, { town: true }), into = roster.buy({ ...to, coins: { ...to.coins, gp: (to.coins?.gp ?? 0) + e.cost } }, it.key, { town: true });
+          if (!out.ok) return refuse("bad-request", out.error);
+          if (!into.ok) return refuse("bad-request", `${to.name}: ${into.error}`);
+          giver = { ...out.ch, coins: { ...out.ch.coins, gp: ch.coins?.gp ?? 0 } }; taker = { ...into.ch, coins: { ...into.ch.coins, gp: to.coins?.gp ?? 0 } }; what = e.name;
+        }
+        put(ch.id, giver); put(to.id, taker);
+        if ((ch.owner ?? null) !== (to.owner ?? null)) log(tx, p, camp, `${ch.name} gave ${to.name} ${what}.`, null, { kind: "party" });
+        return { ok: true, character: { id: ch.id, ...giver }, other: { id: to.id, ...taker }, gave: what };
       }
 
       if (op === "shop") {
