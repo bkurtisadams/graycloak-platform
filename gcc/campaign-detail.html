@@ -64,6 +64,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .camp-btn:hover{border-color:var(--accent-dim);color:var(--tx)}
 .camp-btn-vtt{color:var(--blue);border-color:rgba(96,160,208,0.3)}
 .camp-btn-vtt:hover{border-color:var(--blue);background:rgba(96,160,208,0.06)}
+.camp-btn-play{font-size:13px;padding:7px 16px;color:var(--bg,#fff);background:var(--accent);border-color:var(--accent)}
+.camp-btn-play:hover{filter:brightness(1.15)}
 
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--brd);margin:16px 0 0;padding:0;overflow-x:auto}
 .tab{padding:8px 18px;font-size:11px;font-family:var(--fsc);font-weight:700;letter-spacing:1px;color:var(--tx3);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;transition:all .12s;white-space:nowrap}
@@ -414,6 +416,10 @@ a.ses-row-title:hover{color:var(--accent)}
 .notes-area{width:100%;min-height:200px;font-family:var(--fb);font-size:13px;color:var(--tx);background:var(--bg-card);border:1px solid var(--brd);border-radius:4px;padding:12px 14px;outline:none;resize:vertical;line-height:1.5;transition:border-color .12s}
 .notes-area:focus{border-color:var(--accent-dim)}
 .notes-label{font-family:var(--fsc);font-size:9px;color:var(--tx3);letter-spacing:1.5px;margin-bottom:6px}
+.desc-edit{margin-left:10px;color:var(--accent);text-decoration:none;letter-spacing:1px}
+.desc-edit:hover{text-decoration:underline}
+.desc-text{font-size:14px;line-height:1.6;white-space:pre-wrap;color:var(--tx)}
+.desc-text.none{font-size:12px;opacity:.6;font-style:italic}
 .hq-img-wrap{position:relative;max-width:720px;border:1px solid var(--brd);border-radius:4px;overflow:hidden;background:var(--bg2)}
 .hq-img-wrap:hover .hq-img-controls{opacity:1}
 .hq-img{width:100%;max-height:400px;object-fit:contain;display:block}
@@ -487,8 +493,6 @@ a.ses-row-title:hover{color:var(--accent)}
 .odd-game{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border,#d8d0c0);border-radius:8px}
 .odd-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .odd-day{font-size:13px;opacity:.75;letter-spacing:.3px}
-.odd-open{margin-left:auto;font-size:13px;font-weight:700;text-decoration:none;color:var(--bg,#fff);background:var(--accent,#8b0000);border-radius:4px;padding:8px 14px}
-.odd-open:hover{filter:brightness(1.15)}
 .odd-tblwrap{overflow-x:auto}
 .odd-tbl{width:100%;border-collapse:collapse;font-size:13px}
 .odd-tbl th{text-align:left;font-family:var(--fsc);font-size:10px;letter-spacing:1.2px;color:var(--tx3);padding:5px 6px;border-bottom:1px solid var(--border,#d8d0c0);white-space:nowrap}
@@ -514,6 +518,13 @@ a.odd-st,.odd-st.hot{border-color:var(--accent,#8b0000);color:var(--accent,#8b00
 .odd-fold li small{opacity:.65}
 .odd-fold .battle-lnk{display:inline-block;margin:6px 8px 0 0}
 .odd-fights{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px}
+.odd-need{border:1px solid var(--accent,#8b0000);border-left-width:4px;border-radius:4px;padding:8px 12px;font-size:13px}
+.odd-need b{font-family:var(--fsc);font-size:11px;letter-spacing:1.2px;color:var(--accent,#8b0000)}
+.odd-need ul{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.odd-need a{color:inherit;text-decoration:none}
+.odd-need a:hover{text-decoration:underline}
+.odd-need a span{color:var(--accent,#8b0000);font-weight:700;margin-left:8px;white-space:nowrap}
+.odd-day [title],.odd-meta [title],.odd-card-at [title]{border-bottom:1px dotted;cursor:help}
 .odd-sub{font-family:var(--fsc);font-size:10px;letter-spacing:1.5px;color:var(--tx3);margin-top:4px}
 .odd-who{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}
 .odd-who small{opacity:.65}
@@ -726,6 +737,17 @@ function loadSessionViewPrefs(){try{const v=JSON.parse(localStorage.getItem('gcc
 function saveSessionViewPrefs(){try{localStorage.setItem('gcc_ses_view_'+campId,JSON.stringify({view:sessionView,scope:sessionScope,order:sessionOrder}))}catch(e){}}
 let _sesImageOrigKey='',_sesImageOrigFp=''; // original IDB key + fingerprint, to avoid orphaning and re-encoding
 let _isPlayerMode=false,_sharedCamp=null;
+let _descEditing=false;
+function descViewHtml(text,canEdit){return `<div class="notes-label">DESCRIPTION${canEdit?'<a href="#" class="desc-edit" id="camp-desc-edit">EDIT</a>':''}</div>${text?`<div class="desc-text">${ESC(text)}</div>`:`<div class="desc-text none">No description yet.</div>`}`}
+function descEditHtml(text){return `<div class="notes-label">DESCRIPTION<a href="#" class="desc-edit" id="camp-desc-done">DONE</a></div><textarea class="notes-area" id="camp-desc" style="min-height:90px" placeholder="Campaign premise, current arc, setting details...">${ESC(text||'')}</textarea>`}
+function bindDesc(focus){
+  const box=document.getElementById('camp-desc-box');if(!box)return;
+  const show=edit=>{_descEditing=edit;const text=(getCamp()||{}).description||'';box.innerHTML=edit?descEditHtml(text):descViewHtml(text,true);bindDesc(edit)};
+  document.getElementById('camp-desc-edit')?.addEventListener('click',e=>{e.preventDefault();show(true)});
+  document.getElementById('camp-desc-done')?.addEventListener('click',e=>{e.preventDefault();show(false)});
+  const ta=document.getElementById('camp-desc');
+  if(ta){ta.addEventListener('input',e=>{GCC.updateCampaign(campId,{description:e.target.value})});if(focus){ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}}
+}
 function getCamp(){
   if(_isPlayerMode&&_sharedCamp)return _sharedCamp;
   return GCC.getCampaign(campId);
@@ -1189,8 +1211,8 @@ async function render(){
   const dr=(l,v)=>v?`<div class="detail-row"><span class="detail-label">${l}</span><span class="detail-value">${ESC(v)}</span></div>`:'';
 
   const descHtml=pm_
-    ?(camp.description?`<div style="margin-bottom:14px"><div class="notes-label">DESCRIPTION</div><div class="notes-area" style="min-height:40px;white-space:pre-wrap">${ESC(camp.description)}</div></div>`:'')
-    :`<div style="margin-bottom:14px"><div class="notes-label">DESCRIPTION</div><textarea class="notes-area" id="camp-desc" style="min-height:60px" placeholder="Campaign premise, current arc, setting details...">${ESC(camp.description||'')}</textarea></div>`;
+    ?(camp.description?`<div style="margin-bottom:14px">${descViewHtml(camp.description,false)}</div>`:'')
+    :`<div style="margin-bottom:14px" id="camp-desc-box">${_descEditing?descEditHtml(camp.description):descViewHtml(camp.description,true)}</div>`;
 
   // Pre-resolve characters to count PCs vs NPCs
   const chars=camp.characters||[];let pcCount=0,npcCount=0;
@@ -1222,7 +1244,8 @@ async function render(){
     }
   }
 
-  const overviewHtml=`${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.filter(t=>t.id!=='odd-game').map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';let href=t.href||'';if(href&&campId&&/map\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'campaign='+encodeURIComponent(campId);if(href&&campId&&/(chainmail|battlesystem)-board\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'camp='+encodeURIComponent(campId);if(href&&campId&&/^odd\/index\.html$/i.test(href.split('?')[0])){href=oddBase()+'index.html?c='+encodeURIComponent(campId);}if(href&&/^traveller\//i.test(href))href=travBase()+href;return`<a class="${cls}"${href?' href="'+ESC(href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}${campId?`<a class="tool-chip" href="tabletop.html?camp=${encodeURIComponent(campId)}" title="Shared map canvas: the GM draws and places tokens, players watch live"><span class="tool-bullet">◆</span> Tabletop</a>`:''}</div><div class="sec-hdr"><div class="sec-title">BATTLES</div></div><div class="battles-list" id="battles-row"><span class="battles-note">loading…</span></div>${camp.system==='odd'?`<div class="sec-hdr"><div class="sec-title">OD&amp;D GAME</div></div><div class="odd-game" id="fights-row"><span class="battles-note">loading…</span></div>`:''}`;
+  const oddHtml=camp.system==='odd'?`<div class="sec-hdr"><div class="sec-title">OD&amp;D GAME</div></div><div class="odd-game" id="fights-row"><span class="battles-note">loading…</span></div>`:'';
+  const overviewHtml=`${oddHtml}${descHtml}<div class="details-grid">${dr('WORLD',camp.world)}${dr('GENRE',camp.genre)}${dr(gml.toUpperCase(),camp.gm)}${dr('PLAYERS',playersStr)}${dr('SCHEDULE',camp.schedule)}${dr('PLAY MODE',pm+(camp.vttLabel?' ('+camp.vttLabel+')':''))}${dr('XP METHOD',camp.xpMethod)}${dr('STARTED',camp.startDate?formatDate(camp.startDate):(camp.created?formatDate(camp.created):''))}${nextStr?`<div class="detail-row"><span class="detail-label">NEXT SESSION</span><span class="detail-value" style="color:var(--accent);font-weight:700">${ESC(nextStr)}</span></div>`:''}${dr('RULEBOOKS',camp.rulebooks)}${camp.houseRules?`<div class="detail-row detail-full"><span class="detail-label">HOUSE RULES</span><span class="detail-value">${ESC(camp.houseRules)}</span></div>`:''}</div>${rulesHtml}<div class="sec-hdr"><div class="sec-title">TOOLS</div></div><div class="tools-row">${tools.filter(t=>t.id!=='odd-game').map(t=>{const cls=t.href?'tool-chip':'tool-chip disabled';let href=t.href||'';if(href&&campId&&/map\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'campaign='+encodeURIComponent(campId);if(href&&campId&&/(chainmail|battlesystem)-board\.html$/i.test(href.split('?')[0]))href+=(href.includes('?')?'&':'?')+'camp='+encodeURIComponent(campId);if(href&&campId&&/^odd\/index\.html$/i.test(href.split('?')[0])){href=oddBase()+'index.html?c='+encodeURIComponent(campId);}if(href&&/^traveller\//i.test(href))href=travBase()+href;return`<a class="${cls}"${href?' href="'+ESC(href)+'"':''}><span class="tool-bullet">◆</span> ${ESC(t.name)}</a>`}).join('')}${campId?`<a class="tool-chip" href="tabletop.html?camp=${encodeURIComponent(campId)}" title="Shared map canvas: the GM draws and places tokens, players watch live"><span class="tool-bullet">◆</span> Tabletop</a>`:''}</div><div class="sec-hdr"><div class="sec-title">BATTLES</div></div><div class="battles-list" id="battles-row"><span class="battles-note">loading…</span></div>`;
 
   // Party tab — helper to build a single entity card
   function buildEntityCard(resolved,ch,refKey,idx,camp,opts){
@@ -1350,9 +1373,10 @@ async function render(){
 
   const charCount=chars.length?` (${chars.length})`:'',vehCount=vehs.length?` (${vehs.length})`:'',sesCount=realCount?` (${realCount})`:'',loreCount=lore.length?` (${lore.length})`:'';
 
+  const playBtn=camp.system==='odd'&&campId?`<a class="camp-btn camp-btn-play" href="${ESC(oddBase()+'index.html?c='+encodeURIComponent(campId))}">Open the game</a>`:'';
   const headerBtns=pm_
-    ?`${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a>`
-    :`${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a><button class="camp-btn" id="btn-edit-camp">Edit</button>`;
+    ?`${playBtn}${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a>`
+    :`${playBtn}${vttBtn}<a class="camp-btn" href="index.html">\u2190 Dashboard</a><button class="camp-btn" id="btn-edit-camp">Edit</button>`;
   const tabsHtml=pm_
     ?'<button class="tab'+(currentTab==='overview'?' active':'')+'" data-tab="overview">Overview</button>'+
      '<button class="tab'+(currentTab==='party'?' active':'')+'" data-tab="party">PARTY'+charCount+'</button>'+
@@ -1427,7 +1451,7 @@ function wireSessionList(){
 }
 function wireEvents(){
   document.getElementById('tabs')?.addEventListener('click',e=>{const tab=e.target.closest('.tab');if(!tab)return;currentTab=tab.dataset.tab;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===currentTab));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===currentTab));const u=new URL(window.location);u.searchParams.set('tab',currentTab);history.replaceState(null,'',u)});
-  document.getElementById('camp-desc')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{description:e.target.value})});
+  bindDesc(false);
   document.getElementById('camp-notes')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{notes:e.target.value})});
   document.getElementById('camp-notes-shared')?.addEventListener('input',e=>{GCC.updateCampaign(campId,{sharedNotes:e.target.value})});
   document.querySelectorAll('[data-rule-id]').forEach(cb=>{cb.addEventListener('change',e=>{GCC.setCampaignRule(campId,e.target.dataset.ruleId,e.target.checked)})});
@@ -2913,14 +2937,16 @@ function renderFightsRow(){
   const user=(typeof GCCAuth!=='undefined')?GCCAuth.getUser():null;
   if(!user){row.innerHTML='<span class="battles-note">Sign in to see the game.</span>';return}
   const cidQ=encodeURIComponent(campId),page=oddBase()+'combat-grid.html?cid='+cidQ,game=oddBase()+'index.html?c='+cidQ;
-  const open=`<a class="odd-open" href="${ESC(game)}">Open the game</a>`;
-  if(_fights===null){row.innerHTML='<div class="odd-head"><span class="battles-note">loading…</span>'+open+'</div>';return}
+  if(_fights===null){row.innerHTML='<div class="odd-head"><span class="battles-note">loading…</span></div>';return}
   const g=_game||{},people=g.people||{},members=g.members||[],now=Date.now(),campDay=g.day||1;
   const on=u=>u===user.uid||(_presence&&_presence[u]&&now-_presence[u]<3*60*1000);
   const refs=new Set([g.refereeUid,...(g.referees||[])].filter(Boolean));
   const nRef=members.filter(u=>refs.has(u)).length,nPl=members.length-nRef,online=members.filter(on).length;
   const count=(n,w)=>n+' '+w+(n===1?'':'s');
-  const head=`<div class="odd-head"><span class="odd-day">Day ${ESC(String(campDay))} · ${count(nRef,'referee')} · ${count(nPl,'player')} · ${online} online</span>${open}</div>`;
+  const CAL_TIP='The campaign\u2019s calendar. It follows real time: a week for a week (Book III).';
+  const PARTY_TIP='This party\u2019s own day: time is kept for each player (Book III). On the road it runs on its own count and may be ahead of or behind the calendar; back in town it catches up if it was behind.';
+  const partyDay=d=>`<span title="${ESC(PARTY_TIP)}">Party day ${ESC(String(d))}</span>`;
+  const head=`<div class="odd-head"><span class="odd-day"><span title="${ESC(CAL_TIP)}">Campaign calendar: Day ${ESC(String(campDay))}</span> · ${count(nRef,'referee')} · ${count(nPl,'player')} · ${online} online</span></div>`;
 
   const all=_chars||[],sees=c=>!_isPlayerMode||c.owner===user.uid;
   const cls=c=>`${ODD_CLASS[c.cls]||c.cls||''} ${c.level||1}`;
@@ -2939,8 +2965,8 @@ function renderFightsRow(){
   const rows=parties.map(pt=>{
     const n=pt.members.length,href=pt.fight?fightHref(pt.fight):'';
     const pill=href?`<a class="odd-st" href="${ESC(href)}" title="Open this fight">${ESC(ODD_DOING.fight)}${pt.fight.round?' · round '+ESC(String(pt.fight.round)):''}</a>`:`<span class="odd-st${pt.doing==='fight'||pt.doing==='encounter'?' hot':''}">${ESC(ODD_DOING[pt.doing])}</span>`;
-    const meta=[_isPlayerMode?'':n>1?n+' characters':'alone',pt.men?count(pt.men,'hired man').replace('mans','men'):'','Day '+pt.day].filter(Boolean).join(' · ');
-    const headRow=`<tr class="odd-party"><td colspan="6"><b>${ESC(pt.leader.name||'Unnamed')}${n>1?'’s party':''}</b><span class="odd-at">${ESC(oddWhere(pt.leader))}</span>${pill}<span class="odd-meta">${ESC(meta)}</span></td></tr>`;
+    const meta=[_isPlayerMode?'':n>1?n+' characters':'alone',pt.men?count(pt.men,'hired man').replace('mans','men'):''].filter(Boolean).map(ESC).concat(partyDay(pt.day)).join(' · ');
+    const headRow=`<tr class="odd-party"><td colspan="6"><b>${ESC(pt.leader.name||'Unnamed')}${n>1?'’s party':''}</b><span class="odd-at">${ESC(oddWhere(pt.leader))}</span>${pill}<span class="odd-meta">${meta}</span></td></tr>`;
     let last=null;
     return headRow+pt.members.map(c=>{
       const men=oddMen(c),own=sees(c);
@@ -2963,14 +2989,30 @@ function renderFightsRow(){
   const live=_fights.filter(f=>state(f)==='live'),idle=_fights.filter(f=>state(f)==='idle'),over=_fights.filter(f=>state(f)==='over');
   const old=[idle.length?`${idle.length} left standing`:'',over.length?`${over.length} finished`:''].filter(Boolean).join(' · ');
   const fights=`<div class="odd-fights"><span class="battles-note">Fights now:</span>${live.map(link).join('')||'<span class="battles-note">none</span>'}</div>`+(old?`<details class="odd-fold"><summary>OLDER FIGHTS (${ESC(old)})</summary><div>${idle.concat(over).map(link).join('')}</div>${!_isPlayerMode&&idle.length?'<div class="battles-note" style="margin-top:6px">A fight left standing has no party in it. Open it and delete it from the referee’s list of fights.</div>':''}</details>`:'');
-  if(!_isPlayerMode){row.innerHTML=head+tbl+fights+fallenHtml+draftsHtml;return}
+  if(!_isPlayerMode){
+    // what waits on the referee, read off the characters and the fights each time: a meeting the party has answered that no
+    // fight has taken up, and a referee's own fight that is over and not yet settled. A meeting still unanswered is the players'.
+    const need=[];
+    for(const pt of parties){
+      const enc=pt.members.map(m=>m.encounter).find(Boolean);if(!enc)continue;
+      const f=enc.fid?_fights.find(x=>x.id===enc.fid):null;
+      if(f&&f.phase!=='over')continue;
+      const name=(pt.leader.name||'Unnamed')+(pt.members.length>1?'\u2019s party':''),kind=enc.kind||'monsters',at=oddWhere(pt.leader),go=game+'&play='+encodeURIComponent(pt.leader.id);
+      if(f){if(!f.settled&&!f.auto)need.push({href:fightHref(f),text:`${name}: the fight with the ${kind} is over and not settled (${at})`,act:'End the fight'});continue}
+      if(enc.waits)need.push({href:go,text:`${name}: the game could not open the fight with the ${kind}: ${enc.waits} (${at})`,act:'Open the fight'});
+      else if(enc.choice==='parley')need.push({href:go,text:`${name} hailed the ${kind}${enc.reaction&&enc.reaction.result?', reaction '+enc.reaction.result:''} (${at})`,act:'Settle the meeting'});
+      else if(enc.choice)need.push({href:go,text:`${name} ${enc.outcome==='caught'?'ran from the '+kind+' and '+(pt.members.length>1?'were':'was')+' caught':(pt.members.length>1?'stand':'stands')+' to meet the '+kind} (${at})`,act:'Open the fight'});
+    }
+    const needHtml=need.length?`<div class="odd-need"><b>NEEDS THE REFEREE</b><ul>${need.map(x=>`<li><a href="${ESC(x.href)}">${ESC(x.text)}<span>${ESC(x.act)} ›</span></a></li>`).join('')}</ul></div>`:'';
+    row.innerHTML=head+needHtml+tbl+fights+fallenHtml+draftsHtml;return;
+  }
   // a player's page: his own characters first, a card each, then who else is about
   const mine=c=>c.owner===user.uid,roll=game+'&new=1';
   const cards=parties.flatMap(pt=>pt.members.filter(mine).map(c=>{
     const f=fightOf(c),fh=f?fightHref(f):'',doing=f?'fight':(ODD_RANK[c.doing]!=null?c.doing:'town'),men=oddMen(c);
     const withs=pt.members.filter(m=>m!==c).map(m=>m.name||'Unnamed');
     const stats=['HP '+c.hp+'/'+c.maxHp,'XP '+(c.xp||0),((c.coins&&c.coins.gp)||0)+' gp',men.count?count(men.count,'hired man').replace('mans','men'):''].filter(Boolean).join(' · ');
-    return `<div class="odd-card"><div class="odd-card-top"><a class="odd-card-name" href="${ESC(game+'&ch='+encodeURIComponent(c.id))}" title="Open the character sheet">${ESC(c.name||'Unnamed')}</a><span class="odd-st${doing==='fight'||doing==='encounter'?' hot':''}">${ESC(ODD_DOING[doing])}</span></div><small>${ESC(cls(c))}${c.retainer?' · retainer of '+ESC(c.retainer.ofName||''):''}</small><div class="odd-card-stats"${men.count?` title="${ESC(men.list)}"`:''}>${ESC(stats)}</div><div class="odd-card-at">${ESC(oddWhere(c))} · Day ${ESC(String(dayOf(c)))}</div>${withs.length?`<small>With ${ESC(withs.join(', '))}</small>`:''}<a class="odd-play" href="${ESC(fh||game+'&play='+encodeURIComponent(c.id))}">${fh?'Join the fight':'Play'}</a></div>`;
+    return `<div class="odd-card"><div class="odd-card-top"><a class="odd-card-name" href="${ESC(game+'&ch='+encodeURIComponent(c.id))}" title="Open the character sheet">${ESC(c.name||'Unnamed')}</a><span class="odd-st${doing==='fight'||doing==='encounter'?' hot':''}">${ESC(ODD_DOING[doing])}</span></div><small>${ESC(cls(c))}${c.retainer?' · retainer of '+ESC(c.retainer.ofName||''):''}</small><div class="odd-card-stats"${men.count?` title="${ESC(men.list)}"`:''}>${ESC(stats)}</div><div class="odd-card-at">${ESC(oddWhere(c))} · ${partyDay(dayOf(c))}</div>${withs.length?`<small>With ${ESC(withs.join(', '))}</small>`:''}<a class="odd-play" href="${ESC(fh||game+'&play='+encodeURIComponent(c.id))}">${fh?'Join the fight':'Play'}</a></div>`;
   }));
   const myDrafts=drafts.filter(mine).map(c=>`<div class="odd-card draft"><div class="odd-card-top"><span class="odd-card-name">${ESC(c.name||'Unnamed')}</span><span class="odd-st">rolling</span></div><small>Not finished yet</small><a class="odd-play" href="${ESC(roll)}">Finish rolling</a></div>`);
   const newCard=myDrafts.length?'':`<a class="odd-card odd-new" href="${ESC(cards.length?roll:game)}">+ Roll a ${cards.length?'new':'first'} character</a>`;
