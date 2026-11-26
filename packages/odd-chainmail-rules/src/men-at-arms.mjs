@@ -13,16 +13,19 @@
  *   The referee says which types a settlement offers (Nov 2026): a village Light Foot, Heavy Foot and Archers.
  */
 
-/** Book III's types and their cost in gold pieces a month, each man. */
+/**
+ * Book III's types and their cost in gold pieces a month, each man. `chainmail` is the troop type whose row of the
+ * Loss Table they check morale on (Kurt, Oct 2026: men-at-arms check as their Chainmail troop type); bowmen are light.
+ */
 export const TROOPS = Object.freeze({
-  lightFoot: { name: "Light Foot", one: "Light Footman", pay: 2 },
-  heavyFoot: { name: "Heavy Foot", one: "Heavy Footman", pay: 3 },
-  archer: { name: "Archers", one: "Archer", pay: 5 },
-  crossbow: { name: "Crossbowmen", one: "Crossbowman", pay: 4 },
-  longbow: { name: "Longbowmen", one: "Longbowman", pay: 10 },
-  lightHorse: { name: "Light Horsemen", one: "Light Horseman", pay: 10 },
-  mediumHorse: { name: "Medium Horsemen", one: "Medium Horseman", pay: 15 },
-  heavyHorse: { name: "Heavy Horsemen", one: "Heavy Horseman", pay: 20 },
+  lightFoot: { name: "Light Foot", one: "Light Footman", pay: 2, chainmail: "LF" },
+  heavyFoot: { name: "Heavy Foot", one: "Heavy Footman", pay: 3, chainmail: "HF" },
+  archer: { name: "Archers", one: "Archer", pay: 5, chainmail: "LF" },
+  crossbow: { name: "Crossbowmen", one: "Crossbowman", pay: 4, chainmail: "LF" },
+  longbow: { name: "Longbowmen", one: "Longbowman", pay: 10, chainmail: "LF" },
+  lightHorse: { name: "Light Horsemen", one: "Light Horseman", pay: 10, chainmail: "LH" },
+  mediumHorse: { name: "Medium Horsemen", one: "Medium Horseman", pay: 15, chainmail: "MH" },
+  heavyHorse: { name: "Heavy Horsemen", one: "Heavy Horseman", pay: 20, chainmail: "HH" },
 });
 
 /** Which types answer a notice, by the kind of settlement (the referee's say; these are where he starts). */
@@ -176,6 +179,7 @@ function runSelfTests() {
   ok(sm.length === 3 && sm[0].name === "Light Footman 1" && sm[1].name === "Light Footman 2" && sm[2].troop === "archer" && sm[2].ready.missile === "shortbow" && sm[0].cls === "man" && sm[0].hp === null, "soldiers as records: normal men with their type's kit");
   ok(Object.keys(TROOPS).every((k) => KIT[k]), "a kit for every type");
   ok(describe(afterFight(t, { lightFoot: 1, archer: 0 })) === "1 Light Footman" && afterFight(t, { lightFoot: 0, archer: 0 }) === null && describe(afterFight(t, {})) === "4 Light Foot, 2 Archers", "the dead come off the roll");
+  ok(TROOPS.heavyFoot.chainmail === "HF" && TROOPS.archer.chainmail === "LF" && Object.values(TROOPS).every((t) => t.chainmail), "a Chainmail troop type for each, for morale");
   console.log(`men-at-arms: all self-tests passed (${pass})`);
 }
 

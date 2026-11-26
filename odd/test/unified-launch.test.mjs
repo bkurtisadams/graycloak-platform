@@ -115,3 +115,11 @@ test("the inn's hiring box (v1.574.00): the men in service, those who answered, 
   const grid = readFileSync(new URL("../combat-grid.html", import.meta.url), "utf8");
   for (const op of ['worldOp("notice"', 'put("hire"', 'put("dismiss"']) assert.ok(grid.includes(op), op);
 });
+
+test("hired men go into the referee's fights with their master, and morale names them rightly (v1.576.00)", () => {
+  const grid = readFileSync(new URL("../combat-grid.html", import.meta.url), "utf8");
+  assert.match(grid, /function addMenOf\(c\)/);
+  assert.match(grid, /for \(const c of party\) addMenOf\(c\);/, "the fight opened from a meeting on the road");
+  assert.match(grid, /for \(const c of add\) addMenOf\(c\);/, "Setup's Add the party");
+  assert.ok(grid.includes("esc(e.plural ?? `${e.name}s`)"), "Heavy Foot, not Heavy Foots");
+});

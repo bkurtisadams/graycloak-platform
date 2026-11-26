@@ -36,6 +36,7 @@ import { rollInitiative, electFirstMover, opponent } from "./turn-sequence.mjs";
 import { alive, present, active, distIn, isTrapped, GONE } from "./board.mjs";
 import { MONSTERS, moraleDiceBonus, fearRadius } from "./monsters.mjs";
 import { monsterAttackProfile } from "./monster-attacks.mjs";
+import { TROOPS } from "./men-at-arms.mjs";
 import { troopLossLine, manToManMoraleDue, manToManLossCheck, commanderLost, CommanderBond } from "./morale.mjs";
 import { orcLairMoraleExempt } from "./reactions.mjs";
 import { moveFigure, closeOn, planGroupMove, commitGroupMove, mayCharge, chargeInches } from "./movement.mjs";
@@ -391,6 +392,23 @@ export function monsterUnits(state, side) {
   }
   return units;
 }
+/**
+ * Every unit on a side that checks morale: one per monster kind, and one per type of hired men-at-arms (v1.576.00;
+ * Kurt, Oct 2026: they check as their Chainmail troop type). Characters are in no unit and never check.
+ */
+export function moraleUnits(state, side) {
+  const units = new Map();
+  for (const [key, figs] of monsterUnits(state, side)) {
+    const m = MONSTERS.find((x) => x.key === key);
+    units.set(key, { key, figs, monsterKey: key, name: m.name, plural: `${m.name}s`, line: lossLineOf(m), bonus: moraleDiceBonus(m) ?? 0, never: !!m.morale?.never, fearsome: fearRadius(m) > 0 });
+  }
+  for (const f of state.figures) if ((f.origSide ?? f.side) === side && f.kind === "pc" && TROOPS[f.troop]) {
+    const key = `troop:${f.troop}`, t = TROOPS[f.troop];
+    if (!units.has(key)) units.set(key, { key, figs: [], monsterKey: null, troop: f.troop, name: t.name, plural: t.name, line: troopLossLine(t.chainmail), bonus: 0, never: false, fearsome: false });
+    units.get(key).figs.push(f);
+  }
+  return units;
+}
 function applyResult(figs, res) {
   if (res.holds) return;
   for (const f of figs) if (active(f)) { f.status = res.outcome === "surrender" ? "surrendered" : "fled"; f.target = null; }
@@ -411,27 +429,27 @@ export function moralePass(state, rng) {
     const L = state.figures.find((f) => f.id === state.leader?.[side]);
     if (!L || present(L) || state.leaderLostDone[side]) continue;
     state.leaderLostDone[side] = true;
-    for (const [key, figs] of monsterUnits(state, side)) {
-      const m = MONSTERS.find((x) => x.key === key), line = lossLineOf(m);
-      if (m.morale?.never || !line || !figs.some(active) || figs.includes(L)) continue;
-      const [res] = commanderLost([{ name: m.name, line, bonus: moraleDiceBonus(m) ?? 0, surrounded: isTrapped(state, figs) }], rng);
+    for (const [key, u] of moraleUnits(state, side)) {
+      const { figs, line } = u;
+      if (u.never || !line || !figs.some(active) || figs.includes(L)) continue;
+      const [res] = commanderLost([{ name: u.name, line, bonus: u.bonus, surrounded: isTrapped(state, figs) }], rng);
       applyResult(figs, res);
-      out.push({ type: "morale", reason: "leader", side, monsterKey: key, name: m.name, leader: L.name, roll: rollOf(res.roll), needed: res.needed, holds: res.holds, outcome: res.outcome });
+      out.push({ type: "morale", reason: "leader", side, monsterKey: u.monsterKey, name: u.name, plural: u.plural, leader: L.name, roll: rollOf(res.roll), needed: res.needed, holds: res.holds, outcome: res.outcome });
     }
   }
 
   // Fear: enemy NPC units within a dragon's, wraith's or roc's range check once per monster.
   for (const d of state.figures.filter((x) => x.kind === "monster" && present(x) && x.placed && fearRadius(monsterOf(x)) > 0)) {
     const side = opponent(d.side), radius = fearRadius(monsterOf(d));
-    for (const [key, figs] of monsterUnits(state, side)) {
-      const m = MONSTERS.find((x) => x.key === key), line = lossLineOf(m), k = `${side}:${key}:${d.id}`;
-      if (fearChecked.has(k) || m.morale?.never || !line || fearRadius(m) > 0) continue;
+    for (const [key, u] of moraleUnits(state, side)) {
+      const { figs, line } = u, k = `${side}:${key}:${d.id}`;
+      if (fearChecked.has(k) || u.never || !line || u.fearsome) continue;
       if (!figs.some((f) => active(f) && f.placed && distIn(f, d) <= radius)) continue;
       fearChecked.add(k);
       const bond = bondFor(state, figs, side);
-      const res = manToManLossCheck({ name: m.name, original: figs.length, remaining: figs.filter(alive).length, line, bonus: moraleDiceBonus(m) ?? 0, commander: bond, surrounded: isTrapped(state, figs) }, rng);
+      const res = manToManLossCheck({ name: u.name, original: figs.length, remaining: figs.filter(alive).length, line, bonus: u.bonus, commander: bond, surrounded: isTrapped(state, figs) }, rng);
       applyResult(figs, res);
-      out.push({ type: "morale", reason: "fear", side, monsterKey: key, name: m.name, source: d.name, radius, bond, roll: rollOf(res.roll), needed: res.needed, holds: res.holds, outcome: res.outcome });
+      out.push({ type: "morale", reason: "fear", side, monsterKey: u.monsterKey, name: u.name, plural: u.plural, source: d.name, radius, bond, roll: rollOf(res.roll), needed: res.needed, holds: res.holds, outcome: res.outcome });
     }
   }
 
@@ -440,11 +458,10 @@ export function moralePass(state, rng) {
     const sideFigs = state.figures.filter((f) => (f.origSide ?? f.side) === side);
     const sideKilled = sideFigs.filter((f) => !alive(f)).length;
     if (!manToManMoraleDue({ sideOriginal: sideFigs.length, sideKilled })) continue;
-    for (const [key, figs] of monsterUnits(state, side)) {
-      const unitKey = `${side}:${key}`;
+    for (const [key, u] of moraleUnits(state, side)) {
+      const unitKey = `${side}:${key}`, { figs, line } = u, m = u;
       if (moraleChecked.has(unitKey)) continue;
-      const m = MONSTERS.find((x) => x.key === key), line = lossLineOf(m);
-      if (m.morale?.never || !line || !figs.some(active)) continue;
+      if (u.never || !line || !figs.some(active)) continue;
       if (key === "orc" && (state.chests ?? []).some((c) => c.monsterKey === "orc")) {
         const foes = state.figures.filter((e) => e.side !== side && present(e)).length, defenders = figs.filter(active).length;
         if (orcLairMoraleExempt({ defenders, attackers: foes })) {
@@ -454,9 +471,9 @@ export function moralePass(state, rng) {
       }
       moraleChecked.add(unitKey);
       const killed = figs.filter((f) => !alive(f)).length, bond = bondFor(state, figs, side);
-      const res = manToManLossCheck({ name: m.name, original: figs.length, remaining: figs.length - killed, line, bonus: moraleDiceBonus(m) ?? 0, commander: bond, surrounded: isTrapped(state, figs) }, rng);
+      const res = manToManLossCheck({ name: u.name, original: figs.length, remaining: figs.length - killed, line, bonus: u.bonus, commander: bond, surrounded: isTrapped(state, figs) }, rng);
       applyResult(figs, res);
-      out.push({ type: "morale", reason: "casualties", side, monsterKey: key, name: m.name, sideKilled, sideTotal: sideFigs.length, killed, unitTotal: figs.length, row: line.row, scoreToRemain: line.scoreToRemain, bond, roll: rollOf(res.roll), needed: res.needed, holds: res.holds, outcome: res.outcome });
+      out.push({ type: "morale", reason: "casualties", side, monsterKey: u.monsterKey, name: u.name, plural: u.plural, sideKilled, sideTotal: sideFigs.length, killed, unitTotal: figs.length, row: line.row, scoreToRemain: line.scoreToRemain, bond, roll: rollOf(res.roll), needed: res.needed, holds: res.holds, outcome: res.outcome });
     }
   }
   state.fearChecked = [...fearChecked]; state.moraleChecked = [...moraleChecked]; state.lairNoted = [...lairNoted];
@@ -529,6 +546,16 @@ async function runSelfTests() {
     const r = apply(st, { type: "melee-resolved" }, seq([d6(3), d6(3)]));
     const m = r.events.find((e) => e.reason === "leader");
     ok(m && m.roll.modified === 4 && !m.holds && st.figures[1].status === "fled", "leader down: orcs check at −2 and break");
+  }
+  // Hired men-at-arms are a unit by type and check on their Chainmail row; the characters beside them never check.
+  {
+    const man = (id, x, troop, hp = 3) => ({ ...fig(id, "A", x), cls: "man", level: 1, troop, hiredBy: "c1", hp, maxHp: 3 });
+    const st = fresh([fig(1, "A"), man(2, 3, "heavyFoot"), man(3, 4, "heavyFoot", 0), man(4, 5, "archer"), man(6, 6, "archer", 0), orc(5, "B", 12)]);
+    st.step = "melee";
+    const r = apply(st, { type: "melee-resolved" }, seq([d6(3), d6(3), d6(4), d6(4)]));
+    const ms = r.events.filter((e) => e.type === "morale");
+    ok(ms.length === 2 && ms[0].name === "Heavy Foot" && ms[0].plural === "Heavy Foot" && ms[0].row === "Heavy Foot" && !ms[0].holds && st.figures[1].status === "fled", "two of side A's five down: the Heavy Foot need 7 and break on 6");
+    ok(ms[1].name === "Archers" && ms[1].row === "Light" && ms[1].holds && !st.figures[3].status && !st.figures[0].status, "the Archers need 8 and stand; the character does not check");
   }
   // Fear: an enemy dragon within 15"; player characters never check.
   {

@@ -91,7 +91,7 @@ function hireBoxHtml(env, c, place, placeName) {
   const post = `<div class="tr-cap">Post notices · a week, 100 to 600 gp (Book III)</div><div class="ma-types">${types}</div>
     <div class="inn-row"><label for="maGp">Spend</label><select id="maGp">${spends.join("")}</select><button type="button" id="maPost" ${env.busy || short || !picked.length ? "disabled" : ""}>Post notices for a week</button>${short ? `<span class="note">he has ${gp} gp</span>` : ""}</div>
     <div class="note">At ${spend} gp each type has ${M.findChance(place.kind, spend)} chances in 100 of answering, ${dice}d6 men if it does. The week passes at the inn and counts as rest; his day moves on to ${day + M.NOTICE.days}.</div>`;
-  return `<div class="inn-box"><h4>Hire men-at-arms</h4>${serving}${waiting}${post}<div class="note">Hired men march with him and stand behind the party in a dungeon fight, each a normal man: one hit die, fighting as a Man. The dead come off the roll.</div></div>`;
+  return `<div class="inn-box"><h4>Hire men-at-arms</h4>${serving}${waiting}${post}<div class="note">Hired men march with him and stand with the party in a fight, each a normal man: one hit die, fighting as a Man. They check morale by their type, and the dead come off the roll.</div></div>`;
 }
 /**
  * The inn (approved mockup 25 Nov 2026, v1.573.00): one panel over the dimmed village. Rest, the talk of the taverns,
