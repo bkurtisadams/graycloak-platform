@@ -482,7 +482,8 @@ a.ses-row-title:hover{color:var(--accent)}
 .battle-lnk:hover{filter:brightness(1.2)}
 .battle-del{color:#a03030;border-color:#a03030}
 .battles-note{font-size:12px;opacity:.6;font-style:italic}
-/* the OD&D game card (v1.578.00): read from the game, grouped by party; the fallen and the unfinished fold away below */
+/* the OD&D game card (v1.578.00): read from the game, grouped by party; the fallen and the unfinished fold away below.
+   A player (v1.579.00) gets his own characters first, a card each with Play, then who else is about */
 .odd-game{display:flex;flex-direction:column;gap:10px;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border,#d8d0c0);border-radius:8px}
 .odd-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .odd-day{font-size:13px;opacity:.75;letter-spacing:.3px}
@@ -513,6 +514,22 @@ a.odd-st,.odd-st.hot{border-color:var(--accent,#8b0000);color:var(--accent,#8b00
 .odd-fold li small{opacity:.65}
 .odd-fold .battle-lnk{display:inline-block;margin:6px 8px 0 0}
 .odd-fights{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px}
+.odd-sub{font-family:var(--fsc);font-size:10px;letter-spacing:1.5px;color:var(--tx3);margin-top:4px}
+.odd-who{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}
+.odd-who small{opacity:.65}
+.odd-mine{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.odd-card{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border:1px solid var(--border,#d8d0c0);border-radius:6px;font-size:13px;min-height:132px}
+.odd-card-top{display:flex;align-items:baseline;gap:8px;justify-content:space-between}
+.odd-card-name{font-size:16px;font-weight:700;color:inherit;text-decoration:none}
+.odd-card-name:hover{color:var(--accent,#8b0000);text-decoration:underline}
+.odd-card small{font-size:11px;opacity:.65}
+.odd-card-stats{font-variant-numeric:tabular-nums}
+.odd-card-at{opacity:.8}
+.odd-play{margin-top:auto;align-self:flex-start;font-size:13px;font-weight:700;text-decoration:none;color:var(--bg,#fff);background:var(--accent,#8b0000);border-radius:4px;padding:6px 16px}
+.odd-play:hover{filter:brightness(1.15)}
+.odd-card.draft{border-style:dashed}
+a.odd-new{border-style:dashed;align-items:center;justify-content:center;text-decoration:none;color:var(--accent,#8b0000);font-weight:700;font-size:14px}
+a.odd-new:hover{background:rgba(128,128,128,.08)}
 </style>
 </head>
 <body>
@@ -2946,7 +2963,22 @@ function renderFightsRow(){
   const live=_fights.filter(f=>state(f)==='live'),idle=_fights.filter(f=>state(f)==='idle'),over=_fights.filter(f=>state(f)==='over');
   const old=[idle.length?`${idle.length} left standing`:'',over.length?`${over.length} finished`:''].filter(Boolean).join(' · ');
   const fights=`<div class="odd-fights"><span class="battles-note">Fights now:</span>${live.map(link).join('')||'<span class="battles-note">none</span>'}</div>`+(old?`<details class="odd-fold"><summary>OLDER FIGHTS (${ESC(old)})</summary><div>${idle.concat(over).map(link).join('')}</div>${!_isPlayerMode&&idle.length?'<div class="battles-note" style="margin-top:6px">A fight left standing has no party in it. Open it and delete it from the referee’s list of fights.</div>':''}</details>`:'');
-  row.innerHTML=head+tbl+fights+fallenHtml+draftsHtml;
+  if(!_isPlayerMode){row.innerHTML=head+tbl+fights+fallenHtml+draftsHtml;return}
+  // a player's page: his own characters first, a card each, then who else is about
+  const mine=c=>c.owner===user.uid,roll=game+'&new=1';
+  const cards=parties.flatMap(pt=>pt.members.filter(mine).map(c=>{
+    const f=fightOf(c),fh=f?fightHref(f):'',doing=f?'fight':(ODD_RANK[c.doing]!=null?c.doing:'town'),men=oddMen(c);
+    const withs=pt.members.filter(m=>m!==c).map(m=>m.name||'Unnamed');
+    const stats=['HP '+c.hp+'/'+c.maxHp,'XP '+(c.xp||0),((c.coins&&c.coins.gp)||0)+' gp',men.count?count(men.count,'hired man').replace('mans','men'):''].filter(Boolean).join(' · ');
+    return `<div class="odd-card"><div class="odd-card-top"><a class="odd-card-name" href="${ESC(game+'&ch='+encodeURIComponent(c.id))}" title="Open the character sheet">${ESC(c.name||'Unnamed')}</a><span class="odd-st${doing==='fight'||doing==='encounter'?' hot':''}">${ESC(ODD_DOING[doing])}</span></div><small>${ESC(cls(c))}${c.retainer?' · retainer of '+ESC(c.retainer.ofName||''):''}</small><div class="odd-card-stats"${men.count?` title="${ESC(men.list)}"`:''}>${ESC(stats)}</div><div class="odd-card-at">${ESC(oddWhere(c))} · Day ${ESC(String(dayOf(c)))}</div>${withs.length?`<small>With ${ESC(withs.join(', '))}</small>`:''}<a class="odd-play" href="${ESC(fh||game+'&play='+encodeURIComponent(c.id))}">${fh?'Join the fight':'Play'}</a></div>`;
+  }));
+  const myDrafts=drafts.filter(mine).map(c=>`<div class="odd-card draft"><div class="odd-card-top"><span class="odd-card-name">${ESC(c.name||'Unnamed')}</span><span class="odd-st">rolling</span></div><small>Not finished yet</small><a class="odd-play" href="${ESC(roll)}">Finish rolling</a></div>`);
+  const newCard=myDrafts.length?'':`<a class="odd-card odd-new" href="${ESC(cards.length?roll:game)}">+ Roll a ${cards.length?'new':'first'} character</a>`;
+  const mineHtml=`<div class="odd-sub">YOUR CHARACTERS</div><div class="odd-mine">${cards.join('')}${myDrafts.join('')}${newCard}</div>`;
+  const whoHtml=`<div class="odd-who">${members.map(u=>`<span>${who(u)}${refs.has(u)?' <small>referee</small>':''}</span>`).join('')}</div>`;
+  const others=parties.map(pt=>pt.members.filter(c=>!mine(c)).map(c=>`<tr><td class="ch"><a href="${ESC(game+'&ch='+encodeURIComponent(c.id))}">${ESC(c.name||'Unnamed')}</a><small>${ESC(cls(c))}</small></td><td class="pl">${c.retainer?`<i>retainer of ${ESC(c.retainer.ofName||'')}</i>`:who(c.owner)}</td><td>${ESC(oddWhere(c))}</td><td><span class="odd-st">${ESC(ODD_DOING[pt.doing])}</span></td></tr>`).join('')).join('');
+  const othersHtml=others?`<div class="odd-sub">ALSO IN THE CAMPAIGN</div><div class="odd-tblwrap"><table class="odd-tbl"><thead><tr><th>CHARACTER</th><th>PLAYER</th><th>WHERE</th><th>DOING</th></tr></thead><tbody>${others}</tbody></table></div>`:'';
+  row.innerHTML=head+whoHtml+mineHtml+fights+othersHtml+fallenHtml;
 }
 async function loadFights(){
   const camp=getCamp();if(!camp||camp.system!=='odd')return;

@@ -1443,7 +1443,7 @@ function startTableWatchers() {
     api.watchGame(table.cid, (g) => { if (g) { table.game = { ...(table.game ?? {}), ...g }; applyGame(); } }),
     api.watchPresence(table.cid, (p) => { table.presence = p; renderPresence(); renderGamePlayers(); }),
     api.watchFolders(table.cid, (list) => { table.folders = list; if (sbTab === "party") renderRoster(); }),
-    api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; refreshParties(); refreshDelve(); renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") renderGameSettings(); renderProfile(); renderGamePlayers(); if (charSheet.id) renderCharSheet(); openLinkedSheet(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER })
+    api.watchCharacters(table.cid, (list) => { table.chars = list; table.charsLoaded = true; refreshParties(); refreshDelve(); renderPlayersList(); renderLobbyStage(); if (sbTab === "party") renderRoster(); if (sbTab === "settings") renderGameSettings(); renderProfile(); renderGamePlayers(); if (charSheet.id) renderCharSheet(); openLinked(); if (!PLAYER && state.phase === "setup") render(); }, undefined, { all: !PLAYER })
   ].filter((u) => typeof u === "function");
 }
 function stopTableWatchers() { for (const u of table.unsubs ?? []) u(); table.unsubs = []; }
@@ -1772,7 +1772,7 @@ const tradePanelHtml = (c, uid, here, placeName) => vg.tradePanelHtml(villageEnv
 const villageDockHtml = (c, uid, placeName) => vg.villageDockHtml(villageEnv(uid), c, villageGroup(c, uid, placeName), placeName);
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.578.00";
+const BUILD = "v1.579.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
 const SERVER_NEEDED = "v1.577.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
@@ -4190,11 +4190,16 @@ $("#acRoll").addEventListener("click", async (e) => { const b = e.currentTarget;
 // folders start open; the ones a viewer folds stay folded in his browser
 const saveAdOpen = () => { try { localStorage.setItem("odd.adClosed", JSON.stringify([...table.adClosed])); } catch {} };
 const levelHere = (ch) => (iRef() ? 3 : rs.levelOf(ch, meUid()));
-const linkedSheet = { id: new URLSearchParams(location.search).get("ch"), done: false };
-function openLinkedSheet() {
-  if (linkedSheet.done || !linkedSheet.id || !table.charsLoaded) return;
-  linkedSheet.done = true;
-  if (charOf(linkedSheet.id)) openCharSheet(linkedSheet.id);
+/** Links from the campaign page: ch= opens that character's sheet, play= puts his scene on the stage, new rolls another (or reopens the unfinished one). */
+const linked = (() => { const q = new URLSearchParams(location.search); return { sheet: q.get("ch"), play: q.get("play"), roll: q.has("new"), done: false }; })();
+function openLinked() {
+  const g = table.game, uid = online.api?.user?.uid;
+  if (linked.done || !table.charsLoaded || !g || !uid || !isRefOf(g, uid) !== PLAYER) return;
+  linked.done = true;
+  if (linked.play && charOf(linked.play)) openWorld(linked.play);
+  else if (linked.sheet && charOf(linked.sheet)) openCharSheet(linked.sheet);
+  else if (linked.roll && PLAYER && !lobby.rolling && myChars(uid).length) { lobby.rolling = true; rollAnother(); }
+  if (linked.play || linked.roll) { const q = new URLSearchParams(location.search); q.delete("play"); q.delete("new"); history.replaceState(null, "", `?${q}`); }
 }
 function openCharSheet(id, tab) {
   const w = $("#sheetWin");

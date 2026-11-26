@@ -146,7 +146,7 @@ async function enter() {
 }
 function onGame() {
   // in: go to the table (one page per game; it shows the live fight or the lobby on its stage)
-  if (!S.welcome) { location.replace(`combat-grid.html?c=${encodeURIComponent(cid)}${q.get('ch') ? `&ch=${encodeURIComponent(q.get('ch'))}` : ''}${q.has('emu') ? '&emu=1' : ''}`); return; } // one link for referee and player; the table reads the role from the game
+  if (!S.welcome) { location.replace(`combat-grid.html?c=${encodeURIComponent(cid)}${['ch', 'play'].filter((k) => q.get(k)).map((k) => `&${k}=${encodeURIComponent(q.get(k))}`).join('')}${q.has('new') ? '&new=1' : ''}${q.has('emu') ? '&emu=1' : ''}`); return; } // one link for referee and player; the table reads the role from the game
   render();
 }
 async function loadFights() {
