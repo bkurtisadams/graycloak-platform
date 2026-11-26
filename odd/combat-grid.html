@@ -1771,9 +1771,9 @@ const tradePanelHtml = (c, uid, here, placeName) => vg.tradePanelHtml(villageEnv
 const villageDockHtml = (c, uid, placeName) => vg.villageDockHtml(villageEnv(uid), c, villageGroup(c, uid, placeName), placeName);
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.574.00";
+const BUILD = "v1.575.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.574.00";
+const SERVER_NEEDED = "v1.575.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -3467,7 +3467,7 @@ function tokenLabel(f) {
   // a roster character (pass 4) goes by his own name: "Brom" is Br
   if (f.charId && f.name) { const w = f.name.trim().split(/\s+/); return (w.length > 1 ? w[0][0] + w[1][0] : w[0].slice(0, 2)).replace(/^./, (c) => c.toUpperCase()); }
   const n = f.name.match(/\d+$/)?.[0] ?? "";
-  if (f.kind === "pc") return ({ fighter: "F", cleric: "C", "magic-user": "MU", thief: "T" }[f.cls] ?? "?") + n;
+  if (f.kind === "pc") return ({ fighter: "F", cleric: "C", "magic-user": "MU", thief: "T", man: { lightFoot: "LF", heavyFoot: "HF", archer: "Ar", crossbow: "Xb", longbow: "Lb", lightHorse: "LH", mediumHorse: "MH", heavyHorse: "HH" }[f.troop] ?? "M" }[f.cls] ?? "?") + n;
   const words = (MONSTERS.find((m) => m.key === f.monsterKey)?.name ?? "?").split(/\s+/);
   return (words.length > 1 ? words.map((w) => w[0]).join("").slice(0, 2) : words[0].slice(0, 2)) + n;
 }
@@ -3791,7 +3791,7 @@ function moveText(f) {
 }
 /* ---------- the Tracker tab (approved mockup 25 Oct 2026): Foundry's combat tracker, by side, for move/counter-move ---------- */
 let tkFilter = "all";
-const CLS_SHORT = { fighter: "F-M", cleric: "Cleric", "magic-user": "M-U", thief: "Thief" };
+const CLS_SHORT = { fighter: "F-M", cleric: "Cleric", "magic-user": "M-U", thief: "Thief", man: "Man" };
 /** A figure's mark: ready or still to act when the step waits on it; held when helpless; dashed when its side moves next. */
 function trackerMark(f) {
   if (!present(f)) return "down";

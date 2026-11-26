@@ -29,6 +29,12 @@ const PROGRESSION = Object.freeze({
   ]
 });
 
+/**
+ * A normal man: a hired soldier or the like, of no class. One hit die, he fights as a Man with nothing added, and
+ * saves as a 1st-level Fighting-Man. He has no levels to gain, so he is kept out of the progression tables.
+ */
+export const isNormalMan = (raw) => String(raw ?? "").toLowerCase().trim() === "man";
+
 /** Normalize a free-text class to a progression key. */
 export function classKey(raw) {
   const s = String(raw ?? "").toLowerCase().trim();

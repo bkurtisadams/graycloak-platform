@@ -41,7 +41,7 @@ export const ABREAST = 3;
 export const marching = (members) => members.map((m, i) => [m, i]).sort((a, b) => (a[0].march ?? 1e6) - (b[0].march ?? 1e6) || a[1] - b[1]).map(([m]) => m);
 
 export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey, hexKey, openFightIn = null, isReferee = () => false }) {
-  const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster;
+  const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster, M = rules.menAtArms ?? null;
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
   const d6 = () => rollDie(6), rng = () => (rollDie(1000000) - 1) / 1000000;
@@ -192,14 +192,17 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const fighters = pt.members.filter((c) => (c.hp ?? 1) > 0);
       why = !openFightIn ? "the fight service isn't there" : camp.live ? "another fight is under way" : !m ? `${e.kind} have no fighting statistics yet` : !n ? "none of them came" : !fighters.length ? "no one in the party can fight" : "";
       if (why) return null;
-      const lay = D.fightSetup(L, { at: { x: state.x, y: state.y }, trail: (state.trail ?? []).map(([x, y]) => ({ x, y })), feet: e.feet ?? 60, room: e.room ? (L.rooms ?? []).find((r) => r.id === e.room) ?? null : null, found, party: fighters.map(() => 1), monsters: Array(n).fill(m.size ?? 1) });
+      // his hired men (v1.575.00) stand behind the characters, each a normal man in his type's kit, moved by his master's player
+      const men = M ? fighters.flatMap((c) => M.soldiersOf(c.troops).map((rec) => ({ rec, by: c }))) : [];
+      const lay = D.fightSetup(L, { at: { x: state.x, y: state.y }, trail: (state.trail ?? []).map(([x, y]) => ({ x, y })), feet: e.feet ?? 60, room: e.room ? (L.rooms ?? []).find((r) => r.id === e.room) ?? null : null, found, party: [...fighters, ...men].map(() => 1), monsters: Array(n).fill(m.size ?? 1) });
       const figures = []; let id = 1;
       fighters.forEach((c, i) => { const at = lay.party[i], f = roster.toFigure(c, { id: id++, side: "A" }); figures.push({ ...f, ...(at ? { x: at.x, y: at.y, facing: at.facing, placed: true } : { placed: false }) }); });
+      men.forEach(({ rec, by }, i) => { const at = lay.party[fighters.length + i], f = roster.toFigure(rec, { id: id++, side: "A" }); figures.push({ ...f, hpSet: false, hiredBy: by.id, troop: rec.troop, ...(at ? { x: at.x, y: at.y, facing: at.facing, placed: true } : { placed: false }) }); });
       lay.monsters.forEach((at, i) => { if (at) figures.push({ id: id++, side: "B", kind: "monster", monsterKey: m.key, name: `${m.name} ${i + 1}`, ac: m.ac, size: m.size ?? 1, stance: "attack", target: null, action: "melee", x: at.x, y: at.y, facing: at.facing, placed: true }); });
       if (!figures.some((f) => f.side === "B") || !figures.some((f) => f.side === "A" && f.placed)) { why = "there is no room to stand them on the map here"; return null; }
-      const stood = figures.filter((f) => f.side === "B").length, left = fighters.filter((_, i) => !lay.party[i]).map((c) => c.name);
-      crowd = `${stood < n ? ` Only ${stood} of the ${n} ${e.kind} have room to come at the party; the other ${n - stood} hang back, and the referee may bring them on.` : ""}${left.length ? ` ${left.join(", ")} had no room to stand and must be placed.` : ""}`;
-      const control = Object.fromEntries(figures.map((f) => [f.id, f.side === "B" ? "game" : (() => { const o = fighters.find((c) => c.id === f.charId)?.owner, lead = fighters[0].owner; return o && !isReferee(camp, o) ? o : lead && !isReferee(camp, lead) ? lead : "referee"; })()]));
+      const stood = figures.filter((f) => f.side === "B").length, left = fighters.filter((_, i) => !lay.party[i]).map((c) => c.name), back = men.filter((_, i) => !lay.party[fighters.length + i]).length;
+      crowd = `${stood < n ? ` Only ${stood} of the ${n} ${e.kind} have room to come at the party; the other ${n - stood} hang back, and the referee may bring them on.` : ""}${left.length ? ` ${left.join(", ")} had no room to stand and must be placed.` : ""}${back ? ` ${back} of the ${men.length} men-at-arms had no room to stand and wait to be placed.` : ""}`;
+      const control = Object.fromEntries(figures.map((f) => [f.id, f.side === "B" ? "game" : (() => { const o = fighters.find((c) => c.id === (f.charId ?? f.hiredBy))?.owner, lead = fighters[0].owner; return o && !isReferee(camp, o) ? o : lead && !isReferee(camp, lead) ? lead : "referee"; })()]));
       const fid = `delve-${now().toString(36)}-${rollDie(1000000).toString(36)}`;
       const r = openFightIn(tx, { cid, fid, title: `${e.kind} \u00b7 ${L.name} \u00b7 turn ${state.turn}`, uid, camp, control, extra: { delve: { lid, room: e.room ?? null } },
         state: { figures, nextId: id, phase: "setup", round: 0, step: "init", firstSide: null, contacts: new Map(), winner: null, width: D.FIGHT_W, height: D.FIGHT_H, walls: lay.walls, chests: [] } });

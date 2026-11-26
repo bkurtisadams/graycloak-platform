@@ -329,3 +329,28 @@ test("the marching order: the leader's player sets it, the view lists the party 
   g.setDice(5, 5, 5); const no = await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
   assert.match(no.text, /holds \(Wyn 5, Aeld 5, Brom 5\)/, "the front rank is at the door, not Leal");
 });
+
+test("hired men stand in the dungeon fight as normal men, and the dead come off the roll (v1.575.00)", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom", { troops: { men: { lightFoot: 2, archer: 1 }, paidTo: 40 } }), ann = await g.make("ann", "Ansel"); await down(g, brom, ann);
+  await g.call("bob", { op: "delveMove", id: brom, to: { x: 4, y: 1 } }); await g.call("bob", { op: "delveMove", id: brom, to: { x: 7, y: 1 } });
+  g.setDice(2); await g.call("bob", { op: "delveDoor", id: brom, at: { x: 8, y: 1 }, act: "force" });
+  g.setDice(4, 4, 4); await g.call("bob", { op: "delveMove", id: brom, to: { x: 10, y: 2 } });
+  const s = await g.call("bob", { op: "delveStand", id: brom });
+  assert.equal(s.ok, true, s.error);
+  const p = fightPaths("c1", s.fid), st = rules.fightStore.fromStored(g.store.docs.get(p.state));
+  const men = st.figures.filter((f) => f.hiredBy);
+  assert.deepEqual(men.map((f) => f.name), ["Light Footman 1", "Light Footman 2", "Archer 1"]);
+  assert.ok(men.every((f) => f.side === "A" && f.kind === "pc" && f.cls === "man" && f.hiredBy === brom && !f.charId && st.control[f.id] === "bob"), "Brom's player moves them");
+  assert.ok(men.filter((f) => f.placed).every((f) => f.hp >= 1 && f.hp <= 6), "one hit die each, rolled as the fight opens");
+  assert.equal(men[0].ac, 6); assert.equal(men[0].weaponId, "spear"); assert.equal(men[2].missile, "shortbow");
+  assert.equal(rules.melee.combatProfile(men[0]).fcLabel, "Man"); assert.equal(rules.melee.combatProfile(st.figures.find((f) => f.charId === brom)).bonus, 1, "a Veteran is Man +1; a soldier is not");
+  const act = (uid, action) => g.fights.act({ uid, data: { cid: "c1", fid: s.fid, rev: g.store.docs.get(p.fight).rev, rules: rules.fightStore.RULES_VERSION, action } });
+  const raw = g.store.docs.get(p.state), fell = new Set([men[0].id, men[2].id]);
+  g.store.docs.set(p.state, { ...raw, phase: "over", winner: "A", figures: raw.figures.map((f) => (f.side === "B" || fell.has(f.id) ? { ...f, hp: 0 } : f)) });
+  const out = await act("bob", { type: "settle" });
+  assert.equal(out.ok, true, out.error);
+  assert.deepEqual(g.ch(brom).troops, { men: { lightFoot: 1 }, paidTo: 40 }, "a Light Footman and the Archer fell");
+  assert.equal(g.ch(ann).troops ?? null, null);
+  const said = [...g.store.docs.entries()].filter(([k]) => k.startsWith("oddCampaigns/c1/chat/bob/")).map(([, v]) => v.text).join(" ");
+  assert.match(said, /Brom: hp \d+\/\d+(, \+\d+ xp)?, 2 of his men-at-arms slain/);
+});

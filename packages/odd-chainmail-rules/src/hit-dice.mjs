@@ -20,7 +20,7 @@
  * 12th = 8+1, 13th = 8+2). Past the encoded rows the table clamps.
  */
 
-import { classKey } from "./advancement.mjs";
+import { classKey, isNormalMan } from "./advancement.mjs";
 import { forceDice } from "./dice.mjs";
 
 /** Per-level [dice, bonus, label]; index 0 = level 1. Last row clamps upward. */
@@ -100,6 +100,7 @@ const HD = Object.freeze({
  * @returns {{dice:number, bonus:number, label:string}}
  */
 export function hitDiceFor(rawClass, level) {
+  if (isNormalMan(rawClass)) return { dice: 1, bonus: 0, label: "1" };
   const key = classKey(rawClass);
   const table = HD[key] ?? HD.fighter;
   const idx = Math.min(Math.max(1, Math.trunc(level) || 1), table.length) - 1;

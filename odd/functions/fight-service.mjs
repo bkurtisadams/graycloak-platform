@@ -215,15 +215,20 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const treasureValue = chars.reduce((s, { f, ch }) => s + Math.max(0, gpOf(f.inv?.coins) - gpOf(ch.coins)), 0);
     const settled = rules.settleEncounter({ monsters, treasureValue, members: chars.map(({ f, ch }) => ({ id: f.charId, level: ch.level ?? 1, fought: true, lootCut: 1 })), mode: "individual" });
     const title = header.title || "the fight", out = [], lines = [];
+    // hired men who stood in the fight (v1.575.00): the dead come off their master's roll; if he fell, the rest leave his service
+    const M = rules.menAtArms ?? null, stood = {};
+    for (const f of state.figures) if (f.hiredBy && f.troop && f.origSide !== "B") { const t = ((stood[f.hiredBy] ??= {})[f.troop] ??= { alive: 0, fell: 0 }); if (down(f)) t.fell += 1; else t.alive += 1; }
     for (const { f, ch } of chars) {
       const m = settled.members.find((x) => x.id === f.charId), sh = rules.roster.sheetFor(ch);
       const amount = Math.floor((m?.award ?? 0) * (1 + (sh.xpBonus ?? 0) / 100));
       const gained = rules.cappedAward(ch.cls, ch.level ?? 1, ch.xp ?? 0, amount);
       const hp = Math.max(0, Math.trunc(Number(f.hp ?? ch.hp)) || 0), dead = hp <= 0;
-      const next = { ...ch, hp, xp: (ch.xp ?? 0) + gained, coins: { ...ch.coins, ...(f.inv?.coins ?? {}) }, encounter: null, ...(ch.encounter?.underground && ch.encounter.room ? { roomSettled: { lid: ch.encounter.lid, room: ch.encounter.room } } : {}), doing: dead ? "dead" : ch.doing === "encounter" ? "road" : ch.doing ?? "road", ...(dead ? { diedIn: title } : {}), updatedAt: now() };
+      const mine = M && ch.troops ? stood[f.charId] ?? null : null, fell = mine ? Object.values(mine).reduce((s, t) => s + t.fell, 0) : 0;
+      const troops = !M || !ch.troops ? ch.troops ?? null : dead ? null : mine ? M.afterFight(ch.troops, Object.fromEntries(Object.entries(mine).map(([k, t]) => [k, t.alive]))) : ch.troops;
+      const next = { ...ch, troops, hp, xp: (ch.xp ?? 0) + gained, coins: { ...ch.coins, ...(f.inv?.coins ?? {}) }, encounter: null, ...(ch.encounter?.underground && ch.encounter.room ? { roomSettled: { lid: ch.encounter.lid, room: ch.encounter.room } } : {}), doing: dead ? "dead" : ch.doing === "encounter" ? "road" : ch.doing ?? "road", ...(dead ? { diedIn: title } : {}), updatedAt: now() };
       tx.set(`oddCampaigns/${cid}/characters/${f.charId}`, clean(next));
       out.push({ id: f.charId, name: ch.name, hp, maxHp: ch.maxHp, xp: gained, dead });
-      lines.push(`${ch.name}: ${dead ? "slain" : `hp ${hp}/${ch.maxHp}`}${gained ? `, +${gained} xp` : ""}`);
+      lines.push(`${ch.name}: ${dead ? "slain" : `hp ${hp}/${ch.maxHp}`}${gained ? `, +${gained} xp` : ""}${fell ? `, ${fell} of his men-at-arms slain` : ""}${dead && ch.troops && M?.countOf(ch.troops) > fell ? ", and his men-at-arms leave his service" : ""}`);
     }
     tx.set(p.fight, clean({ ...header, settled: { at: now(), by: uid, awards: out } }));
     // the lobby chat hears how it ended

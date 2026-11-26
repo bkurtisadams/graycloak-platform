@@ -25,7 +25,7 @@
  * table's own Fighting Capability column (Kurt's ruling, Sep 2026).
  */
 
-import { classKey } from "./advancement.mjs";
+import { classKey, isNormalMan } from "./advancement.mjs";
 
 export const WIZARD_TIER_ATTACKS = 5;
 
@@ -104,6 +104,7 @@ const FC = Object.freeze({
  * @returns {{attacks:number, bonus:number, label:string}}
  */
 export function fightingCapabilityFor(rawClass, level) {
+  if (isNormalMan(rawClass)) return { attacks: 1, bonus: 0, label: "Man" };
   const key = classKey(rawClass);
   const table = FC[key] ?? FC.fighter;
   const idx = Math.min(Math.max(1, Math.trunc(level) || 1), table.length) - 1;
@@ -118,6 +119,7 @@ function runSelfTests() {
 
   // Fighter: tracks level to Superhero +1, +1 bonus rides at 1st-2nd.
   ok(fightingCapabilityFor("fighter", 1).attacks === 1 && fightingCapabilityFor("fighter", 1).bonus === 1, "fighter 1 = Man +1");
+  ok(fightingCapabilityFor("man", 1).attacks === 1 && fightingCapabilityFor("man", 1).bonus === 0 && fightingCapabilityFor("Fighting-Man", 1).bonus === 1, "a normal man = Man, nothing added");
   ok(fightingCapabilityFor("fighter", 2).attacks === 2 && fightingCapabilityFor("fighter", 2).bonus === 1, "fighter 2 = 2 Men +1");
   ok(fightingCapabilityFor("fighter", 3).bonus === 0, "fighter 3 drops the pip");
   ok(fightingCapabilityFor("fighter", 4).attacks === 4, "Hero = 4");

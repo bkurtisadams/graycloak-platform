@@ -110,6 +110,44 @@ export function settlePay(troops, gp, day) {
   }
   return { troops: t, gp: gp - paid, paid, months, left: false };
 }
+/**
+ * What each type carries into a fight. Book II's Bandits give Light Foot leather and shield, bowmen leather, Light
+ * Horse leather and shield, Medium Horse mail and shield, Heavy Horse plate and shield; Heavy Foot take Chainmail's
+ * mail and shield. The books name no hand weapons: spears for Light Foot, swords for the rest, a dagger for bowmen.
+ * Horsemen fight on foot underground.
+ */
+export const KIT = Object.freeze({
+  lightFoot: { items: [["leather", 1], ["shield", 1], ["spear", 1]], weapon: "spear" },
+  heavyFoot: { items: [["mail", 1], ["shield", 1], ["sword", 1]], weapon: "sword" },
+  archer: { items: [["leather", 1], ["shortbow", 1], ["quiver20", 1], ["dagger", 1]], weapon: "dagger", missile: "shortbow" },
+  crossbow: { items: [["leather", 1], ["lightcrossbow", 1], ["quarrels30", 1], ["dagger", 1]], weapon: "dagger", missile: "lightcrossbow" },
+  longbow: { items: [["leather", 1], ["longbow", 1], ["quiver20", 1], ["dagger", 1]], weapon: "dagger", missile: "longbow" },
+  lightHorse: { items: [["leather", 1], ["shield", 1], ["sword", 1]], weapon: "sword" },
+  mediumHorse: { items: [["mail", 1], ["shield", 1], ["sword", 1]], weapon: "sword" },
+  heavyHorse: { items: [["plate", 1], ["shield", 1], ["sword", 1]], weapon: "sword" },
+});
+/**
+ * One soldier as a character-shaped record (roster.toFigure takes it): a normal man, class "man", with his type's
+ * kit, average in every ability, and no hit points set, so the fight rolls his one die when it opens.
+ */
+export function soldier(type, n = 1) {
+  const kit = KIT[type], t = TROOPS[type]; if (!kit || !t) return null;
+  return { name: `${t.one} ${n}`, cls: "man", level: 1, race: "human", alignment: "neutral", abilities: { str: 10, int: 10, wis: 10, con: 10, dex: 10, cha: 10 },
+    items: kit.items.map(([key, qty]) => ({ key, qty })), ready: { weapon: kit.weapon, missile: kit.missile ?? null }, coins: { cp: 0, sp: 0, gp: 0 }, hp: null, maxHp: null, status: "ready", npc: true, troop: type };
+}
+/** Every man a character keeps, in the table's order, each numbered within his type. */
+export function soldiersOf(troops) {
+  const men = menOf(troops), out = [];
+  for (const k of Object.keys(TROOPS)) for (let i = 1; i <= (men[k] ?? 0); i++) out.push(soldier(k, i));
+  return out;
+}
+/** The company after a fight: `alive` is { type: survivors } for the types that fought; null when none are left. */
+export function afterFight(troops, alive) {
+  const men = menOf(troops);
+  for (const [k, n] of Object.entries(alive ?? {})) { if (!(k in men)) continue; if (n > 0) men[k] = Math.min(men[k], n); else delete men[k]; }
+  return Object.keys(men).length ? { men, paidTo: troops.paidTo } : null;
+}
+
 /** "3 Light Foot, 1 Archer". */
 export function describe(troops) {
   return Object.entries(menOf(troops)).map(([k, n]) => `${n} ${n === 1 ? TROOPS[k].one : TROOPS[k].name}`).join(", ");
@@ -134,6 +172,10 @@ function runSelfTests() {
   s = settlePay(t, 100, 75); ok(s.paid === 36 && s.months === 2 && s.gp === 64 && s.troops.paidTo === 100, "two months come due at once");
   s = settlePay(t, 20, 75); ok(s.left && s.troops === null && s.paid === 18 && s.gp === 2, "the month he cannot pay, they leave");
   ok(describe(dismiss(t, "archer", 1)) === "4 Light Foot, 1 Archer" && dismiss(dismiss(t, "archer", 2), "lightFoot", 9) === null, "dismissing; the last man gone leaves no company");
+  const sm = soldiersOf({ men: { archer: 1, lightFoot: 2 }, paidTo: 40 });
+  ok(sm.length === 3 && sm[0].name === "Light Footman 1" && sm[1].name === "Light Footman 2" && sm[2].troop === "archer" && sm[2].ready.missile === "shortbow" && sm[0].cls === "man" && sm[0].hp === null, "soldiers as records: normal men with their type's kit");
+  ok(Object.keys(TROOPS).every((k) => KIT[k]), "a kit for every type");
+  ok(describe(afterFight(t, { lightFoot: 1, archer: 0 })) === "1 Light Footman" && afterFight(t, { lightFoot: 0, archer: 0 }) === null && describe(afterFight(t, {})) === "4 Light Foot, 2 Archers", "the dead come off the roll");
   console.log(`men-at-arms: all self-tests passed (${pass})`);
 }
 
