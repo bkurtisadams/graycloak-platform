@@ -66,7 +66,10 @@ test("a character underground is shown the level, and the party at the ruin can 
   assert.match(body("defaultScene"), /if \(pick\?\.under\)/);
   assert.match(body("partyBarHtml"), /id="pbEnter"/);
   assert.match(body("sceneAt"), /kind: "dungeon"[\s\S]*kind: "village"/, "a hex's scene: an open dungeon level, or a settlement");
-  assert.match(body("villageMapHtml"), /id="wLeaveScene"/, "a town scene is left by its Leave button");
+  // v1.572.00: the village's markup lives in village-ui.mjs; the referee looking in leaves by the map's button, a party by the dock's
+  const village = readFileSync(new URL("../village-ui.mjs", import.meta.url), "utf8");
+  assert.match(village, /export function villageMapHtml[\s\S]*?id="wLeaveScene"/, "a town scene is left by its Leave button");
+  assert.match(village, /export function villageDockHtml[\s\S]*?id="wLeaveScene"[\s\S]*?Leave by the road/);
   assert.match(body("hexMapHtml"), /class="w-pt\$\{on \? " on" : ""\}" data-hexk=/, "one Party token to a hex");
 });
 
@@ -87,4 +90,13 @@ test("a fight the game opened: found by the monster's key, and anyone in it goes
   assert.ok(grid.includes('function autoOver() { return !!(online.on && online.header?.auto && state.phase === "over"); }'));
   assert.ok(grid.includes('if (autoOver()) { backToScene(); return; }'));
   assert.ok(grid.includes("The fight opens on this part of the level; the game runs the monsters."));
+});
+
+test("village-ui.mjs loads on its own and gives the page what it draws the village with (v1.572.00)", async () => {
+  const vg = await import("../village-ui.mjs");
+  for (const name of ["VILLAGE_SPOTS", "villageSpots", "villageSpotName", "villageSvg", "villageDoorsHtml", "villageMapHtml", "villageTokensHtml", "doorCardHtml", "innCardHtml", "tradePanelHtml", "villageDockHtml", "VILLAGE_CSS"]) assert.ok(vg[name] != null, `village-ui.mjs exports ${name}`);
+  assert.match(vg.villageSvg({ inn: "The Ox and Ford", market: true }), /The Ox and Ford[\s\S]*Market/);
+  assert.doesNotMatch(vg.villageSvg({}), /Market<|innkeeper/, "a place with no inn or market is drawn without them");
+  assert.match(vg.doorCardHtml("road", {}, "Langstead"), /Leave by the road/);
+  assert.match(grid, /import \* as vg from "\.\/village-ui\.mjs";/);
 });
