@@ -41,7 +41,7 @@ export const ABREAST = 3;
 export const marching = (members) => members.map((m, i) => [m, i]).sort((a, b) => (a[0].march ?? 1e6) - (b[0].march ?? 1e6) || a[1] - b[1]).map(([m]) => m);
 
 export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, placeKey, hexKey, openFightIn = null, isReferee = () => false }) {
-  const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster, M = rules.menAtArms ?? null;
+  const D = rules.delve, U = rules.underworld, P = rules.parties, roster = rules.roster, M = rules.menAtArms ?? null, W = rules.wilderness ?? {};
   const refuse = (code, error) => ({ ok: false, code, error });
   const clean = (o) => JSON.parse(JSON.stringify(o));
   const d6 = () => rollDie(6), rng = () => (rollDie(1000000) - 1) / 1000000;
@@ -54,6 +54,9 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
     const row = byKey(m?.key) ? null : rowOf(name);
     return byKey(m?.key) ?? rules.MONSTERS.find((x) => `${x.name}s`.toLowerCase() === name) ?? byKey(row?.key) ?? (row?.options ? byKey(row.options[rollDie(row.options.length) - 1]) : null);
   };
+  // a man met by his Book I title (Warriors, Swashbucklers, Evil Priests...): the table's row says his class and level
+  const npcOf = (m) => (m?.npc?.cls ? m.npc : monsterOf(m) ? null : rowOf(m?.name ?? m?.kind)?.npc ?? null);
+  const oneOf = (plural) => String(plural ?? "").replace(/ies$/, "y").replace(/men$/, "man").replace(/s$/, "");
   const cellKey = (ch) => `${ch.under.lid}:${ch.under.x},${ch.under.y}`;
   const blank = () => ({ seen: null, found: [], passed: [], sprung: [], noise: [], cleared: {}, numbers: {}, peace: {} });
   const stateOf = (pt) => ({ turn: 1, spent: 0, sinceRest: 0, rested: 0, fled: false, viaDoor: false, trail: [], listened: [], checks: [], ...pt.leader.under });
@@ -168,7 +171,8 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
     /** A meeting: who is surprised, how far off, how many. */
     const meet = (state, monster, source, room = null) => {
       const m = monsterOf(monster), key = room ? room.id : null;
-      const number = key && doc.numbers[key] != null ? doc.numbers[key] : monster.npc ? 1 : D.wanderingNumber({ hd: m?.hd?.count ?? 1, partySize: pt.members.length }, rollDie);
+      const man = npcOf(monster);
+      const number = key && doc.numbers[key] != null ? doc.numbers[key] : man ? 1 : D.wanderingNumber({ hd: m?.hd?.count ?? 1, partySize: pt.members.length }, rollDie);
       if (key) doc.numbers[key] = number;
       // Kurt (25 Nov 2026), Book III's "this will disallow them rapid reaction": those who forced the door get nothing from
       // surprise. What is behind it can still be surprised (coming through a door), and the rest of the party gains by it;
@@ -178,7 +182,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       const surprise = wasted ? null : rolled;
       const sight = U.sightingFeet(rng, surprise === "party"), feetOff = room ? Math.min(sight, Math.max(room.w, room.h) * 10) : sight;
       const e = clean({ underground: true, lid, type: source, kind: monster.name, monsterKey: m?.key ?? monster.key ?? null, number, max: number, feet: feetOff, yards: null, surprise,
-        forcers: forcers.length ? forcers : null, room: key, turn: state.turn, monsterMove: m?.move?.ground ?? 12, partyMove: rate, where: L.name, day: camp.day ?? 1, choice: null, outcome: null, log: [] });
+        forcers: forcers.length ? forcers : null, room: key, turn: state.turn, monsterMove: m?.move?.ground ?? (man && man.cls !== "magic-user" ? 6 : 12), partyMove: rate, where: L.name, day: camp.day ?? 1, choice: null, outcome: null, log: [] });
       say(`${L.name}, turn ${state.turn}: ${who} ${source === "room" ? "came upon" : "met wandering"} ${monster.name} (${number}) at ${feetOff} feet. ${surprise === "party" ? "The party is surprised." : surprise === "monsters" ? "The party surprised them." : wasted ? "They were surprised, but the party was at the door and could not use it." : "Neither side is surprised."}`, null, "meeting");
       return e;
     };
@@ -190,15 +194,19 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
     const toBlows = (state, e) => {
       const m = monsterOf({ key: e.monsterKey, name: e.kind }), n = Math.max(0, Math.min(40, Math.trunc(Number(e.number)) || 0));
       const fighters = pt.members.filter((c) => (c.hp ?? 1) > 0);
-      why = !openFightIn ? "the fight service isn't there" : camp.live ? "another fight is under way" : !m ? `${e.kind} have no fighting statistics yet` : !n ? "none of them came" : !fighters.length ? "no one in the party can fight" : "";
+      // v1.581.00: a man of a class and level fights as a character of that class; a Magic-User's spells are the referee's to run
+      const man = m ? null : npcOf({ name: e.kind }), caster = man?.cls === "magic-user";
+      const men2 = man && !caster && W.classedNpc ? Array.from({ length: n }, (_, i) => W.classedNpc(man, { roll: rollDie, hitDiceFor: rules.hitDiceFor, name: n > 1 ? `${oneOf(e.kind)} ${i + 1}` : oneOf(e.kind) })) : [];
+      why = !openFightIn ? "the fight service isn't there" : camp.live ? "another fight is under way" : caster ? `${e.kind} are Magic-Users, and their spells are the referee's to run` : !m && !men2.length ? `${e.kind} have no fighting statistics yet` : !n ? "none of them came" : !fighters.length ? "no one in the party can fight" : "";
       if (why) return null;
       // his hired men (v1.575.00) stand behind the characters, each a normal man in his type's kit, moved by his master's player
       const men = M ? fighters.flatMap((c) => M.soldiersOf(c.troops).map((rec) => ({ rec, by: c }))) : [];
-      const lay = D.fightSetup(L, { at: { x: state.x, y: state.y }, trail: (state.trail ?? []).map(([x, y]) => ({ x, y })), feet: e.feet ?? 60, room: e.room ? (L.rooms ?? []).find((r) => r.id === e.room) ?? null : null, found, party: [...fighters, ...men].map(() => 1), monsters: Array(n).fill(m.size ?? 1) });
+      const lay = D.fightSetup(L, { at: { x: state.x, y: state.y }, trail: (state.trail ?? []).map(([x, y]) => ({ x, y })), feet: e.feet ?? 60, room: e.room ? (L.rooms ?? []).find((r) => r.id === e.room) ?? null : null, found, party: [...fighters, ...men].map(() => 1), monsters: Array(n).fill(m?.size ?? 1) });
       const figures = []; let id = 1;
       fighters.forEach((c, i) => { const at = lay.party[i], f = roster.toFigure(c, { id: id++, side: "A" }); figures.push({ ...f, ...(at ? { x: at.x, y: at.y, facing: at.facing, placed: true } : { placed: false }) }); });
       men.forEach(({ rec, by }, i) => { const at = lay.party[fighters.length + i], f = roster.toFigure(rec, { id: id++, side: "A" }); figures.push({ ...f, hpSet: false, hiredBy: by.id, troop: rec.troop, ...(at ? { x: at.x, y: at.y, facing: at.facing, placed: true } : { placed: false }) }); });
-      lay.monsters.forEach((at, i) => { if (at) figures.push({ id: id++, side: "B", kind: "monster", monsterKey: m.key, name: `${m.name} ${i + 1}`, ac: m.ac, size: m.size ?? 1, stance: "attack", target: null, action: "melee", x: at.x, y: at.y, facing: at.facing, placed: true }); });
+      if (!m) lay.monsters.forEach((at, i) => { if (at) { const f = roster.toFigure(men2[i], { id: id++, side: "B" }); figures.push({ ...f, charId: null, npc: true, magic: men2[i].magic, x: at.x, y: at.y, facing: at.facing, placed: true }); } });
+      else lay.monsters.forEach((at, i) => { if (at) figures.push({ id: id++, side: "B", kind: "monster", monsterKey: m.key, name: `${m.name} ${i + 1}`, ac: m.ac, size: m.size ?? 1, stance: "attack", target: null, action: "melee", x: at.x, y: at.y, facing: at.facing, placed: true }); });
       if (!figures.some((f) => f.side === "B") || !figures.some((f) => f.side === "A" && f.placed)) { why = "there is no room to stand them on the map here"; return null; }
       const stood = figures.filter((f) => f.side === "B").length, left = fighters.filter((_, i) => !lay.party[i]).map((c) => c.name), back = men.filter((_, i) => !lay.party[fighters.length + i]).length;
       crowd = `${stood < n ? ` Only ${stood} of the ${n} ${e.kind} have room to come at the party; the other ${n - stood} hang back, and the referee may bring them on.` : ""}${left.length ? ` ${left.join(", ")} had no room to stand and must be placed.` : ""}${back ? ` ${back} of the ${men.length} men-at-arms had no room to stand and wait to be placed.` : ""}`;
@@ -208,6 +216,8 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
         state: { figures, nextId: id, phase: "setup", round: 0, step: "init", firstSide: null, contacts: new Map(), winner: null, width: D.FIGHT_W, height: D.FIGHT_H, walls: lay.walls, chests: [] } });
       if (!r.ok) { why = r.error ?? "the fight couldn't be opened"; return null; }
       tx.set(`oddCampaigns/${cid}`, clean({ ...camp, live: { fid, at: now() } }));
+      const armed = figures.filter((f) => f.npc && f.magic?.length);
+      if (armed.length) say(`${armed.map((f) => `${f.name} (${roster.CLASS_LABEL?.[f.cls] ?? f.cls} ${f.level}) has magic: ${f.magic.join(", ")}`).join("; ")}. Book II's 5% a level; which item, and what it does in the fight, is the referee's to apply.`, [], "ruling");
       return fid;
     };
     /** The turn ends: the count toward rest, the wandering-monster check on a d6. */
@@ -251,7 +261,7 @@ export function createDelveOps({ rules, now, rollDie, DUNGEONS, dungeonPath, pla
       }
       if (op === "delveParley") {
         const m = monsterOf({ key: enc.monsterKey, name: enc.kind });
-        const r = rules.encounterReaction({ intelligence: m?.mind?.intelligence ?? "average", surprisedParty: enc.surprise === "party", monsterSurprised: enc.surprise === "monsters", distanceFeet: enc.feet ?? 60 }, () => (rollDie(6) - 0.5) / 6);
+        const r = rules.encounterReaction({ intelligence: m?.mind?.intelligence ?? (npcOf({ name: enc.kind }) ? "intelligent" : "average"), surprisedParty: enc.surprise === "party", monsterSurprised: enc.surprise === "monsters", distanceFeet: enc.feet ?? 60 }, () => (rollDie(6) - 0.5) / 6);
         const text = r.rolled ? `2d6 = ${r.dice.join("+")}${r.mods?.total ? ` ${r.mods.total > 0 ? "+" : ""}${r.mods.total}` : ""} = ${r.total}: ${r.result}` : `no roll: ${r.why}`;
         const reaction = { result: r.result, total: r.total ?? null, dice: r.dice ?? null, why: r.why ?? null }, ER = rules.EncounterReaction ?? {};
         // the game reads the dice itself (Kurt: always): hostile, it is a fight; friendly, they let the party be; between, the party must run or stand

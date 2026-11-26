@@ -283,6 +283,22 @@ export function leaderParty(kind, { roll, hitDiceFor, nameFor = () => "", mounte
   for (let i = 0; i < count; i++) men.push(make(nameFor("commoner") || `${kind}'s man ${i + 1}`, roll(4), []));
   return { kind, leader, men, mounted: ride, disposition, alignment, number: 1 + count, max: 13 };
 }
+/** Book II, Men: a super-normal man has a 5% chance a level of a magic item in each of his class's three kinds. */
+export const MEN_MAGIC = Object.freeze({ fighter: ["armour", "shield", "sword"], "magic-user": ["wand or staff", "ring", "misc. magic"], cleric: ["misc. weapon", "armour", "shield"] });
+/**
+ * One man of a class and level met as a monster (Book III's Monster Level Tables name them by their Book I titles:
+ * Warriors, Heroes, Swashbucklers, Evil Priests...). He carries the best of Book I's list for his class, as the titled
+ * men of the road do (Kurt, Oct 2026), and his magic is diced Book II's way (Kurt, 26 Nov 2026): 5% a level for each
+ * kind. Returns a character-shaped record (toFigure takes it) with no id; `magic` names the kinds he has, for the referee.
+ */
+export function classedNpc({ cls, level = 1, alignment = "neutral" } = {}, { roll, hitDiceFor, name = "" } = {}) {
+  const kit = KIT[cls]; if (!kit) return null;
+  const d3 = () => roll(6) + roll(6) + roll(6);
+  const abilities = { str: d3(), int: d3(), wis: d3(), con: d3(), dex: d3(), cha: d3() };
+  const { dice, bonus } = hitDiceFor(cls, level); let hp = bonus; for (let i = 0; i < dice; i++) hp += roll(6); hp = Math.max(1, hp);
+  const magic = MEN_MAGIC[cls].filter(() => roll(100) <= 5 * level);
+  return { name, cls, level, race: "human", alignment, abilities, items: kit.items.map(([key, qty]) => ({ key, qty })), ready: { weapon: kit.weapon, missile: null }, coins: { gp: 0 }, hp, maxHp: hp, status: "ready", npc: true, magic };
+}
 
 /* ---------- Book III HEALING WOUNDS and REST ---------- */
 /**
@@ -414,7 +430,14 @@ function runSelfTests() {
     ok(lp.number === 1 + lp.men.length && lp.max === 13, "the band's number against the table's maximum");
     lp = leaderParty("Patriarch", { roll: seq3(), hitDiceFor: hd }); ok(lp.alignment === "law" && lp.disposition === "neutral" && lp.leader.ready.weapon === "mace" && !lp.mounted, "a Patriarch: Lawful, mace, afoot");
     lp = leaderParty("Wizard", { roll: seq3(), hitDiceFor: hd }); ok(lp.leader.level === 11 && lp.leader.items.length === 1 && lp.leader.items[0].key === "dagger", "a Wizard: 11th, a dagger and robes");
-    ok(leaderParty("Goblins", { roll: seq3(), hitDiceFor: hd }) === null, "not a leader kind"); }
+    ok(leaderParty("Goblins", { roll: seq3(), hitDiceFor: hd }) === null, "not a leader kind");
+    // 18 ability dice, 5 hit dice, then the three magic rolls: 25 and under has it at 5th level
+    const sw = classedNpc({ cls: "fighter", level: 5 }, { roll: seq3(...Array(23).fill(4), 25, 26, 5), hitDiceFor: hd, name: "a Swashbuckler" });
+    ok(sw.level === 5 && sw.hp === 20 && sw.maxHp === 20 && sw.npc && sw.alignment === "neutral" && sw.ready.weapon === "sword" && sw.items.some((i) => i.key === "plate") && sw.items.some((i) => i.key === "shield"), "a Swashbuckler: Fighting-Man 5 in plate with shield and sword");
+    ok(sw.magic.join() === "armour,sword", "Book II's 5% a level for each of armour, shield, sword");
+    const ep = classedNpc({ cls: "cleric", level: 4, alignment: "chaos" }, { roll: seq3(...Array(22).fill(3), 99, 99, 99), hitDiceFor: hd });
+    ok(ep.alignment === "chaos" && ep.ready.weapon === "mace" && ep.magic.length === 0, "an Evil Priest: chaotic, mace, no magic on high dice");
+    ok(classedNpc({ cls: "thief", level: 3 }, { roll: seq3(), hitDiceFor: hd }) === null, "no kit for that class"); }
   const sk = startingKnowledge(); ok(Object.keys(sk).length === 7 && sk["0,0"].place === "Langstead" && sk["0,1"].t === "river" && !sk["2,-2"], "the home village and its ring of six, not the crag");
   const fm = fullMap(); ok(fm["2,-2"].place === "Fosscraig" && fm["-2,0"].place === "Kingwold" && fm["3,-3"].t === "mountains" && fm["-3,0"].t === "woods" && !fm["6,0"], "the Westmark's lie of the land");
   { const sea = planDay({ from: { q: 0, r: 0 }, dir: "S", hexAt: (h) => (h.r >= 2 ? { t: "sea" } : { t: "clear" }) }); ok(sea.path.length === 1 && sea.reason === "water" && !Number.isFinite(hexCost({ t: "sea" })), "the sea stops a party on foot"); }

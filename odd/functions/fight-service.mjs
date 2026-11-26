@@ -210,7 +210,8 @@ export function createFightService({ rules, store, now = () => Date.now(), newSe
     const chars = [];
     for (const f of party) { const ch = await tx.get(`oddCampaigns/${cid}/characters/${f.charId}`); if (ch) chars.push({ f, ch }); }
     const down = (f) => f.hp != null && f.hp <= 0;
-    const monsters = state.figures.filter((f) => f.side === "B" && f.monsterKey && down(f)).map((f) => { const m = rules.MONSTERS.find((x) => x.key === f.monsterKey); return m ? { count: m.hd.count, bonus: m.hd.bonus ?? 0 } : null; }).filter(Boolean);
+    const monsters = state.figures.filter((f) => f.side === "B" && f.monsterKey && down(f)).map((f) => { const m = rules.MONSTERS.find((x) => x.key === f.monsterKey); return m ? { count: m.hd.count, bonus: m.hd.bonus ?? 0 } : null; }).filter(Boolean)
+      .concat(state.figures.filter((f) => f.side === "B" && f.npc && !f.monsterKey && down(f)).map((f) => ({ count: f.level ?? 1, bonus: 0 }))); // a man of a class and level counts as a monster of his level (Book I)
     const gpOf = (coins) => rules.coinsToGp(coins ?? {});
     const treasureValue = chars.reduce((s, { f, ch }) => s + Math.max(0, gpOf(f.inv?.coins) - gpOf(ch.coins)), 0);
     const settled = rules.settleEncounter({ monsters, treasureValue, members: chars.map(({ f, ch }) => ({ id: f.charId, level: ch.level ?? 1, fought: true, lootCut: 1, hireling: !!ch.retainer })), mode: "individual" });

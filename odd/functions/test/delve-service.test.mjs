@@ -354,3 +354,42 @@ test("hired men stand in the dungeon fight as normal men, and the dead come off 
   const said = [...g.store.docs.entries()].filter(([k]) => k.startsWith("oddCampaigns/c1/chat/bob/")).map(([, v]) => v.text).join(" ");
   assert.match(said, /Brom: hp \d+\/\d+(, \+\d+ xp)?, 2 of his men-at-arms slain/);
 });
+
+test("a man met by his title fights as a character of his class and level; a Magic-User waits on the referee (v1.581.00)", async () => {
+  const g = await game(); const brom = await g.make("bob", "Brom"); await down(g, brom);
+  g.setDice(6, 1, 1, 4, 5, 5); await g.call("bob", { op: "delveEnd", id: brom });
+  const path = g.p.character(brom), old = g.store.docs.get(path);
+  assert.ok(old.encounter, "a wandering monster came");
+  g.store.docs.set(path, { ...old, encounter: { ...old.encounter, kind: "Swashbucklers", monsterKey: null, number: 1, choice: null, outcome: null } });
+  g.setDice(); const s = await g.call("bob", { op: "delveStand", id: brom });
+  assert.equal(s.ok, true, s.error); assert.ok(s.fid, s.text);
+  const fp = fightPaths("c1", s.fid), st = rules.fightStore.fromStored(g.store.docs.get(fp.state));
+  const foes = st.figures.filter((f) => f.side === "B");
+  assert.equal(foes.length, 1);
+  const sw = foes[0];
+  assert.deepEqual([sw.kind, sw.cls, sw.level, sw.name, sw.charId, sw.npc, sw.weaponId, sw.placed], ["pc", "fighter", 5, "Swashbuckler", null, true, "sword", true]);
+  assert.equal(sw.ac, 2, "plate and shield"); assert.ok(sw.hp >= 5 && sw.hp === sw.maxHp, "five hit dice rolled");
+  assert.deepEqual(sw.magic, ["armour", "shield", "sword"], "the test's dice are low: 5% a level for each kind");
+  assert.equal(st.control[sw.id], "game", "the game runs him");
+  const told = [...g.store.docs.entries()].filter(([k]) => k.startsWith("oddCampaigns/c1/chat/referee/")).map(([, v]) => v).filter((e) => /has magic/.test(e.text));
+  assert.equal(told.length, 1); assert.match(told[0].text, /Swashbuckler \(Fighting-Man 5\) has magic: armour, shield, sword/);
+  assert.equal([...g.store.docs.keys()].some((k) => k.startsWith("oddCampaigns/c1/chat/bob/") && /has magic/.test(g.store.docs.get(k).text)), false, "the players aren't told");
+  // the game plays him: a round runs without a referee
+  const act = (uid, action) => g.fights.act({ uid, data: { cid: "c1", fid: s.fid, rev: g.store.docs.get(fp.fight).rev, rules: rules.fightStore.RULES_VERSION, action } });
+  const pc = st.figures.find((f) => f.side === "A");
+  const rd = await act("bob", { type: "ready", ids: [pc.id] });
+  assert.ok(rd.ok || /ready|step|turn|elect/i.test(rd.error ?? ""), rd.error);
+  // beaten, he is worth a monster of his level
+  const raw = g.store.docs.get(fp.state); g.store.docs.set(fp.state, { ...raw, phase: "over", winner: "A", figures: raw.figures.map((f) => (f.side === "B" ? { ...f, hp: 0 } : f.side === "A" ? { ...f, hp: Math.max(1, f.hp ?? 1) } : f)) });
+  const before = g.ch(brom).xp ?? 0, out = await act("bob", { type: "settle" });
+  assert.equal(out.ok, true, out.error); assert.ok((g.ch(brom).xp ?? 0) > before, "experience for a 5th-level man");
+  // Evil Priests fight (a cleric); Conjurers wait on the referee
+  for (const [kind, want] of [["Evil Priests", "cleric"], ["Conjurers", null]]) {
+    const h = await game(); const b = await h.make("bob", "Brom"); await down(h, b);
+    h.setDice(6, 1, 1, 4, 5, 5); await h.call("bob", { op: "delveEnd", id: b });
+    const pb = h.p.character(b); h.store.docs.set(pb, { ...h.store.docs.get(pb), encounter: { ...h.store.docs.get(pb).encounter, kind, monsterKey: null, number: 1, choice: null, outcome: null } });
+    h.setDice(); const r = await h.call("bob", { op: "delveStand", id: b });
+    if (want) { const f = rules.fightStore.fromStored(h.store.docs.get(fightPaths("c1", r.fid).state)).figures.find((x) => x.side === "B"); assert.deepEqual([f.cls, f.level, f.alignment, f.weaponId], [want, 4, "chaos", "mace"]); }
+    else { assert.equal(r.fid, null); assert.match(r.text, /Conjurers are Magic-Users, and their spells are the referee's to run/); }
+  }
+});
