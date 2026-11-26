@@ -25,6 +25,8 @@
 //   shop   {id, buy|sell}  the market: buy at cost, sell at half (finished characters, in a village with a market)
 //   give   {id, to, item|gp}  hand one of an item, or gold, to a character standing with him: in the same village, or of
 //                          his party on the road (v1.569.00). What he may not use, he may not be handed (as at the shop).
+//   march  {id, order}     the marching order of characters standing together, front rank first (v1.570.00): each his own
+//                          player's, or the referee's, to place. It goes with them onto the road and underground.
 //   spot   {id, x, y}        where his token stands on the settlement's map (dragged in the town scene).
 //   enter  {id, place}     into the village he stands in (where = place, doing = town) or out onto the road (doing = road);
 //                          the whole party if he leads it
@@ -56,7 +58,7 @@ export const worldPaths = (cid) => ({
 });
 
 /** The platform build this server code last changed in; the page names the oldest server it can work with and says so when this one is older. */
-export const SERVER_BUILD = "v1.569.00";
+export const SERVER_BUILD = "v1.570.00";
 export function createWorldService({ rules, store, now = () => Date.now(), rollDie = (n) => 1 + Math.floor(Math.random() * n), fights = null }) {
   const { roster, wilderness: W, westmark: WM, parties: P } = rules;
   const PLACES = WM?.PLACES ?? W.WESTMARK.places;
@@ -250,6 +252,16 @@ export function createWorldService({ rules, store, now = () => Date.now(), rollD
         return done({ ok: true, party: g.party });
       }
 
+      if (op === "march") {
+        const first = byId(ids[0]), order = [...new Set((Array.isArray(data.order) ? data.order : []).filter((x) => ID.test(x ?? "")))].slice(0, 24);
+        if (!order.length) return refuse("bad-request", "which order?");
+        for (const id of order) {
+          const ch = byId(id); if (!ch || !P.travels(ch) || ch.under || hk(ch) !== hk(first)) return refuse("bad-request", "they aren't standing together");
+          if (!ref && !owns(ch, uid)) return refuse("forbidden", "not your character");
+        }
+        order.forEach((id, i) => put(id, { ...byId(id), march: i }));
+        return done({ ok: true, order });
+      }
       if (op === "spot") { // where his token stands on the settlement's map (a drag in the town scene)
         const one = byId(ids[0]);
         if (!ref && !owns(one, uid)) return refuse("forbidden", "not your character");

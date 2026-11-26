@@ -317,3 +317,14 @@ test("giving: an item or gold passes to a character standing with him, by the sh
   g.store.docs.set(`oddCampaigns/c1/characters/${leal}`, { ...ch(leal), doing: "road", hex: { q: 1, r: -1 }, where: "clear" });
   assert.match((await g.call("bob", { op: "give", id: bromId, to: leal, gp: 1 })).error, /isn't with him/);
 });
+
+test("the marching order in a village: each player places his own, and two days' rest heals a point (v1.570.00)", async () => {
+  const g = game(); const a = await brom(g, "bob", "Brom"), b = await brom(g, "bob", "Leal"), c = await brom(g, "ann", "Ada");
+  const ch = (id) => g.store.docs.get(`oddCampaigns/c1/characters/${id}`);
+  let r = await g.call("bob", { op: "march", id: a, order: [b, a] });
+  assert.equal(r.ok, true, r.error); assert.equal(ch(b).march, 0); assert.equal(ch(a).march, 1);
+  assert.match((await g.call("bob", { op: "march", id: a, order: [c, a] })).error, /not your character/);
+  assert.equal((await g.call("kurt", { op: "march", id: a, order: [c, a, b] })).ok, true, "the referee places anyone");
+  g.store.docs.set(`oddCampaigns/c1/characters/${a}`, { ...ch(a), hp: 1, maxHp: 6 });
+  r = await g.call("bob", { op: "rest", id: a, days: 2 }); assert.equal(r.healed, 1, "one point after the second day");
+});

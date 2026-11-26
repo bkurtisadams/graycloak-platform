@@ -285,8 +285,11 @@ export function leaderParty(kind, { roll, hitDiceFor, nameFor = () => "", mounte
 }
 
 /* ---------- Book III HEALING WOUNDS and REST ---------- */
-/** Hit points regained by `days` of complete rest: none the first day, one every other day after. */
-export function healingAfter(days) { return Math.max(0, Math.floor((Math.max(0, Math.trunc(days)) - 1) / 2)); }
+/**
+ * Hit points regained by `days` of complete rest (Book III p.35): none the first day, one every other day after.
+ * Kurt (25 Nov 2026) reads the count as starting with the second day: 1 after two days, 2 after four, 3 after six.
+ */
+export function healingAfter(days) { return Math.max(0, Math.floor(Math.max(0, Math.trunc(days)) / 2)); }
 /** All creatures must rest a full day after six days of movement. */
 export const DAYS_BEFORE_REST = 6;
 export function mustRest(daysWalked) { return daysWalked >= DAYS_BEFORE_REST; }
@@ -386,7 +389,7 @@ function runSelfTests() {
   e = wanderingMonster("desert", seq(7, 2, 2)); ok(e.type === "flyer" && e.kind === "Rocs", "a blank row rerolls");
   e = wanderingMonster("swamp", seq(6, 4)); ok(e.type === "undead" && e.kind === "Wights", "swamp undead");
   e = wanderingMonster("woods", seq(7, 1), { optionalAnimals: true }); ok(e.kind === "Centaurs", "optional woods animals");
-  ok(healingAfter(1) === 0 && healingAfter(2) === 0 && healingAfter(3) === 1 && healingAfter(7) === 3, "nothing the first day, a point every other day after");
+  ok(healingAfter(1) === 0 && healingAfter(2) === 1 && healingAfter(3) === 1 && healingAfter(4) === 2 && healingAfter(7) === 3, "nothing the first day, a point every other day after");
   ok(!mustRest(5) && mustRest(6), "six days then rest");
   ok(rumourCost(6, 10) === 70 && rumourCost(1, 1) === 11, "a round and the barman");
   const seq2 = (...v) => { let i = 0; return () => v[i++]; };

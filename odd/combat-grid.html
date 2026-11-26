@@ -464,10 +464,20 @@ tr.editor .adders { flex-wrap: wrap; gap: 6px; }
 .lobbystage .lcard.world.hexscene > .ps-strip { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; margin: 0; border-radius: 0; border-top: 1px solid #9fb2c0; }
 .lobbystage .vgbox { position: absolute; left: 0; right: 0; top: 0; bottom: 0; container-type: size; display: flex; align-items: center; justify-content: center; }
 .lobbystage .vgscene:has(.ps-strip) .vgbox { bottom: 90px; }
+.lobbystage .vgscene:has(.vg-dock) .vgbox { bottom: 112px; }
+.lobbystage .vg-dock { background: var(--card); }
+.lobbystage .vg-dock .ps-ch[draggable] { flex-direction: row; align-items: center; gap: 8px; cursor: grab; }
+/* a door on the village map: a spot to click, ringed when the company stands at it */
+.lobbystage .vg-door { position: absolute; transform: translate(-50%, -50%); aspect-ratio: 1; padding: 0; border: 2px dashed transparent; border-radius: 50%; background: transparent !important; z-index: 2; cursor: pointer; }
+.lobbystage button.vg-door:hover, .lobbystage button.vg-door:focus-visible { border-color: #b3362b; background: rgba(245,215,138,.35) !important; outline: none; }
+.lobbystage .vg-door.on { border-color: #b3362b; border-style: solid; background: rgba(245,215,138,.45) !important; }
+.lobbystage .hexscene .w-card.vg-doorcard { width: min(290px, calc(100% - 24px)); }
+.lobbystage .w-map.village { cursor: pointer; }
+.lobbystage .w-me[data-w-tok] i { display: none; } .lobbystage .w-me[data-w-tok]:hover i, .lobbystage .w-me[data-w-tok].mine i { display: block; }
 .lobbystage .vgscene .vgbox .w-map.village { position: relative; inset: auto; width: min(100cqw, calc(100cqh * 860 / 680)); height: auto; aspect-ratio: 860 / 680; flex: none; border: 1px solid #1f2b38; }
 .lobbystage .vgscene .w-crumb { z-index: 3; }
 .lobbystage .w-me[data-w-open], .lobbystage .w-me[data-w-tok] { cursor: pointer; }
-.lobbystage .w-me[data-w-tok] { width: 34px; height: 34px; font-size: 13px; touch-action: none; user-select: none; }
+.lobbystage .w-me[data-w-tok] { width: 24px; height: 24px; font-size: 12px; touch-action: none; user-select: none; }
 .lobbystage .w-me.can { cursor: grab; } .lobbystage .w-me.drag { cursor: grabbing; z-index: 6; box-shadow: 0 0 0 2px rgba(0,0,0,.3), 0 6px 12px rgba(0,0,0,.4); }
 .lobbystage .w-me.mine { outline: 3px solid #f5d78a; outline-offset: 2px; }
 .lobbystage .w-me i { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; font: 700 11px var(--type); font-style: normal; color: #1f2b38; background: rgba(251,253,254,.92); border-radius: 3px; padding: 0 5px; white-space: nowrap; pointer-events: none; }
@@ -1765,12 +1775,24 @@ function redrawRumours() {
 /* ---------- pass 7 (approved boards 8-9, 24 Oct 2026): Langstead and the hex map ---------- */
 const world = { loaded: false, loading: false, hexes: {}, places: {}, home: "Langstead", full: false, laidOut: true, busy: false, error: "", msg: "", paint: { mode: "hex", t: null } };
 // where the village's places sit on the stage drawing (the art is a placeholder; a key from the map tools can replace it)
-const VILLAGE_SPOTS = { inn: { x: 465, y: 262, icon: "\u{1F37A}" }, market: { x: 560, y: 282, icon: "\u2696" }, road: { x: 790, y: 118, icon: "\u21D7" } };
+/**
+ * The village map (approved mockup 25 Nov 2026): where each building's door is, in the map's own 860 by 680 units
+ * (40 to the inch, an inch 10 yards). r is how near a click or a dropped token counts as at the door.
+ */
+const VILLAGE_SPOTS = {
+  inn: { x: 400, y: 382, r: 26, kind: "the inn", open: true }, market: { x: 590, y: 430, r: 52, kind: "the green", open: true },
+  smith: { x: 297, y: 496, r: 22, name: "The smith", kind: "arms and armour" }, stable: { x: 518, y: 276, r: 22, name: "The stable", kind: "horses and mules" },
+  shrine: { x: 683, y: 327, r: 22, name: "The shrine", kind: "a place of worship" }, board: { x: 486, y: 360, r: 18, name: "The notice board", kind: "notices and hiring" },
+  road: { x: 812, y: 118, r: 40, name: "The road out", kind: "onto the kingdom map", open: true },
+};
+const villageSpotName = (k, place) => (k === "inn" ? place.inn ?? "The inn" : k === "market" ? "The market" : VILLAGE_SPOTS[k].name);
+/** A spot is on this settlement's map if it is the road, a thing the place has (an inn, a market), or one of the buildings every village is drawn with. */
+const villageSpots = (place) => Object.entries(VILLAGE_SPOTS).filter(([k]) => (k === "inn" || k === "market" ? !!place[k] : true));
 const TERRAIN_FILL = wmap.TERRAIN_FILL;
 /** The platform build of this page (the number in the commit message), shown in the header beside the game's name. */
-const BUILD = "v1.569.00";
+const BUILD = "v1.570.00";
 /** The oldest game server this page works with: raised only when a change needs the server redeployed. */
-const SERVER_NEEDED = "v1.569.00";
+const SERVER_NEEDED = "v1.570.00";
 const buildNo = (s) => { const m = /^v(\d+)\.(\d+)\.(\d+)$/.exec(s ?? ""); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : 0; };
 /** The header's version: the page's build, and a red flag when the game server is on another. */
 function renderVersion() {
@@ -1828,7 +1850,7 @@ function renderWorldStage(el, g, uid) {
 /** A city or village: just its map, filling the stage like Foundry's canvas; the party strip along the bottom; a place's card floats over the map only when its pin is clicked. */
 function renderVillageScene(el, c, uid, placeName, g) {
   const toast = world.error ? `<div class="w-toast bad">${esc(world.error)}</div>` : world.msg ? `<div class="w-toast">${esc(world.msg)}</div>` : "";
-  el.innerHTML = `<div class="lcard world hexscene vgscene"><div class="w-wrap">${villageHtml(c, uid)}</div>${toast}${partyStripHtml(uid, { acting: c?.id ?? null, place: placeName })}</div>`;
+  el.innerHTML = `<div class="lcard world hexscene vgscene"><div class="w-wrap">${villageHtml(c, uid)}</div>${toast}${c ? villageDockHtml(c, uid, placeName) : partyStripHtml(uid, { acting: null, place: placeName })}</div>`;
   bindPartyStrip(el);
   $("#wAll")?.addEventListener("click", (e) => { e.preventDefault(); openWorld(null); });
   bindVillage(el, c, uid);
@@ -1837,49 +1859,102 @@ function renderVillageScene(el, c, uid, placeName, g) {
 function villageHtml(c, uid) {
   const v = lobby.view, placeName = c ? (c.where ?? world.home) : v.place, place = world.places[placeName] ?? {}, here = table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === placeName);
   if (!c) return villageLookHtml(placeName, place, here, uid);
-  const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
-  const markers = spots.map(([k, sp]) => `<div class="w-marker${v.at === k ? " on" : ""}" data-w-spot="${k}" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
+  const markers = villageDoorsHtml(place, v.door ?? v.at, true);
   const counters = villageTokensHtml(here, c, uid);
   let card = "";
-  if (v.at === "inn") {
-    const need = Math.max(0, (c.maxHp ?? 0) - (c.hp ?? 0)), toHeal = need ? need * 2 + 1 : 0;
+  if (!v.at && v.door && VILLAGE_SPOTS[v.door]) {
+    // at a door (the mockup's card): what the building is for, and the way in
+    const k = v.door, sp = VILLAGE_SPOTS[k], says = { inn: "Rest and rumours. The innkeeper is at his door. Hiring and the strongbox come with a later pass.", market: "Stalls on the green: buy at Book I\u2019s prices, sell for half, and hand things to one another.", road: `Out of ${placeName}, onto the kingdom map.`, smith: "Not open yet: the smith comes with a later pass.", stable: "Not open yet: the stable comes with a later pass.", shrine: "Not open yet: the shrine comes with a later pass.", board: "Not open yet: notices and hiring come with a later pass." }[k];
+    card = `<h3>${esc(villageSpotName(k, place))} <small>${esc(sp.kind)}</small></h3><div class="note">${esc(says)}</div><div class="row">${k === "road" ? `<button type="button" class="primary" id="vgRoad">Leave by the road</button>` : `<button type="button" class="primary" id="vgGoIn" data-k="${k}" ${sp.open ? "" : "disabled"}>Go in</button>`}</div>`;
+  } else if (v.at === "inn") {
+    const need = Math.max(0, (c.maxHp ?? 0) - (c.hp ?? 0)), toHeal = need * 2;
     card = `<h3>${esc(place.inn)} <small>inn \u00b7 ${esc(c.where ?? world.home)}</small></h3><div class="note">A long low house by the green. Rush-strewn floor, one fire, the ford's carters at the benches.</div>
-      <div class="w-act"><h4>Rest here</h4><div class="note">Complete rest: nothing the first day, then a hit point every other day (Book III). ${need ? `${esc(c.name)} is at ${c.hp} of ${c.maxHp}: ${toHeal} days to heal fully.` : `${esc(c.name)} is at ${c.hp} of ${c.maxHp}; nothing to heal.`}</div>
+      <div class="w-act"><h4>Rest here</h4><div class="note">Complete rest: nothing the first day, then a hit point every other day: one after two days, two after four (Book III). ${need ? `${esc(c.name)} is at ${c.hp} of ${c.maxHp}: ${toHeal} days to heal fully.` : `${esc(c.name)} is at ${c.hp} of ${c.maxHp}; nothing to heal.`}</div>
         <div class="row"><select id="wRestDays"><option value="1">a day</option><option value="3">3 days</option><option value="7">a week</option>${need ? `<option value="${toHeal}" selected>until healed (${toHeal} days)</option>` : ""}</select><button id="wRest" ${world.busy ? "disabled" : ""}>Rest</button></div></div>
       <div class="w-act"><h4>Hear the talk</h4><div class="note">Buy a round (10\u201360 gp) and slip the barman a coin (1\u201310 gp): one rumour from the referee's list, true or not. What you hear goes to your chat.</div><div class="row"><button class="done" id="wRumour" ${world.busy || (c.coins?.gp ?? 0) < 11 ? "disabled" : ""}>Buy a round</button><span class="note">${(c.coins?.gp ?? 0) < 11 ? "not enough gold for a round" : "costs 1d6 \u00d7 10 + 1d10 gp"}</span></div></div>
       <div class="w-act"><h4>Hire</h4><div class="note">Post a notice or send servitors round: 100\u2013600 gp a week. Comes with the hirelings pass.</div><div class="row"><button disabled>Post a notice</button></div></div>
       <div class="row" style="justify-content:flex-end"><button id="wLeave">Step outside</button></div>`;
   } else if (v.at === "market") return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${charDay(c)}`) + tradePanelHtml(c, uid, here, placeName);
-  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${charDay(c)}`) + (card ? `<div class="w-card">${card}</div>` : "");
+  return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 Day ${charDay(c)}`) + (card ? `<div class="w-card${v.at ? "" : " vg-doorcard"}">${card}</div>` : "");
 }
 /** The art, locked to its own shape and centred on the stage, with the pins and tokens over it. */
+/** Who is in the settlement with this character, and may be moved by this viewer. */
+const villageHere = (placeName) => table.chars.filter((x) => x.status === "ready" && x.doing === "town" && (x.where ?? world.home) === placeName);
+/**
+ * Who walks with a character in the village (v1.570.00): his party if others of it are here, else his player's own
+ * characters here (the company that leaves by the road together), in marching order. Only those this viewer may move.
+ */
+function villageGroup(c, uid, placeName) {
+  const here = villageHere(placeName), pid = (x) => x.party ?? x.id, may = (x) => !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER;
+  let g = here.filter((x) => pid(x) === pid(c)); if (g.length < 2) g = here.filter((x) => x.owner === c.owner);
+  g = g.filter(may); if (!g.some((x) => x.id === c.id)) g.unshift(c);
+  return g.map((x, i) => [x, i]).sort((a, b) => (a[0].march ?? 1e6) - (b[0].march ?? 1e6) || a[1] - b[1]).map(([x]) => x);
+}
+/** The dock under the village (the mockup's): the company by rank, the hint, and the road out. */
+function villageDockHtml(c, uid, placeName) {
+  const g = villageGroup(c, uid, placeName), multi = g.length > 1, free = !world.busy && !lobby.view.at;
+  const chip = (m) => {
+    const p = table.game?.people?.[m.owner] ?? {}, pct = m.maxHp ? Math.max(0, Math.min(100, Math.round(((m.hp ?? 0) / m.maxHp) * 100))) : 0, tone = pct <= 34 ? "bad" : pct <= 67 ? "hurt" : "";
+    return `<div class="ps-ch${m.id === c.id ? " on" : ""}" data-mo="${esc(m.id)}" ${multi && free ? `draggable="true" tabindex="0" aria-label="${esc(m.name)}: drag, or press the left and right arrows, to change his place in the marching order"` : ""} data-ps-open="${esc(m.id)}" title="${esc(m.name)}: open the sheet">${multi && free ? MO_GRIP : ""}<div class="mo-b"><div class="n"><span class="dot" style="background:${esc(p.color ?? "#888")}"></span>${esc(m.name)} <small>${esc(clsAbbr(m))} ${m.level ?? 1}</small></div>${m.maxHp ? `<div class="bar"><i class="${tone}" style="width:${pct}%"></i></div>` : ""}<div class="s"><span>${m.maxHp ? `hp ${m.hp}/${m.maxHp}` : ""}</span><span>${m.coins?.gp ?? 0} gp</span></div></div></div>`;
+  };
+  const names = ["Front rank", "Second rank", "Third rank", "Fourth rank", "Fifth rank"], ranks = []; g.forEach((m, i) => (ranks[Math.floor(i / 3)] ??= []).push(m));
+  const chips = multi ? ranks.map((row, r) => `<div class="mo-rank"><div class="mo-h">${names[r] ?? `Rank ${r + 1}`}</div><div class="mo-row">${row.map(chip).join("")}</div></div>`).join("") : g.map(chip).join("");
+  const note = multi ? "Click to walk; the party follows its leader. The people of the village stand on the map, and so do other players\u2019 characters." : "Click to walk. The people of the village stand on the map, and so do other players\u2019 characters.";
+  return `<div class="ps-strip dv-dock vg-dock">${chips}<span class="dv-note">${note}</span><span class="dv-acts"><button type="button" id="wLeaveScene" title="Out of ${esc(placeName)}, onto the kingdom map" ${world.busy ? "disabled" : ""}>Leave by the road</button></span></div>`;
+}
+/** The company walks: the one acted for goes to the spot, the rest fall in behind him along the way he came. */
+function villageWalk(c, uid, placeName, to) {
+  const g = villageGroup(c, uid, placeName), from = c.spot ?? to, dx = from.x - to.x, dy = from.y - to.y, n = Math.hypot(dx, dy) || 1, ux = n > 1 ? dx / n : -0.7, uy = n > 1 ? dy / n : 0.7;
+  [c, ...g.filter((x) => x.id !== c.id)].forEach((m, i) => {
+    const at = { x: Math.round(Math.max(12, Math.min(848, to.x + ux * 26 * i))), y: Math.round(Math.max(12, Math.min(668, to.y + uy * 26 * i))) };
+    m.spot = at; online.api.world("spot", table.cid, { id: m.id, x: at.x, y: at.y });
+  });
+}
+/** The doors on the map: a spot to click at each (or, for the referee looking in, only to read). */
+function villageDoorsHtml(place, on = null, live = false) {
+  return villageSpots(place).map(([k, sp]) => `<${live ? 'button type="button"' : "span"} class="vg-door${on === k ? " on" : ""}" ${live ? `data-w-spot="${k}"` : ""} title="${esc(villageSpotName(k, place))}: ${esc(sp.kind)}" aria-label="${esc(villageSpotName(k, place))}" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%;width:${(sp.r * 2) / 8.6}%"></${live ? "button" : "span"}>`).join("");
+}
 function villageMapHtml(placeName, place, markers, counters, crumb) {
-  return `<div class="vgbox"><div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">${VILLAGE_SVG}</svg>${markers}${counters}<div class="w-crumb">${crumb} \u00b7 drag a token to move it; onto a pin to go in</div><button type="button" class="vg-leave" id="wLeaveScene" title="${lobby.view?.id ? `Out of ${esc(placeName)}, onto the kingdom map` : "Back to the kingdom map"}">Leave ${esc(placeName)}</button></div></div>`;
+  const acting = !!lobby.view?.id;
+  return `<div class="vgbox"><div class="w-map village"><svg viewBox="0 0 860 680" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(placeName)} from above">${villageSvg(place)}</svg>${markers}${counters}<div class="w-crumb">${crumb} \u00b7 1 inch is 10 yards${acting ? " \u00b7 click to walk \u00b7 a door opens its building" : ""}</div>${acting ? "" : `<button type="button" class="vg-leave" id="wLeaveScene" title="Back to the kingdom map">Leave ${esc(placeName)}</button>`}</div></div>`;
 }
 /** The tokens in a settlement: each where its player last put it (a fresh arrival stands by the inn). */
 function villageTokensHtml(here, c, uid) {
   return here.map((x, i) => {
-    const p = table.game.people?.[x.owner] ?? {}, at = x.spot ?? { x: VILLAGE_SPOTS.inn.x - 34 - i * 30, y: VILLAGE_SPOTS.inn.y + 44 }, can = !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER;
-    return `<div class="w-me${x.id === c?.id ? " mine" : ""}${can ? " can" : ""}" data-w-tok="${esc(x.id)}" title="${esc(x.name)}${can ? ": drag to move him; onto a pin to go in" : ""}" style="left:${at.x / 8.6}%;top:${at.y / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}"><span>${esc((x.name ?? "?").slice(0, 2))}</span><i>${esc(x.name ?? "")}</i></div>`;
+    const p = table.game.people?.[x.owner] ?? {}, at = x.spot ?? { x: VILLAGE_SPOTS.inn.x - 26 - i * 26, y: VILLAGE_SPOTS.inn.y + 44 + i * 12 }, can = !PLAYER || rs.levelOf(x, uid) >= rs.OWNERSHIP.OWNER;
+    return `<div class="w-me${x.id === c?.id ? " mine" : ""}${can ? " can" : ""}" data-w-tok="${esc(x.id)}" title="${esc(x.name)}${can ? ": click to act for him; drag to stand him somewhere" : ""}" style="left:${at.x / 8.6}%;top:${at.y / 6.8}%;background:${esc(p.color ?? "#2f5c8a")}"><span>${esc((x.name ?? "?").slice(0, 1))}</span><i>${esc(x.name ?? "")}</i></div>`;
   }).join("");
 }
 /** The referee looking into a settlement with no character: the map, who is there, and a way to walk any of them. */
 function villageLookHtml(placeName, place, here, uid) {
   const v = lobby.view;
-  const spots = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]);
-  const markers = spots.map(([k, sp]) => `<div class="w-marker" style="left:${sp.x / 8.6}%;top:${sp.y / 6.8}%"><div class="pin">${sp.icon}</div><div class="lab">${esc(k === "inn" ? place.inn : k === "market" ? "Market" : "The road out")}</div></div>`).join("");
+  const markers = villageDoorsHtml(place);
   const counters = villageTokensHtml(here, null, uid);
   return villageMapHtml(placeName, place, markers, counters, `${esc(placeName)} \u00b7 ${esc(place.kind ?? "village")} \u00b7 the referee looking in`);
 }
-const VILLAGE_SVG = `<defs><pattern id="vg" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#7d9060" stroke-width=".7"/></pattern></defs><rect width="860" height="680" fill="#8fa36b"/><rect width="860" height="680" fill="url(#vg)"/>
-<path d="M0 560 C120 520 180 600 300 560 S520 500 640 560 S800 620 860 580 L860 680 L0 680Z" fill="#6f93b4"/><path d="M0 560 C120 520 180 600 300 560 S520 500 640 560 S800 620 860 580" fill="none" stroke="#5c7f9f" stroke-width="3"/>
-<path d="M150 532 L190 592" stroke="#b8a77a" stroke-width="14" stroke-linecap="round" opacity=".8"/>
-<path d="M170 560 C250 420 320 380 400 330 S560 230 640 190 S760 120 860 90" fill="none" stroke="#c9b58e" stroke-width="22" stroke-linecap="round"/>
-<g fill="#8b5a2b" stroke="#4a3418" stroke-width="2"><rect x="250" y="360" width="60" height="36" transform="rotate(-32 280 378)"/><rect x="330" y="290" width="48" height="30" transform="rotate(-32 354 305)"/><rect x="300" y="420" width="44" height="30" transform="rotate(-32 322 435)"/><rect x="420" y="245" width="90" height="48" transform="rotate(-28 465 269)"/><rect x="470" y="330" width="40" height="28" transform="rotate(-28 490 344)"/><rect x="520" y="180" width="54" height="34" transform="rotate(-28 547 197)"/><rect x="590" y="240" width="46" height="28" transform="rotate(-28 613 254)"/><rect x="650" y="130" width="56" height="34" transform="rotate(-28 678 147)"/><rect x="380" y="400" width="36" height="24" transform="rotate(-28 398 412)"/></g>
-<ellipse cx="560" cy="290" rx="42" ry="26" fill="#a9b57a" stroke="#7d9060"/>
-<g fill="#4f6b3a"><circle cx="90" cy="120" r="26"/><circle cx="130" cy="160" r="22"/><circle cx="60" cy="200" r="20"/><circle cx="760" cy="420" r="30"/><circle cx="800" cy="470" r="22"/><circle cx="720" cy="470" r="18"/></g>
-<text x="20" y="640" font-family="Courier Prime, monospace" font-size="12" fill="#2b3b4a">the ford \u00b7 the river</text><text x="700" y="80" font-family="Courier Prime, monospace" font-size="12" fill="#2b3b4a">north-east \u00b7 the track to Fosscraig</text><text x="30" y="110" font-family="Courier Prime, monospace" font-size="12" fill="#1f2b38">west \u00b7 Kingwold</text>
-<line x1="40" y1="660" x2="120" y2="660" stroke="#1f2b38" stroke-width="2"/><text x="124" y="664" font-family="Courier Prime, monospace" font-size="11" fill="#1f2b38">2\u2033 = 20 yards</text>`;
+/**
+ * The village from above (approved mockup 25 Nov 2026): the street from the ford to the road out, the buildings with
+ * their doors, the green, and the villagers standing about. One drawing serves every village for now; the inn and the
+ * market's stalls are drawn only where the place has them.
+ */
+function villageSvg(place = {}) {
+  const lab = (x, y, t, anchor = "middle", size = 13, weight = 600) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" font-weight="${weight}" fill="#1f2b38" stroke="#fbfdfe" stroke-width="4" paint-order="stroke" font-family="Source Serif 4, Georgia, serif">${esc(t)}</text>`;
+  const bld = (x, y, w, h, dx, dy, fill = "#c9a36b") => `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${fill}" stroke="#5b4a2f" stroke-width="2"/><path d="M${x} ${y}L${x + w} ${y + h}M${x + w} ${y}L${x} ${y + h}" stroke="#5b4a2f" stroke-width="1" opacity=".45"/><rect x="${dx - 6}" y="${dy - 4}" width="12" height="8" fill="#3b2a14"/>`;
+  const man = (x, y, ch, who) => `<g><title>${esc(who)}</title><circle cx="${x}" cy="${y}" r="9" fill="#5b6672" stroke="#ffffff" stroke-width="2"/><text x="${x}" y="${y + 3}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffffff" font-family="Courier Prime, monospace">${ch}</text></g>`;
+  const cottages = [[150, 330, 48, 36], [96, 420, 44, 34], [590, 110, 46, 36], [700, 150, 44, 34], [320, 180, 46, 34], [770, 400, 48, 36], [660, 500, 46, 34]].map(([x, y, w, h]) => bld(x, y, w, h, x + w / 2, y + h, "#d9c39a")).join("");
+  const stalls = place.market ? [[548, 410], [584, 426], [562, 452], [616, 404]].map(([x, y]) => `<rect x="${x}" y="${y}" width="20" height="14" fill="#e6d7a8" stroke="#5b4a2f" stroke-width="1.5"/>`).join("") : "";
+  const river = "M-10 560C120 520 180 610 300 590S520 540 640 590 800 650 870 600", street = "M196 700C232 600 276 540 350 472S520 372 620 312 790 172 880 84";
+  return `<defs><pattern id="vg" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#b9c998" stroke-width="1"/></pattern></defs><rect width="860" height="680" fill="#cfdcab"/><rect width="860" height="680" fill="url(#vg)"/>
+<g fill="#7f9a5c"><circle cx="70" cy="110" r="26"/><circle cx="112" cy="150" r="22"/><circle cx="48" cy="190" r="20"/><circle cx="792" cy="520" r="28"/><circle cx="826" cy="566" r="20"/></g>
+<path d="${river}" fill="none" stroke="#7f9fc6" stroke-width="30"/><path d="${river}" fill="none" stroke="#a9c3e0" stroke-width="22"/>
+<path d="${street}" fill="none" stroke="#8a6f45" stroke-width="40"/><path d="${street}" fill="none" stroke="#eadfc4" stroke-width="34"/>
+<ellipse cx="590" cy="430" rx="78" ry="50" fill="#bcd08f" stroke="#8fa765" stroke-width="2" stroke-dasharray="5 4"/>${stalls}${cottages}
+${place.inn ? bld(300, 302, 130, 74, 400, 376) : ""}${bld(216, 470, 74, 52, 290, 496)}${bld(470, 216, 96, 54, 518, 270)}${bld(690, 290, 52, 74, 690, 327)}
+<rect x="483" y="350" width="6" height="22" fill="#5b4a2f"/><rect x="471" y="340" width="30" height="20" fill="#f3ead2" stroke="#5b4a2f" stroke-width="1.5"/>
+${place.inn ? lab(365, 294, place.inn) : ""}${lab(253, 464, "Smith")}${lab(518, 210, "Stable")}${lab(716, 284, "Shrine")}${lab(590, 496, place.market ? "Market" : "The green")}${lab(486, 332, "Notice board", "middle", 11, 400)}${lab(846, 60, "The road out", "end")}${lab(232, 652, "The ford")}
+${place.inn ? man(424, 392, "I", "The innkeeper") : ""}${place.market ? man(566, 418, "T", "A trader") + man(608, 440, "T", "A trader") : ""}${man(306, 514, "S", "The smith")}${man(762, 236, "W", "The watchman")}
+<line x1="24" y1="662" x2="64" y2="662" stroke="#1f2b38" stroke-width="2"/><text x="70" y="666" font-family="Courier Prime, monospace" font-size="11" fill="#1f2b38">1\u2033 = 10 yards</text>`;
+}
 /** Out of the settlement: the viewer's own characters there leave together as one party, onto the kingdom map. */
 async function leaveScene(c, uid) {
   if (!c) { openWorld(null); return; }
@@ -1924,22 +1999,51 @@ function bindVillage(el, c, uid) {
         window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
         if (!drag) { if (id !== c?.id) openWorld(id); return; }
         const q = at(u), place = world.places[lobby.view.place ?? charOf(id)?.where ?? world.home] ?? {};
-        const pin = Object.entries(VILLAGE_SPOTS).filter(([k]) => k === "road" || place[k]).find(([, sp]) => Math.hypot(sp.x - q.x, sp.y - 16 - q.y) < 46)?.[0] ?? null;
+        const pin = villageSpots(place).find(([, sp]) => Math.hypot(sp.x - q.x, sp.y - q.y) < sp.r + 14)?.[0] ?? null;
         const ch = charOf(id); if (ch) ch.spot = { x: Math.round(q.x), y: Math.round(q.y) };
         online.api.world("spot", table.cid, { id, x: q.x, y: q.y });
-        if (pin === "road") { lobby.view = { id, at: null, dest: null, who: null }; await leaveScene(charOf(id), uid); if (charOf(id)?.doing === "town") renderLobbyStage(); return; }
-        lobby.lastChar = id; lobby.view = { id, at: pin, dest: null, who: null }; renderLobbyStage();
+        lobby.lastChar = id; lobby.view = { id, at: null, door: pin, dest: null, who: null }; renderLobbyStage(); // dropped at a door: its card comes up
       };
       window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
     });
   });
   if (!c) return;
-  el.querySelectorAll("[data-w-spot]").forEach((b) => b.addEventListener("click", async () => {
-    const k = b.dataset.wSpot;
-    if (k === "road") { await leaveScene(c, uid); return; }
-    lobby.view.at = k; renderLobbyStage();
+  const placeName = c.where ?? world.home;
+  // a door: the company walks up to it and its card comes up; anywhere else on the map: they walk there
+  el.querySelectorAll("[data-w-spot]").forEach((b) => b.addEventListener("click", (ev) => {
+    ev.stopPropagation(); if (lobby.view.at) return;
+    const k = b.dataset.wSpot, sp = VILLAGE_SPOTS[k];
+    villageWalk(c, uid, placeName, { x: sp.x, y: sp.y + (k === "market" ? 0 : 10) }); lobby.view.door = k; world.msg = ""; renderLobbyStage();
   }));
+  map?.addEventListener("click", (ev) => {
+    if (lobby.view.at || ev.target.closest("[data-w-tok], [data-w-spot], button, .w-crumb")) return;
+    const box = map.getBoundingClientRect();
+    villageWalk(c, uid, placeName, { x: ((ev.clientX - box.left) / box.width) * 860, y: ((ev.clientY - box.top) / box.height) * 680 }); lobby.view.door = null; world.msg = ""; renderLobbyStage();
+  });
+  $("#vgGoIn")?.addEventListener("click", (ev) => { lobby.view.at = ev.currentTarget.dataset.k; lobby.view.door = null; renderLobbyStage(); });
+  $("#vgRoad")?.addEventListener("click", () => leaveScene(c, uid));
   $("#wLeave")?.addEventListener("click", () => { lobby.view.at = null; renderLobbyStage(); });
+  // the marching order: drop a name on another to take his place; the arrow keys move the one in focus
+  const order = () => villageGroup(c, uid, placeName).map((m) => m.id);
+  const march = (ids) => { ids.forEach((id, i) => { const x = charOf(id); if (x) x.march = i; }); online.api.world("march", table.cid, { id: c.id, order: ids }); renderLobbyStage(); };
+  el.querySelectorAll(".vg-dock .ps-ch[draggable]").forEach((chp) => {
+    const id = chp.dataset.mo;
+    chp.addEventListener("dragstart", (ev) => { lobby.dragMo = id; ev.dataTransfer.effectAllowed = "move"; ev.dataTransfer.setData("text/plain", id); chp.classList.add("drag"); });
+    chp.addEventListener("dragend", () => { lobby.dragMo = null; el.querySelectorAll(".ps-ch.drag, .ps-ch.over").forEach((x) => x.classList.remove("drag", "over")); });
+    chp.addEventListener("dragover", (ev) => { if (lobby.dragMo && lobby.dragMo !== id) { ev.preventDefault(); chp.classList.add("over"); } });
+    chp.addEventListener("dragleave", () => chp.classList.remove("over"));
+    chp.addEventListener("drop", (ev) => {
+      ev.preventDefault(); const from = lobby.dragMo; lobby.dragMo = null; if (!from || from === id) return;
+      const box = chp.getBoundingClientRect(), after = ev.clientX > box.left + box.width / 2, ids = order().filter((x) => x !== from);
+      ids.splice(ids.indexOf(id) + (after ? 1 : 0), 0, from); march(ids);
+    });
+    chp.addEventListener("keydown", (ev) => {
+      const step = ev.key === "ArrowLeft" ? -1 : ev.key === "ArrowRight" ? 1 : 0; if (!step) return;
+      const ids = order(), i = ids.indexOf(id), j = i + step; if (j < 0 || j >= ids.length) return;
+      ev.preventDefault(); [ids[i], ids[j]] = [ids[j], ids[i]]; lobby.focusMo = id; march(ids);
+    });
+  });
+  if (lobby.focusMo) { el.querySelector(`.vg-dock .ps-ch[data-mo="${CSS.escape(lobby.focusMo)}"]`)?.focus(); lobby.focusMo = null; }
   $("#wRest")?.addEventListener("click", async () => { const days = Number($("#wRestDays").value); const r = await worldOp("rest", { id: c.id, days }); if (r.ok) world.msg = `${c.name} rested ${days} day${days === 1 ? "" : "s"}${r.healed ? ` and healed ${r.healed}` : ""}. It is day ${r.day}.`; renderLobbyStage(); });
   $("#wRumour")?.addEventListener("click", async () => { const r = await worldOp("rumour", { id: c.id }); if (r.ok) world.msg = `For ${r.cost} gp: \u201c${r.text}\u201d`; renderLobbyStage(); });
   el.querySelectorAll("[data-w-buy]").forEach((b) => b.addEventListener("click", () => worldOp("shop", { id: c.id, buy: b.dataset.wBuy })));
