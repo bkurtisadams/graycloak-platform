@@ -53,7 +53,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
     const player = () => state?.actors.find(a => a.id === 'player');
     const target = () => state?.actors.find(a => a.id === targetId);
     const alive = a => a && a.hp > 0 && !a.fled;
-    function setZoom(n) { zoom = Math.min(96, Math.max(22, n)); $('board').style.setProperty('--cell', `${zoom}px`); $('mapScale').textContent = `3 m / square · ${Math.round(zoom / 42 * 100)}%`; }
+    function setZoom(n) { zoom = Math.min(96, Math.max(22, n)); $('board').style.setProperty('--cell', `${zoom}px`); $('mapScale').textContent = `3 m / square · ${Math.round(zoom / 42 * 100)}%`; const bar = $('scaleBar'); if (bar?.style) bar.style.width = `${zoom * 2}px`; }
     function fit() { if (!state)
         return; const vp = $('viewport'); setZoom(Math.floor(Math.min(vp.clientWidth / state.width, vp.clientHeight / state.height))); vp.scrollTo(0, 0); }
     function commit(next, previous) { if (campaignMode)
@@ -87,10 +87,38 @@ export function mountTactical({ root = null, information = null, embedded = fals
         return [];
     } }
     function actionStates() { return gw.combatActions(state, targetId); }
+    // Repeat attack: once on, the last attack is used again each round until something changes.
+    let auto = false, autoTimer = null, lastAttack = null;
+    try { auto = localStorage.getItem('graycloak.gw.repeatAttack') === '1'; } catch { auto = false; }
+    const PASSIVE = ['endTurn', 'flee', 'parley', 'bind'];
+    function renderAuto() { const b = $('autoAttack'); if (!b) return; b.textContent = auto ? 'Repeat: On' : 'Repeat: Off'; b.setAttribute('aria-pressed', String(auto)); b.title = auto ? 'Your last attack repeats every round until the target drops, you are badly hurt, or you click the map. Press Q to turn off.' : 'Turn on to keep using your last attack each round without clicking. Press Q.'; }
+    function stopAuto(reason) { clearTimeout(autoTimer); autoTimer = null; lastAttack = null; if (reason) guidance(reason); }
+    function scheduleAuto() { clearTimeout(autoTimer); autoTimer = null; if (auto && lastAttack && state?.status === 'active') { autoTimer = setTimeout(autoStep, 550); guidance('Repeating your attack each round. Click the map or press Escape to interrupt.'); } }
+    function autoStep() {
+        autoTimer = null;
+        if (!auto || !lastAttack || !state || state.status !== 'active') return;
+        const p = player(), t = state.actors.find(a => a.id === lastAttack.targetId), before = state.revision;
+        if (state.turn?.action) { command({ type: 'end' }); if (state.revision === before) return stopAuto(); return scheduleAuto(); }
+        if (!alive(t)) return stopAuto('Repeat stopped: the target is down. Pick another target.');
+        if (p.hp <= 0) return stopAuto();
+        if (p.bleeding) return stopAuto('Repeat stopped: you are bleeding. Bind wounds or fight on.');
+        if (p.hp <= p.maxHp / 3) return stopAuto('Repeat stopped: you are badly hurt. Fight on or withdraw.');
+        targetId = t.id;
+        const a = actionStates().find(a => a.id === lastAttack.id);
+        if (!a?.visible || !a.enabled) { render(); return stopAuto(`Repeat stopped: ${a?.reason || 'that attack is unavailable'}.`); }
+        command(a.command);
+        if (state.revision === before) return stopAuto();
+        scheduleAuto();
+    }
     function invoke(id) { const a = actionStates().find(a => a.id === id); if (!a?.visible || !a.enabled) {
         guidance(a?.reason || 'Action unavailable');
         return;
-    } command(a.command); }
+    } const before = state.revision, wasTarget = targetId; clearTimeout(autoTimer); command(a.command);
+        if (state.revision === before) return;
+        if (id === 'endTurn') { scheduleAuto(); return; }
+        if (PASSIVE.includes(id)) { stopAuto(); return; }
+        lastAttack = { id, targetId: wasTarget };
+        scheduleAuto(); }
     function command(c) { try {
         commit(gw.interactiveCommand(state, { ...c, expectedRevision: state.revision }), state);
         if (!alive(target()))
@@ -190,7 +218,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
     $('board').addEventListener('pointerleave', () => { hoverTarget = null; for (const n of $('board').children)
         n.classList?.remove('path', 'unreachable-preview'); $('mapScale').textContent = `3 m / square · ${Math.round(zoom / 42 * 100)}%`; });
     $('board').addEventListener('click', e => { const cell = e.target.closest('.cell'); if (!cell || !state || state.status !== 'active')
-        return; if (cell.dataset.target) {
+        return; stopAuto(); if (cell.dataset.target) {
         targetId = cell.dataset.target;
         render();
         return;
@@ -199,6 +227,51 @@ export function mountTactical({ root = null, information = null, embedded = fals
         guidance('Cannot move there. Choose a reachable square before attacking.');
         return;
     } command({ type: 'move', x, y, pace }); });
+    // Drag the survivor's token to move: the path lights up and a ruler shows distance against the allowance.
+    let moveDrag = null;
+    const cellAt = e => globalThis.document?.elementFromPoint?.(e.clientX, e.clientY)?.closest?.('#board .cell') ?? null;
+    const paceOf = e => e.ctrlKey ? 'charge' : e.shiftKey ? 'trot' : 'normal';
+    function endMoveDrag() { moveDrag?.ruler.remove(); moveDrag = null; $('board')?.classList?.remove('dragging'); }
+    function trackMove(e) {
+        if (!moveDrag || !state) return;
+        const cell = cellAt(e), r = moveDrag.ruler, p = player(), pace = paceOf(e);
+        r.style.left = `${e.clientX + 14}px`;
+        r.style.top = `${e.clientY + 14}px`;
+        const left = Math.max(0, gw.movementLimit(p, pace) - (state.turn?.moved ?? 0));
+        if (!cell || cell.closest('#board') !== $('board')) { r.textContent = 'Off the map'; r.className = 'drag-ruler bad'; return; }
+        const x = +cell.dataset.x, y = +cell.dataset.y;
+        if (x === p.x && y === p.y) { r.textContent = `0 m of ${left.toFixed(0)} m`; r.className = 'drag-ruler'; return; }
+        const path = gw.interactivePath(state, x, y, pace);
+        if (path?.length) { r.textContent = `${gw.pathDistance(p, path).toFixed(1)} m of ${left.toFixed(0)} m${pace === 'normal' ? '' : ' · ' + pace}`; r.className = 'drag-ruler'; }
+        else { r.textContent = cell.dataset.target ? 'Occupied' : `${gw.distance(p, { x, y }).toFixed(1)} m · too far (${left.toFixed(0)} m left)`; r.className = 'drag-ruler bad'; }
+    }
+    function dropMove(e) {
+        if (!moveDrag) return;
+        const cell = cellAt(e), pace = paceOf(e);
+        endMoveDrag();
+        if (!cell || !state || state.status !== 'active' || cell.dataset.target || cell.closest('#board') !== $('board')) return;
+        const x = +cell.dataset.x, y = +cell.dataset.y;
+        if (x === player().x && y === player().y) return;
+        if (!gw.interactivePath(state, x, y, pace)?.length) { guidance('Too far or blocked. The ruler turns red past your movement allowance.'); return; }
+        stopAuto();
+        command({ type: 'move', x, y, pace });
+    }
+    $('board').addEventListener('pointerdown', e => {
+        if (e.button !== 0 || !state || state.status !== 'active' || state.turn?.action) return;
+        const cell = e.target.closest?.('.cell');
+        if (!cell || !cell.classList?.contains('player') || !globalThis.document?.body) return;
+        e.preventDefault();
+        const ruler = make('div', '', 'drag-ruler');
+        document.body.append(ruler);
+        moveDrag = { ruler };
+        $('board').classList.add('dragging');
+        trackMove(e);
+    });
+    document.addEventListener('pointermove', trackMove);
+    document.addEventListener('pointerup', dropMove);
+    function toggleAuto() { auto = !auto; try { localStorage.setItem('graycloak.gw.repeatAttack', auto ? '1' : '0'); } catch { /* storage unavailable */ } if (!auto) stopAuto(); renderAuto(); guidance(auto ? 'Repeat is on. Attack once and it continues each round. Click the map or press Escape to interrupt.' : 'Repeat is off.'); }
+    $('autoAttack')?.addEventListener('click', toggleAuto);
+    renderAuto();
     $('start').addEventListener('click', start);
     $('attack').addEventListener('click', () => invoke('attack'));
     $('throw').addEventListener('click', () => invoke('throw'));
@@ -245,8 +318,13 @@ export function mountTactical({ root = null, information = null, embedded = fals
         return;
     } if (e.key === 'Escape') {
         e.preventDefault();
+        stopAuto();
         targetId = null;
         render();
+    }
+    else if (e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        toggleAuto();
     }
     else if (e.key.toLowerCase() === 't') {
         e.preventDefault();
@@ -283,7 +361,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         document.removeEventListener('keydown', keyHandler);
         throw err;
     }
-    return { dispose() { document.removeEventListener('keydown', keyHandler); }, getState: () => state };
+    return { dispose() { clearTimeout(autoTimer); endMoveDrag(); document.removeEventListener('keydown', keyHandler); document.removeEventListener('pointerup', dropMove); document.removeEventListener('pointermove', trackMove); }, getState: () => state };
 }
 if (globalThis.document && !globalThis.document.querySelector?.('#worldShell'))
     mountTactical();

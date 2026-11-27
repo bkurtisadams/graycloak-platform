@@ -377,7 +377,8 @@ $('bagBtn').onclick = () => showTab('bag');
 $('tradeBtn').onclick = () => { if (inTown()) { activeUtility = showTrade; showTrade(); } };
 $('restBtn').onclick = () => restAt(true);
 $('journalBtn').onclick = utility(() => dialog('Journal', [el('p', 'Eden Valley: visit the settlement for supplies, conversation and trade.'), el('p', 'Forest clearing: investigate the patrol.'), el('p', 'Ancient outpost: recover and identify the device.'), el('p', 'Prototype region; authored campaign coordinates not yet mapped.')]));
-function zoomWorld(n) { worldZoom = Math.max(20, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); }
+function zoomWorld(n) { worldZoom = Math.max(20, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); $('worldScale').style.width = worldZoom * 2 + 'px'; }
+zoomWorld(worldZoom);
 $('worldZoomIn').onclick = () => zoomWorld(worldZoom + 6);
 $('worldZoomOut').onclick = () => zoomWorld(worldZoom - 6);
 const fitWorld = () => { const vp = $('viewport'); if (vp?.clientWidth && vp.clientHeight) zoomWorld(Math.floor(Math.min(vp.clientWidth / WORLD.width, vp.clientHeight / WORLD.height))); };

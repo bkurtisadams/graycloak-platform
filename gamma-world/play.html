@@ -10,7 +10,7 @@
 </head>
 <body class="play-page mmo">
 <header class="topbar">
-<strong class="brand">GAMMA WORLD</strong>
+<a class="brand" href="index.html" title="Exit to Character Select">GAMMA WORLD</a>
 <button id="sheetBtn">Character <kbd>C</kbd></button>
 <button id="bagBtn">Inventory <kbd>I</kbd></button>
 <button id="mapBtn">Map <kbd>M</kbd></button>
@@ -18,7 +18,7 @@
 <span class="clock" role="status"><span id="site"></span> · <span id="dayLabel"></span></span>
 <button id="mapExpand">Hide panel</button>
 <a class="plain" href="lab.html">Rules Lab</a>
-<a class="button" href="index.html">Character Select</a>
+<a class="button exit" href="index.html">Exit to Character Select</a>
 </header>
 <main id="worldShell">
 <section class="battle-area stage" id="worldArea">
@@ -40,6 +40,7 @@
 <div class="caption"><span>Eden Valley area</span><span>3 m/sq</span></div>
 </div>
 </div>
+<div class="scale-bar" id="worldScale" aria-hidden="true"><i></i><span>6 m (2 squares)</span></div>
 <div class="map-tools">
 <button id="worldZoomOut" aria-label="Zoom out">−</button><button id="worldZoomIn" aria-label="Zoom in">+</button><button id="worldFit">Fit</button><button id="stop" hidden>Stop</button>
 </div>

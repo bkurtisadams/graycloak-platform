@@ -179,3 +179,13 @@ Extract over v0.6.4 (or v0.6.3) at the repository root. No save or schema change
 - Embedded combat uses the same overlays: the tactical HUD becomes the frames, round information sits top right, and the tactical action bar takes the bottom-centre slot. `tactical.html` on its own is unchanged.
 - New `mmo.css` styles both screens; `play.html` no longer loads `world.css` or `shell.css`. Shared navigation on the other pages now reads Character Select / Play / Rules Lab.
 - Verified in headless Chrome at 1440x900, 1280x720 and 390x800. 99 game tests and 3 lobby tests pass.
+
+## v0.6.6 — repeat attack, drag to move, map scale
+
+Extract over v0.6.5 at the repository root. No save, schema or rule changes.
+
+- Repeat attack: a Repeat toggle in the combat action bar (key Q, remembered in this browser). When on, attack once and the same attack is used on the same target every round, ending the turn for you, about half a second per step. It stops when the target drops, the attack becomes illegal (range, fatigue, no charges), the survivor starts bleeding or falls to a third of maximum HP, or the player clicks the map or presses Escape. It never picks a new target.
+- Drag to move: drag the survivor's token in combat. The path lights up and a ruler by the pointer shows distance against the remaining allowance, turning red when the square is too far or blocked. Shift and Ctrl still select trot and charge. Clicking a square still works.
+- Map scale: a scale bar (6 m, two squares) sits at the bottom right of the world map and the combat map and resizes with zoom.
+- Leaving play: the top-right button now reads Exit to Character Select, and the GAMMA WORLD title in the top row is also a link back.
+- Verified in headless Chrome at 1440x900. 99 game tests and 3 lobby tests pass.
