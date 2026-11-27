@@ -1,0 +1,67 @@
+/* Shared player shell: no fixed bottom strips. */
+header {align-items:center; flex-wrap:wrap; padding:12px 22px;}
+header nav {display:flex; flex-wrap:wrap; gap:18px; align-items:center;}
+header nav a {text-decoration:none; color:var(--cream);}
+header nav a:hover {color:var(--accent); text-decoration:underline;}
+main.landing {display:block; max-width:960px; margin:28px auto;}
+.landing section {margin-bottom:16px;}
+.title-banner {background:linear-gradient(135deg,#202e23,#485139 65%,#635438);padding:42px 30px;}
+.title-banner h1 {font-size:clamp(34px,7vw,68px);letter-spacing:.11em;color:#e2d4a5;}
+.primary-link {display:inline-block;padding:10px 15px;background:#526847;border:1px solid #82996a;border-radius:5px;color:var(--cream);text-decoration:none;}
+.survivor-card {display:flex; align-items:center; justify-content:space-between; gap:18px; padding:16px; margin:12px 0; background:#1c281f; border:1px solid var(--line);border-radius:7px;}
+.survivor-card h2 {font-size:20px;margin:0;overflow-wrap:anywhere;}
+.survivor-card p {color:var(--muted);margin:4px 0;}
+.roster-actions {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.roster-actions details button {display:block;width:100%;margin-top:6px;}
+summary {cursor:pointer;}
+.lab-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}
+.lab-grid a {display:block;border:1px solid var(--line);background:#1c281f;padding:20px;border-radius:6px;text-decoration:none;font-weight:bold;}
+.lab-grid small {font-weight:normal;color:var(--muted);}
+main.wizard {max-width:760px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:24px;}
+.wizard-step {min-height:180px;}
+.wizard-step input,.wizard-step select {max-width:100%;}
+.wizard-nav {display:flex;gap:10px;flex-wrap:wrap;justify-content:space-between;border-top:1px solid var(--line);padding-top:16px;}
+#wizardError,#rosterStatus {color:var(--accent);}
+.play-page #worldShell {max-width:none;margin:0;padding:12px;gap:12px;grid-template-columns:minmax(0,1fr) minmax(280px,350px);}
+.play-page .battle-area {padding:12px;min-width:0;display:flex;flex-direction:column;}
+.play-page .battle-top {margin-bottom:5px;}
+.play-page #worldShell .map-viewport {height:clamp(300px,calc(100dvh - 315px),900px);flex:1;}
+.play-page .battle-info {position:static;align-self:stretch;min-width:0;padding:12px;}
+.play-page .utility-tabs {display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;}
+.play-page .utility-tabs button {flex:1;font-size:12px;padding:6px;}
+#utilityPanel {border:1px solid var(--line);padding:8px;margin-bottom:12px;max-height:35vh;overflow:auto;}
+#utilityPanel h3 {font-size:15px;margin:0;}
+#utilityPanel .stats {grid-template-columns:repeat(3,minmax(0,1fr));}
+#utilityPanel .stat {padding:6px;}
+.play-page .battle-info .feed {height:clamp(110px,24vh,320px);}
+.play-page #messages.feed {height:100px;}
+.play-page #chatForm {display:flex;gap:5px;align-items:center;margin-top:6px;}
+.play-page #chatForm input {flex:1;width:0;}
+.play-page #chatForm button {width:auto;margin:0;}
+.play-page .hud {margin:6px 0;gap:4px;}
+.play-page .hud>div {padding:6px;}
+.play-page .map-tools {margin-top:4px;}
+.play-page .action-bar {position:static;}
+.play-page.expanded-map #worldShell {grid-template-columns:minmax(0,1fr);}
+.play-page.expanded-map #sharedInformation {display:none;}
+@media(max-width:900px){.play-page #worldShell {grid-template-columns:minmax(0,1fr);}.play-page .battle-info {grid-column:1;grid-row:2;}.play-page #worldShell .map-viewport {height:380px;flex:none;}}
+@media(max-width:600px){.survivor-card{align-items:flex-start;flex-direction:column;}.play-page .hud {grid-template-columns:1fr;}.play-page #worldShell {padding:6px;}.play-page .battle-area {padding:8px;}.title-banner {padding:26px 15px;}}
+
+/* Play screen fits the window: the map takes the leftover height, HUD and actions stay in view. */
+@media (min-width:901px) and (min-height:620px) {
+  body.play-page {height:100dvh; display:flex; flex-direction:column; overflow:hidden;}
+  .play-page #worldShell {flex:1; min-height:0; grid-template-rows:minmax(0,1fr);}
+  .play-page .battle-area {min-height:0; overflow:auto;}
+  .play-page #worldShell .map-viewport {flex:1 1 0; height:auto; min-height:220px;}
+  .play-page .battle-info {min-height:0; overflow:auto; display:flex; flex-direction:column;}
+  .play-page .battle-info .feed {flex:1 1 0; height:auto; min-height:140px;}
+  .play-page #chat:not([hidden]) {flex:1 1 0; min-height:0; display:flex; flex-direction:column;}
+  .play-page #messages.feed {flex:1 1 0; height:auto;}
+}
+.play-page .map-viewport {display:flex;}
+.play-page .map-board {margin:auto;}
+.play-page .battle-area > .notice {margin:6px 0 0; font-size:12px;}
+.play-page .tabs {margin:8px 0;}
+#board .cell.site {overflow:visible; z-index:1;}
+.site-label {position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:3px; white-space:nowrap; background:#1d281f; color:var(--cream); font-size:11px; font-weight:700; line-height:1.3; padding:1px 6px; border-radius:3px; pointer-events:none;}
+#utilityPanel {flex:0 0 auto; max-height:55vh;}

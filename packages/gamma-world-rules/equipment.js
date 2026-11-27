@@ -1,0 +1,20 @@
+import { dice, die, weaponTarget, strengthDamageModifier, dexterityHitModifier } from './index.js';
+// Printed pp.19–20,47. Dice tuples are [count,sides,constant]. For ambiguous ranges use one uniform die plus offset (referee policy).
+const rows = [
+    ['arrow', 'Bow / arrow', 9, [1, 6, 0], [1, 6, 0], 100], ['battle-axe', 'Battle axe', 2, [1, 8, 0], [1, 8, 0]], ['hand-axe', 'Hand axe', 2, [1, 6, 0], [1, 4, 0], 20], ['club', 'Club', 1, [1, 6, 0], [1, 3, 0], 10], ['crossbow', 'Crossbow / bolt', 9, [1, 4, 0], [1, 4, 0], 120], ['dagger', 'Dagger', 2, [1, 4, 0], [1, 3, 0], 20], ['flail', 'Flail', 2, [1, 6, 1], [2, 4, 0]], ['javelin', 'Javelin', 8, [1, 6, 0], [1, 6, 0], 40], ['lance', 'Mounted lance', 1, [1, 6, 0], [1, 10, 0]], ['mace', 'Mace', 1, [1, 6, 1], [1, 6, 0]], ['morning-star', 'Morning star', 2, [2, 4, 0], [1, 6, 1]], ['polearm', 'Pole arms', 3, [1, 8, 0], [1, 12, 0]], ['sling-bullet', 'Sling / bullet', 9, [1, 4, 1], [1, 6, 1], 100], ['sling-stone', 'Sling / stone', 9, [1, 4, 0], [1, 4, 0], 80], ['spear', 'Spear', 1, [1, 6, 0], [1, 8, 0], 20], ['long-sword', 'Long sword', 3, [1, 8, 0], [1, 12, 0]], ['short-sword', 'Short sword', 3, [1, 6, 0], [1, 8, 0]], ['two-handed-sword', 'Two-handed sword', 3, [1, 10, 0], [3, 6, 0]]
+];
+export const WEAPONS = Object.freeze(rows.map(([id, name, wc, small, large, range]) => Object.freeze({ id, name, wc, small: Object.freeze(small), large: Object.freeze(large), range: range ?? null })));
+export const ARMOR = Object.freeze([['none', 'No protection', 10], ['shield', 'Shield only', 9], ['skins', 'Furs or skins', 8], ['skins-shield', 'Furs or skins and shield', 7], ['hide', 'Cured hide or plant fiber', 6], ['hide-shield', 'Cured hide or plant fiber and shield', 5], ['metal', 'Sheath or piece metal armor', 4], ['plate-plastic', 'Powered plate or plastic armor', 3], ['powered-defense', 'Powered alloy / energized / inertia / scout / battle armor', 2], ['powered-assault', 'Powered attack or assault armor', 1]].map(([id, name, ac]) => Object.freeze({ id, name, ac, advanced: ac <= 3 })));
+export function getWeapon(id) { const w = WEAPONS.find(w => w.id === id); if (!w)
+    throw Error('Unknown weapon'); return w; }
+export function getArmor(id) { const a = ARMOR.find(a => a.id === id); if (!a)
+    throw Error('Unknown armor'); return a; }
+// Isolated attack preview, not encounter simulation. Melee distance 3m is a prototype ruling.
+export function equipmentAttack({ character, weaponId, targetAC, large = false, distance = 0, mode = 'melee', fatigue = 0, rng = Math.random }) { const w = getWeapon(weaponId), p = character.effects ?? {}; if (!Number.isFinite(distance) || distance < 0)
+    throw Error('Invalid distance'); if (!['melee', 'missile'].includes(mode))
+    throw Error('Invalid attack mode'); const rangedOnly = ['arrow', 'crossbow', 'sling-bullet', 'sling-stone'].includes(w.id); if (mode === 'melee' && rangedOnly)
+    throw Error('Projectile requires missile mode'); if (mode === 'missile' && w.range === null)
+    throw Error('Weapon has no printed missile range'); if (!Number.isInteger(fatigue) || fatigue < 0)
+    throw Error('Invalid fatigue'); const effectiveWC = w.wc - fatigue; if (effectiveWC < 1)
+    return { hit: false, roll: null, damage: 0, reason: 'too fatigued to attack', effectiveWC }; const target = weaponTarget(targetAC, effectiveWC); const range = mode === 'missile' ? w.range : 3 * Math.SQRT2; if (distance > (mode === 'missile' ? range * 2 : range))
+    return { target, hit: false, roll: null, damage: 0, reason: 'out-of-range' }; const rangePenalty = mode === 'missile' && distance > range ? -5 : 0; const hitModifier = dexterityHitModifier(character.attributes.DX) + (p.hitModifier ?? 0); const roll = die(20, rng), hit = roll + hitModifier + rangePenalty >= target; const [count, sides, bonus] = large ? w.large : w.small; const extra = (p.weaponExtraDice ?? 0) + (p.nonPoweredExtraDice ?? 0); return { target, roll, hit, hitModifier, rangePenalty, effectiveWC, damageDice: count + extra, damage: hit ? Math.max(0, dice(count, sides, rng) + (extra ? dice(extra, 6, rng) : 0) + bonus + strengthDamageModifier(character.attributes.PS)) : 0 }; }

@@ -1,0 +1,256 @@
+:root {
+  color-scheme: dark;
+  --bg: #171e1a;
+  --panel: #252e26;
+  --line: #485547;
+  --cream: #e7dfc4;
+  --muted: #aab69f;
+  --accent: #d5b779;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--cream);
+  font: 15px/1.5 system-ui,sans-serif;
+}
+header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #303b2e;
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+header span,.eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+}
+main {
+  display: grid;
+  grid-template-columns: 300px minmax(0,1fr);
+  gap: 18px;
+  max-width: 1240px;
+  margin: 24px auto;
+  padding: 0 18px;
+}
+aside,section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 22px;
+}
+h1,h2,h3,p {
+  margin: 0 0 12px;
+}
+h1 {
+  font-size: 26px;
+  line-height: 1.1;
+}
+h2 {
+  font-size: 24px;
+}
+h3 {
+  margin-top: 24px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+input,select,button {
+  font: inherit;
+  padding: 9px;
+  border: 1px solid #62705a;
+  border-radius: 5px;
+  background: #19231c;
+  color: var(--cream);
+  min-width: 0;
+}
+button {
+  background: #526847;
+  font-weight: 650;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: .4;
+  cursor: default;
+}
+form button {
+  width: 100%;
+  margin: 12px 0;
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+}
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(88px,1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.stat {
+  border: 1px solid var(--line);
+  background: #1c261e;
+  padding: 12px;
+  border-radius: 6px;
+}
+.stat small {
+  display: block;
+  color: var(--muted);
+}
+.stat strong {
+  font-size: 25px;
+}
+.notice,#status {
+  color: var(--accent);
+  font-size: 13px;
+}
+.mutation {
+  border-bottom: 1px solid var(--line);
+  padding: 9px 0;
+}
+.mutation small {
+  display: block;
+  color: var(--muted);
+}
+.lab {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+.lab label {
+  flex: 1;
+  min-width: 80px;
+}
+.lab button {
+  margin-bottom: 12px;
+}
+output {
+  display: block;
+  padding: 12px;
+  background: #19231c;
+  border-radius: 5px;
+}
+[hidden] {
+  display: none!important;
+}
+@media(max-width:720px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+  header {
+    flex-direction: column;
+  }
+  .heading {
+    flex-wrap: wrap;
+  }
+}
+main {
+  grid-template-columns: 260px minmax(0,1fr) 280px;
+  max-width: 1600px;
+}
+.information {
+  position: sticky;
+  top: 12px;
+  align-self: start;
+}
+.information h2 {
+  font-size: 20px;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0;
+}
+.tabs button {
+  flex: 1;
+}
+.tabs button[aria-pressed=true] {
+  border-color: var(--accent);
+}
+.feed {
+  height: 240px;
+  overflow: auto;
+  background: #19231c;
+  padding: 10px;
+  border-radius: 5px;
+  overflow-wrap: anywhere;
+}
+.feed p,#effects p {
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+#guidance {
+  color: var(--accent);
+  font-size: 13px;
+}
+#effects {
+  margin-top: 10px;
+}
+input[type=file] {
+  max-width: 100%;
+}
+@media(max-width:1100px) {
+  main {
+    grid-template-columns: 260px minmax(0,1fr);
+  }
+  .information {
+    grid-column: 1/-1;
+    position: static;
+  }
+}
+@media(max-width:720px) {
+  main {
+    grid-template-columns: 1fr;
+  }
+}
+.heading {
+  flex-wrap: wrap;
+}
+#saveStatus {
+  color: var(--accent);
+  font-weight: 600;
+}
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px;
+  background: #354331;
+  border-radius: 6px;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.steps span {
+  color: var(--muted);
+}
+a {
+  color: var(--accent);
+}
+main.technology {
+  grid-template-columns: minmax(0,1fr) 300px;
+  max-width: 1200px;
+}
+@media(max-width:800px) {
+  main.technology {
+    grid-template-columns: 1fr;
+  }
+}
+.technology input[type=checkbox] {
+  align-self: start;
+}

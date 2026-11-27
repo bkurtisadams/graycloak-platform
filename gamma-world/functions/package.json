@@ -1,0 +1,1 @@
+{"name":"@graycloak/gamma-world-functions","version":"0.6.0","private":true,"type":"module","main":"index.js","engines":{"node":"22"},"scripts":{"test":"node --test test/*.test.mjs"},"dependencies":{"firebase-admin":"^14.3.0","firebase-functions":"^7.3.2"}}
