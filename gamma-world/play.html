@@ -1,1 +1,68 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gamma World · Eden Valley</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="tactical.css"><style>.cell.wall{background:#344d36;cursor:not-allowed}.cell.site{background:#a08b59;color:#151e15;font-weight:bold}.world-controls{display:flex;gap:8px;flex-wrap:wrap}.world-controls button{flex:1}#board{--cell:36px}.world-inventory{margin:10px 0;color:var(--muted)}</style><link rel="stylesheet" href="world.css"><link rel="stylesheet" href="shell.css"></head><body class="play-page"><header><strong>GRAYCLOAK / GAMMA WORLD</strong><span>2471 • LOCAL CAMPAIGN v0.6.4</span><nav aria-label="Main navigation"><a href="index.html">Survivors</a><a href="play.html">Play</a><a href="lab.html">Rules Lab</a></nav><button id="mapExpand">Expand map</button></header><main class="battle-layout" id="worldShell"><section class="battle-area" id="worldArea"><div class="battle-top"><div><p class="eyebrow">LOCAL CAMPAIGN</p><h1>Eden Valley</h1><p id="worldStatus">Loading character...</p></div><label hidden>Active survivor<select id="roster"></select></label><span id="saveIndicator" role="status">Local campaign</span></div><div class="map-tools">Click a destination to walk · 3 m per square <button id="stop">Stop</button><button id="worldZoomOut">−</button><button id="worldZoomIn">+</button><button id="worldFit">Fit</button></div><div class="map-viewport" id="viewport"><div class="map-board" id="board"></div></div><div class="hud"><div><small>CHARACTER</small><strong id="name"></strong><span id="stats"></span></div><div><small>LOCATION</small><strong id="site"></strong><span id="position"></span></div><div><small>INVENTORY</small><span id="inventory"></span></div></div><div class="action-bar world-controls"><button id="interact" class="primary">Interact</button><button id="resume" hidden>Resume encounter</button><button id="supply">Collect supplies</button><button id="experiment" hidden>Identify device</button><button id="install" hidden>Install hydrogen cell</button></div><p class="notice">Prototype geography, not the authored Eden Valley map. Local-only campaign. Movement, inventory and battle results persist in this browser.</p></section><section class="battle-area" id="combatArea" hidden></section><aside class="information battle-info" id="sharedInformation"><div class="utility-tabs" aria-label="Survivor tools"><button id="sheetBtn">Character</button><button id="bagBtn">Inventory</button><button id="mapBtn">Map</button><button id="journalBtn">Journal</button></div><div id="utilityPanel" hidden><div class="heading"><h3 id="utilityTitle"></h3><button id="closeUtility">Collapse</button></div><div id="utilityBody"></div></div><div class="guidance" id="guidance" role="status"></div><div class="tabs"><button id="eventsTab" aria-pressed="true">Events</button><button id="chatTab" aria-pressed="false">Chat</button></div><div id="events" class="feed" role="log"></div><div id="chat" hidden><p class="notice">Local chat history only; not multiplayer.</p><div id="messages" class="feed"></div><form id="chatForm"><input id="chatText" maxlength="500" placeholder="Message" required><button>Send locally</button></form></div></aside></main><dialog id="gameDialog"><div class="heading"><h2 id="dialogTitle"></h2><button id="closeDialog" aria-label="Close dialog">Close</button></div><div id="dialogBody"></div></dialog><script type="module" src="play.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamma World · Eden Valley</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="tactical.css">
+<link rel="stylesheet" href="mmo.css">
+</head>
+<body class="play-page mmo">
+<header class="topbar">
+<strong class="brand">GAMMA WORLD</strong>
+<button id="sheetBtn">Character <kbd>C</kbd></button>
+<button id="bagBtn">Inventory <kbd>I</kbd></button>
+<button id="mapBtn">Map <kbd>M</kbd></button>
+<button id="journalBtn">Journal <kbd>J</kbd></button>
+<span class="clock" role="status"><span id="site"></span> · <span id="dayLabel"></span></span>
+<button id="mapExpand">Hide panel</button>
+<a class="plain" href="lab.html">Rules Lab</a>
+<a class="button" href="index.html">Character Select</a>
+</header>
+<main id="worldShell">
+<section class="battle-area stage" id="worldArea">
+<div class="map-viewport" id="viewport"><div class="map-board" id="board"></div></div>
+<div class="hud-top">
+<div class="frame unit-frame">
+<div class="line"><strong id="name"></strong><span id="unitAc"></span></div>
+<div class="hp-track"><div id="worldHpFill"></div></div>
+<small id="stats"></small>
+</div>
+<div class="frame target-empty">No target<br><small>Appears in combat</small></div>
+<div class="view-switch" role="group" aria-label="Viewport">
+<button disabled title="Needs the regional map, not built yet">World map</button>
+<button aria-pressed="true">Local map</button>
+<button disabled title="Scene view is not built yet">Scene</button>
+</div>
+<div class="frame minimap">
+<div class="mm" id="minimap"></div>
+<div class="caption"><span>Eden Valley area</span><span>3 m/sq</span></div>
+</div>
+</div>
+<div class="map-tools">
+<button id="worldZoomOut" aria-label="Zoom out">−</button><button id="worldZoomIn" aria-label="Zoom in">+</button><button id="worldFit">Fit</button><button id="stop" hidden>Stop</button>
+</div>
+<div class="action-bar world-controls">
+<button id="interact" class="primary">Interact</button><button id="resume" hidden>Resume encounter</button><button id="tradeBtn" hidden>Trade</button><button id="restBtn" hidden>Rest</button><button id="supply">Collect supplies</button><button id="experiment" hidden>Identify device</button><button id="install" hidden>Install hydrogen cell</button>
+<span class="divider" id="powerDivider" hidden></span><span id="worldPowers" style="display:contents"></span>
+</div>
+<div id="utilityPanel" hidden><div class="heading"><h3 id="utilityTitle"></h3><button id="closeUtility">Close</button></div><div id="utilityBody"></div></div>
+<label hidden>Active survivor<select id="roster"></select></label>
+</section>
+<section class="battle-area stage" id="combatArea" hidden></section>
+<aside class="information battle-info sidebar" id="sharedInformation">
+<div class="side-tabs" role="group" aria-label="Side panel">
+<button id="chatTab" aria-pressed="true">Chat</button><button id="eventsTab" aria-pressed="false">Events</button><button id="partyTab" disabled title="Followers are not built yet">Party</button><button id="bagTab" aria-pressed="false">Bag</button>
+</div>
+<div id="chat"><div id="messages" class="feed pane" role="log" aria-live="polite"></div></div>
+<div id="events" class="feed pane" role="log" hidden></div>
+<div id="bagPane" class="pane" hidden></div>
+<div class="guidance" id="guidance" role="status"></div>
+<form id="chatForm"><label>Say<input id="chatText" maxlength="500" placeholder="Message" autocomplete="off" required></label><button>Send</button></form>
+</aside>
+</main>
+<dialog id="gameDialog"><div class="heading"><h2 id="dialogTitle"></h2><button id="closeDialog" aria-label="Close dialog">Close</button></div><div id="dialogBody"></div></dialog>
+<script type="module" src="play.js"></script>
+</body>
+</html>

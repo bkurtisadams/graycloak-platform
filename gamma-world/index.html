@@ -1,1 +1,42 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gamma World · Survivors</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="shell.css"></head><body><header><strong>GRAYCLOAK / GAMMA WORLD</strong><nav aria-label="Main navigation"><a href="index.html">Survivors</a><a href="play.html">Play</a><a href="lab.html">Rules Lab</a></nav></header><main class="landing"><section class="title-banner"><p class="eyebrow">FIRST EDITION • LOCAL CAMPAIGN</p><h1>GAMMA WORLD</h1><p>Beyond the ruins, a new world awaits.</p></section><section><div class="heading"><h2>Your survivors</h2><a class="primary-link" href="create.html">+ New survivor</a></div><div id="survivors"></div><label>Import character JSON<input id="importSurvivor" type="file" accept="application/json,.json"></label><p id="rosterStatus" role="status"></p><p class="notice">Saves are local to this browser. Character exports contain construction, not campaign progress.</p></section></main><script type="module" src="survivors.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gamma World · Character select</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="mmo.css">
+</head>
+<body class="mmo">
+<div class="select-screen">
+<header>
+<div>
+<div class="game-title">GAMMA WORLD</div>
+<div class="game-subtitle">FIRST EDITION · GRAYCLOAK CAMPAIGN CORNER</div>
+</div>
+<div class="realm">Playing as <strong>Local player</strong><br>Realm: Eden Valley · saved in this browser</div>
+</header>
+<main>
+<section class="preview" id="preview" aria-live="polite"></section>
+<aside class="character-list">
+<h2>YOUR CHARACTERS</h2>
+<div id="survivors" style="display:flex;flex-direction:column;gap:8px"></div>
+<a class="create slot" id="createCharacter" href="create.html" style="text-align:center;text-decoration:none;display:flex;align-items:center;justify-content:center">Create New Character</a>
+<button class="import" id="importLink" type="button">Import character file</button>
+<input id="importSurvivor" type="file" accept="application/json,.json" hidden>
+<p id="rosterStatus" role="status"></p>
+</aside>
+</main>
+<footer>
+<a class="quiet" href="lab.html">Rules Lab</a>
+<button id="enterWorld" disabled>Enter World</button>
+<div class="footer-tools">
+<button class="quiet" id="renameCharacter" disabled>Rename</button>
+<button class="quiet" id="exportCharacter" disabled>Export</button>
+<button class="quiet danger" id="deleteCharacter" disabled>Delete Character</button>
+</div>
+</footer>
+</div>
+<script type="module" src="survivors.js"></script>
+</body>
+</html>

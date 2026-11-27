@@ -167,3 +167,15 @@ Extract over v0.6.3 at the repository root. No save or schema changes; no rule c
 - Inventory disables Experiment and explains why when the survivor can no longer identify a device (new `canIdentify` in `technology.js`, a reachability check over the printed chart with the survivor's modifiers). Restart and Mara-led research are unchanged.
 - The creation wizard clears a stale error as soon as a selection changes. Damage log lines no longer have a stray space.
 - Verified in headless Chrome at 1440×900 and 390×800: roster, wizard, exploration, embedded combat, inventory. 99 game tests and 3 lobby tests pass.
+
+## v0.6.5 — MMO-style shell
+
+Extract over v0.6.4 (or v0.6.3) at the repository root. No save or schema changes and no rule changes.
+
+- `index.html` is now Character Select: the character list with Create New Character and Import, a large preview of the selected character (attributes, HP, AC, gear, mutations), and one Enter World button. Rename, Export and Delete Character act on the selected character. Drafts show Resume Creation; dead characters cannot enter. Practice combat is reached from the Rules Lab.
+- `play.html` is the in-world screen. The viewport fills the window. Floating over it: the character frame and target frame (top left), a World map / Local map / Scene switch (only Local map exists; the other two are disabled), a minimap of the local area (top right), zoom buttons (bottom left) and the action bar (bottom centre). The top row has Character, Inventory, Map, Journal, Hide panel, Rules Lab and Character Select.
+- The sidebar has Chat, Events, Party (disabled until followers exist) and Bag tabs. Chat is the default and carries system lines, world events, the player's messages and NPC dialogue. Talking to Mara posts her lines in chat with reply buttons (forest, ruins, Trade, Rest one day, Rest until healed, or Repair for robots). Events holds the full log including combat rolls; the sidebar switches to Events when combat starts and back to Chat afterwards.
+- Inventory opens the Bag tab. Character, Map, Journal and Mara's trading post open in a floating window over the viewport. No modal dialogs remain in play.
+- Embedded combat uses the same overlays: the tactical HUD becomes the frames, round information sits top right, and the tactical action bar takes the bottom-centre slot. `tactical.html` on its own is unchanged.
+- New `mmo.css` styles both screens; `play.html` no longer loads `world.css` or `shell.css`. Shared navigation on the other pages now reads Character Select / Play / Rules Lab.
+- Verified in headless Chrome at 1440x900, 1280x720 and 390x800. 99 game tests and 3 lobby tests pass.

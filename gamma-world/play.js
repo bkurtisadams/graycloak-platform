@@ -6,13 +6,45 @@ const $ = id => id === 'worldArea' ? worldArea : worldArea.querySelector('#' + i
 let entry = null, c = null, path = [], timer = null, combat = null, opening = false, worldZoom = 36;
 const printedByCharacter = new Map();
 const device = () => entry?.inventory.find(i => i.id === 'outpost-device')?.artifact;
+function post(kind, text, speaker) {
+    const feed = $('messages'), line = el('p');
+    line.className = 'msg ' + kind;
+    if (speaker) line.append(el('strong', speaker + ': '), text);
+    else line.textContent = kind === 'system' ? '[System] ' + text : kind === 'event' ? '[Event] ' + text : text;
+    feed.append(line);
+    while (feed.children.length > 200) feed.firstChild.remove();
+    feed.scrollTop = feed.scrollHeight;
+    return line;
+}
+function choices(options) {
+    for (const old of $('messages').querySelectorAll('.choices')) old.remove();
+    const line = el('p');
+    line.className = 'msg choices';
+    for (const [label, fn, hidden] of options) {
+        if (hidden) continue;
+        const b = el('button', label);
+        b.type = 'button';
+        b.onclick = fn;
+        line.append(b);
+    }
+    $('messages').append(line);
+    $('messages').scrollTop = $('messages').scrollHeight;
+}
+function showTab(name) {
+    for (const [tab, pane] of [['chatTab', 'chat'], ['eventsTab', 'events'], ['bagTab', 'bagPane']]) {
+        const on = tab === name + 'Tab';
+        $(pane).hidden = !on;
+        $(tab).setAttribute('aria-pressed', String(on));
+    }
+    $('chatForm').hidden = name !== 'chat';
+    if (name === 'bag') showBag();
+}
 function log(msg) { $('events').append(el('p', msg)); if ($('events').children.length > 300)
-    $('events').firstChild.remove(); $('events').scrollTop = $('events').scrollHeight; }
+    $('events').firstChild.remove(); $('events').scrollTop = $('events').scrollHeight; post('event', msg); }
 function say(msg) { $('guidance').textContent = msg; }
 function stop() { clearInterval(timer); timer = null; path = []; }
 function atSite() { return entry && WORLD.sites.find(s => s.x === entry.position.x && s.y === entry.position.y); }
 function render() {
-    $('saveIndicator').textContent = c ? 'Local autosave' : 'Select a survivor';
     const board = $('board');
     board.style.gridTemplateColumns = `repeat(${WORLD.width},var(--cell))`;
     board.style.gridTemplateRows = `repeat(${WORLD.height},var(--cell))`;
@@ -30,11 +62,14 @@ function render() {
         }
     board.replaceChildren(...cells);
     $('name').textContent = c?.name || 'No active character';
-    $('stats').textContent = c ? `${c.hp}/${c.maxHp} HP · AC ${c.armorClass} · ${c.experience} XP` : '';
+    $('stats').textContent = c ? `${c.hp} / ${c.maxHp} HP · ${c.experience} XP${c.bleeding ? ' · Bleeding' : ''}` : '';
+    $('unitAc').textContent = c ? `AC ${c.armorClass}` : '';
+    $('worldHpFill').style.width = c ? `${100 * c.hp / c.maxHp}%` : '0';
+    $('dayLabel').textContent = entry ? `Day ${(entry.days ?? 0) + 1}` : '';
+    const pct = (n, of) => `${100 * n / of}%`, dot = (cls, x, y) => { const i = el('i'); i.className = cls; Object.assign(i.style, { left: pct(x, WORLD.width), top: pct(y, WORLD.height), width: pct(1, WORLD.width), height: pct(1, WORLD.height) }); return i; };
+    $('minimap').replaceChildren(...WORLD.walls.map(p => dot('w', p[0], p[1])), ...WORLD.sites.map(p => dot('s', p.x, p.y)), ...(entry ? [dot('p', entry.position.x, entry.position.y)] : []));
     const s = atSite();
     $('site').textContent = s?.name || 'Wilderness';
-    $('position').textContent = entry ? `Grid ${entry.position.x + 1}, ${entry.position.y + 1}` : '';
-    $('inventory').textContent = c ? `${gw.getWeapon(c.equipment.weaponId).name} · ${gw.getArmor(c.equipment.armorId).name} · ${entry.inventory.map(i => i.artifact?.identified ? `${i.artifact.definition.name} (${i.artifact.charges} shots)` : i.name).join(', ') || 'No recovered items'}` : '';
     for (const action of gw.worldActions({ entry, character: c, site: s, moving: !!timer })) {
         const b = $(action.id);
         b.hidden = !action.visible;
@@ -44,23 +79,31 @@ function render() {
     } // Artifact interactions belong in inventory, not the exploration toolbar.
     $('experiment').hidden = true;
     $('install').hidden = true;
-    $('worldStatus').textContent = c ? `${c.name} · ${(entry.encounter || entry.pendingEncounter) ? 'Encounter in progress' : c.hp <= 0 ? 'Deceased' : 'Exploration'}` : 'Choose or create a survivor from Survivors.';
+    const busy = !c || c.hp <= 0 || !!(entry.encounter || entry.pendingEncounter), town = s?.kind === 'town';
+    $('tradeBtn').hidden = !town;
+    $('tradeBtn').disabled = busy;
+    $('restBtn').hidden = !town;
+    $('restBtn').disabled = busy;
+    $('restBtn').textContent = c?.species === 'robot' ? 'Repair' : 'Rest';
+    const powers = c ? gw.availableActions(c).filter(a => !['weapon', 'advance', 'rest', 'bind', 'flee'].includes(a.id)).slice(0, 4) : [];
+    $('powerDivider').hidden = !powers.length;
+    $('worldPowers').replaceChildren(...powers.map((a, i) => { const b = el('button', `${i + 1} ${a.label}`); b.className = 'slot-key'; b.disabled = true; b.title = `${a.label}: available in combat`; return b; }));
 }
 function load(id) { stop(); entry = null; c = null; try {
     entry = selectRecord(id);
-    if (entry.wizardDraft) throw Error('Finish this draft from Survivors before playing.');
+    if (entry.wizardDraft) throw Error('Finish this draft from Character Select before playing.');
     c = characterFor(entry);
     if (c.hp > 0 && !entry.started)
         entry = updateEntry(id, e => ({ ...e, started: true, domars: purse(e), owned: owned(e) }));
-    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Survivors.' : 'Click terrain to walk. Visit Eden Valley, the forest clearing or the Ancient outpost.');
+    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Click terrain to walk. Visit Eden Valley, the forest clearing or the Ancient outpost.');
 }
 catch (e) {
-    say(e.message + ' — open Survivors to continue.');
+    say(e.message + ' — open Character Select to continue.');
 } render(); }
 function refresh() { const d = readCampaign(); const placeholder = el('option', 'Select character'); placeholder.value = ''; $('roster').replaceChildren(placeholder, ...Object.values(d.characters).map(e => { const o = el('option', e.record.base.name || 'Unnamed survivor'); o.value = e.id; return o; })); $('roster').value = d.active || ''; if (d.active)
     load(d.active);
 else {
-    say('Choose or create a survivor from Survivors.');
+    say('Choose or create a survivor from Character Select.');
     render();
 } }
 $('roster').addEventListener('change', () => load($('roster').value));
@@ -106,7 +149,7 @@ $('interact').onclick = () => { stop(); const s = atSite(); if (opening || comba
         log('Recovered an unidentified device. Open Inventory and choose Experiment.');
     }
     else
-        showTown();
+        talkMara();
     render();
 }
 catch (err) {
@@ -138,19 +181,23 @@ $('install').onclick = () => { try {
 catch (e) {
     say(e.message);
 } };
-for (const [id, chat] of [['eventsTab', false], ['chatTab', true]])
-    $(id).onclick = () => { $('events').hidden = chat; $('chat').hidden = !chat; $('eventsTab').setAttribute('aria-pressed', String(!chat)); $('chatTab').setAttribute('aria-pressed', String(chat)); };
+$('chatTab').onclick = () => showTab('chat');
+$('eventsTab').onclick = () => showTab('events');
+$('bagTab').onclick = () => showTab('bag');
 $('chatForm').onsubmit = e => { e.preventDefault(); const msg = $('chatText').value.trim(); if (msg) {
     const line = `${c?.name || 'You'}: ${msg}`;
     const data = JSON.parse(localStorage.getItem('graycloak.gw.chat.local') || '[]');
     data.push(line);
     localStorage.setItem('graycloak.gw.chat.local', JSON.stringify(data.slice(-100)));
-    $('messages').append(el('p', line));
+    post('me', msg, c?.name || 'You');
 } $('chatText').value = ''; };
 try {
-    for (const line of JSON.parse(localStorage.getItem('graycloak.gw.chat.local') || '[]'))
-        $('messages').append(el('p', line));
+    for (const line of JSON.parse(localStorage.getItem('graycloak.gw.chat.local') || '[]')) {
+        const at = line.indexOf(': ');
+        if (at > 0) post('me', line.slice(at + 2), line.slice(0, at)); else post('me', line);
+    }
     refresh();
+    if (c) post('system', `Welcome back, ${c.name || 'survivor'}. Day ${(entry.days ?? 0) + 1} in Eden Valley.`);
     if (c && (entry?.encounter || entry?.pendingEncounter)) queueMicrotask(()=>beginCombat());
 }
 catch (e) {
@@ -183,12 +230,12 @@ async function beginCombat() {
         const mod = await import('./tactical.js');
         if (entry.id !== id)
             throw Error('Character changed; try again');
-        $('utilityPanel').hidden=true; utilityMode=false; document.body.classList.remove('expanded-map'); $('mapExpand').textContent='Expand map'; activeUtility=null; worldArea.remove();
+        $('utilityPanel').hidden=true; activeUtility=null; area.append($('utilityPanel')); worldArea.remove(); showTab('events');
         area.hidden = false;
-        combat = mod.mountTactical({ root: area, information: $('sharedInformation'), embedded: true, characterId: id, onChange:()=>{if(utilityMode && activeUtility===showSheet && !$('utilityPanel').hidden) showSheet();}, initialPrinted: entry.encounter ? printedByCharacter.get(id) ?? 0 : 0, onExit: () => { const previous = combat?.getState(); if (previous?.status === 'active')
+        combat = mod.mountTactical({ root: area, information: $('sharedInformation'), embedded: true, characterId: id, onChange:()=>{if(activeUtility===showSheet && !$('utilityPanel').hidden) showSheet();}, initialPrinted: entry.encounter ? printedByCharacter.get(id) ?? 0 : 0, onExit: () => { const previous = combat?.getState(); if (previous?.status === 'active')
                 printedByCharacter.set(id, previous.log.length);
             else
-                printedByCharacter.delete(id); combat?.dispose(); combat = null; area.hidden = true; area.replaceChildren(); $('worldShell').prepend(worldArea); load(id); log('Returned to exploration.'); } });
+                printedByCharacter.delete(id); combat?.dispose(); combat = null; worldArea.append($('utilityPanel')); $('utilityPanel').hidden = true; activeUtility = null; area.hidden = true; area.replaceChildren(); $('worldShell').prepend(worldArea); load(id); showTab('chat'); log('Returned to exploration.'); fitWorld(); } });
         if (!combat.getState()) {
             combat.dispose();
             combat = null;
@@ -196,6 +243,7 @@ async function beginCombat() {
         }
     }
     catch (e) {
+        worldArea.append($('utilityPanel'));
         $('combatArea').replaceChildren();
         $('combatArea').hidden = true;
         if (!worldArea.isConnected)
@@ -206,16 +254,15 @@ async function beginCombat() {
         opening = false;
     }
 }
-let utilityMode = false;
 let activeUtility = null;
 function dialog(title, body) { stop(); if (!combat && !opening)
     render();
-    if (utilityMode) { $('utilityTitle').textContent=title; $('utilityBody').replaceChildren(...body); $('utilityPanel').hidden=false; return; } $('dialogTitle').textContent = title; $('dialogBody').replaceChildren(...body); if (!$('gameDialog').open)
-    $('gameDialog').showModal(); }
+    $('utilityTitle').textContent = title; $('utilityBody').replaceChildren(...body); $('utilityPanel').hidden = false; }
 $('closeDialog').onclick = () => $('gameDialog').close();
-$('closeUtility').onclick=()=>{$('utilityPanel').hidden=true;utilityMode=false;activeUtility=null;};
-function utility(fn){return ()=>{if ($('gameDialog').open) return; utilityMode=true;activeUtility=fn;fn();};}
-$('mapExpand').onclick=()=>{const expanded=document.body.classList.toggle('expanded-map');$('mapExpand').textContent=expanded?'Restore panel':'Expand map';};
+const closeWindow = () => { $('utilityPanel').hidden = true; activeUtility = null; };
+$('closeUtility').onclick = closeWindow;
+function utility(fn) { return () => { if (activeUtility === fn && !$('utilityPanel').hidden) { closeWindow(); return; } activeUtility = fn; fn(); }; }
+$('mapExpand').onclick = () => { const expanded = document.body.classList.toggle('expanded-map'); $('mapExpand').textContent = expanded ? 'Show panel' : 'Hide panel'; if (!combat) fitWorld(); };
 function current() { if (!entry)
     throw Error('Select a saved character'); entry = readCampaign().characters[entry.id]; c = characterFor(entry); return c; }
 function row(text, buttons = []) { const r = el('div'); r.className = 'item-row'; r.append(el('span', text)); for (const [label, fn, disabled] of buttons) {
@@ -232,8 +279,8 @@ function run(fn, next) { try {
     next();
 }
 catch (e) {
-    $(utilityMode?'utilityBody':'dialogBody').prepend(el('p', e.message));
     say(e.message);
+    post('system', e.message);
 } }
 function showSheet() { try {
     const ch = current(), stats = el('div');
@@ -263,7 +310,7 @@ function showBag() { try {
     for (const item of entry.inventory) {
         const a = item.artifact, buttons = [];
         if (a) {
-            buttons.push(['Examine', () => dialog('Artifact', [el('p', a.identified ? a.definition.name : 'Unidentified Ancient device'), el('p', a.identified ? `${a.charges ?? 0} shots remaining${a.conditionKnown && a.functioning === false ? ' · Nonfunctional' : ''}` : 'Its purpose is unknown.'), row('Return', [['Back', showBag]])])]);
+            buttons.push(['Examine', () => dialog('Artifact', [el('p', a.identified ? a.definition.name : 'Unidentified Ancient device'), el('p', a.identified ? `${a.charges ?? 0} shots remaining${a.conditionKnown && a.functioning === false ? ' · Nonfunctional' : ''}` : 'Its purpose is unknown.'), row('Done', [['Close', closeWindow]])])]);
             if (!a.identified) {
                 const stuck = !gw.canIdentify(a, { IN: ch.attributes.IN, mutations: ch.mutations, scientificGenius: ch.effects.scientificGenius });
                 if (stuck) body.push(el('p', a.node === 'S' ? 'This device is beyond this survivor’s understanding. Ask Mara in Eden Valley to lead the research.' : 'This line of experiment is a dead end. Restart identification, or ask Mara in Eden Valley to lead the research.'));
@@ -278,12 +325,38 @@ function showBag() { try {
     }
     if (!entry.inventory.length)
         body.push(el('p', 'No recovered items.'));
-    dialog('Inventory', body);
+    $('bagPane').replaceChildren(...body);
 }
 catch (e) {
     say(e.message);
 } }
-function showTown() { utilityMode=false; activeUtility=null; $('utilityPanel').hidden=true; const body = [el('p', 'Mara, the trader: “Welcome to Eden Valley. Stock up before you follow the old road.”'), row('Ask about the forest', [['Talk', () => dialog('Mara', [el('p', '“Badders have been seen near the clearing. Keep your weapon ready, but talk first if they allow it.”'), row('Return', [['Back', showTown]])])]]), row('Ask about the ruins', [['Talk', () => dialog('Mara', [el('p', '“An Ancient outpost lies east of the clearing. Bring any strange devices back to study.”'), row('Return', [['Back', showTown]])])]]), row('Browse supplies', [['Trade', showTrade]]), el('p', `Days rested: ${entry.days ?? 0}`), row('Recover at camp', [['Rest one day', () => run(rest, showTown)], ['Rest until healed', () => run(e => rest(e, true), showTown), c?.species === 'robot'], ['Repair robot', () => run(repair, showTown), c?.species !== 'robot']])]; dialog('Eden Valley · Mara', body); }
+const MARA = 'Mara';
+const inTown = () => atSite()?.kind === 'town' && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter);
+function maraTopics() {
+    choices([
+        ['Ask about the forest', () => ask('What is out in the forest?', 'Badders have been seen near the clearing. Keep your weapon ready, but talk first if they allow it.')],
+        ['Ask about the ruins', () => ask('Anything worth salvaging in the ruins?', 'An Ancient outpost lies east of the clearing. Bring any strange devices back and we will study them.')],
+        ['Trade', () => { if (leftTown()) return; showTrade(); }],
+        ['Rest one day', () => restAt(false), c?.species === 'robot'],
+        ['Rest until healed', () => restAt(true), c?.species === 'robot'],
+        ['Repair', () => restAt(false), c?.species !== 'robot'],
+    ]);
+}
+function leftTown() { if (inTown()) return false; post('system', 'You are no longer with Mara in Eden Valley.'); for (const old of $('messages').querySelectorAll('.choices')) old.remove(); return true; }
+function ask(question, answer) { if (leftTown()) return; post('me', question, c.name || 'You'); post('npc', answer, MARA); maraTopics(); }
+function talkMara() { showTab('chat'); post('npc', 'Welcome to Eden Valley. Stock up before you follow the old road.', MARA); maraTopics(); }
+function restAt(untilHealed) {
+    if (leftTown()) return;
+    try {
+        stop();
+        const before = entry.days ?? 0, robot = c.species === 'robot';
+        entry = updateEntry(entry.id, e => robot ? repair(e) : rest(e, untilHealed));
+        c = characterFor(entry);
+        render();
+        const days = (entry.days ?? 0) - before;
+        log(robot ? `Repairs made. ${c.hp} / ${c.maxHp} HP.` : `Rested ${days} day${days === 1 ? '' : 's'}. ${c.hp} / ${c.maxHp} HP.`);
+    } catch (e) { say(e.message); post('system', e.message); }
+}
 function showTrade() { try {
     current();
     const o = owned(entry), body = [el('p', `Purse: ${purse(entry)} domars · resale at half price (prototype policy).`)];
@@ -293,14 +366,16 @@ function showTrade() { try {
             continue;
         body.push(row(`${item.name} · ${item.price} domars`, [['Buy', () => run(e => buy(e, item.id), showTrade), purse(entry) < item.price || has && item.id !== 'spare-part'], ['Sell', () => run(e => sell(e, item.id), showTrade), item.kind === 'item' || !has || entry.record.equipment[item.kind + 'Id'] === item.id]]));
     }
-    body.push(row('Return', [['Back', showTown]]));
+    body.push(row('Done trading', [['Close', closeWindow]]));
     dialog('Mara · Trading post', body);
 }
 catch (e) {
     say(e.message);
 } }
 $('sheetBtn').onclick = utility(showSheet);
-$('bagBtn').onclick = utility(showBag);
+$('bagBtn').onclick = () => showTab('bag');
+$('tradeBtn').onclick = () => { if (inTown()) { activeUtility = showTrade; showTrade(); } };
+$('restBtn').onclick = () => restAt(true);
 $('journalBtn').onclick = utility(() => dialog('Journal', [el('p', 'Eden Valley: visit the settlement for supplies, conversation and trade.'), el('p', 'Forest clearing: investigate the patrol.'), el('p', 'Ancient outpost: recover and identify the device.'), el('p', 'Prototype region; authored campaign coordinates not yet mapped.')]));
 function zoomWorld(n) { worldZoom = Math.max(20, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); }
 $('worldZoomIn').onclick = () => zoomWorld(worldZoom + 6);
@@ -331,6 +406,6 @@ document.addEventListener('keydown', e => { if (e.repeat || e.ctrlKey || e.metaK
 }
 else if (e.key === 'Enter' && !e.target.closest?.('button,a')) {
     e.preventDefault();
-    document.body.classList.remove('expanded-map'); $('mapExpand').textContent='Expand map'; $('chatTab').onclick();
+    document.body.classList.remove('expanded-map'); $('mapExpand').textContent='Hide panel'; $('chatTab').onclick();
     $('chatText').focus();
 } });
