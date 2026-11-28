@@ -1,5 +1,5 @@
 import { getWeapon, getArmor, deriveCharacter, healRest } from '../packages/gamma-world-rules/index.js';
-import { applyProgress } from './campaign.js';
+import { applyProgress, applyAdvancement, settleExperience } from './campaign.js';
 // Printed p.37 category prices. Specific stock, resale, starting purse and local NPCs are referee policies.
 export const STOCK = Object.freeze([
     { id: 'dagger', kind: 'weapon', price: 50 }, { id: 'short-sword', kind: 'weapon', price: 50 }, { id: 'long-sword', kind: 'weapon', price: 50 }, { id: 'arrow', kind: 'weapon', price: 75 }, { id: 'crossbow', kind: 'weapon', price: 100 },
@@ -7,7 +7,13 @@ export const STOCK = Object.freeze([
 ].map(x => Object.freeze({ ...x, name: x.name ?? (x.kind === 'weapon' ? getWeapon(x.id).name : getArmor(x.id).name) })));
 export const purse = e => e.domars ?? 100;
 export function owned(e) { return e.owned ?? { weapon: [e.record.equipment.weaponId], armor: ['none', e.record.equipment.armorId].filter((v, i, a) => a.indexOf(v) === i) }; }
-export function characterFor(e) { const r = e.record; return applyProgress(deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg }), e.progress); }
+export function characterFor(e) { const r = e.record; return applyAdvancement(applyProgress(deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg }), e.progress), e); }
+// Adds experience outside combat (identified artifacts) and rolls any bonus the new total earns.
+export function awardExperience(e, points, rng = Math.random) {
+    const c = characterFor(e), before = c.experience;
+    const progress = { damage: c.maxHp - c.hp, MS: c.attributes.MS, mentalResistance: c.effects.mentalResistance, bleeding: c.bleeding, totalHealingUses: c.totalHealingUses ?? [], ...e.progress, experience: before + points };
+    return settleExperience({ ...e, progress }, before, c.attributes, rng);
+}
 function check(e, town = false) { if (e.encounter || e.pendingEncounter)
     throw Error('Finish the encounter first'); if (characterFor(e).hp <= 0)
     throw Error('Character is dead'); if (town && (e.position.x !== 2 || e.position.y !== 5))

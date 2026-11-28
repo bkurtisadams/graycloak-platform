@@ -68,3 +68,4 @@ export * from './character-mechanics.js';
 export * from "./encounter.js";
 export * from "./technology.js";
 export * from "./actions.js";
+export * from "./experience.js";

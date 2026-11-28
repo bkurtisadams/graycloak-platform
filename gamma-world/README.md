@@ -199,3 +199,24 @@ Extract over v0.6.6 at the repository root. No save, schema or rule changes; the
 - End of fight: a banner in the middle of the map states Victory, Defeat, withdrawal or a peaceful parting, with experience and HP, and one button to return to exploration (New encounter on the practice page). The action-bar Return to exploration button remains.
 - The pause button is now labelled "Leave (pause fight)".
 - Verified in headless Chrome at 1440x900. 99 game tests and 3 lobby tests pass.
+
+## v0.6.8 — reaction rolls, intelligent morale, experience
+
+Extract over v0.6.7 at the repository root. Existing saves load unchanged; an encounter already in progress keeps its old behaviour until it ends.
+
+### Printed rules now in play
+- Reaction table (p.7): 2d6 with the Charisma reaction adjustment and the character-type adjustment; 2 extremely hostile, 3-5 hostile, 6-8 uncertain, 9-11 friendly, 12 enthusiastic. An offer adds 1 (the book's normal limit).
+- Morale (p.21): intelligent beings stay on 3 or better on d10 and must keep checking each round once a check has been called for.
+- Experience (pp.41-42): hit points of each foe killed (already present); the listed value of an artifact once it is correctly identified (laser pistol 1,000, hydrogen energy cell 150); a d10 roll on the bonus matrix each time the total reaches 3,000, 6,000, 12,000, 25,000, 50,000, 100,000, 200,000, 500,000, 1,000,000 and each further 1,000,000. An attribute already at 18 gains nothing and is not rerolled.
+
+### Automated-referee policies (not printed rules)
+- Every creature in the catalog gets the reaction roll except the Ark, which attacks as its entry says. Badders and Brutorz can be spoken with, so the Charisma and character-type adjustments apply and the player may make offers. Podogs and Arns cannot, so their roll is unadjusted and made by the referee at once: 9 or more and they move off, 6-8 and they watch, 5 or less and they attack.
+- When: at the start of an encounter. With creatures that can be spoken with, if the player holds the first-strike option nothing happens until the player chooses Talk, Offer a gift and talk (10 domars, +1), Attack or Back away. If the creatures hold it, the referee rolls their reaction at once.
+- Results: 9 or more ends the encounter in peace (and settles the forest clearing). 5 or less means they attack ("may attack" in the table is read as does), and as printed no further attempt can be made; if the player was the one talking, that used the player's action for the round. 6-8 is a standoff. The printed bar on further attempts covers only the hostile results, so after an uncertain result the player may roll again, each time with a fresh offer of 10 domars at +1; any of those rolls can turn hostile. Backing away from a meeting is free and does not settle the site.
+- No movement during a meeting, so the player cannot walk up to a waiting creature and then strike first.
+- Intelligent morale triggers: below half hit points, or half or more of their side down. A creature that flees gives no experience. Legacy callers of `createEncounter` get neither meetings nor intelligent morale unless they pass `meeting: true` and `intelligentMorale: true`; the play and practice pages pass both.
+- The hydrogen cell is named when found, so its 150 experience is awarded on recovery. An artifact's experience is awarded on identification whoever led the research.
+- Experience bonuses: Mental Strength gains are stored with combat progress; other gains are applied when the character is loaded. Constitution gained this way does not reroll hit points. The to-hit bonus applies to weapon attacks; the damage bonus adds 1 per die rolled with ordinary weapons.
+- The Character window lists experience, the next bonus total and bonuses earned.
+
+Verified in headless Chrome at 1440x900. 108 game tests and 3 lobby tests pass.

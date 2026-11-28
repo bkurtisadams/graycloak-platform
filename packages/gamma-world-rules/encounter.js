@@ -2,11 +2,11 @@
 import { die, dice, charisma, initiative, physicalAttack, integer, naturalTarget, mentalBlast, characterMovement, receiveDamage, bleedingRound, bindWounds, totalHealing, radiation, characterHazard, physicalPower, PHYSICAL_POWER_RULES, getWeapon, getArmor, equipmentAttack, deriveCharacter, generateCharacter, mutationDraft, laserAttack } from './index.js';
 export const GRID_METERS = 3;
 export const CREATURES = Object.freeze({
-    badder: { name: 'Badder', ac: 4, hd: 6, move: 12, ms: 16, dx: 18, intelligent: true, weapon: 'club', large: false, notes: 'p.22–23: empathy, keen smell, hard of hearing; club loadout is a sandbox choice.' },
+    badder: { name: 'Badder', meeting: 'roll', speaks: true, ac: 4, hd: 6, move: 12, ms: 16, dx: 18, intelligent: true, weapon: 'club', large: false, notes: 'p.22–23: empathy, keen smell, hard of hearing; club loadout is a sandbox choice.' },
     ark: { name: 'Ark', ac: 4, hd: 8, move: 15, ms: 10, dx: 10, intelligent: true, weapon: 'club', large: true, notes: 'p.22: club and shield; telekinesis, weather and life leech not implemented.' },
-    podog: { name: 'Podog', ac: 5, hd: 4, move: 15, ms: null, dx: 10, intelligent: false, natural: [2, 6], large: true, notes: 'p.26: wild Podog, bite/slash 2d6; opening mimicked cry and poison immunity; mounted AC, pack tactics and rare dual brains pending.' },
-    brutorz: { name: 'Brutorz', ac: 7, hd: 14, move: 18, ms: 12, dx: 10, intelligent: true, natural: [3, 6], large: true, notes: 'p.23: practice encounter only, bite 3d6; alternate kicks and precognition pending.' },
-    arn: { name: 'Arn', ac: 9, hd: 8, move: 3, ms: null, dx: 10, intelligent: false, natural: [2, 6], large: false, notes: 'p.22: provoked ground encounter, no flight simulated.' },
+    podog: { name: 'Podog', meeting: 'roll', ac: 5, hd: 4, move: 15, ms: null, dx: 10, intelligent: false, natural: [2, 6], large: true, notes: 'p.26: wild Podog, bite/slash 2d6; opening mimicked cry and poison immunity; mounted AC, pack tactics and rare dual brains pending.' },
+    brutorz: { name: 'Brutorz', meeting: 'roll', speaks: true, ac: 7, hd: 14, move: 18, ms: 12, dx: 10, intelligent: true, natural: [3, 6], large: true, notes: 'p.23: practice encounter only, bite 3d6; alternate kicks and precognition pending.' },
+    arn: { name: 'Arn', meeting: 'roll', ac: 9, hd: 8, move: 3, ms: null, dx: 10, intelligent: false, natural: [2, 6], large: false, notes: 'p.22: provoked ground encounter, no flight simulated.' },
 });
 const weaponStart = { 'battle-axe': 14, 'hand-axe': 14, arrow: 15, crossbow: 15, club: 15, dagger: 18, flail: 12, javelin: 16, lance: 14, mace: 14, 'morning-star': 13, polearm: 12, 'sling-bullet': 18, 'sling-stone': 18, spear: 16, 'long-sword': 14, 'short-sword': 14, 'two-handed-sword': 11 };
 export function fatigueFactor({ weaponId, armorAC = 10, rounds = 0, rest = 0, PS = 10, synthetic = false }) { integer(rounds, 0, 100000); integer(rest, 0, 100000); if (synthetic)
@@ -25,11 +25,11 @@ const emptyEffects = () => ({ movementMultiplier: 1, attacksPerRound: 1, mentalR
 function unit(c, id, x, y, side, extra = {}) { return { ...clone(c), id, x, y, side, hd: c.attributes.CN, large: false, intelligent: true, normalMove: 12, fled: false, dying: false, rest: 0, fightRounds: 0, uses: {}, mentalSuccesses: 0, mentalDefenses: 0, plantCharge: 4, ...extra }; }
 function enemy(key, i, rng) { const d = CREATURES[key]; if (!d)
     throw Error('Unknown creature'); const hp = dice(d.hd, 6, rng), ms = d.ms ?? dice(3, 6, rng); return unit({ name: `${d.name} ${i + 1}`, species: 'creature', attributes: { MS: ms, IN: 10, DX: d.dx, CH: 10, CN: 10, PS: 10 }, hp, maxHp: hp, armorClass: d.ac, mutations: [], equipment: { weaponId: d.weapon ?? null, armorId: 'none' }, effects: { ...emptyEffects(), mentalResistance: ms, poisonResistance: 10, poisonImmune: key === 'podog', radiationResistance: 10 }, reviewRequired: [], experience: 0 }, `npc-${i + 1}`, 11, 2 + i * 3, 'right', { hd: d.hd, large: d.large, intelligent: d.intelligent, normalMove: d.move, natural: d.natural ?? null, creatureKey: key }); }
-export function createEncounter(character, { creature = 'badder', count = 1, rng = Math.random, surprisePossible = true, blocked = [] } = {}) { if (!character?.selectionComplete || !character.effects || character.hp <= 0)
+export function createEncounter(character, { creature = 'badder', count = 1, rng = Math.random, surprisePossible = true, blocked = [], meeting = false, intelligentMorale = false } = {}) { if (!character?.selectionComplete || !character.effects || character.hp <= 0)
     throw Error('Complete a living character first'); integer(count, 1, 3, 'opponents'); const player = unit(character, 'player', 2, 5, 'left'), actors = [player, ...Array.from({ length: count }, (_, i) => enemy(creature, i, rng))]; const order = firstStrike({ leftImmune: !!player.effects.surpriseImmune, possible: surprisePossible, rng }); if (creature === 'podog') {
     order.first = 'right';
     order.mimickedCry = true;
-} return { version: 1, round: 1, seconds: 0, width: 15, height: 11, blocked: structuredClone(blocked), actors, order, status: 'active', log: [`Round 1: first strike ${order.first === 'left' ? 'player' : 'creatures'} (${order.left}/${order.right}); ${order.leftSurprised && order.rightSurprised ? 'Both sides surprised' : order.leftSurprised ? 'Your side surprised' : order.rightSurprised ? 'Creatures surprised' : 'Neither side surprised'}.${order.mimickedCry ? ' Podog mimics the prey’s cry and takes first strike.' : ''}`], pendingRulings: [], xpAwarded: 0 }; }
+} return { intelligentMorale: !!intelligentMorale, meeting: meeting && CREATURES[creature].meeting === 'roll' ? { open: true, speaks: !!CREATURES[creature].speaks, talked: false, gifted: false, result: null } : null, version: 1, round: 1, seconds: 0, width: 15, height: 11, blocked: structuredClone(blocked), actors, order, status: 'active', log: [`Round 1: first strike ${order.first === 'left' ? 'player' : 'creatures'} (${order.left}/${order.right}); ${order.leftSurprised && order.rightSurprised ? 'Both sides surprised' : order.leftSurprised ? 'Your side surprised' : order.rightSurprised ? 'Creatures surprised' : 'Neither side surprised'}.${order.mimickedCry ? ' Podog mimics the prey’s cry and takes first strike.' : ''}`], pendingRulings: [], xpAwarded: 0 }; }
 export const blockedCell = (s, x, y) => (s.blocked ?? []).some(p => p.x === x && p.y === y);
 export function lineOfSight(s, a, b) { const dx = b.x - a.x, dy = b.y - a.y, n = Math.max(Math.abs(dx), Math.abs(dy)) * 2; for (let i = 1; i < n; i++) {
     const x = Math.round(a.x + dx * i / n), y = Math.round(a.y + dy * i / n);
@@ -308,8 +308,8 @@ export function resolveRound(state, plan, { rng = Math.random } = {}) {
     for (const a of s.actors) {
         a.acted = false;
         a.dying = false;
-        if (a.side === 'right' && active(a) && !a.intelligent && a.hp < a.maxHp / 2) {
-            const m = moraleCheck({ rng });
+        if (moraleDue(s, a)) {
+            const m = moraleCheck({ intelligent: a.intelligent, rng });
             note(s, `${a.name} morale d10 ${m.roll}: ${m.holds ? 'holds' : 'flees'}.`);
             if (!m.holds)
                 a.fled = true;
@@ -373,17 +373,60 @@ function enemyHalf(s, rng) { for (const a of enemies(s)) {
         moveActor(s, a, p);
     act(s, a, p, rng);
 } }
+// p.21: unintelligent creatures below half their hit points must check morale. Intelligent beings check only
+// in special circumstances; with intelligentMorale on, the automated referee treats being below half hit points,
+// or half their side being down, as such a circumstance. Fearless beings never check.
+function moraleDue(s, a) {
+    if (a.side !== 'right' || !active(a)) return false;
+    const hurt = a.hp < a.maxHp / 2;
+    if (!a.intelligent) return hurt;
+    if (!s.intelligentMorale || a.fearless) return false;
+    const side = s.actors.filter(x => x.side === 'right'), down = side.filter(x => !active(x)).length;
+    return hurt || (side.length > 1 && down * 2 >= side.length);
+}
+// p.7 reaction table with the Charisma and character-type adjustments. Who may be met, when the roll is made
+// and what each result leads to are automated-referee policies recorded in the README.
+export const REACTIONS = Object.freeze([[2, 'extremely hostile'], [5, 'hostile'], [8, 'uncertain'], [11, 'friendly'], [12, 'enthusiastic']]);
+export function reactionLabel(score) { return REACTIONS.find(([max]) => score <= max)[1]; }
+// The Charisma and character-type adjustments assume the two sides can communicate (p.8); without that the roll is unadjusted.
+function reactionRoll(s, bonus, rng) {
+    const p = pc(s), rolled = dice(2, 6, rng), modifier = (s.meeting?.speaks === false ? 0 : charisma(Math.min(18, Math.max(3, p.attributes.CH))).reaction + (p.species === 'animal' ? 0 : -1)) + bonus, score = Math.min(12, Math.max(2, rolled + modifier));
+    return { rolled, modifier, score, label: reactionLabel(score) };
+}
+function them(s) { const list = s.actors.filter(a => a.side === 'right' && active(a)), name = CREATURES[list[0]?.creatureKey]?.name ?? 'creature', many = list.length > 1; return { who: many ? `The ${name}s` : `The ${name}`, many }; }
+function settleMeeting(s, r, spoke) {
+    const m = s.meeting, { who, many } = them(s);
+    m.result = r;
+    note(s, `Reaction: 2d6 ${r.rolled}${r.modifier ? ` ${r.modifier > 0 ? '+' : '−'} ${Math.abs(r.modifier)}` : ''} = ${r.score}, ${r.label}.`);
+    if (r.score >= 9) { m.open = false; s.status = 'peaceful'; note(s, m.speaks ? `${who} ${r.score >= 12 ? (many ? 'greet' : 'greets') + ' you warmly' : (many ? 'mean' : 'means') + ' no harm'}. You part in peace.` : `${who} ${many ? 'show' : 'shows'} no interest in you and ${many ? 'move' : 'moves'} off.`); return; }
+    if (r.score <= 5) { m.open = false; note(s, m.speaks ? `${who} will not talk and ${many ? 'attack' : 'attacks'}.` : `${who} ${many ? 'attack' : 'attacks'}.`); if (spoke) { s.turn.action = 'parley'; pc(s).acted = true; } return; }
+    note(s, `${who} ${many ? 'hold their ground and watch' : 'holds its ground and watches'} you. ${m.speaks ? 'An offer might help, or you can attack or back away.' : 'Attack or back away.'}`);
+}
+export function meetingOptions(s) {
+    const m = s?.meeting;
+    if (!m?.open || s.status !== 'active') return null;
+    return { talk: m.speaks && !m.talked, gift: m.speaks, attack: true, leave: true, result: m.result };
+}
 function openHalf(s, rng) { for (const a of s.actors) {
     a.acted = false;
     a.dying = false;
-    if (a.side === 'right' && active(a) && !a.intelligent && a.hp < a.maxHp / 2) {
-        const m = moraleCheck({ rng });
-        note(s, `${a.name} morale: ${m.holds ? 'holds' : 'flees'}.`);
+    if (moraleDue(s, a)) {
+        const m = moraleCheck({ intelligent: a.intelligent, rng });
+        note(s, `${a.name} morale check (d10 ${m.roll}, needs ${a.intelligent ? 3 : 5}): ${m.holds ? 'holds' : 'breaks and flees'}.`);
         if (!m.holds)
             a.fled = true;
     }
-} s.turn = { moved: 0, action: null, queued: null, origin: { x: pc(s).x, y: pc(s).y }, pace: 'normal' }; if (s.order.first === 'right')
-    enemyHalf(s, rng); if (pc(s).hp <= 0 && !pc(s).dying)
+} s.turn = { moved: 0, action: null, queued: null, origin: { x: pc(s).x, y: pc(s).y }, pace: 'normal' };
+    if (s.meeting?.open && s.round === 1 && !s.meeting.result && (s.order.first !== 'left' || !s.meeting.speaks)) {
+        // The creatures hold the first-strike option, or cannot be spoken with: the referee rolls their reaction at once.
+        s.meeting.talked = true;
+        settleMeeting(s, reactionRoll(s, 0, rng), false);
+        if (s.status !== 'active') { s.turn.action = 'parley'; return; }
+        if (s.meeting.open) s.order = { ...s.order, first: 'left' };
+    }
+    if (s.meeting?.open) return;
+    if (s.order.first === 'right')
+        enemyHalf(s, rng); if (pc(s).hp <= 0 && !pc(s).dying)
     finishHalf(s, rng);
 else if (enemies(s).every(a => !active(a)))
     finishHalf(s, rng); }
@@ -417,11 +460,11 @@ export function beginInteractive(state, { rng = Math.random } = {}) { if (state.
 const paceRank = { normal: 0, trot: 1, charge: 2 };
 function effectivePace(s, requested = 'normal') { if (!Object.hasOwn(paceRank, requested))
     throw Error('Unknown pace'); const old = s.turn?.pace ?? 'normal'; return paceRank[requested] > paceRank[old] ? requested : old; }
-export function interactivePath(s, x, y, pace = 'normal') { const p = pc(s); if (s.status !== 'active' || !s.turn || s.turn.action || !active(p))
+export function interactivePath(s, x, y, pace = 'normal') { const p = pc(s); if (s.status !== 'active' || !s.turn || s.turn.action || !active(p) || s.meeting?.open)
     return null; const selected = effectivePace(s, pace), path = findPath(s, p.id, x, y, selected); return path && pathDistance(p, path) + s.turn.moved <= movementLimit(p, selected) + 1e-8 ? path : null; }
 // Optional first-strike negotiation for the limited Badder sandbox. Reaction table p.7;
 // eligibility and consequences are explicit automated-referee policies, not RAW diplomacy combat.
-export function canParley(s) { const p = pc(s); return s.status === 'active' && s.round === 1 && s.order.first === 'left' && s.turn && !s.turn.action && !s.turn.moved && active(p) && ['psh', 'humanoid', 'animal'].includes(p.species) && enemies(s).some(active) && enemies(s).filter(active).every(a => a.creatureKey === 'badder'); }
+export function canParley(s) { const p = pc(s); return !s.meeting && s.status === 'active' && s.round === 1 && s.order.first === 'left' && s.turn && !s.turn.action && !s.turn.moved && active(p) && ['psh', 'humanoid', 'animal'].includes(p.species) && enemies(s).some(active) && enemies(s).filter(active).every(a => a.creatureKey === 'badder'); }
 export function interactivePlan(s, action, targetId, mode) { if (s.status !== 'active' || !s.turn || s.turn.action)
     throw Error('Your action has already been used or encounter ended'); const p = pc(s); if (!active(p)) {
     if (!p.dying || targetId !== p.dyingTarget || !['weapon', 'natural', 'plant-8', 'physical-7', 'plant-14'].includes(action) || mode === 'missile')
@@ -434,7 +477,7 @@ export function interactivePlan(s, action, targetId, mode) { if (s.status !== 'a
     throw Error('Cannot use that attack after trotting or charging'); return planPlayer(s, { action, targetId, mode }); }
 export function interactiveCommand(state, command, { rng = Math.random } = {}) { if (state.status !== 'active' || !state.turn)
     throw Error('No active player turn'); if (command.expectedRevision !== state.revision)
-    throw Error('Stale combat action'); const s = clone(state), p = pc(s); if (command.type === 'move') {
+    throw Error('Stale combat action'); const s = clone(state), p = pc(s); if (s.meeting?.open && command.type !== 'meet') throw Error('Decide how to meet them first: talk, attack or back away'); if (command.type === 'move') {
     const pace = effectivePace(s, command.pace), path = interactivePath(s, command.x, command.y, pace);
     if (!path?.length)
         throw Error('Destination unreachable or movement already finished');
@@ -444,6 +487,22 @@ export function interactiveCommand(state, command, { rng = Math.random } = {}) {
     s.turn.moved += meters;
     s.turn.pace = pace;
     note(s, `${p.name} moves ${+meters.toFixed(1)} m (${pace}).`);
+}
+else if (command.type === 'meet') {
+    const m = s.meeting;
+    if (!m?.open) throw Error('There is no one to meet here');
+    if (command.choice === 'attack') { m.open = false; note(s, `${p.name} attacks.`); }
+    else if (command.choice === 'leave') { m.open = false; s.status = 'withdrawn'; note(s, `${p.name} backs away. ${them(s).who} ${them(s).many ? 'let' : 'lets'} you go.`); }
+    else if (command.choice === 'talk' || command.choice === 'gift') {
+        const gift = command.choice === 'gift';
+        if (!m.speaks) throw Error('They cannot be spoken with');
+        if (!gift && m.talked) throw Error('You have already spoken; make an offer to try again');
+        if (gift) m.gifted = true;
+        m.talked = true;
+        note(s, gift ? `${p.name} offers a gift and speaks.` : `${p.name} speaks.`);
+        settleMeeting(s, reactionRoll(s, gift ? 1 : 0, rng), true);
+    }
+    else throw Error('Unknown meeting choice');
 }
 else if (command.type === 'parley') {
     if (!canParley(s))

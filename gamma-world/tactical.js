@@ -1,4 +1,4 @@
-import { readCampaign, updateEntry, applyProgress, storeCombat } from './campaign.js';
+import { readCampaign, updateEntry, applyProgress, applyAdvancement, settleExperience, storeCombat } from './campaign.js';
 import * as gw from '../packages/gamma-world-rules/index.js';
 export function mountTactical({ root = null, information = null, embedded = false, characterId = null, initialPrinted = 0, onExit = null, onChange = null } = {}) {
     const $ = id => root?.querySelector('#' + id) ?? information?.querySelector('#' + id) ?? (!root ? document.getElementById(id) : null);
@@ -30,7 +30,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
             if (!campaignEntry)
                 throw Error('Select a saved character in the world first');
             const r = campaignEntry.record;
-            base = applyProgress(gw.deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg }), campaignEntry.progress);
+            base = applyAdvancement(applyProgress(gw.deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg }), campaignEntry.progress), campaignEntry);
             base.artifact = campaignEntry.inventory.find(i => i.id === 'outpost-device')?.artifact;
             if (base.hp <= 0 && !campaignEntry.encounter)
                 throw Error('Character is dead');
@@ -58,12 +58,12 @@ export function mountTactical({ root = null, information = null, embedded = fals
         return; const vp = $('viewport'); setZoom(Math.floor(Math.min(vp.clientWidth / state.width, vp.clientHeight / state.height))); vp.scrollTo(0, 0); }
     function commit(next, previous) { if (campaignMode)
         campaignEntry = updateEntry(campaignId, e => { const saved = e.encounter; if (previous ? (!saved || saved.round !== previous.round || saved.seconds !== previous.seconds || (saved.revision ?? 0) !== (previous.revision ?? 0)) : !!saved)
-            throw Error('Encounter changed in another tab. Reload to resume.'); return storeCombat(e, next); }); state = next; }
+            throw Error('Encounter changed in another tab. Reload to resume.'); const stored = storeCombat(e, next); return next.status === 'active' ? stored : settleExperience(stored, e.progress?.experience ?? 0, next.actors.find(a => a.id === 'player').attributes); }); state = next; }
     function start() { try {
         const old = campaignMode ? campaignEntry.encounter : null;
         if (campaignMode && state)
             return;
-        const fresh = old ?? gw.createEncounter(base, { creature: campaignEntry?.pendingEncounter?.creature ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
+        const fresh = old ?? gw.createEncounter(base, { creature: campaignEntry?.pendingEncounter?.creature ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: true, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
         if (campaignEntry?.pendingEncounter?.site)
             fresh.site = campaignEntry.pendingEncounter.site;
         commit(gw.beginInteractive(fresh), old);
@@ -114,7 +114,11 @@ export function mountTactical({ root = null, information = null, embedded = fals
     function invoke(id) { const a = actionStates().find(a => a.id === id); if (!a?.visible || !a.enabled) {
         guidance(a?.reason || 'Action unavailable');
         return;
-    } const before = state.revision, wasTarget = targetId; clearTimeout(autoTimer); command(a.command);
+    } if (a.command.type === 'meet') {
+            if (a.command.choice === 'gift' && campaignMode) { if ((campaignEntry.domars ?? 100) < GIFT) { guidance(`A gift costs ${GIFT} domars.`); return; } campaignEntry = updateEntry(campaignId, e => ({ ...e, domars: (e.domars ?? 100) - GIFT })); }
+            command(a.command);
+            return;
+        } const before = state.revision, wasTarget = targetId; clearTimeout(autoTimer); command(a.command);
         if (state.revision === before) return;
         if (id === 'endTurn') { scheduleAuto(); return; }
         if (PASSIVE.includes(id)) { stopAuto(); return; }
@@ -136,6 +140,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         const wc = gw.getWeapon(weaponId).wc, factor = gw.fatigueFactor({ weaponId, armorAC: gw.getArmor(a.equipment?.armorId ?? 'none').ac, rounds: (a.fightRounds ?? 0) + 1, rest: a.rest ?? 0, PS: a.attributes.PS, synthetic: a.species === 'robot' });
         return { factor, wc, blocked: factor >= wc, restNeeded: Math.max(0, factor - wc + 1) };
     }
+    const GIFT = 10;
     const RESULT = { victory: 'Victory', defeat: 'Defeat', withdrawn: 'You withdrew', peaceful: 'Parted in peace' };
     function showResult(ended) {
         const host = $('viewport')?.parentElement;
@@ -193,6 +198,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         $('targetName').textContent = t ? t.name : 'None';
         $('targetStats').textContent = t ? `${injury(t)} · ${gw.distance(p, t).toFixed(1)} m` : 'Click an opponent on the map.';
         const turn = state.turn ?? { moved: 0, action: null };
+        const meeting = gw.meetingOptions(state);
         const tired = fatigue(p);
         $('planText').textContent = `${turn.action ? 'Action used' : 'Action available'} · ${turn.action || p.hp <= 0 ? 0 : +Math.max(0, gw.movementLimit(p, turn.pace ?? 'normal') - turn.moved).toFixed(1)} m remaining${tired.factor ? ` · Fatigue −${tired.factor}: ${tired.blocked ? 'too tired to attack' : `weapon class ${tired.wc} → ${tired.wc - tired.factor}`}` : ''}`;
         const states = actionStates(), by = id => states.find(a => a.id === id);
@@ -203,6 +209,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         btn('bind');
         btn('flee');
         btn('parley');
+        if ($('gift')) { btn('gift'); if (meeting && campaignMode && (campaignEntry.domars ?? 100) < GIFT) { $('gift').disabled = true; $('gift').title = `A gift costs ${GIFT} domars`; } }
         btn('endTurn');
         if (!ended && tired.blocked && !turn.action) { $('attack').textContent = 'Too tired to attack'; if (!turn.moved) $('endTurn').textContent = 'Rest (End Turn)'; }
         $('mental').hidden = true;
@@ -222,6 +229,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
             $('leaveEncounter').hidden = ended;
         }
         showResult(ended);
+        if (meeting) { const r = meeting.result; guidance(r ? `They are ${r.label} (reaction ${r.score}). ${meeting.gift ? `Make an offer worth ${GIFT} domars to roll again at +1, attack, or back away.` : 'Attack or back away.'}` : `You have the first move and they have not attacked. Talk (2d6 reaction roll with your Charisma), offer a gift worth ${GIFT} domars for +1, attack, or back away.`); while (printed < state.log.length) addEvent(state.log[printed++]); return; }
         if (!ended && tired.blocked && !turn.action && !turn.queued && !(p.dying)) { guidance(`Fatigue: after ${p.fightRounds} rounds of fighting you are too tired to attack with the ${gw.getWeapon(p.equipment.weaponId).name}. Rest ${tired.restNeeded} round${tired.restNeeded === 1 ? '' : 's'} (End Turn without moving) to swing again, or Withdraw.`); while (printed < state.log.length) addEvent(state.log[printed++]); return; }
         guidance(ended ? `Encounter ${state.status}. ${state.pendingRulings.join('; ')}` : p.dying && !turn.action ? 'Dying stroke available. Target your attacker, attack at close range or End Turn.' : turn.queued ? 'Action declared. End Turn resolves both sides simultaneously.' : turn.action ? 'Action committed. End Turn to resolve remaining combat.' : !t ? 'Click a highlighted square to move, or select an opponent. End Turn to wait.' : error ? `${error}. Move into range or choose another legal action. End Turn when finished.` : 'Attack the selected opponent, or move before attacking. End Turn when finished.');
         while (printed < state.log.length)
@@ -306,6 +314,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
     $('bind').addEventListener('click', () => invoke('bind'));
     $('flee').addEventListener('click', () => invoke('flee'));
     $('parley').addEventListener('click', () => invoke('parley'));
+    $('gift')?.addEventListener('click', () => invoke('gift'));
     $('endTurn').addEventListener('click', e => { if (e.detail > 1)
         return; invoke('endTurn'); });
     $('action').addEventListener('change', render);

@@ -1,4 +1,5 @@
 // Local campaign persistence. No server authority or cross-player synchronization yet.
+import { thresholdsCrossed, rollExperienceBonus } from '../packages/gamma-world-rules/index.js';
 export const KEY = 'graycloak.gw.campaign.v1';
 export function readCampaign(storage = localStorage) { const raw = storage.getItem(KEY); return raw ? JSON.parse(raw) : { version: 1, active: null, characters: {} }; }
 export function writeCampaign(data, storage = localStorage) { storage.setItem(KEY, JSON.stringify(data)); return data; }
@@ -14,6 +15,39 @@ export function updateEntry(id, fn, storage = localStorage) { const d = readCamp
     throw Error('Character not found'); const next = fn(structuredClone(d.characters[id])); d.characters[id] = next; writeCampaign(d, storage); return next; }
 export function applyProgress(c, p) { if (!p)
     return c; return { ...c, hp: Math.max(0, c.maxHp - p.damage), experience: p.experience, attributes: { ...c.attributes, MS: p.MS }, effects: { ...c.effects, mentalResistance: p.mentalResistance }, bleeding: p.bleeding, totalHealingUses: p.totalHealingUses ?? [] }; }
+// Experience bonuses (printed p.42). Mental Strength gains live in progress because combat already carries them;
+// the rest are replayed onto the derived character. Constitution gained this way does not reroll hit points.
+export function applyAdvancement(c, entry) {
+    const bonuses = entry?.advancement?.bonuses;
+    if (!bonuses?.length) return c;
+    const attributes = { ...c.attributes }, effects = { ...c.effects };
+    for (const b of bonuses) {
+        if (b.kind === 'attribute' && b.attribute !== 'MS' && attributes[b.attribute] < 18) {
+            attributes[b.attribute]++;
+            if (b.attribute === 'CN') { if (effects.poisonResistance < 18) effects.poisonResistance++; effects.radiationResistance = Math.min(18, effects.radiationResistance + 1); }
+        }
+        else if (b.kind === 'hit') effects.hitModifier = (effects.hitModifier ?? 0) + 1;
+        else if (b.kind === 'damage') effects.damagePerDie = (effects.damagePerDie ?? 0) + 1;
+    }
+    return { ...c, attributes, effects };
+}
+export function settleExperience(entry, before, attributes, rng = Math.random) {
+    const after = entry.progress?.experience ?? 0;
+    const crossed = after > before ? thresholdsCrossed(before, after) : [];
+    if (!crossed.length) return entry;
+    const e = structuredClone(entry), current = { ...attributes };
+    e.advancement = { bonuses: [...(e.advancement?.bonuses ?? [])], news: [...(e.advancement?.news ?? [])] };
+    for (const threshold of crossed) {
+        const b = rollExperienceBonus(current, rng);
+        if (b.kind === 'attribute') {
+            current[b.attribute]++;
+            if (b.attribute === 'MS') { e.progress.MS = Math.min(18, e.progress.MS + 1); e.progress.mentalResistance = Math.min(18, e.progress.mentalResistance + 1); }
+        }
+        e.advancement.bonuses.push({ threshold, ...b });
+        e.advancement.news.push(`Reached ${threshold.toLocaleString('en-US')} experience: d10 ${b.roll}, ${b.text}.`);
+    }
+    return e;
+}
 export function storeCombat(entry, state) { const p = state.actors.find(a => a.id === 'player'); if (!p)
     throw Error('Missing player'); return { ...entry, inventory: entry.inventory.map(i => i.id === 'outpost-device' && p.artifact ? { ...i, artifact: p.artifact } : i), encounter: state.status === 'active' ? structuredClone(state) : null, pendingEncounter: null, clearingResolved: entry.clearingResolved || state.site === 'clearing' && ['victory', 'peaceful'].includes(state.status), progress: { damage: p.maxHp - p.hp, experience: p.experience, MS: p.attributes.MS, mentalResistance: p.effects.mentalResistance, bleeding: p.bleeding, totalHealingUses: p.totalHealingUses } }; }
 // Prototype settlement map, not the existing authored campaign geography.

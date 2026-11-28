@@ -1,5 +1,5 @@
 import * as gw from '../packages/gamma-world-rules/index.js';
-import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair } from './settlement.js';
+import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair, awardExperience } from './settlement.js';
 import { readCampaign, selectRecord, updateEntry, applyProgress, WORLD, worldPath } from './campaign.js';
 const worldArea = document.getElementById('worldArea');
 const $ = id => id === 'worldArea' ? worldArea : worldArea.querySelector('#' + id) ?? document.getElementById(id), el = (tag, text = '') => { const n = document.createElement(tag); n.textContent = text; return n; };
@@ -43,6 +43,22 @@ function log(msg) { $('events').append(el('p', msg)); if ($('events').children.l
     $('events').firstChild.remove(); $('events').scrollTop = $('events').scrollHeight; post('event', msg); }
 function say(msg) { $('guidance').textContent = msg; }
 function stop() { clearInterval(timer); timer = null; path = []; }
+// Experience for a find is awarded once it is correctly identified (printed p.42).
+function withArtifact(e, itemId, artifact) {
+    const old = e.inventory.find(i => i.id === itemId)?.artifact, next = { ...e, inventory: e.inventory.map(i => i.id === itemId ? { ...i, artifact } : i) };
+    const points = artifact.identified && !old?.identified ? gw.ARTIFACT_EXPERIENCE[artifact.definition.name] ?? 0 : 0;
+    if (!points) return next;
+    const out = awardExperience(next, points);
+    out.advancement = { bonuses: out.advancement?.bonuses ?? [], news: [`Identified the ${artifact.definition.name}: ${points.toLocaleString('en-US')} experience.`, ...(out.advancement?.news ?? [])] };
+    return out;
+}
+function flushNews() {
+    const news = entry?.advancement?.news;
+    if (!news?.length) return;
+    entry = updateEntry(entry.id, e => ({ ...e, advancement: { ...e.advancement, news: [] } }));
+    c = characterFor(entry);
+    for (const line of news) log(line);
+}
 function atSite() { return entry && WORLD.sites.find(s => s.x === entry.position.x && s.y === entry.position.y); }
 function render() {
     const board = $('board');
@@ -88,6 +104,7 @@ function render() {
     const powers = c ? gw.availableActions(c).filter(a => !['weapon', 'advance', 'rest', 'bind', 'flee'].includes(a.id)).slice(0, 4) : [];
     $('powerDivider').hidden = !powers.length;
     $('worldPowers').replaceChildren(...powers.map((a, i) => { const b = el('button', `${i + 1} ${a.label}`); b.className = 'slot-key'; b.disabled = true; b.title = `${a.label}: available in combat`; return b; }));
+    if (!combat && !opening) flushNews();
 }
 function load(id) { stop(); entry = null; c = null; try {
     entry = selectRecord(id);
@@ -145,7 +162,8 @@ $('interact').onclick = () => { stop(); const s = atSite(); if (opening || comba
             say('You already recovered the device.');
             return;
         }
-        entry = updateEntry(entry.id, d => ({ ...d, inventory: [...d.inventory, { id: 'outpost-device', name: 'Unidentified Ancient device', artifact: gw.discoverArtifact(gw.TECHNOLOGY.laserPistol) }, { id: 'hydrogen-cell', name: 'Charged hydrogen cell' }] }));
+        entry = updateEntry(entry.id, d => { const found = awardExperience({ ...d, inventory: [...d.inventory, { id: 'outpost-device', name: 'Unidentified Ancient device', artifact: gw.discoverArtifact(gw.TECHNOLOGY.laserPistol) }, { id: 'hydrogen-cell', name: 'Charged hydrogen cell' }] }, gw.ARTIFACT_EXPERIENCE['Hydrogen energy cell']); found.advancement = { bonuses: found.advancement?.bonuses ?? [], news: [`Recovered a charged hydrogen energy cell: ${gw.ARTIFACT_EXPERIENCE['Hydrogen energy cell']} experience.`, ...(found.advancement?.news ?? [])] }; return found; });
+        c = characterFor(entry);
         log('Recovered an unidentified device. Open Inventory and choose Experiment.');
     }
     else
@@ -163,7 +181,8 @@ $('experiment').onclick = () => { try {
         return;
     stop();
     const a = gw.experiment(device(), { IN: c.attributes.IN, mutations: c.mutations, scientificGenius: c.effects.scientificGenius });
-    entry = updateEntry(entry.id, e => ({ ...e, inventory: e.inventory.map(i => i.id === 'outpost-device' ? { ...i, artifact: a } : i) }));
+    entry = updateEntry(entry.id, e => withArtifact(e, 'outpost-device', a));
+    c = characterFor(entry);
     log(a.identified ? 'Identified ' + a.definition.name + '.' : a.last.hazard ? 'Hazardous result; identification restarts. Harm requires referee ruling.' : 'Experimentation continues. ' + a.minutes.toFixed(1) + ' game minutes elapsed.');
     render();
 }
@@ -292,7 +311,7 @@ function showSheet() { try {
         stats.append(box);
     }
     const names = ch.mutations.map(id => [...gw.PHYSICAL, ...gw.MENTAL, ...gw.PLANT].find(x => x.id === id)?.name ?? id);
-    dialog(ch.name || 'Survivor', [el('p', `${ch.species} · HP ${ch.hp}/${ch.maxHp} · AC ${ch.armorClass} · XP ${ch.experience}`), stats, el('h3', 'Mutations'), ...names.map(n => el('p', n)), el('p', ch.reviewRequired.join('; ') || 'No pending construction rulings.')]);
+    dialog(ch.name || 'Survivor', [el('p', `${ch.species} · HP ${ch.hp}/${ch.maxHp} · AC ${ch.armorClass} · XP ${ch.experience}`), stats, el('h3', 'Mutations'), ...names.map(n => el('p', n)), el('h3', 'Experience'), el('p', `${ch.experience.toLocaleString('en-US')} XP · next bonus roll at ${(gw.EXPERIENCE_THRESHOLDS.find(t => t > ch.experience) ?? (Math.floor(ch.experience / 1000000) + 1) * 1000000).toLocaleString('en-US')}`), ...(entry.advancement?.bonuses ?? []).map(b => el('p', `${b.threshold.toLocaleString('en-US')} XP: ${b.text}`)), el('p', ch.reviewRequired.join('; ') || 'No pending construction rulings.')]);
 }
 catch (e) {
     say(e.message);
@@ -316,7 +335,7 @@ function showBag() { try {
                 if (stuck) body.push(el('p', a.node === 'S' ? 'This device is beyond this survivor’s understanding. Ask Mara in Eden Valley to lead the research.' : 'This line of experiment is a dead end. Restart identification, or ask Mara in Eden Valley to lead the research.'));
                 buttons.push(['Experiment', () => { $('experiment').onclick(); showBag(); }, locked || stuck], ['Restart identification', () => run(e => ({ ...e, inventory: e.inventory.map(i => i.id === item.id ? { ...i, artifact: gw.interruptIdentification(i.artifact) } : i) }), showBag), locked]);
                 if (atSite()?.kind === 'town')
-                    buttons.push(['Ask Mara to lead research', () => run(e => ({ ...e, inventory: e.inventory.map(i => i.id === item.id ? { ...i, artifact: gw.experiment(i.artifact, { IN: 12, assistants: 1 }) } : i) }), showBag), locked]);
+                    buttons.push(['Ask Mara to lead research', () => run(e => withArtifact(e, item.id, gw.experiment(e.inventory.find(i => i.id === item.id).artifact, { IN: 12, assistants: 1 })), showBag), locked]);
             }
             if (a.identified && entry.inventory.some(i => i.id === 'hydrogen-cell'))
                 buttons.push(['Install cell', () => { $('install').onclick(); showBag(); }, locked]);

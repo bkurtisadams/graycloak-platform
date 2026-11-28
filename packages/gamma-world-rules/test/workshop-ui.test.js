@@ -123,6 +123,7 @@ test('tactical page handlers construct a map, target, move directly, attack and 
         assert.ok(target);
         make('board').dispatchEvent({ type: 'click', target });
         assert.match(make('targetName').textContent, /Badder/);
+        if (/first move|They are/.test(make('guidance').textContent)) { assert.equal(make('endTurn').disabled, true); make('attack').dispatchEvent({ type: 'click' }); }
         const dest = make('board').children.find(c => Number(c.dataset.x) === 3 && Number(c.dataset.y) === 5);
         make('board').dispatchEvent({ type: 'click', target: dest });
         assert.match(make('planText').textContent, /9 m remaining/);
@@ -182,6 +183,7 @@ test('embedded campaign combat keeps shared feed and chat untouched, preserves s
         assert.equal(instance.getState().actors[1].creatureKey, 'podog');
         assert.ok(readCampaign().characters[id].encounter);
         assert.equal(readCampaign().characters[id].pendingEncounter, null);
+        if (make(ids, 'endTurn').disabled) make(ids, 'attack').dispatchEvent(new Event('click'));
         make(ids, 'endTurn').dispatchEvent(new Event('click'));
         assert.equal(readCampaign().characters[id].encounter?.seconds ?? 10, 10);
         make(ids, 'leaveEncounter').onclick();
