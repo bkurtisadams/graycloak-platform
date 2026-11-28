@@ -10,7 +10,7 @@ import { registerScene, stepsFrom, stepToward, cellPixel, SCENES, getScene, scen
 const root = { console: { log() {}, warn() {} }, localStorage: { getItem: () => null, setItem() {} }, dispatchEvent() {}, CustomEvent: class {} };
 root.window = root;
 vm.createContext(root);
-for (const name of ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js', 'gw-encounter-data.js', 'gw-creatures.js']) vm.runInContext(readFileSync(new URL(`../../../gcc/${name}`, import.meta.url), 'utf8'), root);
+for (const name of ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js', 'gw-encounter-data.js', 'gw-creatures.js', 'gw-ancient-roads.js']) vm.runInContext(readFileSync(new URL(`../../../gcc/${name}`, import.meta.url), 'utf8'), root);
 const region = registerScene(regionFrom(root));
 
 test('the region is a window of 3-mile sub-hexes from the campaign map, centred on Eden Valley', () => {
@@ -107,6 +107,29 @@ test('roads and trails are read from the campaign map, and the quickest way foll
   assert.ok(round.length > scenePath(region, home, far).length);
   assert.ok(round.reduce((n, p, i) => n + slow(i ? round[i - 1] : home, p), 0) < 100);
   assert.equal(scenePath(region, home, { x: -1, y: 0 }, () => 1), null);
+});
+
+test('ancient highways: a separate generated layer, mostly gone, read into the region by condition', () => {
+  const layer = root.GW_ANCIENT_ROADS.strokes, conditions = ['usable', 'broken', 'buried', 'bridge-out', 'blocked', 'lost'];
+  assert.ok(layer.length > 100);
+  assert.ok(layer.every(s => s.kind === 'ancient-road' && conditions.includes(s.condition) && s.pts.length >= 2 && s.id.startsWith('ar-') && s.source === 'ancient-roads'));
+  const length = s => s.pts.slice(1).reduce((n, p, i) => n + Math.hypot(p[0] - s.pts[i][0], p[1] - s.pts[i][1]), 0), total = layer.reduce((n, s) => n + length(s), 0);
+  const share = c => layer.filter(s => s.condition === c).reduce((n, s) => n + length(s), 0) / total;
+  assert.ok(share('lost') + share('buried') > 0.45, 'most of the system is gone');
+  assert.ok(share('usable') > 0.05 && share('usable') < 0.2, 'some portions remain');
+  assert.ok(layer.filter(s => s.condition === 'lost').every(s => s.hidden));
+  assert.equal(new Set(layer.map(s => s.id)).size, layer.length);
+  // None of it lies inside the country shown around Eden Valley.
+  assert.equal(region.strokes.filter(s => s.kind.startsWith('ancient-road')).length, 0);
+  // Centre the same window on a usable stretch: its hexes are road, a broken stretch's are trail, lost ones are nothing.
+  const at = s => { const m = s.pts[Math.floor(s.pts.length / 2)]; return { x: m[0], y: m[1] }; };
+  const usable = layer.find(s => s.condition === 'usable'), there = regionFrom(root, { centre: at(usable) });
+  assert.equal(there.ways[11 * there.cols + 15], 'road');
+  assert.ok(there.strokes.some(s => s.kind === 'ancient-road usable'));
+  const lost = layer.find(s => s.condition === 'lost' && !layer.some(o => o !== s && o.condition !== 'lost' && Math.hypot(at(o).x - at(s).x, at(o).y - at(s).y) < 120));
+  if (lost) { const gone = regionFrom(root, { centre: at(lost) }); assert.equal(gone.strokes.filter(s => s.kind.startsWith('ancient-road')).length, 0); }
+  const broken = layer.find(s => s.condition === 'broken'), rough = regionFrom(root, { centre: at(broken) });
+  assert.ok(['trail', 'road'].includes(rough.ways[11 * rough.cols + 15]));
 });
 
 test('hex steps: six neighbours, odd columns set half a hex lower', () => {

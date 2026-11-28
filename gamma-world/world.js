@@ -5,6 +5,8 @@
 
 const GCC = '../gcc/';
 const SCRIPTS = ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js', 'gw-encounter-data.js', 'gw-creatures.js'];
+// The generated ancient-roads layer. The map works without it, so a missing file is not an error.
+const OPTIONAL = ['gw-ancient-roads.js'];
 const ROOT3 = Math.sqrt(3), KM_PER_MILE = 1.609344;
 // Eden Valley on the campaign map (world SVG units), about 90 miles south of Spokane. Used when no marker is named for it.
 const EDEN = { x: 456, y: 279.13 };
@@ -29,11 +31,15 @@ function annotations(root) {
 }
 
 // Build the scene for the country around a point: a window of sub-hexes with terrain, rivers, roads and known places.
-export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
+// What an ancient road is worth to someone on foot, by its condition on the campaign map (automated-referee policy):
+// usable duralloy is a road, a broken stretch is no better than a trail, and the rest give nothing.
+const ANCIENT = { usable: 'road', broken: 'trail' };
+export function regionFrom(root, { cols = 31, rows = 23, centre = null } = {}) {
     const data = root.GWSubhexData;
     if (!data) throw Error('Campaign map data is not loaded');
-    const { markers, strokes } = annotations(root);
-    const named = markers.find(m => /eden valley/i.test(m.name ?? '')) ?? EDEN;
+    const drawn = annotations(root), markers = drawn.markers, ancient = root.GW_ANCIENT_ROADS?.strokes ?? [];
+    const strokes = [...drawn.strokes, ...ancient].filter(s => !s.hidden);
+    const named = centre ?? markers.find(m => /eden valley/i.test(m.name ?? '')) ?? EDEN;
     const home = data.svgToAxial(named.x, named.y), cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
     const axial = (x, y) => ({ Q: home.Q + x - cx, R: home.R + (y - cy) - (Math.floor(x / 2) - Math.floor(cx / 2)) });
     const cell = (Q, R) => { const x = Q - home.Q + cx; return { x, y: R - home.R + cy + Math.floor(x / 2) - Math.floor(cx / 2) }; };
@@ -68,13 +74,16 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
     // Which hexes an old road or trail runs through: each drawn line is walked in small steps and the hexes under it noted.
     const ways = new Array(cols * rows).fill(null);
     for (const s of strokes) {
-        if (!['road', 'trail'].includes(s.kind) || !(s.pts?.length > 1)) continue;
+        const kind = s.kind === 'ancient-road' ? ANCIENT[s.condition] : s.kind;
+        if (!['road', 'trail'].includes(kind) || !(s.pts?.length > 1)) continue;
         for (let i = 1; i < s.pts.length; i++) {
             const [ax, ay] = s.pts[i - 1], [bx, by] = s.pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / (data.SUB_R / 2)));
-            for (let k = 0; k <= n; k++) { const p = cell(...Object.values(data.svgToAxial(ax + (bx - ax) * k / n, ay + (by - ay) * k / n))); if (inside(p) && ways[p.y * cols + p.x] !== 'road') ways[p.y * cols + p.x] = s.kind; }
+            for (let k = 0; k <= n; k++) { const p = cell(...Object.values(data.svgToAxial(ax + (bx - ax) * k / n, ay + (by - ay) * k / n))); if (inside(p) && ways[p.y * cols + p.x] !== 'road') ways[p.y * cols + p.x] = kind; }
         }
     }
     const origin = data.subhexSvgCenter(...Object.values(axial(0, 0))), r = data.SUB_R;
+    const view = { x: origin.x - r, y: origin.y - r * ROOT3 / 2, width: (cols - 1) * 1.5 * r + 2 * r, height: (rows + 0.5) * ROOT3 * r };
+    const onMap = s => s.pts.some(p => p[0] >= view.x && p[0] <= view.x + view.width && p[1] >= view.y && p[1] <= view.y + view.height);
     return {
         id: 'eden-region',
         rev: 2,
@@ -88,8 +97,9 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
         palette: Object.fromEntries(Object.entries(data.TERRAIN).map(([k, v]) => [k, v.fill])),
         terrainNames: Object.fromEntries(Object.entries(data.TERRAIN).map(([k, v]) => [k, v.label])),
         // World SVG box of the window, so strokes drawn on the campaign map land on the same hexes here.
-        view: { x: origin.x - r, y: origin.y - r * ROOT3 / 2, width: (cols - 1) * 1.5 * r + 2 * r, height: (rows + 0.5) * ROOT3 * r },
-        strokes: strokes.map(s => ({ kind: s.kind, pts: s.pts })).filter(s => s.pts?.length > 1),
+        view,
+        // Ancient roads are drawn where something of them can be seen; buried and lost stretches are not.
+        strokes: strokes.filter(s => s.kind !== 'ancient-road' || !['buried', 'lost'].includes(s.condition)).filter(s => s.pts?.length > 1 && onMap(s)).map(s => ({ kind: s.kind === 'ancient-road' ? `ancient-road ${s.condition}` : s.kind, pts: s.pts })),
         places: places.filter(p => !taken.has(`${p.x},${p.y}`) || (ruin && p === ruin)),
         cellMeters: 3 * KM_PER_MILE * 1000,
         // Crossing time comes from the terrain entered (route rates, rules package travel.js); this is only the open-ground figure.
@@ -110,6 +120,6 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
 let pending = null;
 // Browser only: fetch the campaign map scripts once and return the region scene.
 export function loadRegion() {
-    pending ??= (async () => { for (const name of SCRIPTS) await script(GCC + name); return regionFrom(globalThis); })();
+    pending ??= (async () => { for (const name of SCRIPTS) await script(GCC + name); for (const name of OPTIONAL) await script(GCC + name).catch(() => {}); return regionFrom(globalThis); })();
     return pending;
 }

@@ -407,3 +407,13 @@ Extract over v0.6.21 at the repository root.
 - Clicking a destination on the region now walks the way that takes least time, not the fewest hexes, so it keeps to roads, trails and easier ground. The route preview shows that way and its time. Movement keys still step exactly where you point.
 - Eden Valley's old road is not in the map data, so it gives no bonus there.
 - 140 game tests and 3 lobby tests pass.
+
+## v0.6.23 — ancient highways
+
+The book says most roads are destroyed but "some portions of a vast highway system for air-cushioned vehicles (similar to our interstate system) remain". Those portions are now generated.
+
+- `gcc/gw-ancient-roads-build.mjs` traces sixteen old interstate corridors from city to city on the continental map, cuts each into stretches of roughly 50 to 100 miles and gives each a condition from a fixed seed. Run `node gcc\gw-ancient-roads-build.mjs` from the repository root to regenerate after changing the seed, the weights, a city position or a route.
+- `gcc/gw-ancient-roads.js` is its output: a separate, read-only layer (`window.GW_ANCIENT_ROADS`). The campaign map draws it with the existing ancient-road styles, but it is not in the authored store, so it is never saved, baked into `gw-authored.js`, or changed from the editor.
+- In the game a usable stretch counts as a road and a broken stretch as a trail; buried, lost, blocked and bridge-out stretches give nothing. Buried and lost stretches are not drawn.
+
+Automated-referee policies (not from the book): the routes chosen, the city positions marked as estimates in the builder, the share in each condition (lost 40, buried 15, broken 22, usable 12, bridge-out 6, blocked 5), and what each condition is worth to a traveller.

@@ -1,4 +1,7 @@
-// gw-annotations.js v0.7.0 — 2026-07-11
+// gw-annotations.js v0.8.0 — 2026-11-28
+// v0.8.0 — read-only ancient-roads layer: lines from gw-ancient-roads.js (window.GW_ANCIENT_ROADS) are returned by
+//          strokesInBbox and exportSafe so they draw and publish with the map, but they are not in the working
+//          store, so they are never saved, baked into gw-authored.js, edited or erased from the editor.
 // v0.7.0 — marker notes metadata for feature-editor persistence and authored
 //          export; notes are omitted from the player-safe publish payload.
 // v0.6.0 — ancient-road stroke kind with condition metadata for the
@@ -36,6 +39,9 @@
       if (c && Array.isArray(c.strokes) && Array.isArray(c.markers) && (c.strokes.length || c.markers.length)) DB = c;
     } catch(e){}
   }
+
+  // Generated ancient roads, kept apart from the authored lines (see header).
+  const LAYER = (function(){ try { const o = (typeof window !== 'undefined') && window.GW_ANCIENT_ROADS; return o && Array.isArray(o.strokes) ? o.strokes : []; } catch(e){ return []; } })();
 
   function save(){
     try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); }
@@ -109,8 +115,8 @@
   }
   function listStrokes(){ return DB.strokes; }
   function strokesInBbox(bbox, pad){
-    if (!bbox) return DB.strokes.slice();
-    return DB.strokes.filter(s => intersects(s.bbox, bbox, pad));
+    if (!bbox) return DB.strokes.concat(LAYER);
+    return DB.strokes.filter(s => intersects(s.bbox, bbox, pad)).concat(LAYER.filter(s => intersects(s.bbox, bbox, pad)));
   }
 
   // ── markers ────────────────────────────────────────────────────────────────
@@ -172,7 +178,7 @@
   function exportSafe(){
     return {
       v: DB.v,
-      strokes: DB.strokes.filter(s => !s.hidden),
+      strokes: DB.strokes.concat(LAYER).filter(s => !s.hidden),
       markers: DB.markers.filter(m => !m.hidden).map(m => {
         const safe = Object.assign({}, m);
         delete safe.notes;
@@ -187,5 +193,5 @@
     addMarker, updateMarker, deleteMarker, listMarkers, markersInBbox,
     clearAll, clearGenerated, flush, save, exportSafe,
   };
-  try { console.log('[gw-annotations] v0.7.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length }); } catch(_){}
+  try { console.log('[gw-annotations] v0.8.0 loaded', { strokes: DB.strokes.length, markers: DB.markers.length, ancientRoads: LAYER.length }); } catch(_){}
 })();

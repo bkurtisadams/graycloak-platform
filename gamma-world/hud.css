@@ -206,3 +206,7 @@
 #board.hex.has-image .cell.wall{background-image:none !important;background-color:transparent !important;cursor:default;}
 #board.hex.has-image.no-grid .cell:not(.site){background-image:none;}
 #board.hex.has-image .cell:hover:not(:disabled):not(.site){background-color:#f0dfae33;filter:none;}
+/* Ancient duralloy highways on the region map: a pale double line where usable, broken dashes where not. */
+#board.hex .strokes polyline.ancient-road{stroke:#cfd6dc;stroke-width:4;}
+#board.hex .strokes polyline.ancient-road.broken{stroke:#aab3ba;stroke-width:3.5;stroke-dasharray:10 6;}
+#board.hex .strokes polyline.ancient-road.blocked,#board.hex .strokes polyline.ancient-road.bridge-out{stroke:#8b949b;stroke-width:3;stroke-dasharray:3 7;}
