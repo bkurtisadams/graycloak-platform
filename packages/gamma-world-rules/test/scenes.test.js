@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { regionFrom } from '../../../gamma-world/world.js';
 import * as gw from '../index.js';
-import { registerScene, stepsFrom, SCENES, getScene, sceneOf, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, isBlocked, clockOf, addMinutes, describeDistance, describeTime, placeName, FIRST_SCENE } from '../../../gamma-world/scenes.js';
+import { registerScene, stepsFrom, stepToward, cellPixel, SCENES, getScene, sceneOf, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, isBlocked, clockOf, addMinutes, describeDistance, describeTime, placeName, FIRST_SCENE } from '../../../gamma-world/scenes.js';
 
 // The region is built from the campaign map's own scripts, run here the way the browser runs them.
 const root = { console: { log() {}, warn() {} }, localStorage: { getItem: () => null, setItem() {} }, dispatchEvent() {}, CustomEvent: class {} };
@@ -116,15 +116,36 @@ test('every exit leads to a scene and lands on an open cell there', () => {
   }
 });
 
-test('Eden Valley is walled: the gate is reachable and the country outside is not', () => {
+test('Eden Valley is a walled hex map: the gate is reachable and the country outside is not', () => {
   const valley = getScene('eden-valley'), start = sitePosition(valley, 'trading-post'), gate = sitePosition(valley, 'gate');
+  assert.equal(valley.layout, 'hex');
   const path = scenePath(valley, start, gate);
-  assert.ok(path.length >= Math.abs(gate.x - start.x) + Math.abs(gate.y - start.y));
+  assert.ok(path.length >= 1 && path.length <= 4);
   assert.ok(path.every(p => !isBlocked(valley, p.x, p.y)));
   assert.equal(scenePath(valley, start, { x: 0, y: 0 }), null);
   assert.equal(scenePath(valley, start, { x: 99, y: 5 }), null);
   assert.deepEqual(valley.sites.filter(s => s.kind === 'place').map(s => s.name), ['Ape Village', 'Complex entrance', 'Rats', 'Bears', 'Badgers', 'Reptiles', 'Cats', 'Rabbits', 'Dogs', 'Bridge', 'Bridge']);
+  assert.equal(new Set(valley.sites.map(s => `${s.x},${s.y}`)).size, valley.sites.length, 'no two sites share a hex');
   assert.ok(valley.open.cols < valley.cols && valley.open.rows < valley.rows);
+  // Each site sits on the hex under its point on the referee's map (within one hex of it).
+  const gatePx = cellPixel(valley, gate.x, gate.y);
+  assert.ok(Math.hypot(gatePx.x - 990, gatePx.y - 785) < 33);
+  // Rats to Badgers is about 122 px on the map, 760 m: four 200 m hexes.
+  assert.equal(scenePath(valley, sitePosition(valley, 'rats'), sitePosition(valley, 'badgers')).length, 4);
+});
+
+test('movement keys take one step: six ways on hexes, four on squares, never into a closed cell', () => {
+  const valley = getScene('eden-valley'), at = sitePosition(valley, 'cats'), legacy = getScene('legacy');
+  const steps = ['n', 'ne', 'se', 's', 'sw', 'nw'].map(d => stepToward(valley, at, d));
+  assert.equal(new Set(steps.map(p => `${p.x},${p.y}`)).size, 6);
+  for (const p of steps) assert.equal(scenePath(valley, at, p).length, 1, 'each is an adjacent hex');
+  // Sideways keys keep to the row whichever column you stand in.
+  assert.deepEqual([stepToward(valley, at, 'e'), stepToward(valley, at, 'w')], [{ x: at.x + 1, y: at.y }, { x: at.x - 1, y: at.y }]);
+  const gate = sitePosition(valley, 'gate');
+  assert.ok(['n', 'ne', 'se', 's', 'sw', 'nw'].some(d => stepToward(valley, gate, d) === null), 'the wall stops a step');
+  assert.deepEqual(stepToward(legacy, { x: 2, y: 5 }, 'e'), { x: 3, y: 5 });
+  assert.equal(stepToward(legacy, { x: 2, y: 5 }, 'ne'), null);
+  assert.equal(stepToward(legacy, { x: 0, y: 0 }, 'w'), null);
 });
 
 test('scenes nest from the region down, and a new character starts in the first scene', () => {
@@ -135,7 +156,8 @@ test('scenes nest from the region down, and a new character starts in the first 
   assert.equal(placeName({ scene: 'eden-region', position: { x: 0, y: 0 } }), 'Wilderness');
   assert.equal(placeName({ scene: 'not-loaded', position: { x: 0, y: 0 } }), 'Beyond Eden Valley');
   assert.equal(startOf('eden-region').sceneRev, 2);
-  assert.equal(placeName({ scene: 'eden-valley', position: { x: 20, y: 14 } }), 'Eden Valley');
+  assert.equal(placeName({ scene: 'eden-valley', position: { x: 26, y: 16 } }), 'Eden Valley');
+  assert.equal(startOf(FIRST_SCENE).sceneRev, 2);
 });
 
 test('a save from before scenes still stands on the old grid', () => {

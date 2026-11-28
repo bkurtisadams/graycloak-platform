@@ -4,6 +4,7 @@ import * as gw from '../index.js';
 import { seekCompanion, approach, takeOn, payWages, partyFor, followers, WAGE, OFFER } from '../../../gamma-world/party.js';
 import { storeCombat } from '../../../gamma-world/campaign.js';
 import { rest } from '../../../gamma-world/settlement.js';
+import { startOf } from '../../../gamma-world/scenes.js';
 
 const seq = (...values) => { let i = 0; return () => values[i++ % values.length]; };
 const who = (species, CH) => ({ species, attributes: { CH } });
@@ -39,7 +40,7 @@ test('a companion is rolled as a character: 3d6 attributes, mutations, primitive
   }
 });
 
-const entry = (CH, extra = {}) => { const b = gw.generateCharacter({ species: 'psh', name: 'Ashe', rng: seq(0.5) }); b.attributes.CH = CH; return { record: { base: b, generation: gw.mutationDraft(b), choices: [], equipment: { weaponId: 'long-sword', armorId: 'hide' }, weightKg: 70 }, inventory: [], domars: 100, days: 2, scene: 'eden-valley', position: { x: 30, y: 21 }, ...extra }; };
+const entry = (CH, extra = {}) => { const b = gw.generateCharacter({ species: 'psh', name: 'Ashe', rng: seq(0.5) }); b.attributes.CH = CH; return { record: { base: b, generation: gw.mutationDraft(b), choices: [], equipment: { weaponId: 'long-sword', armorId: 'hide' }, weightKg: 70 }, inventory: [], domars: 100, days: 2, ...startOf('eden-valley'), ...extra }; };
 
 test('asking in the settlement: once a day, 4+ finds someone; the reaction decides follower, hireling or neither', () => {
   let e = seekCompanion(entry(12), seq(0.4));
@@ -117,14 +118,15 @@ test('companions fight beside the survivor, check morale with the leader\'s adju
 test('referee ruling: when the survivor falls the companions fight on, to victory or to the last', () => {
   const lead = entry(18), base = gw.deriveCharacter(lead.record.base, lead.record.generation, [], lead.record.equipment);
   const strong = { ...companion(), hp: 500, maxHp: 500, companionId: 'a1', moraleAdjust: 3 }, weak = { ...companion(), hp: 1, maxHp: 40, companionId: 'a2', moraleAdjust: 3 };
-  const fight = ally => { let s = gw.createEncounter(base, { creature: 'podog', count: 1, allies: [ally], rng: seq(0.9, 0.1, 0.5) }); s = gw.beginInteractive(s, { rng: seq(0.5) }); s.actors[0].hp = 0; s.actors[0].dying = false; return gw.interactiveCommand(s, { type: 'end', expectedRevision: s.revision }, { rng: seq(0.95, 0.6, 0.8, 0.4, 0.99) }); };
+  const fight = (ally, creature = 'podog', count = 1) => { let s = gw.createEncounter(base, { creature, count, allies: [ally], rng: seq(0.9, 0.1, 0.5) }); s = gw.beginInteractive(s, { rng: seq(0.5) }); s.actors[0].hp = 0; s.actors[0].dying = false; return gw.interactiveCommand(s, { type: 'end', expectedRevision: s.revision }, { rng: seq(0.95, 0.6, 0.8, 0.4, 0.99) }); };
   const won = fight(strong), log = won.log.join(' ');
   assert.equal(won.status, 'victory');
   assert.match(log, /The companions hold the field, but Ashe has fallen\./);
   assert.equal(won.actors[0].hp, 0);
   // Unless the companion won in the very round the survivor fell, the later rounds played out with no turn to wait for.
   if (won.round > 1) assert.match(log, /Ashe has fallen\. The companions fight on\./);
-  const lost = fight(weak);
+  // One wounded companion against three Brutorz cannot win.
+  const lost = fight(weak, 'brutorz', 3);
   assert.equal(lost.status, 'defeat');
   // Companions earn no experience (ruling): it is the survivor's alone, and theirs is unchanged.
   assert.equal(won.actors[1].experience, strong.experience);

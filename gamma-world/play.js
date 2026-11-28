@@ -1,7 +1,7 @@
 import * as gw from '../packages/gamma-world-rules/index.js';
 import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair, awardExperience } from './settlement.js';
 import { manifestRadiation, readCampaign, selectRecord, updateEntry, applyProgress } from './campaign.js';
-import { sceneOf, getScene, hasScene, registerScene, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, clockOf, addMinutes, describeDistance, describeTime, FIRST_SCENE } from './scenes.js';
+import { sceneOf, getScene, hasScene, registerScene, siteAt, scenePath, stepToward, sitePosition, startOf, ancestry, exitTo, clockOf, addMinutes, describeDistance, describeTime, FIRST_SCENE } from './scenes.js';
 import { loadRegion } from './world.js';
 import { party, followers, seekCompanion, approach, takeOn, dismiss, payWages, describe, WAGE, OFFER } from './party.js';
 // The country outside the valley is read from the campaign map before the first draw. Without it the valley still plays.
@@ -121,8 +121,8 @@ function drawScene() {
         for (let x = 0; x < sc.cols; x++) {
             const site = sc.sites.find(t => t.x === x && t.y === y), wall = sc.blocked.has(`${x},${y}`), b = el('button');
             if (site && !hex) { const tag = el('span', site.name); tag.className = 'site-label'; b.append(tag); }
-            if (hex) { const t = sc.terrain[y * sc.cols + x]; b.style.setProperty('--x', x); b.style.setProperty('--y', y + (x & 1) / 2); b.title = sc.terrainNames[t] ?? t; }
-            b.className = `cell ${wall ? 'wall' : ''} ${site ? 'site' : ''} ${site?.kind === 'exit' ? 'exit' : ''}${hex ? ` t-${TERRAIN_FILL[sc.terrain[y * sc.cols + x]] ? sc.terrain[y * sc.cols + x] : 'unknown'}` : ''}`;
+            if (hex) { b.style.setProperty('--x', x); b.style.setProperty('--y', y + (x & 1) / 2); if (sc.terrain) { const t = sc.terrain[y * sc.cols + x]; b.title = sc.terrainNames[t] ?? t; } }
+            b.className = `cell ${wall ? 'wall' : ''} ${site ? 'site' : ''} ${site?.kind === 'exit' ? 'exit' : ''}${hex && sc.terrain ? ` t-${TERRAIN_FILL[sc.terrain[y * sc.cols + x]] ? sc.terrain[y * sc.cols + x] : 'unknown'}` : ''}`;
             b.dataset.x = x;
             b.dataset.y = y;
             if (site) b.title = site.name;
@@ -131,15 +131,17 @@ function drawScene() {
         }
     // Hexes are clipped to shape, so rivers, roads and names sit in layers above them. Cells stay first: render() indexes them.
     const extras = [];
-    if (hex) {
+    if (hex && sc.strokes) {
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('viewBox', `${sc.view.x} ${sc.view.y} ${sc.view.width} ${sc.view.height}`);
         svg.setAttribute('preserveAspectRatio', 'none');
         svg.classList.add('strokes');
         for (const s of sc.strokes) { const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); line.setAttribute('points', s.pts.map(p => p.join(',')).join(' ')); line.setAttribute('class', s.kind); svg.append(line); }
         extras.push(svg);
+    }
+    if (hex) {
         const tag = (p, cls) => { const t = el('span', p.name); t.className = `hex-label ${cls} k-${p.kind ?? ''}`; t.style.setProperty('--x', p.x); t.style.setProperty('--y', p.y + (p.x & 1) / 2); return t; };
-        extras.push(...sc.places.filter(p => !sc.sites.some(s => s.x === p.x && s.y === p.y)).map(p => tag(p, 'place')), ...sc.sites.map(s => tag(s, 'site')));
+        extras.push(...(sc.places ?? []).filter(p => !sc.sites.some(s => s.x === p.x && s.y === p.y)).map(p => tag(p, 'place')), ...sc.sites.map(s => tag(s, 'site')));
     }
     const route = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     route.id = 'route';
@@ -153,9 +155,9 @@ function drawScene() {
     const mm = $('minimap');
     mm.style.aspectRatio = `${sc.cols} / ${sc.rows}`;
     let chart = '';
-    if (hex) { const cv = document.createElement('canvas'); cv.width = sc.cols * 3; cv.height = sc.rows * 6 + 3; const g = cv.getContext('2d'); sc.terrain.forEach((t, i) => { const x = i % sc.cols, y = Math.floor(i / sc.cols); g.fillStyle = TERRAIN_FILL[t] ?? TERRAIN_FILL.unknown; g.fillRect(x * 3, y * 6 + (x & 1) * 3, 3, 6); }); chart = `url("${cv.toDataURL()}")`; }
+    if (hex && sc.terrain) { const cv = document.createElement('canvas'); cv.width = sc.cols * 3; cv.height = sc.rows * 6 + 3; const g = cv.getContext('2d'); sc.terrain.forEach((t, i) => { const x = i % sc.cols, y = Math.floor(i / sc.cols); g.fillStyle = TERRAIN_FILL[t] ?? TERRAIN_FILL.unknown; g.fillRect(x * 3, y * 6 + (x & 1) * 3, 3, 6); }); chart = `url("${cv.toDataURL()}")`; }
     mm.style.backgroundImage = sc.image ? `url("${sc.image.src}")` : chart;
-    mm.style.backgroundSize = hex ? '100% 100%' : sc.image ? `${100 * sc.image.width / sc.pixelsPerCell / sc.cols}% ${100 * sc.image.height / sc.pixelsPerCell / sc.rows}%` : '';
+    mm.style.backgroundSize = hex && !sc.image ? '100% 100%' : sc.image ? `${100 * sc.image.width / sc.pixelsPerCell / (sc.cols + (hex ? 1 / 3 : 0))}% ${100 * sc.image.height / sc.pixelsPerCell / (hex ? (sc.rows + 0.5) * HEX_H : sc.rows)}%` : '';
     $('minimapName').textContent = sc.name;
     $('minimapScale').textContent = `${describeDistance(sc, 1)} per ${unit(sc)}`;
     $('worldScaleLabel').textContent = sc.scale.label;
@@ -189,7 +191,7 @@ function render() {
     $('minimap').replaceChildren(...(sc.image || sc.layout === 'hex' ? [] : [...sc.blocked].map(k => dot('w', ...k.split(',').map(Number)))), ...sc.sites.map(p => dot('s', p.x, p.y)), ...(entry ? [dot('p', entry.position.x, entry.position.y)] : []), view, north);
     drawView();
     const s = atSite();
-    $('site').textContent = s?.name || (sc.layout === 'hex' && entry ? sc.terrainNames[sc.terrain[entry.position.y * sc.cols + entry.position.x]] : sc.parent ? sc.name : 'Wilderness');
+    $('site').textContent = s?.name || (sc.terrain && entry ? sc.terrainNames[sc.terrain[entry.position.y * sc.cols + entry.position.x]] : sc.parent ? sc.name : 'Wilderness');
     for (const action of gw.worldActions({ entry, character: c, site: s, moving: !!timer })) {
         const b = $(action.id);
         b.hidden = !action.visible;
@@ -223,7 +225,7 @@ function load(id) { stop(); entry = null; c = null; try {
     else if (entry.scene && (getScene(entry.scene).rev ?? null) !== (entry.sceneRev ?? null)) entry = updateEntry(id, e => ({ ...e, ...startOf(e.scene) }));
     if (c.hp > 0 && !entry.started)
         entry = updateEntry(id, e => ({ ...e, started: true, domars: purse(e), owned: owned(e) }));
-    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Hover a square to see the route and time. Click to walk; click a site to select it and double-click to go there.');
+    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Move with Q W E / A S D or the arrow keys, one step each, or click a destination. Hover to see the route and its time.');
 }
 catch (e) {
     say(e.message + ' — open Character Select to continue.');
@@ -268,14 +270,12 @@ function drawTarget() {
     $('targetKind').textContent = KIND[selected.kind] ?? selected.kind ?? '';
     $('targetRoute').textContent = here ? 'You are here.' : r ? `${r.distance}${r.time ? ` · ${r.time} · arrive ${r.arrive}` : ''}` : 'No way there from here.';
     const exit = selected.kind === 'exit' && hasScene(selected.to) ? `Leads to ${getScene(selected.to).name}. ` : '';
-    $('targetNote').textContent = here ? '' : `${exit}${r?.checks ? `${r.checks} encounter check${r.checks === 1 ? '' : 's'} on the way. ` : ''}${r ? 'Double-click to go there.' : ''}`;
+    $('targetNote').textContent = here ? '' : `${exit}${r?.checks ? `${r.checks} encounter check${r.checks === 1 ? '' : 's'} on the way. ` : ''}${r ? 'Click to go there.' : ''}`;
     frame.hidden = false;
 }
-function select(p) { selected = p; hovered = null; drawTarget(); }
-$('board').addEventListener('mousemove', e => { const p = cellOf(e); if (selected || timer) return; const key = p && `${p.x},${p.y}`; if (key === hovered) return; hovered = key; drawRoute(p && !p.el.disabled ? p : null, p ? thing(p)?.name : ''); });
-$('board').addEventListener('mouseleave', () => { hovered = null; if (!selected) drawRoute(null); });
-$('board').addEventListener('click', e => { const p = cellOf(e); if (!p || !idle()) return; const t = thing(p); if (t && !(p.x === entry.position.x && p.y === entry.position.y)) { select(t); return; } selected = null; drawTarget(); drawRoute(null); walkTo({ x: p.x, y: p.y }); });
-$('board').addEventListener('dblclick', e => { const p = cellOf(e); if (!p || !idle()) return; selected = null; drawTarget(); drawRoute(null); walkTo({ x: p.x, y: p.y }); });
+$('board').addEventListener('mousemove', e => { if (timer) return; const p = cellOf(e), key = p && `${p.x},${p.y}`; if (key === hovered) return; hovered = key; selected = p ? thing(p) : null; if (selected) drawTarget(); else { drawTarget(); drawRoute(p && !p.el.disabled ? p : null); } });
+$('board').addEventListener('mouseleave', () => { if (timer) return; hovered = null; selected = null; drawTarget(); });
+$('board').addEventListener('click', e => { const p = cellOf(e); if (!p || !idle()) return; selected = thing(p); hovered = null; drawTarget(); walkTo({ x: p.x, y: p.y }); });
 const clockTotal = e => (e.days ?? 0) * 1440 + (e.minutes ?? 360);
 // Route movement through uncharted country: one d6 check each day and each night, a six is an encounter (ENCOUNTERS).
 // Returns true when travel was interrupted.
@@ -304,29 +304,47 @@ function wander(sc, from) {
     return true;
 }
 function headFor(site) { if (site && !opening && !combat && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter)) walkTo({ x: site.x, y: site.y }); }
+// Every move is a run of single steps: a movement key takes one, a click queues the steps of the shortest way.
+// Returns true when the step was interrupted by an encounter.
+function takeStep(p) {
+    const sc = scene(), from = clockTotal(entry);
+    entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell));
+    dayTick(Math.floor(from / 1440));
+    return !!(sc.encounters && wander(sc, from));
+}
+const arrived = () => say(atSite() ? `Arrived at ${atSite().name}. ${clockOf(entry).text}.` : `${clockOf(entry).text}.`);
 function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry.position, target); if (!path) {
     say('You cannot get there from here.');
     return;
 } if (!path.length)
-    return; say(`Walking ${describeDistance(sc, path.length)}${sc.minutesPerCell ? `, about ${describeTime(path.length * sc.minutesPerCell)}` : ''}. Click elsewhere or Stop to change course.`); timer = setInterval(() => { try {
+    return; say(`Walking ${describeDistance(sc, path.length)}${sc.minutesPerCell ? `, about ${describeTime(path.length * sc.minutesPerCell)}` : ''}. Click elsewhere, press a movement key or Stop to change course.`); timer = setInterval(() => { try {
     const p = path.shift();
-    if (p) {
-        const from = clockTotal(entry);
-        entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell));
-        dayTick(Math.floor(from / 1440));
-        if (sc.encounters && wander(sc, from)) return;
-    }
+    if (p && takeStep(p)) return;
     render();
     if (!path.length) {
         stop();
+        selected = null;
         render();
-        say(atSite() ? `Arrived at ${atSite().name}. ${clockOf(entry).text}.` : `${clockOf(entry).text}. Click a destination to continue.`);
+        arrived();
     }
 }
 catch (err) {
     stop();
     say(err.message);
 } }, 180); render(); }
+// Movement keys: one step each. Hex maps use Q W E / A S D for the six sides; arrows and squares use the four ways.
+const HEX_KEYS = { w: 'n', s: 's', q: 'nw', e: 'ne', a: 'sw', d: 'se', arrowup: 'n', arrowdown: 's', arrowleft: 'w', arrowright: 'e' }, SQUARE_KEYS = { w: 'n', s: 's', a: 'w', d: 'e', arrowup: 'n', arrowdown: 's', arrowleft: 'w', arrowright: 'e' };
+function keyStep(key) {
+    const sc = scene(), direction = (sc.layout === 'hex' ? HEX_KEYS : SQUARE_KEYS)[key];
+    if (!direction || !idle()) return false;
+    stop();
+    selected = null;
+    hovered = null;
+    const to = stepToward(sc, entry.position, direction);
+    if (!to) { render(); say('You cannot go that way.'); return true; }
+    try { if (takeStep(to)) return true; render(); arrived(); } catch (err) { say(err.message); }
+    return true;
+}
 $('interact').onclick = () => { stop(); const s = atSite(); if (opening || combat || !s || !c || c.hp <= 0 || (entry.encounter || entry.pendingEncounter))
     return; try {
     if (s.kind === 'exit') {
@@ -702,7 +720,7 @@ showRolls(localStorage.getItem('graycloak.gw.rolls') !== 'off');
 function zoomWorld(n) { worldZoom = Math.max(10, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); $('worldScale').style.width = worldZoom * scene().scale.cells + 'px'; if (selected) drawTarget(); else drawRoute(null); drawView(); }
 $('worldZoomIn').onclick = () => zoomWorld(worldZoom + 6);
 $('worldZoomOut').onclick = () => zoomWorld(worldZoom - 6);
-function fitWorld() { const vp = $('viewport'), o = scene().open, hex = scene().layout === 'hex'; if (!vp?.clientWidth || !vp.clientHeight) return; zoomWorld(Math.floor(hex ? Math.min(vp.clientWidth / (o.cols + 1 / 3), vp.clientHeight / ((o.rows + 0.5) * HEX_H)) : Math.min(vp.clientWidth / o.cols, vp.clientHeight / o.rows))); if (hex) { vp.scrollLeft = 0; vp.scrollTop = 0; return; } const b = $('board'); vp.scrollLeft = b.offsetLeft + (o.x + o.cols / 2) * worldZoom - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + (o.y + o.rows / 2) * worldZoom - vp.clientHeight / 2; }
+function fitWorld() { const vp = $('viewport'), sc = scene(), o = sc.open, hex = sc.layout === 'hex'; if (!vp?.clientWidth || !vp.clientHeight) return; zoomWorld(Math.floor(hex ? Math.min(vp.clientWidth / (o.cols + 1 / 3), vp.clientHeight / ((o.rows + 0.5) * HEX_H)) : Math.min(vp.clientWidth / o.cols, vp.clientHeight / o.rows))); const b = $('board'), w = hex ? (o.cols + 1 / 3) * worldZoom : o.cols * worldZoom, h = hex ? (o.rows + 0.5) * HEX_H * worldZoom : o.rows * worldZoom; vp.scrollLeft = b.offsetLeft + o.x * worldZoom + w / 2 - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + o.y * worldZoom * (hex ? HEX_H : 1) + h / 2 - vp.clientHeight / 2; drawView(); }
 $('worldFit').onclick = fitWorld;
 fitWorld();
 globalThis.addEventListener?.('resize', () => { if (!combat) fitWorld(); });
@@ -722,7 +740,7 @@ viewport.onpointerup = viewport.onpointercancel = viewport.onlostpointercapture 
 // Universal tools stay accessible; shortcuts never fire inside text fields or dialogs.
 $('mapBtn').onclick = utility(() => { const sc = scene(); dialog(`Map · ${sc.name}`, [el('p', `One ${unit(sc)} is ${describeDistance(sc, 1)}${sc.minutesPerCell ? `, about ${describeTime(sc.minutesPerCell)} on foot` : ''}.`), ...sc.sites.map(t => row(`${t.name}${t.kind === 'exit' && hasScene(t.to) ? ` (to ${getScene(t.to).name})` : ''}`, [['Walk there', () => { closeWindow(); headFor(t); }, t.x === entry.position.x && t.y === entry.position.y]])), ...(sc.parent ? [] : [el('p', 'This is the widest map so far. The continent map is not built yet.')])]); });
 document.addEventListener('keydown', e => { if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || gw.isTextEntry(e.target) || $('gameDialog').open)
-    return; if (!combat) { if (/^[1-9]$/.test(e.key)) { const b = [...worldArea.querySelectorAll('.action-bar button')].find(x => x.dataset.key === e.key); if (b && !b.disabled) b.click(); return; } if (e.key === 'Home') { centreOnSurvivor(); return; } if (e.key.toLowerCase() === 'f') { fitWorld(); return; } if (e.key === 'Escape') { if (timer) { stop(); render(); } selected = null; drawTarget(); drawRoute(null); return; } } const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
+    return; if (!combat) { if (/^[1-9]$/.test(e.key)) { const b = [...worldArea.querySelectorAll('.action-bar button')].find(x => x.dataset.key === e.key); if (b && !b.disabled) b.click(); return; } if (e.key === 'Home') { centreOnSurvivor(); return; } if (e.key.toLowerCase() === 'f') { fitWorld(); return; } if (e.key === 'Escape') { if (timer) { stop(); render(); } selected = null; drawTarget(); drawRoute(null); return; } if (keyStep(e.key.toLowerCase())) { e.preventDefault(); return; } } const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
     e.preventDefault();
     $(id).onclick();
 }

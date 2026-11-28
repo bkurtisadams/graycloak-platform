@@ -16,53 +16,72 @@ function insidePolygon(x, y, poly) {
     return inside;
 }
 
+const ROOT3 = Math.sqrt(3);
+// Where a cell's centre falls on the scene image, in image pixels. pixelsPerCell is the column step: the side of a
+// square, or on a hex map three quarters of a hex's width (so rows are pixelsPerCell x 2/root 3 apart).
+export function cellPixel(scene, x, y) {
+    const p = scene.pixelsPerCell;
+    return scene.layout === 'hex' ? { x: x * p + p * 2 / 3, y: (y + (x & 1) / 2 + 0.5) * p * 2 / ROOT3 } : { x: (x + 0.5) * p, y: (y + 0.5) * p };
+}
+function cellAt(scene, px, py) {
+    const p = scene.pixelsPerCell;
+    if (scene.layout !== 'hex') return { x: Math.floor(px / p), y: Math.floor(py / p) };
+    const x = Math.round((px - p * 2 / 3) / p);
+    return { x, y: Math.round(py / (p * 2 / ROOT3) - 0.5 - (x & 1) / 2) };
+}
 function build(scene) {
-    const cols = scene.image ? Math.ceil(scene.image.width / scene.pixelsPerCell) : scene.cols;
-    const rows = scene.image ? Math.ceil(scene.image.height / scene.pixelsPerCell) : scene.rows;
-    const blocked = new Set((scene.walls ?? []).map(p => p.join(',')));
+    const hex = scene.layout === 'hex', p = scene.pixelsPerCell;
+    const cols = scene.image ? (hex ? Math.floor(scene.image.width / p - 1 / 3) : Math.ceil(scene.image.width / p)) : scene.cols;
+    const rows = scene.image ? (hex ? Math.floor(scene.image.height / (p * 2 / ROOT3) - 0.5) : Math.ceil(scene.image.height / p)) : scene.rows;
+    // A site may be placed by a point on the image (at: [px, py]) and lands on the cell under it.
+    const sites = scene.sites.map(s => s.at ? { ...s, ...cellAt(scene, ...s.at) } : s);
+    const blocked = new Set((scene.walls ?? []).map(q => q.join(',')));
     if (scene.bounds)
         for (let y = 0; y < rows; y++)
-            for (let x = 0; x < cols; x++)
-                if (!insidePolygon((x + 0.5) * scene.pixelsPerCell, (y + 0.5) * scene.pixelsPerCell, scene.bounds)) blocked.add(`${x},${y}`);
-    for (const s of scene.sites) blocked.delete(`${s.x},${s.y}`);
+            for (let x = 0; x < cols; x++) {
+                const c = cellPixel(scene, x, y);
+                if (!insidePolygon(c.x, c.y, scene.bounds)) blocked.add(`${x},${y}`);
+            }
+    for (const s of sites) blocked.delete(`${s.x},${s.y}`);
     // The part of the grid that can be walked, used to frame the view.
     let x0 = cols, y0 = rows, x1 = -1, y1 = -1;
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (!blocked.has(`${x},${y}`)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     const pad = blocked.size ? 2 : 0, open = { x: Math.max(0, x0 - pad), y: Math.max(0, y0 - pad), cols: Math.min(cols, x1 + pad + 1) - Math.max(0, x0 - pad), rows: Math.min(rows, y1 + pad + 1) - Math.max(0, y0 - pad) };
-    if (scene.layout === 'hex') Object.assign(open, { x: 0, y: 0, cols, rows });
-    return Object.freeze({ ...scene, cols, rows, blocked, open, sites: Object.freeze(scene.sites.map(Object.freeze)) });
+    return Object.freeze({ ...scene, cols, rows, blocked, open, sites: Object.freeze(sites.map(Object.freeze)) });
 }
-
-// Eden Valley: the supplied map is 1337 x 1176 px and the valley is about three miles long, which makes one
-// pixel about 6.2 m. The wall polygon follows the towers marked T. Lakes and the river are not yet barriers.
+// Eden Valley on 200 m hexes over the referee's map. The image is 200 m to 32.26 px, so hex centres are that far
+// apart: rows 32.26 px, columns 27.94 px. Sites are placed by their point on the image, from the referee's key.
 const EDEN_VALLEY = build({
     id: 'eden-valley',
+    rev: 2,
     name: 'Eden Valley',
     parent: 'eden-region',
+    layout: 'hex',
     image: { src: 'maps/eden-valley.webp', width: 1337, height: 1176 },
-    pixelsPerCell: 200 / 6.2,
+    pixelsPerCell: 200 / 6.2 * ROOT3 / 2,
     cellMeters: 200,
     minutesPerCell: 6,
-    scale: { cells: 5, label: '1 km' },
+    scale: { cells: 5 * 2 / ROOT3, label: '1 km' },
     bounds: [[462, 136], [697, 112], [760, 178], [773, 241], [889, 340], [1109, 683], [1017, 790], [677, 901], [481, 568], [358, 385], [358, 301]],
     sites: [
-        // Placed from the referee's key (A, C, B and 1-7). The trading post is a placeholder beside the gate.
-        { id: 'trading-post', x: 30, y: 21, name: 'Trading post', kind: 'town' },
-        { id: 'apes', x: 17, y: 6, name: 'Ape Village', kind: 'place' },
-        { id: 'complex', x: 22, y: 5, name: 'Complex entrance', kind: 'place' },
-        { id: 'rats', x: 17, y: 12, name: 'Rats', kind: 'place' },
-        { id: 'bears', x: 23, y: 9, name: 'Bears', kind: 'place' },
-        { id: 'badgers', x: 17, y: 16, name: 'Badgers', kind: 'place' },
-        { id: 'reptiles', x: 26, y: 13, name: 'Reptiles', kind: 'place' },
-        { id: 'cats', x: 19, y: 19, name: 'Cats', kind: 'place' },
-        { id: 'rabbits', x: 29, y: 18, name: 'Rabbits', kind: 'place' },
-        { id: 'dogs', x: 27, y: 23, name: 'Dogs', kind: 'place' },
-        { id: 'north-bridge', x: 21, y: 11, name: 'Bridge', kind: 'place' },
-        { id: 'south-bridge', x: 26, y: 25, name: 'Bridge', kind: 'place' },
-        { id: 'gate', x: 30, y: 24, name: 'Valley gate', kind: 'exit', to: 'eden-region', arrive: 'eden-valley', label: 'Leave Eden Valley' },
+        // The trading post is a placeholder on the old road north of the gate.
+        { id: 'trading-post', at: [984, 694], name: 'Trading post', kind: 'town' },
+        { id: 'apes', at: [573, 225], name: 'Ape Village', kind: 'place' },
+        { id: 'complex', at: [727, 187], name: 'Complex entrance', kind: 'place' },
+        { id: 'rats', at: [576, 401], name: 'Rats', kind: 'place' },
+        { id: 'bears', at: [771, 298], name: 'Bears', kind: 'place' },
+        { id: 'badgers', at: [562, 523], name: 'Badgers', kind: 'place' },
+        { id: 'reptiles', at: [866, 446], name: 'Reptiles', kind: 'place' },
+        { id: 'cats', at: [625, 641], name: 'Cats', kind: 'place' },
+        { id: 'rabbits', at: [958, 590], name: 'Rabbits', kind: 'place' },
+        { id: 'dogs', at: [890, 745], name: 'Dogs', kind: 'place' },
+        { id: 'north-bridge', at: [686, 379], name: 'Bridge', kind: 'place' },
+        { id: 'south-bridge', at: [860, 826], name: 'Bridge', kind: 'place' },
+        { id: 'gate', at: [990, 785], name: 'Valley gate', kind: 'exit', to: 'eden-region', arrive: 'eden-valley', label: 'Leave Eden Valley' },
     ],
     start: 'trading-post',
 });
+
 
 // The original 20 x 12 test grid, kept so saves and tests from before scenes still resolve.
 const LEGACY = build({
@@ -115,6 +134,15 @@ export const exitTo = (scene, targetId) => scene.sites.find(s => s.kind === 'exi
 
 const SQUARE = [[1, 0], [-1, 0], [0, 1], [0, -1]], HEX_EVEN = [[0, -1], [0, 1], [1, -1], [1, 0], [-1, -1], [-1, 0]], HEX_ODD = [[0, -1], [0, 1], [1, 0], [1, 1], [-1, 0], [-1, 1]];
 export const stepsFrom = (scene, x) => scene.layout === 'hex' ? (x & 1 ? HEX_ODD : HEX_EVEN) : SQUARE;
+// One step in a compass direction, for the movement keys. On hexes: n, s, ne, se, nw, sw, plus e and w, which keep to
+// the row (the map's columns are staggered, so a sideways step alternates up and down). On squares: n, s, e, w.
+export function stepToward(scene, from, direction) {
+    const odd = from.x & 1, hex = scene.layout === 'hex';
+    const d = hex ? { n: [0, -1], s: [0, 1], ne: [1, odd ? 0 : -1], se: [1, odd ? 1 : 0], nw: [-1, odd ? 0 : -1], sw: [-1, odd ? 1 : 0], e: [1, 0], w: [-1, 0] }[direction] : { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[direction];
+    if (!d) return null;
+    const to = { x: from.x + d[0], y: from.y + d[1] };
+    return isBlocked(scene, to.x, to.y) ? null : to;
+}
 // Shortest path of steps to adjacent cells, or null when the destination cannot be reached.
 export function scenePath(scene, start, end) {
     if (!Number.isInteger(end.x) || !Number.isInteger(end.y) || isBlocked(scene, end.x, end.y)) return null;

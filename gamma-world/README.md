@@ -353,3 +353,15 @@ Extract over v0.6.17 at the repository root. Nothing in the rules changed.
 - Combat: the same survivor and party frames; the creature target frame shows attitude, condition in four bands (creatures are reported by condition, not numbers), distance, armour class and its attack; actions are icon slots with their keys.
 - New file `hud.css` holds all of this and the placeholder line icons; replace a mask or terrain image there to swap in inked art. `packages/gamma-world-rules/package.json` now reads 0.6.18.
 - Not in this version: portrait upload, draggable windows, paperdoll, fog of war, day and night lighting.
+
+## v0.6.19 — one way to move: keys and click; Eden Valley on hexes
+
+Extract over v0.6.18 at the repository root. Nothing in the rules changed.
+
+- Movement is the same on every travel map. A movement key takes one step; a click walks the shortest way to that cell, as a run of the same steps. Selecting a site and double-clicking are gone.
+- Keys on hex maps: Q W E over A S D for the six sides (W north, S south, Q and E the upper sides, A and D the lower sides). The arrow keys also work: up and down as W and S, left and right step sideways along the row. Keys on square maps: W A S D or the arrows. Holding a key does not repeat. A step into the wall, water or the map edge is refused with a message. Each step costs the scene's time, and on the region each step can bring the day's or night's encounter due, exactly as walking did.
+- Hovering shows the route, distance and time; hovering a site also shows it in the target frame with its arrival time. While walking, a key press, a click elsewhere, Stop or Escape changes course.
+- Eden Valley is now a hex map: 200 m hexes (centre to centre) laid over the same image, 47 by 35, with the walkable hexes outlined and everything outside the wall closed. Sites are placed by their point on the referee's map and land on the hex under it; the gate and trading post are where they were. A survivor saved in the valley is put back at the trading post once, because the old square positions no longer apply.
+- Scenes still declare their own grid, so square maps (interiors, imported maps) remain possible; the old test grid is still square.
+- Combat is unchanged in this version and still has its own controls. Moving it into this screen is the next step.
+- 134 game tests and 3 lobby tests pass.
