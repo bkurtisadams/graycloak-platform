@@ -268,3 +268,16 @@ Extract over v0.6.11 at the repository root.
 - Not playable yet, so reported and avoided with no roll or reward: creatures whose attacks are poison, radiation or technology, rooted plants, Androids, Robotic Units, Tribesmen and Cryptic Alliances.
 - The combat engine accepts a creature definition and up to 8 opponents when one is supplied; the built-in creatures keep their limit of 3.
 - 118 game tests and 3 lobby tests pass.
+
+## v0.6.13 — poison and radiation attacks
+
+Extract over v0.6.12 at the repository root.
+
+- Creatures now deliver poison and radiation, read from `gcc/gw-creatures.js` and resolved on the game's existing poison and radiation matrices (intensity against the victim's poison or radiation resistance). Each result is written to the combat log with both numbers.
+- Poison on a hit: Horl Choo (3d6 and intensity 9), Soul Besh (1d6 and paralytic intensity 18). Poisoned touch with no other damage: Serf claws (intensity 8), and the water creatures Fleshin (15) and Ert (12, D turns the victim to stone). A miss delivers no poison. Podogs and robots stay immune.
+- Radiation: the Blaash has no attack roll; when it acts, everyone within 5 m is exposed to intensity 18. It closes to that distance instead of to melee.
+- Newly playable from the tables: Blaash, Serf, Ert, Fleshin (20 creatures in all).
+- Referee policies, because the game has no antidotes and no companions yet: a D on the poison matrix is death; a D from a paralytic poison paralyses, and a paralysed lone survivor is killed (the Soul Besh's 12 hit points a turn blood drain is named in the log); radiation results of mutation or defect are recorded as due in 7 days but not yet applied.
+- To verify against the book: on the game's radiation matrix, intensity 18 is D for every resistance from 3 to 18, so a Blaash at 5 m kills or leaves a defect in any character.
+- Still not played: Obb radiation blast and Zarn spit (no usable range or movement in the data), contact poison from touching Herkel or Win Seen, Perth and Barl Nep (rooted or water), radiation from hazard hexes on the map.
+- 119 game tests and 3 lobby tests pass.

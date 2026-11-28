@@ -51,9 +51,11 @@ export function findCreature(bestiary, name) {
     const key = ALIAS[slug(name)] ?? slug(name);
     return bestiary.find(c => slug(c.name) === key) ?? null;
 }
-// A bestiary entry the tactical engine can play today: a creature with hit dice, ground movement and a physical
-// attack given in dice. Everything else it can do is listed in notes as not yet played. Returns null when the
-// creature cannot be played yet (no dice attack, rooted, technology users, androids).
+const TOUCH = /claw|bite|spine|proboscis/i, INTENSITY = /intensity (\d+)/i;
+// A bestiary entry the tactical engine can play today: a creature with hit dice and ground movement whose attack is
+// a physical one given in dice, a poisoned touch, or a radiation aura. Poison riders and a blood drain are read from
+// the same entry. Anything else it can do is listed in notes as not yet played. Returns null when the creature
+// cannot be played yet (rooted, technology users, androids, attacks with no stated range).
 export function playableCreature(bestiary, name) {
     const key = slug(name);
     if (CREATURES[key]) return { key, definition: CREATURES[key] };
@@ -61,13 +63,24 @@ export function playableCreature(bestiary, name) {
     if (!c || !Number.isInteger(c.hd)) return null;
     const move = Number.parseInt(String(c.move), 10);
     if (!(move > 0)) return null;
-    const attack = (c.attacks ?? []).find(a => MELEE.test(a.n) && /^\d+d\d+/.test(a.d));
-    if (!attack) return null;
-    const [, n, d] = /^(\d+)d(\d+)/.exec(attack.d), meters = Number.parseFloat(String(c.size));
-    const unplayed = [...(c.attacks ?? []).filter(a => a !== attack).map(a => a.n), ...(c.mutations ?? [])];
-    return { key, definition: {
-        name: name, meeting: 'roll', speaks: !!c.intelligent, ac: c.ac, hd: c.hd, move, ms: Number.isInteger(c.ms) ? c.ms : null, dx: 10,
-        intelligent: !!c.intelligent, natural: [Number(n), Number(d)], large: meters >= 2 || /large|horse|ox/i.test(String(c.size)),
-        notes: `${attack.n} ${n}d${d}${/^\d+d\d+$/.test(attack.d) ? '' : ` (printed: ${attack.d})`}.${unplayed.length ? ` Not yet played: ${unplayed.join(', ')}.` : ''}`,
-    } };
+    const attacks = c.attacks ?? [], used = new Set();
+    const strike = attacks.find(a => MELEE.test(a.n) && /^\d+d\d+/.test(a.d)) ?? attacks.find(a => TOUCH.test(a.n) && /poison/i.test(`${a.n} ${a.d}`) && INTENSITY.test(a.d));
+    const aura = attacks.find(a => /radiation aura/i.test(a.n) && INTENSITY.test(a.d) && /(\d+)m radius/.test(a.d));
+    const drain = attacks.find(a => /blood drain/i.test(a.n) && /^(\d+)hp/.test(a.d));
+    if (!strike && !aura) return null;
+    const definition = { name, meeting: 'roll', speaks: !!c.intelligent, ac: c.ac, hd: c.hd, move, ms: Number.isInteger(c.ms) ? c.ms : null, dx: 10, intelligent: !!c.intelligent,
+        large: Number.parseFloat(String(c.size)) >= 2 || /large|horse|ox/i.test(String(c.size)) };
+    const said = [];
+    if (strike) {
+        used.add(strike);
+        const dmg = /^(\d+)d(\d+)/.exec(strike.d), poisoned = /poison/i.test(`${strike.n} ${strike.d}`) && INTENSITY.exec(strike.d);
+        definition.natural = dmg ? [Number(dmg[1]), Number(dmg[2])] : [0, 6];
+        if (poisoned) definition.poison = { intensity: Number(poisoned[1]), paralytic: /paralytic/i.test(strike.d), stone: /stone/i.test(strike.d) };
+        said.push(`${strike.n} ${dmg ? dmg[0] : 'no damage'}${poisoned ? `, ${definition.poison.paralytic ? 'paralytic ' : ''}poison intensity ${poisoned[1]}` : ''}${/^\d+d\d+$/.test(strike.d) || poisoned ? '' : ` (printed: ${strike.d})`}`);
+    }
+    if (aura) { used.add(aura); definition.radiate = { intensity: Number(INTENSITY.exec(aura.d)[1]), range: Number(/(\d+)m radius/.exec(aura.d)[1]) }; said.push(`${aura.n} intensity ${definition.radiate.intensity}, ${definition.radiate.range} m`); }
+    if (drain && definition.poison?.paralytic) { used.add(drain); definition.drain = Number(/^(\d+)hp/.exec(drain.d)[1]); said.push(`${drain.n} ${definition.drain} a turn on a paralysed victim`); }
+    const unplayed = [...attacks.filter(a => !used.has(a)).map(a => a.n), ...(c.mutations ?? [])];
+    definition.notes = `${said.join('; ')}.${unplayed.length ? ` Not yet played: ${unplayed.join(', ')}.` : ''}`;
+    return { key, definition };
 }

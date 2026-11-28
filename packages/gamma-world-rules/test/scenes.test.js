@@ -57,16 +57,42 @@ test('bestiary creatures with a dice attack can be fought; the rest are reported
   assert.match(yexil.definition.notes, /Not yet played: Eye laser/);
   assert.equal(gw.playableCreature(region.bestiary, 'Badder').definition, gw.CREATURES.badder);
   assert.equal(gw.playableCreature(region.bestiary, 'Horl Choo').definition.natural.join('d'), '3d6');
-  for (const name of ['Hisser', 'Perth', 'Android', 'Tribesmen', 'Cryptic Alliance', 'Robotic Unit', 'Kep', 'Zarn']) assert.equal(gw.playableCreature(region.bestiary, name), null, name);
+  for (const name of ['Hisser', 'Perth', 'Android', 'Tribesmen', 'Cryptic Alliance', 'Robotic Unit', 'Kep', 'Zarn', 'Win Seen', 'Barl Nep']) assert.equal(gw.playableCreature(region.bestiary, name), null, name);
   const names = new Set(Object.values(region.encounters.ENCOUNTER_TABLES).flat().map(row => row.creature));
   const playable = [...names].filter(n => gw.playableCreature(region.bestiary, n)).sort();
-  assert.deepEqual(playable, ['Ark', 'Arn', 'Badder', 'Blight', 'Brutorz', 'Cal Then', 'Fen', 'Herkel', 'Horl Choo', 'Obb', 'Parn', 'Pineto', 'Podog', 'Rakox', 'Sep', 'Soul Besh', 'Yexil']);
+  assert.deepEqual(playable, ['Ark', 'Arn', 'Badder', 'Blaash', 'Blight', 'Brutorz', 'Cal Then', 'Ert', 'Fen', 'Fleshin', 'Herkel', 'Horl Choo', 'Obb', 'Parn', 'Pineto', 'Podog', 'Rakox', 'Sep', 'Serf', 'Soul Besh', 'Yexil']);
   const character = { ...gw.CREATURES, selectionComplete: true, effects: {}, hp: 30, attributes: { CN: 10 } };
   const fight = gw.createEncounter(character, { creature: yexil.key, definition: yexil.definition, count: 5, meeting: true, rng: seq(0.3, 0.6, 0.2, 0.8) });
   assert.equal(fight.actors.length, 6);
   assert.equal(fight.creatureName, 'Yexil');
   assert.equal(new Set(fight.actors.map(a => `${a.x},${a.y}`)).size, 6);
   assert.throws(() => gw.createEncounter(character, { creature: 'badder', count: 4 }));
+});
+
+test('poison and radiation attacks are read from the bestiary and resolved on the matrices', () => {
+  const def = name => gw.playableCreature(region.bestiary, name).definition;
+  assert.deepEqual(def('Horl Choo').poison, { intensity: 9, paralytic: false, stone: false });
+  assert.deepEqual([def('Serf').natural, def('Serf').poison.intensity], [[0, 6], 8]);
+  assert.deepEqual([def('Soul Besh').natural, def('Soul Besh').poison, def('Soul Besh').drain], [[1, 6], { intensity: 18, paralytic: true, stone: false }, 12]);
+  assert.deepEqual([def('Blaash').radiate, def('Blaash').natural], [{ intensity: 18, range: 5 }, undefined]);
+  assert.equal(def('Ert').poison.stone, true);
+  assert.equal(def('Yexil').poison, undefined);
+  const survivor = (poisonResistance, radiationResistance = 10) => ({ name: 'Ashe', species: 'psh', selectionComplete: true, hp: 40, maxHp: 40, armorClass: 9, mutations: [], attributes: { MS: 10, IN: 10, DX: 10, CH: 10, CN: 10, PS: 10 }, equipment: { weaponId: 'long-sword', armorId: 'none' }, effects: { movementMultiplier: 1, attacksPerRound: 1, mentalResistance: 10, poisonResistance, radiationResistance }, reviewRequired: [], experience: 0 });
+  const meet = (name, c, rolls) => { const s = gw.createEncounter(c, { creature: name, definition: def(name), count: 1, rng: seq(0.9, 0.1, 0.5) }); const foe = s.actors[1], pc = s.actors[0]; foe.x = pc.x + 1; foe.y = pc.y; return gw.resolveRound(s, { action: 'rest' }, { rng: seq(...rolls) }); };
+  // Serf claws: intensity 8 against resistance 6 is 6 on the matrix: death. Against 9 it is 3 dice. Against 12, nothing.
+  assert.match(meet('Serf', survivor(6), [0.99]).log.join(' '), /Poison intensity 8 vs 6: fatal, and there is no antidote/);
+  let after = meet('Serf', survivor(9), [0.99]);
+  assert.match(after.log.join(' '), /Poison intensity 8 vs 9: 3d6/);
+  assert.equal(after.actors[0].hp, 40 - 18);
+  assert.match(meet('Serf', survivor(12), [0.99]).log.join(' '), /Poison intensity 8 vs 12: no effect/);
+  assert.doesNotMatch(meet('Serf', survivor(6), [0]).log.join(' '), /Poison/, 'a miss delivers no poison');
+  // Soul Besh: D on a paralytic poison paralyses, and a lone paralysed survivor dies.
+  after = meet('Soul Besh', survivor(10), [0.99]);
+  assert.match(after.log.join(' '), /Paralytic poison intensity 18 vs 10: Ashe is paralysed and helpless\. Soul Besh 1 drains 12 hit points a turn/);
+  assert.equal(after.actors[0].hp, 0);
+  // Blaash: no attack roll; everyone within 5 m is exposed to intensity 18.
+  after = meet('Blaash', survivor(10, 18), [0.5]);
+  assert.match(after.log.join(' '), /gives off radiation, 5 m radius\. Radiation intensity 18 vs 18/);
 });
 
 test('hex steps: six neighbours, odd columns set half a hex lower', () => {

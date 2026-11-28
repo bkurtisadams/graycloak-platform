@@ -24,7 +24,7 @@ export const distance = dist;
 const emptyEffects = () => ({ movementMultiplier: 1, attacksPerRound: 1, mentalResistance: 10 });
 function unit(c, id, x, y, side, extra = {}) { return { ...clone(c), id, x, y, side, hd: c.attributes.CN, large: false, intelligent: true, normalMove: 12, fled: false, dying: false, rest: 0, fightRounds: 0, uses: {}, mentalSuccesses: 0, mentalDefenses: 0, plantCharge: 4, ...extra }; }
 function enemy(key, i, rng, definition, count = 1) { const d = definition ?? CREATURES[key]; if (!d)
-    throw Error('Unknown creature'); const hp = dice(d.hd, 6, rng), ms = d.ms ?? dice(3, 6, rng); return unit({ name: `${d.name} ${i + 1}`, species: 'creature', attributes: { MS: ms, IN: 10, DX: d.dx, CH: 10, CN: 10, PS: 10 }, hp, maxHp: hp, armorClass: d.ac, mutations: [], equipment: { weaponId: d.weapon ?? null, armorId: 'none' }, effects: { ...emptyEffects(), mentalResistance: ms, poisonResistance: 10, poisonImmune: key === 'podog', radiationResistance: 10 }, reviewRequired: [], experience: 0 }, `npc-${i + 1}`, count > 3 ? 11 + Math.floor(i / 5) * 2 : 11, count > 3 ? 1 + (i % 5) * 2 : 2 + i * 3, 'right', { hd: d.hd, large: d.large, intelligent: d.intelligent, normalMove: d.move, natural: d.natural ?? null, creatureKey: key }); }
+    throw Error('Unknown creature'); const hp = dice(d.hd, 6, rng), ms = d.ms ?? dice(3, 6, rng); return unit({ name: `${d.name} ${i + 1}`, species: 'creature', attributes: { MS: ms, IN: 10, DX: d.dx, CH: 10, CN: 10, PS: 10 }, hp, maxHp: hp, armorClass: d.ac, mutations: [], equipment: { weaponId: d.weapon ?? null, armorId: 'none' }, effects: { ...emptyEffects(), mentalResistance: ms, poisonResistance: 10, poisonImmune: key === 'podog', radiationResistance: 10 }, reviewRequired: [], experience: 0 }, `npc-${i + 1}`, count > 3 ? 11 + Math.floor(i / 5) * 2 : 11, count > 3 ? 1 + (i % 5) * 2 : 2 + i * 3, 'right', { hd: d.hd, large: d.large, intelligent: d.intelligent, normalMove: d.move, natural: d.natural ?? null, poison: d.poison ?? null, radiate: d.radiate ?? null, drain: d.drain ?? null, creatureKey: key }); }
 export function createEncounter(character, { creature = 'badder', definition = null, count = 1, rng = Math.random, surprisePossible = true, blocked = [], meeting = false, intelligentMorale = false } = {}) { if (!character?.selectionComplete || !character.effects || character.hp <= 0)
     throw Error('Complete a living character first'); integer(count, 1, definition ? 8 : 3, 'opponents'); const kind = definition ?? CREATURES[creature]; if (!kind) throw Error('Unknown creature'); const player = unit(character, 'player', 2, 5, 'left'), actors = [player, ...Array.from({ length: count }, (_, i) => enemy(creature, i, rng, definition, count))]; const order = firstStrike({ leftImmune: !!player.effects.surpriseImmune, possible: surprisePossible, rng }); if (creature === 'podog') {
     order.first = 'right';
@@ -116,14 +116,15 @@ function attackInRange(a, t, action, mode) { const d = dist(a, t); if (action ==
     return d <= 200; if (action === 'weapon') {
     const w = getWeapon(a.equipment.weaponId);
     return mode === 'missile' ? d <= 2 * (w.range ?? 0) : adjacent(a, t);
-} if (action === 'natural' || action === 'plant-8' || action === 'plant-14' || action === 'physical-7')
+} if (action === 'radiate')
+    return !!a.radiate && d <= a.radiate.range; if (action === 'natural' || action === 'plant-8' || action === 'plant-14' || action === 'physical-7')
     return adjacent(a, t); if (action === 'mental-24' || action === 'physical-10' || action === 'plant-16')
     return d <= 15; if (action === 'physical-37' || action === 'physical-42' || action === 'plant-33')
     return d <= 10; return false; }
 export function planPlayer(s, plan) { if (s.status !== 'active')
     throw Error('Encounter ended'); return validatePlan(s, s.actors.find(a => a.id === 'player'), plan); }
-function aiPlan(s, a) { const t = s.actors.find(x => x.id === 'player'); const action = a.natural ? 'natural' : 'weapon'; if (!active(t) || action === 'weapon' && getWeapon(a.equipment.weaponId).wc <= weaponFatigue(a))
-    return { action: 'rest', move: { x: a.x, y: a.y }, pace: 'normal' }; if (adjacent(a, t))
+function aiPlan(s, a) { const t = s.actors.find(x => x.id === 'player'); const action = a.natural ? 'natural' : a.radiate ? 'radiate' : 'weapon', reach = action === 'radiate' ? a.radiate.range : GRID_METERS * Math.SQRT2 + 1e-8; if (!active(t) || action === 'weapon' && getWeapon(a.equipment.weaponId).wc <= weaponFatigue(a))
+    return { action: 'rest', move: { x: a.x, y: a.y }, pace: 'normal' }; if (dist(a, t) <= reach)
     return { action, targetId: t.id, mode: 'melee', move: { x: a.x, y: a.y }, pace: 'normal' }; let best = { x: a.x, y: a.y }, d = dist(a, t); for (let y = 0; y < s.height; y++)
     for (let x = 0; x < s.width; x++) {
         const nd = dist({ x, y }, t);
@@ -131,7 +132,7 @@ function aiPlan(s, a) { const t = s.actors.find(x => x.id === 'player'); const a
             best = { x, y };
             d = nd;
         }
-    } return { action: d <= GRID_METERS * Math.SQRT2 ? action : 'advance', targetId: t.id, mode: 'melee', move: best, pace: 'normal' }; }
+    } return { action: d <= reach ? action : 'advance', targetId: t.id, mode: 'melee', move: best, pace: 'normal' }; }
 function note(s, msg) { s.log.push(msg); }
 function moveActor(s, a, p) { if (!active(a))
     return false; const to = p.move; if (!to)
@@ -157,6 +158,22 @@ function advanceMS(s, a, key) { if (a.species === 'robot' || a.mutations.include
     note(s, `${a.name} gains 1 Mental Strength after five ${key === 'mentalSuccesses' ? 'damaging attacks' : 'successful defenses'}.`);
 } }
 function resultRoll(s, a, t, r) { note(s, `${a.name} → ${t.name}: ${r.reason ?? (r.roll === null ? String(r.target) : `d20 ${r.roll} vs ${r.target}`)}${r.reason ? '' : r.hit ? ' HIT' : ' MISS'}.`); }
+// Poison and radiation delivered by a creature (pp.28-29 matrices through characterHazard). A number is dice of
+// damage, D on the poison matrix kills unless the poison is paralytic, and the radiation matrix can kill or mutate.
+// Policies while the game has no antidotes and no companions: D is death, and a paralysed lone survivor is killed.
+function exposure(s, a, victim, kind, intensity, rng, { paralytic = false, stone = false } = {}) {
+    if (!active(victim)) return;
+    if (kind === 'radiation' && victim.species === 'robot') { s.pendingRulings.push(`${victim.name}: radiation vs robot requires referee ruling`); note(s, 'Robot radiation result not automated.'); return; }
+    const o = characterHazard(victim, kind, intensity, rng), resisted = kind === 'poison' ? victim.effects.poisonResistance : victim.effects.radiationResistance;
+    const label = `${kind === 'poison' ? (paralytic ? 'Paralytic poison' : 'Poison') : 'Radiation'} intensity ${intensity} vs ${resisted}`;
+    const kill = why => { note(s, `${label}: ${why}`); victim.hp = 0; victim.dying = false; note(s, `${victim.name} falls.`); };
+    if (o.outcome === 'immune') note(s, `${label}: ${victim.name} is immune.`);
+    else if (o.outcome === 'damage') { if (o.damage > 0) { note(s, `${label}: ${o.cell}d6.`); hurt(s, victim, o.damage, null, { damageType: kind, damageDice: o.cell }); } else note(s, `${label}: no effect.`); }
+    else if (o.outcome === 'fatal-poison' && paralytic) kill(`${victim.name} is paralysed and helpless.${a.drain ? ` ${a.name} drains ${a.drain} hit points a turn;` : ''} with no companion to intervene, ${victim.name} dies.`);
+    else if (o.outcome === 'fatal-poison') kill(stone ? `${victim.name} turns to stone.` : `fatal, and there is no antidote. ${victim.name} dies.`);
+    else if (o.outcome === 'death') kill(`fatal. ${victim.name} dies.`);
+    else { note(s, `${label}: ${o.outcome}, to appear in 7 days.`); s.pendingRulings.push(`${victim.name}: ${o.outcome} manifests in 7 days`); }
+}
 function attack(s, a, t, p, rng) {
     if (!t || !active(t))
         return;
@@ -206,10 +223,18 @@ function attack(s, a, t, p, rng) {
     }
     if (action === 'natural' || action === 'plant-8') {
         const [n, sides] = action === 'plant-8' ? [1, 8] : a.natural;
-        const r = physicalAttack({ ac: t.armorClass, hd: a.hd, damageDice: n, damageSides: sides, rng });
+        const r = physicalAttack({ ac: t.armorClass, hd: a.hd, damageDice: Math.max(1, n), damageSides: sides, rng });
         resultRoll(s, a, t, r);
-        if (r.hit)
+        if (r.hit && n > 0)
             hurt(s, t, r.damage, a, { damageDice: n });
+        if (r.hit && action === 'natural' && a.poison)
+            exposure(s, a, t, 'poison', a.poison.intensity, rng, a.poison);
+        return;
+    }
+    if (action === 'radiate') {
+        note(s, `${a.name} gives off radiation, ${a.radiate.range} m radius.`);
+        for (const victim of s.actors.filter(x => x.side !== a.side && active(x) && dist(a, x) <= a.radiate.range))
+            exposure(s, a, victim, 'radiation', a.radiate.intensity, rng);
         return;
     }
     if (action === 'plant-14') {
@@ -281,7 +306,9 @@ function act(s, a, p, rng, simultaneous = false) { if (!p || a.acted || a.fled |
 } if (p.action === 'advance') {
     if (a.side === 'right') {
         const t = s.actors.find(x => x.id === p.targetId);
-        if (t && active(t) && adjacent(a, t))
+        if (t && active(t) && !a.natural && a.radiate && dist(a, t) <= a.radiate.range)
+            attack(s, a, t, { ...p, action: 'radiate' }, rng);
+        else if (t && active(t) && adjacent(a, t))
             attack(s, a, t, { ...p, action: a.natural ? 'natural' : 'weapon', mode: 'melee' }, rng);
     }
     a.fightRounds++;
