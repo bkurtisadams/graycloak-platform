@@ -1,6 +1,7 @@
 import { readCampaign, updateEntry, applyProgress, applyAdvancement, settleExperience, storeCombat } from './campaign.js';
 import * as gw from '../packages/gamma-world-rules/index.js';
 import { loadRegion } from './world.js';
+import { partyFor } from './party.js';
 export function mountTactical({ root = null, information = null, embedded = false, characterId = null, initialPrinted = 0, onExit = null, onChange = null } = {}) {
     const $ = id => root?.querySelector('#' + id) ?? information?.querySelector('#' + id) ?? (!root ? document.getElementById(id) : null);
     const make = (tag, text, cls) => { const n = document.createElement(tag); if (text != null)
@@ -80,7 +81,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
             return;
         const picked = campaignMode ? null : practice.get($('creature').value);
         if (!campaignMode && $('antidotes')) base.antidotes = ($('antidotes').value.match(/\d+/g) ?? []).map(Number).filter(n => n >= 3 && n <= 18);
-        const fresh = old ?? gw.createEncounter(base, { definition: campaignEntry?.pendingEncounter?.definition ?? picked?.definition ?? null, creature: campaignEntry?.pendingEncounter?.creature ?? picked?.key ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: campaignMode || !$('hostile')?.checked, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
+        const fresh = old ?? gw.createEncounter(base, { allies: campaignMode ? partyFor(campaignEntry, base) : Array.from({ length: Number($('allies')?.value ?? 0) }, (_, i) => ({ ...gw.generateCompanion({ species: 'animal', stock: ['badger', 'bear', 'dog', 'cat'][i % 4], name: ['Thistle', 'Sable', 'Bracken', 'Ember'][i % 4] }), moraleAdjust: gw.leadership(base, 'animal').morale })), definition: campaignEntry?.pendingEncounter?.definition ?? picked?.definition ?? null, creature: campaignEntry?.pendingEncounter?.creature ?? picked?.key ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: campaignMode || !$('hostile')?.checked, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
         if (campaignEntry?.pendingEncounter?.site)
             fresh.site = campaignEntry.pendingEncounter.site;
         commit(gw.beginInteractive(fresh), old);
@@ -197,10 +198,11 @@ export function mountTactical({ root = null, information = null, embedded = fals
                 cell.dataset.y = y;
                 cell.setAttribute('aria-label', a ? `${a.name}, ${a.side === 'left' ? a.hp + ' HP' : injury(a)}, column ${x + 1}, row ${y + 1}` : `Column ${x + 1}, row ${y + 1}`);
                 if (a) {
-                    const token = make('span', a.side === 'left' ? (a.species === 'robot' ? 'R' : a.species === 'plant' ? 'P' : 'PC') : a.name[0], `token ${a.side === 'right' ? 'npc' : ''} ${a.hp <= 0 ? 'dead' : ''}`);
+                    const token = make('span', a.ally ? a.name[0] : a.side === 'left' ? (a.species === 'robot' ? 'R' : a.species === 'plant' ? 'P' : 'PC') : a.name[0], `token ${a.side === 'right' ? 'npc' : a.ally ? 'ally' : ''} ${a.hp <= 0 || a.fled ? 'dead' : ''}`);
                     cell.append(token);
                     if (a.side === 'right') cell.append(make('small', injury(a), 'token-caption'));
-                    if (a.id !== 'player' && alive(a))
+                    if (a.ally) cell.append(make('small', a.fled ? `${a.name} fled` : `${a.name} ${a.hp}/${a.maxHp}`, 'token-caption'));
+                    if (a.side === 'right' && alive(a))
                         cell.dataset.target = a.id;
                 }
                 cells.push(cell);

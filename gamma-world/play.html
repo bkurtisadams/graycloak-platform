@@ -50,11 +50,11 @@
 <section class="battle-area stage" id="combatArea" hidden></section>
 <aside class="information battle-info sidebar" id="sharedInformation">
 <div class="side-tabs" role="group" aria-label="Side panel">
-<button id="chatTab" aria-pressed="true">Chat</button><button id="eventsTab" aria-pressed="false">Events</button><button id="partyTab" disabled title="Followers are not built yet">Party</button><button id="bagTab" aria-pressed="false">Bag</button>
+<button id="chatTab" aria-pressed="true">Chat</button><button id="eventsTab" aria-pressed="false">Events</button><button id="partyTab" aria-pressed="false">Party</button><button id="bagTab" aria-pressed="false">Bag</button>
 </div>
 <div id="chat"><div id="messages" class="feed pane" role="log" aria-live="polite"></div></div>
 <div id="events" class="feed pane" role="log" hidden></div>
-<div id="bagPane" class="pane" hidden></div>
+<div id="bagPane" class="pane" hidden></div><div id="partyPane" class="pane" hidden></div>
 <div class="guidance" id="guidance" role="status"></div>
 <form id="chatForm"><label>Say<input id="chatText" maxlength="500" placeholder="Message" autocomplete="off" required></label><button>Send</button></form>
 </aside>

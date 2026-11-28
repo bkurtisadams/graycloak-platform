@@ -302,3 +302,26 @@ Extract over v0.6.14 at the repository root.
 - Referee ruling: antidotes are for sale. The trading post's list (intensities 8, 9, 12, 14, 15, 16, 18) and the 30 domar price remain placeholders.
 - Robots still have no radiation mutation chart and are reported as needing a ruling.
 - 124 game tests and 3 lobby tests pass.
+
+## v0.6.16 — followers and hirelings
+
+Extract over v0.6.15 at the repository root.
+
+Printed rules now in the game (CHARISMA):
+- The CHARISMA TABLE (maximum followers, morale adjustment, reaction adjustment) and the CHARISMA TABLE MODIFIERS for all nine pairings of Pure Strain Human, humanoid and mutated animal, tested against the printed tables. Followers are limited by Charisma; hirelings are not.
+- The reaction roll decides how someone asked along responds: 2d6 with the leader's reaction adjustment, an offer adding a point. A hostile result (5 or less) ends it with that being; an uncertain one allows another offer.
+- Followers and hirelings apply the leader's morale adjustment when they check morale.
+
+Automated-referee policies (the book leaves these to the referee):
+- Where: "Look for companions" when talking at the trading post. One asking a day; someone comes forward on 4+ on a d6 (a small settlement). The valley's people are its animal communities, so candidates are mutated animals of the eight stocks on the map key.
+- What the reaction means: enthusiastic (12) will follow out of loyalty; friendly (9-11) will hire on for pay. An enthusiastic recruit beyond the follower limit comes only for pay.
+- Pay: 5 domars a day, the first day on hiring and then each dawn; a hireling who cannot be paid leaves. The rate is a placeholder until the NON-PLAYER CHARACTERS section is supplied. An offer costs 10 domars for +1.
+- Companions are rolled as characters (3d6 attributes, rolled mutations) and armed at random with primitive weapons and armour.
+- In a fight they are run by the game: each closes with the nearest foe and attacks with its weapon, acting on the player's half of the round after the player. Their mutations are not used yet. They check morale below half hit points. Foes attack whoever is nearest.
+- After a fight wounds are kept; the dead are struck from the party; one who fled rejoins. Resting heals companions a point a day, and "Rest until healed" waits for the worst hurt. Experience still goes to the survivor alone. If the survivor falls the fight is lost even if companions stand.
+- Not yet: followers or hirelings gained from wilderness encounters, companions carrying or giving antidotes, companions helping a paralysed survivor, giving orders in a fight.
+
+Also:
+- The Party tab lists companions with role, pay, hit points, armour class, weapon and mutations, the leader's limits, and a Dismiss button.
+- Practice combat has a Companions setting (0 to 4).
+- 132 game tests and 3 lobby tests pass.

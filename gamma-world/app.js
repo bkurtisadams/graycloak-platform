@@ -184,7 +184,7 @@ $('chatForm').addEventListener('submit', e => { e.preventDefault(); const msg = 
     return; $('messages').append(node('p', `${character?.name || 'You'}: ${msg}`)); if ($('messages').children.length > 100)
     $('messages').firstChild.remove(); $('chatText').value = ''; $('messages').scrollTop = $('messages').scrollHeight; });
 refreshRoster();
-event('Rules laboratory v0.6.15 initialized. Select mutations to preview immediately.');
+event('Rules laboratory v0.6.16 initialized. Select mutations to preview immediately.');
 
 // Wizard adapter: reuse the existing generation, preview and persistence handlers.
 export function wizardState(){return {generated:!!draft,ready:!!character,species:draft?.character.species,recordId};}

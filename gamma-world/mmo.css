@@ -824,3 +824,7 @@ body.play-page.mmo {
 .hex-label.site {background:#16201ae6; color:var(--cream); font-weight:700; font-size:12px; border:1px solid #a08b59;}
 .hex-label.place {color:#1b1410; font-weight:600; text-shadow:0 0 3px #f3ecd4, 0 0 3px #f3ecd4, 0 0 2px #f3ecd4; transform:translate(-50%,-30%);}
 .hex-label.place::before {content:"\25C6 "; font-size:9px;}
+
+.party-member {display:grid; gap:2px; padding:8px 10px; margin:6px 0; border:1px solid var(--line, #3a4a3d); border-radius:8px;}
+.party-member span, .party-member small {color:var(--muted, #b9c2b0); font-size:12px;}
+.party-member button {justify-self:start; margin-top:4px; font-size:12px; padding:3px 8px;}

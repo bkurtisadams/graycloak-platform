@@ -55,7 +55,10 @@ function afterCombat(entry, state, p) {
     const inventory = entry.inventory.filter(i => { if (!i.antidote || !left) return true; const k = left.indexOf(i.antidote); if (k < 0) return false; left.splice(k, 1); return true; });
     const stamp = `${entry.days ?? 0}:${entry.minutes ?? 360}:${entry.steps ?? 0}`, known = new Set((entry.radiation ?? []).map(r => r.id));
     const fresh = (state.pendingEffects ?? []).map((e, i) => ({ id: `${stamp}:${i}`, kind: e.kind, due: (entry.days ?? 0) + 7 })).filter(r => !known.has(r.id));
-    return { inventory, radiation: [...(entry.radiation ?? []), ...fresh] };
+    // Companions carry their wounds out of the fight. The dead are struck from the party once it is over; one who broke and fled rejoins (policy).
+    const over = state.status !== 'active', fallen = [];
+    const members = (entry.party ?? []).map(m => { const a = state.actors.find(x => x.companionId === m.id); if (!a) return m; if (a.hp <= 0 && over) fallen.push(m.name); return { ...m, damage: a.maxHp - a.hp, dead: a.hp <= 0 }; }).filter(m => !(over && m.dead));
+    return { inventory, radiation: [...(entry.radiation ?? []), ...fresh], party: members, fallen };
 }
 export function manifestRadiation(entry, rng = Math.random) {
     const due = (entry.radiation ?? []).filter(r => !r.done && (entry.days ?? 0) >= r.due);
@@ -69,7 +72,7 @@ export function manifestRadiation(entry, rng = Math.random) {
     return { ...entry, acquired, radiation: entry.radiation.map(r => due.includes(r) ? { ...r, done: true } : r), advancement: { bonuses: entry.advancement?.bonuses ?? [], news: [...(entry.advancement?.news ?? []), ...news] } };
 }
 export function storeCombat(entry, state) { const p = state.actors.find(a => a.id === 'player'); if (!p)
-    throw Error('Missing player'); const kept = afterCombat(entry, state, p); return { ...entry, radiation: kept.radiation, inventory: kept.inventory.map(i => i.id === 'outpost-device' && p.artifact ? { ...i, artifact: p.artifact } : i), encounter: state.status === 'active' ? structuredClone(state) : null, pendingEncounter: null, clearingResolved: entry.clearingResolved || state.site === 'clearing' && ['victory', 'peaceful'].includes(state.status), progress: { damage: p.maxHp - p.hp, experience: p.experience, MS: p.attributes.MS, mentalResistance: p.effects.mentalResistance, bleeding: p.bleeding, totalHealingUses: p.totalHealingUses } }; }
+    throw Error('Missing player'); const kept = afterCombat(entry, state, p); return { ...entry, radiation: kept.radiation, party: kept.party, advancement: kept.fallen.length ? { bonuses: entry.advancement?.bonuses ?? [], news: [...(entry.advancement?.news ?? []), ...kept.fallen.map(n => `${n} was killed in the fight.`)] } : entry.advancement, inventory: kept.inventory.map(i => i.id === 'outpost-device' && p.artifact ? { ...i, artifact: p.artifact } : i), encounter: state.status === 'active' ? structuredClone(state) : null, pendingEncounter: null, clearingResolved: entry.clearingResolved || state.site === 'clearing' && ['victory', 'peaceful'].includes(state.status), progress: { damage: p.maxHp - p.hp, experience: p.experience, MS: p.attributes.MS, mentalResistance: p.effects.mentalResistance, bleeding: p.bleeding, totalHealingUses: p.totalHealingUses } }; }
 // Prototype settlement map, not the existing authored campaign geography.
 export const WORLD = { width: 20, height: 12, sites: [{ x: 2, y: 5, name: 'Eden Valley', kind: 'town' }, { x: 10, y: 5, name: 'Forest clearing', kind: 'encounter' }, { x: 17, y: 8, name: 'Ancient outpost', kind: 'ruin' }], walls: [[7, 3], [7, 4], [7, 6], [7, 7], [13, 2], [13, 3], [13, 4], [13, 5], [16, 7], [17, 7], [18, 7]] };
 export function worldPath(start, end) { if (!Number.isInteger(end.x) || !Number.isInteger(end.y) || end.x < 0 || end.y < 0 || end.x >= WORLD.width || end.y >= WORLD.height)

@@ -25,8 +25,8 @@ const emptyEffects = () => ({ movementMultiplier: 1, attacksPerRound: 1, mentalR
 function unit(c, id, x, y, side, extra = {}) { return { ...clone(c), id, x, y, side, hd: c.attributes.CN, large: false, intelligent: true, normalMove: 12, fled: false, dying: false, rest: 0, fightRounds: 0, uses: {}, mentalSuccesses: 0, mentalDefenses: 0, plantCharge: 4, ...extra }; }
 function enemy(key, i, rng, definition, count = 1) { const d = definition ?? CREATURES[key]; if (!d)
     throw Error('Unknown creature'); const hp = dice(d.hd, 6, rng), ms = d.ms ?? dice(3, 6, rng); return unit({ name: `${d.name} ${i + 1}`, species: 'creature', attributes: { MS: ms, IN: 10, DX: d.dx, CH: 10, CN: 10, PS: 10 }, hp, maxHp: hp, armorClass: d.ac, mutations: [], equipment: { weaponId: d.weapon ?? null, armorId: 'none' }, effects: { ...emptyEffects(), mentalResistance: ms, poisonResistance: 10, poisonImmune: key === 'podog', radiationResistance: 10 }, reviewRequired: [], experience: 0 }, `npc-${i + 1}`, count > 3 ? 11 + Math.floor(i / 5) * 2 : 11, count > 3 ? 1 + (i % 5) * 2 : 2 + i * 3, 'right', { hd: d.hd, large: d.large, intelligent: d.intelligent, normalMove: d.move, natural: d.natural ?? null, poison: d.poison ?? null, radiate: d.radiate ?? null, drain: d.drain ?? null, creatureKey: key }); }
-export function createEncounter(character, { creature = 'badder', definition = null, count = 1, rng = Math.random, surprisePossible = true, blocked = [], meeting = false, intelligentMorale = false } = {}) { if (!character?.selectionComplete || !character.effects || character.hp <= 0)
-    throw Error('Complete a living character first'); integer(count, 1, 8, 'opponents'); const kind = definition ?? CREATURES[creature]; if (!kind) throw Error('Unknown creature'); const player = unit(character, 'player', 2, 5, 'left'), actors = [player, ...Array.from({ length: count }, (_, i) => enemy(creature, i, rng, definition, count))]; const order = firstStrike({ leftImmune: !!player.effects.surpriseImmune, possible: surprisePossible, rng }); if (creature === 'podog') {
+export function createEncounter(character, { creature = 'badder', definition = null, allies = [], count = 1, rng = Math.random, surprisePossible = true, blocked = [], meeting = false, intelligentMorale = false } = {}) { if (!character?.selectionComplete || !character.effects || character.hp <= 0)
+    throw Error('Complete a living character first'); integer(count, 1, 8, 'opponents'); const kind = definition ?? CREATURES[creature]; if (!kind) throw Error('Unknown creature'); const places = [[1, 3], [1, 7], [2, 2], [2, 8], [0, 5], [0, 3], [0, 7], [1, 1], [1, 9], [0, 1], [0, 9], [3, 1], [3, 9], [0, 2], [0, 8]]; integer(allies.length, 0, places.length, 'companions'); const player = unit(character, 'player', 2, 5, 'left'), actors = [player, ...allies.map((c, i) => unit(c, `ally-${i + 1}`, places[i][0], places[i][1], 'left', { ally: true, companionId: c.companionId ?? null, moraleAdjust: c.moraleAdjust ?? 0 })), ...Array.from({ length: count }, (_, i) => enemy(creature, i, rng, definition, count))]; const order = firstStrike({ leftImmune: !!player.effects.surpriseImmune, possible: surprisePossible, rng }); if (creature === 'podog') {
     order.first = 'right';
     order.mimickedCry = true;
 } return { creatureName: kind.name, intelligentMorale: !!intelligentMorale, meeting: meeting && kind.meeting === 'roll' ? { open: true, speaks: !!kind.speaks, talked: false, gifted: false, result: null } : null, version: 1, round: 1, seconds: 0, width: 15, height: 11, blocked: structuredClone(blocked), actors, order, status: 'active', log: [`Round 1: first strike ${order.first === 'left' ? 'player' : 'creatures'} (${order.left}/${order.right}); ${order.leftSurprised && order.rightSurprised ? 'Both sides surprised' : order.leftSurprised ? 'Your side surprised' : order.rightSurprised ? 'Creatures surprised' : 'Neither side surprised'}.${order.mimickedCry ? ' Podog mimics the prey’s cry and takes first strike.' : ''}`], pendingRulings: [], xpAwarded: 0 }; }
@@ -123,7 +123,7 @@ function attackInRange(a, t, action, mode) { const d = dist(a, t); if (action ==
     return d <= 10; return false; }
 export function planPlayer(s, plan) { if (s.status !== 'active')
     throw Error('Encounter ended'); return validatePlan(s, s.actors.find(a => a.id === 'player'), plan); }
-function aiPlan(s, a) { const t = s.actors.find(x => x.id === 'player'); const action = a.natural ? 'natural' : a.radiate ? 'radiate' : 'weapon', reach = action === 'radiate' ? a.radiate.range : GRID_METERS * Math.SQRT2 + 1e-8; if (!active(t) || action === 'weapon' && getWeapon(a.equipment.weaponId).wc <= weaponFatigue(a))
+function aiPlan(s, a) { const t = s.actors.filter(x => x.side !== a.side && active(x)).sort((p, q) => dist(a, p) - dist(a, q))[0] ?? s.actors.find(x => x.side !== a.side); const action = a.natural ? 'natural' : a.radiate ? 'radiate' : 'weapon', reach = action === 'radiate' ? a.radiate.range : GRID_METERS * Math.SQRT2 + 1e-8; if (!active(t) || action === 'weapon' && getWeapon(a.equipment.weaponId).wc <= weaponFatigue(a))
     return { action: 'rest', move: { x: a.x, y: a.y }, pace: 'normal' }; if (dist(a, t) <= reach)
     return { action, targetId: t.id, mode: 'melee', move: { x: a.x, y: a.y }, pace: 'normal' }; let best = { x: a.x, y: a.y }, d = dist(a, t); for (let y = 0; y < s.height; y++)
     for (let x = 0; x < s.width; x++) {
@@ -400,6 +400,15 @@ export function resolveRound(state, plan, { rng = Math.random } = {}) {
 // Only committed states are saved; every command increments revision, including movement.
 const pc = s => s.actors.find(a => a.id === 'player');
 const enemies = s => s.actors.filter(a => a.side === 'right');
+// Companions fight beside the player and act on the player's half of the round, after the player.
+const allies = s => s.actors.filter(a => a.side === 'left' && a.id !== 'player');
+function allyHalf(s, rng) { for (const a of allies(s)) {
+    if (a.fled || a.acted || !active(a))
+        continue;
+    const p = aiPlan(s, a);
+    moveActor(s, a, p);
+    act(s, a, p, rng);
+} }
 function enemyHalf(s, rng) { for (const a of enemies(s)) {
     if (a.fled || a.acted || (!active(a) && !a.dying))
         continue;
@@ -412,8 +421,10 @@ function enemyHalf(s, rng) { for (const a of enemies(s)) {
 // in special circumstances; with intelligentMorale on, the automated referee treats being below half hit points,
 // or half their side being down, as such a circumstance. Fearless beings never check.
 function moraleDue(s, a) {
-    if (a.side !== 'right' || !active(a)) return false;
+    if (!active(a) || a.id === 'player') return false;
     const hurt = a.hp < a.maxHp / 2;
+    // Followers and hirelings check like other intelligent beings in a fight going badly, with the leader's morale adjustment.
+    if (a.side === 'left') return hurt;
     if (!a.intelligent) return hurt;
     if (!s.intelligentMorale || a.fearless) return false;
     const side = s.actors.filter(x => x.side === 'right'), down = side.filter(x => !active(x)).length;
@@ -446,9 +457,9 @@ function openHalf(s, rng) { for (const a of s.actors) {
     a.acted = false;
     a.dying = false;
     if (moraleDue(s, a)) {
-        const m = moraleCheck({ intelligent: a.intelligent, rng });
-        note(s, `${a.name} morale check (d10 ${m.roll}, needs ${a.intelligent ? 3 : 5}): ${m.holds ? 'holds' : 'breaks and flees'}.`);
-        if (!m.holds)
+        const m = moraleCheck({ intelligent: a.intelligent, rng }), adj = a.moraleAdjust ?? 0, holds = adj ? m.roll + m.bonus + adj >= (a.intelligent ? 3 : 5) : m.holds;
+        note(s, `${a.name} morale check (d10 ${m.roll}${adj ? `, leader's Charisma ${adj > 0 ? '+' : ''}${adj}` : ''}, needs ${a.intelligent ? 3 : 5}): ${holds ? 'holds' : 'breaks and flees'}.`);
+        if (!holds)
             a.fled = true;
     }
 } s.turn = { moved: 0, action: null, queued: null, origin: { x: pc(s).x, y: pc(s).y }, pace: 'normal' };
@@ -586,17 +597,20 @@ else if (command.type === 'end') {
         act(s, p, { action }, rng);
     }
     if (s.order.first === 'simultaneous') {
-        const plans = new Map(enemies(s).filter(active).map(a => [a.id, aiPlan(s, a)]));
-        for (const a of enemies(s).filter(active))
+        const others = [...allies(s), ...enemies(s)], plans = new Map(others.filter(active).map(a => [a.id, aiPlan(s, a)]));
+        for (const a of others.filter(active))
             moveActor(s, a, plans.get(a.id));
         if (s.turn.queued)
             act(s, p, s.turn.queued, rng, true);
-        for (const a of enemies(s))
+        for (const a of others)
             if (plans.has(a.id))
                 act(s, a, plans.get(a.id), rng, true);
     }
-    else if (s.order.first === 'left')
-        enemyHalf(s, rng);
+    else {
+        allyHalf(s, rng);
+        if (s.order.first === 'left')
+            enemyHalf(s, rng);
+    }
     finishHalf(s, rng);
 }
 else

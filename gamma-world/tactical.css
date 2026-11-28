@@ -381,3 +381,5 @@ header nav {
 .result-banner p {margin:0 0 16px; color:var(--muted);}
 .result-banner button {min-height:48px; padding:10px 24px; font-size:16px; background:#a18a4f; color:#191b13; border-color:#d5b779;}
 #leaveEncounter {border-color:var(--accent);}
+
+.token.ally {background:#2f5d7c; color:#e9f3fa; border-color:#9cc7e3;}

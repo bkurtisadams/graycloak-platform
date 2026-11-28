@@ -3,6 +3,7 @@ import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair, awar
 import { manifestRadiation, readCampaign, selectRecord, updateEntry, applyProgress } from './campaign.js';
 import { sceneOf, getScene, hasScene, registerScene, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, clockOf, addMinutes, describeDistance, describeTime, FIRST_SCENE } from './scenes.js';
 import { loadRegion } from './world.js';
+import { party, followers, seekCompanion, approach, takeOn, dismiss, payWages, describe, WAGE, OFFER } from './party.js';
 // The country outside the valley is read from the campaign map before the first draw. Without it the valley still plays.
 let worldError = null;
 try { registerScene(await loadRegion()); } catch (e) { worldError = e; }
@@ -37,13 +38,14 @@ function choices(options) {
     $('messages').scrollTop = $('messages').scrollHeight;
 }
 function showTab(name) {
-    for (const [tab, pane] of [['chatTab', 'chat'], ['eventsTab', 'events'], ['bagTab', 'bagPane']]) {
+    for (const [tab, pane] of [['chatTab', 'chat'], ['eventsTab', 'events'], ['partyTab', 'partyPane'], ['bagTab', 'bagPane']]) {
         const on = tab === name + 'Tab';
         $(pane).hidden = !on;
         $(tab).setAttribute('aria-pressed', String(on));
     }
     $('chatForm').hidden = name !== 'chat';
     if (name === 'bag') showBag();
+    if (name === 'party') showParty();
 }
 function log(msg) { $('events').append(el('p', msg)); if ($('events').children.length > 300)
     $('events').firstChild.remove(); $('events').scrollTop = $('events').scrollHeight; post('event', msg); }
@@ -225,6 +227,7 @@ function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry
     if (p) {
         const from = clockTotal(entry);
         entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell));
+        dayTick(Math.floor(from / 1440));
         if (sc.encounters && wander(sc, from)) return;
     }
     render();
@@ -304,6 +307,7 @@ catch (e) {
 $('chatTab').onclick = () => showTab('chat');
 $('eventsTab').onclick = () => showTab('events');
 $('bagTab').onclick = () => showTab('bag');
+$('partyTab').onclick = () => showTab('party');
 $('chatForm').onsubmit = e => { e.preventDefault(); const msg = $('chatText').value.trim(); if (msg) {
     const line = `${c?.name || 'You'}: ${msg}`;
     const data = JSON.parse(localStorage.getItem('graycloak.gw.chat.local') || '[]');
@@ -457,6 +461,7 @@ function maraTopics() {
         ['Ask about the forest', () => ask('What is out in the forest?', 'Badders have been seen near the clearing. Keep your weapon ready, but talk first if they allow it.')],
         ['Ask about the ruins', () => ask('Anything worth salvaging in the ruins?', 'An Ancient outpost lies east of the clearing. Bring any strange devices back and we will study them.')],
         ['Trade', () => { if (leftTown()) return; showTrade(); }],
+        ['Look for companions', () => seek()],
         ['Rest one day', () => restAt(false), c?.species === 'robot'],
         ['Rest until healed', () => restAt(true), c?.species === 'robot'],
         ['Repair', () => restAt(false), c?.species !== 'robot'],
@@ -464,6 +469,48 @@ function maraTopics() {
 }
 function leftTown() { if (inTown()) return false; post('system', 'You are no longer with Mara in Eden Valley.'); for (const old of $('messages').querySelectorAll('.choices')) old.remove(); return true; }
 function ask(question, answer) { if (leftTown()) return; post('me', question, c.name || 'You'); post('npc', answer, MARA); maraTopics(); }
+// Followers and hirelings. The CHARISMA rules give the limit, the reaction roll and the adjustments; the rest is the automated referee.
+function leaderLine() { const l = gw.leadership(c, 'animal'); return `With the valley's mutated animals your Charisma ${c.attributes.CH} allows ${l.followers} follower${l.followers === 1 ? '' : 's'} (you have ${followers(entry).length}), reaction ${l.reaction >= 0 ? '+' : ''}${l.reaction}, morale ${l.morale >= 0 ? '+' : ''}${l.morale}. Hirelings are not limited.`; }
+function showParty() {
+    const pane = $('partyPane'), list = entry ? party(entry) : [];
+    if (!entry || !c) { pane.replaceChildren(el('p', 'No survivor selected.')); return; }
+    const rows = list.map(m => { const ch = m.character, hp = ch.maxHp - (m.damage ?? 0), row = document.createElement('div'); row.className = 'party-member';
+        const out = el('button', 'Dismiss'); out.onclick = () => { if (entry.encounter || entry.pendingEncounter) { say('Finish the encounter first.'); return; } entry = updateEntry(entry.id, e => dismiss(e, m.id)); log(`${describe(m)} leaves the party.`); showParty(); };
+        row.append(el('strong', m.name), el('span', `${m.stock || m.species} · ${m.role}${m.wage ? ` · ${m.wage} domars a day` : ''}`), el('span', `HP ${hp}/${ch.maxHp} · AC ${ch.armorClass} · ${gw.getWeapon(ch.equipment.weaponId).name}`), el('small', ch.mutations.length ? `Mutations: ${ch.mutations.map(id => [...gw.PHYSICAL, ...gw.MENTAL].find(x => x.id === id)?.name ?? id).join(', ')} (not used in fights yet)` : 'No mutations'), out); return row; });
+    pane.replaceChildren(el('p', leaderLine()), ...(rows.length ? rows : [el('p', 'You travel alone. Ask at the trading post for companions.')]));
+}
+function dayTick(before) {
+    const days = (entry.days ?? 0) - before;
+    if (days <= 0 || !party(entry).some(m => m.role === 'hireling')) return;
+    const paid = payWages(entry, days);
+    entry = updateEntry(entry.id, e => ({ ...e, domars: paid.entry.domars, party: paid.entry.party }));
+    for (const line of paid.news) log(line);
+}
+function seek() {
+    if (leftTown()) return;
+    try {
+        entry = updateEntry(entry.id, e => seekCompanion(e));
+        const r = entry.recruit;
+        if (!r.candidate) { post('system', `You ask around where the valley folk gather (d6 ${r.roll}, someone comes forward on 4 or more). No one is interested today.`); maraTopics(); return; }
+        post('system', `You ask around where the valley folk gather (d6 ${r.roll}). ${describe(r.candidate)} will hear you out. ${leaderLine()}`);
+        recruitChoices();
+    }
+    catch (err) { post('system', err.message); maraTopics(); }
+}
+function recruitChoices() {
+    const r = entry.recruit, who = r.candidate, first = r.state === 'open';
+    const speak = offer => { try { entry = updateEntry(entry.id, e => approach(e, offer)); render(); answer(); } catch (err) { post('system', err.message); recruitChoices(); } };
+    choices([['Make your case', () => speak(false), !first], [`Make an offer (${OFFER} domars, +1)`, () => speak(true)], ['Leave it', () => { post('system', `You part from ${who.name}.`); maraTopics(); }]]);
+}
+function answer() {
+    const r = entry.recruit, who = r.candidate, x = r.reaction;
+    post('system', `Reaction: 2d6 ${x.rolled}${x.modifier ? ` ${x.modifier > 0 ? '+' : '−'} ${Math.abs(x.modifier)}` : ''} = ${x.score}, ${x.label}.`);
+    const join = () => { try { entry = updateEntry(entry.id, e => takeOn(e)); render(); log(`${describe(who)} joins as a ${r.state}.`); post('npc', r.state === 'follower' ? 'I am with you.' : 'Paid each dawn, and I am yours.', who.name); } catch (err) { post('system', err.message); } maraTopics(); };
+    if (r.state === 'follower') { post('npc', 'I will follow you, and ask nothing for it.', who.name); choices([['Welcome them as a follower', join], ['Decline', () => maraTopics()]]); }
+    else if (r.state === 'hireling') { post('npc', r.capped ? `I would follow you, but you lead as many as you can. I will come for pay: ${WAGE} domars a day.` : `I will come for pay: ${WAGE} domars a day.`, who.name); choices([[`Hire (${WAGE} domars now, then each dawn)`, join], ['Decline', () => maraTopics()]]); }
+    else if (r.state === 'uncertain') { post('npc', 'I am not sure of you.', who.name); recruitChoices(); }
+    else { post('system', `${who.name} wants nothing to do with you. No further attempt can be made.`); maraTopics(); }
+}
 function talkMara() { showTab('chat'); post('npc', 'Welcome to Eden Valley. Stock up before you follow the old road.', MARA); maraTopics(); }
 function restAt(untilHealed) {
     if (leftTown()) return;
@@ -472,6 +519,7 @@ function restAt(untilHealed) {
         const before = entry.days ?? 0, robot = c.species === 'robot';
         entry = updateEntry(entry.id, e => robot ? repair(e) : rest(e, untilHealed));
         c = characterFor(entry);
+        dayTick(before);
         render();
         const days = (entry.days ?? 0) - before;
         log(robot ? `Repairs made. ${c.hp} / ${c.maxHp} HP.` : `Rested ${days} day${days === 1 ? '' : 's'}. ${c.hp} / ${c.maxHp} HP.`);
