@@ -11,16 +11,46 @@ const HEX_H = 2 / Math.sqrt(3), unit = sc => sc.layout === 'hex' ? 'hex' : 'squa
 const worldArea = document.getElementById('worldArea');
 const $ = id => id === 'worldArea' ? worldArea : worldArea.querySelector('#' + id) ?? document.getElementById(id), el = (tag, text = '') => { const n = document.createElement(tag); n.textContent = text; return n; };
 let entry = null, c = null, path = [], timer = null, combat = null, opening = false, worldZoom = 36;
+const cellOf = e => { const b = e.target.closest?.('.cell'); return b && b.dataset.x != null ? { x: Number(b.dataset.x), y: Number(b.dataset.y), el: b } : null; };
+const idle = () => !opening && !combat && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter);
+const centre = (sc, p) => sc.layout === 'hex' ? { x: p.x * worldZoom + worldZoom * 2 / 3, y: (p.y + (p.x & 1) / 2 + .5) * worldZoom * HEX_H } : { x: (p.x + .5) * worldZoom, y: (p.y + .5) * worldZoom };
+let selected = null, hovered = null;
+const thing = p => { const sc = scene(); return sc.sites.find(s => s.x === p.x && s.y === p.y) ?? (sc.places ?? []).find(s => s.x === p.x && s.y === p.y) ?? null; };
+const KIND = { exit: 'Way out', town: 'Settlement', encounter: 'Unexplored', ruin: 'Ruin', place: 'Landmark', fortification: 'Fortress', village: 'Village', 'robot-farm': 'Robot farm' };
+const TERRAIN_FILL = {"plains": "#9c9a6c", "grassland": "#a3a06a", "clear": "#a09d70", "coast": "#aaa67c", "hills": "#928657", "forested-hill": "#69744a", "mountains": "#857b68", "snow-mountains": "#b9b7ae", "forested-mountains": "#5f6851", "forest": "#48613c", "woods": "#526a44", "heavy-forest": "#2b4638", "marsh": "#4d6a5c", "swamp": "#45604f", "desert": "#a48a5e", "badlands": "#96805a", "wasteland": "#96805a", "water": "#476d7c", "sea": "#3f6474", "lake": "#4b7383", "river": "#4b7383", "ruins": "#7d6657", "city": "#74605a", "radioactive": "#7c7a45", "unknown": "#3f4a3d"};
+const hpClass = (hp, max) => hp / max > .6 ? '' : hp / max > .3 ? 'warn' : 'low';
+const TYPE = { psh: 'Pure Strain Human', humanoid: 'Humanoid', animal: 'Mutated animal', plant: 'Mutated plant', robot: 'Robot' };
 const printedByCharacter = new Map();
 const device = () => entry?.inventory.find(i => i.id === 'outpost-device')?.artifact;
-function post(kind, text, speaker) {
-    const feed = $('messages'), line = el('p');
-    line.className = 'msg ' + kind;
-    if (speaker) line.append(el('strong', speaker + ': '), text);
-    else line.textContent = kind === 'system' ? '[System] ' + text : kind === 'event' ? '[Event] ' + text : text;
-    feed.append(line);
-    while (feed.children.length > 200) feed.firstChild.remove();
-    feed.scrollTop = feed.scrollHeight;
+// One Information feed. Every line carries the game time and a tag; dice rolls are kept, in their own quieter style.
+let lastStampDay = null;
+function stamp() {
+    if (!entry) return '';
+    const day = (entry.days ?? 0) + 1, m = entry.minutes ?? 360, hm = `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const text = day === lastStampDay ? hm : `Day ${day} · ${hm}`;
+    lastStampDay = day;
+    return text;
+}
+const ROLL = /\bd\d+\b|\d+d\d+|morale check|Reaction:|intensity \d+ vs/i, FIGHT = /attack|falls|flee|damage|Round \d|Encounter|morale|victory|defeat|killed|poison|radiation|antidote|first strike|surpris|withdraw|parley|rests\.|moves \d|dying|binds/i;
+function classify(text, fromCombat = false) {
+    const group = fromCombat || FIGHT.test(text) ? 'combat' : 'travel';
+    return ROLL.test(text) ? { tag: 'roll', label: 'Roll', group } : { tag: group, label: group === 'combat' ? 'Combat' : 'Travel', group };
+}
+function post(kind, text, speaker, as) {
+    const feed = $('messages'), line = document.createElement('div'), meta = document.createElement('div'), body = document.createElement('div');
+    const k = as ?? (kind === 'event' ? classify(text) : kind === 'system' ? { tag: 'system', label: 'System', group: 'system' } : { tag: 'npc', label: kind === 'me' ? 'You' : 'NPC', group: 'npc' });
+    line.className = `msg ${kind} ${k.tag} g-${k.group}`;
+    meta.className = 'meta';
+    meta.append(el('time', stamp()), el('b', k.label));
+    body.className = 'text';
+    if (speaker) body.append(el('strong', speaker + ': '), text);
+    else body.textContent = text;
+    line.append(meta, body);
+    const pinned = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 40;
+    const tail = feed.querySelector('.choices');
+    if (tail) feed.insertBefore(line, tail); else feed.append(line);
+    while (feed.children.length > 300) feed.firstChild.remove();
+    if (pinned) feed.scrollTop = feed.scrollHeight;
     return line;
 }
 function choices(options) {
@@ -44,12 +74,14 @@ function showTab(name) {
         $(tab).setAttribute('aria-pressed', String(on));
     }
     $('chatForm').hidden = name !== 'chat';
+    $('feedFilters').hidden = name !== 'chat';
     if (name === 'bag') showBag();
     if (name === 'party') showParty();
 }
-function log(msg) { $('events').append(el('p', msg)); if ($('events').children.length > 300)
-    $('events').firstChild.remove(); $('events').scrollTop = $('events').scrollHeight; post('event', msg); }
+function log(msg) { post('event', msg); }
 function say(msg) { $('guidance').textContent = msg; }
+// Combat writes its log to the hidden Events sink; each new line is copied into the feed.
+new MutationObserver(list => { for (const m of list) for (const n of m.addedNodes) if (n.textContent) post('event', n.textContent, null, classify(n.textContent, true)); }).observe(document.getElementById('events'), { childList: true });
 function stop() { clearInterval(timer); timer = null; path = []; }
 // Experience for a find is awarded once it is correctly identified (printed p.42).
 function withArtifact(e, itemId, artifact) {
@@ -89,8 +121,8 @@ function drawScene() {
         for (let x = 0; x < sc.cols; x++) {
             const site = sc.sites.find(t => t.x === x && t.y === y), wall = sc.blocked.has(`${x},${y}`), b = el('button');
             if (site && !hex) { const tag = el('span', site.name); tag.className = 'site-label'; b.append(tag); }
-            if (hex) { const t = sc.terrain[y * sc.cols + x]; b.style.setProperty('--x', x); b.style.setProperty('--y', y + (x & 1) / 2); b.style.background = site ? '' : sc.palette[t] ?? '#3c3c3c'; b.title = sc.terrainNames[t] ?? t; }
-            b.className = `cell ${wall ? 'wall' : ''} ${site ? 'site' : ''} ${site?.kind === 'exit' ? 'exit' : ''}`;
+            if (hex) { const t = sc.terrain[y * sc.cols + x]; b.style.setProperty('--x', x); b.style.setProperty('--y', y + (x & 1) / 2); b.title = sc.terrainNames[t] ?? t; }
+            b.className = `cell ${wall ? 'wall' : ''} ${site ? 'site' : ''} ${site?.kind === 'exit' ? 'exit' : ''}${hex ? ` t-${TERRAIN_FILL[sc.terrain[y * sc.cols + x]] ? sc.terrain[y * sc.cols + x] : 'unknown'}` : ''}`;
             b.dataset.x = x;
             b.dataset.y = y;
             if (site) b.title = site.name;
@@ -106,21 +138,33 @@ function drawScene() {
         svg.classList.add('strokes');
         for (const s of sc.strokes) { const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); line.setAttribute('points', s.pts.map(p => p.join(',')).join(' ')); line.setAttribute('class', s.kind); svg.append(line); }
         extras.push(svg);
-        const tag = (p, cls) => { const t = el('span', p.name); t.className = `hex-label ${cls}`; t.style.setProperty('--x', p.x); t.style.setProperty('--y', p.y + (p.x & 1) / 2); return t; };
+        const tag = (p, cls) => { const t = el('span', p.name); t.className = `hex-label ${cls} k-${p.kind ?? ''}`; t.style.setProperty('--x', p.x); t.style.setProperty('--y', p.y + (p.x & 1) / 2); return t; };
         extras.push(...sc.places.filter(p => !sc.sites.some(s => s.x === p.x && s.y === p.y)).map(p => tag(p, 'place')), ...sc.sites.map(s => tag(s, 'site')));
     }
-    board.replaceChildren(...cells, ...extras);
+    const route = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    route.id = 'route';
+    route.append(document.createElementNS('http://www.w3.org/2000/svg', 'polyline'));
+    const tip = el('div');
+    tip.id = 'routeTip';
+    tip.hidden = true;
+    board.replaceChildren(...cells, ...extras, route, tip);
+    board.classList.toggle('no-grid', localStorage.getItem('graycloak.gw.grid') === 'off');
+    selected = null;
     const mm = $('minimap');
     mm.style.aspectRatio = `${sc.cols} / ${sc.rows}`;
     let chart = '';
-    if (hex) { const cv = document.createElement('canvas'); cv.width = sc.cols * 3; cv.height = sc.rows * 6 + 3; const g = cv.getContext('2d'); sc.terrain.forEach((t, i) => { const x = i % sc.cols, y = Math.floor(i / sc.cols); g.fillStyle = sc.palette[t] ?? '#3c3c3c'; g.fillRect(x * 3, y * 6 + (x & 1) * 3, 3, 6); }); chart = `url("${cv.toDataURL()}")`; }
+    if (hex) { const cv = document.createElement('canvas'); cv.width = sc.cols * 3; cv.height = sc.rows * 6 + 3; const g = cv.getContext('2d'); sc.terrain.forEach((t, i) => { const x = i % sc.cols, y = Math.floor(i / sc.cols); g.fillStyle = TERRAIN_FILL[t] ?? TERRAIN_FILL.unknown; g.fillRect(x * 3, y * 6 + (x & 1) * 3, 3, 6); }); chart = `url("${cv.toDataURL()}")`; }
     mm.style.backgroundImage = sc.image ? `url("${sc.image.src}")` : chart;
     mm.style.backgroundSize = hex ? '100% 100%' : sc.image ? `${100 * sc.image.width / sc.pixelsPerCell / sc.cols}% ${100 * sc.image.height / sc.pixelsPerCell / sc.rows}%` : '';
     $('minimapName').textContent = sc.name;
     $('minimapScale').textContent = `${describeDistance(sc, 1)} per ${unit(sc)}`;
     $('worldScaleLabel').textContent = sc.scale.label;
     const chain = ancestry(sc);
-    $('sceneTrail').replaceChildren(...chain.map((node, i) => {
+    const beyond = el('button', 'Continent');
+    beyond.type = 'button';
+    beyond.disabled = true;
+    beyond.title = 'The continent map is not built yet';
+    $('sceneTrail').replaceChildren(...(chain[0].parent ? [] : [beyond]), ...chain.map((node, i) => {
         const here = node.id === sc.id, b = el('button', node.name);
         b.type = 'button';
         b.setAttribute('aria-pressed', String(here));
@@ -133,16 +177,17 @@ function drawScene() {
 function render() {
     const sc = scene(), board = $('board');
     if (drawn !== sc.id) drawScene();
-    for (const old of board.querySelectorAll('.player')) { old.classList.remove('player'); if (old.firstChild?.nodeType === 3) old.firstChild.remove(); }
-    if (entry) { const cell = board.children[entry.position.y * sc.cols + entry.position.x]; if (cell) { cell.classList.add('player'); cell.prepend('PC'); } }
+    for (const old of board.querySelectorAll('.player')) { old.classList.remove('player', 'party'); if (old.firstChild?.nodeType === 3) old.firstChild.remove(); }
+    if (entry) { const cell = board.children[entry.position.y * sc.cols + entry.position.x]; if (cell) { cell.classList.add('player'); cell.classList.toggle('party', party(entry).length > 0); cell.dataset.initial = (c?.name || 'P')[0].toUpperCase(); cell.prepend('PC'); } }
     $('worldScale').style.width = worldZoom * sc.scale.cells + 'px';
-    $('name').textContent = c?.name || 'No active character';
-    $('stats').textContent = c ? `${c.hp} / ${c.maxHp} HP · ${c.experience} XP${c.bleeding ? ' · Bleeding' : ''}` : '';
-    $('unitAc').textContent = c ? `AC ${c.armorClass}` : '';
-    $('worldHpFill').style.width = c ? `${100 * c.hp / c.maxHp}%` : '0';
+    drawFrames();
     $('dayLabel').textContent = entry ? clockOf(entry).text : '';
     const pct = (n, of) => `${100 * n / of}%`, dot = (cls, x, y) => { const i = el('i'); i.className = cls; Object.assign(i.style, { left: pct(x, sc.cols), top: pct(y, sc.rows), width: pct(1, sc.cols), height: pct(1, sc.rows) }); return i; };
-    $('minimap').replaceChildren(...(sc.image ? [] : [...sc.blocked].map(k => dot('w', ...k.split(',').map(Number)))), ...sc.sites.map(p => dot('s', p.x, p.y)), ...(entry ? [dot('p', entry.position.x, entry.position.y)] : []));
+    const north = el('i', 'N ↑'), view = el('i');
+    north.className = 'north';
+    view.className = 'view';
+    $('minimap').replaceChildren(...(sc.image || sc.layout === 'hex' ? [] : [...sc.blocked].map(k => dot('w', ...k.split(',').map(Number)))), ...sc.sites.map(p => dot('s', p.x, p.y)), ...(entry ? [dot('p', entry.position.x, entry.position.y)] : []), view, north);
+    drawView();
     const s = atSite();
     $('site').textContent = s?.name || (sc.layout === 'hex' && entry ? sc.terrainNames[sc.terrain[entry.position.y * sc.cols + entry.position.x]] : sc.parent ? sc.name : 'Wilderness');
     for (const action of gw.worldActions({ entry, character: c, site: s, moving: !!timer })) {
@@ -150,19 +195,22 @@ function render() {
         b.hidden = !action.visible;
         b.disabled = !action.enabled;
         b.title = action.reason;
-        b.textContent = action.label;
+        b.textContent = action.id === 'interact' ? ({ exit: s?.to === sc.parent ? 'Leave' : 'Enter', town: 'Talk', encounter: 'Investigate', ruin: 'Search' })[s?.kind] ?? 'Interact' : action.id === 'supply' ? 'Supplies' : action.id === 'resume' ? 'Resume' : action.label;
+        if (action.id === 'interact') { b.dataset.icon = ({ exit: s?.to === sc.parent ? 'leave' : 'enter', town: 'talk', encounter: 'search', ruin: 'search' })[s?.kind] ?? 'talk'; b.title = action.reason || (s ? action.label : 'Nothing to interact with here'); b.hidden = false; b.disabled = !action.visible || !action.enabled; }
+        if (action.id === 'supply') { b.hidden = false; b.disabled = !action.visible || !action.enabled; if (!action.visible) b.title = 'Supplies are collected at the trading post'; }
     } // Artifact interactions belong in inventory, not the exploration toolbar.
     $('experiment').hidden = true;
     $('install').hidden = true;
     const busy = !c || c.hp <= 0 || !!(entry.encounter || entry.pendingEncounter), town = s?.kind === 'town';
-    $('tradeBtn').hidden = !town;
-    $('tradeBtn').disabled = busy;
-    $('restBtn').hidden = !town;
-    $('restBtn').disabled = busy;
+    for (const id of ['tradeBtn', 'restBtn']) { $(id).hidden = false; $(id).disabled = busy || !town; $(id).title = town ? '' : 'Only at the trading post'; }
     $('restBtn').textContent = c?.species === 'robot' ? 'Repair' : 'Rest';
-    const powers = c ? gw.availableActions(c).filter(a => !['weapon', 'advance', 'rest', 'bind', 'flee'].includes(a.id)).slice(0, 4) : [];
-    $('powerDivider').hidden = !powers.length;
-    $('worldPowers').replaceChildren(...powers.map((a, i) => { const b = el('button', `${i + 1} ${a.label}`); b.className = 'slot-key'; b.disabled = true; b.title = `${a.label}: available in combat`; return b; }));
+    $('stop').hidden = !timer;
+    $('powerDivider').hidden = true;
+    $('worldPowers').replaceChildren();
+    let key = 0;
+    for (const b of worldArea.querySelectorAll('.action-bar button')) { if (b.hidden) delete b.dataset.key; else b.dataset.key = ++key; }
+    $('placeTitle').textContent = $('site').textContent;
+    drawTarget();
     if (!combat && !opening) flushNews();
 }
 function load(id) { stop(); entry = null; c = null; try {
@@ -175,7 +223,7 @@ function load(id) { stop(); entry = null; c = null; try {
     else if (entry.scene && (getScene(entry.scene).rev ?? null) !== (entry.sceneRev ?? null)) entry = updateEntry(id, e => ({ ...e, ...startOf(e.scene) }));
     if (c.hp > 0 && !entry.started)
         entry = updateEntry(id, e => ({ ...e, started: true, domars: purse(e), owned: owned(e) }));
-    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Click the map to walk. Sites are labelled; the gate leads out of the valley.');
+    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Hover a square to see the route and time. Click to walk; click a site to select it and double-click to go there.');
 }
 catch (e) {
     say(e.message + ' — open Character Select to continue.');
@@ -188,8 +236,46 @@ else {
 } }
 $('roster').addEventListener('change', () => load($('roster').value));
 $('stop').onclick = () => { stop(); render(); };
-$('board').addEventListener('click', e => { const b = e.target.closest('.cell'); if (opening || combat || !b || !c || c.hp <= 0 || (entry.encounter || entry.pendingEncounter))
-    return; walkTo({ x: +b.dataset.x, y: +b.dataset.y }); });
+// The map: hover shows the route and its cost, a click walks, a click on a site selects it and a double-click goes there.
+function routeTo(target) {
+    const sc = scene(), steps = scenePath(sc, entry.position, target);
+    if (!steps) return null;
+    const minutes = steps.length * (sc.minutesPerCell ?? 0), from = clockTotal(entry), to = from + minutes;
+    const arrive = (() => { const d = Math.floor(to / 1440), m = to % 1440, hm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; return d === Math.floor(from / 1440) ? hm : `Day ${d + 1}, ${hm}`; })();
+    // Encounter checks are made once each day and each night of travel: count the periods this route enters.
+    const checks = sc.encounters && steps.length ? gw.travelPeriod(to).index - gw.travelPeriod(from).index + (entry.wandering?.period === gw.travelPeriod(from).index ? 0 : 1) : 0;
+    return { steps, distance: describeDistance(sc, steps.length), time: minutes ? describeTime(minutes) : '', arrive, checks };
+}
+function drawRoute(target, name) {
+    const board = $('board'), line = board.querySelector('#route polyline'), tip = board.querySelector('#routeTip'), sc = scene();
+    if (!line) return;
+    const r = target && entry && idle() ? routeTo(target) : null;
+    if (!r || !r.steps.length) { line.setAttribute('points', ''); tip.hidden = true; return null; }
+    line.setAttribute('points', [entry.position, ...r.steps].map(p => { const q = centre(sc, p); return `${q.x},${q.y}`; }).join(' '));
+    const end = centre(sc, target);
+    tip.textContent = `${name ? name + ' · ' : ''}${r.distance}${r.time ? ' · ' + r.time : ''}`;
+    Object.assign(tip.style, { left: end.x + 'px', top: end.y + 'px' });
+    tip.hidden = false;
+    return r;
+}
+function drawTarget() {
+    const frame = $('targetFrame'), sc = scene();
+    for (const old of $('board').querySelectorAll('.cell.selected')) old.classList.remove('selected');
+    if (!selected || !entry) { frame.hidden = true; if (!hovered) drawRoute(null); return; }
+    $('board').children[selected.y * sc.cols + selected.x]?.classList.add('selected');
+    const here = selected.x === entry.position.x && selected.y === entry.position.y, r = here ? null : drawRoute(selected, selected.name);
+    $('targetTitle').textContent = selected.name;
+    $('targetKind').textContent = KIND[selected.kind] ?? selected.kind ?? '';
+    $('targetRoute').textContent = here ? 'You are here.' : r ? `${r.distance}${r.time ? ` · ${r.time} · arrive ${r.arrive}` : ''}` : 'No way there from here.';
+    const exit = selected.kind === 'exit' && hasScene(selected.to) ? `Leads to ${getScene(selected.to).name}. ` : '';
+    $('targetNote').textContent = here ? '' : `${exit}${r?.checks ? `${r.checks} encounter check${r.checks === 1 ? '' : 's'} on the way. ` : ''}${r ? 'Double-click to go there.' : ''}`;
+    frame.hidden = false;
+}
+function select(p) { selected = p; hovered = null; drawTarget(); }
+$('board').addEventListener('mousemove', e => { const p = cellOf(e); if (selected || timer) return; const key = p && `${p.x},${p.y}`; if (key === hovered) return; hovered = key; drawRoute(p && !p.el.disabled ? p : null, p ? thing(p)?.name : ''); });
+$('board').addEventListener('mouseleave', () => { hovered = null; if (!selected) drawRoute(null); });
+$('board').addEventListener('click', e => { const p = cellOf(e); if (!p || !idle()) return; const t = thing(p); if (t && !(p.x === entry.position.x && p.y === entry.position.y)) { select(t); return; } selected = null; drawTarget(); drawRoute(null); walkTo({ x: p.x, y: p.y }); });
+$('board').addEventListener('dblclick', e => { const p = cellOf(e); if (!p || !idle()) return; selected = null; drawTarget(); drawRoute(null); walkTo({ x: p.x, y: p.y }); });
 const clockTotal = e => (e.days ?? 0) * 1440 + (e.minutes ?? 360);
 // Route movement through uncharted country: one d6 check each day and each night, a six is an encounter (ENCOUNTERS).
 // Returns true when travel was interrupted.
@@ -305,7 +391,7 @@ catch (e) {
     say(e.message);
 } };
 $('chatTab').onclick = () => showTab('chat');
-$('eventsTab').onclick = () => showTab('events');
+
 $('bagTab').onclick = () => showTab('bag');
 $('partyTab').onclick = () => showTab('party');
 $('chatForm').onsubmit = e => { e.preventDefault(); const msg = $('chatText').value.trim(); if (msg) {
@@ -345,18 +431,19 @@ async function beginCombat() {
         area.replaceChildren(...Array.from(source.children).map(n => document.importNode(n, true)));
         area.querySelector('.battle-controls').hidden = true;
         area.querySelector('#battleNotice').hidden = true;
-        for (const [id, label] of [['returnWorld', 'Return to exploration'], ['leaveEncounter', 'Leave (pause fight)']]) {
+        for (const [id, label] of [['returnWorld', 'Return'], ['leaveEncounter', 'Pause']]) {
             const b = el('button', label);
             b.id = id;
             b.hidden = true;
+            b.title = id === 'returnWorld' ? 'Return to exploration' : 'Leave the fight paused and return to the map';
             area.querySelector('.action-bar').append(b);
         }
         const mod = await import('./tactical.js');
         if (entry.id !== id)
             throw Error('Character changed; try again');
-        $('utilityPanel').hidden=true; activeUtility=null; area.append($('utilityPanel')); worldArea.remove(); showTab('events');
+        $('utilityPanel').hidden=true; activeUtility=null; area.append($('utilityPanel')); worldArea.remove(); showTab('chat');
         area.hidden = false;
-        combat = mod.mountTactical({ root: area, information: $('sharedInformation'), embedded: true, characterId: id, onChange:()=>{if(activeUtility===showSheet && !$('utilityPanel').hidden) showSheet();}, initialPrinted: entry.encounter ? printedByCharacter.get(id) ?? 0 : 0, onExit: () => { const previous = combat?.getState(); if (previous?.status === 'active')
+        combat = mod.mountTactical({ root: area, information: $('sharedInformation'), embedded: true, characterId: id, onChange:()=>{ entry = readCampaign().characters[id] ?? entry; drawFrames(); if(activeUtility===showSheet && !$('utilityPanel').hidden) showSheet();}, initialPrinted: entry.encounter ? printedByCharacter.get(id) ?? 0 : 0, onExit: () => { const previous = combat?.getState(); if (previous?.status === 'active')
                 printedByCharacter.set(id, previous.log.length);
             else
                 printedByCharacter.delete(id); combat?.dispose(); combat = null; worldArea.append($('utilityPanel')); $('utilityPanel').hidden = true; activeUtility = null; area.hidden = true; area.replaceChildren(); $('worldShell').prepend(worldArea); load(id); showTab('chat'); log('Returned to exploration.'); fitWorld(); } });
@@ -545,7 +632,74 @@ $('bagBtn').onclick = () => showTab('bag');
 $('tradeBtn').onclick = () => { if (inTown()) { activeUtility = showTrade; showTrade(); } };
 $('restBtn').onclick = () => restAt(true);
 $('journalBtn').onclick = utility(() => dialog('Journal', [el('p', 'Eden Valley: visit the settlement for supplies, conversation and trade.'), el('p', 'Forest clearing: investigate the patrol.'), el('p', 'Ancient outpost: recover and identify the device.'), el('p', 'Prototype region; authored campaign coordinates not yet mapped.')]));
-function zoomWorld(n) { worldZoom = Math.max(10, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); $('worldScale').style.width = worldZoom * scene().scale.cells + 'px'; }
+// Game-only terrain colours (the campaign map keeps its own). hud.css draws the matching symbols.
+function cond(icon, title, cls = '') { const i = el('i'); i.className = `ico-${icon} ${cls}`; i.title = title; return i; }
+// Survivor and party frames, shared by the world and by combat (live from the fight when one is on).
+function drawFrames() {
+    const fight = combat?.getState?.(), live = id => fight?.actors.find(a => id === 'player' ? a.id === 'player' : a.companionId === id);
+    const me = live('player'), hp = me ? me.hp : c?.hp ?? 0, max = c?.maxHp ?? 1;
+    $('name').textContent = c?.name || 'No active character';
+    $('unitAc').textContent = c ? `AC ${c.armorClass}` : '';
+    $('pcPortrait').textContent = (c?.name || '?')[0].toUpperCase();
+    $('worldHpFill').style.width = c ? `${100 * hp / max}%` : '0';
+    $('pcHp').className = 'hp-track ' + hpClass(hp, max);
+    $('pcHpText').textContent = c ? `${hp} / ${max} HP` : '';
+    $('stats').textContent = c ? `${(me?.experience ?? c.experience).toLocaleString('en-US')} XP · ${TYPE[c.species] ?? c.species}` : '';
+    const due = (entry?.radiation ?? []).filter(r => !r.done), marks = [];
+    if (me?.poisoned) marks.push(cond('poison', `Poisoned: ${Math.max(0, me.poisoned.deadline - fight.round)} more round${me.poisoned.deadline - fight.round === 1 ? '' : 's'} to take an antidote`, 'bad'));
+    if (me ? me.bleeding : c?.bleeding) marks.push(cond('bleed', 'Bleeding: bind the wound', 'bad'));
+    if (me && c) { const f = gw.fatigueFactor({ weaponId: me.equipment?.weaponId, armorAC: gw.getArmor(me.equipment?.armorId ?? 'none').ac, rounds: me.fightRounds + 1, rest: me.rest, PS: me.attributes.PS, synthetic: me.species === 'robot' }); if (f) marks.push(cond('tired', `Fatigued: weapon class −${f}`)); }
+    for (const r of due) marks.push(cond('rad', `Radiation: a ${r.kind === 'defect' ? 'defect' : 'mutation'} appears in ${Math.max(0, r.due - (entry.days ?? 0))} day${r.due - (entry.days ?? 0) === 1 ? '' : 's'}`, 'good'));
+    $('pcConds').replaceChildren(...marks);
+    const members = entry ? party(entry) : [];
+    $('partyLabel').hidden = !members.length;
+    $('partyFrames').replaceChildren(...members.map(m => {
+        const a = live(m.id), ch = m.character, now = a ? a.hp : ch.maxHp - (m.damage ?? 0), box = el('div'), body = el('div'), line = el('div'), track = el('div'), bar = el('div'), port = el('div', m.name[0]);
+        box.className = `frame unit-frame member${a && (a.hp <= 0 || a.fled) ? ' down' : ''}`;
+        box.title = 'Open the Party tab';
+        box.onclick = () => showTab('party');
+        port.className = 'portrait';
+        body.className = 'body';
+        line.className = 'line';
+        line.append(el('strong', m.name), el('span', `AC ${ch.armorClass}`));
+        track.className = 'hp-track ' + hpClass(now, ch.maxHp);
+        bar.style.width = `${100 * Math.max(0, now) / ch.maxHp}%`;
+        track.append(bar);
+        body.append(line, track, el('small', `${Math.max(0, now)} / ${ch.maxHp} · ${a?.fled ? 'Fled' : m.role === 'follower' ? 'Follower' : 'Hireling'} · ${m.stock || m.species}${m.wage ? ` · ${m.wage} a day` : ''}`));
+        box.append(port, body);
+        return box;
+    }));
+}
+// The part of the map on screen, outlined on the minimap.
+function drawView() {
+    const vp = $('viewport'), b = $('board'), v = $('minimap').querySelector('.view');
+    if (!v || !b.offsetWidth) return;
+    const l = Math.max(0, (vp.scrollLeft - b.offsetLeft) / b.offsetWidth), t = Math.max(0, (vp.scrollTop - b.offsetTop) / b.offsetHeight), r = Math.min(1, (vp.scrollLeft + vp.clientWidth - b.offsetLeft) / b.offsetWidth), d = Math.min(1, (vp.scrollTop + vp.clientHeight - b.offsetTop) / b.offsetHeight);
+    Object.assign(v.style, { left: l * 100 + '%', top: t * 100 + '%', width: Math.max(0, r - l) * 100 + '%', height: Math.max(0, d - t) * 100 + '%' });
+    v.hidden = r - l >= .999 && d - t >= .999;
+}
+function centreOn(fx, fy) { const vp = $('viewport'), b = $('board'); vp.scrollLeft = b.offsetLeft + fx * b.offsetWidth - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + fy * b.offsetHeight - vp.clientHeight / 2; drawView(); }
+const centreOnSurvivor = () => { if (entry) { const sc = scene(), p = centre(sc, entry.position), b = $('board'); centreOn(p.x / b.offsetWidth, p.y / b.offsetHeight); } };
+$('viewport').addEventListener('scroll', drawView);
+$('minimap').onclick = e => { const r = $('minimap').getBoundingClientRect(); centreOn((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); };
+$('mmCentre').onclick = centreOnSurvivor;
+$('mmCollapse').onclick = () => { const on = $('minimap').parentElement.classList.toggle('collapsed'); $('mmCollapse').textContent = on ? '+' : '–'; $('mmCollapse').title = on ? 'Show the minimap' : 'Collapse the minimap'; };
+// Mouse wheel zooms toward the cursor; the right or middle button drags the map.
+$('viewport').addEventListener('wheel', e => { e.preventDefault(); const vp = $('viewport'), b = $('board'), r = b.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height, v = vp.getBoundingClientRect(); zoomWorld(worldZoom + (e.deltaY < 0 ? 4 : -4)); vp.scrollLeft = b.offsetLeft + fx * b.offsetWidth - (e.clientX - v.left); vp.scrollTop = b.offsetTop + fy * b.offsetHeight - (e.clientY - v.top); drawView(); }, { passive: false });
+{ let drag = null; const vp = $('viewport'); vp.addEventListener('mousedown', e => { if (e.button === 0) return; e.preventDefault(); drag = { x: e.clientX, y: e.clientY, l: vp.scrollLeft, t: vp.scrollTop }; }); addEventListener('mousemove', e => { if (drag) { vp.scrollLeft = drag.l - (e.clientX - drag.x); vp.scrollTop = drag.t - (e.clientY - drag.y); } }); addEventListener('mouseup', () => { drag = null; }); vp.addEventListener('contextmenu', e => e.preventDefault()); }
+$('gridBtn').onclick = () => { const off = $('board').classList.toggle('no-grid'); localStorage.setItem('graycloak.gw.grid', off ? 'off' : 'on'); $('gridBtn').setAttribute('aria-pressed', String(!off)); };
+$('gridBtn').setAttribute('aria-pressed', String(localStorage.getItem('graycloak.gw.grid') !== 'off'));
+$('stop').onclick = () => { stop(); render(); say('You stop.'); };
+// Feed filters and the sidebar width are remembered.
+for (const b of $('feedFilters').querySelectorAll('[data-filter]')) b.onclick = () => { $('messages').dataset.filter = b.dataset.filter; for (const o of $('feedFilters').querySelectorAll('[data-filter]')) o.setAttribute('aria-pressed', String(o === b)); };
+function showRolls(on) { $('messages').classList.toggle('no-rolls', !on); $('rollsBtn').setAttribute('aria-pressed', String(on)); $('rollsBtn').textContent = on ? 'Dice rolls: shown' : 'Dice rolls: hidden'; localStorage.setItem('graycloak.gw.rolls', on ? 'on' : 'off'); }
+$('rollsBtn').onclick = () => showRolls($('messages').classList.contains('no-rolls'));
+showRolls(localStorage.getItem('graycloak.gw.rolls') !== 'off');
+{ const shell = $('worldShell'), saved = Number(localStorage.getItem('graycloak.gw.side')); if (saved) shell.style.setProperty('--side', saved + 'px'); let on = false;
+  $('sideGrip').addEventListener('mousedown', e => { on = true; e.preventDefault(); });
+  addEventListener('mousemove', e => { if (!on) return; const w = Math.max(260, Math.min(640, shell.getBoundingClientRect().right - e.clientX)); shell.style.setProperty('--side', w + 'px'); localStorage.setItem('graycloak.gw.side', String(Math.round(w))); drawView(); });
+  addEventListener('mouseup', () => { on = false; }); }
+function zoomWorld(n) { worldZoom = Math.max(10, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); $('worldScale').style.width = worldZoom * scene().scale.cells + 'px'; if (selected) drawTarget(); else drawRoute(null); drawView(); }
 $('worldZoomIn').onclick = () => zoomWorld(worldZoom + 6);
 $('worldZoomOut').onclick = () => zoomWorld(worldZoom - 6);
 function fitWorld() { const vp = $('viewport'), o = scene().open, hex = scene().layout === 'hex'; if (!vp?.clientWidth || !vp.clientHeight) return; zoomWorld(Math.floor(hex ? Math.min(vp.clientWidth / (o.cols + 1 / 3), vp.clientHeight / ((o.rows + 0.5) * HEX_H)) : Math.min(vp.clientWidth / o.cols, vp.clientHeight / o.rows))); if (hex) { vp.scrollLeft = 0; vp.scrollTop = 0; return; } const b = $('board'); vp.scrollLeft = b.offsetLeft + (o.x + o.cols / 2) * worldZoom - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + (o.y + o.rows / 2) * worldZoom - vp.clientHeight / 2; }
@@ -568,7 +722,7 @@ viewport.onpointerup = viewport.onpointercancel = viewport.onlostpointercapture 
 // Universal tools stay accessible; shortcuts never fire inside text fields or dialogs.
 $('mapBtn').onclick = utility(() => { const sc = scene(); dialog(`Map · ${sc.name}`, [el('p', `One ${unit(sc)} is ${describeDistance(sc, 1)}${sc.minutesPerCell ? `, about ${describeTime(sc.minutesPerCell)} on foot` : ''}.`), ...sc.sites.map(t => row(`${t.name}${t.kind === 'exit' && hasScene(t.to) ? ` (to ${getScene(t.to).name})` : ''}`, [['Walk there', () => { closeWindow(); headFor(t); }, t.x === entry.position.x && t.y === entry.position.y]])), ...(sc.parent ? [] : [el('p', 'This is the widest map so far. The continent map is not built yet.')])]); });
 document.addEventListener('keydown', e => { if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || gw.isTextEntry(e.target) || $('gameDialog').open)
-    return; const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
+    return; if (!combat) { if (/^[1-9]$/.test(e.key)) { const b = [...worldArea.querySelectorAll('.action-bar button')].find(x => x.dataset.key === e.key); if (b && !b.disabled) b.click(); return; } if (e.key === 'Home') { centreOnSurvivor(); return; } if (e.key.toLowerCase() === 'f') { fitWorld(); return; } if (e.key === 'Escape') { if (timer) { stop(); render(); } selected = null; drawTarget(); drawRoute(null); return; } } const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
     e.preventDefault();
     $(id).onclick();
 }

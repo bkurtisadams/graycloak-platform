@@ -216,7 +216,17 @@ export function mountTactical({ root = null, information = null, embedded = fals
         $('pcHP').textContent = `${p.hp} / ${p.maxHp} HP${p.bleeding ? ' · BLEEDING' : ''}`;
         $('hpFill').style.width = `${100 * p.hp / p.maxHp}%`;
         $('targetName').textContent = t ? t.name : 'None';
-        $('targetStats').textContent = t ? `${injury(t)} · ${gw.distance(p, t).toFixed(1)} m` : 'Click an opponent on the map.';
+        $('targetStats').textContent = t ? `${state.meeting?.result?.label ? state.meeting.result.label[0].toUpperCase() + state.meeting.result.label.slice(1) : t.side === 'right' ? 'Hostile' : 'Companion'} · ${injury(t).toLowerCase()} · ${gw.distance(p, t).toFixed(0)} m` : 'Click an opponent on the map.';
+        const tf = $('targetName').parentElement;
+        tf?.classList?.toggle('none', !t);
+        if (tf?.querySelector) {
+            let bands = tf.querySelector('.bands'), atk = tf.querySelector('#targetAttack');
+            if (!bands) { bands = make('div', null, 'bands'); for (let i = 0; i < 4; i++) bands.append(make('i')); $('targetStats').before(bands); atk = make('span'); atk.id = 'targetAttack'; tf.append(atk); }
+            // Creatures are reported by condition, not by number: four bands for uninjured down to near death.
+            const left = !t ? 0 : t.hp <= 0 ? 0 : Math.max(1, Math.ceil(4 * t.hp / t.maxHp));
+            [...bands.children].forEach((b, i) => { b.className = i < left ? 'on' : ''; });
+            atk.textContent = !t ? '' : `AC ${t.armorClass}${t.natural ? ` · attack ${t.natural[0] ? `${t.natural[0]}d${t.natural[1]}` : 'touch'}` : ''}${t.poison ? ` · ${t.poison.paralytic ? 'paralytic ' : ''}poison ${t.poison.intensity}` : ''}${t.radiate ? ` · radiation ${t.radiate.intensity}, ${t.radiate.range} m` : ''}`;
+        }
         const turn = state.turn ?? { moved: 0, action: null };
         const meeting = gw.meetingOptions(state);
         const tired = fatigue(p);

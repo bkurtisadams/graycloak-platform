@@ -335,3 +335,21 @@ Extract over v0.6.16 at the repository root.
 - MORALE checked against the printed section, no change needed: one d10; animals and non-intelligent creatures need 5 or more, intelligent beings 3 or more; a failure flees at once; once called for, the check repeats every melee turn while the cause lasts; player characters never check; followers and hirelings must. When a check is called for remains referee policy: below half hit points, and for intelligent foes also when half their side is down.
 - Hireling pay (5 domars a day) is still a placeholder; the NON-PLAYER CHARACTERS section has not been supplied.
 - 133 game tests and 3 lobby tests pass.
+
+## v0.6.18 — world screen rebuilt to the approved mockup
+
+Extract over v0.6.17 at the repository root. Nothing in the rules changed.
+
+- The map fills the screen left of the sidebar; frames, minimap, zoom controls, action bar and scale float over it.
+- Survivor frame: portrait slot (initial until art is supplied), hit point bar, experience and character type, and condition icons for bleeding, fatigue, poison (with rounds left) and pending radiation (with days left). Party frames sit beneath it and stay live during a fight; clicking one opens the Party tab.
+- Target frame: hidden until something is selected. Click a site or place to select it and see distance, travel time, arrival time and, on the region map, how many encounter checks fall on the way. Double-click to go there. Click open ground to walk as before. Escape clears the selection or stops walking.
+- Route preview: hovering a square draws the route with its distance and time before you walk.
+- Minimap: outline of the visible area, north marker, click to centre there, a centre-on-survivor button (Home key) and a collapse button.
+- Map controls: mouse wheel zooms toward the cursor, right or middle drag pans, F fits, and Grid hides the grid without changing movement.
+- Action bar: numbered icon slots (keys 1-9). Only actions the game has are shown; ones that do not apply where you stand are dimmed with the reason in the tooltip.
+- Information feed: Chat and Events are one feed with game-time stamps and System, Travel, Combat, NPC and Roll tags. Filter chips narrow it; dice rolls are shown by default and can be hidden. The feed scrolls on its own only when already at the bottom.
+- Sidebar: Information, Party and Bag; drag its left edge to resize. Width, filter for rolls and the grid setting are remembered. A location card above the message box carries the guidance text.
+- Regional map: game-only terrain art (the GCC map is unchanged): a muted fill and a symbol per terrain, with glyphs for ruins, forts, settlements and robot farms. Terrain kinds not yet on the map are stubbed in `hud.css` so new terrain appears drawn: plains, grassland, clear, coast, hills, forested hills, mountains, snow mountains, forested mountains, forest, woods, heavy forest, marsh, swamp, desert, badlands, wasteland, water, sea, lake, river, ruins, city, radioactive, unknown.
+- Combat: the same survivor and party frames; the creature target frame shows attitude, condition in four bands (creatures are reported by condition, not numbers), distance, armour class and its attack; actions are icon slots with their keys.
+- New file `hud.css` holds all of this and the placeholder line icons; replace a mask or terrain image there to swap in inked art. `packages/gamma-world-rules/package.json` now reads 0.6.18.
+- Not in this version: portrait upload, draggable windows, paperdoll, fog of war, day and night lighting.
