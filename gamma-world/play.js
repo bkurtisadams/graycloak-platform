@@ -207,6 +207,8 @@ function render() {
     for (const id of ['tradeBtn', 'restBtn']) { $(id).hidden = false; $(id).disabled = busy || !town; $(id).title = town ? '' : 'Only at the trading post'; }
     $('restBtn').textContent = c?.species === 'robot' ? 'Repair' : 'Rest';
     $('stop').hidden = !timer;
+    $('sleepBtn').disabled = busy || !!timer;
+    $('sleepBtn').title = 'Sleep for two route turns (8 hours). Six route turns make a day and two of them must be rest.';
     $('powerDivider').hidden = true;
     $('worldPowers').replaceChildren();
     let key = 0;
@@ -239,10 +241,12 @@ else {
 $('roster').addEventListener('change', () => load($('roster').value));
 $('stop').onclick = () => { stop(); render(); };
 // The map: hover shows the route and its cost, a click walks, a click on a site selects it and a double-click goes there.
+// Time for a run of steps, counting the slower pace once the party is short of rest.
+function routeMinutes(sc, steps) { let awake = entry.awake ?? 0, total = 0; for (const p of steps) { const plan = stepPlan(sc, p, awake); total += plan.total; awake = plan.awake; } return total; }
 function routeTo(target) {
     const sc = scene(), steps = scenePath(sc, entry.position, target);
     if (!steps) return null;
-    const minutes = steps.length * (sc.minutesPerCell ?? 0), from = clockTotal(entry), to = from + minutes;
+    const minutes = routeMinutes(sc, steps), from = clockTotal(entry), to = from + minutes;
     const arrive = (() => { const d = Math.floor(to / 1440), m = to % 1440, hm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; return d === Math.floor(from / 1440) ? hm : `Day ${d + 1}, ${hm}`; })();
     // Encounter checks are made once each day and each night of travel: count the periods this route enters.
     const checks = sc.encounters && steps.length ? gw.travelPeriod(to).index - gw.travelPeriod(from).index + (entry.wandering?.period === gw.travelPeriod(from).index ? 0 : 1) : 0;
@@ -280,9 +284,19 @@ const clockTotal = e => (e.days ?? 0) * 1440 + (e.minutes ?? 360);
 // Route movement through uncharted country: one d6 check each day and each night, a six is an encounter (ENCOUNTERS).
 // Returns true when travel was interrupted.
 function wander(sc, from) {
-    const r = gw.advanceWandering(entry.wandering ?? null, from, clockTotal(entry));
-    entry = updateEntry(entry.id, e => ({ ...e, wandering: r.state }));
-    if (r.check) log(`Random encounter check (${r.check.night ? 'night' : 'day'}): d6 = ${r.check.roll}${r.check.roll === 6 ? `, an encounter in hour ${r.check.hour} of the ${r.check.night ? 'night' : 'day'}` : ', none'}.`);
+    // A slow step can run through more than one day or night: each period entered gets its own check, in order.
+    const to = clockTotal(entry);
+    let r = null, t = from, state = entry.wandering ?? null;
+    while (t < to) {
+        const end = Math.min(to, gw.travelPeriod(t).start + gw.PERIOD - 1);
+        r = gw.advanceWandering(state, t, end);
+        state = r.state;
+        if (r.check) log(`Random encounter check (${r.check.night ? 'night' : 'day'}): d6 = ${r.check.roll}${r.check.roll === 6 ? `, an encounter in hour ${r.check.hour} of the ${r.check.night ? 'night' : 'day'}` : ', none'}.`);
+        if (r.due) break;
+        t = end + 1;
+    }
+    entry = updateEntry(entry.id, e => ({ ...e, wandering: state }));
+    if (!r) return false;
     if (!r.due) return false;
     const i = entry.position.y * sc.cols + entry.position.x, place = sc.places.find(p => p.x === entry.position.x && p.y === entry.position.y);
     const key = gw.tableKey(sc.encounters, { terrain: sc.terrain[i], hazard: sc.hazards[i], feature: place?.kind }), met = gw.rollEncounter(sc.encounters, key);
@@ -306,18 +320,47 @@ function wander(sc, from) {
 function headFor(site) { if (site && !opening && !combat && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter)) walkTo({ x: site.x, y: site.y }); }
 // Every move is a run of single steps: a movement key takes one, a click queues the steps of the shortest way.
 // Returns true when the step was interrupted by an encounter.
+// Time to walk into a cell. On route maps it is the terrain's rate (1 km a turn in mountains or swamp to 8 km in the open).
+// The party camps when four route turns have passed without rest, unless it is on a forced march; then it keeps going,
+// at half rate once exhausted.
+const forcedMarch = () => localStorage.getItem('graycloak.gw.forced') === 'on';
+function stepPlan(sc, p, awake = entry.awake ?? 0) {
+    const forced = forcedMarch(), halved = forced && gw.restState(awake).exhausted;
+    const walking = sc.route && sc.terrain ? gw.travelMinutes(sc.cellMeters / 1000, gw.routeRate(sc.terrain[p.y * sc.cols + p.x]), { halved }) : (sc.minutesPerCell ?? 0) * (halved ? 2 : 1);
+    return gw.marchTime(walking, awake, { forced });
+}
 function takeStep(p) {
-    const sc = scene(), from = clockTotal(entry);
-    entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell));
+    const sc = scene(), from = clockTotal(entry), plan = stepPlan(sc, p);
+    entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1, awake: plan.awake }, plan.total));
+    if (plan.camps) log(`Made camp ${plan.camps === 1 ? 'once' : plan.camps + ' times'} on the way: two route turns of sleep each.`);
     dayTick(Math.floor(from / 1440));
-    return !!(sc.encounters && wander(sc, from));
+    if (sc.encounters && wander(sc, from)) return true;
+    return tire();
+}
+// The day's rest: two route turns of sleep. Without it travel is at half rate and combat fatigue doubles; after two days
+// of exertion the referee "may have to enforce this rule by declaring the players unconscious".
+function sleep(forced = false) {
+    const sc = scene(), from = clockTotal(entry);
+    entry = updateEntry(entry.id, d => addMinutes({ ...d, awake: 0 }, gw.REST_MINUTES));
+    dayTick(Math.floor(from / 1440));
+    log(forced ? `After two days without rest ${c.name || 'the survivor'} collapses and sleeps for two route turns. ${clockOf(entry).text}.` : `Slept for two route turns (8 hours). ${clockOf(entry).text}.`);
+    if (sc.encounters && wander(sc, from)) return true;
+    render();
+    return false;
+}
+function tire() {
+    const state = gw.restState(entry.awake ?? 0);
+    if (state.collapse) { stop(); sleep(true); return true; }
+    if (state.exhausted && !entry.tiredTold) { entry = updateEntry(entry.id, e => ({ ...e, tiredTold: true })); log('No rest in four route turns: travel is at half rate and combat fatigue is doubled until you sleep.'); }
+    if (!state.exhausted && entry.tiredTold) entry = updateEntry(entry.id, e => ({ ...e, tiredTold: false }));
+    return false;
 }
 const arrived = () => say(atSite() ? `Arrived at ${atSite().name}. ${clockOf(entry).text}.` : `${clockOf(entry).text}.`);
 function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry.position, target); if (!path) {
     say('You cannot get there from here.');
     return;
 } if (!path.length)
-    return; say(`Walking ${describeDistance(sc, path.length)}${sc.minutesPerCell ? `, about ${describeTime(path.length * sc.minutesPerCell)}` : ''}. Click elsewhere, press a movement key or Stop to change course.`); timer = setInterval(() => { try {
+    return; { const total = routeMinutes(sc, path); say(`Walking ${describeDistance(sc, path.length)}${total ? `, about ${describeTime(total)}` : ''}. Click elsewhere, press a movement key or Stop to change course.`); } timer = setInterval(() => { try {
     const p = path.shift();
     if (p && takeStep(p)) return;
     render();
@@ -353,7 +396,7 @@ $('interact').onclick = () => { stop(); const s = atSite(); if (opening || comba
         entry = updateEntry(entry.id, e => ({ ...e, scene: to.id, sceneRev: to.rev ?? null, position: sitePosition(to, s.arrive) }));
         log(`${s.label}. ${clockOf(entry).text}.`);
         render();
-        say(`You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}${to.minutesPerCell ? ` and takes about ${describeTime(to.minutesPerCell)} to cross` : ''}.`);
+        say(to.route ? `You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}: about ${describeTime(gw.travelMinutes(to.cellMeters / 1000, 8))} in the open, ${describeTime(gw.travelMinutes(to.cellMeters / 1000, 4))} in forest or hills, ${describeTime(gw.travelMinutes(to.cellMeters / 1000, 1))} in mountains or swamp.` : `You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}${to.minutesPerCell ? ` and takes about ${describeTime(to.minutesPerCell)} to cross` : ''}.`);
         return;
     }
     if (s.kind === 'encounter') {
@@ -666,7 +709,9 @@ function drawFrames() {
     const due = (entry?.radiation ?? []).filter(r => !r.done), marks = [];
     if (me?.poisoned) marks.push(cond('poison', `Poisoned: ${Math.max(0, me.poisoned.deadline - fight.round)} more round${me.poisoned.deadline - fight.round === 1 ? '' : 's'} to take an antidote`, 'bad'));
     if (me ? me.bleeding : c?.bleeding) marks.push(cond('bleed', 'Bleeding: bind the wound', 'bad'));
-    if (me && c) { const f = gw.fatigueFactor({ weaponId: me.equipment?.weaponId, armorAC: gw.getArmor(me.equipment?.armorId ?? 'none').ac, rounds: me.fightRounds + 1, rest: me.rest, PS: me.attributes.PS, synthetic: me.species === 'robot' }); if (f) marks.push(cond('tired', `Fatigued: weapon class −${f}`)); }
+    const weary = gw.restState(entry?.awake ?? 0);
+    if (me && c) { const f = gw.fatigueFactor({ weaponId: me.equipment?.weaponId, armorAC: gw.getArmor(me.equipment?.armorId ?? 'none').ac, rounds: me.fightRounds + 1, rest: me.rest, PS: me.attributes.PS, synthetic: me.species === 'robot' }) * (me.exhausted ? 2 : 1); if (f) marks.push(cond('tired', `Fatigued: weapon class −${f}${me.exhausted ? ' (doubled: no rest)' : ''}`)); }
+    else if (weary.exhausted) marks.push(cond('tired', `No rest for ${describeTime(weary.awake)}: travel at half rate, combat fatigue doubled. Sleep to recover.`, 'bad'));
     for (const r of due) marks.push(cond('rad', `Radiation: a ${r.kind === 'defect' ? 'defect' : 'mutation'} appears in ${Math.max(0, r.due - (entry.days ?? 0))} day${r.due - (entry.days ?? 0) === 1 ? '' : 's'}`, 'good'));
     $('pcConds').replaceChildren(...marks);
     const members = entry ? party(entry) : [];
@@ -708,6 +753,10 @@ $('viewport').addEventListener('wheel', e => { e.preventDefault(); const vp = $(
 $('gridBtn').onclick = () => { const off = $('board').classList.toggle('no-grid'); localStorage.setItem('graycloak.gw.grid', off ? 'off' : 'on'); $('gridBtn').setAttribute('aria-pressed', String(!off)); };
 $('gridBtn').setAttribute('aria-pressed', String(localStorage.getItem('graycloak.gw.grid') !== 'off'));
 $('stop').onclick = () => { stop(); render(); say('You stop.'); };
+function showMarch() { const on = forcedMarch(); $('marchBtn').setAttribute('aria-pressed', String(on)); $('marchBtn').textContent = on ? 'Forced march: On' : 'Forced march: Off'; $('marchBtn').title = on ? 'No stops for sleep. After four route turns without rest: half travel rate and double combat fatigue; after two days you collapse.' : 'The party makes camp for two route turns whenever four have passed without rest.'; }
+$('marchBtn').onclick = () => { localStorage.setItem('graycloak.gw.forced', forcedMarch() ? 'off' : 'on'); showMarch(); hovered = null; };
+showMarch();
+$('sleepBtn').onclick = () => { if (!idle()) return; stop(); try { if (!sleep()) say(`Rested. ${clockOf(entry).text}.`); } catch (err) { say(err.message); } };
 // Feed filters and the sidebar width are remembered.
 for (const b of $('feedFilters').querySelectorAll('[data-filter]')) b.onclick = () => { $('messages').dataset.filter = b.dataset.filter; for (const o of $('feedFilters').querySelectorAll('[data-filter]')) o.setAttribute('aria-pressed', String(o === b)); };
 function showRolls(on) { $('messages').classList.toggle('no-rolls', !on); $('rollsBtn').setAttribute('aria-pressed', String(on)); $('rollsBtn').textContent = on ? 'Dice rolls: shown' : 'Dice rolls: hidden'; localStorage.setItem('graycloak.gw.rolls', on ? 'on' : 'off'); }

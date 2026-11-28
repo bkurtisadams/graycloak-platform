@@ -81,7 +81,9 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
         strokes: strokes.map(s => ({ kind: s.kind, pts: s.pts })).filter(s => s.pts?.length > 1),
         places: places.filter(p => !taken.has(`${p.x},${p.y}`) || (ruin && p === ruin)),
         cellMeters: 3 * KM_PER_MILE * 1000,
-        minutesPerCell: 240,
+        // Crossing time comes from the terrain entered (route rates, rules package travel.js); this is only the open-ground figure.
+        minutesPerCell: 145,
+        route: true,
         scale: { cells: 2 * 2 / ROOT3, label: '6 miles' },
         sites: [
             { id: 'eden-valley', x: cx, y: cy, name: 'Eden Valley', kind: 'exit', to: 'eden-valley', arrive: 'gate', label: 'Enter Eden Valley' },

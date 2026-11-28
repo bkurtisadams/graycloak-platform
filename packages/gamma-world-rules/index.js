@@ -71,3 +71,4 @@ export * from "./actions.js";
 export * from "./experience.js";
 export * from "./wandering.js";
 export * from "./companions.js";
+export * from "./travel.js";

@@ -1,1 +1,1 @@
-{"name":"@graycloak/gamma-world-rules","version":"0.6.19","private":true,"type":"module","exports":"./index.js","scripts":{"test":"node --test"}}
+{"name":"@graycloak/gamma-world-rules","version":"0.6.20","private":true,"type":"module","exports":"./index.js","scripts":{"test":"node --test"}}

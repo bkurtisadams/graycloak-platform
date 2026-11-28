@@ -79,7 +79,8 @@ export function availableActions(a) { const out = [{ id: 'weapon', label: a.equi
     out.push({ id: 'heal', label: 'Total Healing' }); for (const id of poweredIds)
     if (a.mutations.includes(id))
         out.push({ id, label: ({ 'physical-7': 'Electrical contact', 'physical-10': 'Heat Generation', 'physical-37': 'Radiated Eyes', 'physical-42': 'Sonic Attack', 'plant-8': 'Carnivorous Jaws', 'plant-14': 'Plant electrical charge', 'plant-16': 'Plant Heat Generation', 'plant-33': 'Plant Sonic Attack' })[id] }); out.push({ id: 'advance', label: 'Move only' }, { id: 'bind', label: 'Bind wounds' }, { id: 'rest', label: 'Rest / wait' }, { id: 'flee', label: 'Withdraw (sandbox)' }); return out.filter(o => o.id !== 'weapon' || a.equipment?.weaponId); }
-function weaponFatigue(a) { return fatigueFactor({ weaponId: a.equipment?.weaponId, armorAC: getArmor(a.equipment?.armorId ?? 'none').ac, rounds: a.fightRounds + 1, rest: a.rest, PS: a.attributes.PS, synthetic: a.species === 'robot' }); }
+// A character who has not taken the day's rest suffers "a double fatigue loss during combat" (ROUTE MOVEMENT).
+function weaponFatigue(a) { return fatigueFactor({ weaponId: a.equipment?.weaponId, armorAC: getArmor(a.equipment?.armorId ?? 'none').ac, rounds: a.fightRounds + 1, rest: a.rest, PS: a.attributes.PS, synthetic: a.species === 'robot' }) * (a.exhausted ? 2 : 1); }
 function modeFor(a) { return ['arrow', 'crossbow', 'sling-bullet', 'sling-stone'].includes(a.equipment?.weaponId) ? 'missile' : 'melee'; }
 function validatePlan(s, a, p) { if (!p || !availableActions(a).some(o => o.id === p.action))
     throw Error('Action unavailable'); const pace = p.pace ?? 'normal'; if (!['normal', 'trot', 'charge'].includes(pace))

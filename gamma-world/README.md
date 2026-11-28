@@ -365,3 +365,21 @@ Extract over v0.6.18 at the repository root. Nothing in the rules changed.
 - Scenes still declare their own grid, so square maps (interiors, imported maps) remain possible; the old test grid is still square.
 - Combat is unchanged in this version and still has its own controls. Moving it into this screen is the next step.
 - 134 game tests and 3 lobby tests pass.
+
+## v0.6.20 — movement rates from TIME, MOVEMENT, AND TURN LENGTH
+
+Extract over v0.6.19 at the repository root.
+
+Checked against the printed section:
+- Combat: 12 m a ten-second round, charge 24 m, trot 16 m, no missile or energy fire while trotting or charging. Already correct.
+- Route movement, now applied: a route turn is four hours; on foot "one kilometer per turn over swampy or mountainous terrain to eight kilometers per turn over clear terrain". The region map takes its crossing time from the terrain of the hex entered: a 3-mile hex is 2 h 25 min in the open and 19 h 19 min in mountains or swamp. It was a flat 4 hours before.
+- Eden Valley keeps 6 minutes a 200 m hex, which is exactly the clear-terrain rate of 8 km a turn, so the two maps now agree.
+- Rest: "Most characters will have to rest at least two of the six route turns that represent a day ... or suffer a double fatigue loss during combat and reduce travel rates by half until rest is taken. In any case, rest must be taken after two days of exertion." Time since the last rest is tracked. Past four route turns without rest, travel is at half rate and combat fatigue is doubled; at two days the survivor collapses and sleeps.
+- Encounter checks: a slow hex can run through several days and nights; each one entered now gets its check.
+
+Automated-referee policies:
+- Rates between the two printed figures (km a turn): desert 6; hills, forest, woods, badlands, wasteland, ruins, city, radioactive 4; forested hills 3; heavy forest 2. Snow mountains, forested mountains and marsh use the printed 1. Roads and trails give no bonus. The rate is that of the hex entered.
+- The party makes camp by itself (two route turns) whenever four have passed without rest, so the penalties only arise on a forced march. "Forced march" on the action bar turns the automatic camp off. "Sleep" rests two route turns at any time.
+- Checks continue while camped on the region map. Resting at the trading post also counts as rest.
+- Not modelled: search movement (6 m a ten-second turn outdoors, 1 m indoors, required around ruins, buildings and other beings), fleeing at up to 72 m, halved movement when armoured or encumbered, creature maximum speed (five times normal), robotic unit speeds, faster travel at the cost of walking past things, mounts.
+- 137 game tests and 3 lobby tests pass.

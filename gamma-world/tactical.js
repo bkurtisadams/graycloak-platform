@@ -34,6 +34,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
             const r = campaignEntry.record;
             base = applyAdvancement(applyProgress(gw.deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg, acquired: campaignEntry.acquired ?? [] }), campaignEntry.progress), campaignEntry);
             base.antidotes = campaignEntry.inventory.filter(i => i.antidote).map(i => i.antidote);
+            base.exhausted = gw.restState(campaignEntry.awake ?? 0).exhausted;
             base.artifact = campaignEntry.inventory.find(i => i.id === 'outpost-device')?.artifact;
             if (base.hp <= 0 && !campaignEntry.encounter)
                 throw Error('Character is dead');
