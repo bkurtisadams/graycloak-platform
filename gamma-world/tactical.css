@@ -375,3 +375,9 @@ header nav {
 .drag-ruler {position:fixed; z-index:50; pointer-events:none; background:#1d281f; color:var(--cream); border:1px solid #bfd89d; border-radius:4px; padding:3px 8px; font-size:12px; font-weight:700; white-space:nowrap;}
 .drag-ruler.bad {border-color:#e18b76; color:#f3b9a8;}
 .cell.selected {z-index:2;}
+.battle-area {position:relative;}
+.result-banner {position:absolute; left:50%; top:42%; transform:translate(-50%,-50%); z-index:9; min-width:min(360px,90%); text-align:center; background:#1a221cf7; border:2px solid var(--accent); border-radius:10px; padding:22px 26px; box-shadow:0 10px 40px #000b;}
+.result-banner h2 {margin:0 0 6px; font-size:30px;}
+.result-banner p {margin:0 0 16px; color:var(--muted);}
+.result-banner button {min-height:48px; padding:10px 24px; font-size:16px; background:#a18a4f; color:#191b13; border-color:#d5b779;}
+#leaveEncounter {border-color:var(--accent);}

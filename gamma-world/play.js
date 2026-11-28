@@ -221,7 +221,7 @@ async function beginCombat() {
         area.replaceChildren(...Array.from(source.children).map(n => document.importNode(n, true)));
         area.querySelector('.battle-controls').hidden = true;
         area.querySelector('#battleNotice').hidden = true;
-        for (const [id, label] of [['returnWorld', 'Return to exploration'], ['leaveEncounter', 'Pause encounter']]) {
+        for (const [id, label] of [['returnWorld', 'Return to exploration'], ['leaveEncounter', 'Leave (pause fight)']]) {
             const b = el('button', label);
             b.id = id;
             b.hidden = true;

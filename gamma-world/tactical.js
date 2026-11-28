@@ -105,6 +105,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         if (p.hp <= p.maxHp / 3) return stopAuto('Repeat stopped: you are badly hurt. Fight on or withdraw.');
         targetId = t.id;
         const a = actionStates().find(a => a.id === lastAttack.id);
+        if ((!a?.visible || !a.enabled) && lastAttack.id === 'attack' && fatigue(p).blocked && !state.turn?.moved) { command({ type: 'end' }); if (state.revision === before) return stopAuto(); scheduleAuto(); guidance('Too tired to attack: resting this round, then your attack resumes. Click the map or press Escape to interrupt.'); return; }
         if (!a?.visible || !a.enabled) { render(); return stopAuto(`Repeat stopped: ${a?.reason || 'that attack is unavailable'}.`); }
         command(a.command);
         if (state.revision === before) return stopAuto();
@@ -129,6 +130,27 @@ export function mountTactical({ root = null, information = null, embedded = fals
     catch (e) {
         guidance(e.message);
     } }
+    function fatigue(a) {
+        const weaponId = a.equipment?.weaponId;
+        if (!weaponId || a.hp <= 0) return { factor: 0, blocked: false, wc: 0, restNeeded: 0 };
+        const wc = gw.getWeapon(weaponId).wc, factor = gw.fatigueFactor({ weaponId, armorAC: gw.getArmor(a.equipment?.armorId ?? 'none').ac, rounds: (a.fightRounds ?? 0) + 1, rest: a.rest ?? 0, PS: a.attributes.PS, synthetic: a.species === 'robot' });
+        return { factor, wc, blocked: factor >= wc, restNeeded: Math.max(0, factor - wc + 1) };
+    }
+    const RESULT = { victory: 'Victory', defeat: 'Defeat', withdrawn: 'You withdrew', peaceful: 'Parted in peace' };
+    function showResult(ended) {
+        const host = $('viewport')?.parentElement;
+        if (!host?.querySelector) return;
+        host.querySelector('.result-banner')?.remove();
+        if (!ended) return;
+        const box = make('div', null, 'result-banner'), p = player();
+        box.append(make('h2', RESULT[state.status] ?? state.status), make('p', state.status === 'victory' ? `${state.xpAwarded} experience gained. ${p.hp} / ${p.maxHp} HP left after ${state.round} round${state.round === 1 ? '' : 's'}.` : state.status === 'defeat' ? `${p.name || 'Your survivor'} has fallen.` : `The encounter is over. ${p.hp} / ${p.maxHp} HP.`));
+        const b = make('button', embedded ? (state.status === 'defeat' ? 'Leave the field' : 'Return to exploration') : 'New encounter', 'primary');
+        b.type = 'button';
+        b.onclick = () => embedded ? onExit?.() : start();
+        box.append(b);
+        host.append(box);
+        b.focus?.();
+    }
     function injury(a) { return a.hp <= 0 ? 'Down' : a.hp === a.maxHp ? 'Uninjured' : a.hp / a.maxHp > .75 ? 'Lightly wounded' : a.hp / a.maxHp > .5 ? 'Wounded' : a.hp / a.maxHp > .25 ? 'Badly wounded' : 'Near death'; }
     function render() {
         if (!state)
@@ -171,7 +193,8 @@ export function mountTactical({ root = null, information = null, embedded = fals
         $('targetName').textContent = t ? t.name : 'None';
         $('targetStats').textContent = t ? `${injury(t)} · ${gw.distance(p, t).toFixed(1)} m` : 'Click an opponent on the map.';
         const turn = state.turn ?? { moved: 0, action: null };
-        $('planText').textContent = `${turn.action ? 'Action used' : 'Action available'} · ${turn.action || p.hp <= 0 ? 0 : +Math.max(0, gw.movementLimit(p, turn.pace ?? 'normal') - turn.moved).toFixed(1)} m remaining`;
+        const tired = fatigue(p);
+        $('planText').textContent = `${turn.action ? 'Action used' : 'Action available'} · ${turn.action || p.hp <= 0 ? 0 : +Math.max(0, gw.movementLimit(p, turn.pace ?? 'normal') - turn.moved).toFixed(1)} m remaining${tired.factor ? ` · Fatigue −${tired.factor}: ${tired.blocked ? 'too tired to attack' : `weapon class ${tired.wc} → ${tired.wc - tired.factor}`}` : ''}`;
         const states = actionStates(), by = id => states.find(a => a.id === id);
         const btn = (id, key = id) => { const b = $(id), a = by(key); b.hidden = !a?.visible; b.disabled = !a?.enabled; b.title = a?.reason || ''; if (a)
             b.textContent = a.label; return a?.reason || ''; };
@@ -181,6 +204,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         btn('flee');
         btn('parley');
         btn('endTurn');
+        if (!ended && tired.blocked && !turn.action) { $('attack').textContent = 'Too tired to attack'; if (!turn.moved) $('endTurn').textContent = 'Rest (End Turn)'; }
         $('mental').hidden = true;
         $('powersLabel').hidden = true;
         $('usePower').hidden = true;
@@ -197,6 +221,8 @@ export function mountTactical({ root = null, information = null, embedded = fals
             $('returnWorld').hidden = !ended;
             $('leaveEncounter').hidden = ended;
         }
+        showResult(ended);
+        if (!ended && tired.blocked && !turn.action && !turn.queued && !(p.dying)) { guidance(`Fatigue: after ${p.fightRounds} rounds of fighting you are too tired to attack with the ${gw.getWeapon(p.equipment.weaponId).name}. Rest ${tired.restNeeded} round${tired.restNeeded === 1 ? '' : 's'} (End Turn without moving) to swing again, or Withdraw.`); while (printed < state.log.length) addEvent(state.log[printed++]); return; }
         guidance(ended ? `Encounter ${state.status}. ${state.pendingRulings.join('; ')}` : p.dying && !turn.action ? 'Dying stroke available. Target your attacker, attack at close range or End Turn.' : turn.queued ? 'Action declared. End Turn resolves both sides simultaneously.' : turn.action ? 'Action committed. End Turn to resolve remaining combat.' : !t ? 'Click a highlighted square to move, or select an opponent. End Turn to wait.' : error ? `${error}. Move into range or choose another legal action. End Turn when finished.` : 'Attack the selected opponent, or move before attacking. End Turn when finished.');
         while (printed < state.log.length)
             addEvent(state.log[printed++]);

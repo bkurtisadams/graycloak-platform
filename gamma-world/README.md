@@ -189,3 +189,13 @@ Extract over v0.6.5 at the repository root. No save, schema or rule changes.
 - Map scale: a scale bar (6 m, two squares) sits at the bottom right of the world map and the combat map and resizes with zoom.
 - Leaving play: the top-right button now reads Exit to Character Select, and the GAMMA WORLD title in the top row is also a link back.
 - Verified in headless Chrome at 1440x900. 99 game tests and 3 lobby tests pass.
+
+## v0.6.7 — fatigue made visible, clear way out of a fight
+
+Extract over v0.6.6 at the repository root. No save, schema or rule changes; the printed fatigue matrix was already enforced.
+
+- Fatigue is now shown. The movement/action frame reads, for example, "Fatigue −2: weapon class 3 → 1". When the factor reaches the weapon class the Attack button reads "Too tired to attack", End Turn reads "Rest (End Turn)", and the guidance line says how many rounds of rest are needed. Before this the button was simply disabled, which looked like an enemy that could not be killed.
+- Repeat rests for you: when the repeated weapon attack is blocked only by fatigue, Repeat ends the turn without moving and resumes the attack when it is legal again. Its other stop conditions are unchanged.
+- End of fight: a banner in the middle of the map states Victory, Defeat, withdrawal or a peaceful parting, with experience and HP, and one button to return to exploration (New encounter on the practice page). The action-bar Return to exploration button remains.
+- The pause button is now labelled "Leave (pause fight)".
+- Verified in headless Chrome at 1440x900. 99 game tests and 3 lobby tests pass.
