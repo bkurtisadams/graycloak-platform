@@ -807,3 +807,20 @@ body.play-page.mmo {
 #board .cell {min-height:0;}
 .minimap .caption {flex-wrap:wrap; white-space:normal;}
 .play-page .stage .map-viewport {scrollbar-width:none;}
+
+/* Hex scenes: flat-topped hexes, --cell is the column step (1.5 x the hex radius). */
+#board.hex {display:block; position:relative; padding:0; gap:0; background:#1d281f; border:0; width:calc(var(--cell) * (var(--cols) + .3334)); height:calc(var(--cell) * 1.1547 * (var(--rows) + .5));}
+#board.hex .cell {position:absolute; left:calc(var(--cell) * var(--x)); top:calc(var(--cell) * 1.1547 * var(--y)); width:calc(var(--cell) * 1.3334 + .6px); height:calc(var(--cell) * 1.1547 + .6px); clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); border:0; border-radius:0; box-shadow:none; padding:0; font-size:11px; color:#1d281f;}
+#board.hex .cell:hover:not(:disabled) {filter:brightness(1.25);}
+#board.hex .cell.wall {background:#5b93c6 !important; cursor:not-allowed;}
+#board.hex .cell.site {background:#e7dfc4;}
+#board.hex .cell.player {border-radius:0; background:#1d281f !important; color:#b8e399 !important;}
+#board.hex .strokes {position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1;}
+#board.hex .strokes polyline {fill:none; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke;}
+#board.hex .strokes .river {stroke:#3f7fc0; stroke-width:3;}
+#board.hex .strokes .road {stroke:#3b2f22; stroke-width:2.5;}
+#board.hex .strokes .trail {stroke:#5a4630; stroke-width:1.5; stroke-dasharray:5 4;}
+.hex-label {position:absolute; left:calc(var(--cell) * (var(--x) + .6667)); top:calc(var(--cell) * 1.1547 * var(--y)); transform:translate(-50%,-85%); pointer-events:none; white-space:nowrap; z-index:2; font-size:11px; line-height:1; padding:2px 5px; border-radius:4px;}
+.hex-label.site {background:#16201ae6; color:var(--cream); font-weight:700; font-size:12px; border:1px solid #a08b59;}
+.hex-label.place {color:#1b1410; font-weight:600; text-shadow:0 0 3px #f3ecd4, 0 0 3px #f3ecd4, 0 0 2px #f3ecd4; transform:translate(-50%,-30%);}
+.hex-label.place::before {content:"\25C6 "; font-size:9px;}

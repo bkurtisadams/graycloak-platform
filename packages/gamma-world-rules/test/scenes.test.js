@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SCENES, getScene, sceneOf, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, isBlocked, clockOf, addMinutes, describeDistance, describeTime, placeName, FIRST_SCENE } from '../../../gamma-world/scenes.js';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { regionFrom } from '../../../gamma-world/world.js';
+import { registerScene, stepsFrom, SCENES, getScene, sceneOf, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, isBlocked, clockOf, addMinutes, describeDistance, describeTime, placeName, FIRST_SCENE } from '../../../gamma-world/scenes.js';
+
+// The region is built from the campaign map's own scripts, run here the way the browser runs them.
+const root = { console: { log() {}, warn() {} }, localStorage: { getItem: () => null, setItem() {} }, dispatchEvent() {}, CustomEvent: class {} };
+root.window = root;
+vm.createContext(root);
+for (const name of ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js']) vm.runInContext(readFileSync(new URL(`../../../gcc/${name}`, import.meta.url), 'utf8'), root);
+const region = registerScene(regionFrom(root));
+
+test('the region is a window of 3-mile sub-hexes from the campaign map, centred on Eden Valley', () => {
+  assert.equal(region.layout, 'hex');
+  assert.equal(region.terrain.length, region.cols * region.rows);
+  const home = sitePosition(region, 'eden-valley');
+  assert.deepEqual(home, { x: 15, y: 11 });
+  assert.ok(region.terrain.every(t => t in region.palette));
+  assert.ok(region.places.some(p => p.name === 'Fort Marsh'), 'Fort Marsh lies just west of the valley');
+  assert.ok(region.strokes.length > 0);
+  assert.deepEqual(regionFrom(root).terrain, region.terrain, 'the same seed gives the same country');
+  for (const id of ['clearing', 'outpost']) assert.ok(scenePath(region, home, sitePosition(region, id)).length >= 2);
+});
+
+test('hex steps: six neighbours, odd columns set half a hex lower', () => {
+  assert.equal(stepsFrom(region, 4).length, 6);
+  assert.deepEqual(scenePath(region, { x: 15, y: 11 }, { x: 16, y: 11 }).length, 1);
+  assert.deepEqual(scenePath(region, { x: 15, y: 11 }, { x: 16, y: 12 }).length, 1);
+  assert.deepEqual(scenePath(region, { x: 15, y: 11 }, { x: 16, y: 10 }).length, 2);
+  assert.deepEqual(scenePath(region, { x: 14, y: 11 }, { x: 15, y: 10 }).length, 1);
+});
 
 test('every exit leads to a scene and lands on an open cell there', () => {
   for (const scene of Object.values(SCENES)) {
@@ -32,6 +62,8 @@ test('scenes nest from the region down, and a new character starts in the first 
   assert.equal(siteAt(start).kind, 'town');
   assert.equal(placeName(start), 'Trading post');
   assert.equal(placeName({ scene: 'eden-region', position: { x: 0, y: 0 } }), 'Wilderness');
+  assert.equal(placeName({ scene: 'not-loaded', position: { x: 0, y: 0 } }), 'Beyond Eden Valley');
+  assert.equal(startOf('eden-region').sceneRev, 2);
   assert.equal(placeName({ scene: 'eden-valley', position: { x: 20, y: 14 } }), 'Eden Valley');
 });
 

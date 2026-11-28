@@ -1,4 +1,5 @@
-// Scenes: every map the survivor can stand on. A scene is a background image (optional), a square grid laid over it,
+// Scenes: every map the survivor can stand on. A scene is a background image (optional), a grid laid over it (squares, or
+// hexes when layout is 'hex': flat-topped, odd columns set half a hex lower, as on the campaign map),
 // the cells that cannot be entered, the sites placed on it, and exits that lead to other scenes.
 // Scale is part of the scene: cellMeters says how much ground one cell covers and minutesPerCell how long a step takes.
 // Travel rates are referee policy drawn from the printed route-movement guidance (p.17): about 8 km in a four-hour
@@ -28,6 +29,7 @@ function build(scene) {
     let x0 = cols, y0 = rows, x1 = -1, y1 = -1;
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) if (!blocked.has(`${x},${y}`)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
     const pad = blocked.size ? 2 : 0, open = { x: Math.max(0, x0 - pad), y: Math.max(0, y0 - pad), cols: Math.min(cols, x1 + pad + 1) - Math.max(0, x0 - pad), rows: Math.min(rows, y1 + pad + 1) - Math.max(0, y0 - pad) };
+    if (scene.layout === 'hex') Object.assign(open, { x: 0, y: 0, cols, rows });
     return Object.freeze({ ...scene, cols, rows, blocked, open, sites: Object.freeze(scene.sites.map(Object.freeze)) });
 }
 
@@ -62,25 +64,6 @@ const EDEN_VALLEY = build({
     start: 'trading-post',
 });
 
-// The country around the valley, cropped from the GCC campaign map at its 3-mile hex scale (48 px per hex).
-// A square travel grid of the same size is laid over it; terrain does not yet change the travel rate.
-const EDEN_REGION = build({
-    id: 'eden-region',
-    name: 'Eden Valley region',
-    parent: null,
-    image: { src: 'maps/eden-region.webp', width: 1480, height: 1179 },
-    pixelsPerCell: 48,
-    cellMeters: 3 * KM_PER_MILE * 1000,
-    minutesPerCell: 240,
-    scale: { cells: 2, label: '6 miles' },
-    sites: [
-        { id: 'eden-valley', x: 13, y: 13, name: 'Eden Valley', kind: 'exit', to: 'eden-valley', arrive: 'gate', label: 'Enter Eden Valley' },
-        { id: 'clearing', x: 16, y: 11, name: 'Forest clearing', kind: 'encounter' },
-        { id: 'outpost', x: 18, y: 15, name: 'Ancient outpost', kind: 'ruin' },
-    ],
-    start: 'eden-valley',
-});
-
 // The original 20 x 12 test grid, kept so saves and tests from before scenes still resolve.
 const LEGACY = build({
     id: 'legacy',
@@ -100,7 +83,10 @@ const LEGACY = build({
     start: 'town',
 });
 
-export const SCENES = Object.freeze({ [EDEN_VALLEY.id]: EDEN_VALLEY, [EDEN_REGION.id]: EDEN_REGION, [LEGACY.id]: LEGACY });
+// The country outside the valley comes from the campaign map (world.js) and is registered once that has loaded.
+export const SCENES = { [EDEN_VALLEY.id]: EDEN_VALLEY, [LEGACY.id]: LEGACY };
+export function registerScene(definition) { return SCENES[definition.id] = build(definition); }
+export const hasScene = id => Object.hasOwn(SCENES, id);
 export const FIRST_SCENE = EDEN_VALLEY.id;
 
 export function getScene(id) {
@@ -110,30 +96,33 @@ export function getScene(id) {
 }
 // An entry saved before scenes existed has no scene id and stands on the legacy grid.
 export const sceneOf = entry => getScene(entry?.scene ?? 'legacy');
-export const siteAt = entry => sceneOf(entry).sites.find(s => s.x === entry.position?.x && s.y === entry.position?.y) ?? null;
-export const placeName = entry => siteAt(entry)?.name ?? (sceneOf(entry).parent ? sceneOf(entry).name : 'Wilderness');
+export const siteAt = entry => !hasScene(entry?.scene ?? 'legacy') ? null : sceneOf(entry).sites.find(s => s.x === entry.position?.x && s.y === entry.position?.y) ?? null;
+// A scene that is not loaded on this page (the character list does not load the campaign map) still gets a name.
+export const placeName = entry => !hasScene(entry?.scene ?? 'legacy') ? 'Beyond Eden Valley' : siteAt(entry)?.name ?? (sceneOf(entry).parent ? sceneOf(entry).name : 'Wilderness');
 export function sitePosition(scene, siteId) {
     const site = scene.sites.find(s => s.id === siteId) ?? scene.sites.find(s => s.id === scene.start);
     return { x: site.x, y: site.y };
 }
-export const startOf = sceneId => ({ scene: sceneId, position: sitePosition(getScene(sceneId), getScene(sceneId).start) });
+export const startOf = sceneId => ({ scene: sceneId, sceneRev: getScene(sceneId).rev ?? null, position: sitePosition(getScene(sceneId), getScene(sceneId).start) });
 export const isBlocked = (scene, x, y) => x < 0 || y < 0 || x >= scene.cols || y >= scene.rows || scene.blocked.has(`${x},${y}`);
 // The chain of scenes from the outermost down to this one.
 export function ancestry(scene) {
     const chain = [scene];
-    while (chain[0].parent) chain.unshift(getScene(chain[0].parent));
+    while (chain[0].parent && hasScene(chain[0].parent)) chain.unshift(getScene(chain[0].parent));
     return chain;
 }
 export const exitTo = (scene, targetId) => scene.sites.find(s => s.kind === 'exit' && s.to === targetId) ?? null;
 
-// Shortest path of orthogonal steps, or null when the destination cannot be reached.
+const SQUARE = [[1, 0], [-1, 0], [0, 1], [0, -1]], HEX_EVEN = [[0, -1], [0, 1], [1, -1], [1, 0], [-1, -1], [-1, 0]], HEX_ODD = [[0, -1], [0, 1], [1, 0], [1, 1], [-1, 0], [-1, 1]];
+export const stepsFrom = (scene, x) => scene.layout === 'hex' ? (x & 1 ? HEX_ODD : HEX_EVEN) : SQUARE;
+// Shortest path of steps to adjacent cells, or null when the destination cannot be reached.
 export function scenePath(scene, start, end) {
     if (!Number.isInteger(end.x) || !Number.isInteger(end.y) || isBlocked(scene, end.x, end.y)) return null;
     const queue = [[start, []]], seen = new Set([`${start.x},${start.y}`]);
     while (queue.length) {
         const [p, path] = queue.shift();
         if (p.x === end.x && p.y === end.y) return path;
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        for (const [dx, dy] of stepsFrom(scene, p.x)) {
             const x = p.x + dx, y = p.y + dy, k = `${x},${y}`;
             if (seen.has(k) || isBlocked(scene, x, y)) continue;
             seen.add(k);

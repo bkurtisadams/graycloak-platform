@@ -242,3 +242,16 @@ Extract over v0.6.9 at the repository root.
 - The trading post moved from the Rats' site to a placeholder beside the Valley gate.
 - Referee ruling: the laser pistol found at the Ancient outpost always functions. Other artifacts keep the printed condition roll. A pistol already found in an existing save keeps its rolled condition.
 - Ancient weapons are not sold; the trading post stock was already limited to primitive arms, armour and supplies.
+
+## v0.6.11 — the country outside the valley comes from the campaign map
+
+Extract over v0.6.10 at the repository root. `gamma-world/maps/eden-region.webp` is no longer used and can be deleted.
+
+- `world.js` loads the GCC Gamma World map's own scripts (`gcc/gw-authored.js`, `gw-terrain-data.js`, `gcc-rng.js`, `gw-subhex-data.js`) and builds the region scene from them: a 31 x 23 window of 3-mile sub-hexes centred on Eden Valley, with authored and seeded terrain, rivers, roads, trails and named places. Nothing is copied; re-baking `gw-authored.js` changes the game's map too. In a browser that has working map edits in localStorage on the same origin, those are used as well.
+- Eden Valley is found by a marker named "Eden Valley"; the committed map has it as an unnamed village at world (456, 279), parent hex 15,7, which is the fallback.
+- Scenes can now be hex grids (flat-topped, odd columns half a hex lower, as on the campaign map). Movement is hex to hex, 3 miles and 4 hours a hex. Water hexes are closed. Terrain does not yet change the travel rate.
+- Shown on the region: cities, towns, villages, fortifications, ruins, robot farms, monasteries and installations. Lairs and vaults are not shown. There is no fog of war yet.
+- Placeholders: the Forest clearing is the nearest wooded hex at least three hexes from the valley; the outpost search happens at the nearest named ruin.
+- The game needs the `gcc` folder beside `gamma-world`. Without it the valley still plays and the gate reports that the country beyond is unavailable.
+- A survivor saved on the earlier square-grid region is put back at the Eden Valley hex.
+- 116 game tests and 3 lobby tests pass; the region tests run the campaign map scripts directly.
