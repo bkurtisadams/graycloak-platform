@@ -22,6 +22,7 @@ test('Eden Valley is walled: the gate is reachable and the country outside is no
   assert.ok(path.every(p => !isBlocked(valley, p.x, p.y)));
   assert.equal(scenePath(valley, start, { x: 0, y: 0 }), null);
   assert.equal(scenePath(valley, start, { x: 99, y: 5 }), null);
+  assert.deepEqual(valley.sites.filter(s => s.kind === 'place').map(s => s.name), ['Ape Village', 'Complex entrance', 'Rats', 'Bears', 'Badgers', 'Reptiles', 'Cats', 'Rabbits', 'Dogs', 'Bridge', 'Bridge']);
   assert.ok(valley.open.cols < valley.cols && valley.open.rows < valley.rows);
 });
 

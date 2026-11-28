@@ -205,7 +205,7 @@ $('interact').onclick = () => { stop(); const s = atSite(); if (opening || comba
             say('You already recovered the device.');
             return;
         }
-        entry = updateEntry(entry.id, d => { const found = awardExperience({ ...d, inventory: [...d.inventory, { id: 'outpost-device', name: 'Unidentified Ancient device', artifact: gw.discoverArtifact(gw.TECHNOLOGY.laserPistol) }, { id: 'hydrogen-cell', name: 'Charged hydrogen cell' }] }, gw.ARTIFACT_EXPERIENCE['Hydrogen energy cell']); found.advancement = { bonuses: found.advancement?.bonuses ?? [], news: [`Recovered a charged hydrogen energy cell: ${gw.ARTIFACT_EXPERIENCE['Hydrogen energy cell']} experience.`, ...(found.advancement?.news ?? [])] }; return found; });
+        entry = updateEntry(entry.id, d => { const found = awardExperience({ ...d, inventory: [...d.inventory, { id: 'outpost-device', name: 'Unidentified Ancient device', artifact: { ...gw.discoverArtifact(gw.TECHNOLOGY.laserPistol), functioning: true } }, { id: 'hydrogen-cell', name: 'Charged hydrogen cell' }] }, gw.ARTIFACT_EXPERIENCE['Hydrogen energy cell']); found.advancement = { bonuses: found.advancement?.bonuses ?? [], news: [`Recovered a charged hydrogen energy cell: ${gw.ARTIFACT_EXPERIENCE['Hydrogen energy cell']} experience.`, ...(found.advancement?.news ?? [])] }; return found; });
         c = characterFor(entry);
         log('Recovered an unidentified device. Open Inventory and choose Experiment.');
     }

@@ -233,3 +233,12 @@ Extract over v0.6.8 at the repository root. Older saves load: a survivor saved b
 - The minimap and the scale bar read the current scene. The view opens framed on the walkable part of the scene.
 - Fights still use the generic forest-clearing board. Battle maps chosen by terrain, and fights inside small scenes, come later.
 - Verified in headless Chrome at 1440x900. 114 game tests and 3 lobby tests pass.
+
+## v0.6.10 — Eden Valley key, working first laser
+
+Extract over v0.6.9 at the repository root.
+
+- Eden Valley sites now follow the referee's key: Ape Village, Complex entrance, the two bridges, and the Rats, Bears, Badgers, Reptiles, Cats, Rabbits and Dogs. They are landmarks to walk to; nothing happens there yet. The painted map's numbers run one higher than the key (painted 2 is key 1, Rats) and its "I" is read as the Ape Village. The painted "F" is not in the key and has no site.
+- The trading post moved from the Rats' site to a placeholder beside the Valley gate.
+- Referee ruling: the laser pistol found at the Ancient outpost always functions. Other artifacts keep the printed condition roll. A pistol already found in an existing save keeps its rolled condition.
+- Ancient weapons are not sold; the trading post stock was already limited to primitive arms, armour and supplies.
