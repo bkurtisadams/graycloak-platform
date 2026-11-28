@@ -1,6 +1,6 @@
 import * as gw from '../packages/gamma-world-rules/index.js';
 import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair, awardExperience } from './settlement.js';
-import { readCampaign, selectRecord, updateEntry, applyProgress } from './campaign.js';
+import { manifestRadiation, readCampaign, selectRecord, updateEntry, applyProgress } from './campaign.js';
 import { sceneOf, getScene, hasScene, registerScene, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, clockOf, addMinutes, describeDistance, describeTime, FIRST_SCENE } from './scenes.js';
 import { loadRegion } from './world.js';
 // The country outside the valley is read from the campaign map before the first draw. Without it the valley still plays.
@@ -59,6 +59,7 @@ function withArtifact(e, itemId, artifact) {
     return out;
 }
 function flushNews() {
+    if (entry?.radiation?.some(r => !r.done && (entry.days ?? 0) >= r.due)) entry = updateEntry(entry.id, e => manifestRadiation(e));
     const news = entry?.advancement?.news;
     if (!news?.length) return;
     entry = updateEntry(entry.id, e => ({ ...e, advancement: { ...e.advancement, news: [] } }));

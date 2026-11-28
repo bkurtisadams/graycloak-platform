@@ -281,3 +281,15 @@ Extract over v0.6.12 at the repository root.
 - To verify against the book: on the game's radiation matrix, intensity 18 is D for every resistance from 3 to 18, so a Blaash at 5 m kills or leaves a defect in any character.
 - Still not played: Obb radiation blast and Zarn spit (no usable range or movement in the data), contact poison from touching Herkel or Win Seen, Perth and Barl Nep (rooted or water), radiation from hazard hexes on the map.
 - 119 game tests and 3 lobby tests pass.
+
+## v0.6.14 — antidotes, radiation mutations after a week, wider practice combat
+
+Extract over v0.6.13 at the repository root.
+
+- The radiation and poison matrices are now tested against the printed charts in all 256 cells each (`test/matrices.test.js`).
+- Antidotes (POISON MATRIX text): on a D the victim has 2 melee rounds. The antidote for that intensity is certain; any other works 50% of the time, plus or minus 10% for each level it differs. If it works the victim takes 2d6. In a fight, a poisoned survivor gets an Antidote button for each intensity carried, showing its chance; using one takes the round's action, and a failed one can be followed by another. A survivor carrying no antidote dies at once, as before. Used antidotes leave the bag.
+- Referee policies: the trading post sells antidotes for intensities 8, 9, 12, 14, 15, 16 and 18 at 30 domars each (which exist and the price are placeholders); a paralysed lone survivor still cannot take one.
+- Radiation (RADIATION MATRIX text): an M, or a D survived on the 20% roll, is filed when the fight is saved and appears one week of game time later as a mutation or a defect, announced in Events and added to the character with its effects. Referee policies: the chart (physical or mental) is a coin toss; plants use the plant chart; a result already held is rerolled; a defect is drawn evenly from that chart's defects. Pure Strain Humans and robots have no chart in the game, so the result is reported as needing a ruling.
+- Practice combat (Rules Lab > Practice combat, or `/gamma-world/tactical.html`): the opponent list now holds every playable creature from the campaign bestiary with its attack, numbers go to 8, "Hostile" skips the reaction roll, and "Antidotes carried" takes poison intensities. Practice changes nothing in the campaign.
+- The combat engine takes up to 8 opponents for every creature.
+- 124 game tests and 3 lobby tests pass.

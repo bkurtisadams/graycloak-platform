@@ -1,6 +1,6 @@
 // Local campaign persistence. No server authority or cross-player synchronization yet.
 import { startOf, FIRST_SCENE } from './scenes.js';
-import { thresholdsCrossed, rollExperienceBonus } from '../packages/gamma-world-rules/index.js';
+import { thresholdsCrossed, rollExperienceBonus, radiationMutation } from '../packages/gamma-world-rules/index.js';
 export const KEY = 'graycloak.gw.campaign.v1';
 export function readCampaign(storage = localStorage) { const raw = storage.getItem(KEY); return raw ? JSON.parse(raw) : { version: 1, active: null, characters: {} }; }
 export function writeCampaign(data, storage = localStorage) { storage.setItem(KEY, JSON.stringify(data)); return data; }
@@ -49,8 +49,27 @@ export function settleExperience(entry, before, attributes, rng = Math.random) {
     }
     return e;
 }
+// Antidotes used in the fight leave the bag; radiation results (M, or a survived D) are filed to appear a week later.
+function afterCombat(entry, state, p) {
+    const left = p.antidotes ? [...p.antidotes] : null;
+    const inventory = entry.inventory.filter(i => { if (!i.antidote || !left) return true; const k = left.indexOf(i.antidote); if (k < 0) return false; left.splice(k, 1); return true; });
+    const stamp = `${entry.days ?? 0}:${entry.minutes ?? 360}:${entry.steps ?? 0}`, known = new Set((entry.radiation ?? []).map(r => r.id));
+    const fresh = (state.pendingEffects ?? []).map((e, i) => ({ id: `${stamp}:${i}`, kind: e.kind, due: (entry.days ?? 0) + 7 })).filter(r => !known.has(r.id));
+    return { inventory, radiation: [...(entry.radiation ?? []), ...fresh] };
+}
+export function manifestRadiation(entry, rng = Math.random) {
+    const due = (entry.radiation ?? []).filter(r => !r.done && (entry.days ?? 0) >= r.due);
+    if (!due.length) return entry;
+    const acquired = [...(entry.acquired ?? [])], news = [];
+    for (const r of due) {
+        const what = r.kind === 'defect' ? 'mutational defect' : 'new mutation', got = radiationMutation(entry.record.base.species, r.kind, [...(entry.record.choices ?? []), ...acquired], rng);
+        if (got) { acquired.push(got.id); news.push(`A week after the radiation, a ${what} appears: ${got.name}.`); }
+        else news.push(`A week after the radiation a ${what} was due, but this character type has no mutation chart in the game. Referee ruling needed.`);
+    }
+    return { ...entry, acquired, radiation: entry.radiation.map(r => due.includes(r) ? { ...r, done: true } : r), advancement: { bonuses: entry.advancement?.bonuses ?? [], news: [...(entry.advancement?.news ?? []), ...news] } };
+}
 export function storeCombat(entry, state) { const p = state.actors.find(a => a.id === 'player'); if (!p)
-    throw Error('Missing player'); return { ...entry, inventory: entry.inventory.map(i => i.id === 'outpost-device' && p.artifact ? { ...i, artifact: p.artifact } : i), encounter: state.status === 'active' ? structuredClone(state) : null, pendingEncounter: null, clearingResolved: entry.clearingResolved || state.site === 'clearing' && ['victory', 'peaceful'].includes(state.status), progress: { damage: p.maxHp - p.hp, experience: p.experience, MS: p.attributes.MS, mentalResistance: p.effects.mentalResistance, bleeding: p.bleeding, totalHealingUses: p.totalHealingUses } }; }
+    throw Error('Missing player'); const kept = afterCombat(entry, state, p); return { ...entry, radiation: kept.radiation, inventory: kept.inventory.map(i => i.id === 'outpost-device' && p.artifact ? { ...i, artifact: p.artifact } : i), encounter: state.status === 'active' ? structuredClone(state) : null, pendingEncounter: null, clearingResolved: entry.clearingResolved || state.site === 'clearing' && ['victory', 'peaceful'].includes(state.status), progress: { damage: p.maxHp - p.hp, experience: p.experience, MS: p.attributes.MS, mentalResistance: p.effects.mentalResistance, bleeding: p.bleeding, totalHealingUses: p.totalHealingUses } }; }
 // Prototype settlement map, not the existing authored campaign geography.
 export const WORLD = { width: 20, height: 12, sites: [{ x: 2, y: 5, name: 'Eden Valley', kind: 'town' }, { x: 10, y: 5, name: 'Forest clearing', kind: 'encounter' }, { x: 17, y: 8, name: 'Ancient outpost', kind: 'ruin' }], walls: [[7, 3], [7, 4], [7, 6], [7, 7], [13, 2], [13, 3], [13, 4], [13, 5], [16, 7], [17, 7], [18, 7]] };
 export function worldPath(start, end) { if (!Number.isInteger(end.x) || !Number.isInteger(end.y) || end.x < 0 || end.y < 0 || end.x >= WORLD.width || end.y >= WORLD.height)

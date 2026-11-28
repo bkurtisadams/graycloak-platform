@@ -58,7 +58,7 @@ export function movement({ mode = 'combat', pace = 'normal', indoors = false, en
     throw new RangeError('Use referee-defined route movement'); if (!['normal', 'trot', 'charge'].includes(pace))
     throw new RangeError('pace'); return { seconds: 10, meters: { normal: 12, trot: 16, charge: 24 }[pace], canFire: pace === 'normal', requiresRuling: encumbered }; }
 export function artifactCondition(rng = Math.random) { const roll = dice(2, 6, rng); const i = roll <= 5 ? 0 : roll <= 7 ? 1 : roll <= 9 ? 2 : roll - 7; return { roll, condition: ['broken', 'poor', 'fair', 'good', 'excellent', 'perfect'][i], functionChance: i * 20 }; }
-export { PHYSICAL, MENTAL, PLANT, mutationSlots, mutationResult, rollMutation, selectedDefects, mutationDraft, assignWorkshopDefects } from './mutations.js';
+export { PHYSICAL, MENTAL, PLANT, mutationSlots, mutationResult, rollMutation, radiationMutation, selectedDefects, mutationDraft, assignWorkshopDefects } from './mutations.js';
 export const dexterityHitModifier = strengthDamageModifier;
 // p.17: referee selects route distance; ordinary walking guideline 1–10 km/turn.
 export function routeMovement(kilometers, { fatigued = false } = {}) { if (!Number.isFinite(kilometers) || kilometers < 1 || kilometers > 10)

@@ -1,5 +1,5 @@
 // Gamma World 1e (1981), pp.17–21. Local tactical simulation; explicit referee policies in README.
-import { die, dice, charisma, initiative, physicalAttack, integer, naturalTarget, mentalBlast, characterMovement, receiveDamage, bleedingRound, bindWounds, totalHealing, radiation, characterHazard, physicalPower, PHYSICAL_POWER_RULES, getWeapon, getArmor, equipmentAttack, deriveCharacter, generateCharacter, mutationDraft, laserAttack } from './index.js';
+import { antidoteChance, die, dice, charisma, initiative, physicalAttack, integer, naturalTarget, mentalBlast, characterMovement, receiveDamage, bleedingRound, bindWounds, totalHealing, radiation, characterHazard, physicalPower, PHYSICAL_POWER_RULES, getWeapon, getArmor, equipmentAttack, deriveCharacter, generateCharacter, mutationDraft, laserAttack } from './index.js';
 export const GRID_METERS = 3;
 export const CREATURES = Object.freeze({
     badder: { name: 'Badder', meeting: 'roll', speaks: true, ac: 4, hd: 6, move: 12, ms: 16, dx: 18, intelligent: true, weapon: 'club', large: false, notes: 'p.22–23: empathy, keen smell, hard of hearing; club loadout is a sandbox choice.' },
@@ -26,7 +26,7 @@ function unit(c, id, x, y, side, extra = {}) { return { ...clone(c), id, x, y, s
 function enemy(key, i, rng, definition, count = 1) { const d = definition ?? CREATURES[key]; if (!d)
     throw Error('Unknown creature'); const hp = dice(d.hd, 6, rng), ms = d.ms ?? dice(3, 6, rng); return unit({ name: `${d.name} ${i + 1}`, species: 'creature', attributes: { MS: ms, IN: 10, DX: d.dx, CH: 10, CN: 10, PS: 10 }, hp, maxHp: hp, armorClass: d.ac, mutations: [], equipment: { weaponId: d.weapon ?? null, armorId: 'none' }, effects: { ...emptyEffects(), mentalResistance: ms, poisonResistance: 10, poisonImmune: key === 'podog', radiationResistance: 10 }, reviewRequired: [], experience: 0 }, `npc-${i + 1}`, count > 3 ? 11 + Math.floor(i / 5) * 2 : 11, count > 3 ? 1 + (i % 5) * 2 : 2 + i * 3, 'right', { hd: d.hd, large: d.large, intelligent: d.intelligent, normalMove: d.move, natural: d.natural ?? null, poison: d.poison ?? null, radiate: d.radiate ?? null, drain: d.drain ?? null, creatureKey: key }); }
 export function createEncounter(character, { creature = 'badder', definition = null, count = 1, rng = Math.random, surprisePossible = true, blocked = [], meeting = false, intelligentMorale = false } = {}) { if (!character?.selectionComplete || !character.effects || character.hp <= 0)
-    throw Error('Complete a living character first'); integer(count, 1, definition ? 8 : 3, 'opponents'); const kind = definition ?? CREATURES[creature]; if (!kind) throw Error('Unknown creature'); const player = unit(character, 'player', 2, 5, 'left'), actors = [player, ...Array.from({ length: count }, (_, i) => enemy(creature, i, rng, definition, count))]; const order = firstStrike({ leftImmune: !!player.effects.surpriseImmune, possible: surprisePossible, rng }); if (creature === 'podog') {
+    throw Error('Complete a living character first'); integer(count, 1, 8, 'opponents'); const kind = definition ?? CREATURES[creature]; if (!kind) throw Error('Unknown creature'); const player = unit(character, 'player', 2, 5, 'left'), actors = [player, ...Array.from({ length: count }, (_, i) => enemy(creature, i, rng, definition, count))]; const order = firstStrike({ leftImmune: !!player.effects.surpriseImmune, possible: surprisePossible, rng }); if (creature === 'podog') {
     order.first = 'right';
     order.mimickedCry = true;
 } return { creatureName: kind.name, intelligentMorale: !!intelligentMorale, meeting: meeting && kind.meeting === 'roll' ? { open: true, speaks: !!kind.speaks, talked: false, gifted: false, result: null } : null, version: 1, round: 1, seconds: 0, width: 15, height: 11, blocked: structuredClone(blocked), actors, order, status: 'active', log: [`Round 1: first strike ${order.first === 'left' ? 'player' : 'creatures'} (${order.left}/${order.right}); ${order.leftSurprised && order.rightSurprised ? 'Both sides surprised' : order.leftSurprised ? 'Your side surprised' : order.rightSurprised ? 'Creatures surprised' : 'Neither side surprised'}.${order.mimickedCry ? ' Podog mimics the prey’s cry and takes first strike.' : ''}`], pendingRulings: [], xpAwarded: 0 }; }
@@ -160,7 +160,9 @@ function advanceMS(s, a, key) { if (a.species === 'robot' || a.mutations.include
 function resultRoll(s, a, t, r) { note(s, `${a.name} → ${t.name}: ${r.reason ?? (r.roll === null ? String(r.target) : `d20 ${r.roll} vs ${r.target}`)}${r.reason ? '' : r.hit ? ' HIT' : ' MISS'}.`); }
 // Poison and radiation delivered by a creature (pp.28-29 matrices through characterHazard). A number is dice of
 // damage, D on the poison matrix kills unless the poison is paralytic, and the radiation matrix can kill or mutate.
-// Policies while the game has no antidotes and no companions: D is death, and a paralysed lone survivor is killed.
+// POISON MATRIX text: the matching antidote within 2 melee rounds of a D saves the victim, who takes 2d6; another
+// antidote works 50% of the time, 10% more or less per level of difference. A victim carrying no antidote dies at once.
+// Policy while there are no companions: a paralysed lone survivor cannot take an antidote and is killed.
 function exposure(s, a, victim, kind, intensity, rng, { paralytic = false, stone = false } = {}) {
     if (!active(victim)) return;
     if (kind === 'radiation' && victim.species === 'robot') { s.pendingRulings.push(`${victim.name}: radiation vs robot requires referee ruling`); note(s, 'Robot radiation result not automated.'); return; }
@@ -170,9 +172,14 @@ function exposure(s, a, victim, kind, intensity, rng, { paralytic = false, stone
     if (o.outcome === 'immune') note(s, `${label}: ${victim.name} is immune.`);
     else if (o.outcome === 'damage') { if (o.damage > 0) { note(s, `${label}: ${o.cell}d6.`); hurt(s, victim, o.damage, null, { damageType: kind, damageDice: o.cell }); } else note(s, `${label}: no effect.`); }
     else if (o.outcome === 'fatal-poison' && paralytic) kill(`${victim.name} is paralysed and helpless.${a.drain ? ` ${a.name} drains ${a.drain} hit points a turn;` : ''} with no companion to intervene, ${victim.name} dies.`);
+    else if (o.outcome === 'fatal-poison' && victim.antidotes?.length) { victim.poisoned = { intensity, deadline: s.round + 2, stone }; note(s, `${label}: D. ${victim.name} will ${stone ? 'turn to stone' : 'die'} unless an antidote works within 2 melee rounds.`); }
     else if (o.outcome === 'fatal-poison') kill(stone ? `${victim.name} turns to stone.` : `fatal, and there is no antidote. ${victim.name} dies.`);
     else if (o.outcome === 'death') kill(`fatal. ${victim.name} dies.`);
-    else { note(s, `${label}: ${o.outcome}, to appear in 7 days.`); s.pendingRulings.push(`${victim.name}: ${o.outcome} manifests in 7 days`); }
+    else { note(s, `${label}: ${o.outcome === 'defect' ? 'D, survived (20%) with a mutational defect' : 'M, a new mutation'}, to appear in one week.`); s.pendingRulings.push(`${victim.name}: ${o.outcome} manifests in 7 days`); if (victim.id === 'player') (s.pendingEffects ??= []).push({ kind: o.outcome }); }
+}
+// The 2 melee rounds allowed for an antidote have passed.
+function poisonTick(s) {
+    for (const a of s.actors) if (active(a) && a.poisoned && s.round >= a.poisoned.deadline) { note(s, `No antidote in time: ${a.name} ${a.poisoned.stone ? 'turns to stone' : 'dies of poison'}.`); a.hp = 0; a.dying = false; a.poisoned = null; }
 }
 function attack(s, a, t, p, rng) {
     if (!t || !active(t))
@@ -368,6 +375,7 @@ export function resolveRound(state, plan, { rng = Math.random } = {}) {
             a.plantCharge = Math.min(4, a.plantCharge + 1);
         a.dying = false;
     }
+    poisonTick(s);
     s.seconds += 10;
     const enemies = s.actors.filter(a => a.side === 'right');
     if (p.hp <= 0)
@@ -466,7 +474,7 @@ function finishHalf(s, rng) { const p = pc(s); for (const a of s.actors) {
     if (a.uses['plant-14'] !== s.round)
         a.plantCharge = Math.min(4, a.plantCharge + 1);
     a.dying = false;
-} s.seconds += 10; if (p.hp <= 0)
+} poisonTick(s); s.seconds += 10; if (p.hp <= 0)
     s.status = 'defeat';
 else if (p.fled)
     s.status = 'withdrawn';
@@ -530,6 +538,22 @@ else if (command.type === 'meet') {
         settleMeeting(s, reactionRoll(s, gift ? 1 : 0, rng), true);
     }
     else throw Error('Unknown meeting choice');
+}
+else if (command.type === 'antidote') {
+    if (!active(p) || !p.poisoned) throw Error('No poison to treat');
+    if (s.turn.action) throw Error('Your action has already been used');
+    const i = (p.antidotes ?? []).indexOf(command.intensity);
+    if (i < 0) throw Error('You do not carry that antidote');
+    p.antidotes.splice(i, 1);
+    const chance = antidoteChance(p.poisoned.intensity, command.intensity), roll = chance >= 100 ? null : die(100, rng);
+    s.turn.action = 'antidote';
+    p.acted = true;
+    if (roll === null || roll <= chance) {
+        note(s, `${p.name} takes the intensity ${command.intensity} antidote against intensity ${p.poisoned.intensity} poison: ${roll === null ? 'the specific antidote, certain' : `${chance}% chance, d100 ${roll}`}. It works; 2d6 damage.`);
+        p.poisoned = null;
+        hurt(s, p, dice(2, 6, rng), null, { damageType: 'poison', damageDice: 2 });
+    }
+    else note(s, `${p.name} takes the intensity ${command.intensity} antidote against intensity ${p.poisoned.intensity} poison: ${chance}% chance, d100 ${roll}. It fails.`);
 }
 else if (command.type === 'parley') {
     if (!canParley(s))

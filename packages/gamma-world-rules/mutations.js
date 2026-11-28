@@ -90,3 +90,21 @@ export function assignWorkshopDefects(base, generation, rng = Math.random) {
 export function mutationSlots(base, generation) { let i = 0; return rawMutationSlots(base, generation).map(s => { if (!s.defectOnly || !generation.refereeDefects)
     return s; const id = generation.refereeDefects[i++], entry = [...PHYSICAL, ...MENTAL, ...PLANT].find(e => e.id === id && e.defect && (e.kind === s.kind || s.kind === 'either' && e.kind !== 'plant')); if (!entry)
     throw Error('Missing or invalid referee defect assignment'); return { ...s, entry }; }); }
+
+// RADIATION MATRIX text: M is "a new mutation (roll for one randomly on either the physical or mental mutations
+// chart)"; D is a 20% chance of "a mutational defect (determine randomly)". Policies: the chart is chosen by a coin
+// toss; plants roll on the plant chart; a result already held, a free choice or an extra roll is rerolled; a defect
+// is drawn evenly from the chart's defects. Pure Strain Humans and robots have no chart here: returns null.
+export function radiationMutation(species, kind, held = [], rng = Math.random) {
+    if (!['humanoid', 'animal', 'plant'].includes(species)) return null;
+    const have = new Set(held), chart = species === 'plant' ? 'plant' : die(2, rng) === 1 ? 'physical' : 'mental';
+    if (kind === 'defect') {
+        const list = (chart === 'plant' ? PLANT : chart === 'physical' ? PHYSICAL : MENTAL).filter(m => m.defect && !have.has(m.id));
+        return list.length ? list[die(list.length, rng) - 1] : null;
+    }
+    for (let i = 0; i < 200; i++) {
+        const r = chart === 'plant' ? mutationResult('plant', 'plant', die(100, rng)) : mutationResult(chart, species, die(100, rng));
+        if (r.type === 'mutation' && !have.has(r.entry.id)) return r.entry;
+    }
+    return null;
+}

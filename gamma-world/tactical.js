@@ -1,5 +1,6 @@
 import { readCampaign, updateEntry, applyProgress, applyAdvancement, settleExperience, storeCombat } from './campaign.js';
 import * as gw from '../packages/gamma-world-rules/index.js';
+import { loadRegion } from './world.js';
 export function mountTactical({ root = null, information = null, embedded = false, characterId = null, initialPrinted = 0, onExit = null, onChange = null } = {}) {
     const $ = id => root?.querySelector('#' + id) ?? information?.querySelector('#' + id) ?? (!root ? document.getElementById(id) : null);
     const make = (tag, text, cls) => { const n = document.createElement(tag); if (text != null)
@@ -30,7 +31,8 @@ export function mountTactical({ root = null, information = null, embedded = fals
             if (!campaignEntry)
                 throw Error('Select a saved character in the world first');
             const r = campaignEntry.record;
-            base = applyAdvancement(applyProgress(gw.deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg }), campaignEntry.progress), campaignEntry);
+            base = applyAdvancement(applyProgress(gw.deriveCharacter(r.base, r.generation, r.choices, { ...r.equipment, weightKg: r.weightKg, acquired: campaignEntry.acquired ?? [] }), campaignEntry.progress), campaignEntry);
+            base.antidotes = campaignEntry.inventory.filter(i => i.antidote).map(i => i.antidote);
             base.artifact = campaignEntry.inventory.find(i => i.id === 'outpost-device')?.artifact;
             if (base.hp <= 0 && !campaignEntry.encounter)
                 throw Error('Character is dead');
@@ -50,6 +52,19 @@ export function mountTactical({ root = null, information = null, embedded = fals
         o.value = id;
         $('creature').append(o);
     }
+    // Practice only: every creature on the encounter tables that can be played, straight from the campaign bestiary.
+    const practice = new Map();
+    if (!campaignMode) loadRegion().then(sc => {
+        const names = [...new Set(Object.values(sc.encounters.ENCOUNTER_TABLES).flat().map(r => r.creature))].sort();
+        for (const name of names) {
+            const found = gw.playableCreature(sc.bestiary, name);
+            if (!found || gw.CREATURES[found.key]) continue;
+            practice.set(`bestiary:${found.key}`, found);
+            const o = make('option', `${name} — ${found.definition.notes.split('.')[0]}`);
+            o.value = `bestiary:${found.key}`;
+            $('creature').append(o);
+        }
+    }).catch(() => {});
     const player = () => state?.actors.find(a => a.id === 'player');
     const target = () => state?.actors.find(a => a.id === targetId);
     const alive = a => a && a.hp > 0 && !a.fled;
@@ -63,7 +78,9 @@ export function mountTactical({ root = null, information = null, embedded = fals
         const old = campaignMode ? campaignEntry.encounter : null;
         if (campaignMode && state)
             return;
-        const fresh = old ?? gw.createEncounter(base, { definition: campaignEntry?.pendingEncounter?.definition ?? null, creature: campaignEntry?.pendingEncounter?.creature ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: true, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
+        const picked = campaignMode ? null : practice.get($('creature').value);
+        if (!campaignMode && $('antidotes')) base.antidotes = ($('antidotes').value.match(/\d+/g) ?? []).map(Number).filter(n => n >= 3 && n <= 18);
+        const fresh = old ?? gw.createEncounter(base, { definition: campaignEntry?.pendingEncounter?.definition ?? picked?.definition ?? null, creature: campaignEntry?.pendingEncounter?.creature ?? picked?.key ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: campaignMode || !$('hostile')?.checked, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
         if (campaignEntry?.pendingEncounter?.site)
             fresh.site = campaignEntry.pendingEncounter.site;
         commit(gw.beginInteractive(fresh), old);
@@ -101,6 +118,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         if (state.turn?.action) { command({ type: 'end' }); if (state.revision === before) return stopAuto(); return scheduleAuto(); }
         if (!alive(t)) return stopAuto('Repeat stopped: the target is down. Pick another target.');
         if (p.hp <= 0) return stopAuto();
+        if (p.poisoned) return stopAuto('Repeat stopped: you are poisoned. Take an antidote within 2 rounds.');
         if (p.bleeding) return stopAuto('Repeat stopped: you are bleeding. Bind wounds or fight on.');
         if (p.hp <= p.maxHp / 3) return stopAuto('Repeat stopped: you are badly hurt. Fight on or withdraw.');
         targetId = t.id;

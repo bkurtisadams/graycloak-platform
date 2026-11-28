@@ -66,7 +66,7 @@ test('bestiary creatures with a dice attack can be fought; the rest are reported
   assert.equal(fight.actors.length, 6);
   assert.equal(fight.creatureName, 'Yexil');
   assert.equal(new Set(fight.actors.map(a => `${a.x},${a.y}`)).size, 6);
-  assert.throws(() => gw.createEncounter(character, { creature: 'badder', count: 4 }));
+  assert.throws(() => gw.createEncounter(character, { creature: 'badder', count: 9 }));
 });
 
 test('poison and radiation attacks are read from the bestiary and resolved on the matrices', () => {

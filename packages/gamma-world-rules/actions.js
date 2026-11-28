@@ -1,6 +1,7 @@
 // Shared availability policy; actual commands remain validated by encounter.js.
 import { availableActions, interactivePlan, canParley, meetingOptions } from './encounter.js';
 import { getWeapon } from './equipment.js';
+import { antidoteChance } from './index.js';
 export const isTextEntry = target => !!target?.closest?.('input,select,textarea,[contenteditable]:not([contenteditable="false"])');
 const status = (id, label, visible, reason = '', extra = {}) => ({ id, label, visible, enabled: visible && !reason, reason, ...extra });
 export function combatActions(s, targetId) {
@@ -26,6 +27,9 @@ export function combatActions(s, targetId) {
     for (const a of list.filter(a => !['weapon', 'advance', 'rest', 'bind', 'flee'].includes(a.id)))
         result.push(check(a.id, a.label, a.id));
     result.push(check('bind', 'Bind wounds', 'bind', undefined, !!p.bleeding), check('flee', 'Withdraw', 'flee'), status('parley', 'Parley', canParley(s), '', { command: { type: 'parley' } }), status('endTurn', 'End Turn', true, active ? '' : 'Encounter ended', { command: { type: 'end' } }));
+    // Poisoned with a D result: each antidote carried may be tried, at the printed chance, until the 2 rounds run out.
+    if (active && p.poisoned) for (const n of [...new Set(p.antidotes ?? [])].sort((a, b) => antidoteChance(p.poisoned.intensity, b) - antidoteChance(p.poisoned.intensity, a)))
+        result.push(status(`antidote-${n}`, `Antidote ${n} (${antidoteChance(p.poisoned.intensity, n)}%)`, true, s.turn?.action ? 'Your action has already been used' : '', { command: { type: 'antidote', intensity: n } }));
     return result;
 }
 export function worldActions({ entry, character, site, moving = false }) {
