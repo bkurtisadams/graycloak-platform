@@ -57,3 +57,14 @@ test('referee ruling: travelling is the normal pace (5 km an hour in the open); 
   assert.equal(gw.firstStrike({ leftOn: 3, rng: rolls() }).leftSurprised, true);
   assert.equal(gw.firstStrike({ rng: rolls() }).leftSurprised, false);
 });
+
+test('referee ruling: roads and trails speed travel', () => {
+  // Travelling: open ground 20 km a turn, mountains 2.5, forest 10.
+  assert.equal(gw.wayRate(2.5, 'road', 20), 20, 'a road ignores the terrain');
+  assert.equal(gw.wayRate(2.5, 'trail', 20), 5, 'a trail doubles the terrain rate');
+  assert.equal(gw.wayRate(15, 'trail', 20), 20, 'but never beyond open ground');
+  assert.equal(gw.wayRate(20, 'road', 20), 20);
+  assert.equal(gw.wayRate(2.5, null, 20), 2.5);
+  // A 3-mile mountain hex: 7 h 43 min across country, 3 h 52 min by trail, 58 minutes by road.
+  assert.deepEqual([null, 'trail', 'road'].map(w => gw.travelMinutes(4.828032, gw.wayRate(2.5, w, 20))), [463, 232, 58]);
+});

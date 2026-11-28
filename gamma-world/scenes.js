@@ -144,8 +144,9 @@ export function stepToward(scene, from, direction) {
     return isBlocked(scene, to.x, to.y) ? null : to;
 }
 // Shortest path of steps to adjacent cells, or null when the destination cannot be reached.
-export function scenePath(scene, start, end) {
+export function scenePath(scene, start, end, cost = null) {
     if (!Number.isInteger(end.x) || !Number.isInteger(end.y) || isBlocked(scene, end.x, end.y)) return null;
+    if (cost) return quickestPath(scene, start, end, cost);
     const queue = [[start, []]], seen = new Set([`${start.x},${start.y}`]);
     while (queue.length) {
         const [p, path] = queue.shift();
@@ -155,6 +156,23 @@ export function scenePath(scene, start, end) {
             if (seen.has(k) || isBlocked(scene, x, y)) continue;
             seen.add(k);
             queue.push([{ x, y }, [...path, { x, y }]]);
+        }
+    }
+    return null;
+}
+// The way that takes least time when steps differ in cost (terrain, roads): cost(from, to) is the time of one step.
+function quickestPath(scene, start, end, cost) {
+    const key = p => `${p.x},${p.y}`, best = new Map([[key(start), 0]]), prev = new Map(), open = [start];
+    while (open.length) {
+        let i = 0;
+        for (let j = 1; j < open.length; j++) if (best.get(key(open[j])) < best.get(key(open[i]))) i = j;
+        const p = open.splice(i, 1)[0], at = best.get(key(p));
+        if (p.x === end.x && p.y === end.y) { const path = []; for (let q = p; key(q) !== key(start); q = prev.get(key(q))) path.unshift(q); return path; }
+        for (const [dx, dy] of stepsFrom(scene, p.x)) {
+            const q = { x: p.x + dx, y: p.y + dy };
+            if (isBlocked(scene, q.x, q.y)) continue;
+            const t = at + cost(p, q);
+            if (t < (best.get(key(q)) ?? Infinity)) { if (!best.has(key(q))) open.push(q); best.set(key(q), t); prev.set(key(q), p); }
         }
     }
     return null;

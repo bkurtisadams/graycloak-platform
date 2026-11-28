@@ -396,3 +396,14 @@ Extract over v0.6.20 at the repository root.
 - Finding a lair or vault only marks it; nothing happens there yet.
 - Rest, automatic camp, Sleep and Forced march are unchanged.
 - 138 game tests and 3 lobby tests pass.
+
+## v0.6.22 — referee rulings: roads and trails, both travelling penalties kept
+
+Extract over v0.6.21 at the repository root.
+
+- Referee ruling: the travelling rate for mountains (2.5 km a route turn) stands.
+- Referee ruling: travelling keeps both penalties: hidden features are walked past, and the party is surprised on 1-3 in a random encounter.
+- Referee ruling: old roads and trails speed travel. The roads and trails drawn on the campaign map are read into the region, hex by hex. How much they help is automated-referee policy: along a road the terrain no longer matters and the rate is that of open ground; along a trail the terrain's rate is doubled, never beyond open ground. A step counts as along a way when both the hex left and the hex entered carry it. Travelling through mountains, a 3-mile hex takes 7 h 43 min across country, 3 h 52 min by trail and 58 minutes by road.
+- Clicking a destination on the region now walks the way that takes least time, not the fewest hexes, so it keeps to roads, trails and easier ground. The route preview shows that way and its time. Movement keys still step exactly where you point.
+- Eden Valley's old road is not in the map data, so it gives no bonus there.
+- 140 game tests and 3 lobby tests pass.

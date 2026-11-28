@@ -242,9 +242,9 @@ $('roster').addEventListener('change', () => load($('roster').value));
 $('stop').onclick = () => { stop(); render(); };
 // The map: hover shows the route and its cost, a click walks, a click on a site selects it and a double-click goes there.
 // Time for a run of steps, counting the slower pace once the party is short of rest.
-function routeMinutes(sc, steps) { let awake = entry.awake ?? 0, total = 0; for (const p of steps) { const plan = stepPlan(sc, p, awake); total += plan.total; awake = plan.awake; } return total; }
+function routeMinutes(sc, steps) { let awake = entry.awake ?? 0, total = 0, at = entry.position; for (const p of steps) { const plan = stepPlan(sc, p, awake, at); total += plan.total; awake = plan.awake; at = p; } return total; }
 function routeTo(target) {
-    const sc = scene(), steps = scenePath(sc, entry.position, target);
+    const sc = scene(), steps = wayTo(sc, target);
     if (!steps) return null;
     const minutes = routeMinutes(sc, steps), from = clockTotal(entry), to = from + minutes;
     const arrive = (() => { const d = Math.floor(to / 1440), m = to % 1440, hm = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; return d === Math.floor(from / 1440) ? hm : `Day ${d + 1}, ${hm}`; })();
@@ -326,11 +326,18 @@ function headFor(site) { if (site && !opening && !combat && c && c.hp > 0 && !(e
 const forcedMarch = () => localStorage.getItem('graycloak.gw.forced') === 'on';
 // Travelling (5 km an hour in the open) is the normal pace; searching is the printed careful rate, 2.5 times slower.
 const pace = () => localStorage.getItem('graycloak.gw.pace') === 'search' ? 'search' : 'travel';
-function stepPlan(sc, p, awake = entry.awake ?? 0) {
-    const forced = forcedMarch(), halved = forced && gw.restState(awake).exhausted;
-    const walking = sc.route && sc.terrain ? gw.travelMinutes(sc.cellMeters / 1000, gw.routeRate(sc.terrain[p.y * sc.cols + p.x], pace()), { halved }) : Math.max(sc.minutesPerCell ? 1 : 0, Math.round((sc.minutesPerCell ?? 0) / gw.PACE[pace()])) * (halved ? 2 : 1);
-    return gw.marchTime(walking, awake, { forced });
+// Walking minutes for one step, before any stop for sleep. A step along an old road or trail goes faster (travel.js).
+function walkMinutes(sc, from, p, halved = false) {
+    if (!(sc.route && sc.terrain)) return Math.max(sc.minutesPerCell ? 1 : 0, Math.round((sc.minutesPerCell ?? 0) / gw.PACE[pace()])) * (halved ? 2 : 1);
+    const a = sc.ways?.[from.y * sc.cols + from.x], b = sc.ways?.[p.y * sc.cols + p.x], way = a && b ? (a === 'road' && b === 'road' ? 'road' : 'trail') : null;
+    return gw.travelMinutes(sc.cellMeters / 1000, gw.wayRate(gw.routeRate(sc.terrain[p.y * sc.cols + p.x], pace()), way, gw.routeRate('clear', pace())), { halved });
 }
+function stepPlan(sc, p, awake = entry.awake ?? 0, from = entry.position) {
+    const forced = forcedMarch();
+    return gw.marchTime(walkMinutes(sc, from, p, forced && gw.restState(awake).exhausted), awake, { forced });
+}
+// Clicking walks the way that takes least time, which on the region means keeping to roads and easier ground.
+const wayTo = (sc, target) => scenePath(sc, entry.position, target, sc.route ? (a, b) => walkMinutes(sc, a, b) : null);
 function takeStep(p) {
     const sc = scene(), from = clockTotal(entry), plan = stepPlan(sc, p);
     entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1, awake: plan.awake }, plan.total));
@@ -369,7 +376,7 @@ function tire() {
     return false;
 }
 const arrived = () => say(atSite() ? `Arrived at ${atSite().name}. ${clockOf(entry).text}.` : `${clockOf(entry).text}.`);
-function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry.position, target); if (!path) {
+function walkTo(target) { stop(); const sc = scene(); path = wayTo(sc, target); if (!path) {
     say('You cannot get there from here.');
     return;
 } if (!path.length)

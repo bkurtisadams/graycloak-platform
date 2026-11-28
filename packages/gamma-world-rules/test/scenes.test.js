@@ -95,6 +95,20 @@ test('poison and radiation attacks are read from the bestiary and resolved on th
   assert.match(after.log.join(' '), /gives off radiation, 5 m radius\. Radiation intensity 18 vs 18/);
 });
 
+test('roads and trails are read from the campaign map, and the quickest way follows easier going', () => {
+  const ways = region.ways.filter(Boolean);
+  assert.ok(ways.includes('trail') && ways.length > 10, 'trails cross the region');
+  assert.equal(region.ways.length, region.cols * region.rows);
+  // With every step the same cost the quickest way is a shortest way.
+  const home = sitePosition(region, 'eden-valley'), far = { x: home.x + 6, y: home.y };
+  assert.equal(scenePath(region, home, far, () => 1).length, scenePath(region, home, far).length);
+  // Make one column ruinously slow: the quickest way takes more steps to go round it, and costs less.
+  const slow = (a, b) => b.x === home.x + 3 && Math.abs(b.y - home.y) < 4 ? 100 : 1, round = scenePath(region, home, far, slow);
+  assert.ok(round.length > scenePath(region, home, far).length);
+  assert.ok(round.reduce((n, p, i) => n + slow(i ? round[i - 1] : home, p), 0) < 100);
+  assert.equal(scenePath(region, home, { x: -1, y: 0 }, () => 1), null);
+});
+
 test('hex steps: six neighbours, odd columns set half a hex lower', () => {
   assert.equal(stepsFrom(region, 4).length, 6);
   assert.deepEqual(scenePath(region, { x: 15, y: 11 }, { x: 16, y: 11 }).length, 1);

@@ -65,6 +65,15 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
     const clearing = nearest(p => /forest/.test(at(p)), { x: cx + 3, y: cy - 2 });
     const ruin = places.filter(p => p.kind === 'ruin' && !taken.has(`${p.x},${p.y}`) && Math.hypot(p.x - cx, p.y - cy) >= 3).sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))[0];
     const outpost = ruin ? (taken.add(`${ruin.x},${ruin.y}`), { x: ruin.x, y: ruin.y }) : nearest(p => at(p) !== 'water', { x: cx + 4, y: cy + 3 });
+    // Which hexes an old road or trail runs through: each drawn line is walked in small steps and the hexes under it noted.
+    const ways = new Array(cols * rows).fill(null);
+    for (const s of strokes) {
+        if (!['road', 'trail'].includes(s.kind) || !(s.pts?.length > 1)) continue;
+        for (let i = 1; i < s.pts.length; i++) {
+            const [ax, ay] = s.pts[i - 1], [bx, by] = s.pts[i], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / (data.SUB_R / 2)));
+            for (let k = 0; k <= n; k++) { const p = cell(...Object.values(data.svgToAxial(ax + (bx - ax) * k / n, ay + (by - ay) * k / n))); if (inside(p) && ways[p.y * cols + p.x] !== 'road') ways[p.y * cols + p.x] = s.kind; }
+        }
+    }
     const origin = data.subhexSvgCenter(...Object.values(axial(0, 0))), r = data.SUB_R;
     return {
         id: 'eden-region',
@@ -86,6 +95,7 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
         // Crossing time comes from the terrain entered (route rates, rules package travel.js); this is only the open-ground figure.
         minutesPerCell: 145,
         route: true,
+        ways,
         secrets,
         scale: { cells: 2 * 2 / ROOT3, label: '6 miles' },
         sites: [

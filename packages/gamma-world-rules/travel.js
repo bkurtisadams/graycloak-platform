@@ -47,3 +47,9 @@ export function marchTime(walking, awake = 0, { forced = false } = {}) {
     }
     return { total, awake, camps };
 }
+// Referee ruling: old roads and trails speed travel. How much is automated-referee policy: following a road, the
+// terrain no longer matters and the rate is that of open ground; following a trail, the terrain's rate is doubled,
+// up to the open-ground rate. A step follows a way when both the hex left and the hex entered carry it.
+export function wayRate(terrainRate, way, openRate) {
+    return way === 'road' ? Math.max(terrainRate, openRate) : way === 'trail' ? Math.max(terrainRate, Math.min(openRate, terrainRate * 2)) : terrainRate;
+}
