@@ -167,7 +167,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         host.querySelector('.result-banner')?.remove();
         if (!ended) return;
         const box = make('div', null, 'result-banner'), p = player();
-        box.append(make('h2', RESULT[state.status] ?? state.status), make('p', state.status === 'victory' ? `${state.xpAwarded} experience gained. ${p.hp} / ${p.maxHp} HP left after ${state.round} round${state.round === 1 ? '' : 's'}.` : state.status === 'defeat' ? `${p.name || 'Your survivor'} has fallen.` : `The encounter is over. ${p.hp} / ${p.maxHp} HP.`));
+        box.append(make('h2', state.status === 'victory' && p.hp <= 0 ? 'Fallen' : RESULT[state.status] ?? state.status), make('p', state.status === 'victory' && p.hp <= 0 ? `${p.name || 'Your survivor'} has fallen, but the companions held the field.` : state.status === 'victory' ? `${state.xpAwarded} experience gained. ${p.hp} / ${p.maxHp} HP left after ${state.round} round${state.round === 1 ? '' : 's'}.` : state.status === 'defeat' ? `${p.name || 'Your survivor'} has fallen.` : `The encounter is over. ${p.hp} / ${p.maxHp} HP.`));
         const b = make('button', embedded ? (state.status === 'defeat' ? 'Leave the field' : 'Return to exploration') : 'New encounter', 'primary');
         b.type = 'button';
         b.onclick = () => embedded ? onExit?.() : start();

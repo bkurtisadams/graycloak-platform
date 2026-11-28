@@ -417,6 +417,9 @@ function enemyHalf(s, rng) { for (const a of enemies(s)) {
         moveActor(s, a, p);
     act(s, a, p, rng);
 } }
+// MORALE: a d10; animals and non-intelligent creatures need 5 or more to continue, intelligent beings 3 or more; a
+// failure flees at once; once checked, it is checked every melee turn until the situation changes; player characters
+// never check; followers and hirelings must. When a check is called for is left to the referee:
 // p.21: unintelligent creatures below half their hit points must check morale. Intelligent beings check only
 // in special circumstances; with intelligentMorale on, the automated referee treats being below half hit points,
 // or half their side being down, as such a circumstance. Fearless beings never check.
@@ -471,6 +474,13 @@ function openHalf(s, rng) { for (const a of s.actors) {
         if (s.meeting.open) s.order = { ...s.order, first: 'left' };
     }
     if (s.meeting?.open) return;
+    if (pc(s).hp <= 0 && !pc(s).dying && allies(s).some(active) && s.round < 200) {
+        // The survivor is down: the round plays out between companions and creatures with no one to wait for.
+        if (s.order.first === 'left') { allyHalf(s, rng); enemyHalf(s, rng); }
+        else { enemyHalf(s, rng); allyHalf(s, rng); }
+        finishHalf(s, rng);
+        return;
+    }
     if (s.order.first === 'right')
         enemyHalf(s, rng); if (pc(s).hp <= 0 && !pc(s).dying)
     finishHalf(s, rng);
@@ -485,8 +495,13 @@ function finishHalf(s, rng) { const p = pc(s); for (const a of s.actors) {
     if (a.uses['plant-14'] !== s.round)
         a.plantCharge = Math.min(4, a.plantCharge + 1);
     a.dying = false;
-} poisonTick(s); s.seconds += 10; if (p.hp <= 0)
-    s.status = 'defeat';
+} poisonTick(s); s.seconds += 10; /* Referee ruling: when the survivor falls the companions fight on. The fight is lost only when no one on the survivor's side stands. */ const stand = allies(s).some(active), foes = enemies(s).some(active); if (p.hp <= 0 && !(stand && foes)) {
+    s.status = stand ? 'victory' : 'defeat';
+    if (stand) note(s, `The companions hold the field, but ${p.name} has fallen.`);
+}
+else if (p.hp <= 0) {
+    if (!s.leaderFell) { s.leaderFell = true; note(s, `${p.name} has fallen. The companions fight on.`); }
+}
 else if (p.fled)
     s.status = 'withdrawn';
 else if (enemies(s).every(a => !active(a))) {

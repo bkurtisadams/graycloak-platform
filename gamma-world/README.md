@@ -325,3 +325,13 @@ Also:
 - The Party tab lists companions with role, pay, hit points, armour class, weapon and mutations, the leader's limits, and a Dismiss button.
 - Practice combat has a Companions setting (0 to 4).
 - 132 game tests and 3 lobby tests pass.
+
+## v0.6.17 — referee rulings on companions; morale checked against the text
+
+Extract over v0.6.16 at the repository root.
+
+- Referee ruling: when the survivor falls, the fight goes on. The remaining rounds play out between companions and creatures at once, with no turn to wait for. If the companions clear the field the result reads "Fallen": the field is held but the survivor is dead. The fight is lost only when no one on the survivor's side is standing.
+- Referee ruling: followers and hirelings earn no experience (followers serve out of devotion, hirelings are paid). Experience stays with the survivor, as already built.
+- MORALE checked against the printed section, no change needed: one d10; animals and non-intelligent creatures need 5 or more, intelligent beings 3 or more; a failure flees at once; once called for, the check repeats every melee turn while the cause lasts; player characters never check; followers and hirelings must. When a check is called for remains referee policy: below half hit points, and for intelligent foes also when half their side is down.
+- Hireling pay (5 domars a day) is still a placeholder; the NON-PLAYER CHARACTERS section has not been supplied.
+- 133 game tests and 3 lobby tests pass.
