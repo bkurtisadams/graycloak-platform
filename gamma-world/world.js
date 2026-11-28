@@ -46,6 +46,8 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
             if (t === 'water') walls.push([x, y]);
         }
     const inside = p => p.x >= 0 && p.y >= 0 && p.x < cols && p.y < rows, at = p => terrain[p.y * cols + p.x];
+    // Lairs, vaults and the like are not on the map: a party finds one by entering its hex at searching pace.
+    const secrets = markers.filter(m => m.name && !SHOWN.has(m.kind) && m !== named).map(m => ({ ...cell(...Object.values(data.svgToAxial(m.x, m.y))), name: m.name, kind: m.kind, id: m.id ?? `${m.kind}:${m.name}` })).filter(inside);
     const places = markers.filter(m => m.name && SHOWN.has(m.kind) && m !== named)
         .map(m => ({ ...cell(...Object.values(data.svgToAxial(m.x, m.y))), name: m.name, kind: m.kind })).filter(inside);
     // Placeholder adventure sites until real ones are keyed: the nearest wooded hex and the nearest ruin (or a fixed spot).
@@ -84,6 +86,7 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
         // Crossing time comes from the terrain entered (route rates, rules package travel.js); this is only the open-ground figure.
         minutesPerCell: 145,
         route: true,
+        secrets,
         scale: { cells: 2 * 2 / ROOT3, label: '6 miles' },
         sites: [
             { id: 'eden-valley', x: cx, y: cy, name: 'Eden Valley', kind: 'exit', to: 'eden-valley', arrive: 'gate', label: 'Enter Eden Valley' },

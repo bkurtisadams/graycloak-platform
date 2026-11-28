@@ -14,7 +14,7 @@ test('route movement: a turn is four hours; one km a turn in mountains or swamp,
   assert.equal(gw.travelMinutes(4.828032, 8), 145);
   assert.equal(gw.travelMinutes(4.828032, 1), 1159);
   assert.equal(gw.travelMinutes(4.828032, 4), 290);
-  assert.throws(() => gw.travelMinutes(1, 11));
+  assert.throws(() => gw.travelMinutes(1, 26));
   assert.throws(() => gw.travelMinutes(1, 0.5));
 });
 
@@ -45,4 +45,15 @@ test('a march camps for two route turns after every four without rest; a forced 
   let state = { awake: 0 }, total = 0;
   for (let i = 0; i < 3; i++) { state = gw.marchTime(1159, state.awake); total += state.total; }
   assert.equal(total, 3 * 1159 + 3 * 480);
+});
+
+test('referee ruling: travelling is the normal pace (5 km an hour in the open); searching is the printed rate', () => {
+  assert.deepEqual([gw.routeRate('clear', 'travel'), gw.routeRate('mountains', 'travel'), gw.routeRate('forest', 'travel'), gw.routeRate('clear', 'search'), gw.routeRate('clear')], [20, 2.5, 10, 8, 8]);
+  // A 3-mile hex: 58 minutes in the open and 7 h 43 min in mountains travelling; 2 h 25 min and 19 h 19 min searching.
+  assert.deepEqual(['clear', 'mountains'].map(t => gw.travelMinutes(4.828032, gw.routeRate(t, 'travel'))), [58, 463]);
+  assert.deepEqual(['clear', 'mountains'].map(t => gw.travelMinutes(4.828032, gw.routeRate(t, 'search'))), [145, 1159]);
+  // Travelling, a party is surprised on 1-3; searching, on 1-2 as printed. A roll of 3:
+  const rolls = () => { let i = 0; const v = [0.4, 0.9]; return () => v[i++ % 2]; };
+  assert.equal(gw.firstStrike({ leftOn: 3, rng: rolls() }).leftSurprised, true);
+  assert.equal(gw.firstStrike({ rng: rolls() }).leftSurprised, false);
 });

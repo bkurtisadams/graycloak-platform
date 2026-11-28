@@ -383,3 +383,16 @@ Automated-referee policies:
 - Checks continue while camped on the region map. Resting at the trading post also counts as rest.
 - Not modelled: search movement (6 m a ten-second turn outdoors, 1 m indoors, required around ruins, buildings and other beings), fleeing at up to 72 m, halved movement when armoured or encumbered, creature maximum speed (five times normal), robotic unit speeds, faster travel at the cost of walking past things, mounts.
 - 137 game tests and 3 lobby tests pass.
+
+## v0.6.21 — referee ruling: travelling is the normal pace, searching is the option
+
+Extract over v0.6.20 at the repository root.
+
+- Referee ruling: the printed route rates are the careful, searching pace and should be a choice; normal travel is much faster. The same printed paragraph gives a man on foot five kilometers an hour and says a party may "travel at a faster rate ... by allowing them to walk past valuable artifacts or into the lair of some deadly creature with little or no warning".
+- "Pace" on the action bar switches between Travelling (default) and Searching; the choice is remembered.
+- Travelling: 5 km an hour in the open, which is 20 km a route turn and 2.5 times the searching rate. Other terrain keeps the same proportions (automated-referee policy): mountains and swamp 2.5 km a turn, forest and hills 10, heavy forest 5, desert 15. A 3-mile hex takes 58 minutes in the open and 7 h 43 min in mountains. In Eden Valley a 200 m hex takes 2 minutes.
+- Searching: the printed rates as in v0.6.20 (8 km a turn in the open, 1 in mountains or swamp; 6 minutes a hex in the valley).
+- What travelling costs (automated-referee policy drawn from the printed sentence): unmarked features in a hex (lairs, vaults) are found only when the hex is entered at searching pace, and are then marked on the map; and in a random encounter met while travelling the party is surprised on 1-3 on the d6 where the printed chance is 1-2.
+- Finding a lair or vault only marks it; nothing happens there yet.
+- Rest, automatic camp, Sleep and Forced march are unchanged.
+- 138 game tests and 3 lobby tests pass.

@@ -15,10 +15,17 @@ export const ROUTE_KM = Object.freeze({
     mountains: 1, 'snow-mountains': 1, 'forested-mountains': 1, marsh: 1, swamp: 1,
 });
 export const PRINTED_ROUTE_KM = Object.freeze(['clear', 'mountains', 'snow-mountains', 'forested-mountains', 'marsh', 'swamp']);
-export const routeRate = terrain => ROUTE_KM[terrain] ?? 4;
+// The printed rates are slow on purpose: "adventurers in a campaign will be traveling slower as they search carefully
+// for signs of the Ancients and ... the wild and dangerous creatures". The same paragraph gives "the average man on
+// foot" five kilometers an hour and lets a party "travel at a faster rate ... by allowing them to walk past valuable
+// artifacts or into the lair of some deadly creature with little or no warning". Referee ruling: travelling is the
+// normal pace and searching is the option. Travelling is 5 km an hour in the open (20 km a turn, 2.5 times the
+// searching rate) and slows with the terrain in the same proportions.
+export const PACE = Object.freeze({ travel: 2.5, search: 1 });
+export const routeRate = (terrain, pace = 'search') => (ROUTE_KM[terrain] ?? 4) * (PACE[pace] ?? 1);
 // Minutes to cover a distance at a route rate; a party that has gone without its rest travels at half rate.
 export function travelMinutes(kilometers, kmPerTurn, { halved = false } = {}) {
-    if (!(kilometers >= 0) || !(kmPerTurn >= 1 && kmPerTurn <= 10)) throw new RangeError('Route rates run from 1 to 10 km a turn');
+    if (!(kilometers >= 0) || !(kmPerTurn >= 1 && kmPerTurn <= 25)) throw new RangeError('Route rates run from 1 km a turn to 5 km an hour');
     return Math.round(kilometers / (kmPerTurn * (halved ? 0.5 : 1)) * ROUTE_TURN_MINUTES);
 }
 // awake: minutes of activity since the last rest of two route turns.

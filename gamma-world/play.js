@@ -15,7 +15,7 @@ const cellOf = e => { const b = e.target.closest?.('.cell'); return b && b.datas
 const idle = () => !opening && !combat && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter);
 const centre = (sc, p) => sc.layout === 'hex' ? { x: p.x * worldZoom + worldZoom * 2 / 3, y: (p.y + (p.x & 1) / 2 + .5) * worldZoom * HEX_H } : { x: (p.x + .5) * worldZoom, y: (p.y + .5) * worldZoom };
 let selected = null, hovered = null;
-const thing = p => { const sc = scene(); return sc.sites.find(s => s.x === p.x && s.y === p.y) ?? (sc.places ?? []).find(s => s.x === p.x && s.y === p.y) ?? null; };
+const thing = p => { const sc = scene(); return sc.sites.find(s => s.x === p.x && s.y === p.y) ?? (sc.places ?? []).find(s => s.x === p.x && s.y === p.y) ?? (sc.secrets ?? []).find(s => s.x === p.x && s.y === p.y && (entry?.found ?? []).includes(s.id)) ?? null; };
 const KIND = { exit: 'Way out', town: 'Settlement', encounter: 'Unexplored', ruin: 'Ruin', place: 'Landmark', fortification: 'Fortress', village: 'Village', 'robot-farm': 'Robot farm' };
 const TERRAIN_FILL = {"plains": "#9c9a6c", "grassland": "#a3a06a", "clear": "#a09d70", "coast": "#aaa67c", "hills": "#928657", "forested-hill": "#69744a", "mountains": "#857b68", "snow-mountains": "#b9b7ae", "forested-mountains": "#5f6851", "forest": "#48613c", "woods": "#526a44", "heavy-forest": "#2b4638", "marsh": "#4d6a5c", "swamp": "#45604f", "desert": "#a48a5e", "badlands": "#96805a", "wasteland": "#96805a", "water": "#476d7c", "sea": "#3f6474", "lake": "#4b7383", "river": "#4b7383", "ruins": "#7d6657", "city": "#74605a", "radioactive": "#7c7a45", "unknown": "#3f4a3d"};
 const hpClass = (hp, max) => hp / max > .6 ? '' : hp / max > .3 ? 'warn' : 'low';
@@ -141,7 +141,7 @@ function drawScene() {
     }
     if (hex) {
         const tag = (p, cls) => { const t = el('span', p.name); t.className = `hex-label ${cls} k-${p.kind ?? ''}`; t.style.setProperty('--x', p.x); t.style.setProperty('--y', p.y + (p.x & 1) / 2); return t; };
-        extras.push(...(sc.places ?? []).filter(p => !sc.sites.some(s => s.x === p.x && s.y === p.y)).map(p => tag(p, 'place')), ...sc.sites.map(s => tag(s, 'site')));
+        extras.push(...[...(sc.places ?? []), ...secretsOf(sc)].filter(p => !sc.sites.some(s => s.x === p.x && s.y === p.y)).map(p => tag(p, 'place')), ...sc.sites.map(s => tag(s, 'site')));
     }
     const route = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     route.id = 'route';
@@ -312,7 +312,7 @@ function wander(sc, from) {
         return true;
     }
     log(`Encounter (${where}): d20 = ${met.roll}, ${met.creature}, ${met.number ?? 1} appearing${count < (met.number ?? 1) ? ` (${count} take the field)` : ''}. ${playable.definition.notes ?? ''}`);
-    entry = updateEntry(entry.id, e => ({ ...e, pendingEncounter: { creature: playable.key, definition: playable.definition, count, site: 'wandering' } }));
+    entry = updateEntry(entry.id, e => ({ ...e, pendingEncounter: { creature: playable.key, definition: playable.definition, count, site: 'wandering', unwary: pace() === 'travel' } }));
     render();
     beginCombat();
     return true;
@@ -324,9 +324,11 @@ function headFor(site) { if (site && !opening && !combat && c && c.hp > 0 && !(e
 // The party camps when four route turns have passed without rest, unless it is on a forced march; then it keeps going,
 // at half rate once exhausted.
 const forcedMarch = () => localStorage.getItem('graycloak.gw.forced') === 'on';
+// Travelling (5 km an hour in the open) is the normal pace; searching is the printed careful rate, 2.5 times slower.
+const pace = () => localStorage.getItem('graycloak.gw.pace') === 'search' ? 'search' : 'travel';
 function stepPlan(sc, p, awake = entry.awake ?? 0) {
     const forced = forcedMarch(), halved = forced && gw.restState(awake).exhausted;
-    const walking = sc.route && sc.terrain ? gw.travelMinutes(sc.cellMeters / 1000, gw.routeRate(sc.terrain[p.y * sc.cols + p.x]), { halved }) : (sc.minutesPerCell ?? 0) * (halved ? 2 : 1);
+    const walking = sc.route && sc.terrain ? gw.travelMinutes(sc.cellMeters / 1000, gw.routeRate(sc.terrain[p.y * sc.cols + p.x], pace()), { halved }) : Math.max(sc.minutesPerCell ? 1 : 0, Math.round((sc.minutesPerCell ?? 0) / gw.PACE[pace()])) * (halved ? 2 : 1);
     return gw.marchTime(walking, awake, { forced });
 }
 function takeStep(p) {
@@ -335,7 +337,18 @@ function takeStep(p) {
     if (plan.camps) log(`Made camp ${plan.camps === 1 ? 'once' : plan.camps + ' times'} on the way: two route turns of sleep each.`);
     dayTick(Math.floor(from / 1440));
     if (sc.encounters && wander(sc, from)) return true;
+    discover(sc);
     return tire();
+}
+// Searching finds what travelling walks past: a lair, vault or other unmarked feature in the hex entered.
+const secretsOf = sc => (sc.secrets ?? []).filter(x => (entry?.found ?? []).includes(x.id));
+function discover(sc) {
+    if (pace() !== 'search') return;
+    const here = (sc.secrets ?? []).filter(x => x.x === entry.position.x && x.y === entry.position.y && !(entry.found ?? []).includes(x.id));
+    if (!here.length) return;
+    entry = updateEntry(entry.id, e => ({ ...e, found: [...(e.found ?? []), ...here.map(x => x.id)] }));
+    for (const x of here) log(`Searching the ${sc.terrainNames[sc.terrain[x.y * sc.cols + x.x]]?.toLowerCase() ?? 'ground'}, you find ${x.name} (${x.kind}). It is marked on your map.`);
+    drawn = null;
 }
 // The day's rest: two route turns of sleep. Without it travel is at half rate and combat fatigue doubles; after two days
 // of exertion the referee "may have to enforce this rule by declaring the players unconscious".
@@ -396,7 +409,7 @@ $('interact').onclick = () => { stop(); const s = atSite(); if (opening || comba
         entry = updateEntry(entry.id, e => ({ ...e, scene: to.id, sceneRev: to.rev ?? null, position: sitePosition(to, s.arrive) }));
         log(`${s.label}. ${clockOf(entry).text}.`);
         render();
-        say(to.route ? `You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}: about ${describeTime(gw.travelMinutes(to.cellMeters / 1000, 8))} in the open, ${describeTime(gw.travelMinutes(to.cellMeters / 1000, 4))} in forest or hills, ${describeTime(gw.travelMinutes(to.cellMeters / 1000, 1))} in mountains or swamp.` : `You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}${to.minutesPerCell ? ` and takes about ${describeTime(to.minutesPerCell)} to cross` : ''}.`);
+        say(to.route ? `You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}: ${pace() === 'travel' ? 'travelling' : 'searching'}, about ${describeTime(gw.travelMinutes(to.cellMeters / 1000, gw.routeRate('clear', pace())))} in the open, ${describeTime(gw.travelMinutes(to.cellMeters / 1000, gw.routeRate('forest', pace())))} in forest or hills, ${describeTime(gw.travelMinutes(to.cellMeters / 1000, gw.routeRate('mountains', pace())))} in mountains or swamp.` : `You are now on the ${to.name} map. One ${unit(to)} is ${describeDistance(to, 1)}${to.minutesPerCell ? ` and takes about ${describeTime(to.minutesPerCell)} to cross` : ''}.`);
         return;
     }
     if (s.kind === 'encounter') {
@@ -756,6 +769,9 @@ $('stop').onclick = () => { stop(); render(); say('You stop.'); };
 function showMarch() { const on = forcedMarch(); $('marchBtn').setAttribute('aria-pressed', String(on)); $('marchBtn').textContent = on ? 'Forced march: On' : 'Forced march: Off'; $('marchBtn').title = on ? 'No stops for sleep. After four route turns without rest: half travel rate and double combat fatigue; after two days you collapse.' : 'The party makes camp for two route turns whenever four have passed without rest.'; }
 $('marchBtn').onclick = () => { localStorage.setItem('graycloak.gw.forced', forcedMarch() ? 'off' : 'on'); showMarch(); hovered = null; };
 showMarch();
+function showPace() { const slow = pace() === 'search'; $('paceBtn').setAttribute('aria-pressed', String(slow)); $('paceBtn').textContent = slow ? 'Pace: Searching' : 'Pace: Travelling'; $('paceBtn').dataset.icon = slow ? 'search' : 'end'; $('paceBtn').title = slow ? 'Searching: the printed careful rate (8 km a route turn in the open, 1 in mountains). You find hidden lairs and vaults in the hexes you enter.' : 'Travelling: 5 km an hour in the open, slower in rough country. You walk past hidden things, and in a random encounter you are surprised on 1-3.'; }
+$('paceBtn').onclick = () => { localStorage.setItem('graycloak.gw.pace', pace() === 'search' ? 'travel' : 'search'); showPace(); hovered = null; };
+showPace();
 $('sleepBtn').onclick = () => { if (!idle()) return; stop(); try { if (!sleep()) say(`Rested. ${clockOf(entry).text}.`); } catch (err) { say(err.message); } };
 // Feed filters and the sidebar width are remembered.
 for (const b of $('feedFilters').querySelectorAll('[data-filter]')) b.onclick = () => { $('messages').dataset.filter = b.dataset.filter; for (const o of $('feedFilters').querySelectorAll('[data-filter]')) o.setAttribute('aria-pressed', String(o === b)); };
