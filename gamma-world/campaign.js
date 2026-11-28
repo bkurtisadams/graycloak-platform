@@ -63,7 +63,7 @@ export function manifestRadiation(entry, rng = Math.random) {
     const acquired = [...(entry.acquired ?? [])], news = [];
     for (const r of due) {
         const what = r.kind === 'defect' ? 'mutational defect' : 'new mutation', got = radiationMutation(entry.record.base.species, r.kind, [...(entry.record.choices ?? []), ...acquired], rng);
-        if (got) { acquired.push(got.id); news.push(`A week after the radiation, a ${what} appears: ${got.name}.`); }
+        if (got) { const wasPure = entry.record.base.species === 'psh' && !acquired.length; acquired.push(got.id); news.push(`A week after the radiation, a ${what} appears: ${got.name}.${wasPure ? ` ${entry.record.base.name || 'The survivor'} is no longer a Pure Strain Human, but a mutated humanoid.` : ''}`); }
         else news.push(`A week after the radiation a ${what} was due, but this character type has no mutation chart in the game. Referee ruling needed.`);
     }
     return { ...entry, acquired, radiation: entry.radiation.map(r => due.includes(r) ? { ...r, done: true } : r), advancement: { bonuses: entry.advancement?.bonuses ?? [], news: [...(entry.advancement?.news ?? []), ...news] } };

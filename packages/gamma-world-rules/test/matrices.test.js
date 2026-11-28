@@ -97,10 +97,15 @@ test('radiation M and a survived D are filed from the fight and appear one week 
   const defect = gw.radiationMutation('animal', 'defect', [], seq(0.9, 0.4));
   assert.equal(defect.defect, true);
   assert.equal(defect.kind, 'mental');
-  assert.equal(gw.radiationMutation('psh', 'mutation'), null);
-  assert.match(manifestRadiation({ record: { base: { species: 'psh' }, choices: [] }, days: 8, radiation: [{ id: 'x', kind: 'mutation', due: 7 }] }).advancement.news[0], /Referee ruling needed/);
+  // Referee ruling: a Pure Strain Human takes the mutation and is a mutated humanoid from then on. Robots have no chart.
+  assert.equal(gw.radiationMutation('robot', 'mutation'), null);
+  assert.match(manifestRadiation({ record: { base: { species: 'robot' }, choices: [] }, days: 8, radiation: [{ id: 'x', kind: 'mutation', due: 7 }] }).advancement.news[0], /Referee ruling needed/);
+  const pure = manifestRadiation({ record: { base: { species: 'psh', name: 'Ashe' }, choices: [] }, days: 8, radiation: [{ id: 'x', kind: 'mutation', due: 7 }] }, seq(0, 0.3));
+  assert.equal(pure.acquired.length, 1);
+  assert.match(pure.advancement.news[0], /Ashe is no longer a Pure Strain Human, but a mutated humanoid\./);
   // A mutation gained in play is part of the character from then on.
   const b = gw.generateCharacter({ species: 'psh', name: 'T', rng: seq(0.5) });
   const plain = gw.deriveCharacter(b, gw.mutationDraft(b), [], {}), changed = gw.deriveCharacter(b, gw.mutationDraft(b), [], { acquired: ['physical-12'] });
   assert.deepEqual([plain.mutations, changed.mutations, changed.effects.poisonResistance], [[], ['physical-12'], 18]);
+  assert.deepEqual([plain.species, changed.species], ['psh', 'humanoid']);
 });

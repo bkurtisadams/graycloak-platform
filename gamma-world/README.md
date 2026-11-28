@@ -293,3 +293,12 @@ Extract over v0.6.13 at the repository root.
 - Practice combat (Rules Lab > Practice combat, or `/gamma-world/tactical.html`): the opponent list now holds every playable creature from the campaign bestiary with its attack, numbers go to 8, "Hostile" skips the reaction roll, and "Antidotes carried" takes poison intensities. Practice changes nothing in the campaign.
 - The combat engine takes up to 8 opponents for every creature.
 - 124 game tests and 3 lobby tests pass.
+
+## v0.6.15 — referee rulings: irradiated Pure Strain Humans, antidotes for sale
+
+Extract over v0.6.14 at the repository root.
+
+- Referee ruling: a Pure Strain Human who receives an M on the radiation matrix is subject to the mutation. It is rolled on the human columns, and from the day it appears the character is a mutated humanoid, no longer a Pure Strain Human, everywhere the rules look at character type (reaction adjustments, the character sheet, Character Select). Attributes already rolled are unchanged. The same applies to a defect from a survived D (automated-referee extension of the ruling).
+- Referee ruling: antidotes are for sale. The trading post's list (intensities 8, 9, 12, 14, 15, 16, 18) and the 30 domar price remain placeholders.
+- Robots still have no radiation mutation chart and are reported as needing a ruling.
+- 124 game tests and 3 lobby tests pass.

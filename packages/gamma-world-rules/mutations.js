@@ -94,8 +94,10 @@ export function mutationSlots(base, generation) { let i = 0; return rawMutationS
 // RADIATION MATRIX text: M is "a new mutation (roll for one randomly on either the physical or mental mutations
 // chart)"; D is a 20% chance of "a mutational defect (determine randomly)". Policies: the chart is chosen by a coin
 // toss; plants roll on the plant chart; a result already held, a free choice or an extra roll is rerolled; a defect
-// is drawn evenly from the chart's defects. Pure Strain Humans and robots have no chart here: returns null.
+// is drawn evenly from the chart's defects. Referee ruling: a Pure Strain Human is subject to the mutation, rolls on
+// the human columns, and is a mutated humanoid afterwards. Robots have no chart: returns null.
 export function radiationMutation(species, kind, held = [], rng = Math.random) {
+    if (species === 'psh') species = 'humanoid';
     if (!['humanoid', 'animal', 'plant'].includes(species)) return null;
     const have = new Set(held), chart = species === 'plant' ? 'plant' : die(2, rng) === 1 ? 'physical' : 'mental';
     if (kind === 'defect') {

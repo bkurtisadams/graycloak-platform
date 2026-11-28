@@ -17,7 +17,7 @@ let selectedId = null;
 
 const entries = () => Object.values(readCampaign().characters);
 const selected = () => readCampaign().characters[selectedId] ?? null;
-const typeOf = e => TYPES[e.record.base.species] + (e.record.base.animalStock ? ` (${e.record.base.animalStock})` : '');
+const typeOf = e => TYPES[e.record.base.species === 'psh' && e.acquired?.length ? 'humanoid' : e.record.base.species] + (e.record.base.animalStock ? ` (${e.record.base.animalStock})` : '');
 const nameOf = e => e.record.base.name || 'Unnamed survivor';
 const siteOf = e => placeName(e);
 const dayOf = e => clockOf(e).day;
