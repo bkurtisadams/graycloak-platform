@@ -1,4 +1,5 @@
-import { readCampaign, saveRecord, selectRecord, WORLD } from './campaign.js';
+import { readCampaign, saveRecord, selectRecord } from './campaign.js';
+import { placeName, clockOf } from './scenes.js';
 import { migrateLegacy, survivorStatus, validateRecord, renameSurvivor, deleteSurvivor } from './roster.js';
 import { characterFor } from './settlement.js';
 import * as gw from '../packages/gamma-world-rules/index.js';
@@ -18,8 +19,8 @@ const entries = () => Object.values(readCampaign().characters);
 const selected = () => readCampaign().characters[selectedId] ?? null;
 const typeOf = e => TYPES[e.record.base.species] + (e.record.base.animalStock ? ` (${e.record.base.animalStock})` : '');
 const nameOf = e => e.record.base.name || 'Unnamed survivor';
-const siteOf = e => WORLD.sites.find(s => s.x === e.position?.x && s.y === e.position?.y)?.name || 'Wilderness';
-const dayOf = e => (e.days ?? 0) + 1;
+const siteOf = e => placeName(e);
+const dayOf = e => clockOf(e).day;
 const status = msg => { $('rosterStatus').textContent = msg; };
 
 function slotLine(e, s) {

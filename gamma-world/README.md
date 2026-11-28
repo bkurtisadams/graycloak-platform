@@ -220,3 +220,16 @@ Extract over v0.6.7 at the repository root. Existing saves load unchanged; an en
 - The Character window lists experience, the next bonus total and bonuses earned.
 
 Verified in headless Chrome at 1440x900. 108 game tests and 3 lobby tests pass.
+
+## v0.6.9 — scenes: Eden Valley map, region map, exits and a clock
+
+Extract over v0.6.8 at the repository root. Older saves load: a survivor saved before scenes is placed at the trading post in Eden Valley the next time it enters the world (one caught mid-encounter moves after the fight).
+
+- `scenes.js` defines scenes. A scene is a background image, a square travel grid over it, the cells that cannot be entered, its sites, and exits to other scenes. Each scene carries its own scale (`cellMeters`) and travel time (`minutesPerCell`).
+- Eden Valley (`maps/eden-valley.webp`, the supplied map): 200 m squares, 6 minutes a square. The wall polygon follows the towers marked T; everything outside it is closed. The Valley gate at the south-east tower leads out. The trading post (Mara) sits at map key 2 as a placeholder until the key is supplied. Lakes and the river do not yet block movement.
+- Eden Valley region (`maps/eden-region.webp`, cropped from a screenshot of the GCC campaign map at 3 miles a hex): 3-mile squares, 4 hours a square, which is one route-movement turn. The Forest clearing and Ancient outpost now sit on this map as placeholders. The image still carries GCC labels, a party marker and a selection outline; it should be replaced by a clean export. The square travel grid does not follow the hexes, and terrain does not yet change the travel rate.
+- Leaving and entering: stand on an exit and the main action reads Leave Eden Valley or Enter Eden Valley. The trail at the top of the viewport (region > valley) shows where you are; clicking the outer name walks you to the way out. The Map window lists the scene's sites with Walk there.
+- Clock: day 1 starts at 06:00. Walking adds the scene's minutes for each square, resting adds whole days, and the top row shows day, time and period. Night has no effect yet, the book's requirement to rest two route turns in six is not enforced, and wandering encounter checks are not rolled.
+- The minimap and the scale bar read the current scene. The view opens framed on the walkable part of the scene.
+- Fights still use the generic forest-clearing board. Battle maps chosen by terrain, and fights inside small scenes, come later.
+- Verified in headless Chrome at 1440x900. 114 game tests and 3 lobby tests pass.

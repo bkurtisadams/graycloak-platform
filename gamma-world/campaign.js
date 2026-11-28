@@ -1,4 +1,5 @@
 // Local campaign persistence. No server authority or cross-player synchronization yet.
+import { startOf, FIRST_SCENE } from './scenes.js';
 import { thresholdsCrossed, rollExperienceBonus } from '../packages/gamma-world-rules/index.js';
 export const KEY = 'graycloak.gw.campaign.v1';
 export function readCampaign(storage = localStorage) { const raw = storage.getItem(KEY); return raw ? JSON.parse(raw) : { version: 1, active: null, characters: {} }; }
@@ -8,7 +9,7 @@ export function saveRecord(record, id, storage = localStorage) { const data = re
     const comparable = r => JSON.stringify([Object.fromEntries(Object.entries(r.base).filter(([k]) => k !== 'name')), r.generation, r.choices, r.equipment, r.weightKg]);
     if (comparable(old.record) !== comparable(record))
         throw Error('Adventuring characters cannot be rebuilt in the workshop. Equip owned gear in the world, or create a new character.');
-} data.characters[id] = { ...old, id, record: structuredClone(record), progress: old?.progress ?? null, inventory: old?.inventory ?? [], position: old?.position ?? { x: 2, y: 5 }, encounter: old?.encounter ?? null }; data.active = id; writeCampaign(data, storage); return id; }
+} data.characters[id] = { ...old, id, record: structuredClone(record), progress: old?.progress ?? null, inventory: old?.inventory ?? [], ...(old ? { position: old.position ?? { x: 2, y: 5 } } : startOf(FIRST_SCENE)), encounter: old?.encounter ?? null }; data.active = id; writeCampaign(data, storage); return id; }
 export function selectRecord(id, storage = localStorage) { const d = readCampaign(storage); if (!d.characters[id])
     throw Error('Character not found'); d.active = id; writeCampaign(d, storage); return d.characters[id]; }
 export function updateEntry(id, fn, storage = localStorage) { const d = readCampaign(storage); if (!d.characters[id])

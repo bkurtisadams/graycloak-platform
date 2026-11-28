@@ -1,6 +1,7 @@
 import * as gw from '../packages/gamma-world-rules/index.js';
 import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair, awardExperience } from './settlement.js';
-import { readCampaign, selectRecord, updateEntry, applyProgress, WORLD, worldPath } from './campaign.js';
+import { readCampaign, selectRecord, updateEntry, applyProgress } from './campaign.js';
+import { sceneOf, getScene, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, clockOf, addMinutes, describeDistance, describeTime, FIRST_SCENE } from './scenes.js';
 const worldArea = document.getElementById('worldArea');
 const $ = id => id === 'worldArea' ? worldArea : worldArea.querySelector('#' + id) ?? document.getElementById(id), el = (tag, text = '') => { const n = document.createElement(tag); n.textContent = text; return n; };
 let entry = null, c = null, path = [], timer = null, combat = null, opening = false, worldZoom = 36;
@@ -59,33 +60,64 @@ function flushNews() {
     c = characterFor(entry);
     for (const line of news) log(line);
 }
-function atSite() { return entry && WORLD.sites.find(s => s.x === entry.position.x && s.y === entry.position.y); }
-function render() {
-    const board = $('board');
-    board.style.gridTemplateColumns = `repeat(${WORLD.width},var(--cell))`;
-    board.style.gridTemplateRows = `repeat(${WORLD.height},var(--cell))`;
+function atSite() { return entry && siteAt(entry); }
+const scene = () => sceneOf(entry ?? { scene: FIRST_SCENE });
+let drawn = null;
+// The grid is rebuilt only when the scene changes; a step just moves the token.
+function drawScene() {
+    const sc = scene(), board = $('board');
+    drawn = sc.id;
+    board.style.gridTemplateColumns = `repeat(${sc.cols},var(--cell))`;
+    board.style.gridTemplateRows = `repeat(${sc.rows},var(--cell))`;
+    board.classList.toggle('has-image', !!sc.image);
+    board.style.backgroundImage = sc.image ? `url("${sc.image.src}")` : '';
+    board.style.backgroundSize = sc.image ? `calc(var(--cell) * ${sc.image.width / sc.pixelsPerCell}) calc(var(--cell) * ${sc.image.height / sc.pixelsPerCell})` : '';
     const cells = [];
-    for (let y = 0; y < WORLD.height; y++)
-        for (let x = 0; x < WORLD.width; x++) {
-            const s = WORLD.sites.find(s => s.x === x && s.y === y), wall = WORLD.walls.some(p => p[0] === x && p[1] === y), here = entry?.position.x === x && entry?.position.y === y, b = el('button', here ? 'PC' : '');
-            if (s) { const tag = el('span', s.name); tag.className = 'site-label'; b.append(tag); }
-            b.className = `cell ${wall ? 'wall' : ''} ${s ? 'site' : ''} ${here ? 'player' : ''}`;
+    for (let y = 0; y < sc.rows; y++)
+        for (let x = 0; x < sc.cols; x++) {
+            const site = sc.sites.find(t => t.x === x && t.y === y), wall = sc.blocked.has(`${x},${y}`), b = el('button');
+            if (site) { const tag = el('span', site.name); tag.className = 'site-label'; b.append(tag); }
+            b.className = `cell ${wall ? 'wall' : ''} ${site ? 'site' : ''} ${site?.kind === 'exit' ? 'exit' : ''}`;
             b.dataset.x = x;
             b.dataset.y = y;
-            b.title = s?.name ?? (wall ? 'Obstacle' : `${x + 1}, ${y + 1}`);
+            if (site) b.title = site.name;
             b.disabled = wall;
             cells.push(b);
         }
     board.replaceChildren(...cells);
+    const mm = $('minimap');
+    mm.style.aspectRatio = `${sc.cols} / ${sc.rows}`;
+    mm.style.backgroundImage = sc.image ? `url("${sc.image.src}")` : '';
+    mm.style.backgroundSize = sc.image ? `${100 * sc.image.width / sc.pixelsPerCell / sc.cols}% ${100 * sc.image.height / sc.pixelsPerCell / sc.rows}%` : '';
+    $('minimapName').textContent = sc.name;
+    $('minimapScale').textContent = `${describeDistance(sc, 1)} per square`;
+    $('worldScaleLabel').textContent = sc.scale.label;
+    const chain = ancestry(sc);
+    $('sceneTrail').replaceChildren(...chain.map((node, i) => {
+        const here = node.id === sc.id, b = el('button', node.name);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(here));
+        b.disabled = here;
+        if (!here) { b.title = `Walk to the way out toward ${node.name}`; b.onclick = () => headFor(exitTo(sc, sc.parent)); }
+        return b;
+    }));
+    fitWorld();
+}
+function render() {
+    const sc = scene(), board = $('board');
+    if (drawn !== sc.id) drawScene();
+    for (const old of board.querySelectorAll('.player')) { old.classList.remove('player'); if (old.firstChild?.nodeType === 3) old.firstChild.remove(); }
+    if (entry) { const cell = board.children[entry.position.y * sc.cols + entry.position.x]; if (cell) { cell.classList.add('player'); cell.prepend('PC'); } }
+    $('worldScale').style.width = worldZoom * sc.scale.cells + 'px';
     $('name').textContent = c?.name || 'No active character';
     $('stats').textContent = c ? `${c.hp} / ${c.maxHp} HP · ${c.experience} XP${c.bleeding ? ' · Bleeding' : ''}` : '';
     $('unitAc').textContent = c ? `AC ${c.armorClass}` : '';
     $('worldHpFill').style.width = c ? `${100 * c.hp / c.maxHp}%` : '0';
-    $('dayLabel').textContent = entry ? `Day ${(entry.days ?? 0) + 1}` : '';
-    const pct = (n, of) => `${100 * n / of}%`, dot = (cls, x, y) => { const i = el('i'); i.className = cls; Object.assign(i.style, { left: pct(x, WORLD.width), top: pct(y, WORLD.height), width: pct(1, WORLD.width), height: pct(1, WORLD.height) }); return i; };
-    $('minimap').replaceChildren(...WORLD.walls.map(p => dot('w', p[0], p[1])), ...WORLD.sites.map(p => dot('s', p.x, p.y)), ...(entry ? [dot('p', entry.position.x, entry.position.y)] : []));
+    $('dayLabel').textContent = entry ? clockOf(entry).text : '';
+    const pct = (n, of) => `${100 * n / of}%`, dot = (cls, x, y) => { const i = el('i'); i.className = cls; Object.assign(i.style, { left: pct(x, sc.cols), top: pct(y, sc.rows), width: pct(1, sc.cols), height: pct(1, sc.rows) }); return i; };
+    $('minimap').replaceChildren(...(sc.image ? [] : [...sc.blocked].map(k => dot('w', ...k.split(',').map(Number)))), ...sc.sites.map(p => dot('s', p.x, p.y)), ...(entry ? [dot('p', entry.position.x, entry.position.y)] : []));
     const s = atSite();
-    $('site').textContent = s?.name || 'Wilderness';
+    $('site').textContent = s?.name || (sc.parent ? sc.name : 'Wilderness');
     for (const action of gw.worldActions({ entry, character: c, site: s, moving: !!timer })) {
         const b = $(action.id);
         b.hidden = !action.visible;
@@ -110,9 +142,10 @@ function load(id) { stop(); entry = null; c = null; try {
     entry = selectRecord(id);
     if (entry.wizardDraft) throw Error('Finish this draft from Character Select before playing.');
     c = characterFor(entry);
+    if (!entry.scene && !entry.encounter && !entry.pendingEncounter) entry = updateEntry(id, e => ({ ...e, ...startOf(FIRST_SCENE) }));
     if (c.hp > 0 && !entry.started)
         entry = updateEntry(id, e => ({ ...e, started: true, domars: purse(e), owned: owned(e) }));
-    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Click terrain to walk. Visit Eden Valley, the forest clearing or the Ancient outpost.');
+    say((entry.encounter || entry.pendingEncounter) ? 'An encounter is in progress. Resume it before exploring.' : c.hp <= 0 ? 'This character is dead. Choose another survivor from Character Select.' : 'Click the map to walk. Sites are labelled; the gate leads out of the valley.');
 }
 catch (e) {
     say(e.message + ' — open Character Select to continue.');
@@ -126,28 +159,38 @@ else {
 $('roster').addEventListener('change', () => load($('roster').value));
 $('stop').onclick = () => { stop(); render(); };
 $('board').addEventListener('click', e => { const b = e.target.closest('.cell'); if (opening || combat || !b || !c || c.hp <= 0 || (entry.encounter || entry.pendingEncounter))
-    return; stop(); path = worldPath(entry.position, { x: +b.dataset.x, y: +b.dataset.y }); if (!path) {
-    say('Destination blocked.');
+    return; walkTo({ x: +b.dataset.x, y: +b.dataset.y }); });
+function headFor(site) { if (site && !opening && !combat && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter)) walkTo({ x: site.x, y: site.y }); }
+function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry.position, target); if (!path) {
+    say('You cannot get there from here.');
     return;
 } if (!path.length)
-    return; say('Walking to destination. Click another square or Stop to change course.'); timer = setInterval(() => { try {
+    return; say(`Walking ${describeDistance(sc, path.length)}${sc.minutesPerCell ? `, about ${describeTime(path.length * sc.minutesPerCell)}` : ''}. Click elsewhere or Stop to change course.`); timer = setInterval(() => { try {
     const p = path.shift();
     if (p) {
-        entry = updateEntry(entry.id, d => ({ ...d, position: p, steps: (d.steps ?? 0) + 1 })); /* Wandering encounters resume with the route clock. */
+        entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell)); /* Wandering encounter checks are not yet rolled. */
     }
     render();
     if (!path.length) {
         stop();
         render();
-        say(atSite() ? `Arrived at ${atSite().name}. Choose the contextual action below.` : 'Click a destination to continue exploring.');
+        say(atSite() ? `Arrived at ${atSite().name}. ${clockOf(entry).text}.` : `${clockOf(entry).text}. Click a destination to continue.`);
     }
 }
 catch (err) {
     stop();
     say(err.message);
-} }, 180); render(); });
+} }, 180); render(); }
 $('interact').onclick = () => { stop(); const s = atSite(); if (opening || combat || !s || !c || c.hp <= 0 || (entry.encounter || entry.pendingEncounter))
     return; try {
+    if (s.kind === 'exit') {
+        const to = getScene(s.to);
+        entry = updateEntry(entry.id, e => ({ ...e, scene: to.id, position: sitePosition(to, s.arrive) }));
+        log(`${s.label}. ${clockOf(entry).text}.`);
+        render();
+        say(`You are now on the ${to.name} map. One square is ${describeDistance(to, 1)}${to.minutesPerCell ? ` and takes about ${describeTime(to.minutesPerCell)} to cross` : ''}.`);
+        return;
+    }
     if (s.kind === 'encounter') {
         if (entry.clearingResolved) {
             say('The clearing is quiet.');
@@ -396,11 +439,10 @@ $('bagBtn').onclick = () => showTab('bag');
 $('tradeBtn').onclick = () => { if (inTown()) { activeUtility = showTrade; showTrade(); } };
 $('restBtn').onclick = () => restAt(true);
 $('journalBtn').onclick = utility(() => dialog('Journal', [el('p', 'Eden Valley: visit the settlement for supplies, conversation and trade.'), el('p', 'Forest clearing: investigate the patrol.'), el('p', 'Ancient outpost: recover and identify the device.'), el('p', 'Prototype region; authored campaign coordinates not yet mapped.')]));
-function zoomWorld(n) { worldZoom = Math.max(20, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); $('worldScale').style.width = worldZoom * 2 + 'px'; }
-zoomWorld(worldZoom);
+function zoomWorld(n) { worldZoom = Math.max(10, Math.min(90, n)); $('board').style.setProperty('--cell', worldZoom + 'px'); $('worldScale').style.width = worldZoom * scene().scale.cells + 'px'; }
 $('worldZoomIn').onclick = () => zoomWorld(worldZoom + 6);
 $('worldZoomOut').onclick = () => zoomWorld(worldZoom - 6);
-const fitWorld = () => { const vp = $('viewport'); if (vp?.clientWidth && vp.clientHeight) zoomWorld(Math.floor(Math.min(vp.clientWidth / WORLD.width, vp.clientHeight / WORLD.height))); };
+function fitWorld() { const vp = $('viewport'), o = scene().open; if (!vp?.clientWidth || !vp.clientHeight) return; zoomWorld(Math.floor(Math.min(vp.clientWidth / o.cols, vp.clientHeight / o.rows))); const b = $('board'); vp.scrollLeft = b.offsetLeft + (o.x + o.cols / 2) * worldZoom - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + (o.y + o.rows / 2) * worldZoom - vp.clientHeight / 2; }
 $('worldFit').onclick = fitWorld;
 fitWorld();
 globalThis.addEventListener?.('resize', () => { if (!combat) fitWorld(); });
@@ -418,7 +460,7 @@ viewport.onpointermove = e => { if (pan) {
 } };
 viewport.onpointerup = viewport.onpointercancel = viewport.onlostpointercapture = () => pan = null;
 // Universal tools stay accessible; shortcuts never fire inside text fields or dialogs.
-$('mapBtn').onclick = utility(() => dialog('Local map', [...WORLD.sites.map(s => el('p', `${s.name} · column ${s.x + 1}, row ${s.y + 1}`)), el('p', 'Regional travel map is not yet implemented.')]));
+$('mapBtn').onclick = utility(() => { const sc = scene(); dialog(`Map · ${sc.name}`, [el('p', `One square is ${describeDistance(sc, 1)}${sc.minutesPerCell ? `, about ${describeTime(sc.minutesPerCell)} on foot` : ''}.`), ...sc.sites.map(t => row(`${t.name}${t.kind === 'exit' ? ` (to ${getScene(t.to).name})` : ''}`, [['Walk there', () => { closeWindow(); headFor(t); }, t.x === entry.position.x && t.y === entry.position.y]])), ...(sc.parent ? [] : [el('p', 'This is the widest map so far. The continent map is not built yet.')])]); });
 document.addEventListener('keydown', e => { if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || gw.isTextEntry(e.target) || $('gameDialog').open)
     return; const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
     e.preventDefault();

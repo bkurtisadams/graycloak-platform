@@ -1,5 +1,6 @@
 import { getWeapon, getArmor, deriveCharacter, healRest } from '../packages/gamma-world-rules/index.js';
 import { applyProgress, applyAdvancement, settleExperience } from './campaign.js';
+import { siteAt } from './scenes.js';
 // Printed p.37 category prices. Specific stock, resale, starting purse and local NPCs are referee policies.
 export const STOCK = Object.freeze([
     { id: 'dagger', kind: 'weapon', price: 50 }, { id: 'short-sword', kind: 'weapon', price: 50 }, { id: 'long-sword', kind: 'weapon', price: 50 }, { id: 'arrow', kind: 'weapon', price: 75 }, { id: 'crossbow', kind: 'weapon', price: 100 },
@@ -16,7 +17,7 @@ export function awardExperience(e, points, rng = Math.random) {
 }
 function check(e, town = false) { if (e.encounter || e.pendingEncounter)
     throw Error('Finish the encounter first'); if (characterFor(e).hp <= 0)
-    throw Error('Character is dead'); if (town && (e.position.x !== 2 || e.position.y !== 5))
+    throw Error('Character is dead'); if (town && siteAt(e)?.kind !== 'town')
     throw Error('Visit Eden Valley to trade or rest'); }
 export function buy(e, id) { check(e, true); const s = STOCK.find(x => x.id === id); if (!s)
     throw Error('Item unavailable'); if (purse(e) < s.price)

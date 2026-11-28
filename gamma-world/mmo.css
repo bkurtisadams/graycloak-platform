@@ -791,3 +791,19 @@ body.play-page.mmo {
 .topbar a.brand {text-decoration:none;}
 .topbar a.brand:hover {color:var(--cream);}
 .topbar .exit {border-color:var(--accent);}
+
+/* Scenes: a background image under a see-through travel grid. */
+#board.has-image {background-color:#253727; background-repeat:no-repeat; background-position:0 0;}
+#board.has-image .cell {background:transparent; border:1px solid #ffffff12;}
+#board.has-image .cell:nth-child(3n) {background:transparent;}
+#board.has-image .cell:hover:not(:disabled) {background:#e7dfc433;}
+#board.has-image .cell.wall {background:#0b100cb3 !important; border-color:transparent; box-shadow:none;}
+#board.has-image .cell.site {background:#a08b59e6; border-radius:4px;}
+#board .cell.exit {box-shadow:inset 0 0 0 2px #e7dfc4;}
+#board.has-image .cell.player {background:#354c3e !important;}
+.minimap .mm {background-repeat:no-repeat; background-position:0 0;}
+.view-switch button[aria-pressed="true"]:disabled {opacity:1;}
+.view-switch button + button::before {content:"\203A"; margin-right:10px; color:var(--muted); font-weight:400;}
+#board .cell {min-height:0;}
+.minimap .caption {flex-wrap:wrap; white-space:normal;}
+.play-page .stage .map-viewport {scrollbar-width:none;}

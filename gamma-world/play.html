@@ -30,17 +30,13 @@
 <small id="stats"></small>
 </div>
 <div class="frame target-empty">No target<br><small>Appears in combat</small></div>
-<div class="view-switch" role="group" aria-label="Viewport">
-<button disabled title="Needs the regional map, not built yet">World map</button>
-<button aria-pressed="true">Local map</button>
-<button disabled title="Scene view is not built yet">Scene</button>
-</div>
+<div class="view-switch" id="sceneTrail" role="group" aria-label="Where you are"></div>
 <div class="frame minimap">
 <div class="mm" id="minimap"></div>
-<div class="caption"><span>Eden Valley area</span><span>3 m/sq</span></div>
+<div class="caption"><span id="minimapName"></span><span id="minimapScale"></span></div>
 </div>
 </div>
-<div class="scale-bar" id="worldScale" aria-hidden="true"><i></i><span>6 m (2 squares)</span></div>
+<div class="scale-bar" id="worldScale" aria-hidden="true"><i></i><span id="worldScaleLabel"></span></div>
 <div class="map-tools">
 <button id="worldZoomOut" aria-label="Zoom out">−</button><button id="worldZoomIn" aria-label="Zoom in">+</button><button id="worldFit">Fit</button><button id="stop" hidden>Stop</button>
 </div>
