@@ -1,1 +1,59 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gamma World · Practice combat</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="shell.css"></head><body><header><strong>GRAYCLOAK / GAMMA WORLD</strong><nav aria-label="Main navigation"><a href="index.html">Character Select</a><a href="play.html">Play</a><a href="lab.html">Rules Lab</a></nav></header><main class="landing"><section><h1>Practice combat</h1><p>Practice does not alter campaign progress.</p><label>Choose survivor<select id="practiceRoster"><option value="">Generated test survivor</option></select></label><button id="practiceStart">Start practice</button></section></main><script type="module" src="practice.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamma World · Practice combat</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="tactical.css">
+<link rel="stylesheet" href="mmo.css">
+<link rel="stylesheet" href="hud.css">
+</head>
+<body class="play-page mmo practice-page in-combat">
+<header class="topbar">
+<a class="brand" href="index.html" title="Character Select">GAMMA WORLD</a>
+<span class="clock" role="status">Practice combat · <span id="dayLabel"></span></span>
+<nav aria-label="Main navigation"><a href="index.html">Character Select</a><a href="play.html">Play</a><a href="lab.html">Rules Lab</a></nav>
+</header>
+<main id="worldShell">
+<div id="frames">
+<div class="frame unit-frame" id="pcFrame"><div class="portrait" id="pcPortrait" title="Portrait slot"></div><div class="body">
+<div class="line"><strong id="name"></strong><span id="unitAc"></span></div>
+<div class="hp-track" id="pcHp"><div id="worldHpFill"></div><span id="pcHpText"></span></div>
+<small id="stats"></small><div class="conds" id="pcConds"></div></div></div>
+<div class="party-label" id="partyLabel" hidden>PARTY</div><div id="partyFrames"></div>
+</div>
+<section class="battle-area stage" id="worldArea">
+<div class="map-viewport" id="viewport"><div class="map-board" id="board"></div></div>
+<div class="hud-top">
+<div class="frame unit-frame foe" id="foeFrame" hidden><div class="portrait" id="foePortrait" title="Portrait slot"></div><div class="body">
+<div class="line"><strong id="foeName"></strong><span id="foeAc"></span></div>
+<div class="bands" id="foeBands"><i></i><i></i><i></i><i></i></div>
+<small id="foeState"></small><small class="attack" id="foeAttack"></small></div></div>
+</div>
+<div class="scale-bar" id="worldScale" aria-hidden="true"><i></i><span>6 m</span></div>
+<div class="map-tools">
+<button id="worldZoomOut" aria-label="Zoom out">−</button><button id="worldZoomIn" aria-label="Zoom in">+</button><button id="worldFit" title="Fit the map (F)">Fit</button>
+</div>
+<div class="frame turn-chip" id="turnChip" role="status" hidden></div>
+<div class="action-bar combat-controls" id="combatBar" aria-label="Combat actions"></div>
+</section>
+<aside class="information battle-info sidebar" id="sharedInformation">
+<form class="practice-setup" id="setup">
+<label>Survivor<select id="practiceRoster"><option value="">Generated test survivor</option></select></label>
+<label>Opponent<select id="creature"></select></label>
+<label>Number<select id="count"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+<label>Companions<select id="allies"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+<label>Antidotes carried<input id="antidotes" size="8" placeholder="e.g. 8 18" title="Poison intensities, practice only"></label>
+<label class="inline"><input type="checkbox" id="surprise" checked> Surprise possible</label>
+<label class="inline"><input type="checkbox" id="hostile"> Hostile (no reaction roll)</label>
+<button id="start">New encounter</button>
+</form>
+<div id="chat"><div id="messages" class="feed pane" role="log" aria-live="polite" data-filter="all"></div></div>
+<div id="events" class="feed pane" role="log" hidden></div>
+<div class="place-card"><strong>Practice does not alter campaign progress</strong><div class="guidance" id="guidance" role="status"></div></div>
+</aside>
+</main>
+<script type="module" src="practice.js"></script>
+</body>
+</html>

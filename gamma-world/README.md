@@ -417,3 +417,23 @@ The book says most roads are destroyed but "some portions of a vast highway syst
 - In the game a usable stretch counts as a road and a broken stretch as a trail; buried, lost, blocked and bridge-out stretches give nothing. Buried and lost stretches are not drawn.
 
 Automated-referee policies (not from the book): the routes chosen, the city positions marked as estimates in the builder, the share in each condition (lost 40, buried 15, broken 22, usable 12, bridge-out 6, blocked 5), and what each condition is worth to a traveller.
+
+## v0.6.24 — combat is a scene of the play screen; tactical page retired; Ape Village
+
+Extract over v0.6.23 at the repository root, then delete `gamma-world/tactical.html` and `gamma-world/tactical.js`. No save or schema changes; a fight saved in v0.6.23 resumes. Nothing in the rules changed.
+
+- A fight is now a scene like any other map. It is drawn on the play screen's own board (still 3 m squares), under the same survivor and party frames, minimap, zoom, Fit, Grid and scale bar. The trail reads, for example, Eden Valley › Ape Village › Combat. `tactical.html` is no longer fetched.
+- Creature frame beside the survivor, as on the approved Combat board: portrait slot, armour class, condition in four bands, attitude, distance and its attack. The action bar is numbered icon slots: Attack, Throw, powers, antidotes, Bind, Parley, Withdraw, Leave. Keys 1-9 follow the order shown.
+- No End Turn button. The round closes itself as soon as the survivor's action is used (attack, power, antidote, bind, parley, withdraw). Movement alone leaves the round open. Space passes the round. Nothing advances on a timer.
+- Auto-attack: Attack or Throw on a selected target sets it (the slot stays lit and the target is ringed). After that the same attack is made whenever Space is pressed, and whenever a move brings the target into reach. Out of reach or too tired, Space rests and the attack stays set. It follows a newly selected target, and ends when the target drops or on Escape. Powers and antidotes are single uses and do not repeat.
+- Movement is the same as on the travel maps: W A S D or the arrows take one square, a click walks to a highlighted square. Shift trots (keys and click), Ctrl-click charges. Stepping into an opponent selects it and attacks. T or Tab selects the next opponent. Dragging the token is gone, as chosen in v0.6.19.
+- A chip above the action bar shows the round, who acts first, movement left, fatigue and the auto-attack target. At the end of a fight Enter returns to exploration.
+- Removed: the Repeat toggle (Q) and its half-second timer, the A and R shortcuts (A is now a step west), and the Arrange abilities button. A power order already saved in the browser is still used.
+- Practice combat (`practice.html`, from the Rules Lab or the workshop) is the same scene with its set-up form at the head of the sidebar; it does not touch campaign progress. `tactical.css` stays: it holds the board and token styles.
+- Ape Village: the first interior map. Its hex in Eden Valley is now a way in (Enter); inside is a 28 by 20 map of 3 m squares within a palisade, with a gate on the east side back to the valley. The layout (great lodge, fire pit, storehouse, watch platform, huts) is a placeholder, not from the referee's notes; nobody lives there yet. Steps inside take no game time. The trail shows the three nearest levels.
+- Log wording: lines that said "End Turn" now describe what happens.
+
+Automated-referee policies (not from the book): when the round closes, what auto-attack repeats, and stepping into an opponent counting as an attack.
+
+Tests: 142 game tests and 3 lobby tests pass. Checked in headless Chrome at 1440x900: a campaign fight start to finish with keys only, pause and resume, mouse targeting and click-to-move, practice with companions, and walking into and out of the village.
+

@@ -161,7 +161,7 @@ test('Eden Valley is a walled hex map: the gate is reachable and the country out
   assert.ok(path.every(p => !isBlocked(valley, p.x, p.y)));
   assert.equal(scenePath(valley, start, { x: 0, y: 0 }), null);
   assert.equal(scenePath(valley, start, { x: 99, y: 5 }), null);
-  assert.deepEqual(valley.sites.filter(s => s.kind === 'place').map(s => s.name), ['Ape Village', 'Complex entrance', 'Rats', 'Bears', 'Badgers', 'Reptiles', 'Cats', 'Rabbits', 'Dogs', 'Bridge', 'Bridge']);
+  assert.deepEqual(valley.sites.filter(s => s.kind === 'place').map(s => s.name), ['Complex entrance', 'Rats', 'Bears', 'Badgers', 'Reptiles', 'Cats', 'Rabbits', 'Dogs', 'Bridge', 'Bridge']);
   assert.equal(new Set(valley.sites.map(s => `${s.x},${s.y}`)).size, valley.sites.length, 'no two sites share a hex');
   assert.ok(valley.open.cols < valley.cols && valley.open.rows < valley.rows);
   // Each site sits on the hex under its point on the referee's map (within one hex of it).
@@ -217,4 +217,18 @@ test('distances and times read in the scene\'s own units', () => {
   assert.equal(describeDistance(getScene('eden-valley'), 2), '400 m');
   assert.equal(describeDistance(getScene('eden-region'), 2), '6 miles');
   assert.deepEqual([describeTime(30), describeTime(150), describeTime(240), describeTime(1500)], ['30 min', '2 h 30 min', '4 h', '1 d 1 h']);
+});
+
+test('the Ape Village is an interior on 3 m squares, entered from its hex in Eden Valley and left by its gate', () => {
+  const valley = getScene('eden-valley'), village = getScene('ape-village'), door = valley.sites.find(s => s.id === 'apes');
+  assert.deepEqual([door.kind, door.to, door.arrive], ['exit', 'ape-village', 'gate']);
+  assert.deepEqual([village.layout ?? 'square', village.cellMeters, village.parent, village.cols, village.rows], ['square', 3, 'eden-valley', 28, 20]);
+  assert.deepEqual(ancestry(village).map(s => s.id), ['eden-region', 'eden-valley', 'ape-village']);
+  const gate = sitePosition(village, 'gate');
+  assert.deepEqual(startOf('ape-village').position, gate);
+  assert.deepEqual([exitTo(village, 'eden-valley').arrive, sitePosition(valley, 'apes')], ['apes', { x: door.x, y: door.y }]);
+  for (const s of village.sites) assert.ok(scenePath(village, gate, s), `${s.name} can be reached from the gate`);
+  assert.equal(stepToward(village, gate, 's'), null, 'the palisade closes the map edge');
+  assert.equal(isBlocked(village, 12, 3), true, 'the great lodge is solid');
+  assert.equal(describeDistance(village, 4), '12 m');
 });

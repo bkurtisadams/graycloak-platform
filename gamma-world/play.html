@@ -33,6 +33,10 @@
 <div class="map-viewport" id="viewport"><div class="map-board" id="board"></div></div>
 <div class="hud-top">
 <div class="frame" id="targetFrame" hidden><div class="line"><strong id="targetTitle"></strong><span class="kind" id="targetKind"></span></div><div class="route" id="targetRoute"></div><div class="note" id="targetNote"></div></div>
+<div class="frame unit-frame foe" id="foeFrame" hidden><div class="portrait" id="foePortrait" title="Portrait slot"></div><div class="body">
+<div class="line"><strong id="foeName"></strong><span id="foeAc"></span></div>
+<div class="bands" id="foeBands"><i></i><i></i><i></i><i></i></div>
+<small id="foeState"></small><small class="attack" id="foeAttack"></small></div></div>
 <div class="view-switch" id="sceneTrail" role="group" aria-label="Where you are"></div>
 <div class="frame minimap">
 <div class="mm" id="minimap" title="Click to centre the map here"></div>
@@ -47,10 +51,11 @@
 <button id="interact" class="primary" data-icon="talk">Interact</button><button id="resume" data-icon="resume" hidden>Resume</button><button id="tradeBtn" data-icon="trade">Trade</button><button id="restBtn" data-icon="rest">Rest</button><button id="supply" data-icon="supplies">Supplies</button><button id="sleepBtn" data-icon="tired">Sleep</button><button id="paceBtn" data-icon="end" aria-pressed="false">Pace: Travelling</button><button id="marchBtn" data-icon="flee" aria-pressed="false">Forced march: Off</button><button id="stop" data-icon="stop" hidden>Stop</button><button id="experiment" hidden>Identify device</button><button id="install" hidden>Install hydrogen cell</button>
 <span class="divider" id="powerDivider" hidden></span><span id="worldPowers" style="display:contents"></span>
 </div>
+<div class="frame turn-chip" id="turnChip" role="status" hidden></div>
+<div class="action-bar combat-controls" id="combatBar" aria-label="Combat actions" hidden></div>
 <div id="utilityPanel" hidden><div class="heading"><h3 id="utilityTitle"></h3><button id="closeUtility">Close</button></div><div id="utilityBody"></div></div>
 <label hidden>Active survivor<select id="roster"></select></label>
 </section>
-<section class="battle-area stage" id="combatArea" hidden></section>
 <aside class="information battle-info sidebar" id="sharedInformation">
 <div class="side-tabs" role="group" aria-label="Side panel">
 <button id="chatTab" aria-pressed="true">Information</button><button id="eventsTab" aria-pressed="false">Events</button><button id="partyTab" aria-pressed="false">Party</button><button id="bagTab" aria-pressed="false">Bag</button>

@@ -167,16 +167,6 @@
 .place-card{margin:8px 12px 0;padding:8px 10px;border-radius:6px;background:#232e24;border:1px solid #3c4a3b;}
 .place-card strong{display:block;color:#e2d4a5;}
 .place-card .guidance{margin:0;padding:0;border:0;background:none;font-size:12px;color:#b9c2b0;min-height:0;}
-/* Combat uses the same frames: the tactical page's own character box is hidden, its target box sits beside the survivor. */
-.play-page #combatArea .map-viewport{inset:0;top:0;}
-.play-page #combatArea .battle-top{position:absolute;left:calc(50% + 190px);top:12px;transform:translateX(-50%);z-index:6;margin:0;padding:6px 14px;background:var(--hud);border:1px solid var(--hud-line);border-radius:8px;box-shadow:0 4px 14px #0008;display:block;width:auto;text-align:center;}
-.play-page #combatArea .hud{position:absolute;left:274px;top:12px;z-index:6;display:flex;flex-direction:column;gap:6px;width:250px;background:none;border:0;padding:0;margin:0;}
-.play-page #combatArea .hud .pc-frame{display:none;}
-.play-page #combatArea .hud > div{width:auto;background:var(--hud);border:1px solid var(--hud-line);border-radius:8px;box-shadow:0 4px 14px #0008;padding:8px 10px;}
-.play-page #combatArea .hud .target-frame{border-color:#c9614f;}
-.play-page #combatArea .hud .target-frame.none{display:none;}
-.play-page #combatArea .hud .plan-frame{font-size:11.5px;color:#b9c2b0;padding:5px 10px;}
-.play-page #combatArea .hud small{display:none;}
 .bands{display:flex;gap:2px;height:12px;margin:5px 0 4px;}
 .bands i{flex:1;background:#4a2c28;}
 .bands i.on{background:#a84d40;}
@@ -184,22 +174,6 @@
 .bands i:last-child{border-radius:0 3px 3px 0;}
 #targetAttack{display:block;font-size:11px;color:#9aa690;margin-top:2px;}
 @media (max-width:900px){#frames{position:static;flex-direction:row;flex-wrap:wrap;padding:6px;}#targetFrame,.play-page .hud-top .minimap,.play-page .hud-top .view-switch{display:none;}.play-page .stage .action-bar{max-width:calc(100% - 24px);}}
-.play-page #combatArea .action-bar #attack::before{-webkit-mask-image:var(--ico-attack);mask-image:var(--ico-attack);}
-.play-page #combatArea .action-bar #throw::before{-webkit-mask-image:var(--ico-throw);mask-image:var(--ico-throw);}
-.play-page #combatArea .action-bar #bind::before{-webkit-mask-image:var(--ico-bleed);mask-image:var(--ico-bleed);}
-.play-page #combatArea .action-bar #parley::before{-webkit-mask-image:var(--ico-talk);mask-image:var(--ico-talk);}
-.play-page #combatArea .action-bar #gift::before{-webkit-mask-image:var(--ico-gift);mask-image:var(--ico-gift);}
-.play-page #combatArea .action-bar #flee::before{-webkit-mask-image:var(--ico-flee);mask-image:var(--ico-flee);}
-.play-page #combatArea .action-bar #autoAttack::before{-webkit-mask-image:var(--ico-repeat);mask-image:var(--ico-repeat);}
-.play-page #combatArea .action-bar #endTurn::before{-webkit-mask-image:var(--ico-end);mask-image:var(--ico-end);}
-.play-page #combatArea .action-bar #leaveEncounter::before{-webkit-mask-image:var(--ico-back);mask-image:var(--ico-back);}
-.play-page #combatArea .action-bar #returnWorld::before{-webkit-mask-image:var(--ico-back);mask-image:var(--ico-back);}
-.play-page #combatArea .action-bar #mental::before{-webkit-mask-image:var(--ico-power);mask-image:var(--ico-power);}
-.play-page #combatArea .action-bar #customizePowers::before{-webkit-mask-image:var(--ico-search);mask-image:var(--ico-search);}
-.play-page #combatArea .action-bar #attack::after{content:"A";}.play-page #combatArea .action-bar #endTurn::after{content:"R";}.play-page #combatArea .action-bar #autoAttack::after{content:"Q";}
-.play-page #combatArea .action-bar #attack::after,.play-page #combatArea .action-bar #endTurn::after,.play-page #combatArea .action-bar #autoAttack::after{position:absolute;left:6px;top:3px;font-size:10px;font-weight:600;color:#9aa690;}
-.play-page #combatArea .action-bar #powerSlots{display:contents;}
-.play-page #combatArea .action-bar label[hidden],.play-page #combatArea .action-bar span[hidden]{display:none;}
 /* A hex grid laid over a scene image (Eden Valley): outlines only, so the art shows through. */
 #board.hex.has-image{background-color:transparent;}
 #board.hex.has-image .cell:not(.site){background-color:transparent;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 34.64' preserveAspectRatio='none'%3E%3Cpath d='M10 .4h20l9.6 16.92L30 34.24H10L.4 17.32z' fill='%23d9cf9a' fill-opacity='.07' stroke='%23e7dfc4' stroke-opacity='.3' stroke-width='.8'/%3E%3C/svg%3E");}
@@ -210,3 +184,29 @@
 #board.hex .strokes polyline.ancient-road{stroke:#cfd6dc;stroke-width:4;}
 #board.hex .strokes polyline.ancient-road.broken{stroke:#aab3ba;stroke-width:3.5;stroke-dasharray:10 6;}
 #board.hex .strokes polyline.ancient-road.blocked,#board.hex .strokes polyline.ancient-road.bridge-out{stroke:#8b949b;stroke-width:3;stroke-dasharray:3 7;}
+/* Combat is a scene on the same board: the creature frame sits beside the survivor, the round chip above the action bar. */
+.play-page .stage .action-bar[hidden],#foeFrame[hidden],#turnChip[hidden]{display:none;}
+#foeFrame{position:absolute;left:262px;top:0;width:238px;}
+.unit-frame.foe .portrait{background:linear-gradient(160deg,#c98a6c,#4a3028);border-color:#c9614f;}
+.unit-frame.foe .bands{height:14px;margin:4px 0 3px;}
+.unit-frame.foe small.attack{font-size:11px;color:#9aa690;margin-top:2px;}
+.unit-frame.foe small.attack:empty{display:none;}
+#turnChip{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);z-index:6;display:flex;gap:6px 14px;flex-wrap:wrap;justify-content:center;max-width:calc(100% - 420px);padding:5px 12px;font-size:12px;font-weight:600;color:#cfd8c2;white-space:nowrap;}
+#turnChip span:first-child{color:#f0dfae;}
+#turnChip span:last-child{color:#9aa690;font-weight:500;}
+.play-page .stage .action-bar button.dim:not(:disabled){opacity:.6;}
+.play-page .stage .action-bar button.dim[aria-pressed="true"]{opacity:.9;}
+#board.combat .cell.pc .token{background:#b8e399;color:#11160f;border-color:#11160f;outline:2px solid #f0dfae;}
+#board.combat .token.marked{box-shadow:0 0 0 3px #c9614f,0 2px 4px #172019a0;}
+#board.combat .cell.reachable:not(.actor):hover{background:#a1bf79;}
+.minimap .mm .e{position:absolute;background:#c9614f;border-radius:50%;}
+.in-combat .topbar .clock{color:#f0b9a4;}
+/* Practice combat: the same scene with a setup form at the head of the sidebar. */
+.practice-page .topbar nav{display:flex;gap:16px;margin-left:auto;}
+.practice-page .topbar nav a{color:#cfd8c2;text-decoration:none;font-size:13px;}
+.practice-page .topbar nav a:hover{color:#f0dfae;}
+.practice-setup{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;padding:12px;border-bottom:1px solid #2a352a;}
+.practice-setup label{margin:0;font-size:12px;color:#b9c2b0;display:flex;flex-direction:column;gap:3px;min-width:0;}
+.practice-setup label.inline{flex-direction:row;align-items:center;gap:6px;}
+.practice-setup select,.practice-setup input:not([type="checkbox"]){width:100%;box-sizing:border-box;}
+.practice-setup button{grid-column:1 / -1;}

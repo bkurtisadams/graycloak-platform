@@ -594,14 +594,14 @@ else if (command.type === 'parley') {
         note(s, 'The Badders allow the party to depart. Encounter ended without combat.');
     }
     else
-        note(s, score <= 5 ? 'The Badders reject the overture. End Turn to resolve their response.' : 'The Badders hesitate but do not agree to safe passage. End Turn to resolve their response.');
+        note(s, score <= 5 ? 'The Badders reject the overture.' : 'The Badders hesitate but do not agree to safe passage.');
 }
 else if (command.type === 'attack') {
     const plan = interactivePlan(s, command.action, command.targetId, command.mode);
     s.turn.action = plan.action;
     if (s.order.first === 'simultaneous') {
         s.turn.queued = plan;
-        note(s, `${p.name} declares ${availableActions(p).find(a => a.id === plan.action)?.label ?? plan.action}; resolves simultaneously on End Turn.`);
+        note(s, `${p.name} declares ${availableActions(p).find(a => a.id === plan.action)?.label ?? plan.action}; both sides resolve together.`);
     }
     else
         act(s, p, plan, rng);

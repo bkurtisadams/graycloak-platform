@@ -3,6 +3,7 @@ import { STOCK, purse, owned, characterFor, buy, sell, equip, rest, repair, awar
 import { manifestRadiation, readCampaign, selectRecord, updateEntry, applyProgress } from './campaign.js';
 import { sceneOf, getScene, hasScene, registerScene, siteAt, scenePath, stepToward, sitePosition, startOf, ancestry, exitTo, clockOf, addMinutes, describeDistance, describeTime, FIRST_SCENE } from './scenes.js';
 import { loadRegion } from './world.js';
+import { mountCombat } from './combat-scene.js';
 import { party, followers, seekCompanion, approach, takeOn, dismiss, payWages, describe, WAGE, OFFER } from './party.js';
 // The country outside the valley is read from the campaign map before the first draw. Without it the valley still plays.
 let worldError = null;
@@ -101,7 +102,9 @@ function flushNews() {
     for (const line of news) log(line);
 }
 function atSite() { return entry && siteAt(entry); }
-const scene = () => sceneOf(entry && hasScene(entry.scene ?? 'legacy') ? entry : { scene: FIRST_SCENE });
+const homeScene = () => sceneOf(entry && hasScene(entry.scene ?? 'legacy') ? entry : { scene: FIRST_SCENE });
+// While a fight is on, the scene is the combat field: zoom, fit, pan and the minimap work on it unchanged.
+const scene = () => combat?.scene ?? homeScene();
 let drawn = null;
 // The grid is rebuilt only when the scene changes; a step just moves the token.
 function drawScene() {
@@ -166,17 +169,20 @@ function drawScene() {
     beyond.type = 'button';
     beyond.disabled = true;
     beyond.title = 'The continent map is not built yet';
-    $('sceneTrail').replaceChildren(...(chain[0].parent ? [] : [beyond]), ...chain.map((node, i) => {
+    // The trail shows the three nearest levels so it never runs under the minimap.
+    $('sceneTrail').replaceChildren(...[...(chain[0].parent ? [] : [beyond]), ...chain.map((node, i) => {
         const here = node.id === sc.id, b = el('button', node.name);
         b.type = 'button';
         b.setAttribute('aria-pressed', String(here));
         b.disabled = here;
         if (!here) { b.title = `Walk to the way out toward ${node.name}`; b.onclick = () => headFor(exitTo(sc, sc.parent)); }
         return b;
-    }));
+    })].slice(-3));
     fitWorld();
 }
+const mapDot = (sc, cls, x, y) => { const i = el('i'), pct = (n, of) => `${100 * n / of}%`; i.className = cls; Object.assign(i.style, { left: pct(x, sc.cols), top: pct(y, sc.rows), width: pct(1, sc.cols), height: pct(1, sc.rows) }); return i; };
 function render() {
+    if (combat) { combat.render(); return; }
     const sc = scene(), board = $('board');
     if (drawn !== sc.id) drawScene();
     for (const old of board.querySelectorAll('.player')) { old.classList.remove('player', 'party'); if (old.firstChild?.nodeType === 3) old.firstChild.remove(); }
@@ -184,7 +190,7 @@ function render() {
     $('worldScale').style.width = worldZoom * sc.scale.cells + 'px';
     drawFrames();
     $('dayLabel').textContent = entry ? clockOf(entry).text : '';
-    const pct = (n, of) => `${100 * n / of}%`, dot = (cls, x, y) => { const i = el('i'); i.className = cls; Object.assign(i.style, { left: pct(x, sc.cols), top: pct(y, sc.rows), width: pct(1, sc.cols), height: pct(1, sc.rows) }); return i; };
+    const dot = (cls, x, y) => mapDot(sc, cls, x, y);
     const north = el('i', 'N ↑'), view = el('i');
     north.className = 'north';
     view.className = 'view';
@@ -212,7 +218,7 @@ function render() {
     $('powerDivider').hidden = true;
     $('worldPowers').replaceChildren();
     let key = 0;
-    for (const b of worldArea.querySelectorAll('.action-bar button')) { if (b.hidden) delete b.dataset.key; else b.dataset.key = ++key; }
+    for (const b of worldArea.querySelectorAll('.world-controls button')) { if (b.hidden) delete b.dataset.key; else b.dataset.key = ++key; }
     $('placeTitle').textContent = $('site').textContent;
     drawTarget();
     if (!combat && !opening) flushNews();
@@ -271,14 +277,14 @@ function drawTarget() {
     $('board').children[selected.y * sc.cols + selected.x]?.classList.add('selected');
     const here = selected.x === entry.position.x && selected.y === entry.position.y, r = here ? null : drawRoute(selected, selected.name);
     $('targetTitle').textContent = selected.name;
-    $('targetKind').textContent = KIND[selected.kind] ?? selected.kind ?? '';
+    $('targetKind').textContent = selected.kind === 'exit' && selected.to !== sc.parent ? 'Way in' : KIND[selected.kind] ?? selected.kind ?? '';
     $('targetRoute').textContent = here ? 'You are here.' : r ? `${r.distance}${r.time ? ` · ${r.time} · arrive ${r.arrive}` : ''}` : 'No way there from here.';
     const exit = selected.kind === 'exit' && hasScene(selected.to) ? `Leads to ${getScene(selected.to).name}. ` : '';
     $('targetNote').textContent = here ? '' : `${exit}${r?.checks ? `${r.checks} encounter check${r.checks === 1 ? '' : 's'} on the way. ` : ''}${r ? 'Click to go there.' : ''}`;
     frame.hidden = false;
 }
-$('board').addEventListener('mousemove', e => { if (timer) return; const p = cellOf(e), key = p && `${p.x},${p.y}`; if (key === hovered) return; hovered = key; selected = p ? thing(p) : null; if (selected) drawTarget(); else { drawTarget(); drawRoute(p && !p.el.disabled ? p : null); } });
-$('board').addEventListener('mouseleave', () => { if (timer) return; hovered = null; selected = null; drawTarget(); });
+$('board').addEventListener('mousemove', e => { if (timer || combat) return; const p = cellOf(e), key = p && `${p.x},${p.y}`; if (key === hovered) return; hovered = key; selected = p ? thing(p) : null; if (selected) drawTarget(); else { drawTarget(); drawRoute(p && !p.el.disabled ? p : null); } });
+$('board').addEventListener('mouseleave', () => { if (timer || combat) return; hovered = null; selected = null; drawTarget(); });
 $('board').addEventListener('click', e => { const p = cellOf(e); if (!p || !idle()) return; selected = thing(p); hovered = null; drawTarget(); walkTo({ x: p.x, y: p.y }); });
 const clockTotal = e => (e.days ?? 0) * 1440 + (e.minutes ?? 360);
 // Route movement through uncharted country: one d6 check each day and each night, a six is an encounter (ENCOUNTERS).
@@ -494,52 +500,80 @@ try {
 catch (e) {
     say(e.message);
 }
-async function beginCombat() {
+// Combat is a scene: the fight is drawn on the same board, under the same frames, minimap and action bar.
+function combatChrome(on) {
+    worldArea.querySelector('.world-controls').hidden = on;
+    $('combatBar').hidden = !on;
+    document.body.classList.toggle('in-combat', on);
+    if (on) $('targetFrame').hidden = true;
+}
+function combatChanged(state) {
+    if (!combat) return;
+    entry = readCampaign().characters[entry.id] ?? entry;
+    drawFrames();
+    if (activeUtility === showSheet && !$('utilityPanel').hidden) showSheet();
+    const sc = combat.scene, north = el('i', 'N ↑'), view = el('i');
+    north.className = 'north';
+    view.className = 'view';
+    $('minimap').replaceChildren(...state.actors.filter(a => a.hp > 0 && !a.fled).map(a => mapDot(sc, a.id === 'player' ? 'p' : a.side === 'right' ? 'e' : 'a', a.x, a.y)), view, north);
+    drawView();
+    $('site').textContent = 'Combat';
+    $('dayLabel').textContent = state.status === 'active' ? `Round ${state.round}` : 'Fight over';
+    $('placeTitle').textContent = `Combat · ${homeScene().name}`;
+}
+function enterCombat() {
+    const sc = combat.scene, mm = $('minimap');
+    selected = null;
+    hovered = null;
+    drawn = null;
+    combatChrome(true);
+    mm.style.aspectRatio = `${sc.cols} / ${sc.rows}`;
+    mm.style.backgroundImage = '';
+    $('minimapName').textContent = sc.name;
+    $('minimapScale').textContent = '3 m per square';
+    $('worldScaleLabel').textContent = sc.scale.label;
+    $('sceneTrail').replaceChildren(...[...ancestry(homeScene()).map(n => n.name), sc.name].map((name, i, all) => {
+        const here = i === all.length - 1, b = el('button', name);
+        b.type = 'button';
+        b.disabled = true;
+        b.setAttribute('aria-pressed', String(here));
+        if (!here) b.title = 'Finish or leave the fight first';
+        return b;
+    }).slice(-3));
+    combatChanged(combat.getState());
+    fitWorld();
+}
+function endCombat(last) {
+    const id = entry.id;
+    if (last?.status === 'active') printedByCharacter.set(id, last.log.length);
+    else printedByCharacter.delete(id);
+    combat?.dispose();
+    combat = null;
+    combatChrome(false);
+    closeWindow();
+    drawn = null;
+    load(id);
+    showTab('chat');
+    log('Returned to exploration.');
+}
+function beginCombat() {
     if (opening || combat || !entry || !c || c.hp <= 0 && !entry.encounter)
         return;
     stop();
     opening = true;
     const id = entry.id;
     try {
-        const response = await fetch('tactical.html');
-        if (!response.ok)
-            throw Error('Unable to load combat interface');
-        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-        const source = doc.querySelector('.battle-area');
-        if (!source)
-            throw Error('Missing combat interface');
-        const area = $('combatArea');
-        area.replaceChildren(...Array.from(source.children).map(n => document.importNode(n, true)));
-        area.querySelector('.battle-controls').hidden = true;
-        area.querySelector('#battleNotice').hidden = true;
-        for (const [id, label] of [['returnWorld', 'Return'], ['leaveEncounter', 'Pause']]) {
-            const b = el('button', label);
-            b.id = id;
-            b.hidden = true;
-            b.title = id === 'returnWorld' ? 'Return to exploration' : 'Leave the fight paused and return to the map';
-            area.querySelector('.action-bar').append(b);
-        }
-        const mod = await import('./tactical.js');
-        if (entry.id !== id)
-            throw Error('Character changed; try again');
-        $('utilityPanel').hidden=true; activeUtility=null; area.append($('utilityPanel')); worldArea.remove(); showTab('chat');
-        area.hidden = false;
-        combat = mod.mountTactical({ root: area, information: $('sharedInformation'), embedded: true, characterId: id, onChange:()=>{ entry = readCampaign().characters[id] ?? entry; drawFrames(); if(activeUtility===showSheet && !$('utilityPanel').hidden) showSheet();}, initialPrinted: entry.encounter ? printedByCharacter.get(id) ?? 0 : 0, onExit: () => { const previous = combat?.getState(); if (previous?.status === 'active')
-                printedByCharacter.set(id, previous.log.length);
-            else
-                printedByCharacter.delete(id); combat?.dispose(); combat = null; worldArea.append($('utilityPanel')); $('utilityPanel').hidden = true; activeUtility = null; area.hidden = true; area.replaceChildren(); $('worldShell').prepend(worldArea); load(id); showTab('chat'); log('Returned to exploration.'); fitWorld(); } });
-        if (!combat.getState()) {
-            combat.dispose();
-            combat = null;
-            throw Error('Encounter could not start. Check the saved character and retry.');
-        }
+        closeWindow();
+        showTab('chat');
+        combat = mountCombat({ characterId: id, initialPrinted: entry.encounter ? printedByCharacter.get(id) ?? 0 : 0, onChange: combatChanged, onExit: endCombat });
+        enterCombat();
     }
     catch (e) {
-        worldArea.append($('utilityPanel'));
-        $('combatArea').replaceChildren();
-        $('combatArea').hidden = true;
-        if (!worldArea.isConnected)
-            $('worldShell').prepend(worldArea);
+        combat?.dispose();
+        combat = null;
+        combatChrome(false);
+        drawn = null;
+        render();
         say(e.message);
     }
     finally {
@@ -551,10 +585,10 @@ function dialog(title, body) { stop(); if (!combat && !opening)
     render();
     $('utilityTitle').textContent = title; $('utilityBody').replaceChildren(...body); $('utilityPanel').hidden = false; }
 $('closeDialog').onclick = () => $('gameDialog').close();
-const closeWindow = () => { $('utilityPanel').hidden = true; activeUtility = null; };
+function closeWindow() { $('utilityPanel').hidden = true; activeUtility = null; }
 $('closeUtility').onclick = closeWindow;
 function utility(fn) { return () => { if (activeUtility === fn && !$('utilityPanel').hidden) { closeWindow(); return; } activeUtility = fn; fn(); }; }
-$('mapExpand').onclick = () => { const expanded = document.body.classList.toggle('expanded-map'); $('mapExpand').textContent = expanded ? 'Show panel' : 'Hide panel'; if (!combat) fitWorld(); };
+$('mapExpand').onclick = () => { const expanded = document.body.classList.toggle('expanded-map'); $('mapExpand').textContent = expanded ? 'Show panel' : 'Hide panel'; fitWorld(); };
 function current() { if (!entry)
     throw Error('Select a saved character'); entry = readCampaign().characters[entry.id]; c = characterFor(entry); return c; }
 function row(text, buttons = []) { const r = el('div'); r.className = 'item-row'; r.append(el('span', text)); for (const [label, fn, disabled] of buttons) {
@@ -762,7 +796,7 @@ function drawView() {
     v.hidden = r - l >= .999 && d - t >= .999;
 }
 function centreOn(fx, fy) { const vp = $('viewport'), b = $('board'); vp.scrollLeft = b.offsetLeft + fx * b.offsetWidth - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + fy * b.offsetHeight - vp.clientHeight / 2; drawView(); }
-const centreOnSurvivor = () => { if (entry) { const sc = scene(), p = centre(sc, entry.position), b = $('board'); centreOn(p.x / b.offsetWidth, p.y / b.offsetHeight); } };
+const centreOnSurvivor = () => { if (entry) { const sc = scene(), p = centre(sc, combat ? combat.position() : entry.position), b = $('board'); centreOn(p.x / b.offsetWidth, p.y / b.offsetHeight); } };
 $('viewport').addEventListener('scroll', drawView);
 $('minimap').onclick = e => { const r = $('minimap').getBoundingClientRect(); centreOn((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); };
 $('mmCentre').onclick = centreOnSurvivor;
@@ -795,7 +829,7 @@ $('worldZoomOut').onclick = () => zoomWorld(worldZoom - 6);
 function fitWorld() { const vp = $('viewport'), sc = scene(), o = sc.open, hex = sc.layout === 'hex'; if (!vp?.clientWidth || !vp.clientHeight) return; zoomWorld(Math.floor(hex ? Math.min(vp.clientWidth / (o.cols + 1 / 3), vp.clientHeight / ((o.rows + 0.5) * HEX_H)) : Math.min(vp.clientWidth / o.cols, vp.clientHeight / o.rows))); const b = $('board'), w = hex ? (o.cols + 1 / 3) * worldZoom : o.cols * worldZoom, h = hex ? (o.rows + 0.5) * HEX_H * worldZoom : o.rows * worldZoom; vp.scrollLeft = b.offsetLeft + o.x * worldZoom + w / 2 - vp.clientWidth / 2; vp.scrollTop = b.offsetTop + o.y * worldZoom * (hex ? HEX_H : 1) + h / 2 - vp.clientHeight / 2; drawView(); }
 $('worldFit').onclick = fitWorld;
 fitWorld();
-globalThis.addEventListener?.('resize', () => { if (!combat) fitWorld(); });
+globalThis.addEventListener?.('resize', fitWorld);
 const viewport = $('viewport');
 let pan = null;
 viewport.oncontextmenu = e => e.preventDefault();
@@ -812,7 +846,7 @@ viewport.onpointerup = viewport.onpointercancel = viewport.onlostpointercapture 
 // Universal tools stay accessible; shortcuts never fire inside text fields or dialogs.
 $('mapBtn').onclick = utility(() => { const sc = scene(); dialog(`Map · ${sc.name}`, [el('p', `One ${unit(sc)} is ${describeDistance(sc, 1)}${sc.minutesPerCell ? `, about ${describeTime(sc.minutesPerCell)} on foot` : ''}.`), ...sc.sites.map(t => row(`${t.name}${t.kind === 'exit' && hasScene(t.to) ? ` (to ${getScene(t.to).name})` : ''}`, [['Walk there', () => { closeWindow(); headFor(t); }, t.x === entry.position.x && t.y === entry.position.y]])), ...(sc.parent ? [] : [el('p', 'This is the widest map so far. The continent map is not built yet.')])]); });
 document.addEventListener('keydown', e => { if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || gw.isTextEntry(e.target) || $('gameDialog').open)
-    return; if (!combat) { if (/^[1-9]$/.test(e.key)) { const b = [...worldArea.querySelectorAll('.action-bar button')].find(x => x.dataset.key === e.key); if (b && !b.disabled) b.click(); return; } if (e.key === 'Home') { centreOnSurvivor(); return; } if (e.key.toLowerCase() === 'f') { fitWorld(); return; } if (e.key === 'Escape') { if (timer) { stop(); render(); } selected = null; drawTarget(); drawRoute(null); return; } if (keyStep(e.key.toLowerCase())) { e.preventDefault(); return; } } const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
+    return; if (e.key === 'Home') { centreOnSurvivor(); return; } if (e.key.toLowerCase() === 'f') { fitWorld(); return; } if (combat) { if (combat.key(e)) return; } else { if (/^[1-9]$/.test(e.key)) { const b = [...worldArea.querySelectorAll('.world-controls button')].find(x => x.dataset.key === e.key); if (b && !b.disabled) b.click(); return; } if (e.key === 'Escape') { if (timer) { stop(); render(); } selected = null; drawTarget(); drawRoute(null); return; } if (keyStep(e.key.toLowerCase())) { e.preventDefault(); return; } } const id = { c: 'sheetBtn', i: 'bagBtn', m: 'mapBtn', j: 'journalBtn' }[e.key.toLowerCase()]; if (id) {
     e.preventDefault();
     $(id).onclick();
 }

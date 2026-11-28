@@ -66,7 +66,7 @@ const EDEN_VALLEY = build({
     sites: [
         // The trading post is a placeholder on the old road north of the gate.
         { id: 'trading-post', at: [984, 694], name: 'Trading post', kind: 'town' },
-        { id: 'apes', at: [573, 225], name: 'Ape Village', kind: 'place' },
+        { id: 'apes', at: [573, 225], name: 'Ape Village', kind: 'exit', to: 'ape-village', arrive: 'gate', label: 'Enter the Ape Village' },
         { id: 'complex', at: [727, 187], name: 'Complex entrance', kind: 'place' },
         { id: 'rats', at: [576, 401], name: 'Rats', kind: 'place' },
         { id: 'bears', at: [771, 298], name: 'Bears', kind: 'place' },
@@ -82,6 +82,31 @@ const EDEN_VALLEY = build({
     start: 'trading-post',
 });
 
+// Interiors are square maps at 3 m a square (the book's suggested scale for buildings). The Ape Village is the first:
+// a placeholder layout inside a palisade, to be replaced when the referee's own plan is supplied.
+const fill = (x0, y0, x1, y1) => { const out = []; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) out.push([x, y]); return out; };
+const ring = (x0, y0, x1, y1) => fill(x0, y0, x1, y1).filter(([x, y]) => x === x0 || x === x1 || y === y0 || y === y1);
+const APE_VILLAGE = build({
+    id: 'ape-village',
+    rev: 1,
+    name: 'Ape Village',
+    parent: 'eden-valley',
+    interior: true,
+    cols: 28,
+    rows: 20,
+    cellMeters: 3,
+    minutesPerCell: 0,
+    scale: { cells: 2, label: '6 m' },
+    walls: [...ring(0, 0, 27, 19), ...fill(11, 2, 16, 4), ...fill(3, 3, 5, 5), ...fill(3, 8, 5, 10), ...fill(3, 13, 5, 15), ...fill(22, 3, 24, 5), ...fill(22, 14, 24, 16), ...fill(8, 14, 10, 16), ...fill(25, 8, 26, 9)],
+    sites: [
+        { id: 'gate', x: 27, y: 11, name: 'Village gate', kind: 'exit', to: 'eden-valley', arrive: 'apes', label: 'Leave the Ape Village' },
+        { id: 'lodge', x: 13, y: 5, name: 'Great lodge', kind: 'place' },
+        { id: 'fire', x: 14, y: 10, name: 'Fire pit', kind: 'place' },
+        { id: 'store', x: 11, y: 15, name: 'Storehouse', kind: 'place' },
+        { id: 'watch', x: 25, y: 10, name: 'Watch platform', kind: 'place' },
+    ],
+    start: 'gate',
+});
 
 // The original 20 x 12 test grid, kept so saves and tests from before scenes still resolve.
 const LEGACY = build({
@@ -103,7 +128,7 @@ const LEGACY = build({
 });
 
 // The country outside the valley comes from the campaign map (world.js) and is registered once that has loaded.
-export const SCENES = { [EDEN_VALLEY.id]: EDEN_VALLEY, [LEGACY.id]: LEGACY };
+export const SCENES = { [EDEN_VALLEY.id]: EDEN_VALLEY, [APE_VILLAGE.id]: APE_VILLAGE, [LEGACY.id]: LEGACY };
 export function registerScene(definition) { return SCENES[definition.id] = build(definition); }
 export const hasScene = id => Object.hasOwn(SCENES, id);
 export const FIRST_SCENE = EDEN_VALLEY.id;

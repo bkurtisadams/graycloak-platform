@@ -90,7 +90,7 @@ function record() { if (!draft)
     throw Error('Generate a character first'); return { format: 'graycloak-gw-workshop', version: 2, base: draft.character, generation: draft.mutations, choices: [...choices], equipment: { armorId: $('armor').value, weaponId: $('weapon').value }, weightKg: Number($('weight').value), character }; }
 $('sandbox').addEventListener('click', () => { try {
     sessionStorage.setItem('graycloak.gw.sandbox.character', JSON.stringify(record()));
-    location.href = 'tactical.html';
+    location.href = 'practice.html';
 }
 catch (err) {
     guidance(err.message);
@@ -184,7 +184,7 @@ $('chatForm').addEventListener('submit', e => { e.preventDefault(); const msg = 
     return; $('messages').append(node('p', `${character?.name || 'You'}: ${msg}`)); if ($('messages').children.length > 100)
     $('messages').firstChild.remove(); $('chatText').value = ''; $('messages').scrollTop = $('messages').scrollHeight; });
 refreshRoster();
-event('Rules laboratory v0.6.23 initialized. Select mutations to preview immediately.');
+event('Rules laboratory v0.6.24 initialized. Select mutations to preview immediately.');
 
 // Wizard adapter: reuse the existing generation, preview and persistence handlers.
 export function wizardState(){return {generated:!!draft,ready:!!character,species:draft?.character.species,recordId};}
