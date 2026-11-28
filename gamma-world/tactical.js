@@ -63,7 +63,7 @@ export function mountTactical({ root = null, information = null, embedded = fals
         const old = campaignMode ? campaignEntry.encounter : null;
         if (campaignMode && state)
             return;
-        const fresh = old ?? gw.createEncounter(base, { creature: campaignEntry?.pendingEncounter?.creature ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: true, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
+        const fresh = old ?? gw.createEncounter(base, { definition: campaignEntry?.pendingEncounter?.definition ?? null, creature: campaignEntry?.pendingEncounter?.creature ?? $('creature').value, count: campaignEntry?.pendingEncounter?.count ?? Number($('count').value), surprisePossible: $('surprise').checked, meeting: true, intelligentMorale: true, blocked: campaignMode ? [{ x: 6, y: 3 }, { x: 6, y: 4 }, { x: 6, y: 5 }, { x: 9, y: 6 }] : [] });
         if (campaignEntry?.pendingEncounter?.site)
             fresh.site = campaignEntry.pendingEncounter.site;
         commit(gw.beginInteractive(fresh), old);

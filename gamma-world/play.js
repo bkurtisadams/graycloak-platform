@@ -187,6 +187,33 @@ $('roster').addEventListener('change', () => load($('roster').value));
 $('stop').onclick = () => { stop(); render(); };
 $('board').addEventListener('click', e => { const b = e.target.closest('.cell'); if (opening || combat || !b || !c || c.hp <= 0 || (entry.encounter || entry.pendingEncounter))
     return; walkTo({ x: +b.dataset.x, y: +b.dataset.y }); });
+const clockTotal = e => (e.days ?? 0) * 1440 + (e.minutes ?? 360);
+// Route movement through uncharted country: one d6 check each day and each night, a six is an encounter (ENCOUNTERS).
+// Returns true when travel was interrupted.
+function wander(sc, from) {
+    const r = gw.advanceWandering(entry.wandering ?? null, from, clockTotal(entry));
+    entry = updateEntry(entry.id, e => ({ ...e, wandering: r.state }));
+    if (r.check) log(`Random encounter check (${r.check.night ? 'night' : 'day'}): d6 = ${r.check.roll}${r.check.roll === 6 ? `, an encounter in hour ${r.check.hour} of the ${r.check.night ? 'night' : 'day'}` : ', none'}.`);
+    if (!r.due) return false;
+    const i = entry.position.y * sc.cols + entry.position.x, place = sc.places.find(p => p.x === entry.position.x && p.y === entry.position.y);
+    const key = gw.tableKey(sc.encounters, { terrain: sc.terrain[i], hazard: sc.hazards[i], feature: place?.kind }), met = gw.rollEncounter(sc.encounters, key);
+    const where = `${sc.terrainNames[sc.terrain[i]] ?? sc.terrain[i]}, ${key} table`;
+    if (met.creature === 'No Encounter') { log(`Encounter (${where}): d20 = ${met.roll}, no encounter.`); return false; }
+    stop();
+    const playable = sc.bestiary && gw.playableCreature(sc.bestiary, met.creature), count = Math.min(met.number ?? 1, 8);
+    if (!playable) {
+        const why = met.creature === 'Cryptic Alliance' ? 'which alliance is per the referee\'s map' : met.creature === 'Tribesmen' ? `a band of ${met.number}` : `${met.number ?? 1} sighted`;
+        log(`Encounter (${where}): d20 = ${met.roll}, ${met.creature} (${why}). This encounter cannot be played yet; you avoid it and travel on.`);
+        render();
+        say(`${clockOf(entry).text}. You came upon ${met.creature} and kept your distance. Click a destination to continue.`);
+        return true;
+    }
+    log(`Encounter (${where}): d20 = ${met.roll}, ${met.creature}, ${met.number ?? 1} appearing${count < (met.number ?? 1) ? ` (${count} take the field)` : ''}. ${playable.definition.notes ?? ''}`);
+    entry = updateEntry(entry.id, e => ({ ...e, pendingEncounter: { creature: playable.key, definition: playable.definition, count, site: 'wandering' } }));
+    render();
+    beginCombat();
+    return true;
+}
 function headFor(site) { if (site && !opening && !combat && c && c.hp > 0 && !(entry.encounter || entry.pendingEncounter)) walkTo({ x: site.x, y: site.y }); }
 function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry.position, target); if (!path) {
     say('You cannot get there from here.');
@@ -195,7 +222,9 @@ function walkTo(target) { stop(); const sc = scene(); path = scenePath(sc, entry
     return; say(`Walking ${describeDistance(sc, path.length)}${sc.minutesPerCell ? `, about ${describeTime(path.length * sc.minutesPerCell)}` : ''}. Click elsewhere or Stop to change course.`); timer = setInterval(() => { try {
     const p = path.shift();
     if (p) {
-        entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell)); /* Wandering encounter checks are not yet rolled. */
+        const from = clockTotal(entry);
+        entry = updateEntry(entry.id, d => addMinutes({ ...d, position: p, steps: (d.steps ?? 0) + 1 }, sc.minutesPerCell));
+        if (sc.encounters && wander(sc, from)) return;
     }
     render();
     if (!path.length) {

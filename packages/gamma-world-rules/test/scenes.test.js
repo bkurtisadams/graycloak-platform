@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { regionFrom } from '../../../gamma-world/world.js';
+import * as gw from '../index.js';
 import { registerScene, stepsFrom, SCENES, getScene, sceneOf, siteAt, scenePath, sitePosition, startOf, ancestry, exitTo, isBlocked, clockOf, addMinutes, describeDistance, describeTime, placeName, FIRST_SCENE } from '../../../gamma-world/scenes.js';
 
 // The region is built from the campaign map's own scripts, run here the way the browser runs them.
 const root = { console: { log() {}, warn() {} }, localStorage: { getItem: () => null, setItem() {} }, dispatchEvent() {}, CustomEvent: class {} };
 root.window = root;
 vm.createContext(root);
-for (const name of ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js']) vm.runInContext(readFileSync(new URL(`../../../gcc/${name}`, import.meta.url), 'utf8'), root);
+for (const name of ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js', 'gw-encounter-data.js', 'gw-creatures.js']) vm.runInContext(readFileSync(new URL(`../../../gcc/${name}`, import.meta.url), 'utf8'), root);
 const region = registerScene(regionFrom(root));
 
 test('the region is a window of 3-mile sub-hexes from the campaign map, centred on Eden Valley', () => {
@@ -22,6 +23,50 @@ test('the region is a window of 3-mile sub-hexes from the campaign map, centred 
   assert.ok(region.strokes.length > 0);
   assert.deepEqual(regionFrom(root).terrain, region.terrain, 'the same seed gives the same country');
   for (const id of ['clearing', 'outpost']) assert.ok(scenePath(region, home, sitePosition(region, id)).length >= 2);
+});
+
+const seq = (...values) => { let i = 0; return () => values[i++ % values.length]; };
+
+test('random encounters: one d6 each day and night, a six sets the hour, then d20 on the terrain table', () => {
+  assert.deepEqual([gw.travelPeriod(360).index, gw.travelPeriod(1079).night, gw.travelPeriod(1080).night, gw.travelPeriod(1800).index], [0, false, true, 2]);
+  // 08:00 on day 1, roll 3: nothing, and no second check in the same day.
+  let r = gw.advanceWandering(null, 360, 480, seq(0.4));
+  assert.deepEqual([r.due, r.check.roll, r.state], [false, 3, { period: 0, at: null }]);
+  assert.equal(gw.advanceWandering(r.state, 480, 720, seq(0.99)).check, null);
+  // Night falls: a six, hour 9 of the night (02:00). Not due at 22:00, due once 02:00 has passed.
+  r = gw.advanceWandering(r.state, 720, 1320, seq(0.99, 0.7));
+  assert.deepEqual([r.due, r.check.roll, r.check.hour, r.state.at], [false, 6, 9, 1080 + 8 * 60]);
+  r = gw.advanceWandering(r.state, 1320, 1560, seq(0.1));
+  assert.deepEqual([r.due, r.check, r.state.at], [true, null, null]);
+  // Setting out after the rolled hour: the encounter happens at once.
+  r = gw.advanceWandering(null, 900, 1000, seq(0.99, 0));
+  assert.equal(r.due, true);
+  const data = region.encounters;
+  assert.deepEqual([gw.tableKey(data, { terrain: 'heavy-forest' }), gw.tableKey(data, { terrain: 'snow-mountains' }), gw.tableKey(data, { terrain: 'coast' })], ['forest', 'mountains', 'clear']);
+  assert.equal(gw.tableKey(data, { terrain: 'forested-mountains' }), 'mountains');
+  assert.equal(gw.tableKey(data, { terrain: 'plains', hazard: 'radiation' }), 'radioactive');
+  assert.equal(gw.tableKey(data, { terrain: 'desert', feature: 'ruin' }), 'ruins');
+  assert.deepEqual(gw.rollEncounter(data, 'mountains', seq(0)), { table: 'mountains', roll: 1, creature: 'Podog', number: 1 });
+  assert.equal(gw.rollEncounter(data, 'ruins', seq(0.99)).creature, 'No Encounter');
+  assert.deepEqual([gw.rollNumber('2d4', seq(0.99)), gw.rollNumber('1'), gw.rollNumber(null)], [8, 1, 1]);
+});
+
+test('bestiary creatures with a dice attack can be fought; the rest are reported, not invented', () => {
+  const yexil = gw.playableCreature(region.bestiary, 'Yexil');
+  assert.deepEqual([yexil.definition.ac, yexil.definition.hd, yexil.definition.natural, yexil.definition.large], [6, 10, [3, 6], true]);
+  assert.match(yexil.definition.notes, /Not yet played: Eye laser/);
+  assert.equal(gw.playableCreature(region.bestiary, 'Badder').definition, gw.CREATURES.badder);
+  assert.equal(gw.playableCreature(region.bestiary, 'Horl Choo').definition.natural.join('d'), '3d6');
+  for (const name of ['Hisser', 'Perth', 'Android', 'Tribesmen', 'Cryptic Alliance', 'Robotic Unit', 'Kep', 'Zarn']) assert.equal(gw.playableCreature(region.bestiary, name), null, name);
+  const names = new Set(Object.values(region.encounters.ENCOUNTER_TABLES).flat().map(row => row.creature));
+  const playable = [...names].filter(n => gw.playableCreature(region.bestiary, n)).sort();
+  assert.deepEqual(playable, ['Ark', 'Arn', 'Badder', 'Blight', 'Brutorz', 'Cal Then', 'Fen', 'Herkel', 'Horl Choo', 'Obb', 'Parn', 'Pineto', 'Podog', 'Rakox', 'Sep', 'Soul Besh', 'Yexil']);
+  const character = { ...gw.CREATURES, selectionComplete: true, effects: {}, hp: 30, attributes: { CN: 10 } };
+  const fight = gw.createEncounter(character, { creature: yexil.key, definition: yexil.definition, count: 5, meeting: true, rng: seq(0.3, 0.6, 0.2, 0.8) });
+  assert.equal(fight.actors.length, 6);
+  assert.equal(fight.creatureName, 'Yexil');
+  assert.equal(new Set(fight.actors.map(a => `${a.x},${a.y}`)).size, 6);
+  assert.throws(() => gw.createEncounter(character, { creature: 'badder', count: 4 }));
 });
 
 test('hex steps: six neighbours, odd columns set half a hex lower', () => {

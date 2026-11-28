@@ -255,3 +255,16 @@ Extract over v0.6.10 at the repository root. `gamma-world/maps/eden-region.webp`
 - The game needs the `gcc` folder beside `gamma-world`. Without it the valley still plays and the gate reports that the country beyond is unavailable.
 - A survivor saved on the earlier square-grid region is put back at the Eden Valley hex.
 - 116 game tests and 3 lobby tests pass; the region tests run the campaign map scripts directly.
+
+## v0.6.12 — random encounters at route movement
+
+Extract over v0.6.11 at the repository root.
+
+- Printed procedure (ENCOUNTERS): while travelling on the region map the game rolls one d6 each day and one each night; a six is an encounter. A d12 then sets the hour of that day or night, and when that hour is reached a d20 is rolled on the ENCOUNTERS TABLE for the terrain of the hex the survivor is then in. Every roll is written to Events.
+- The tables, numbers appearing and creature statistics are read from the campaign map's data (`gcc/gw-encounter-data.js`, `gcc/gw-creatures.js`); the game keeps no copy. Rules are in `packages/gamma-world-rules/wandering.js`.
+- Table choice follows the map data: a ruin, vault or fortification in the hex uses Ruins, a radiation hazard uses Radioactive Zones, otherwise the terrain. Terrain kinds missing from the map's lookup (heavy forest, snow mountains) are read by family.
+- Referee policies: day is 06:00-18:00 and night 18:00-06:00; the "appropriate die" for the time is a d12; if travel begins after the rolled hour the encounter happens on the first hex; checks are made only on the region map, not inside the valley; numbers appearing use the map data's defaults and at most 8 take the field.
+- Playable now (hit dice, ground movement and a physical attack in dice): Ark, Arn, Badder, Blight, Brutorz, Cal Then, Fen, Herkel, Horl Choo, Obb, Parn, Pineto, Podog, Rakox, Sep, Soul Besh, Yexil. Each meets through the reaction roll as before. Their other powers (lasers, radiation, poison, mutations) are not played yet and are named in the Events line.
+- Not playable yet, so reported and avoided with no roll or reward: creatures whose attacks are poison, radiation or technology, rooted plants, Androids, Robotic Units, Tribesmen and Cryptic Alliances.
+- The combat engine accepts a creature definition and up to 8 opponents when one is supplied; the built-in creatures keep their limit of 3.
+- 118 game tests and 3 lobby tests pass.

@@ -4,7 +4,7 @@
 // In a browser on the same origin as the map, working edits in localStorage are picked up as well.
 
 const GCC = '../gcc/';
-const SCRIPTS = ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js'];
+const SCRIPTS = ['gw-authored.js', 'gw-terrain-data.js', 'gcc-rng.js', 'gw-subhex-data.js', 'gw-encounter-data.js', 'gw-creatures.js'];
 const ROOT3 = Math.sqrt(3), KM_PER_MILE = 1.609344;
 // Eden Valley on the campaign map (world SVG units), about 90 miles south of Spokane. Used when no marker is named for it.
 const EDEN = { x: 456, y: 279.13 };
@@ -37,11 +37,12 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
     const home = data.svgToAxial(named.x, named.y), cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
     const axial = (x, y) => ({ Q: home.Q + x - cx, R: home.R + (y - cy) - (Math.floor(x / 2) - Math.floor(cx / 2)) });
     const cell = (Q, R) => { const x = Q - home.Q + cx; return { x, y: R - home.R + cy + Math.floor(x / 2) - Math.floor(cx / 2) }; };
-    const terrain = [], walls = [];
+    const terrain = [], hazards = [], walls = [];
     for (let y = 0; y < rows; y++)
         for (let x = 0; x < cols; x++) {
-            const { Q, R } = axial(x, y), t = data.getSubhexAt(Q, R).terrain || 'unknown';
+            const { Q, R } = axial(x, y), sub = data.getSubhexAt(Q, R), t = sub.terrain || 'unknown';
             terrain.push(t);
+            hazards.push(sub.hazard || null);
             if (t === 'water') walls.push([x, y]);
         }
     const inside = p => p.x >= 0 && p.y >= 0 && p.x < cols && p.y < rows, at = p => terrain[p.y * cols + p.x];
@@ -69,7 +70,10 @@ export function regionFrom(root, { cols = 31, rows = 23 } = {}) {
         name: 'Eden Valley region',
         parent: null,
         layout: 'hex',
-        cols, rows, walls, terrain,
+        cols, rows, walls, terrain, hazards,
+        // Travel here is route movement through uncharted country, so random encounters are checked (ENCOUNTERS).
+        encounters: root.GWEncounterData ?? null,
+        bestiary: root.GWCreatures?.creatures ?? null,
         palette: Object.fromEntries(Object.entries(data.TERRAIN).map(([k, v]) => [k, v.fill])),
         terrainNames: Object.fromEntries(Object.entries(data.TERRAIN).map(([k, v]) => [k, v.label])),
         // World SVG box of the window, so strokes drawn on the campaign map land on the same hexes here.
